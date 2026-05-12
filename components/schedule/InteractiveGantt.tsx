@@ -45,6 +45,9 @@ import {
 } from 'react-native';
 import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
 import { PHASE_COLORS } from '@/utils/scheduleEngine';
@@ -152,6 +155,8 @@ function daysBetween(a: Date, b: Date): number {
 // ---------------------------------------------------------------------------
 
 export default function InteractiveGantt(props: InteractiveGanttProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, focusedTaskId, onFocusTask } = props;
   // Filter rows belonging to collapsed summaries. CPM still honored them (we
   // received the pre-rolled set); we only hide them visually so the gantt
@@ -919,11 +924,11 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         </View>
         <View style={styles.legend}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendStripe, { backgroundColor: Colors.error }]} />
+            <View style={[styles.legendStripe, { backgroundColor: themeColors.danger }]} />
             <Text style={styles.legendText}>Critical</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendStripe, { backgroundColor: Colors.primary }]} />
+            <View style={[styles.legendStripe, { backgroundColor: themeColors.accent }]} />
             <Text style={styles.legendText}>Normal</Text>
           </View>
         </View>
@@ -1040,7 +1045,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       top: HEADER_HEIGHT + i * ROW_HEIGHT,
                       width: timelineWidth,
                       height: ROW_HEIGHT,
-                      backgroundColor: Colors.surface,
+                      backgroundColor: themeColors.surface,
                       borderBottomWidth: i < tasks.length - 1 ? 1 : 0,
                       borderBottomColor: 'rgba(60,60,67,0.045)',
                     },
@@ -1137,7 +1142,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.error} />
+                    <Polygon points="0,0 7,3.5 0,7" fill={themeColors.danger} />
                   </Marker>
                   <Marker
                     id="arrowBlue"
@@ -1147,12 +1152,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.primary} />
+                    <Polygon points="0,0 7,3.5 0,7" fill={themeColors.accent} />
                   </Marker>
                 </Defs>
 
                 {dependencyPaths.map(dep => {
-                  const color = dep.critical ? Colors.error : Colors.primary;
+                  const color = dep.critical ? themeColors.danger : themeColors.accent;
                   // Lines render solid by default — calmer than constant
                   // marching ants on every dependency. The "alive" feel
                   // appears only when a connected bar is hovered or being
@@ -1229,7 +1234,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   const aw = Math.max(MIN_BAR_PX_WIDTH, (aEnd - aStart + 1) * pxPerDay);
                   const finished = bar.task.actualEndDay != null;
                   const fillColor = finished
-                    ? Colors.success
+                    ? themeColors.success
                     : 'rgba(52,199,89,0.55)';  // translucent green for in-progress
                   return (
                     <SvgRect
@@ -1239,7 +1244,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       width={aw}
                       height={BAR_HEIGHT - 4}
                       fill={fillColor}
-                      stroke={finished ? Colors.success : 'transparent'}
+                      stroke={finished ? themeColors.success : 'transparent'}
                       strokeWidth={finished ? 1 : 0}
                       rx={4}
                     />
@@ -1267,7 +1272,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   const cy = bar.y - 2;
                   const path = `M ${cx - 6} ${cy} L ${cx + 6} ${cy} L ${cx} ${cy + 8} Z`;
                   const overdue = bar.cpmRow && bar.cpmRow.ef > d;
-                  const color = overdue ? Colors.error : Colors.warning;
+                  const color = overdue ? themeColors.danger : Colors.warning;
                   return (
                     <Path
                       key={`deadline-${bar.task.id}`}
@@ -1322,7 +1327,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const y1 = src.y + BAR_HEIGHT / 2;
                 const x2 = linkDrag.pointerLocalX;
                 const y2 = linkDrag.pointerLocalY;
-                const color = linkDrag.invalid ? Colors.error : (linkDrag.hoverTargetId ? Colors.success : Colors.primary);
+                const color = linkDrag.invalid ? themeColors.danger : (linkDrag.hoverTargetId ? themeColors.success : themeColors.accent);
                 return (
                   <Svg
                     width={timelineWidth}
@@ -1468,7 +1473,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const tipY = above ? bar.y - 110 : bar.y + BAR_HEIGHT + 8;
                 const depCount = (t.dependencyLinks?.length ?? t.dependencies.length ?? 0);
                 const progressPct = Math.max(0, Math.min(100, t.progress ?? 0));
-                const accent = bar.isCritical ? Colors.error : Colors.primary;
+                const accent = bar.isCritical ? themeColors.danger : themeColors.accent;
                 const statusLabel = t.status === 'done' ? 'Complete'
                   : t.status === 'in_progress' ? 'In Progress'
                   : t.status === 'on_hold' ? 'On Hold'
@@ -1625,6 +1630,8 @@ function BarView({
   onFocus,
   onLogStartToday, onLogFinishToday,
 }: BarViewProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // Decide whether a touch at offsetX is on the body (move) or right edge (resize).
   const pickMode = (offsetX: number, width: number): 'move' | 'resize' => {
     if (bar.isMilestone) return 'move';
@@ -1675,16 +1682,16 @@ function BarView({
   const aStart = bar.task.actualStartDay;
   const aEnd = bar.task.actualEndDay;
   let varianceLabel: string | null = null;
-  let varianceColor = Colors.textSecondary;
+  let varianceColor = themeColors.textSecondary;
   if (aEnd != null) {
     const v = aEnd - baseEnd;
-    if (v > 0) { varianceLabel = `+${v}d late`; varianceColor = Colors.error; }
-    else if (v < 0) { varianceLabel = `${v}d early`; varianceColor = Colors.success; }
+    if (v > 0) { varianceLabel = `+${v}d late`; varianceColor = themeColors.danger; }
+    else if (v < 0) { varianceLabel = `${v}d early`; varianceColor = themeColors.success; }
     else varianceLabel = 'on time';
   } else if (aStart != null) {
     const v = aStart - baseStart;
     if (v > 0) { varianceLabel = `started +${v}d`; varianceColor = Colors.warning; }
-    else if (v < 0) { varianceLabel = `started ${v}d early`; varianceColor = Colors.success; }
+    else if (v < 0) { varianceLabel = `started ${v}d early`; varianceColor = themeColors.success; }
     else varianceLabel = 'started on time';
   }
 
@@ -1712,7 +1719,7 @@ function BarView({
             top: bar.y + 4,
             width: bar.w,
             height: 6,
-            backgroundColor: Colors.text,
+            backgroundColor: themeColors.text,
             borderRadius: 1,
             zIndex: 3,
           }}
@@ -1733,8 +1740,8 @@ function BarView({
             borderLeftWidth: fang,
             borderRightWidth: 0,
             borderBottomWidth: 0,
-            borderTopColor: Colors.text,
-            borderLeftColor: Colors.text,
+            borderTopColor: themeColors.text,
+            borderLeftColor: themeColors.text,
             borderRightColor: 'transparent',
             borderBottomColor: 'transparent',
             zIndex: 3,
@@ -1753,8 +1760,8 @@ function BarView({
             borderRightWidth: fang,
             borderLeftWidth: 0,
             borderBottomWidth: 0,
-            borderTopColor: Colors.text,
-            borderRightColor: Colors.text,
+            borderTopColor: themeColors.text,
+            borderRightColor: themeColors.text,
             borderLeftColor: 'transparent',
             borderBottomColor: 'transparent',
             zIndex: 3,
@@ -1784,9 +1791,9 @@ function BarView({
           backgroundColor: barColor,
           borderRadius: 4,
           borderWidth: isFocusTarget ? 2 : 0,
-          borderColor: Colors.accent,
+          borderColor: themeColors.accent,
           opacity: dimmed ? 0.25 : 1,
-          shadowColor: isFocusTarget ? Colors.accent : barColor,
+          shadowColor: isFocusTarget ? themeColors.accent : barColor,
           shadowOpacity: isFocusTarget ? 0.6 : (isHovered || isDragging ? 0.4 : 0.15),
           shadowRadius: isFocusTarget ? 8 : (isHovered || isDragging ? 6 : 2),
           shadowOffset: { width: 0, height: 1 },
@@ -1800,7 +1807,7 @@ function BarView({
   }
 
   // Drop-target highlight when a link is being dragged onto us.
-  const targetRingColor = linkInvalid ? Colors.error : Colors.success;
+  const targetRingColor = linkInvalid ? themeColors.danger : themeColors.success;
   const showTargetRing = isLinkTarget;
 
   return (
@@ -1880,7 +1887,7 @@ function BarView({
             bottom: 0,
             borderRadius: BAR_RADIUS,
             borderWidth: 2,
-            borderColor: Colors.accent,
+            borderColor: themeColors.accent,
           }}
           pointerEvents="none"
         />
@@ -1944,7 +1951,7 @@ function BarView({
           width: 14,
           height: 14,
           borderRadius: 7,
-          backgroundColor: Colors.primary,
+          backgroundColor: themeColors.accent,
           borderWidth: 2,
           borderColor: '#fff',
           shadowColor: '#000',
@@ -2025,13 +2032,13 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     overflow: 'hidden',
   },
   toolbar: {
@@ -2040,18 +2047,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
     gap: 16,
     backgroundColor: Colors.surfaceAlt,
   },
   toolbarTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
   },
   zoomGroup: {
     flexDirection: 'row',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.sm,
     padding: 2,
     position: 'relative',
@@ -2063,7 +2070,7 @@ const styles = StyleSheet.create({
     top: 2,
     left: 2,
     bottom: 2,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.xs,
     shadowColor: '#000',
     shadowOpacity: 0.08,
@@ -2079,7 +2086,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   zoomBtnActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -2088,10 +2095,10 @@ const styles = StyleSheet.create({
   zoomBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   zoomBtnTextActive: {
-    color: Colors.text,
+    color: t.text,
   },
   zoomSliderWrap: {
     flexDirection: 'row',
@@ -2102,19 +2109,19 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 4,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   zoomStepBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
   },
   zoomSliderValue: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     minWidth: 48,
     textAlign: 'center',
   },
@@ -2127,7 +2134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   navBtnDisabled: {
     opacity: 0.4,
@@ -2135,7 +2142,7 @@ const styles = StyleSheet.create({
   navBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600',
-    color: Colors.text,
+    color: t.text,
   },
   legend: {
     flexDirection: 'row',
@@ -2162,7 +2169,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600',
     letterSpacing: 0.1,
   },
@@ -2173,20 +2180,20 @@ const styles = StyleSheet.create({
   },
   gutter: {
     borderRightWidth: 1,
-    borderRightColor: Colors.cardBorder,
-    backgroundColor: Colors.surface,
+    borderRightColor: t.line,
+    backgroundColor: t.surface,
   },
   gutterHeader: {
     paddingHorizontal: 12,
     justifyContent: 'flex-end',
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
   },
   gutterHeaderText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -2196,14 +2203,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   gutterRowHover: {
-    backgroundColor: Colors.primary + '0A',
+    backgroundColor: t.accent + '0A',
   },
   gutterIndex: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '600',
     width: 20,
   },
@@ -2211,7 +2218,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.error,
+    backgroundColor: t.danger,
   },
   // Phase-colored dot leading the row name. Same hue as the task bar so the
   // GC can flick between the table and the timeline without re-orienting.
@@ -2234,15 +2241,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   gutterNameCritical: {
-    color: Colors.error,
+    color: t.danger,
     fontWeight: '700',
   },
   gutterSubtitle: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
 
@@ -2251,7 +2258,7 @@ const styles = StyleSheet.create({
   },
   timelineHeader: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
     backgroundColor: Colors.surfaceAlt,
   },
   timelineHeaderRow: {
@@ -2267,7 +2274,7 @@ const styles = StyleSheet.create({
   monthText: {
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -2280,11 +2287,11 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 10,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   dayTextBold: {
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
   },
 
   rowBg: {
@@ -2300,7 +2307,7 @@ const styles = StyleSheet.create({
   barLabelText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600',
-    color: Colors.text,
+    color: t.text,
   },
 
   tooltip: {
@@ -2333,9 +2340,9 @@ const styles = StyleSheet.create({
   linkPopover: {
     position: 'absolute',
     width: 260,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     borderRadius: Tokens.radius.md,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -2348,7 +2355,7 @@ const styles = StyleSheet.create({
   linkPopoverTitle: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
     marginBottom: 8,
   },
   linkTypeRow: {
@@ -2361,17 +2368,17 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 4,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
   },
   linkTypeLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700',
-    color: Colors.primary,
+    color: t.accent,
   },
   linkTypeHelp: {
     fontSize: 9,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 1,
   },
   linkLagRow: {
@@ -2384,19 +2391,19 @@ const styles = StyleSheet.create({
   linkLagLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginRight: 4,
   },
   linkLagBtn: {
     paddingVertical: 3,
     paddingHorizontal: 6,
     borderRadius: 4,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   linkLagText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600',
-    color: Colors.text,
+    color: t.text,
   },
   linkCancel: {
     alignItems: 'center',
@@ -2404,19 +2411,19 @@ const styles = StyleSheet.create({
   },
   linkCancelText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
 
   footer: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: t.line,
     backgroundColor: Colors.surfaceAlt,
   },
   footerText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontStyle: 'italic',
   },
 
@@ -2426,10 +2433,10 @@ const styles = StyleSheet.create({
   // the metadata reads as a card not a pill.
   hoverCard: {
     position: 'absolute',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     paddingVertical: 12,
     paddingHorizontal: 14,
     shadowColor: '#000',
@@ -2453,12 +2460,12 @@ const styles = StyleSheet.create({
   hoverCardTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.2,
   },
   hoverCardPhase: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -2472,7 +2479,7 @@ const styles = StyleSheet.create({
   hoverCardCriticalText: {
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.error,
+    color: t.danger,
     letterSpacing: 0.2,
   },
   hoverCardDateRow: {
@@ -2482,18 +2489,18 @@ const styles = StyleSheet.create({
   },
   hoverCardDateText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '600',
   },
   hoverCardDuration: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600',
   },
   hoverCardProgressTrack: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     overflow: 'hidden',
   },
   hoverCardProgressFill: {
@@ -2511,20 +2518,20 @@ const styles = StyleSheet.create({
   },
   hoverCardMetaLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500',
     letterSpacing: 0.2,
     textTransform: 'uppercase' as const,
   },
   hoverCardMetaValue: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '700',
     marginTop: 2,
   },
   hoverCardCrew: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500',
     fontStyle: 'italic',
   },
@@ -2534,21 +2541,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
   },
   chipBtnDone: {
-    backgroundColor: Colors.success,
-    borderColor: Colors.success,
+    backgroundColor: t.success,
+    borderColor: t.success,
   },
   chipBtnText: {
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
   },
 });

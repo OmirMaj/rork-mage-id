@@ -26,6 +26,9 @@ import {
   Shield, BookOpen, ClipboardList, FileText, Trash2, ExternalLink,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import {
@@ -55,6 +58,8 @@ const FOLDER_ICONS: Record<string, React.ComponentType<{ size?: number; color?: 
 };
 
 export function ProjectFilesBrowser({ projectId, projectName }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [files, setFiles] = useState<ProjectFile[]>([]);
@@ -154,7 +159,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       <View style={styles.container}>
         <View style={styles.fileListHeader}>
           <TouchableOpacity onPress={() => setActiveFolder(null)} style={styles.backBtn}>
-            <ChevronLeft size={18} color={Colors.text} />
+            <ChevronLeft size={18} color={themeColors.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.folderEyebrow}>FOLDER</Text>
@@ -167,20 +172,20 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             activeOpacity={0.85}
           >
             {uploading
-              ? <ActivityIndicator size="small" color={Colors.surface} />
-              : <Upload size={14} color={Colors.surface} />}
+              ? <ActivityIndicator size="small" color={themeColors.surface} />
+              : <Upload size={14} color={themeColors.surface} />}
             <Text style={styles.uploadBtnText}>{uploading ? 'Uploading…' : 'Upload'}</Text>
           </TouchableOpacity>
         </View>
 
         {loadingFiles ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={Colors.primary} />
+            <ActivityIndicator color={themeColors.accent} />
             <Text style={styles.muted}>Loading files…</Text>
           </View>
         ) : files.length === 0 ? (
           <View style={styles.emptyFolder}>
-            <FolderOpen size={28} color={Colors.textMuted} />
+            <FolderOpen size={28} color={themeColors.textMuted} />
             <Text style={styles.emptyFolderTitle}>No files in this folder yet</Text>
             <Text style={styles.emptyFolderBody}>
               Upload contracts, signed PDFs, photos, or anything else you want stored
@@ -194,8 +199,8 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
               activeOpacity={0.85}
             >
               {uploading
-                ? <ActivityIndicator size="small" color={Colors.surface} />
-                : <Upload size={14} color={Colors.surface} />}
+                ? <ActivityIndicator size="small" color={themeColors.surface} />
+                : <Upload size={14} color={themeColors.surface} />}
               <Text style={styles.uploadBtnText}>{uploading ? 'Uploading…' : 'Upload first file'}</Text>
             </TouchableOpacity>
           </View>
@@ -204,7 +209,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             {files.map(f => (
               <View key={f.path} style={styles.fileRow}>
                 <View style={styles.fileIconWrap}>
-                  <FileText size={16} color={Colors.primary} />
+                  <FileText size={16} color={themeColors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fileName} numberOfLines={2}>{f.name}</Text>
@@ -219,7 +224,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel="Open"
                 >
-                  <ExternalLink size={15} color={Colors.textSecondary} />
+                  <ExternalLink size={15} color={themeColors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDelete(f)}
@@ -250,7 +255,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
         anything you upload — contracts, signed PDFs, inspection photos, permits.
       </Text>
       {loadingCounts && Object.keys(counts).length === 0 ? (
-        <ActivityIndicator color={Colors.primary} style={{ marginVertical: 32 }} />
+        <ActivityIndicator color={themeColors.accent} style={{ marginVertical: 32 }} />
       ) : (
         <View style={styles.grid}>
           {DEFAULT_FOLDERS.map(f => {
@@ -264,7 +269,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
                 activeOpacity={0.85}
               >
                 <View style={styles.folderIconWrap}>
-                  <Icon size={20} color={Colors.primary} />
+                  <Icon size={20} color={themeColors.accent} />
                 </View>
                 <Text style={styles.folderLabel}>{f.label}</Text>
                 <Text style={styles.folderCount}>
@@ -279,73 +284,73 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
   projectName: {
-    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 11, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase' as const,
   },
-  gridTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
-  gridSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginBottom: 8 },
+  gridTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.3 },
+  gridSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginBottom: 8 },
   grid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   folderTile: {
     width: '48%' as const,
     paddingVertical: 14,
     paddingHorizontal: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    borderWidth: 0.5, borderColor: t.line,
     gap: 6,
   },
   folderIconWrap: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
     marginBottom: 4,
   },
-  folderLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  folderCount: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
+  folderLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  folderCount: { fontSize: Type.caption2.fontSize, color: t.textSecondary },
 
   fileListHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginBottom: 8 },
   backBtn: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   folderEyebrow: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase' as const,
   },
-  folderTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
+  folderTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.3 },
   uploadBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
-  uploadBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  uploadBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.surface },
 
   loadingWrap: { padding: 32, alignItems: 'center' as const, gap: 12 },
-  muted: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
+  muted: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted },
 
   emptyFolder: { padding: 32, alignItems: 'center' as const, gap: 8 },
-  emptyFolderTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 8 },
-  emptyFolderBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
+  emptyFolderTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 8 },
+  emptyFolderBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
 
   fileList: { gap: 6, paddingBottom: 24 },
   fileRow: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    borderWidth: 0.5, borderColor: t.line,
   },
   fileIconWrap: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
   },
-  fileName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  fileMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  fileName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  fileMeta: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   fileAction: { padding: 6 },
 });

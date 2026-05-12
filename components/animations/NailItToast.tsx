@@ -16,6 +16,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View, Dimensions } from 'react-native';
 import { Hammer, CheckCircle2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
@@ -40,6 +43,8 @@ export function nailIt(message: string): void {
 }
 
 export function NailItToastHost() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [active, setActive] = useState<ToastEvent | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const hammerX = useRef(new Animated.Value(80)).current;
@@ -96,7 +101,7 @@ export function NailItToastHost() {
     <View pointerEvents="none" style={[styles.host, { width: screenWidth }]}>
       <Animated.View style={[styles.toast, { opacity }]}>
         <View style={styles.checkBubble}>
-          <CheckCircle2 size={18} color={Colors.success} fill={Colors.successLight} />
+          <CheckCircle2 size={18} color={themeColors.success} fill={Colors.successLight} />
         </View>
         <Text style={styles.message} numberOfLines={2}>{active.message}</Text>
         {/* Hammer strikes from the right. */}
@@ -138,7 +143,7 @@ export function NailItToastHost() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   host: {
     position: 'absolute',
     top: 64,
@@ -152,7 +157,7 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: Colors.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -177,7 +182,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600',
-    color: Colors.text,
+    color: t.text,
   },
   hammerWrap: {
     position: 'absolute',

@@ -5,6 +5,9 @@ import {
 import { Mic } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import type { VoiceUpdateFunctions } from '@/utils/voiceCommandExecutor';
 import VoiceCommandModal from './VoiceCommandModal';
@@ -21,6 +24,8 @@ interface VoiceFieldButtonProps {
 export default function VoiceFieldButton({
   tasks, projectName, projectId, updateFunctions, activeTodayTask, bottomOffset = 16,
 }: VoiceFieldButtonProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
@@ -79,7 +84,7 @@ export default function VoiceFieldButton({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     position: 'absolute',
     left: 20,
@@ -92,13 +97,13 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   button: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

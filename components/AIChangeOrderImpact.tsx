@@ -5,6 +5,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, CalendarDays, DollarSign, ArrowRight, Zap } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { analyzeChangeOrderImpact, type ChangeOrderImpactResult } from '@/utils/aiService';
 import type { ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
@@ -21,6 +24,8 @@ function formatCurrency(n: number): string {
 }
 
 export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<ChangeOrderImpactResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -49,11 +54,11 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
         disabled={isLoading || !changeDescription.trim()}
       >
         {isLoading ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
         ) : (
-          <Sparkles size={16} color={changeDescription.trim() ? Colors.primary : Colors.textMuted} />
+          <Sparkles size={16} color={changeDescription.trim() ? themeColors.accent : themeColors.textMuted} />
         )}
-        <Text style={[styles.triggerText, !changeDescription.trim() && { color: Colors.textMuted }]}>
+        <Text style={[styles.triggerText, !changeDescription.trim() && { color: themeColors.textMuted }]}>
           {isLoading ? 'Analyzing Impact...' : 'Analyze Impact with AI'}
         </Text>
       </TouchableOpacity>
@@ -64,7 +69,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     <View style={styles.card}>
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
-          <Sparkles size={16} color={Colors.primary} />
+          <Sparkles size={16} color={themeColors.accent} />
           <Text style={styles.headerTitle}>Change Order Impact Analysis</Text>
         </View>
         <Text style={styles.aiTag}>AI</Text>
@@ -74,13 +79,13 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
         <>
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <CalendarDays size={14} color={Colors.info} />
+              <CalendarDays size={14} color={themeColors.info} />
               <Text style={styles.sectionTitle}>Schedule Impact</Text>
             </View>
             <Text style={styles.impactValue}>+{result.scheduleDays} days</Text>
             {(result.affectedTasks ?? []).map((task, idx) => (
               <View key={idx} style={styles.taskRow}>
-                <ArrowRight size={12} color={Colors.textMuted} />
+                <ArrowRight size={12} color={themeColors.textMuted} />
                 <Text style={styles.taskText}>
                   "{task.taskName}" pushed {task.daysAdded}d ({task.currentEnd} → {task.newEnd})
                 </Text>
@@ -91,7 +96,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <DollarSign size={14} color={Colors.success} />
+              <DollarSign size={14} color={themeColors.success} />
               <Text style={styles.sectionTitle}>Cost Impact</Text>
             </View>
             <View style={styles.costGrid}>
@@ -107,9 +112,9 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
                 <Text style={styles.costLabel}>Equipment</Text>
                 <Text style={styles.costValue}>{formatCurrency(result.costImpact?.equipment ?? 0)}</Text>
               </View>
-              <View style={[styles.costItem, { backgroundColor: `${Colors.primary}10` }]}>
+              <View style={[styles.costItem, { backgroundColor: `${themeColors.accent}10` }]}>
                 <Text style={[styles.costLabel, { fontWeight: '700' as const }]}>Total</Text>
-                <Text style={[styles.costValue, { color: Colors.primary }]}>{formatCurrency(result.costImpact?.total ?? 0)}</Text>
+                <Text style={[styles.costValue, { color: themeColors.accent }]}>{formatCurrency(result.costImpact?.total ?? 0)}</Text>
               </View>
             </View>
           </View>
@@ -126,7 +131,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
             </View>
           )}
 
-          <View style={[styles.section, { backgroundColor: `${Colors.primary}08` }]}>
+          <View style={[styles.section, { backgroundColor: `${themeColors.accent}08` }]}>
             <Text style={styles.recTitle}>Recommendation</Text>
             <Text style={styles.recText}>{result.recommendation}</Text>
           </View>
@@ -154,7 +159,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   triggerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -162,10 +167,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: `${Colors.primary}08`,
+    backgroundColor: `${t.accent}08`,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: `${Colors.primary}20`,
+    borderColor: `${t.accent}20`,
     marginVertical: 8,
   },
   triggerDisabled: {
@@ -174,15 +179,15 @@ const styles = StyleSheet.create({
   triggerText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     marginVertical: 8,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
     gap: 12,
   },
   header: {
@@ -198,13 +203,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   aiTag: {
     fontSize: 10,
     fontWeight: '800' as const,
-    color: Colors.primary,
-    backgroundColor: `${Colors.primary}12`,
+    color: t.accent,
+    backgroundColor: `${t.accent}12`,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -224,12 +229,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   impactValue: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.error,
+    color: t.danger,
   },
   taskRow: {
     flexDirection: 'row',
@@ -239,13 +244,13 @@ const styles = StyleSheet.create({
   },
   taskText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     flex: 1,
   },
   endDate: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     marginTop: 4,
   },
   costGrid: {
@@ -257,46 +262,46 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: '45%',
     padding: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.sm,
     alignItems: 'center',
   },
   costLabel: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   costValue: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   effectText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   recTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   recText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 19,
   },
   compRow: {
     padding: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.sm,
     gap: 2,
   },
   compDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   compMeta: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   reanalyzeBtn: {
     alignItems: 'center',
@@ -304,7 +309,7 @@ const styles = StyleSheet.create({
   },
   reanalyzeText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
   },
 });

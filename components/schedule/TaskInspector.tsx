@@ -22,6 +22,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { X, Anchor, Flag, Users, CalendarClock, Info, Camera, Bell, Plus, Trash2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
@@ -44,15 +47,17 @@ function dayToDate(startDate: Date, day: number): string {
 }
 
 const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: string; color: string }[] = [
-  { value: 'not_started', label: 'Not started', color: Colors.textMuted },
-  { value: 'in_progress', label: 'In progress', color: Colors.primary },
+  { value: 'not_started', label: 'Not started', color: "#9AA3AD" },
+  { value: 'in_progress', label: 'In progress', color: "#FF6A1A" },
   { value: 'on_hold', label: 'On hold', color: Colors.warning },
-  { value: 'done', label: 'Done', color: Colors.success },
+  { value: 'done', label: 'Done', color: "#2E7D44" },
 ];
 
 export default function TaskInspector({
   task, allTasks, cpm, projectStartDate, onClose, onEdit,
 }: TaskInspectorProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [subscriberDraft, setSubscriberDraft] = useState('');
 
   // Photo capture — camera + library, both fall through to handleEdit
@@ -152,9 +157,9 @@ export default function TaskInspector({
   return (
     <View style={styles.panel}>
       <View style={styles.header}>
-        <Info size={16} color={Colors.primary} />
+        <Info size={16} color={"#FF6A1A"} />
         <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled task'}</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} /></TouchableOpacity>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -167,7 +172,7 @@ export default function TaskInspector({
           <Row label="Late start"   value={cpmRow ? dayToDate(projectStartDate, cpmRow.ls) : '—'} />
           <Row label="Late finish"  value={cpmRow ? dayToDate(projectStartDate, cpmRow.lf) : '—'} />
           <Row label="Total float"  value={cpmRow ? `${cpmRow.totalFloat}d` : '—'}
-            valueColor={cpmRow?.isCritical ? Colors.error : Colors.text} />
+            valueColor={cpmRow?.isCritical ? "#C84038" : themeColors.text} />
           <Row label="Free float"   value={cpmRow ? `${cpmRow.freeFloat}d` : '—'} />
           <Row label="Duration"     value={`${task.durationDays ?? 0}d`} />
         </View>
@@ -175,7 +180,7 @@ export default function TaskInspector({
         {/* Status picker — quick single-tap update without opening the grid. */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <Flag size={12} color={Colors.textSecondary} />
+            <Flag size={12} color={"#9AA3AD"} />
             <Text style={styles.sectionTitle}>Status</Text>
           </View>
           <View style={styles.statusRow}>
@@ -220,7 +225,7 @@ export default function TaskInspector({
         {/* Anchor summary — read-only here; the grid owns anchor editing. */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <Anchor size={12} color={Colors.textSecondary} />
+            <Anchor size={12} color={"#9AA3AD"} />
             <Text style={styles.sectionTitle}>Anchor</Text>
           </View>
           {anchorPretty ? (
@@ -236,7 +241,7 @@ export default function TaskInspector({
         {/* Dependencies list */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <CalendarClock size={12} color={Colors.textSecondary} />
+            <CalendarClock size={12} color={"#9AA3AD"} />
             <Text style={styles.sectionTitle}>Predecessors</Text>
           </View>
           {depRows.length === 0 ? (
@@ -257,7 +262,7 @@ export default function TaskInspector({
         {(task.crew || (task.resourceIds && task.resourceIds.length > 0)) && (
           <View style={styles.section}>
             <View style={styles.sectionHeadRow}>
-              <Users size={12} color={Colors.textSecondary} />
+              <Users size={12} color={"#9AA3AD"} />
               <Text style={styles.sectionTitle}>Crew</Text>
             </View>
             {task.crew && <Row label="Crew" value={task.crew} />}
@@ -275,7 +280,7 @@ export default function TaskInspector({
         {/* Photos — camera + library, no upload (local URI). */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Camera size={12} color={Colors.textSecondary} />
+            <Camera size={12} color={"#9AA3AD"} />
             <Text style={styles.sectionTitle}>Photos {task.photos && task.photos.length > 0 ? `(${task.photos.length})` : ''}</Text>
           </View>
           <View style={styles.photoGrid}>
@@ -296,7 +301,7 @@ export default function TaskInspector({
               activeOpacity={0.85}
               testID="task-add-photo"
             >
-              <Camera size={18} color={Colors.primary} />
+              <Camera size={18} color={"#FF6A1A"} />
               <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
             </TouchableOpacity>
             {Platform.OS !== 'web' && (
@@ -305,7 +310,7 @@ export default function TaskInspector({
                 onPress={() => handleAddPhoto('library')}
                 activeOpacity={0.85}
               >
-                <Plus size={18} color={Colors.primary} />
+                <Plus size={18} color={"#FF6A1A"} />
                 <Text style={styles.photoAddLabel}>Library</Text>
               </TouchableOpacity>
             )}
@@ -316,7 +321,7 @@ export default function TaskInspector({
             (opposite of Buildertrend's email-everyone posture). */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Bell size={12} color={Colors.textSecondary} />
+            <Bell size={12} color={"#9AA3AD"} />
             <Text style={styles.sectionTitle}>Notification list {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
           </View>
           <Text style={styles.notesText}>
@@ -327,7 +332,7 @@ export default function TaskInspector({
               value={subscriberDraft}
               onChangeText={setSubscriberDraft}
               placeholder="e.g. Volt Bros, joe@example.com"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={"#9AA3AD"}
               style={styles.subInput}
               onSubmitEditing={handleAddSubscriber}
               returnKeyType="done"
@@ -346,7 +351,7 @@ export default function TaskInspector({
                   <TouchableOpacity
                     onPress={() => handleRemoveSubscriber(s)}
                     hitSlop={4} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={11} color={Colors.textMuted} />
+                    <X size={11} color={"#9AA3AD"} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -359,6 +364,8 @@ export default function TaskInspector({
 }
 
 function Row({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -367,12 +374,12 @@ function Row({ label, value, valueColor }: { label: string; value: string; value
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   panel: {
     width: 340,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderLeftWidth: 1,
-    borderLeftColor: Colors.border,
+    borderLeftColor: t.line,
     ...(Platform.OS === 'web' ? ({
       boxShadow: '-4px 0 12px rgba(0,0,0,0.06)',
     } as any) : {
@@ -389,16 +396,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.line,
   },
-  headerTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  headerTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   closeBtn: { padding: 4 },
   body: { flex: 1 },
   section: {
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   sectionHeadRow: {
     flexDirection: 'row',
@@ -409,7 +416,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 6,
@@ -421,8 +428,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     gap: 10,
   },
-  rowLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, flex: 1 },
-  rowValue: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text, maxWidth: 180, textAlign: 'right' },
+  rowLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, flex: 1 },
+  rowValue: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.text, maxWidth: 180, textAlign: 'right' },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   statusChip: {
     flexDirection: 'row',
@@ -432,15 +439,15 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: Tokens.radius.xs,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.fillTertiary,
+    borderColor: t.line,
+    backgroundColor: t.surfaceAlt,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary },
+  statusChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
   subLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 6,
@@ -450,12 +457,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  progressChipActive: { backgroundColor: Colors.primary },
-  progressChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary },
+  progressChipActive: { backgroundColor: t.accent },
+  progressChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
   progressChipTextActive: { color: '#fff' },
-  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' },
+  emptyText: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic' },
   depRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -463,9 +470,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 10,
   },
-  depTitle: { fontSize: Type.caption1.fontSize, color: Colors.text, flex: 1 },
-  depMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600' },
-  notesText: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 18 },
+  depTitle: { fontSize: Type.caption1.fontSize, color: t.text, flex: 1 },
+  depMeta: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600' },
+  notesText: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 18 },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
 
@@ -474,8 +481,8 @@ const styles = StyleSheet.create({
   photoTile: {
     width: 72, height: 72, borderRadius: Tokens.radius.md,
     overflow: 'hidden',
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
     position: 'relative',
   },
   photoImg: { width: '100%', height: '100%' },
@@ -487,24 +494,24 @@ const styles = StyleSheet.create({
   },
   photoAdd: {
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary + '0D',
-    borderColor: Colors.primary + '30', borderStyle: 'dashed',
+    backgroundColor: t.accent + '0D',
+    borderColor: t.accent + '30', borderStyle: 'dashed',
     gap: 4,
   },
-  photoAddLabel: { fontSize: 10, fontWeight: '700', color: Colors.primary },
+  photoAddLabel: { fontSize: 10, fontWeight: '700', color: t.accent },
 
   // Subscribers
   subRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
   subInput: {
     flex: 1,
     paddingHorizontal: 10, paddingVertical: 8, borderRadius: Tokens.radius.sm,
-    borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.background,
-    fontSize: Type.caption1.fontSize, color: Colors.text,
+    borderWidth: 1, borderColor: t.line,
+    backgroundColor: t.bg,
+    fontSize: Type.caption1.fontSize, color: t.text,
   },
   subAddBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   subAddBtnDisabled: { opacity: 0.4 },
@@ -513,8 +520,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingLeft: 10, paddingRight: 6, paddingVertical: 5, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillSecondary,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     maxWidth: 220,
   },
-  subChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.text },
+  subChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.text },
 });

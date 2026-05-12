@@ -26,6 +26,9 @@ import {
   Plus, Bookmark, Trash2, X, Check, GitCompare, Pencil, ChevronRight,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScheduleTask } from '@/types';
@@ -64,6 +67,8 @@ type Mode =
   | { kind: 'compare-result'; aId: string; bId?: string };
 
 export default function BaselineManagerModal(props: BaselineManagerModalProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { visible, onClose, baselines, workingTasks, activeBaselineId, onBaselinesChange, onActivate } = props;
   const [mode, setMode] = useState<Mode>({ kind: 'list' });
   const [draftName, setDraftName] = useState('');
@@ -187,7 +192,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.header}>
-            <Bookmark size={18} color={Colors.primary} />
+            <Bookmark size={18} color={themeColors.accent} />
             <Text style={styles.title}>
               {mode.kind === 'list' ? 'Baselines' :
                mode.kind === 'capture' ? 'New baseline' :
@@ -196,7 +201,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
                'Variance'}
             </Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={18} color={Colors.textMuted} />
+              <X size={18} color={themeColors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -280,6 +285,8 @@ function ListView(props: {
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { baselines, activeBaselineId, onCapture, onCompare, onActivate, onRename, onDelete } = props;
 
   return (
@@ -291,7 +298,7 @@ function ListView(props: {
       <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
         {baselines.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Bookmark size={20} color={Colors.textMuted} />
+            <Bookmark size={20} color={themeColors.textMuted} />
             <Text style={styles.emptyText}>
               No baselines yet. Capture one to lock in the current plan as a target.
             </Text>
@@ -308,7 +315,7 @@ function ListView(props: {
                     <Text style={styles.baselineName} numberOfLines={1}>{b.name}</Text>
                     {isActive && (
                       <View style={styles.activeChip}>
-                        <Check size={10} color={Colors.primary} strokeWidth={3} />
+                        <Check size={10} color={themeColors.accent} strokeWidth={3} />
                         <Text style={styles.activeChipText}>ACTIVE</Text>
                       </View>
                     )}
@@ -321,14 +328,14 @@ function ListView(props: {
                 <View style={styles.baselineActions}>
                   {!isActive && (
                     <TouchableOpacity onPress={() => onActivate(b)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={`Activate ${b.name}`}>
-                      <ChevronRight size={14} color={Colors.primary} />
+                      <ChevronRight size={14} color={themeColors.accent} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity onPress={() => onRename(b.id)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={`Rename ${b.name}`}>
-                    <Pencil size={13} color={Colors.textMuted} />
+                    <Pencil size={13} color={themeColors.textMuted} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => onDelete(b.id)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={`Delete ${b.name}`}>
-                    <Trash2 size={13} color={Colors.error} />
+                    <Trash2 size={13} color={themeColors.danger} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -339,8 +346,8 @@ function ListView(props: {
 
       <View style={styles.footerRow}>
         <TouchableOpacity style={[styles.footerBtn, styles.footerBtnSecondary]} onPress={onCompare} disabled={baselines.length === 0} accessibilityRole="button">
-          <GitCompare size={14} color={baselines.length === 0 ? Colors.textMuted : Colors.text} />
-          <Text style={[styles.footerBtnText, baselines.length === 0 && { color: Colors.textMuted }]}>Compare</Text>
+          <GitCompare size={14} color={baselines.length === 0 ? themeColors.textMuted : themeColors.text} />
+          <Text style={[styles.footerBtnText, baselines.length === 0 && { color: themeColors.textMuted }]}>Compare</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, styles.footerBtnPrimary]} onPress={onCapture} accessibilityRole="button">
           <Plus size={14} color="#FFF" />
@@ -362,6 +369,8 @@ function CaptureView(props: {
   taskCount: number;
   isRename?: boolean;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <>
       <Text style={styles.helper}>
@@ -375,7 +384,7 @@ function CaptureView(props: {
         value={props.draftName}
         onChangeText={props.onChangeName}
         placeholder="v1, Signed, Approved rev 2…"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={themeColors.textMuted}
         style={styles.input}
         autoFocus
       />
@@ -385,7 +394,7 @@ function CaptureView(props: {
         value={props.draftNote}
         onChangeText={props.onChangeNote}
         placeholder="Why was this baseline taken?"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={themeColors.textMuted}
         style={[styles.input, { minHeight: 70, paddingTop: 10, textAlignVertical: 'top' as const }]}
         multiline
       />
@@ -415,6 +424,8 @@ function ComparePicker(props: {
   onCancel: () => void;
   onSubmit: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { baselines, compareA, compareB, comparePickerSlot, setCompareA, setCompareB, onCancel, onSubmit, setComparePickerSlot } = props;
   const aLabel = compareA ? baselines.find(b => b.id === compareA)?.name : null;
   const bLabel = compareB ? baselines.find(b => b.id === compareB)?.name : 'Today\'s plan';
@@ -497,6 +508,8 @@ function CompareResult(props: {
   diff: BaselineDiff[];
   onBack: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { baselines, aId, bId, diff, onBack } = props;
   const a = baselines.find(b => b.id === aId);
   const bLabel = bId ? baselines.find(x => x.id === bId)?.name : 'today\'s plan';
@@ -510,14 +523,14 @@ function CompareResult(props: {
 
       {diff.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Check size={20} color={Colors.success} />
+          <Check size={20} color={themeColors.success} />
           <Text style={styles.emptyText}>Plans match exactly. No variance.</Text>
         </View>
       ) : (
         <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 4 }} showsVerticalScrollIndicator={false}>
           {diff.map(d => {
             const sign = d.endDelta > 0 ? '+' : '';
-            const color = d.endDelta > 0 ? Colors.error : d.endDelta < 0 ? Colors.success : Colors.textMuted;
+            const color = d.endDelta > 0 ? themeColors.danger : d.endDelta < 0 ? themeColors.success : themeColors.textMuted;
             return (
               <View key={d.taskId} style={styles.diffRow}>
                 <Text style={styles.diffName} numberOfLines={1}>{d.title}</Text>
@@ -539,14 +552,14 @@ function CompareResult(props: {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'flex-end' as const,
   },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 22,
@@ -558,18 +571,18 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   title: {
     flex: 1,
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.3,
   },
   helper: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     lineHeight: 19,
   },
 
@@ -580,7 +593,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center' as const,
     paddingHorizontal: 24,
   },
@@ -593,11 +606,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   baselineRowActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
+    borderColor: t.accent,
+    backgroundColor: t.accent + '08',
   },
   baselineRowTop: {
     flexDirection: 'row' as const,
@@ -607,7 +620,7 @@ const styles = StyleSheet.create({
   baselineName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   activeChip: {
     flexDirection: 'row' as const,
@@ -616,22 +629,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: t.accent + '18',
   },
   activeChipText: {
     fontSize: 9,
     fontWeight: '800' as const,
-    color: Colors.primary,
+    color: t.accent,
     letterSpacing: 0.5,
   },
   baselineMeta: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
   baselineNote: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 4,
     fontStyle: 'italic' as const,
   },
@@ -649,7 +662,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 11,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.7,
     textTransform: 'uppercase' as const,
     marginTop: 4,
@@ -660,7 +673,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
 
   compareSlotsRow: {
@@ -673,15 +686,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   compareSlotActive: {
-    borderColor: Colors.primary,
+    borderColor: t.accent,
   },
   compareSlotLabel: {
     fontSize: 10,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.7,
     textTransform: 'uppercase' as const,
   },
@@ -689,7 +702,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
 
   pickerRow: {
@@ -704,17 +717,17 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   pickerRowSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '10',
+    borderColor: t.accent,
+    backgroundColor: t.accent + '10',
   },
   pickerRowName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   pickerRowMeta: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 
   diffRow: {
@@ -729,7 +742,7 @@ const styles = StyleSheet.create({
   diffName: {
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   diffDelta: {
     fontSize: Type.bodyCompact.fontSize,
@@ -752,14 +765,14 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.lg,
   },
   footerBtnPrimary: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   footerBtnSecondary: {
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   footerBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
 });

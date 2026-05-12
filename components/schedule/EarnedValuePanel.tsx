@@ -15,15 +15,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { DollarSign, TrendingUp, TrendingDown, X, ChevronRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { formatMoneyCompact, performanceTone, type ScheduleEvSnapshot } from '@/utils/scheduleEarnedValue';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 const TONE_COLOR: Record<'good' | 'warn' | 'bad', string> = {
-  good: Colors.success,
+  good: "#2E7D44",
   warn: Colors.warning,
-  bad: Colors.error,
+  bad: "#C84038",
 };
 
 export interface EarnedValuePanelProps {
@@ -32,6 +35,8 @@ export interface EarnedValuePanelProps {
 }
 
 function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const spiTone = performanceTone(snapshot.spi);
@@ -55,7 +60,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
       >
         <View style={styles.tileHead}>
           <View style={styles.tileIcon}>
-            <DollarSign size={14} color={Colors.primary} />
+            <DollarSign size={14} color={"#FF6A1A"} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.tileLabel}>Planned vs. Earned</Text>
@@ -79,7 +84,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Money on the schedule</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
 
@@ -172,7 +177,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
                           {formatMoneyCompact(load!.earnedValue)} earned
                         </Text>
                       </View>
-                      <ChevronRight size={14} color={Colors.textMuted} />
+                      <ChevronRight size={14} color={"#9AA3AD"} />
                     </View>
                   );
                 })}
@@ -191,39 +196,39 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
 
 export const EarnedValuePanel = memo(EarnedValuePanelImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tile: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 12, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
   tileHead: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   tileIcon: {
     width: 32, height: 32, borderRadius: 9,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
     alignItems: 'center', justifyContent: 'center',
   },
-  tileLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  tileSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 14 },
+  tileLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
+  tileSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 14 },
   spiPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full },
   spiText: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.2 },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {
     maxHeight: '90%' as const,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingTop: 10, gap: 12,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     alignSelf: 'center', marginBottom: 4,
   },
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  modalSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  modalSubtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -234,10 +239,10 @@ const styles = StyleSheet.create({
   kpiCol: {
     flex: 1, padding: 12, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  kpiLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  kpiValue: { fontSize: Type.subheadline.fontSize, fontWeight: '900', color: Colors.text, marginTop: 4, letterSpacing: -0.5 },
+  kpiLabel: { fontSize: 10, fontWeight: '800', color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
+  kpiValue: { fontSize: Type.subheadline.fontSize, fontWeight: '900', color: t.text, marginTop: 4, letterSpacing: -0.5 },
 
   indicesRow: { flexDirection: 'row', gap: 8 },
   indexCard: {
@@ -250,35 +255,35 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 9,
     alignItems: 'center', justifyContent: 'center',
   },
-  indexLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
+  indexLabel: { fontSize: 10, fontWeight: '800', color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
   indexValue: { fontSize: Type.subheadline.fontSize, fontWeight: '900', marginTop: 2, letterSpacing: -0.3 },
-  indexHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
+  indexHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
 
-  listHead: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const, marginTop: 6 },
+  listHead: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const, marginTop: 6 },
   list: { flex: 1 },
   taskRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 6,
   },
-  taskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  taskMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  taskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  taskMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   progressBar: {
     height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     marginTop: 6, overflow: 'hidden',
   },
   progressFill: {
-    height: '100%', backgroundColor: Colors.primary, borderRadius: 2,
+    height: '100%', backgroundColor: t.accent, borderRadius: 2,
   },
   taskMoneyCol: { alignItems: 'flex-end' },
-  taskBudget: { fontSize: Type.footnote.fontSize, fontWeight: '900', color: Colors.text, letterSpacing: -0.2 },
-  taskEarned: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  taskBudget: { fontSize: Type.footnote.fontSize, fontWeight: '900', color: t.text, letterSpacing: -0.2 },
+  taskEarned: { fontSize: 10, color: t.textMuted, marginTop: 2 },
 
   emptyText: {
-    fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic',
+    fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic',
     paddingVertical: 24, textAlign: 'center', lineHeight: 18,
   },
 });

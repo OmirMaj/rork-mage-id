@@ -21,6 +21,9 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { AlertTriangle, Crown, FileText, TrendingUp } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
@@ -39,12 +42,14 @@ interface Props {
 }
 
 export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'inline', onUpgrade }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { used, cap, remaining, tier, isLoading } = useTakeoffPagesQuota();
 
   if (isLoading) {
     return (
       <View style={[styles.row, variant === 'card' && styles.card]}>
-        <ActivityIndicator size="small" color={Colors.textMuted} />
+        <ActivityIndicator size="small" color={themeColors.textMuted} />
         <Text style={styles.muted}>Loading quota…</Text>
       </View>
     );
@@ -82,14 +87,14 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
     ? Colors.errorDark
     : usedAfter / cap > 0.8
       ? Colors.warningDark
-      : Colors.primary;
+      : themeColors.accent;
 
   return (
     <View style={[styles.col, variant === 'card' && styles.card]}>
       {/* Top row — file name (if any) + headline number */}
       <View style={styles.topRow}>
         <View style={styles.iconWrap}>
-          {exceeds ? <AlertTriangle size={14} color={Colors.errorDark} /> : <FileText size={14} color={Colors.primary} />}
+          {exceeds ? <AlertTriangle size={14} color={Colors.errorDark} /> : <FileText size={14} color={themeColors.accent} />}
         </View>
         <View style={{ flex: 1 }}>
           {pendingPages != null ? (
@@ -122,7 +127,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
       {exceeds && (
         <View style={styles.exceedRow}>
           <TouchableOpacity onPress={onUpgrade} style={styles.upgradePill} activeOpacity={0.85}>
-            <TrendingUp size={12} color={Colors.surface} />
+            <TrendingUp size={12} color={themeColors.surface} />
             <Text style={styles.upgradePillText}>Upgrade plan</Text>
           </TouchableOpacity>
         </View>
@@ -131,7 +136,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 8, paddingHorizontal: 12,
@@ -141,9 +146,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8, paddingHorizontal: 12,
   },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    borderWidth: 0.5, borderColor: t.line,
     padding: 14, gap: 10,
   },
   upgradeRow: {
@@ -153,16 +158,16 @@ const styles = StyleSheet.create({
   iconWrap: {
     width: 26, height: 26, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
   upgradeTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#7C3AED' },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  muted: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
+  muted: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   meter: {
     height: 6, borderRadius: 3,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     overflow: 'hidden' as const,
     position: 'relative' as const,
   },
@@ -180,5 +185,5 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     backgroundColor: '#7C3AED',
   },
-  upgradePillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  upgradePillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.surface },
 });

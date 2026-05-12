@@ -21,6 +21,9 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { Users, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, ProjectResource } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -47,6 +50,8 @@ function fmtMonth(d: Date) {
 }
 
 export default function ResourceSwimlanes({ tasks, resources, projectStartDate }: ResourceSwimlanesProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [pxPerDay, setPxPerDay] = useState(12);
 
   // Build the lane list. Prefer structured ProjectResource entries so the
@@ -148,7 +153,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
   if (lanes.length === 0) {
     return (
       <View style={styles.empty}>
-        <Users size={28} color={Colors.textMuted} />
+        <Users size={28} color={themeColors.textMuted} />
         <Text style={styles.emptyTitle}>No resources yet</Text>
         <Text style={styles.emptyText}>
           Assign a crew name or add resources in project settings to see the lane view.
@@ -160,7 +165,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
   return (
     <View style={styles.container}>
       <View style={styles.toolbar}>
-        <Users size={14} color={Colors.primary} />
+        <Users size={14} color={themeColors.accent} />
         <Text style={styles.toolbarTitle}>Resources</Text>
         <View style={styles.spacer} />
         <Text style={styles.zoomValue}>{Math.round(pxPerDay)}px/d</Text>
@@ -201,7 +206,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                     <Text style={styles.laneCap}>cap {lane.cap}</Text>
                     {overloaded && (
                       <View style={styles.overloadBadge}>
-                        <AlertTriangle size={10} color={Colors.error} />
+                        <AlertTriangle size={10} color={themeColors.danger} />
                       </View>
                     )}
                   </View>
@@ -218,7 +223,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                             top: 0,
                             width: pxPerDay,
                             bottom: 0,
-                            backgroundColor: Colors.error + '22',
+                            backgroundColor: themeColors.danger + '22',
                           }}
                         />
                       );
@@ -261,13 +266,13 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     overflow: 'hidden',
   },
   toolbar: {
@@ -278,24 +283,24 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.line,
   },
-  toolbarTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  toolbarTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   spacer: { flex: 1 },
-  zoomValue: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary, minWidth: 48, textAlign: 'right' },
+  zoomValue: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary, minWidth: 48, textAlign: 'right' },
   scrollH: { flex: 1 },
   headerRow: {
     flexDirection: 'row',
     height: HEADER_HEIGHT,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.line,
     backgroundColor: Colors.surfaceAlt,
   },
   monthTick: {
     position: 'absolute',
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
   },
   laneRow: {
@@ -303,7 +308,7 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   laneLabel: {
     width: LANE_LABEL_WIDTH,
@@ -313,17 +318,17 @@ const styles = StyleSheet.create({
     gap: 6,
     borderLeftWidth: 3,
     height: '100%',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
-  laneName: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
-  laneCap: { fontSize: 10, color: Colors.textSecondary, fontWeight: '600' },
+  laneName: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text, flex: 1 },
+  laneCap: { fontSize: 10, color: t.textSecondary, fontWeight: '600' },
   overloadBadge: {
     marginLeft: 4,
     padding: 2,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.error + '22',
+    backgroundColor: t.danger + '22',
   },
-  pillText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.text },
+  pillText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.text },
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -331,6 +336,6 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 8,
   },
-  emptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
-  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
+  emptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, marginTop: 8 },
+  emptyText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, textAlign: 'center', maxWidth: 280 },
 });

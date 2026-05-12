@@ -21,6 +21,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Mail, CheckCircle2, AlertTriangle, Inbox, Shield, RefreshCw } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -37,6 +40,8 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export default function ConfirmEmailModal({
   visible, email, onClose, onChangeEmail,
 }: ConfirmEmailModalProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { resendConfirmation } = useAuth();
 
   const [isResending, setIsResending] = useState(false);
@@ -108,7 +113,7 @@ export default function ConfirmEmailModal({
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.iconWrap}>
-            <Mail size={28} color={Colors.primary} strokeWidth={2} />
+            <Mail size={28} color={themeColors.accent} strokeWidth={2} />
           </View>
 
           <Text style={styles.title}>Confirm your email</Text>
@@ -142,7 +147,7 @@ export default function ConfirmEmailModal({
             ]}>
               {statusKind === 'success'
                 ? <CheckCircle2 size={14} color="#1B5E20" />
-                : <AlertTriangle size={14} color={Colors.error} />}
+                : <AlertTriangle size={14} color={themeColors.danger} />}
               <Text style={[
                 styles.statusText,
                 statusKind === 'success' ? styles.statusTextSuccess : styles.statusTextError,
@@ -163,7 +168,7 @@ export default function ConfirmEmailModal({
             testID="confirm-email-resend"
           >
             {isResending ? (
-              <ActivityIndicator color={Colors.surface} size="small" />
+              <ActivityIndicator color={themeColors.surface} size="small" />
             ) : (
               <Text style={styles.primaryBtnText}>
                 {secondsUntilResend > 0 ? `Resend in ${secondsUntilResend}s` : 'Resend email'}
@@ -200,10 +205,12 @@ export default function ConfirmEmailModal({
 function Tip({
   Icon, title, body,
 }: { Icon: typeof Inbox; title: string; body: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.tipRow}>
       <View style={styles.tipIcon}>
-        <Icon size={14} color={Colors.textSecondary} strokeWidth={2} />
+        <Icon size={14} color={themeColors.textSecondary} strokeWidth={2} />
       </View>
       <View style={styles.tipBody}>
         <Text style={styles.tipTitle}>{title}</Text>
@@ -213,7 +220,7 @@ function Tip({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -224,7 +231,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
@@ -233,7 +240,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -241,20 +248,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800',
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.4,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 6,
     textAlign: 'center',
   },
   email: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700',
-    color: Colors.primary,
+    color: t.accent,
     marginTop: 4,
     marginBottom: 18,
     textAlign: 'center',
@@ -273,7 +280,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
@@ -284,12 +291,12 @@ const styles = StyleSheet.create({
   tipTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
     marginBottom: 2,
   },
   tipText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 18,
   },
   statusBanner: {
@@ -317,11 +324,11 @@ const styles = StyleSheet.create({
     color: '#1B5E20',
   },
   statusTextError: {
-    color: Colors.error,
+    color: t.danger,
   },
   primaryBtn: {
     alignSelf: 'stretch',
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     alignItems: 'center',
@@ -333,7 +340,7 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700',
-    color: Colors.surface,
+    color: t.surface,
   },
   secondaryRow: {
     flexDirection: 'row',
@@ -348,6 +355,6 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
 });

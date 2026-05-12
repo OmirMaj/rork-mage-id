@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { AlertTriangle, RefreshCw } from 'lucide-react-native';
 import * as Sentry from '@sentry/react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -48,31 +51,11 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.container}>
-          <View style={styles.card}>
-            <View style={styles.iconWrap}>
-              <AlertTriangle size={32} color={Colors.error} strokeWidth={1.8} />
-            </View>
-            <Text style={styles.title}>Something went wrong</Text>
-            <Text style={styles.message}>
-              {this.props.fallbackMessage || 'The app encountered an unexpected error. Please try again.'}
-            </Text>
-            {this.state.error && (
-              <ScrollView style={styles.errorBox} horizontal={false}>
-                <Text style={styles.errorText}>{this.state.error.message}</Text>
-              </ScrollView>
-            )}
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={this.handleReset}
-              activeOpacity={0.8}
-              testID="error-boundary-retry"
-            >
-              <RefreshCw size={16} color={Colors.surface} strokeWidth={2} />
-              <Text style={styles.retryText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <ErrorFallback
+          error={this.state.error}
+          message={this.props.fallbackMessage}
+          onReset={this.handleReset}
+        />
       );
     }
 
@@ -80,7 +63,45 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-const styles = StyleSheet.create({
+function ErrorFallback({
+  error, message, onReset,
+}: {
+  error: Error | null;
+  message?: string;
+  onReset: () => void;
+}) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <View style={styles.container}>
+      <View style={styles.card}>
+        <View style={styles.iconWrap}>
+          <AlertTriangle size={32} color={themeColors.danger} strokeWidth={1.8} />
+        </View>
+        <Text style={styles.title}>Something went wrong</Text>
+        <Text style={styles.message}>
+          {message || 'The app encountered an unexpected error. Please try again.'}
+        </Text>
+        {error && (
+          <ScrollView style={styles.errorBox} horizontal={false}>
+            <Text style={styles.errorText}>{error.message}</Text>
+          </ScrollView>
+        )}
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={onReset}
+          activeOpacity={0.8}
+          testID="error-boundary-retry"
+        >
+          <RefreshCw size={16} color={'#FFFFFF'} strokeWidth={2} />
+          <Text style={styles.retryText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -113,7 +134,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -134,7 +155,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.error,
+    color: t.danger,
     fontFamily: 'monospace',
   },
   retryButton: {
@@ -151,6 +172,6 @@ const styles = StyleSheet.create({
   retryText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
 });

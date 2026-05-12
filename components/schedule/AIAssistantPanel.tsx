@@ -32,6 +32,9 @@ import {
   AlertTriangle,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
@@ -81,6 +84,8 @@ export interface AIAssistantPanelProps {
 type Mode = 'home' | 'risks' | 'optimize' | 'explain' | 'ask' | 'asbuilt' | 'generate' | 'bulk';
 
 export default function AIAssistantPanel(props: AIAssistantPanelProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const {
     visible, onClose, tasks, cpm, projectStartDate, todayDayNumber,
     onApplyPatch, onApplyBulkPatches, onReplaceAll, onFocusTasks, selectedIds,
@@ -276,7 +281,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.headerIconWrap}>
-              <Sparkles size={16} color={Colors.primary} />
+              <Sparkles size={16} color={themeColors.accent} />
             </View>
             <View>
               <Text style={styles.headerTitle}>AI Schedule Assistant</Text>
@@ -287,7 +292,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               </Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
         </View>
 
         {/* Mode switcher (always visible) */}
@@ -310,7 +315,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         {/* Selection summary strip — informs the user that bulk ops are scoped. */}
         {selectedCount > 0 && mode === 'bulk' && (
           <View style={styles.selectionStrip}>
-            <Sparkles size={12} color={Colors.primary} />
+            <Sparkles size={12} color={themeColors.accent} />
             <Text style={styles.selectionStripText} numberOfLines={2}>
               Bulk editing {selectedCount} task{selectedCount === 1 ? '' : 's'}:{' '}
               <Text style={styles.selectionStripNames}>
@@ -325,13 +330,13 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
           {busy && (
             <View style={styles.busyRow}>
-              <ActivityIndicator size="small" color={Colors.primary} />
+              <ActivityIndicator size="small" color={themeColors.accent} />
               <Text style={styles.busyText}>Thinking…</Text>
             </View>
           )}
           {error && (
             <View style={styles.errorCard}>
-              <AlertTriangle size={14} color={Colors.error} />
+              <AlertTriangle size={14} color={themeColors.danger} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -432,7 +437,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
                       <TouchableOpacity style={styles.applyBtn} onPress={() => handleAsBuiltApply(p)} accessibilityRole="button" accessibilityLabel="Confirm">
-                        <Check size={12} color={Colors.primary} />
+                        <Check size={12} color={themeColors.accent} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -495,7 +500,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
                       <TouchableOpacity style={styles.applyBtn} onPress={() => handleBulkApplyOne(p)} accessibilityRole="button" accessibilityLabel="Confirm">
-                        <Check size={12} color={Colors.primary} />
+                        <Check size={12} color={themeColors.accent} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -593,9 +598,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
 function ModeChip({
   icon: Icon, label, active, onPress,
 }: { icon: any; label: string; active: boolean; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity style={[styles.modeChip, active && styles.modeChipActive]} onPress={onPress} activeOpacity={0.8}>
-      <Icon size={12} color={active ? '#fff' : Colors.primary} />
+      <Icon size={12} color={active ? '#fff' : themeColors.accent} />
       <Text style={[styles.modeChipText, active && { color: '#fff' }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -604,6 +611,8 @@ function ModeChip({
 function HomeCard({
   taskCount, criticalCount, onGenerate, onRisks, onAsBuilt,
 }: { taskCount: number; criticalCount: number; onGenerate: () => void; onRisks: () => void; onAsBuilt: () => void; }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const empty = taskCount === 0;
   return (
     <View>
@@ -613,7 +622,7 @@ function HomeCard({
           <Text style={styles.statLabel}>Tasks</Text>
         </View>
         <View style={styles.statBox}>
-          <Text style={[styles.statNum, { color: Colors.error }]}>{criticalCount}</Text>
+          <Text style={[styles.statNum, { color: themeColors.danger }]}>{criticalCount}</Text>
           <Text style={styles.statLabel}>Critical</Text>
         </View>
       </View>
@@ -636,18 +645,20 @@ function HomeCard({
 function QuickBtn({
   icon: Icon, title, sub, onPress, featured,
 }: { icon: any; title: string; sub: string; onPress: () => void; featured?: boolean }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       style={[styles.quickBtn, featured && styles.quickBtnFeatured]}
       onPress={onPress}
       activeOpacity={0.85}
     >
-      <Icon size={16} color={featured ? '#fff' : Colors.primary} />
+      <Icon size={16} color={featured ? '#fff' : themeColors.accent} />
       <View style={{ flex: 1 }}>
         <Text style={[styles.quickBtnTitle, featured && { color: '#fff' }]}>{title}</Text>
         <Text style={[styles.quickBtnSub, featured && { color: 'rgba(255,255,255,0.8)' }]}>{sub}</Text>
       </View>
-      <ArrowRight size={14} color={featured ? '#fff' : Colors.textSecondary} />
+      <ArrowRight size={14} color={featured ? '#fff' : themeColors.textSecondary} />
     </TouchableOpacity>
   );
 }
@@ -655,7 +666,9 @@ function QuickBtn({
 function RisksView({
   result, tasks, onFocusTasks,
 }: { result: { summary: string; findings: AIRiskFinding[] }; tasks: ScheduleTask[]; onFocusTasks?: (ids: string[]) => void }) {
-  const color = (s: AIRiskFinding['severity']) => s === 'high' ? Colors.error : s === 'medium' ? Colors.warning : Colors.textSecondary;
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const color = (s: AIRiskFinding['severity']) => s === 'high' ? themeColors.danger : s === 'medium' ? Colors.warning : themeColors.textSecondary;
   const names = (ids: string[]) => ids.map(id => tasks.find(t => t.id === id)?.title).filter(Boolean).join(', ');
   return (
     <View>
@@ -694,6 +707,8 @@ function RisksView({
 function OptimizeView({
   result, tasks, onFocusTasks,
 }: { result: { summary: string; ideas: AIOptimizationIdea[] }; tasks: ScheduleTask[]; onFocusTasks?: (ids: string[]) => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const names = (ids: string[]) => ids.map(id => tasks.find(t => t.id === id)?.title).filter(Boolean).join(', ');
   return (
     <View>
@@ -726,6 +741,8 @@ function OptimizeView({
 function InputBar({
   value, onChangeText, onSubmit, placeholder, busy,
 }: { value: string; onChangeText: (v: string) => void; onSubmit: () => void; placeholder: string; busy: boolean }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.inputBar}>
       <TextInput
@@ -733,7 +750,7 @@ function InputBar({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={themeColors.textMuted}
         multiline
         blurOnSubmit
         onSubmitEditing={() => { if (!busy) onSubmit(); }}
@@ -766,7 +783,7 @@ function describePatch(patch: Partial<ScheduleTask>): string {
 
 const PANEL_WIDTH = 420;
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
@@ -781,9 +798,9 @@ const styles = StyleSheet.create({
     width: PANEL_WIDTH,
     maxWidth: '100%',
     height: '100%',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderLeftWidth: 1,
-    borderLeftColor: Colors.cardBorder,
+    borderLeftColor: t.line,
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 16,
@@ -798,19 +815,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIconWrap: {
     width: 28,
     height: 28,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '1A',
+    backgroundColor: t.accent + '1A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  headerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  headerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  headerSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 1 },
   closeBtn: { padding: 4 },
 
   modeRow: {
@@ -818,7 +835,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 6,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
   },
   modeChip: {
     flexDirection: 'row',
@@ -827,15 +844,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
   },
-  modeChipActive: { backgroundColor: Colors.primary },
-  modeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  modeChipActive: { backgroundColor: t.accent },
+  modeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   body: { flex: 1, padding: 12 },
 
   busyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
-  busyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontStyle: 'italic' },
+  busyText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontStyle: 'italic' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -843,9 +860,9 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.errorLight,
     borderWidth: 1,
-    borderColor: Colors.error + '33',
+    borderColor: t.danger + '33',
   },
-  errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1 },
+  errorText: { fontSize: Type.caption1.fontSize, color: t.danger, flex: 1 },
 
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   statBox: {
@@ -855,10 +872,10 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: 'center',
   },
-  statNum: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2, fontWeight: '600' },
+  statNum: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2, fontWeight: '600' },
 
-  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   quickGrid: { gap: 8 },
   quickBtn: {
     flexDirection: 'row',
@@ -866,60 +883,60 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   quickBtnFeatured: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: t.accent,
+    borderColor: t.accent,
   },
-  quickBtnTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  quickBtnSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  quickBtnTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  quickBtnSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 1 },
 
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     padding: 12,
     marginBottom: 10,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  cardTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  cardBody: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 18 },
-  cardSuggestion: { fontSize: Type.caption1.fontSize, color: Colors.primary, marginTop: 6, fontWeight: '600' },
+  cardTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  cardBody: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 18 },
+  cardSuggestion: { fontSize: Type.caption1.fontSize, color: t.accent, marginTop: 6, fontWeight: '600' },
   cardActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
 
   severityDot: { width: 8, height: 8, borderRadius: 4 },
   severityLabel: { fontSize: 9, fontWeight: '800' },
 
   saveBadge: {
-    fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.success,
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.success,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.success + '20',
+    backgroundColor: t.success + '20',
   },
 
   focusLink: { marginTop: 6 },
-  focusLinkText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontStyle: 'italic' },
+  focusLinkText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontStyle: 'italic' },
 
   emptyHint: {
     padding: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillSecondary,
     marginBottom: 10,
   },
-  emptyHintText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 18 },
+  emptyHintText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 18 },
   suggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   suggestion: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '12',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '12',
+    borderWidth: 1, borderColor: t.accent + '30',
   },
-  suggestionText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' },
+  suggestionText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '700' },
 
   chatTurn: { marginBottom: 14 },
   chatQ: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: Tokens.radius.card, alignSelf: 'flex-end',
     maxWidth: '90%', marginBottom: 4,
@@ -931,44 +948,44 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.card, alignSelf: 'flex-start',
     maxWidth: '95%',
   },
-  chatAText: { color: Colors.text, fontSize: Type.caption1.fontSize, lineHeight: 18 },
+  chatAText: { color: t.text, fontSize: Type.caption1.fontSize, lineHeight: 18 },
 
   patchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 8,
-    borderTopWidth: 1, borderTopColor: Colors.borderLight,
+    borderTopWidth: 1, borderTopColor: t.line,
   },
-  patchTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
-  patchDetail: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
-  patchRationale: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2 },
+  patchTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
+  patchDetail: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 1 },
+  patchRationale: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic', marginTop: 2 },
 
   applyBtn: {
     width: 28, height: 28, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
     alignItems: 'center', justifyContent: 'center',
   },
   applyAllBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   applyAllBtnText: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
   primaryBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.accent,
   },
   primaryBtnText: { color: '#fff', fontSize: Type.caption1.fontSize, fontWeight: '700' },
   secondaryBtn: {
     paddingHorizontal: 12, paddingVertical: 10,
     borderRadius: Tokens.radius.sm,
-    borderWidth: 1, borderColor: Colors.cardBorder,
-    backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: t.line,
+    backgroundColor: t.surface,
   },
-  secondaryBtnText: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '700' },
+  secondaryBtnText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '700' },
 
-  genPreviewRow: { fontSize: Type.caption2.fontSize, color: Colors.text, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  genPreviewRow: { fontSize: Type.caption2.fontSize, color: t.text, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: t.line },
 
   inputBar: {
     flexDirection: 'row',
@@ -976,7 +993,7 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: t.line,
     backgroundColor: Colors.surfaceAlt,
   },
   inputField: {
@@ -986,15 +1003,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     fontSize: Type.caption1.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   inputSend: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   selectionStrip: {
@@ -1003,30 +1020,30 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.primary + '30',
+    borderBottomColor: t.accent + '30',
   },
   selectionStripText: {
     flex: 1,
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 14,
   },
   selectionStripNames: {
-    color: Colors.text,
+    color: t.text,
     fontWeight: '600',
   },
   cachedPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.textSecondary + '22',
+    backgroundColor: t.textSecondary + '22',
   },
   cachedPillText: {
     fontSize: 9,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },

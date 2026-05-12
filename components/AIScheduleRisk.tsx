@@ -5,6 +5,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, RefreshCw, AlertTriangle, CheckCircle2, Zap, TrendingDown } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   analyzeScheduleRisk, getCachedResult, setCachedResult,
   type ScheduleRiskResult,
@@ -20,14 +23,16 @@ interface Props {
 }
 
 const SEVERITY_STYLES = {
-  high: { bg: Colors.errorLight, border: Colors.error, icon: AlertTriangle, label: 'HIGH RISK', textColor: '#D32F2F' },
+  high: { bg: Colors.errorLight, border: '#C84038', icon: AlertTriangle, label: 'HIGH RISK', textColor: '#D32F2F' },
   medium: { bg: '#FFF8E1', border: Colors.warning, icon: Zap, label: 'MEDIUM RISK', textColor: Colors.warningDark },
-  low: { bg: Colors.successLight, border: Colors.success, icon: CheckCircle2, label: 'LOW RISK', textColor: Colors.successDark },
+  low: { bg: Colors.successLight, border: '#2E7D44', icon: CheckCircle2, label: 'LOW RISK', textColor: Colors.successDark },
 } as const;
 
 const TWO_HOURS = 2 * 60 * 60 * 1000;
 
 export default React.memo(function AIScheduleRisk({ schedule, projectId, weatherData }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<ScheduleRiskResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
@@ -73,7 +78,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
   if (!hasLoaded && !isLoading) {
     return (
       <TouchableOpacity style={styles.initCard} onPress={() => loadOrAnalyze()}>
-        <Sparkles size={18} color={Colors.primary} />
+        <Sparkles size={18} color={themeColors.accent} />
         <Text style={styles.initText}>Tap to run AI Risk Analysis</Text>
       </TouchableOpacity>
     );
@@ -83,7 +88,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
     return (
       <View style={styles.card}>
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
           <Text style={styles.loadingText}>Analyzing schedule risks...</Text>
         </View>
       </View>
@@ -102,7 +107,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Sparkles size={16} color={Colors.primary} />
+          <Sparkles size={16} color={themeColors.accent} />
           <Text style={styles.headerTitle}>AI Risk Forecast</Text>
         </View>
         <TouchableOpacity
@@ -111,9 +116,9 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           {isLoading ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColors.accent} />
           ) : (
-            <RefreshCw size={16} color={Colors.textSecondary} />
+            <RefreshCw size={16} color={themeColors.textSecondary} />
           )}
         </TouchableOpacity>
       </View>
@@ -150,7 +155,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       })}
 
       {(lowCount + otherCount) > 0 && (
-        <View style={[styles.riskItem, { backgroundColor: Colors.successLight, borderLeftColor: Colors.success }]}>
+        <View style={[styles.riskItem, { backgroundColor: Colors.successLight, borderLeftColor: themeColors.success }]}>
           <View style={styles.riskHeader}>
             <CheckCircle2 size={14} color={Colors.successDark} />
             <Text style={[styles.riskSeverity, { color: Colors.successDark }]}>
@@ -163,7 +168,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       <View style={styles.confidenceRow}>
         <View style={styles.confItem}>
           <Text style={styles.confLabel}>Completion Confidence</Text>
-          <Text style={[styles.confValue, { color: (result.overallConfidence ?? 0) >= 70 ? Colors.success : Colors.warning }]}>
+          <Text style={[styles.confValue, { color: (result.overallConfidence ?? 0) >= 70 ? themeColors.success : Colors.warning }]}>
             {result.overallConfidence ?? 0}%
           </Text>
         </View>
@@ -176,7 +181,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
         {(result.predictedDelay ?? 0) > 0 && (
           <View style={styles.confItem}>
             <Text style={styles.confLabel}>Delay</Text>
-            <Text style={[styles.confValue, { color: Colors.error }]}>+{result.predictedDelay}d</Text>
+            <Text style={[styles.confValue, { color: themeColors.danger }]}>+{result.predictedDelay}d</Text>
           </View>
         )}
       </View>
@@ -190,33 +195,33 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   initCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     padding: 16,
-    backgroundColor: `${Colors.primary}08`,
+    backgroundColor: `${t.accent}08`,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: `${Colors.primary}20`,
+    borderColor: `${t.accent}20`,
     borderStyle: 'dashed',
     marginHorizontal: 16,
     marginVertical: 8,
   },
   initText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
   },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
     gap: 10,
   },
   header: {
@@ -232,7 +237,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   loadingRow: {
     flexDirection: 'row',
@@ -242,7 +247,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontStyle: 'italic' as const,
   },
   riskItem: {
@@ -262,16 +267,16 @@ const styles = StyleSheet.create({
   },
   riskProb: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   riskReason: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginLeft: 4,
   },
   riskRec: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
     marginTop: 2,
   },
@@ -289,17 +294,17 @@ const styles = StyleSheet.create({
   },
   confLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   confValue: {
     fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   timestamp: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'right',
   },
 });

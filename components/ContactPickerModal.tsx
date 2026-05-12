@@ -6,6 +6,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Search, X, User, Mail } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { Contact, ContactRole } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -21,15 +24,15 @@ interface ContactPickerModalProps {
 
 function getRoleColor(role: ContactRole): string {
   switch (role) {
-    case 'Client': return Colors.primary;
-    case 'Architect': return Colors.info;
-    case "Owner's Rep": return Colors.accent;
+    case 'Client': return '#FF6A1A';
+    case 'Architect': return '#1565C0';
+    case "Owner's Rep": return '#FF6A1A';
     case 'Engineer': return '#6B7280';
-    case 'Sub': return Colors.success;
+    case 'Sub': return '#2E7D44';
     case 'Supplier': return '#8B5CF6';
     case 'Lender': return '#EC4899';
     case 'Inspector': return '#F59E0B';
-    default: return Colors.textSecondary;
+    default: return '#9AA3AD';
   }
 }
 
@@ -41,6 +44,8 @@ export default function ContactPickerModal({
   title = 'Select Recipient',
   filterRoles,
 }: ContactPickerModalProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
 
@@ -98,7 +103,7 @@ export default function ContactPickerModal({
             </View>
             {item.email ? (
               <View style={styles.emailRow}>
-                <Mail size={10} color={Colors.textMuted} />
+                <Mail size={10} color={themeColors.textMuted} />
                 <Text style={styles.contactEmail} numberOfLines={1}>{item.email}</Text>
               </View>
             ) : null}
@@ -117,23 +122,23 @@ export default function ContactPickerModal({
 
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{title}</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textMuted} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} /></TouchableOpacity>
           </View>
 
           <View style={styles.searchBar}>
-            <Search size={16} color={Colors.textMuted} />
+            <Search size={16} color={themeColors.textMuted} />
             <TextInput
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
               placeholder="Search contacts..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               autoFocus={false}
               testID="contact-picker-search"
             />
             {query.length > 0 && (
               <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={Colors.textMuted} />
+                <X size={14} color={themeColors.textMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -148,7 +153,7 @@ export default function ContactPickerModal({
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <User size={32} color={Colors.textMuted} />
+                <User size={32} color={themeColors.textMuted} />
                 <Text style={styles.emptyTitle}>
                   {query ? 'No contacts found' : 'No contacts yet'}
                 </Text>
@@ -164,7 +169,7 @@ export default function ContactPickerModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
@@ -174,7 +179,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     maxHeight: '75%',
@@ -183,7 +188,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignSelf: 'center',
     marginTop: 10,
     marginBottom: 6,
@@ -195,25 +200,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   headerTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   closeBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.card,
     marginHorizontal: 22,
     marginTop: 12,
@@ -225,7 +230,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   list: {
     flex: 1,
@@ -241,7 +246,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   avatar: {
     width: 42,
@@ -261,11 +266,11 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   contactCompany: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   contactMeta: {
     flexDirection: 'row',
@@ -290,7 +295,7 @@ const styles = StyleSheet.create({
   },
   contactEmail: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     flex: 1,
   },
   emptyState: {
@@ -301,11 +306,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   emptyDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center' as const,
   },
 });

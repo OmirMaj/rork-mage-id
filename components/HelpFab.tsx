@@ -25,6 +25,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { HelpCircle, X, Play, Mail, BookOpen, ExternalLink } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TUTORIAL_SEEN_KEY } from '@/components/Tutorial';
 import { Type } from '@/constants/typography';
@@ -44,6 +47,8 @@ export interface HelpFabProps {
 }
 
 function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
@@ -95,7 +100,7 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
           <View style={styles.handle} />
           <View style={styles.head}>
             <Text style={styles.title}>Need a hand?</Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           <Text style={styles.subtitle}>
@@ -103,14 +108,14 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
           </Text>
 
           <TouchableOpacity style={styles.row} onPress={handleVideos} activeOpacity={0.85} testID="help-fab-videos">
-            <View style={[styles.rowIcon, { backgroundColor: Colors.primary + '14' }]}>
-              <Play size={16} color={Colors.primary} />
+            <View style={[styles.rowIcon, { backgroundColor: themeColors.accent + '14' }]}>
+              <Play size={16} color={themeColors.accent} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>Watch the demo videos</Text>
               <Text style={styles.rowSub}>90-second tour, full walkthrough, and a clip per feature.</Text>
             </View>
-            <ExternalLink size={14} color={Colors.textMuted} />
+            <ExternalLink size={14} color={themeColors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.row} onPress={handleReplayTutorial} activeOpacity={0.85} testID="help-fab-tutorial">
@@ -124,14 +129,14 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.row} onPress={handleEmail} activeOpacity={0.85} testID="help-fab-email">
-            <View style={[styles.rowIcon, { backgroundColor: Colors.success + '14' }]}>
-              <Mail size={16} color={Colors.success} />
+            <View style={[styles.rowIcon, { backgroundColor: themeColors.success + '14' }]}>
+              <Mail size={16} color={themeColors.success} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>Email support</Text>
               <Text style={styles.rowSub}>{SUPPORT_EMAIL} — usually under 4 hours.</Text>
             </View>
-            <ExternalLink size={14} color={Colors.textMuted} />
+            <ExternalLink size={14} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>
       </Modal>
@@ -141,14 +146,14 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
 
 export const HelpFab = memo(HelpFabImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 16,
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
@@ -160,7 +165,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingTop: 10,
     gap: 8,
@@ -169,12 +174,12 @@ const styles = StyleSheet.create({
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     alignSelf: 'center', marginBottom: 8,
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  subtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
+  title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  subtitle: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginBottom: 12, lineHeight: 18 },
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -184,12 +189,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
   rowIcon: {
     width: 38, height: 38, borderRadius: Tokens.radius.md,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  rowSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
 });

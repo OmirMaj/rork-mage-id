@@ -14,6 +14,9 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity, TextInput, Platform,
 } from 'react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Settings, X } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -29,6 +32,8 @@ export interface ScheduleSettingsMenuProps {
 export default function ScheduleSettingsMenu({
   visible, criticalFloatThresholdDays, workingDaysPerWeek, onClose, onApply,
 }: ScheduleSettingsMenuProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [threshold, setThreshold] = useState(String(criticalFloatThresholdDays));
   const [wdpw, setWdpw] = useState<number>(workingDaysPerWeek);
 
@@ -49,9 +54,9 @@ export default function ScheduleSettingsMenu({
       <TouchableOpacity activeOpacity={1} style={styles.backdrop} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
-            <Settings size={16} color={Colors.primary} />
+            <Settings size={16} color={themeColors.accent} />
             <Text style={styles.title}>Schedule settings</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
           </View>
 
           <View style={styles.row}>
@@ -123,7 +128,7 @@ export default function ScheduleSettingsMenu({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -133,7 +138,7 @@ const styles = StyleSheet.create({
   card: {
     width: 480,
     maxWidth: '92%',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 18,
     shadowColor: '#000',
@@ -147,33 +152,33 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
   },
-  title: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  title: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
   closeBtn: { padding: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  label: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  help: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2, lineHeight: 15 },
+  label: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  help: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2, lineHeight: 15 },
   thresholdInput: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     borderRadius: Tokens.radius.xs,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   input: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     width: 36,
     textAlign: 'center',
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
-  unit: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  unit: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
   quickRow: {
     flexDirection: 'row',
     gap: 6,
@@ -184,21 +189,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  chipActive: { backgroundColor: Colors.primary },
-  chipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary },
+  chipActive: { backgroundColor: t.accent },
+  chipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary },
   chipTextActive: { color: '#fff' },
   segControl: {
     flexDirection: 'row',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.sm,
     padding: 2,
   },
   segBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.xs },
-  segBtnActive: { backgroundColor: Colors.surface },
-  segText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.textSecondary },
-  segTextActive: { color: Colors.text },
+  segBtnActive: { backgroundColor: t.surface },
+  segText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textSecondary },
+  segTextActive: { color: t.text },
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -206,10 +211,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: t.line,
   },
   btnGhost: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs },
-  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
-  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary },
+  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
+  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs, backgroundColor: t.accent },
   btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
 });

@@ -24,6 +24,9 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { ChevronRight, Clock, CheckCircle2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -72,6 +75,8 @@ export function StatusPipeline<S extends string>({
   onAdvance,
   advanceLabel,
 }: Props<S>) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const currentIdx = stages.findIndex(s => s.key === current);
   const currentStage = stages[currentIdx];
   const nextStage = currentIdx >= 0 && !currentStage?.terminal ? stages[currentIdx + 1] : null;
@@ -105,7 +110,7 @@ export function StatusPipeline<S extends string>({
                   isCurrent && styles.dotCurrent,
                   isFuture && styles.dotFuture,
                 ]}>
-                  {isPast ? <CheckCircle2 size={11} color={Colors.surface} strokeWidth={2.5} /> : null}
+                  {isPast ? <CheckCircle2 size={11} color={themeColors.surface} strokeWidth={2.5} /> : null}
                 </View>
                 <Text style={[
                   styles.stageLabel,
@@ -130,7 +135,7 @@ export function StatusPipeline<S extends string>({
         <View style={styles.metaRow}>
           {inDays !== null ? (
             <View style={styles.metaPill}>
-              <Clock size={11} color={Colors.textSecondary} strokeWidth={2} />
+              <Clock size={11} color={themeColors.textSecondary} strokeWidth={2} />
               <Text style={styles.metaPillText}>
                 {inDays === 0 ? 'opened today' : `${inDays}d in pipeline`}
               </Text>
@@ -144,7 +149,7 @@ export function StatusPipeline<S extends string>({
             ]}>
               <Text style={[
                 styles.metaPillText,
-                isOverdue && { color: Colors.error },
+                isOverdue && { color: themeColors.danger },
                 isUrgent && !isOverdue && { color: Colors.warning },
               ]}>
                 {isOverdue
@@ -163,7 +168,7 @@ export function StatusPipeline<S extends string>({
               <Text style={styles.advanceBtnText}>
                 {advanceLabel ?? `Mark ${nextStage.label.toLowerCase()}`}
               </Text>
-              <ChevronRight size={14} color={Colors.primary} strokeWidth={2.4} />
+              <ChevronRight size={14} color={themeColors.accent} strokeWidth={2.4} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -174,12 +179,12 @@ export function StatusPipeline<S extends string>({
 
 export default StatusPipeline;
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 12,
@@ -204,12 +209,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dotPast: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   dotCurrent: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderWidth: 3,
-    borderColor: Colors.primary + '33',
+    borderColor: t.accent + '33',
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -222,16 +227,16 @@ const styles = StyleSheet.create({
   stageLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 0.1,
     textAlign: 'center',
   },
   stageLabelCurrent: {
-    color: Colors.text,
+    color: t.text,
     fontWeight: '700' as const,
   },
   stageLabelFuture: {
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   connector: {
     flex: 1,
@@ -242,7 +247,7 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   connectorPast: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   metaRow: {
     flexDirection: 'row',
@@ -257,7 +262,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   metaPillUrgent: {
     backgroundColor: Colors.warningLight,
@@ -268,7 +273,7 @@ const styles = StyleSheet.create({
   metaPillText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 0.1,
   },
   advanceBtn: {
@@ -278,15 +283,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
     borderWidth: 1,
-    borderColor: Colors.primary + '33',
+    borderColor: t.accent + '33',
     marginLeft: 'auto',
   },
   advanceBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
     letterSpacing: 0.1,
   },
 });

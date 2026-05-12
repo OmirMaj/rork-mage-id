@@ -21,6 +21,9 @@ import {
   MapPin, PenTool, ClipboardList, Bell,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useSearch } from '@/contexts/SearchContext';
 import { useUniversalSearch, type SearchResult } from '@/hooks/useUniversalSearch';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
@@ -106,6 +109,8 @@ const KIND_ORDER: EntityKind[] = [
 // ---------------------------------------------------------------------------
 
 export default function UniversalSearch() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { isOpen, closeSearch } = useSearch();
   const insets = useSafeAreaInsets();
   const { navigateTo } = useEntityNavigation();
@@ -219,14 +224,14 @@ export default function UniversalSearch() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.searchBar}>
-            <SearchIcon size={18} color={Colors.textSecondary} />
+            <SearchIcon size={18} color={themeColors.textSecondary} />
             <TextInput
               ref={inputRef}
               style={styles.input}
               value={query}
               onChangeText={setQuery}
               placeholder="Search projects, RFIs, invoices, photos…"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               autoCorrect={false}
               autoCapitalize="none"
               returnKeyType="search"
@@ -238,7 +243,7 @@ export default function UniversalSearch() {
                 accessibilityLabel="Clear"
                 style={styles.clearBtn}
               >
-                <X size={16} color={Colors.textMuted} />
+                <X size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -275,17 +280,17 @@ export default function UniversalSearch() {
                       activeOpacity={0.7}
                     >
                       <View style={styles.recentIcon}>
-                        <Clock size={16} color={Colors.textSecondary} />
+                        <Clock size={16} color={themeColors.textSecondary} />
                       </View>
                       <Text style={styles.recentText} numberOfLines={1}>{r}</Text>
-                      <ChevronRight size={14} color={Colors.textMuted} />
+                      <ChevronRight size={14} color={themeColors.textMuted} />
                     </TouchableOpacity>
                   ))}
                 </View>
               ) : (
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIcon}>
-                    <SearchIcon size={26} color={Colors.textMuted} />
+                    <SearchIcon size={26} color={themeColors.textMuted} />
                   </View>
                   <Text style={styles.emptyTitle}>Find anything in your account</Text>
                   <Text style={styles.emptyBody}>
@@ -299,7 +304,7 @@ export default function UniversalSearch() {
           {/* Searching indicator */}
           {isSearching ? (
             <View style={styles.searchingRow}>
-              <ActivityIndicator size="small" color={Colors.primary} />
+              <ActivityIndicator size="small" color={themeColors.accent} />
               <Text style={styles.searchingText}>Searching…</Text>
             </View>
           ) : null}
@@ -336,7 +341,7 @@ export default function UniversalSearch() {
                         testID={`universal-search-result-${r.ref.kind}-${r.ref.id}`}
                       >
                         <View style={styles.resultIcon}>
-                          <Icon size={18} color={Colors.primary} />
+                          <Icon size={18} color={themeColors.accent} />
                         </View>
                         <View style={styles.resultBody}>
                           <Text style={styles.resultTitle} numberOfLines={1}>{r.label}</Text>
@@ -347,7 +352,7 @@ export default function UniversalSearch() {
                             <Text style={styles.resultSnippet} numberOfLines={1}>{r.matchSnippet}</Text>
                           ) : null}
                         </View>
-                        <ChevronRight size={16} color={Colors.textMuted} />
+                        <ChevronRight size={16} color={themeColors.textMuted} />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -364,8 +369,8 @@ export default function UniversalSearch() {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -374,14 +379,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.background,
+    borderBottomColor: t.line,
+    backgroundColor: t.bg,
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
     gap: 8,
@@ -390,16 +395,16 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
+    color: t.text,
     paddingVertical: 0,
   } as any,
   clearBtn: {
     width: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
   },
   cancelBtn: { paddingHorizontal: 6, paddingVertical: 8 },
-  cancelText: { fontSize: Type.subhead.fontSize, color: Colors.primary, fontWeight: '500' },
+  cancelText: { fontSize: Type.subhead.fontSize, color: t.accent, fontWeight: '500' },
 
   body: { flex: 1 },
   bodyContent: { paddingTop: 8, paddingBottom: 32 },
@@ -415,13 +420,13 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 0.7,
     textTransform: 'uppercase',
   },
   sectionAction: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '500',
   },
 
@@ -436,13 +441,13 @@ const styles = StyleSheet.create({
   },
   resultIcon: {
     width: 34, height: 34, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
   },
   resultBody: { flex: 1 },
-  resultTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
-  resultSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  resultSnippet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  resultTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
+  resultSubtitle: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
+  resultSnippet: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   recentRow: {
     flexDirection: 'row',
@@ -453,10 +458,10 @@ const styles = StyleSheet.create({
   },
   recentIcon: {
     width: 30, height: 30, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
   },
-  recentText: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
+  recentText: { flex: 1, fontSize: Type.subhead.fontSize, color: t.text },
 
   searchingRow: {
     flexDirection: 'row',
@@ -465,7 +470,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 10,
   },
-  searchingText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  searchingText: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
 
   emptyState: {
     alignItems: 'center',
@@ -475,11 +480,11 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     width: 56, height: 56, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text, textAlign: 'center' },
-  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text, textAlign: 'center' },
+  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20 },
 });
 

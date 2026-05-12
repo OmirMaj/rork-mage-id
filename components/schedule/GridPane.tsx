@@ -37,6 +37,9 @@ import {
   Platform, Alert, Modal,
 } from 'react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, TaskStatus, AnchorType } from '@/types';
 import {
   runCpm, formatFloat, wouldCreateCycle,
@@ -148,6 +151,8 @@ export default function GridPane({
   onBulkSetPhase, onBulkSetCrew, onBulkAskAI,
   compact = false,
 }: GridPaneProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // Column list — filtered for split view so the grid doesn't duplicate the
   // date axis rendered by the gantt. Order preserved.
   const visibleColumns = useMemo(
@@ -684,7 +689,7 @@ export default function GridPane({
               >
                 <Anchor
                   size={12}
-                  color={hasAnchor ? Colors.primary : Colors.textMuted}
+                  color={hasAnchor ? themeColors.accent : themeColors.textMuted}
                   strokeWidth={hasAnchor ? 2.5 : 1.6}
                 />
               </TouchableOpacity>
@@ -693,7 +698,7 @@ export default function GridPane({
         }
         display = (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {hasAnchor && <Anchor size={10} color={Colors.primary} />}
+            {hasAnchor && <Anchor size={10} color={themeColors.accent} />}
             <Text style={styles.cellText}>{label}</Text>
           </View>
         );
@@ -720,7 +725,7 @@ export default function GridPane({
       case 'float': {
         if (!cpmRow) { display = <Text style={styles.cellTextMuted}>—</Text>; break; }
         const label = formatFloat(cpmRow.totalFloat);
-        const color = cpmRow.isCritical ? Colors.error : cpmRow.totalFloat < 3 ? Colors.warning : Colors.success;
+        const color = cpmRow.isCritical ? themeColors.danger : cpmRow.totalFloat < 3 ? Colors.warning : themeColors.success;
         display = <Text style={[styles.cellText, { color, fontWeight: '600' }]}>{label}</Text>;
         break;
       }
@@ -761,7 +766,7 @@ export default function GridPane({
         const label = deadlineDay != null
           ? (variance > 0 ? `${variance}d late` : variance < 0 ? `${-variance}d early` : 'on time')
           : task.deadline;
-        const color = variance > 0 ? Colors.error : variance < 0 ? Colors.success : Colors.textSecondary;
+        const color = variance > 0 ? themeColors.danger : variance < 0 ? themeColors.success : themeColors.textSecondary;
         if (Platform.OS === 'web') {
           return (
             <TouchableOpacity
@@ -829,7 +834,7 @@ export default function GridPane({
               }
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Delete">
-            <Trash2 size={14} color={Colors.textMuted} />
+            <Trash2 size={14} color={themeColors.textMuted} />
           </TouchableOpacity>
         );
         break;
@@ -1034,7 +1039,7 @@ export default function GridPane({
     const summary = cpm.conflicts[0];
     return (
       <View style={[styles.banner, summary.kind === 'cycle' ? styles.bannerError : styles.bannerWarn]}>
-        <AlertTriangle size={14} color={summary.kind === 'cycle' ? Colors.error : Colors.warning} />
+        <AlertTriangle size={14} color={summary.kind === 'cycle' ? themeColors.danger : Colors.warning} />
         <Text style={styles.bannerText}>{summary.message}</Text>
         {cpm.conflicts.length > 1 && (
           <Text style={styles.bannerCount}>+{cpm.conflicts.length - 1} more</Text>
@@ -1052,7 +1057,7 @@ export default function GridPane({
     const n = selected.size;
     return (
       <View style={styles.bulkBar}>
-        <TouchableOpacity onPress={clearSelection} style={styles.bulkClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={Colors.textSecondary} /></TouchableOpacity>
+        <TouchableOpacity onPress={clearSelection} style={styles.bulkClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textSecondary} /></TouchableOpacity>
         <Text style={styles.bulkCount}>{n} selected</Text>
         <View style={styles.bulkBtnRow}>
           {onBulkAskAI && (
@@ -1063,32 +1068,32 @@ export default function GridPane({
           )}
           {onBulkShiftDays && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkShiftDays} activeOpacity={0.7}>
-              <CalendarRange size={12} color={Colors.primary} />
+              <CalendarRange size={12} color={themeColors.accent} />
               <Text style={styles.bulkBtnText}>Shift days</Text>
             </TouchableOpacity>
           )}
           {onBulkSetPhase && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkSetPhase} activeOpacity={0.7}>
-              <Layers size={12} color={Colors.primary} />
+              <Layers size={12} color={themeColors.accent} />
               <Text style={styles.bulkBtnText}>Phase</Text>
             </TouchableOpacity>
           )}
           {onBulkSetCrew && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkSetCrew} activeOpacity={0.7}>
-              <Users size={12} color={Colors.primary} />
+              <Users size={12} color={themeColors.accent} />
               <Text style={styles.bulkBtnText}>Crew</Text>
             </TouchableOpacity>
           )}
           {onBulkDuplicate && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkDuplicate} activeOpacity={0.7}>
-              <Copy size={12} color={Colors.primary} />
+              <Copy size={12} color={themeColors.accent} />
               <Text style={styles.bulkBtnText}>Duplicate</Text>
             </TouchableOpacity>
           )}
           {onBulkDelete && (
             <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnDanger]} onPress={runBulkDelete} activeOpacity={0.7}>
-              <Trash2 size={12} color={Colors.error} />
-              <Text style={[styles.bulkBtnText, { color: Colors.error }]}>Delete</Text>
+              <Trash2 size={12} color={themeColors.danger} />
+              <Text style={[styles.bulkBtnText, { color: themeColors.danger }]}>Delete</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1148,10 +1153,10 @@ export default function GridPane({
               // StyleSheet: conflict > selected > focused > alt-stripe > base.
               // Sticky cells paint this so horizontally-scrolled content
               // doesn't bleed through them.
-              const rowBgColor = inCycleConflict ? Colors.error + '10'
-                : isSelected ? Colors.primary + '18'
-                : isFocused ? Colors.primary + '10'
-                : rowIndex % 2 === 1 ? Colors.surface
+              const rowBgColor = inCycleConflict ? themeColors.danger + '10'
+                : isSelected ? themeColors.accent + '18'
+                : isFocused ? themeColors.accent + '10'
+                : rowIndex % 2 === 1 ? themeColors.surface
                 : Colors.card;
 
               return (
@@ -1179,7 +1184,7 @@ export default function GridPane({
               activeOpacity={0.6}
               testID="grid-add-task"
             >
-              <Plus size={14} color={Colors.primary} />
+              <Plus size={14} color={themeColors.accent} />
               <Text style={styles.addRowText}>Add task</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -1226,6 +1231,8 @@ interface AnchorPickerModalProps {
 }
 
 function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [type, setType] = useState<AnchorType>('none');
   const [date, setDate] = useState<string>('');
 
@@ -1256,10 +1263,10 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
       <TouchableOpacity style={anchorStyles.backdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={anchorStyles.card} onPress={() => {}}>
           <View style={anchorStyles.header}>
-            <Anchor size={16} color={Colors.primary} />
+            <Anchor size={16} color={themeColors.accent} />
             <Text style={anchorStyles.title}>Anchor</Text>
             <Text style={anchorStyles.subtitle} numberOfLines={1}>{task?.title || ''}</Text>
-            <TouchableOpacity onPress={onClose} style={anchorStyles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={anchorStyles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
           </View>
           <ScrollView style={{ maxHeight: 360 }}>
             {ANCHOR_OPTIONS.map(opt => {
@@ -1294,12 +1301,12 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
                   value: date,
                   onChange: (e: any) => setDate(e.target.value),
                   style: {
-                    border: `1px solid ${Colors.border}`,
+                    border: `1px solid ${themeColors.line}`,
                     borderRadius: Tokens.radius.xs,
                     padding: '6px 8px',
                     fontSize: Type.bodyCompact.fontSize,
                     fontFamily: 'inherit',
-                    color: Colors.text,
+                    color: themeColors.text,
                   },
                 })
               ) : (
@@ -1341,7 +1348,7 @@ const anchorStyles = StyleSheet.create({
   card: {
     width: 420,
     maxWidth: '92%',
-    backgroundColor: Colors.surface,
+    backgroundColor: "#FFFFFF",
     borderRadius: Tokens.radius.card,
     shadowColor: '#000',
     shadowOpacity: 0.18,
@@ -1356,10 +1363,10 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: "rgba(43,48,56,0.12)",
   },
-  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginLeft: 4 },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: "#2B3038" },
+  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: "#9AA3AD", marginLeft: 4 },
   closeBtn: { padding: 4 },
   option: {
     flexDirection: 'row',
@@ -1368,18 +1375,18 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: "rgba(43,48,56,0.12)",
   },
   optionActive: { backgroundColor: Colors.primaryLight },
   radio: {
-    width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: Colors.border,
+    width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: "rgba(43,48,56,0.12)",
     alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
-  radioActive: { borderColor: Colors.primary },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
-  optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
-  optionLabelActive: { color: Colors.primary },
-  optionHelp: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  radioActive: { borderColor: "#FF6A1A" },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#FF6A1A" },
+  optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#2B3038" },
+  optionLabelActive: { color: "#FF6A1A" },
+  optionHelp: { fontSize: Type.caption2.fontSize, color: "#9AA3AD", marginTop: 1 },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1387,18 +1394,18 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: "rgba(43,48,56,0.12)",
   },
-  dateLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  dateLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#2B3038" },
   dateInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: "rgba(43,48,56,0.12)",
     borderRadius: Tokens.radius.xs,
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: "#2B3038",
   },
   footer: {
     flexDirection: 'row',
@@ -1407,15 +1414,15 @@ const anchorStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: "rgba(43,48,56,0.12)",
   },
   btnGhost: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
   },
-  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
+  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: "#9AA3AD" },
   btnPrimary: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary,
+    backgroundColor: "#FF6A1A",
   },
   btnDisabled: { opacity: 0.45 },
   btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
@@ -1428,13 +1435,13 @@ const anchorStyles = StyleSheet.create({
 function statusChip(status: TaskStatus): { bg: string; fg: string; label: string; Icon?: any } {
   switch (status) {
     case 'done':
-      return { bg: Colors.successLight, fg: Colors.success, label: 'Done', Icon: Check };
+      return { bg: Colors.successLight, fg: "#2E7D44", label: 'Done', Icon: Check };
     case 'in_progress':
-      return { bg: Colors.infoLight, fg: Colors.info, label: 'Active', Icon: Play };
+      return { bg: Colors.infoLight, fg: "#1565C0", label: 'Active', Icon: Play };
     case 'on_hold':
       return { bg: Colors.warningLight, fg: Colors.warning, label: 'Hold', Icon: Pause };
     default:
-      return { bg: Colors.fillTertiary, fg: Colors.textSecondary, label: 'Not Started', Icon: Circle };
+      return { bg: "#F4EFE6", fg: "#9AA3AD", label: 'Not Started', Icon: Circle };
   }
 }
 
@@ -1448,20 +1455,20 @@ function nextStatus(status: TaskStatus): TaskStatus {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.card,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   headerRow: {
     flexDirection: 'row',
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
     height: 36,
     alignItems: 'center',
   },
@@ -1470,12 +1477,12 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: Colors.borderLight,
+    borderRightColor: t.line,
   },
   headerText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -1485,48 +1492,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.card,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
     borderLeftWidth: 3,
   },
   rowAlt: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   rowFocused: {
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
   },
   rowConflict: {
-    backgroundColor: Colors.error + '10',
+    backgroundColor: t.danger + '10',
   },
   cell: {
     paddingHorizontal: 10,
     height: '100%',
     justifyContent: 'center',
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: Colors.borderLight,
+    borderRightColor: t.line,
   },
   cellEditing: {
-    backgroundColor: Colors.primary + '10',
-    borderColor: Colors.primary,
+    backgroundColor: t.accent + '10',
+    borderColor: t.accent,
     borderWidth: 1.5,
     borderRadius: 4,
   },
   cellError: {
-    backgroundColor: Colors.error + '15',
-    borderColor: Colors.error,
+    backgroundColor: t.danger + '15',
+    borderColor: t.danger,
   },
   cellText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   cellTextMuted: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   cellDate: {
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
   },
   cellDateText: {
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600',
   },
   anchorGlyph: {
@@ -1546,7 +1553,7 @@ const styles = StyleSheet.create({
   },
   chevronText: {
     fontSize: 10,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '700',
   },
   summaryText: {
@@ -1555,7 +1562,7 @@ const styles = StyleSheet.create({
   cellInput: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     paddingVertical: 0,
     paddingHorizontal: 0,
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
@@ -1564,7 +1571,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: ROW_HEIGHT,
     left: 0,
-    backgroundColor: Colors.error,
+    backgroundColor: t.danger,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Tokens.radius.xs,
@@ -1578,15 +1585,15 @@ const styles = StyleSheet.create({
   },
   criticalDot: {
     width: 6, height: 6, borderRadius: 3,
-    backgroundColor: Colors.error,
+    backgroundColor: t.danger,
   },
   criticalText: {
     fontWeight: '700',
-    color: Colors.error,
+    color: t.danger,
   },
   milestoneDiamond: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.primary,
+    color: t.accent,
   },
   statusChip: {
     flexDirection: 'row',
@@ -1607,12 +1614,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   addRowText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600',
-    color: Colors.primary,
+    color: t.accent,
   },
   banner: {
     flexDirection: 'row',
@@ -1623,8 +1630,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   bannerError: {
-    backgroundColor: Colors.error + '15',
-    borderBottomColor: Colors.error + '40',
+    backgroundColor: t.danger + '15',
+    borderBottomColor: t.danger + '40',
   },
   bannerWarn: {
     backgroundColor: Colors.warning + '15',
@@ -1633,29 +1640,29 @@ const styles = StyleSheet.create({
   bannerText: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '500',
   },
   bannerCount: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 
   // Selection + bulk edit
   rowSelected: {
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: t.accent + '18',
   },
   selectCell: {
     // Visually distinguish the # column as a clickable selection target.
     backgroundColor: Colors.surfaceAlt,
   },
   selectCellActive: {
-    backgroundColor: Colors.primary + '20',
+    backgroundColor: t.accent + '20',
   },
   selectDot: {
     width: 18, height: 18, borderRadius: 9,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   bulkBar: {
@@ -1665,18 +1672,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
-    backgroundColor: Colors.surface,
+    borderTopColor: t.line,
+    backgroundColor: t.surface,
   },
   bulkClear: {
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
   },
   bulkCount: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700',
-    color: Colors.text,
+    color: t.text,
     marginRight: 4,
   },
   bulkBtnRow: {
@@ -1693,17 +1700,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
   },
   bulkBtnAI: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   bulkBtnDanger: {
-    backgroundColor: Colors.error + '15',
+    backgroundColor: t.danger + '15',
   },
   bulkBtnText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.primary,
+    color: t.accent,
   },
 });

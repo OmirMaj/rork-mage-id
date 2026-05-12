@@ -24,16 +24,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Activity, X, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { HealthScoreResult, HealthCheck, HealthGrade } from '@/utils/scheduleHealthScore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 const GRADE_COLOR: Record<HealthGrade, string> = {
-  A: Colors.success,
+  A: "#2E7D44",
   B: '#0F9B8E',     // teal — different shade from A so users can tell them apart
   C: Colors.warning,
   D: '#FF8A1A',     // orange between warning and error
-  F: Colors.error,
+  F: "#C84038",
 };
 
 function gradeColor(grade: HealthGrade): string {
@@ -51,6 +54,8 @@ export interface ScheduleHealthBadgeProps {
 }
 
 function ScheduleHealthBadgeImpl({ result, onPress, size = 'default' }: ScheduleHealthBadgeProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const color = gradeColor(result.grade);
   const isCompact = size === 'compact';
   return (
@@ -93,6 +98,8 @@ export interface ScheduleHealthDetailProps {
 }
 
 function ScheduleHealthDetailImpl({ visible, onClose, result, onJumpToTask }: ScheduleHealthDetailProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const color = gradeColor(result.grade);
 
@@ -112,7 +119,7 @@ function ScheduleHealthDetailImpl({ visible, onClose, result, onJumpToTask }: Sc
           <View style={styles.modalHandle} />
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>Schedule health</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           {/* Big-number hero */}
@@ -152,9 +159,11 @@ function CheckRow({
   onJumpToTask?: (taskId: string) => void;
   onClose: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [expanded, setExpanded] = useState(check.severity !== 'good');
-  const tone = check.severity === 'good' ? Colors.success
-    : check.severity === 'warn' ? Colors.warning : Colors.error;
+  const tone = check.severity === 'good' ? "#2E7D44"
+    : check.severity === 'warn' ? Colors.warning : "#C84038";
   const Icon = check.severity === 'good' ? CheckCircle2 : AlertTriangle;
   return (
     <View style={[styles.checkRow, { borderLeftColor: tone }]}>
@@ -210,7 +219,7 @@ function CheckRow({
                     <Text style={styles.flaggedTitle}>{f.title}</Text>
                     <Text style={styles.flaggedReason}>{f.reason}</Text>
                   </View>
-                  {onJumpToTask && <ChevronRight size={12} color={Colors.textMuted} />}
+                  {onJumpToTask && <ChevronRight size={12} color={"#9AA3AD"} />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -221,7 +230,7 @@ function CheckRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Badge
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -235,24 +244,24 @@ const styles = StyleSheet.create({
   badgeBody: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
   badgeScore: { fontSize: Type.callout.fontSize, fontWeight: '900', letterSpacing: -0.4 },
   badgeScoreCompact: { fontSize: Type.footnote.fontSize },
-  badgeLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
+  badgeLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted },
   badgeLabelCompact: { fontSize: 9 },
 
   // Modal shell
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {
     maxHeight: '90%' as const,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingTop: 10, gap: 8,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     alignSelf: 'center', marginBottom: 8,
   },
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -270,13 +279,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 2,
   },
   heroScore: { fontSize: 36, fontWeight: '900', letterSpacing: -1 },
-  heroOver: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textMuted, alignSelf: 'flex-end', marginBottom: 8 },
+  heroOver: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.textMuted, alignSelf: 'flex-end', marginBottom: 8 },
   heroGradePill: {
     paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.full,
   },
   heroGrade: { fontSize: Type.subheadline.fontSize, fontWeight: '900', letterSpacing: 0.5 },
   heroSummary: {
-    fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 18,
+    fontSize: Type.footnote.fontSize, color: t.text, textAlign: 'center', lineHeight: 18,
     paddingHorizontal: 24, marginTop: 4,
   },
 
@@ -285,40 +294,40 @@ const styles = StyleSheet.create({
   checkRow: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.card, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     borderLeftWidth: 4,
     marginBottom: 8,
   },
   checkRowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const },
-  checkLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  checkDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  checkLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
+  checkDesc: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
   dcmaPill: {
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
-    backgroundColor: Colors.primary + '12',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '12',
+    borderWidth: 1, borderColor: t.accent + '30',
   },
-  dcmaPillText: { fontSize: 9, fontWeight: '800', color: Colors.primary, letterSpacing: 0.3 },
+  dcmaPillText: { fontSize: 9, fontWeight: '800', color: t.accent, letterSpacing: 0.3 },
   checkScorePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, minWidth: 36, alignItems: 'center' },
   checkScoreText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '900' },
   checkBody: {
     marginTop: 10, paddingTop: 10,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1, borderTopColor: t.line,
     gap: 8,
   },
   checkSuggestion: {
-    fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, fontStyle: 'italic',
+    fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18, fontStyle: 'italic',
     paddingHorizontal: 4,
   },
 
   flaggedList: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.sm, padding: 10,
     gap: 6,
   },
-  flaggedHead: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  flaggedHead: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
   flaggedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   flaggedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.warning },
-  flaggedTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
-  flaggedReason: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
+  flaggedTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  flaggedReason: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
 });

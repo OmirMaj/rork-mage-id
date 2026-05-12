@@ -21,6 +21,9 @@ import {
   Activity, X, AlertTriangle, Clock, Users, ChevronRight, MessageSquare,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import type { SubScheduleUpdate, ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
@@ -49,6 +52,8 @@ function timeAgo(iso: string): string {
 }
 
 function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: SubUpdatesPanelProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [updates, setUpdates] = useState<SubScheduleUpdate[]>([]);
   const [open, setOpen] = useState(false);
@@ -87,7 +92,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
         testID="sub-updates-tile"
       >
         <View style={styles.tileIcon}>
-          <Activity size={14} color={Colors.primary} />
+          <Activity size={14} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.tileLabel}>Sub updates</Text>
@@ -99,11 +104,11 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
         </View>
         {blockerCount > 0 && (
           <View style={styles.blockerBadge}>
-            <AlertTriangle size={11} color={Colors.error} />
+            <AlertTriangle size={11} color={themeColors.danger} />
             <Text style={styles.blockerBadgeText}>{blockerCount}</Text>
           </View>
         )}
-        <ChevronRight size={14} color={Colors.textMuted} />
+        <ChevronRight size={14} color={themeColors.textMuted} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -118,7 +123,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
 
@@ -133,7 +138,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
                 <Text style={styles.statLabel}>Today</Text>
               </View>
               <View style={styles.statCol}>
-                <Text style={[styles.statValue, blockerCount > 0 && { color: Colors.error }]}>
+                <Text style={[styles.statValue, blockerCount > 0 && { color: themeColors.danger }]}>
                   {blockerCount}
                 </Text>
                 <Text style={styles.statLabel}>Blockers</Text>
@@ -172,6 +177,8 @@ function UpdateRow({
   task?: ScheduleTask;
   onJump?: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const hasBlocker = !!update.blocker && update.blocker.trim().length > 0;
   return (
     <TouchableOpacity
@@ -187,8 +194,8 @@ function UpdateRow({
             {update.subName} · {timeAgo(update.postedAt)}
           </Text>
         </View>
-        <View style={[styles.progressPill, hasBlocker && { backgroundColor: Colors.error + '14' }]}>
-          <Text style={[styles.progressPillText, hasBlocker && { color: Colors.error }]}>
+        <View style={[styles.progressPill, hasBlocker && { backgroundColor: themeColors.danger + '14' }]}>
+          <Text style={[styles.progressPillText, hasBlocker && { color: themeColors.danger }]}>
             {update.progressPercent}%
           </Text>
         </View>
@@ -197,19 +204,19 @@ function UpdateRow({
       <View style={styles.statRow}>
         {update.hoursWorked != null && (
           <View style={styles.statChip}>
-            <Clock size={11} color={Colors.textMuted} />
+            <Clock size={11} color={themeColors.textMuted} />
             <Text style={styles.statChipText}>{update.hoursWorked} hr</Text>
           </View>
         )}
         {update.crewCount != null && (
           <View style={styles.statChip}>
-            <Users size={11} color={Colors.textMuted} />
+            <Users size={11} color={themeColors.textMuted} />
             <Text style={styles.statChipText}>{update.crewCount} crew</Text>
           </View>
         )}
         {update.photos && update.photos.length > 0 && (
           <View style={styles.statChip}>
-            <Activity size={11} color={Colors.textMuted} />
+            <Activity size={11} color={themeColors.textMuted} />
             <Text style={styles.statChipText}>{update.photos.length} photo{update.photos.length === 1 ? '' : 's'}</Text>
           </View>
         )}
@@ -217,14 +224,14 @@ function UpdateRow({
 
       {hasBlocker && (
         <View style={styles.blockerCard}>
-          <AlertTriangle size={12} color={Colors.error} />
+          <AlertTriangle size={12} color={themeColors.danger} />
           <Text style={styles.blockerCardText}>{update.blocker}</Text>
         </View>
       )}
 
       {update.notes && update.notes.trim().length > 0 && (
         <View style={styles.notesRow}>
-          <MessageSquare size={11} color={Colors.textMuted} />
+          <MessageSquare size={11} color={themeColors.textMuted} />
           <Text style={styles.notesText}>{update.notes}</Text>
         </View>
       )}
@@ -240,43 +247,43 @@ function UpdateRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   tile: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 12, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
   tileIcon: {
     width: 32, height: 32, borderRadius: 9,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
     alignItems: 'center', justifyContent: 'center',
   },
-  tileLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  tileSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 14 },
+  tileLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
+  tileSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 14 },
   blockerBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.error + '14',
-    borderWidth: 1, borderColor: Colors.error + '30',
+    backgroundColor: t.danger + '14',
+    borderWidth: 1, borderColor: t.danger + '30',
   },
-  blockerBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.error },
+  blockerBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.danger },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {
     maxHeight: '92%' as const,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingTop: 10,
     gap: 12,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 4,
+    backgroundColor: t.line, alignSelf: 'center', marginBottom: 4,
   },
   modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  modalSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4, lineHeight: 17 },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -290,47 +297,47 @@ const styles = StyleSheet.create({
   statCol: {
     flex: 1, padding: 12, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     alignItems: 'center',
   },
-  statValue: { fontSize: Type.title2.fontSize, fontWeight: '900', color: Colors.text, letterSpacing: -0.5 },
-  statLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: 2 },
+  statValue: { fontSize: Type.title2.fontSize, fontWeight: '900', color: t.text, letterSpacing: -0.5 },
+  statLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: 2 },
 
   row: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 8, gap: 8,
   },
-  rowBlocker: { borderColor: Colors.error + '40', borderLeftWidth: 4 },
+  rowBlocker: { borderColor: t.danger + '40', borderLeftWidth: 4 },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   progressPill: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
   },
-  progressPillText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '900', color: Colors.primary, letterSpacing: -0.2 },
+  progressPillText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '900', color: t.accent, letterSpacing: -0.2 },
 
   statRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   statChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
   },
-  statChipText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  statChipText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
 
   blockerCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 6,
     padding: 8, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.error + '08',
-    borderWidth: 1, borderColor: Colors.error + '30',
+    backgroundColor: t.danger + '08',
+    borderWidth: 1, borderColor: t.danger + '30',
   },
-  blockerCardText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16, fontWeight: '600' },
+  blockerCardText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 16, fontWeight: '600' },
 
   notesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  notesText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
+  notesText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 16 },
 
   photoRow: { flexDirection: 'row', gap: 6 },
-  photoThumb: { width: 56, height: 56, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background },
+  photoThumb: { width: 56, height: 56, borderRadius: Tokens.radius.sm, backgroundColor: t.bg },
 });

@@ -14,6 +14,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, TextStyle, View, ViewStyle, Platform } from 'react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface TapeRollNumberProps {
   /** The target value to count to. Can be int or float. */
@@ -49,6 +52,8 @@ export default function TapeRollNumber({
   testID,
   delay = 0,
 }: TapeRollNumberProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const anim = useRef(new Animated.Value(0)).current;
   const lastValue = useRef<number>(0);
   const [displayed, setDisplayed] = useState<number>(0);
@@ -81,7 +86,7 @@ export default function TapeRollNumber({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -89,7 +94,7 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 24,
     fontWeight: '800',
-    color: Colors.text,
+    color: t.text,
     // Tabular figures so digits don't jitter as widths change while counting.
     fontVariant: Platform.OS === 'web' ? undefined : (['tabular-nums'] as TextStyle['fontVariant']),
   },

@@ -5,6 +5,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Camera, Sparkles, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ProjectPhoto, DailyFieldReport } from '@/types';
 import { generateDFRFromPhotos } from '@/utils/voiceDFRParser';
 import { Type } from '@/constants/typography';
@@ -27,6 +30,8 @@ interface Props {
 export default React.memo(function AIDFRFromPhotos({
   projectName, weatherStr, photos, onGenerated, isLocked, onLockedPress,
 }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(photos.slice(0, 12).map(p => p.id)));
   const [loading, setLoading] = useState(false);
 
@@ -80,7 +85,7 @@ export default React.memo(function AIDFRFromPhotos({
     <View style={styles.wrap}>
       <View style={styles.header}>
         <View style={styles.headerIconWrap}>
-          <Camera size={16} color={Colors.primary} />
+          <Camera size={16} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Draft from today&apos;s photos</Text>
@@ -108,7 +113,7 @@ export default React.memo(function AIDFRFromPhotos({
               {p.uri ? (
                 <Image source={{ uri: p.uri }} style={styles.thumbImg} resizeMode="cover" />
               ) : (
-                <View style={[styles.thumbImg, { backgroundColor: Colors.border }]} />
+                <View style={[styles.thumbImg, { backgroundColor: themeColors.line }]} />
               )}
               {isSel && (
                 <View style={styles.checkBadge}>
@@ -145,6 +150,8 @@ export default React.memo(function AIDFRFromPhotos({
 });
 
 function Platform_isMobile() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // Tiny shim to avoid pulling Platform from RN here
   // — Haptics is a no-op on web so it's safe to always call,
   // but skipping avoids a console warning on RN Web.
@@ -153,37 +160,37 @@ function Platform_isMobile() {
   return Platform.OS !== 'web';
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   wrap: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     marginBottom: 10,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   headerIconWrap: {
     width: 30, height: 30, borderRadius: 9,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
-  count: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
+  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
+  count: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
   thumbsRow: { gap: 8, paddingVertical: 4, paddingRight: 4 },
   thumb: {
     width: 86, height: 86, borderRadius: Tokens.radius.md,
-    overflow: 'hidden', backgroundColor: Colors.background,
+    overflow: 'hidden', backgroundColor: t.bg,
     borderWidth: 2, borderColor: 'transparent',
     position: 'relative',
   },
-  thumbSelected: { borderColor: Colors.primary },
+  thumbSelected: { borderColor: t.accent },
   thumbImg: { width: '100%', height: '100%' },
   checkBadge: {
     position: 'absolute', top: 4, right: 4,
     width: 18, height: 18, borderRadius: 9,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   thumbCaption: {
@@ -195,7 +202,7 @@ const styles = StyleSheet.create({
   btn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md, marginTop: 12,
+    backgroundColor: t.accent, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   btnDisabled: { opacity: 0.5 },
   btnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },

@@ -16,6 +16,9 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Modal }
 import * as Haptics from 'expo-haptics';
 import { CloudRain, X, RefreshCw, ChevronRight, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { findWeatherRisk, getConditionIcon, type DayForecast } from '@/utils/weatherService';
 import { Type } from '@/constants/typography';
@@ -64,6 +67,8 @@ function findFirstWorkableOffset(
 function WeatherReschedulePromptImpl({
   tasks, forecasts, projectStartDate, onPushTasks,
 }: WeatherReschedulePromptProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [dismissed, setDismissed] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
 
@@ -125,7 +130,7 @@ function WeatherReschedulePromptImpl({
             activeOpacity={0.7}
           >
             <Text style={styles.bannerSecondaryText}>Review</Text>
-            <ChevronRight size={12} color={Colors.text} />
+            <ChevronRight size={12} color={themeColors.text} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handlePushAll}
@@ -135,7 +140,7 @@ function WeatherReschedulePromptImpl({
             <RefreshCw size={12} color="#FFF" />
             <Text style={styles.bannerPrimaryText}>Push all</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleDismiss} hitSlop={6} style={styles.bannerCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={Colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleDismiss} hitSlop={6} style={styles.bannerCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textMuted} /></TouchableOpacity>
         </View>
       </View>
 
@@ -151,7 +156,7 @@ function WeatherReschedulePromptImpl({
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setShowDetail(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
 
@@ -179,7 +184,7 @@ function WeatherReschedulePromptImpl({
                   </View>
                   <View style={styles.rowAction}>
                     <Text style={styles.rowActionText}>+{c.suggestedPushDays}d</Text>
-                    <ChevronRight size={12} color={Colors.primary} />
+                    <ChevronRight size={12} color={themeColors.accent} />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -213,7 +218,7 @@ function WeatherReschedulePromptImpl({
 
 export const WeatherReschedulePrompt = memo(WeatherReschedulePromptImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, paddingVertical: 10,
@@ -228,16 +233,16 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   bannerBody: { flex: 1, gap: 2 },
-  bannerTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  bannerSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 14 },
+  bannerTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
+  bannerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14 },
   bannerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bannerSecondaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
     paddingHorizontal: 8, paddingVertical: 6, borderRadius: 7,
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
   },
-  bannerSecondaryText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
+  bannerSecondaryText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.text },
   bannerPrimaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7,
@@ -249,18 +254,18 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {
     maxHeight: '85%' as const,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24, gap: 10,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     alignSelf: 'center', marginBottom: 4,
   },
   modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  modalSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4, lineHeight: 17 },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -270,7 +275,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 6,
   },
   rowIcon: {
@@ -278,24 +283,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning + '14',
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  rowDetail: { fontSize: Type.caption2.fontSize, color: Colors.text, marginTop: 4, fontStyle: 'italic' },
+  rowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  rowDetail: { fontSize: Type.caption2.fontSize, color: t.text, marginTop: 4, fontStyle: 'italic' },
   rowAction: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
   },
-  rowActionText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '800' },
+  rowActionText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '800' },
 
   modalFooter: { flexDirection: 'row', gap: 8, marginTop: 4 },
   modalSecondaryBtn: {
     flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     alignItems: 'center',
   },
-  modalSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  modalSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   modalPrimaryBtn: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: Tokens.radius.md,

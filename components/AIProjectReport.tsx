@@ -7,6 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Sparkles, X, CheckCircle2, AlertTriangle, Target, FileText } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   generateProjectReport, getCachedResult, setCachedResult,
   type ProjectReportResult,
@@ -29,6 +32,8 @@ interface Props {
 const TWO_HOURS = 2 * 60 * 60 * 1000;
 
 export default React.memo(function AIProjectReport({ project, invoices, changeOrders, subscriptionTier }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [result, setResult] = useState<ProjectReportResult | null>(null);
@@ -73,9 +78,9 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
     <>
       <TouchableOpacity style={styles.triggerBtn} onPress={handleGenerate} activeOpacity={0.7} disabled={isLoading}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
         ) : (
-          <Sparkles size={16} color={Colors.primary} />
+          <Sparkles size={16} color={themeColors.accent} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Generating Report...' : 'AI Project Report'}</Text>
       </TouchableOpacity>
@@ -90,11 +95,11 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <View style={styles.headerLeft}>
-              <Sparkles size={16} color={Colors.primary} />
+              <Sparkles size={16} color={themeColors.accent} />
               <Text style={styles.modalTitle}>Project Status Report</Text>
             </View>
             <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={22} color={Colors.textSecondary} />
+              <X size={22} color={themeColors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -111,13 +116,13 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
               </View>
 
               <View style={styles.twoCol}>
-                <View style={[styles.statusCard, { borderLeftColor: Colors.info }]}>
-                  <FileText size={14} color={Colors.info} />
+                <View style={[styles.statusCard, { borderLeftColor: themeColors.info }]}>
+                  <FileText size={14} color={themeColors.info} />
                   <Text style={styles.statusLabel}>Schedule Status</Text>
                   <Text style={styles.statusText}>{result.scheduleStatus}</Text>
                 </View>
-                <View style={[styles.statusCard, { borderLeftColor: Colors.success }]}>
-                  <FileText size={14} color={Colors.success} />
+                <View style={[styles.statusCard, { borderLeftColor: themeColors.success }]}>
+                  <FileText size={14} color={themeColors.success} />
                   <Text style={styles.statusLabel}>Budget Status</Text>
                   <Text style={styles.statusText}>{result.budgetStatus}</Text>
                 </View>
@@ -128,7 +133,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Key Accomplishments</Text>
                   {(result.keyAccomplishments ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <CheckCircle2 size={13} color={Colors.success} />
+                      <CheckCircle2 size={13} color={themeColors.success} />
                       <Text style={styles.listText}>{item}</Text>
                     </View>
                   ))}
@@ -152,7 +157,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Next Milestones</Text>
                   {(result.nextMilestones ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <Target size={13} color={Colors.primary} />
+                      <Target size={13} color={themeColors.accent} />
                       <Text style={styles.listText}>{item}</Text>
                     </View>
                   ))}
@@ -164,8 +169,8 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Recommendations</Text>
                   {(result.recommendations ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <Sparkles size={13} color={Colors.primary} />
-                      <Text style={[styles.listText, { color: Colors.primary, fontWeight: '500' as const }]}>{item}</Text>
+                      <Sparkles size={13} color={themeColors.accent} />
+                      <Text style={[styles.listText, { color: themeColors.accent, fontWeight: '500' as const }]}>{item}</Text>
                     </View>
                   ))}
                 </View>
@@ -180,32 +185,32 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   triggerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.primary + '25',
+    borderColor: t.accent + '25',
   },
   triggerText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   modalHandle: {
     width: 36,
     height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     alignSelf: 'center',
     marginBottom: 8,
   },
@@ -216,7 +221,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -226,7 +231,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   scroll: {
     flex: 1,
@@ -236,41 +241,41 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   projectBanner: {
-    backgroundColor: Colors.primary + '0A',
+    backgroundColor: t.accent + '0A',
     borderRadius: Tokens.radius.card,
     padding: 16,
     borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
+    borderLeftColor: t.accent,
   },
   projectName: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   projectMeta: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 2,
   },
   section: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
     gap: 8,
   },
   sectionTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   sectionText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 21,
   },
   twoCol: {
@@ -279,7 +284,7 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 14,
     borderLeftWidth: 3,
@@ -287,13 +292,13 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '600' as const,
     textTransform: 'uppercase' as const,
   },
   statusText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 18,
   },
   listRow: {
@@ -303,13 +308,13 @@ const styles = StyleSheet.create({
   },
   listText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 20,
     flex: 1,
   },
   disclaimer: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center',
     marginTop: 8,
   },

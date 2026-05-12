@@ -21,6 +21,9 @@ import {
   Lock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ProjectSchedule, ScheduleScenario, ScheduleTask } from '@/types';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -51,6 +54,8 @@ export default function ScenariosModal({
   schedule,
   onScheduleChange,
 }: ScenariosModalProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { canAccess } = useTierAccess();
   const hasAccess = canAccess('schedule_scenarios');
@@ -136,7 +141,7 @@ export default function ScenariosModal({
         <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backBtn} onPress={onClose}>
-              <ChevronLeft size={22} color={Colors.text} />
+              <ChevronLeft size={22} color={themeColors.text} />
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
             <Text style={styles.title}>What-If Scenarios</Text>
@@ -144,7 +149,7 @@ export default function ScenariosModal({
           </View>
           <View style={styles.paywallWrap}>
             <View style={styles.lockBadge}>
-              <Lock size={18} color={Colors.primary} />
+              <Lock size={18} color={themeColors.accent} />
             </View>
             <Paywall visible={true} requiredTier="pro" feature="schedule_scenarios" onClose={onClose} />
           </View>
@@ -163,7 +168,7 @@ export default function ScenariosModal({
       <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={onClose} testID="scenarios-back">
-            <ChevronLeft size={22} color={Colors.text} />
+            <ChevronLeft size={22} color={themeColors.text} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>What-If Scenarios</Text>
@@ -172,7 +177,7 @@ export default function ScenariosModal({
             onPress={() => setShowCreate(true)}
             activeOpacity={0.85}
             testID="scenarios-new-btn" accessibilityRole="button" accessibilityLabel="Add">
-            <Plus size={16} color={Colors.textOnPrimary} strokeWidth={2.5} />
+            <Plus size={16} color={'#FFFFFF'} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
 
@@ -184,7 +189,7 @@ export default function ScenariosModal({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.helpCard}>
-            <GitBranch size={16} color={Colors.primary} />
+            <GitBranch size={16} color={themeColors.accent} />
             <Text style={styles.helpText}>
               Snapshot the schedule into a named alternate, like {'"'}Overtime push{'"'} or
               {' "'}Rain delay,{'"'} then toggle between the baseline plan and any
@@ -202,7 +207,7 @@ export default function ScenariosModal({
               <Text style={[styles.rowName, activeId === null && styles.rowNameActive]}>
                 Baseline Plan
               </Text>
-              {activeId === null && <Check size={16} color={Colors.primary} />}
+              {activeId === null && <Check size={16} color={themeColors.accent} />}
             </View>
             <Text style={styles.rowMeta}>
               {schedule.tasks.length} tasks · {schedule.totalDurationDays} days
@@ -229,7 +234,7 @@ export default function ScenariosModal({
                     >
                       {s.name}
                     </Text>
-                    {isActive && <Check size={16} color={Colors.primary} />}
+                    {isActive && <Check size={16} color={themeColors.accent} />}
                   </View>
                   {!!s.note && (
                     <Text style={styles.rowNote} numberOfLines={2}>
@@ -246,7 +251,7 @@ export default function ScenariosModal({
                   onPress={() => handleDelete(s.id)}
                   activeOpacity={0.7}
                   testID={`scenarios-delete-${s.id}`} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={Colors.error} />
+                  <Trash2 size={14} color={themeColors.danger} />
                 </TouchableOpacity>
               </View>
             );
@@ -282,7 +287,7 @@ export default function ScenariosModal({
                 value={newName}
                 onChangeText={setNewName}
                 placeholder="e.g. Overtime push"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 autoFocus
                 testID="scenarios-new-name"
               />
@@ -293,7 +298,7 @@ export default function ScenariosModal({
                 value={newNote}
                 onChangeText={setNewNote}
                 placeholder="Why this scenario exists..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
                 testID="scenarios-new-note"
@@ -328,8 +333,8 @@ export default function ScenariosModal({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -337,16 +342,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 8, paddingRight: 12 },
-  backText: { fontSize: Type.subhead.fontSize, color: Colors.primary, fontWeight: '500' as const },
-  title: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  backText: { fontSize: Type.subhead.fontSize, color: t.accent, fontWeight: '500' as const },
+  title: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
   newBtn: {
     width: 32,
     height: 32,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -356,30 +361,30 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 10,
     padding: 12,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
     borderRadius: Tokens.radius.card,
     marginBottom: 6,
   },
   helpText: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 17,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     gap: 10,
   },
   rowMain: { flex: 1, gap: 4 },
   rowActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
+    borderColor: t.accent,
+    backgroundColor: t.accent + '08',
   },
   rowHeader: {
     flexDirection: 'row',
@@ -391,23 +396,23 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
-  rowNameActive: { color: Colors.primary, fontWeight: '700' as const },
-  rowNote: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
-  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  rowNameActive: { color: t.accent, fontWeight: '700' as const },
+  rowNote: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   deleteBtn: {
     width: 32,
     height: 32,
     borderRadius: Tokens.radius.panel,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.error + '10',
+    backgroundColor: t.danger + '10',
   },
   empty: { padding: 24, alignItems: 'center' },
   emptyText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center',
     lineHeight: 19,
   },
@@ -416,7 +421,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -429,7 +434,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   createCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 20,
     gap: 6,
@@ -437,18 +442,18 @@ const styles = StyleSheet.create({
   createTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   createHint: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginBottom: 8,
     lineHeight: 17,
   },
   fieldLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 10,
     marginBottom: 4,
   },
@@ -458,7 +463,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 12,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   inputMulti: { minHeight: 70, paddingTop: 10, textAlignVertical: 'top' as const },
   createActions: {
@@ -470,26 +475,26 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   saveBtn: {
     flex: 1,
     height: 44,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtnText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
   },
 });

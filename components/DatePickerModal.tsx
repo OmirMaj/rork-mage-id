@@ -31,6 +31,9 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { X, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -59,6 +62,8 @@ export default function DatePickerModal({
   title = 'Pick a date',
   allowFuture = false,
 }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // Parse the incoming value once per open. Treat invalid input as today.
   const initial = useMemo(() => {
     const parsed = value ? new Date(value) : new Date();
@@ -139,7 +144,7 @@ export default function DatePickerModal({
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={20} color={Colors.textMuted} />
+              <X size={20} color={themeColors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -188,7 +193,7 @@ export default function DatePickerModal({
 
           {/* Confirm */}
           <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm} activeOpacity={0.85}>
-            <Check size={16} color={Colors.surface} />
+            <Check size={16} color={themeColors.surface} />
             <Text style={styles.confirmText}>
               Use {MONTHS[month]} {day}, {year}
             </Text>
@@ -210,6 +215,7 @@ interface WheelProps<T> {
 /** A single column of the picker. Tap a row to select it; current
  *  selection is highlighted + auto-scrolls into view on open. */
 function Wheel<T>({ label, options, renderOption, value, onChange }: WheelProps<T>) {
+  const styles = useThemedStyles(makeStyles);
   const ref = React.useRef<ScrollView>(null);
   const ROW_H = 36;
 
@@ -256,7 +262,7 @@ function Wheel<T>({ label, options, renderOption, value, onChange }: WheelProps<
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -267,41 +273,41 @@ const styles = StyleSheet.create({
   card: {
     width: '100%' as const,
     maxWidth: 420,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 12,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
+  title: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.3 },
   quickRow: { flexDirection: 'row', gap: 8 },
   quickPill: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
   },
-  quickPillActive: { backgroundColor: Colors.primary },
-  quickPillText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  quickPillTextActive: { color: Colors.surface },
+  quickPillActive: { backgroundColor: t.accent },
+  quickPillText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  quickPillTextActive: { color: t.surface },
   wheels: { flexDirection: 'row', gap: 8, marginVertical: 8 },
   wheel: { flex: 1, gap: 4 },
-  wheelLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const, textAlign: 'center' },
+  wheelLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const, textAlign: 'center' },
   wheelScroll: {
     height: 36 * 4,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillSecondary,
   },
   wheelRow: { height: 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  wheelRowActive: { backgroundColor: Colors.primary + '14' },
-  wheelRowText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  wheelRowTextActive: { fontWeight: '800' as const, color: Colors.primary },
+  wheelRowActive: { backgroundColor: t.accent + '14' },
+  wheelRowText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
+  wheelRowTextActive: { fontWeight: '800' as const, color: t.accent },
   confirmBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: t.accent,
+    shadowColor: t.accent, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
   },
-  confirmText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.surface, letterSpacing: 0.2 },
+  confirmText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.surface, letterSpacing: 0.2 },
 });
