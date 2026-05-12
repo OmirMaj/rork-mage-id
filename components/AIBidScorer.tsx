@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Sparkles, X, CheckCircle2, Settings } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -61,6 +62,7 @@ interface ProfileSetupProps {
 
 export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: ProfileSetupProps) {
   const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
   const [specialties, setSpecialties] = useState<string[]>(initialProfile?.specialties ?? []);
   const [trades, setTrades] = useState<string[]>(initialProfile?.trades ?? []);
   const [preferredSize, setPreferredSize] = useState(initialProfile?.preferredSize ?? '$100K-$500K');
@@ -80,7 +82,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={[setupStyles.container, { paddingTop: insets.top }]}>
+      <View style={[setupStyles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <View style={setupStyles.header}>
           <Text style={setupStyles.title}>Company AI Profile</Text>
           <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>

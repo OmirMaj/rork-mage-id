@@ -5,6 +5,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, Clock, Lightbulb } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   predictInvoicePayment, getCachedResult, setCachedResult,
   type InvoicePredictionResult,
@@ -31,6 +32,7 @@ const CONFIDENCE_STYLES = {
 } as const;
 
 export default React.memo(function AIInvoicePredictor({ invoice, projectName, allInvoices, subscriptionTier }: Props) {
+  const { colors: themeColors } = useTheme();
   const [result, setResult] = useState<InvoicePredictionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const shimmerAnim = React.useRef(new Animated.Value(0)).current;
@@ -101,7 +103,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
   if (isLoading && !result) {
     const opacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.header}>
           <Sparkles size={12} color={Colors.primary} />
           <Text style={styles.headerTitle}>Payment Prediction</Text>
@@ -118,7 +120,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
   const dueDate = new Date(invoice.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
         <Sparkles size={12} color={Colors.primary} />
         <Text style={styles.headerTitle}>Payment Prediction</Text>

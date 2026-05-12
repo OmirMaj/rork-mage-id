@@ -5,6 +5,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, AlertTriangle, CheckCircle2, Lightbulb, XCircle, Search } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { validateEstimate, type EstimateValidationResult } from '@/utils/aiService';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -28,6 +29,7 @@ const ISSUE_ICONS = {
 } as const;
 
 export default React.memo(function AIEstimateValidator(props: Props) {
+  const { colors: themeColors } = useTheme();
   const [result, setResult] = useState<EstimateValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -77,7 +79,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
     result.overallScore >= 5 ? Colors.warning : Colors.error;
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
           <Sparkles size={16} color={Colors.primary} />

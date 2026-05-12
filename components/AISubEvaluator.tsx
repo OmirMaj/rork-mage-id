@@ -6,6 +6,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, HelpCircle, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   evaluateSubcontractor, getCachedResult, setCachedResult,
   type SubEvaluationResult,
@@ -27,6 +28,7 @@ interface Props {
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
 export default React.memo(function AISubEvaluator({ sub, projectContext, subscriptionTier }: Props) {
+  const { colors: themeColors } = useTheme();
   const [result, setResult] = useState<SubEvaluationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -77,7 +79,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
         <Sparkles size={12} color={Colors.primary} />
         <Text style={styles.headerTitle}>AI Sub Evaluation</Text>
