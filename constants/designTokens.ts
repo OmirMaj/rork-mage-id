@@ -184,6 +184,31 @@ export const TouchTarget = {
   large: 56,
 } as const;
 
+// ─────────────────────────────────────────────────────────────────────
+// Icon size + stroke vocabulary — locked to 4 named sizes.
+// ─────────────────────────────────────────────────────────────────────
+//
+// Premium apps use ~4 icon sizes with paired stroke weights. Free-form
+// icon sizing produces the "flat / generic" feel — strokes that are too
+// thin on small icons read as anemic, and decorative icons without
+// backgrounds feel like wireframes.
+//
+// Usage:
+//   import { IconSize } from '@/constants/designTokens';
+//   <ChevronRight {...IconSize.small} color={colors.textMuted} />
+//
+// Each entry spreads size + strokeWidth onto a lucide-react-native icon.
+export const IconSize = {
+  /** 12pt @ 2.2 — micro icons inside dense rows (status pills, count chips). */
+  micro:   { size: 12, strokeWidth: 2.2 },
+  /** 14pt @ 2.0 — chevrons, metadata icons, secondary actions. */
+  small:   { size: 14, strokeWidth: 2.0 },
+  /** 18pt @ 1.8 — workhorse for primary row icons, buttons, nav. */
+  default: { size: 18, strokeWidth: 1.8 },
+  /** 24pt @ 2.0 — hero icons on empty states, modals, paywall tiers. */
+  large:   { size: 24, strokeWidth: 2.0 },
+} as const;
+
 // Tokens — a barrel export for callers who want one symbol.
 export const Tokens = {
   spacing: Spacing,
@@ -191,6 +216,7 @@ export const Tokens = {
   shadow: Shadow,
   motion: Motion,
   touchTarget: TouchTarget,
+  iconSize: IconSize,
   continuousCorners,
 } as const;
 
