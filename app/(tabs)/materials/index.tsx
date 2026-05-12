@@ -15,6 +15,9 @@ import {
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -46,6 +49,8 @@ interface CategorySummary {
 export default function MaterialsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { priceAlerts, updatePriceAlert, deletePriceAlert } = useProjects();
   const [searchQuery, setSearchQuery] = useState('');
   const [materials, setMaterials] = useState<MaterialItem[]>(() => getLivePrices(Date.now() / 10000));
@@ -122,7 +127,7 @@ export default function MaterialsScreen() {
       .filter(cat => grouped[cat])
       .map(cat => {
         const items = grouped[cat];
-        const meta = CATEGORY_META[cat] ?? { color: Colors.primary, emoji: '📦', iconName: 'Package', label: cat };
+        const meta = CATEGORY_META[cat] ?? { color: themeColors.accent, emoji: '📦', iconName: 'Package', label: cat };
         const prices = items.map(i => i.baseBulkPrice);
         const discounts = items.map(i => {
           if (i.baseRetailPrice <= 0) return 0;
@@ -180,7 +185,7 @@ export default function MaterialsScreen() {
               <Text style={styles.categoryName}>{item.label}</Text>
               {alertCount > 0 && (
                 <View style={styles.categoryAlertDot}>
-                  <Bell size={9} color={Colors.accent} />
+                  <Bell size={9} color={themeColors.accent} />
                 </View>
               )}
             </View>
@@ -196,7 +201,7 @@ export default function MaterialsScreen() {
               )}
             </View>
           </View>
-          <ChevronRight size={16} color={Colors.textMuted} strokeWidth={2} />
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
         </View>
       </TouchableOpacity>
     );
@@ -217,11 +222,11 @@ export default function MaterialsScreen() {
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {priceAlerts.length > 0 && (
             <TouchableOpacity
-              style={[styles.refreshBtn, showAlerts && { backgroundColor: Colors.accent + '20' }]}
+              style={[styles.refreshBtn, showAlerts && { backgroundColor: themeColors.accent + '20' }]}
               onPress={() => setShowAlerts(!showAlerts)}
               activeOpacity={0.7}
             >
-              <Bell size={15} color={showAlerts ? Colors.accent : Colors.primary} />
+              <Bell size={15} color={showAlerts ? themeColors.accent : themeColors.accent} />
               {triggeredAlerts.length > 0 && (
                 <View style={styles.alertBadge}>
                   <Text style={styles.alertBadgeText}>{triggeredAlerts.length}</Text>
@@ -235,7 +240,7 @@ export default function MaterialsScreen() {
             activeOpacity={0.7}
             testID="refresh-prices"
           >
-            <RefreshCw size={15} color={Colors.primary} />
+            <RefreshCw size={15} color={themeColors.accent} />
             <Text style={styles.refreshBtnText}>Refresh</Text>
           </TouchableOpacity>
         </View>
@@ -246,7 +251,7 @@ export default function MaterialsScreen() {
         onPress={() => setShowLocationPicker(!showLocationPicker)}
         activeOpacity={0.7}
       >
-        <MapPin size={14} color={Colors.primary} />
+        <MapPin size={14} color={themeColors.accent} />
         <Text style={styles.locationText}>
           Pricing for <Text style={styles.locationBold}>{selectedCity}</Text>
           {' '}({regionInfo?.label ?? 'US Average'})
@@ -254,7 +259,7 @@ export default function MaterialsScreen() {
         <View style={styles.locationMultiplier}>
           <Text style={styles.multiplierText}>{locationMultiplier > 1 ? '+' : ''}{((locationMultiplier - 1) * 100).toFixed(0)}%</Text>
         </View>
-        <ChevronDown size={14} color={Colors.textSecondary} />
+        <ChevronDown size={14} color={themeColors.textSecondary} />
       </TouchableOpacity>
 
       {showLocationPicker && (
@@ -315,22 +320,22 @@ export default function MaterialsScreen() {
       )}
 
       <View style={styles.updatedRow}>
-        <Clock size={11} color={Colors.textMuted} />
+        <Clock size={11} color={themeColors.textMuted} />
         <Text style={styles.updatedText}>Prices updated {formatTime(lastUpdated)} · {selectedCity} rates · Pull to refresh</Text>
-        <Wifi size={11} color={Colors.success} />
+        <Wifi size={11} color={themeColors.success} />
       </View>
 
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Search size={15} color={Colors.textMuted} />
+          <Search size={15} color={themeColors.textMuted} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search categories..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             autoCorrect={false}
-            selectionColor={Colors.primary}
+            selectionColor={themeColors.accent}
             underlineColorAndroid="transparent"
             testID="materials-search"
           />
@@ -362,7 +367,7 @@ export default function MaterialsScreen() {
                   </View>
                   {alert.isTriggered && (
                     <View style={[styles.alertStatusBadge, { backgroundColor: Colors.successLight }]}>
-                      <Text style={[styles.alertStatusText, { color: Colors.success }]}>Triggered</Text>
+                      <Text style={[styles.alertStatusText, { color: themeColors.success }]}>Triggered</Text>
                     </View>
                   )}
                   {alert.isPaused && (
@@ -372,7 +377,7 @@ export default function MaterialsScreen() {
                   )}
                 </View>
                 <View style={styles.alertProgressTrack}>
-                  <View style={[styles.alertProgressFill, { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: alert.isTriggered ? Colors.success : Colors.primary }]} />
+                  <View style={[styles.alertProgressFill, { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: alert.isTriggered ? themeColors.success : themeColors.accent }]} />
                 </View>
                 <View style={styles.alertActions}>
                   <TouchableOpacity
@@ -382,8 +387,8 @@ export default function MaterialsScreen() {
                       if (Platform.OS !== 'web') void Haptics.selectionAsync();
                     }}
                   >
-                    {alert.isPaused ? <Play size={12} color={Colors.primary} /> : <Pause size={12} color={Colors.warning} />}
-                    <Text style={[styles.alertActionText, { color: alert.isPaused ? Colors.primary : Colors.warning }]}>
+                    {alert.isPaused ? <Play size={12} color={themeColors.accent} /> : <Pause size={12} color={Colors.warning} />}
+                    <Text style={[styles.alertActionText, { color: alert.isPaused ? themeColors.accent : Colors.warning }]}>
                       {alert.isPaused ? 'Resume' : 'Pause'}
                     </Text>
                   </TouchableOpacity>
@@ -394,8 +399,8 @@ export default function MaterialsScreen() {
                       if (Platform.OS !== 'web') void Haptics.selectionAsync();
                     }}
                   >
-                    <Trash2 size={12} color={Colors.error} />
-                    <Text style={[styles.alertActionText, { color: Colors.error }]}>Delete</Text>
+                    <Trash2 size={12} color={themeColors.danger} />
+                    <Text style={[styles.alertActionText, { color: themeColors.danger }]}>Delete</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -405,13 +410,13 @@ export default function MaterialsScreen() {
       )}
 
       <View style={styles.savingsBanner}>
-        <TrendingDown size={14} color={Colors.success} />
+        <TrendingDown size={14} color={themeColors.success} />
         <Text style={styles.savingsText}>Bulk pricing saves up to 25% — tap a category to browse</Text>
       </View>
 
       {filteredCategories.length === 0 ? (
         <View style={styles.emptyState}>
-          <Search size={40} color={Colors.textMuted} />
+          <Search size={40} color={themeColors.textMuted} />
           <Text style={styles.emptyTitle}>No categories found</Text>
           <Text style={styles.emptyDesc}>Try a different search term</Text>
         </View>
@@ -449,47 +454,47 @@ export default function MaterialsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   listContainer: {},
   headerArea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 },
-  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
+  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.5 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.success },
-  liveLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.success, letterSpacing: 0.8 },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.primary + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  refreshBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  alertBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error, alignItems: 'center', justifyContent: 'center' },
+  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: t.success },
+  liveLabel: { fontSize: 10, fontWeight: '700' as const, color: t.success, letterSpacing: 0.8 },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.accent + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  refreshBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
+  alertBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: Tokens.radius.sm, backgroundColor: t.danger, alignItems: 'center', justifyContent: 'center' },
   alertBadgeText: { fontSize: 9, fontWeight: '700' as const, color: '#fff' },
   updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 20, marginBottom: 12 },
-  updatedText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  updatedText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted },
   searchWrap: { paddingHorizontal: 16, marginBottom: 12 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 40 },
-  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
-  clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.textMuted, alignItems: 'center', justifyContent: 'center' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 40 },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: t.text },
+  clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: t.textMuted, alignItems: 'center', justifyContent: 'center' },
   alertsSection: { marginHorizontal: 16, marginBottom: 16, gap: 8 },
-  alertsSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, marginBottom: 4 },
-  alertCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
+  alertsSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textSecondary, letterSpacing: 0.5, marginBottom: 4 },
+  alertCard: { backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: t.line, gap: 8 },
   alertCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  alertMatName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  alertDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  alertMatName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  alertDetail: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
   alertStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   alertStatusText: { fontSize: 10, fontWeight: '700' as const },
-  alertProgressTrack: { height: 4, backgroundColor: Colors.fillTertiary, borderRadius: 2, overflow: 'hidden' as const },
+  alertProgressTrack: { height: 4, backgroundColor: t.surfaceAlt, borderRadius: 2, overflow: 'hidden' as const },
   alertProgressFill: { height: 4, borderRadius: 2 },
   alertActions: { flexDirection: 'row', gap: 12 },
   alertActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   alertActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
-  savingsBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: Colors.success + '12', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginBottom: 20 },
-  savingsText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.success, fontWeight: '500' as const, lineHeight: 17 },
-  sectionHeader: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
+  savingsBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: t.success + '12', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginBottom: 20 },
+  savingsText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.success, fontWeight: '500' as const, lineHeight: 17 },
+  sectionHeader: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textSecondary, letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
   categoryCard: {
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     overflow: 'hidden' as const,
   },
   categoryCardInner: {
@@ -502,41 +507,41 @@ const styles = StyleSheet.create({
   emojiText: { fontSize: Type.title3.fontSize },
   categoryInfo: { flex: 1, gap: 2 },
   categoryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  categoryName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
+  categoryName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: t.text },
   categoryAlertDot: {
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.accent + '18',
+    backgroundColor: t.accent + '18',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryCount: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  categoryCount: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   categoryStats: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  priceRangeText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  priceRangeText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   discountChip: {
-    backgroundColor: Colors.success + '15',
+    backgroundColor: t.success + '15',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  discountChipText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
+  discountChipText: { fontSize: 10, fontWeight: '700' as const, color: t.success },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
-  sourceNote: { marginHorizontal: 16, marginTop: 16, padding: 12, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md },
-  sourceText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16 },
-  locationBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.primary + '08', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: Colors.primary + '20' },
-  locationText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
-  locationBold: { fontWeight: '700' as const, color: Colors.primary },
-  locationMultiplier: { backgroundColor: Colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  multiplierText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  locationPicker: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: Colors.cardBorder },
-  pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: t.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted },
+  sourceNote: { marginHorizontal: 16, marginTop: 16, padding: 12, backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md },
+  sourceText: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16 },
+  locationBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, backgroundColor: t.accent + '08', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: t.accent + '20' },
+  locationText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text },
+  locationBold: { fontWeight: '700' as const, color: t.accent },
+  locationMultiplier: { backgroundColor: t.accent + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  multiplierText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent },
+  locationPicker: { marginHorizontal: 16, marginBottom: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: t.line },
+  pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 },
   pickerScroll: { flexDirection: 'row', marginBottom: 4 },
-  pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, marginRight: 6, alignItems: 'center' },
-  pickerChipActive: { backgroundColor: Colors.primary },
-  pickerChipText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  pickerChipSub: { fontSize: 10, color: Colors.textMuted, marginTop: 1 },
+  pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.bg, marginRight: 6, alignItems: 'center' },
+  pickerChipActive: { backgroundColor: t.accent },
+  pickerChipText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  pickerChipSub: { fontSize: 10, color: t.textMuted, marginTop: 1 },
   pickerChipTextActive: { color: '#FFF' },
 });

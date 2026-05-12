@@ -19,6 +19,9 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 };
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PriceAlert, AlertDirection } from '@/types';
@@ -33,6 +36,8 @@ function createId(_prefix: string): string {
 }
 
 export default function CategoryDetailScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { category } = useLocalSearchParams<{ category: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -58,7 +63,7 @@ export default function CategoryDetailScreen() {
     );
   }, [allMaterials, searchQuery]);
 
-  const meta = CATEGORY_META[category ?? ''] ?? { color: Colors.primary, emoji: '📦', iconName: 'Package', label: category ?? 'Materials' };
+  const meta = CATEGORY_META[category ?? ''] ?? { color: themeColors.accent, emoji: '📦', iconName: 'Package', label: category ?? 'Materials' };
   const CategoryIcon = CATEGORY_ICONS[meta.iconName] ?? Package;
 
   const calcDiscount = (retail: number, bulk: number) => {
@@ -101,14 +106,14 @@ export default function CategoryDetailScreen() {
           <View style={styles.itemLeft}>
             <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
             <View style={styles.itemMeta}>
-              <Truck size={10} color={Colors.textMuted} />
+              <Truck size={10} color={themeColors.textMuted} />
               <Text style={styles.itemSupplier} numberOfLines={1}>{item.supplier}</Text>
               <Text style={styles.itemDot}>·</Text>
               <Text style={styles.itemUnit}>per {item.unit}</Text>
             </View>
             {item.sku && (
               <View style={styles.skuRow}>
-                <Tag size={9} color={Colors.textMuted} />
+                <Tag size={9} color={themeColors.textMuted} />
                 <Text style={styles.skuText}>SKU {item.sku}</Text>
               </View>
             )}
@@ -142,8 +147,8 @@ export default function CategoryDetailScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Bell size={13} color={hasAlert ? Colors.accent : Colors.textMuted} />
-            <Text style={[styles.alertBtnText, hasAlert && { color: Colors.accent }]}>
+            <Bell size={13} color={hasAlert ? themeColors.accent : themeColors.textMuted} />
+            <Text style={[styles.alertBtnText, hasAlert && { color: themeColors.accent }]}>
               {hasAlert ? 'Alert Set' : 'Set Alert'}
             </Text>
           </TouchableOpacity>
@@ -170,7 +175,7 @@ export default function CategoryDetailScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
           testID="back-btn" accessibilityRole="button" accessibilityLabel="Back">
-          <ArrowLeft size={20} color={Colors.text} />
+          <ArrowLeft size={20} color={themeColors.text} />
         </TouchableOpacity>
         <View style={[styles.headerEmoji, { backgroundColor: meta.color + '15' }]}>
           <CategoryIcon size={22} color={meta.color} strokeWidth={2} />
@@ -183,15 +188,15 @@ export default function CategoryDetailScreen() {
 
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Search size={15} color={Colors.textMuted} />
+          <Search size={15} color={themeColors.textMuted} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder={`Search ${meta.label.toLowerCase()}...`}
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             autoCorrect={false}
-            selectionColor={Colors.primary}
+            selectionColor={themeColors.accent}
             underlineColorAndroid="transparent"
             testID="category-search"
           />
@@ -207,7 +212,7 @@ export default function CategoryDetailScreen() {
 
       {categoryAlerts.length > 0 && (
         <View style={styles.alertsBar}>
-          <Bell size={12} color={Colors.accent} />
+          <Bell size={12} color={themeColors.accent} />
           <Text style={styles.alertsBarText}>{categoryAlerts.length} active alert{categoryAlerts.length > 1 ? 's' : ''} in this category</Text>
         </View>
       )}
@@ -226,7 +231,7 @@ export default function CategoryDetailScreen() {
         getItemLayout={undefined}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Search size={36} color={Colors.textMuted} />
+            <Search size={36} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No results</Text>
             <Text style={styles.emptyDesc}>Try a different search term</Text>
           </View>
@@ -244,7 +249,7 @@ export default function CategoryDetailScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Set Price Alert</Text>
               <TouchableOpacity onPress={() => setAlertModal(null)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
             {alertModal && (
@@ -274,7 +279,7 @@ export default function CategoryDetailScreen() {
                   value={alertPrice}
                   onChangeText={setAlertPrice}
                   placeholder={alertDirection === 'below' ? (alertModal.baseRetailPrice * 0.9).toFixed(2) : (alertModal.baseRetailPrice * 1.1).toFixed(2)}
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   keyboardType="decimal-pad"
                   testID="alert-price-input"
                 />
@@ -292,23 +297,23 @@ export default function CategoryDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
     gap: 12,
   },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -321,24 +326,24 @@ const styles = StyleSheet.create({
   },
   headerEmojiText: { fontSize: Type.title3.fontSize },
   headerInfo: { flex: 1 },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  headerCount: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 1 },
-  searchWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.surface },
+  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
+  headerCount: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 1 },
+  searchWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: t.surface },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 12,
     gap: 8,
     height: 40,
   },
-  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: t.text },
   clearBtn: {
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.textMuted,
+    backgroundColor: t.textMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -350,50 +355,50 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: Colors.accent + '12',
+    backgroundColor: t.accent + '12',
     borderRadius: Tokens.radius.sm,
   },
-  alertsBarText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.accent },
+  alertsBarText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.accent },
   listContent: { paddingTop: 8, paddingHorizontal: 16, gap: 8 },
   itemCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   itemTop: { flexDirection: 'row', gap: 12 },
   itemLeft: { flex: 1, gap: 4 },
-  itemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 19 },
+  itemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text, lineHeight: 19 },
   itemMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  itemSupplier: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, flex: 1 },
-  itemDot: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  itemUnit: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  itemSupplier: { fontSize: Type.caption2.fontSize, color: t.textMuted, flex: 1 },
+  itemDot: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+  itemUnit: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   skuRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  skuText: { fontSize: 10, color: Colors.textMuted },
+  skuText: { fontSize: 10, color: t.textMuted },
   regionBadge: {
     alignSelf: 'flex-start' as const,
-    backgroundColor: Colors.info + '12',
+    backgroundColor: t.info + '12',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     marginTop: 2,
   },
-  regionText: { fontSize: 10, fontWeight: '600' as const, color: Colors.info },
+  regionText: { fontSize: 10, fontWeight: '600' as const, color: t.info },
   itemRight: { alignItems: 'flex-end', gap: 2, minWidth: 80 },
-  retailPrice: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
+  retailPrice: { fontSize: Type.caption1.fontSize, color: t.textMuted, textDecorationLine: 'line-through' as const },
   bulkRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  bulkPrice: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.success, letterSpacing: -0.3 },
-  saveBadge: { backgroundColor: Colors.success + '18', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
-  bulkMinLabel: { fontSize: 10, color: Colors.textMuted },
+  bulkPrice: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.success, letterSpacing: -0.3 },
+  saveBadge: { backgroundColor: t.success + '18', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
+  saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: t.success },
+  bulkMinLabel: { fontSize: 10, color: t.textMuted },
   itemActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   alertBtn: {
     flexDirection: 'row',
@@ -402,26 +407,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  alertBtnActive: { backgroundColor: Colors.accent + '15' },
-  alertBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.textMuted },
+  alertBtnActive: { backgroundColor: t.accent + '15' },
+  alertBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: t.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  modalCard: { backgroundColor: t.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  modalMatName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
-  modalCurrentPrice: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  modalFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
+  modalMatName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: t.text },
+  modalCurrentPrice: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
+  modalFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 4 },
   directionRow: { flexDirection: 'row', gap: 8 },
-  directionBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
-  directionBtnActive: { backgroundColor: Colors.primary },
-  directionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  directionBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: t.surfaceAlt, alignItems: 'center' },
+  directionBtnActive: { backgroundColor: t.accent },
+  directionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
   directionBtnTextActive: { color: '#fff' },
-  modalInput: { height: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: Colors.text },
-  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14 },
+  modalInput: { height: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: t.text },
+  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14 },
   modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
 });

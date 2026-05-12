@@ -42,6 +42,9 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
@@ -163,6 +166,8 @@ function cleanTitle(t: string | null | undefined): string {
 // ─── Bid card ────────────────────────────────────────────────────────
 
 function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const deadlineInfo = getDeadlineInfo(bid.response_deadline);
   const setAsideLabel = prettySetAside(bid.set_aside);
@@ -210,12 +215,12 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
 
         <View style={styles.bidMeta}>
           <View style={styles.metaItem}>
-            <MapPin size={13} color={Colors.textSecondary} />
+            <MapPin size={13} color={themeColors.textSecondary} />
             <Text style={styles.metaText} numberOfLines={1}>{locationLabel}</Text>
           </View>
           {bid.distance !== null && (
             <View style={styles.distanceTag}>
-              <Navigation size={10} color={Colors.info} />
+              <Navigation size={10} color={themeColors.info} />
               <Text style={styles.distanceTagText}>{bid.distance} mi</Text>
             </View>
           )}
@@ -249,6 +254,8 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
 // ─── Screen ──────────────────────────────────────────────────────────
 
 export default function CachedBidsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { location } = useUserLocation();
@@ -468,7 +475,7 @@ export default function CachedBidsScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-            <ArrowLeft size={20} color={Colors.text} />
+            <ArrowLeft size={20} color={themeColors.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Public Bids</Text>
@@ -484,27 +491,27 @@ export default function CachedBidsScreen() {
             onPress={() => { setShowSortDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
             activeOpacity={0.7}
           >
-            <ArrowUpDown size={14} color={Colors.text} />
+            <ArrowUpDown size={14} color={themeColors.text} />
             <Text style={styles.sortBtnText}>{sortLabel}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Search box */}
         <View style={styles.searchWrap}>
-          <Search size={15} color={Colors.textMuted} />
+          <Search size={15} color={themeColors.textMuted} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search title, city, NAICS, solicitation #"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={15} color={Colors.textMuted} />
+              <X size={15} color={themeColors.textMuted} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -516,7 +523,7 @@ export default function CachedBidsScreen() {
             onPress={() => { setConstructionOnly(!constructionOnly); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
             activeOpacity={0.85}
           >
-            <Hammer size={12} color={constructionOnly ? '#FFF' : Colors.textSecondary} />
+            <Hammer size={12} color={constructionOnly ? '#FFF' : themeColors.textSecondary} />
             <Text style={[styles.pillText, constructionOnly && styles.pillTextActive]}>Construction</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -524,11 +531,11 @@ export default function CachedBidsScreen() {
             onPress={() => { setShowSetAsideDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
             activeOpacity={0.85}
           >
-            <Filter size={12} color={selectedSetAside ? '#FFF' : Colors.textSecondary} />
+            <Filter size={12} color={selectedSetAside ? '#FFF' : themeColors.textSecondary} />
             <Text style={[styles.pillText, selectedSetAside ? styles.pillTextActive : null]} numberOfLines={1}>
               {selectedSetAside ?? 'Set-aside'}
             </Text>
-            <ChevronDown size={12} color={selectedSetAside ? '#FFF' : Colors.textSecondary} />
+            <ChevronDown size={12} color={selectedSetAside ? '#FFF' : themeColors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -546,7 +553,7 @@ export default function CachedBidsScreen() {
             onPress={() => handleLocationModeChange('nearby')}
             activeOpacity={0.85}
           >
-            <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : Colors.textSecondary} />
+            <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : themeColors.textSecondary} />
             <Text style={[styles.pillText, locationMode === 'nearby' && styles.pillTextActive]}>Near me</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -554,7 +561,7 @@ export default function CachedBidsScreen() {
             onPress={() => handleLocationModeChange('city')}
             activeOpacity={0.85}
           >
-            <Building size={12} color={locationMode === 'city' ? '#FFF' : Colors.textSecondary} />
+            <Building size={12} color={locationMode === 'city' ? '#FFF' : themeColors.textSecondary} />
             <Text style={[styles.pillText, locationMode === 'city' && styles.pillTextActive]}>City</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -565,7 +572,7 @@ export default function CachedBidsScreen() {
             <Text style={[styles.pillText, locationMode === 'state' && styles.pillTextActive]}>
               {selectedState ?? 'State'}
             </Text>
-            <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : Colors.textSecondary} />
+            <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : themeColors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -642,7 +649,7 @@ export default function CachedBidsScreen() {
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Sort by</Text>
               <TouchableOpacity onPress={() => setShowSortDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.text} />
+                <X size={20} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             {SORT_OPTIONS.map((opt) => (
@@ -671,7 +678,7 @@ export default function CachedBidsScreen() {
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Set-aside type</Text>
               <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.text} />
+                <X size={20} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -727,7 +734,7 @@ export default function CachedBidsScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <AlertCircle size={40} color={Colors.textMuted} />
+              <AlertCircle size={40} color={themeColors.textMuted} />
               <Text style={styles.emptyTitle}>No bids match these filters</Text>
               <Text style={styles.emptySubtitle}>
                 {totalCount > 0
@@ -745,31 +752,31 @@ export default function CachedBidsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
 
   // ─── Header
-  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
+  header: { backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.line, paddingHorizontal: 16, paddingBottom: 12 },
   headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1, fontWeight: '500' as const },
+  backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1, fontWeight: '500' as const },
   sortBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md,
   },
-  sortBtnText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
+  sortBtnText: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' as const },
 
   // ─── Search
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.card,
     paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 9 : 4,
     marginBottom: 10,
   },
   searchInput: {
-    flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text,
     paddingVertical: Platform.OS === 'ios' ? 0 : 6,
   },
 
@@ -779,11 +786,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderWidth: 1, borderColor: 'transparent',
   },
-  pillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  pillText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' as const, letterSpacing: -0.1 },
+  pillActive: { backgroundColor: t.accent, borderColor: t.accent },
+  pillText: { fontSize: 12.5, color: t.textSecondary, fontWeight: '600' as const, letterSpacing: -0.1 },
   pillTextActive: { color: '#FFF' },
 
   // ─── Sub-filter row (radius / city / state chips)
@@ -792,26 +799,26 @@ const styles = StyleSheet.create({
   subChip: {
     paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  subChipActive: { backgroundColor: Colors.primary },
-  subChipText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' as const },
+  subChipActive: { backgroundColor: t.accent },
+  subChipText: { fontSize: 12.5, color: t.textSecondary, fontWeight: '600' as const },
   subChipTextActive: { color: '#FFF' },
   cityChip: {
     paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     minWidth: 110,
   },
-  cityChipName: { fontSize: 12.5, color: Colors.text, fontWeight: '700' as const },
-  cityChipMeta: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
+  cityChipName: { fontSize: 12.5, color: t.text, fontWeight: '700' as const },
+  cityChipMeta: { fontSize: 10.5, color: t.textMuted, marginTop: 1 },
 
   // ─── Cards
   list: { padding: 16, paddingBottom: 100 },
   bidCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 12,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 12,
     // Black outline matches every other card across the app.
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   bidHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   setAsideBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
@@ -830,59 +837,59 @@ const styles = StyleSheet.create({
   },
   countdownText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
 
-  bidTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 21, letterSpacing: -0.2 },
-  bidDepartment: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 8, fontWeight: '500' as const },
+  bidTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 4, lineHeight: 21, letterSpacing: -0.2 },
+  bidDepartment: { fontSize: 12.5, color: t.textSecondary, marginBottom: 8, fontWeight: '500' as const },
 
   bidMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 },
-  metaText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const, flexShrink: 1 },
+  metaText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '500' as const, flexShrink: 1 },
   distanceTag: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
-  distanceTagText: { fontSize: 11.5, fontWeight: '700' as const, color: Colors.info },
+  distanceTagText: { fontSize: 11.5, fontWeight: '700' as const, color: t.info },
   valueTag: {
-    backgroundColor: Colors.primary + '14', paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
+    backgroundColor: t.accent + '14', paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
-  valueTagText: { fontSize: 11.5, fontWeight: '800' as const, color: Colors.primary },
+  valueTagText: { fontSize: 11.5, fontWeight: '800' as const, color: t.accent },
 
   bidFooter: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginTop: 12, paddingTop: 10,
-    borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    borderTopWidth: 0.5, borderTopColor: t.line,
     gap: 8,
   },
   footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
-  naicsTag: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '700' as const, letterSpacing: 0.4 },
-  solTag: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '500' as const, fontVariant: ['tabular-nums' as const], maxWidth: 120 },
-  deadlineDate: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' as const },
+  naicsTag: { fontSize: 10.5, color: t.textMuted, fontWeight: '700' as const, letterSpacing: 0.4 },
+  solTag: { fontSize: 10.5, color: t.textMuted, fontWeight: '500' as const, fontVariant: ['tabular-nums' as const], maxWidth: 120 },
+  deadlineDate: { fontSize: 11.5, color: t.textMuted, fontWeight: '600' as const },
 
   // ─── States
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
   emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8, paddingHorizontal: 32 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
-  emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
-  retryButton: { marginTop: 14, backgroundColor: Colors.primary, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 6 },
+  emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
+  retryButton: { marginTop: 14, backgroundColor: t.accent, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
   retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
 
   // ─── Modal (sort + set-aside)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.42)', justifyContent: 'center', alignItems: 'center' },
   dropdownModal: {
-    width: '82%', backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, paddingVertical: 8, maxHeight: 460,
+    width: '82%', backgroundColor: t.surface, borderRadius: Tokens.radius.panel, paddingVertical: 8, maxHeight: 460,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 22, elevation: 12,
   },
   dropdownHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 0.5, borderBottomColor: t.line,
   },
-  dropdownTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  dropdownTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 14,
   },
-  dropdownItemActive: { backgroundColor: Colors.primary + '0E' },
-  dropdownItemText: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '500' as const },
-  dropdownItemTextActive: { color: Colors.primary, fontWeight: '700' as const },
-  dropdownCheck: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  dropdownItemActive: { backgroundColor: t.accent + '0E' },
+  dropdownItemText: { fontSize: Type.subhead.fontSize, color: t.text, fontWeight: '500' as const },
+  dropdownItemTextActive: { color: t.accent, fontWeight: '700' as const },
+  dropdownCheck: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.accent },
 });
