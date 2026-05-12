@@ -36,6 +36,7 @@ import {
   View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
   Platform, Alert, Modal,
 } from 'react-native';
+import Svg, { Circle as SvgCircle, G as SvgG } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -635,7 +636,7 @@ export default function GridPane({
         const level = task.outlineLevel ?? 0;
         const isSummary = !!task.isSummary;
         display = (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: level * 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingLeft: level * 14 }}>
             {isSummary ? (
               <TouchableOpacity
                 onPress={() => onEdit(task.id, { collapsed: !task.collapsed })}
@@ -665,7 +666,7 @@ export default function GridPane({
         break;
       }
       case 'duration':
-        display = <Text style={styles.cellText}>{task.durationDays}d</Text>;
+        display = <Text style={[styles.cellText, styles.cellTextMono]}>{task.durationDays}d</Text>;
         break;
       case 'start': {
         const label = cpmRow ? renderDate(cpmRow.es) : '—';
@@ -818,7 +819,7 @@ export default function GridPane({
         break;
       }
       case 'progress':
-        display = <Text style={styles.cellText}>{task.progress}%</Text>;
+        display = <MiniDonut progress={task.progress ?? 0} status={task.status} />;
         break;
       case 'actions':
         display = (
@@ -1205,6 +1206,40 @@ export default function GridPane({
 }
 
 // ---------------------------------------------------------------------------
+// MiniDonut — SVG ring showing % complete in the progress column.
+// ---------------------------------------------------------------------------
+
+function MiniDonut({ progress, status }: { progress: number; status?: 'not_started' | 'in_progress' | 'done' | 'on_hold' }) {
+  const size = 18;
+  const stroke = 3;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = status === 'done' ? 100 : Math.max(0, Math.min(100, progress ?? 0));
+  const color = pct === 100 ? Colors.pillOnTrack : Colors.tradeColors.general;
+  const offset = circ - (pct / 100) * circ;
+  return (
+    <Svg width={size} height={size}>
+      <SvgG rotation="-90" origin={`${size / 2}, ${size / 2}`}>
+        <SvgCircle cx={size / 2} cy={size / 2} r={r} stroke={Colors.fillTertiary} strokeWidth={stroke} fill="none" />
+        {pct > 0 && (
+          <SvgCircle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            stroke={color}
+            strokeWidth={stroke}
+            fill="none"
+            strokeDasharray={`${circ} ${circ}`}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+          />
+        )}
+      </SvgG>
+    </Svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // AnchorPickerModal — small popover for setting a task's MAGE "anchor".
 //
 // Intentionally simple: a segmented list of the 8 anchor types + a date
@@ -1528,6 +1563,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cellTextMuted: {
     fontSize: Type.footnote.fontSize,
     color: t.textMuted,
+  },
+  cellTextMono: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace' }),
   },
   cellDate: {
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
