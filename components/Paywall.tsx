@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -20,6 +20,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // App Store / Play Store deep links — used by the web paywall to bounce
 // users to mobile. App Store ID 6762229238 is from eas.json submit.production.
@@ -83,6 +84,24 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<BillingPeriod>('annual');
+
+  // ── Monetization funnel: top-of-funnel impression ──
+  // Fires every time the modal becomes visible. Tagged with the feature
+  // that triggered the gate + the tier blocked, so PostHog can split
+  // funnels by which gate produces conversion.
+  useEffect(() => {
+    if (!visible) return;
+    track(AnalyticsEvents.PAYWALL_VIEWED, { feature, tier_blocked: requiredTier });
+  }, [visible, feature, requiredTier]);
+
+  // Wrap every dismissal path so paywall_dismissed always fires.
+  // Pair with paywall_viewed → bounce rate. Pair with started/completed
+  // → conversion rate. Without this, every "user bailed" path is silent.
+  const handleDismiss = useCallback(() => {
+    track(AnalyticsEvents.PAYWALL_DISMISSED, { feature });
+    onClose();
+  }, [feature, onClose]);
+
   const {
     purchasePro,
     purchaseBusiness,
@@ -134,6 +153,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage, fallback]);
 
   const handleUpgrade = useCallback(async () => {
+    // Funnel: intent event the moment the user taps Upgrade — fires
+    // BEFORE Apple's native confirm sheet. Captures pricing curiosity
+    // even when the user backs out of Apple's prompt. Pair with
+    // subscription_purchased (success) / subscription_purchase_failed
+    // for the bottom of the funnel.
+    track(AnalyticsEvents.SUBSCRIPTION_PURCHASE_STARTED, { tier: requiredTier, period });
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (requiredTier === 'enterprise') {
@@ -143,16 +168,22 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
       } else {
         await purchasePro(period);
       }
+      track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: requiredTier, period });
       Alert.alert(`Welcome to ${tierLabel}!`, 'Your subscription is now active.');
       onClose();
     } catch (err: unknown) {
       const isCancelled =
         err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
-      if (isCancelled) return;
+      if (isCancelled) {
+        track(AnalyticsEvents.PAYWALL_DISMISSED, { feature, kind: 'apple_cancel' });
+        return;
+      }
+      const errorKind = err instanceof Error ? err.name : 'unknown';
+      track(AnalyticsEvents.SUBSCRIPTION_PURCHASE_FAILED, { tier: requiredTier, error_kind: errorKind });
       console.log('[Paywall modal] Purchase failed:', err);
       Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
     }
-  }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, onClose]);
+  }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, feature, onClose]);
 
   // On web, we don't take subscription payments — we redirect users to the
   // mobile app where Apple/Google handle billing. The user's account tier
@@ -164,12 +195,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   //   • Confusing users about which payment surface unlocks what
   if (Platform.OS === 'web') {
     return (
-      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleDismiss}>
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
             <Text style={styles.headerTitle}>Continue on Mobile</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -221,7 +252,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               <Text style={styles.upgradeBtnText}>Open in Google Play</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={onClose} style={styles.notNowBtn} testID="paywall-not-now-web">
+            <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now-web">
               <Text style={styles.notNowText}>Maybe later</Text>
             </TouchableOpacity>
 
@@ -239,12 +270,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   }
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleDismiss}>
       <View style={[styles.container, { paddingBottom: insets.bottom }]}>
         <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8 }]}>
           <View style={{ width: 36 }} />
           <Text style={styles.headerTitle}>Upgrade Required</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -340,7 +371,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={onClose} style={styles.notNowBtn} testID="paywall-not-now">
+          <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now">
             <Text style={styles.notNowText}>Not now</Text>
           </TouchableOpacity>
 

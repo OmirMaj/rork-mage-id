@@ -43,4 +43,16 @@ export const AnalyticsEvents = {
   CONTACT_ADDED: 'contact_added',
   PDF_GENERATED: 'pdf_generated',
   PHOTO_ADDED: 'photo_added',
+  // ── Monetization funnel ──
+  // PAYWALL_VIEWED fires when the modal becomes visible.
+  // PAYWALL_DISMISSED fires from every close path (X, Not now, hardware
+  //   back). Compute view→dismiss to get bounce rate.
+  // SUBSCRIPTION_PURCHASE_STARTED fires the moment user taps Upgrade,
+  //   BEFORE Apple's confirm sheet. Catches intent even when the user
+  //   cancels Apple's prompt or it fails downstream.
+  // SUBSCRIPTION_PURCHASE_FAILED fires on RC throw (non-cancel error).
+  PAYWALL_VIEWED: 'paywall_viewed',
+  PAYWALL_DISMISSED: 'paywall_dismissed',
+  SUBSCRIPTION_PURCHASE_STARTED: 'subscription_purchase_started',
+  SUBSCRIPTION_PURCHASE_FAILED: 'subscription_purchase_failed',
 } as const;
