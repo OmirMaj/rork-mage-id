@@ -1332,8 +1332,9 @@ function ScheduleProScreenInner() {
         onShareLink={handleShare}
         onExportIcal={() => {
           if (project) {
+            // Inline import keeps the iCal generator out of the initial bundle.
             void import('@/utils/scheduleExportIcal').then(m =>
-              m.exportScheduleIcal({ scheduleId: project.id, projectName: project.name ?? 'Schedule' }),
+              m.exportScheduleIcal({ project }),
             );
           }
         }}
