@@ -18,6 +18,7 @@ import { SchedulerProvider, type CpmResult as ContextCpmResult } from './Schedul
 import { SchedulerHeader } from './SchedulerHeader';
 import { GanttTab } from './tabs/GanttTab';
 import { TabComingSoon } from './tabs/TabComingSoon';
+import { ListTab } from './tabs/ListTab';
 import type { ProjectSchedule, ScheduleTask } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
 
@@ -33,7 +34,7 @@ export type SchedulerTabKey =
 const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
   { key: 'gantt',     label: 'Gantt' },
   { key: 'board',     label: 'Board',     soon: true },
-  { key: 'list',      label: 'List',      soon: true },
+  { key: 'list',      label: 'List' },
   { key: 'calendar',  label: 'Calendar',  soon: true },
   { key: 'workload',  label: 'Workload',  soon: true },
   { key: 'dashboard', label: 'Dashboard', soon: true },
@@ -128,6 +129,28 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         onDependencyCreate={props.onDependencyCreate}
         focusedTaskId={props.focusedTaskId}
         onFocusTask={props.onFocusTask}
+        selectedIds={props.selectedIds}
+        onSelectionChange={props.onSelectionChange}
+        onBulkDelete={props.onBulkDelete}
+        onBulkDuplicate={props.onBulkDuplicate}
+        onBulkShiftDays={props.onBulkShiftDays}
+        onBulkSetPhase={props.onBulkSetPhase}
+        onBulkSetCrew={props.onBulkSetCrew}
+        onBulkAskAI={props.onBulkAskAI}
+      />
+    );
+  }
+
+  if (key === 'list') {
+    return (
+      <ListTab
+        projectStartDate={props.projectStartDate}
+        workingDaysPerWeek={props.workingDaysPerWeek}
+        nonWorkingDates={props.nonWorkingDates}
+        onEdit={props.onEdit}
+        onAddTask={props.onAddTask}
+        onDeleteTask={props.onDeleteTask}
+        focusedTaskId={props.focusedTaskId}
         selectedIds={props.selectedIds}
         onSelectionChange={props.onSelectionChange}
         onBulkDelete={props.onBulkDelete}
