@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Switch, Modal, Image, Dimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Switch, Modal, Dimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
@@ -750,7 +751,7 @@ export default function SettingsScreen() {
               <Image
                 source={{ uri: logoUri }}
                 style={styles.logoPreview}
-                resizeMode="contain"
+                contentFit="contain"
               />
               <View style={styles.logoActions}>
                 <TouchableOpacity style={styles.logoChangeBtn} onPress={handlePickLogo} activeOpacity={0.7}>
