@@ -18,6 +18,7 @@ import {
   X as XIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useSmartInbox, type InboxItem, type InboxCategory } from '@/hooks/useSmartInbox';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { Type } from '@/constants/typography';
@@ -44,6 +45,7 @@ const CATEGORY_META: Record<FilterKey, { label: string; Icon: typeof AlertTriang
 export default function SmartInbox() {
   const { items, byCategory, counts, dismiss, isReady } = useSmartInbox();
   const { navigateTo } = useEntityNavigation();
+  const { colors: themeColors } = useTheme();
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [expanded, setExpanded] = useState(false);
@@ -71,7 +73,7 @@ export default function SmartInbox() {
 
   if (items.length === 0) {
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Needs attention</Text>
           <Text style={styles.headerCount}>0</Text>
@@ -88,7 +90,7 @@ export default function SmartInbox() {
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>Needs attention</Text>
         <Text style={styles.headerCount}>· {counts.all}</Text>

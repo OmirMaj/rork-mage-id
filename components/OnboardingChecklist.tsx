@@ -24,6 +24,7 @@ import {
   Receipt, Mic, Ruler,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -57,6 +58,7 @@ function OnboardingChecklistImpl({
   projectCount, estimateCount, invoiceCount, takeoffRun, voiceUsed,
 }: OnboardingChecklistProps) {
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   const enter = useState(() => new Animated.Value(0))[0];
 
@@ -170,6 +172,8 @@ function OnboardingChecklistImpl({
       style={[
         styles.card,
         {
+          backgroundColor: themeColors.surface,
+          borderColor: themeColors.line,
           opacity: enter,
           transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
         },

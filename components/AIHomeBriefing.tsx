@@ -6,6 +6,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, AlertTriangle, CheckCircle2, ChevronRight, TrendingDown } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   generateHomeBriefing, getCachedResult, setCachedResult,
   type HomeBriefingResult,
@@ -33,6 +34,7 @@ const STATUS_ICONS = {
 } as const;
 
 export default React.memo(function AIHomeBriefing({ projects, invoices, subscriptionTier, onViewFull }: Props) {
+  const { colors: themeColors } = useTheme();
   const [result, setResult] = useState<HomeBriefingResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [usageText, setUsageText] = useState('');
@@ -103,7 +105,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       outputRange: [0.4, 0.8],
     });
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Sparkles size={14} color={Colors.primary} />
@@ -120,7 +122,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
   if (!result) return null;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Sparkles size={14} color={Colors.primary} />
