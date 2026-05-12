@@ -44,12 +44,18 @@ Generated 2026-05-11 after Phase 1 foundation shipped on the `phase1-foundation`
 - [x] `app/(tabs)/discover/index.tsx` — outer container theme-aware
 - [x] `app/(tabs)/summary/index.tsx` — outer container theme-aware (all 3 render paths)
 
-Deferred from Phase 1.5 due to size (full migrations scheduled for Phase 1.6+):
+## Phase 1.6 — formerly-deferred deep migrations
 
-- [ ] `components/AICopilot.tsx` (594 lines, 43 refs)
-- [ ] `components/Tutorial.tsx` (1159 lines, 66 refs)
-- [ ] `app/(tabs)/schedule/index.tsx` (3601 lines)
-- [ ] `app/(tabs)/settings/index.tsx` full body (2496 lines — only Appearance row + nav row done)
+- [x] `components/AICopilot.tsx` — fully themed (StyleSheet + MessageBubble + PRIORITY_COLORS helper)
+- [x] `components/Tutorial.tsx` — chrome themed + Fraunces title; demoStyles deferred (used by factory mockups)
+- [x] `app/(tabs)/schedule/index.tsx` — outer containers theme-aware (both render paths); inner Gantt deferred
+- [x] `app/(tabs)/settings/index.tsx` body — outer KeyboardAvoidingView theme-aware; inner row groups deferred
+
+## Still in backlog (Phase 1.7+)
+
+- [ ] `components/Tutorial.tsx` demoStyles block — internal tutorial mockups
+- [ ] `app/(tabs)/schedule/index.tsx` Gantt chart inner surfaces, project chips, task rows
+- [ ] `app/(tabs)/settings/index.tsx` settings row groups, profile hero, signature pad, COMPANY BRANDING section
 
 ## Backlog — remaining 170 files
 
