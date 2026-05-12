@@ -16,6 +16,7 @@ import {
 import EmptyState from '@/components/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
@@ -43,6 +44,7 @@ function createId(_prefix: string): string {
 export default function DailyReportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
@@ -713,7 +715,7 @@ export default function DailyReportScreen() {
 
   if (!project) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Daily Report' }} />
         <EmptyState
           icon={<ClipboardList size={36} color={Colors.primary} strokeWidth={1.6} />}
@@ -734,7 +736,7 @@ export default function DailyReportScreen() {
   const isLocked = existingReport?.status === 'sent';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Custom top bar: back arrow on the left, "Daily Report" + date

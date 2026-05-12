@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -59,6 +60,7 @@ export default function ContractScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { colors: themeColors } = useTheme();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, updateProject: ctxUpdateProject, settings } = useProjects();
   const project = projectId ? getProject(projectId) : undefined;
@@ -367,7 +369,7 @@ export default function ContractScreen() {
   const scheduleMatchesValue = Math.abs(totalScheduled - contract.contractValue) < 1;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>

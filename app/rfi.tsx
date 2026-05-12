@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { Save, ChevronDown, Link2, X, CheckCircle2, Send, FileText } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -61,6 +62,7 @@ const RFI_PIPELINE_STAGES: PipelineStage<RFIStatus>[] = [
 export default function RFIScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { colors: themeColors } = useTheme();
   if (!canAccess('rfis_submittals')) {
     return (
       <Paywall
@@ -77,6 +79,7 @@ export default function RFIScreen() {
 function RFIScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId, rfiId, prefillPhotoId } = useLocalSearchParams<{
     projectId: string;
     rfiId?: string;
@@ -322,7 +325,7 @@ function RFIScreenInner() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: themeColors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Stack.Screen options={{ title: existingRFI ? `RFI #${existingRFI.number}` : 'Ask the Architect' }} />
       <ScrollView
         style={styles.container}

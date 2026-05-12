@@ -11,6 +11,7 @@ import {
   Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -45,6 +46,7 @@ const PRIORITY_CONFIG: Record<PunchItemPriority, { label: string; color: string 
 export default function PunchListScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { colors: themeColors } = useTheme();
   if (!canAccess('punch_list_closeout')) {
     return (
       <Paywall
@@ -61,6 +63,7 @@ export default function PunchListScreen() {
 function PunchListScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId, prefillPhotoUri, prefillPhotoId } = useLocalSearchParams<{
     projectId: string;
     prefillPhotoUri?: string;
@@ -307,7 +310,7 @@ function PunchListScreenInner() {
 
   if (!project) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Punch List' }} />
         <EmptyState
           icon={<ListChecks size={36} color={Colors.primary} strokeWidth={1.6} />}
@@ -326,7 +329,7 @@ function PunchListScreenInner() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Punch List — ${project.name}` }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
         <View style={styles.progressSection}>

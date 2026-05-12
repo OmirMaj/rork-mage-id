@@ -13,6 +13,7 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -106,6 +107,7 @@ export default function InvoiceScreen() {
 function InvoiceInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   // prefillLines / prefillNotes come from the floating-mic flow when
   // the GC said something like "invoice them for demolition twenty-eight
   // hundred". JSON-encoded so we don't have to re-parse the AI's
@@ -736,7 +738,7 @@ function InvoiceInner() {
 
   if (!project) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Invoices' }} />
         <EmptyState
           icon={<Receipt size={36} color={Colors.primary} strokeWidth={1.6} />}
@@ -772,7 +774,7 @@ function InvoiceInner() {
   ) : '';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{
         title: existingInvoice ? `Invoice #${existingInvoice.number}` : 'New Invoice',
         headerStyle: { backgroundColor: Colors.background },

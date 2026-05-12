@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -36,6 +37,7 @@ import { Tokens } from '@/constants/designTokens';
 export default function AIAPayAppScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { colors: themeColors } = useTheme();
   if (!canAccess('aia_pay_app')) {
     return (
       <Paywall
@@ -52,6 +54,7 @@ export default function AIAPayAppScreen() {
 function AIAPayAppScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { invoiceId } = useLocalSearchParams<{ invoiceId: string }>();
   const {
     invoices, getProject, getChangeOrdersForProject, settings,
@@ -375,7 +378,7 @@ function AIAPayAppScreenInner() {
         }}
       />
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: themeColors.bg }]}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         keyboardShouldPersistTaps="handled"
       >

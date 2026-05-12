@@ -32,6 +32,7 @@ import {
   ChevronRight, AlertTriangle, FileImage, X, Check, FileText, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
@@ -45,6 +46,7 @@ import { Tokens } from '@/constants/designTokens';
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const projectId = typeof params.projectId === 'string' ? params.projectId : undefined;
   const { canAccess } = useTierAccess();
@@ -211,7 +213,7 @@ export default function PlansScreen() {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
@@ -390,8 +392,9 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
   onBack: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
@@ -428,8 +431,9 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
 }
 
 function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onBack: () => void; insets: { top: number } }) {
+  const { colors: themeColors } = useTheme();
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>

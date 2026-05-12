@@ -11,6 +11,7 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -55,6 +56,7 @@ function createId(_prefix: string): string {
 export default function ChangeOrderScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { colors: themeColors } = useTheme();
   if (!canAccess('change_orders_invoicing')) {
     return (
       <Paywall
@@ -71,6 +73,7 @@ export default function ChangeOrderScreen() {
 function ChangeOrderInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId, coId, prefillReason, prefillDescription, prefillAmount } = useLocalSearchParams<{
     projectId: string;
     coId?: string;
@@ -455,7 +458,7 @@ function ChangeOrderInner() {
 
   if (!project) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Change Orders' }} />
         <EmptyState
           icon={<PenTool size={36} color={Colors.primary} strokeWidth={1.6} />}
@@ -476,7 +479,7 @@ function ChangeOrderInner() {
   const isLocked = existingCO?.status === 'approved' || existingCO?.status === 'rejected' || existingCO?.status === 'void';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{
         title: existingCO ? `CO #${existingCO.number}` : `New Change Order`,
         headerStyle: { backgroundColor: Colors.background },
