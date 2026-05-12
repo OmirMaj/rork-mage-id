@@ -14,6 +14,9 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
 import { generateUUID } from '@/utils/generateId';
@@ -55,13 +58,13 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showSchedule',
     label: 'Project Schedule',
     description: 'Gantt chart & task progress',
-    icon: <CalendarDays size={18} color={Colors.info} />,
+    icon: <CalendarDays size={18} color={"#1565C0"} />,
   },
   {
     key: 'showBudgetSummary',
     label: 'Budget Summary',
     description: 'Overall spend vs. contract value',
-    icon: <BarChart3 size={18} color={Colors.success} />,
+    icon: <BarChart3 size={18} color={"#2E7D44"} />,
   },
   {
     key: 'showInvoices',
@@ -73,7 +76,7 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showChangeOrders',
     label: 'Change Orders',
     description: 'Approved & pending change orders',
-    icon: <FileText size={18} color={Colors.error} />,
+    icon: <FileText size={18} color={"#C84038"} />,
   },
   {
     key: 'showPhotos',
@@ -91,7 +94,7 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showPunchList',
     label: 'Punch List',
     description: 'Open items & completion status',
-    icon: <CheckCircle2 size={18} color={Colors.success} />,
+    icon: <CheckCircle2 size={18} color={"#2E7D44"} />,
   },
   {
     key: 'showRFIs',
@@ -133,6 +136,8 @@ const DEFAULT_PORTAL: ClientPortalSettings = {
 };
 
 export default function ClientPortalSetupScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { canAccess } = useTierAccess();
@@ -155,6 +160,8 @@ export default function ClientPortalSetupScreen() {
 }
 
 function ClientPortalSetupScreenInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -558,10 +565,10 @@ function ClientPortalSetupScreenInner() {
 
   if (!project) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Client Portal' }} />
         <EmptyState
-          icon={<Briefcase size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<Briefcase size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No client portal set up yet"
           message="Each project gets its own private homeowner portal with progress, photos, selections, and pay buttons. To set one up:"
           steps={[
@@ -583,7 +590,7 @@ function ClientPortalSetupScreenInner() {
           title: 'Client Portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
           headerRight: () => (
@@ -608,7 +615,7 @@ function ClientPortalSetupScreenInner() {
             </View>
           </View>
           <View style={styles.linkRow}>
-            <Link size={12} color={Colors.info} />
+            <Link size={12} color={themeColors.info} />
             <Text style={styles.linkText} numberOfLines={1}>
               {`${PORTAL_BASE_URL}/${portal.portalId}`}
             </Text>
@@ -621,11 +628,11 @@ function ClientPortalSetupScreenInner() {
               is shown to the GC. */}
           <View style={styles.linkActions}>
             <TouchableOpacity style={styles.linkActionBtn} onPress={handleCopyLink}>
-              <Copy size={15} color={Colors.primary} />
+              <Copy size={15} color={themeColors.accent} />
               <Text style={styles.linkActionText}>Copy</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.linkActionBtn} onPress={handleShare}>
-              <Send size={15} color={Colors.primary} />
+              <Send size={15} color={themeColors.accent} />
               <Text style={styles.linkActionText}>Share</Text>
             </TouchableOpacity>
           </View>
@@ -638,7 +645,7 @@ function ClientPortalSetupScreenInner() {
           <View style={styles.togglesCard}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
-                <Lock size={18} color={Colors.primary} />
+                <Lock size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Require Passcode</Text>
                   <Text style={styles.toggleDesc}>{portal.requirePasscode ? 'Portal is locked' : 'Portal is open with link only'}</Text>
@@ -647,7 +654,7 @@ function ClientPortalSetupScreenInner() {
               <Switch
                 value={!!portal.requirePasscode}
                 onValueChange={val => setPortal(p => ({ ...p, requirePasscode: val }))}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
@@ -659,12 +666,12 @@ function ClientPortalSetupScreenInner() {
                 value={portal.passcode ?? ''}
                 onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
                 placeholder="Enter a passcode (4-12 chars)"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="none"
                 maxLength={20}
               />
               <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} activeOpacity={0.8}>
-                <RefreshCw size={13} color={Colors.primary} />
+                <RefreshCw size={13} color={themeColors.accent} />
                 <Text style={styles.resetPasscodeText}>Generate New Passcode</Text>
               </TouchableOpacity>
             </>
@@ -695,7 +702,7 @@ function ClientPortalSetupScreenInner() {
                     <Text style={[styles.langEndonym, active && styles.langEndonymActive]}>{l.endonym}</Text>
                     <Text style={styles.langEnglish}>{l.englishName}</Text>
                   </View>
-                  {active && <Check size={14} color={Colors.primary} />}
+                  {active && <Check size={14} color={themeColors.accent} />}
                 </TouchableOpacity>
               );
             })}
@@ -711,7 +718,7 @@ function ClientPortalSetupScreenInner() {
             value={portal.welcomeMessage}
             onChangeText={val => setPortal(p => ({ ...p, welcomeMessage: val }))}
             placeholder="e.g. Hi! Here's a live view of your project. Feel free to reach out with any questions."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={3}
           />
@@ -736,14 +743,14 @@ function ClientPortalSetupScreenInner() {
               <Switch
                 value={!!portal.clientCanSetBudget}
                 onValueChange={val => handleToggle('clientCanSetBudget', val)}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
 
             {/* Currently accepted budget */}
             {project?.targetBudget && (
-              <View style={[styles.budgetStatus, proposalQ.pending.length > 0 && { borderBottomWidth: 1, borderBottomColor: Colors.border }]}>
+              <View style={[styles.budgetStatus, proposalQ.pending.length > 0 && { borderBottomWidth: 1, borderBottomColor: themeColors.line }]}>
                 <View style={styles.budgetStatusBadge}>
                   <Check size={14} color={Colors.successDark} />
                 </View>
@@ -789,7 +796,7 @@ function ClientPortalSetupScreenInner() {
                     style={styles.proposalBtnDecline}
                     onPress={() => handleDeclineProposal(p.id)}
                     disabled={proposalQ.isResponding} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={Colors.textMuted} />
+                    <X size={14} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -818,7 +825,7 @@ function ClientPortalSetupScreenInner() {
               <Switch
                 value={!!portal.weeklyDigest?.enabled}
                 onValueChange={val => handleToggle('weeklyDigest', { ...(portal.weeklyDigest ?? {}), enabled: val } as never)}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
@@ -847,7 +854,7 @@ function ClientPortalSetupScreenInner() {
             }}
             activeOpacity={0.85}
           >
-            <Send size={14} color={Colors.primary} />
+            <Send size={14} color={themeColors.accent} />
             <Text style={styles.previewWeeklyBtnText}>Send today&apos;s preview now</Text>
           </TouchableOpacity>
         </View>
@@ -861,7 +868,7 @@ function ClientPortalSetupScreenInner() {
           <View style={styles.togglesCard}>
             <View style={[styles.toggleRow, threadQ.coApprovals.length > 0 && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <CheckCircle2 size={18} color={Colors.primary} />
+                <CheckCircle2 size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>1-tap CO approval</Text>
                   <Text style={styles.toggleDesc}>Owner can sign off on change orders directly from the portal</Text>
@@ -870,7 +877,7 @@ function ClientPortalSetupScreenInner() {
               <Switch
                 value={!!portal.coApprovalEnabled}
                 onValueChange={val => handleToggle('coApprovalEnabled', val)}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
@@ -896,7 +903,7 @@ function ClientPortalSetupScreenInner() {
           {threadQ.unreadFromClient.length > 0 && (
             <View style={styles.messagesPreview}>
               <View style={styles.messagesPreviewHeader}>
-                <MessageSquare size={14} color={Colors.primary} />
+                <MessageSquare size={14} color={themeColors.accent} />
                 <Text style={styles.messagesPreviewLabel}>
                   {threadQ.unreadFromClient.length} new message{threadQ.unreadFromClient.length === 1 ? '' : 's'} from your client
                 </Text>
@@ -928,7 +935,7 @@ function ClientPortalSetupScreenInner() {
                 <Switch
                   value={portal[item.key] as boolean}
                   onValueChange={val => handleToggle(item.key, val)}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
                   thumbColor="#FFF"
                 />
               </View>
@@ -946,14 +953,14 @@ function ClientPortalSetupScreenInner() {
               value={inviteName}
               onChangeText={setInviteName}
               placeholder="Client name"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
             <TextInput
               style={styles.input}
               value={inviteEmail}
               onChangeText={setInviteEmail}
               placeholder="Email address"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -978,18 +985,18 @@ function ClientPortalSetupScreenInner() {
                   <View style={styles.inviteRight}>
                     <View style={[styles.inviteStatus, invite.status === 'viewed' && styles.inviteStatusViewed]}>
                       {invite.status === 'viewed'
-                        ? <Eye size={10} color={Colors.success} />
+                        ? <Eye size={10} color={themeColors.success} />
                         : <Clock size={10} color={Colors.warning} />
                       }
-                      <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: Colors.success }]}>
+                      <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: themeColors.success }]}>
                         {invite.status === 'viewed' ? 'Viewed' : 'Pending'}
                       </Text>
                     </View>
                     <TouchableOpacity onPress={() => handleEmailInvite(invite)} style={styles.emailInviteBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Email">
-                      <Mail size={14} color={Colors.primary} />
+                      <Mail size={14} color={themeColors.accent} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleRemoveInvite(invite.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={14} color={Colors.error} />
+                      <Trash2 size={14} color={themeColors.danger} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1006,7 +1013,7 @@ function ClientPortalSetupScreenInner() {
           testID="portal-messages-btn"
         >
           <View style={styles.weeklyUpdateIcon}>
-            <MessageSquare size={16} color={Colors.primary} />
+            <MessageSquare size={16} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.weeklyUpdateTitle}>Messages</Text>
@@ -1032,7 +1039,7 @@ function ClientPortalSetupScreenInner() {
           testID="draft-weekly-update-btn"
         >
           <View style={styles.weeklyUpdateIcon}>
-            <Sparkles size={16} color={Colors.primary} />
+            <Sparkles size={16} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.weeklyUpdateTitle}>Draft Weekly Update</Text>
@@ -1043,7 +1050,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Danger Zone */}
         <TouchableOpacity style={styles.disableBtn} onPress={handleDisablePortal}>
-          <EyeOff size={16} color={Colors.error} />
+          <EyeOff size={16} color={themeColors.danger} />
           <Text style={styles.disableBtnText}>Disable Client Portal</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -1051,10 +1058,10 @@ function ClientPortalSetupScreenInner() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   headerSaveBtn: { paddingHorizontal: 4 },
-  headerSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '600', color: Colors.primary },
+  headerSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '600', color: t.accent },
 
   linkCard: {
     margin: 16,
@@ -1065,27 +1072,27 @@ const styles = StyleSheet.create({
     borderColor: '#5856D620',
   },
   linkCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  linkCardTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
+  linkCardTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, flex: 1 },
   activeBadge: { backgroundColor: '#34C75920', borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
-  activeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.success },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 12 },
-  linkText: { fontSize: Type.caption1.fontSize, color: Colors.info, flex: 1 },
+  activeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.success },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.bg, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 12 },
+  linkText: { fontSize: Type.caption1.fontSize, color: t.info, flex: 1 },
   linkActions: { flexDirection: 'row', gap: 10 },
-  linkActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary + '15', borderRadius: Tokens.radius.md, paddingVertical: 10 },
-  linkActionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.primary },
+  linkActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: t.accent + '15', borderRadius: Tokens.radius.md, paddingVertical: 10 },
+  linkActionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.accent },
 
   section: { paddingHorizontal: 16, marginBottom: 24 },
-  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
+  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text, marginBottom: 4 },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginBottom: 12, lineHeight: 18 },
 
   welcomeInput: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     padding: 12,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     minHeight: 80,
     textAlignVertical: 'top',
   },
@@ -1094,29 +1101,29 @@ const styles = StyleSheet.create({
   langChip: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     borderRadius: 11,
     minWidth: '47%', flexGrow: 1,
   },
-  langChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '0F' },
+  langChipActive: { borderColor: t.accent, backgroundColor: t.accent + '0F' },
   langFlag: { fontSize: Type.title2.fontSize },
-  langEndonym: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  langEndonymActive: { color: Colors.primary },
-  langEnglish: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
+  langEndonym: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  langEndonymActive: { color: t.accent },
+  langEnglish: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
 
   togglesCard: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     overflow: 'hidden',
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
-  toggleRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  toggleRowBorder: { borderBottomWidth: 1, borderBottomColor: t.line },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   toggleLabels: { flex: 1 },
-  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
+  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  toggleDesc: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
 
   budgetStatus: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
@@ -1130,28 +1137,28 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   budgetStatusLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.successDark, letterSpacing: 0.4, textTransform: 'uppercase' },
-  budgetStatusValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginTop: 2 },
-  budgetStatusMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  budgetStatusValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginTop: 2 },
+  budgetStatusMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   proposalRow: {
     paddingHorizontal: 14, paddingVertical: 14,
     flexDirection: 'row', gap: 12, alignItems: 'flex-start',
     backgroundColor: '#FFF7EE',
   },
-  proposalAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
-  proposalMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  proposalNote: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 6, lineHeight: 18 },
+  proposalAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text },
+  proposalMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
+  proposalNote: { fontSize: Type.footnote.fontSize, color: t.text, marginTop: 6, lineHeight: 18 },
   proposalCtas: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   proposalBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
   },
-  proposalBtnAccept: { backgroundColor: Colors.primary },
+  proposalBtnAccept: { backgroundColor: t.accent },
   proposalBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
   proposalBtnDecline: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center',
   },
   coApprovalRow: {
@@ -1159,37 +1166,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
     backgroundColor: '#F4FAF6',
   },
-  coApprovalLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  coApprovalMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  coApprovalNote: { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: 4, fontStyle: 'italic' },
+  coApprovalLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  coApprovalMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  coApprovalNote: { fontSize: Type.caption1.fontSize, color: t.text, marginTop: 4, fontStyle: 'italic' },
   messagesPreview: {
     marginTop: 10, padding: 12, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '08',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accent + '08',
+    borderWidth: 1, borderColor: t.accent + '20',
   },
   messagesPreviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  messagesPreviewLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
+  messagesPreviewLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
   messageBubble: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 10,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 6,
   },
-  messageAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-  messageBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  messageAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  messageBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
 
   inviteForm: { gap: 8 },
   input: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     padding: 12,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   inviteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.card, paddingVertical: 13,
+    backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 13,
   },
   inviteBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
 
@@ -1198,19 +1205,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     overflow: 'hidden',
   },
-  inviteRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  inviteRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: t.line },
   inviteAvatar: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary + '25',
+    backgroundColor: t.accent + '25',
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
-  inviteAvatarText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.primary },
+  inviteAvatarText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.accent },
   inviteInfo: { flex: 1 },
-  inviteName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  inviteEmail: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
+  inviteName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  inviteEmail: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
   inviteRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   inviteStatus: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -1223,17 +1230,17 @@ const styles = StyleSheet.create({
   resetPasscodeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '12', borderWidth: 1, borderColor: t.accent + '30',
   },
-  resetPasscodeText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.primary },
+  resetPasscodeText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.accent },
 
   disableBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 16, marginBottom: 16,
-    borderWidth: 1, borderColor: Colors.error + '40',
+    borderWidth: 1, borderColor: t.danger + '40',
     borderRadius: Tokens.radius.card, paddingVertical: 14,
   },
-  disableBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.error },
+  disableBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.danger },
   sizeWarning: {
     fontSize: Type.caption2.fontSize,
     color: Colors.warning,
@@ -1246,21 +1253,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: 16, marginBottom: 16,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: Colors.primary + '25',
+    borderWidth: 1, borderColor: t.accent + '25',
     padding: 14,
   },
   weeklyUpdateIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     alignItems: 'center', justifyContent: 'center',
   },
-  weeklyUpdateTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  weeklyUpdateSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16 },
-  weeklyUpdateArrow: { fontSize: Type.title2.fontSize, color: Colors.textMuted, paddingHorizontal: 4 },
+  weeklyUpdateTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text, marginBottom: 2 },
+  weeklyUpdateSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 16 },
+  weeklyUpdateArrow: { fontSize: Type.title2.fontSize, color: t.textMuted, paddingHorizontal: 4 },
 
   unreadPill: {
     minWidth: 22, height: 22, borderRadius: 11,
-    backgroundColor: Colors.error,
+    backgroundColor: t.danger,
     paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center',
     marginRight: 4,
   },
@@ -1269,8 +1276,8 @@ const styles = StyleSheet.create({
   previewWeeklyBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 10, paddingVertical: 11, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '12',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '12',
+    borderWidth: 1, borderColor: t.accent + '30',
   },
-  previewWeeklyBtnText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  previewWeeklyBtnText: { color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 });

@@ -11,6 +11,9 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useBids } from '@/contexts/BidsContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { CERTIFICATIONS, CERT_COLORS } from '@/constants/certifications';
@@ -109,6 +112,8 @@ function getCountdown(deadline: string | null | undefined): { text: string; urge
 }
 
 export default function BidDetailScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const layout = useResponsiveLayout();
   const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
   const router = useRouter();
@@ -274,9 +279,9 @@ export default function BidDetailScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Bid Details',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]} showsVerticalScrollIndicator={false}>
         {layout.isDesktop ? (
@@ -285,13 +290,13 @@ export default function BidDetailScreen() {
               <View style={styles.topCard}>
                 <View style={styles.topRow}>
                   <View style={styles.topBadges}>
-                    {bidType ? <View style={[styles.typeBadge, { backgroundColor: Colors.primary + '15' }]}><Text style={[styles.typeBadgeText, { color: Colors.primary }]}>{BID_TYPE_LABELS[bidType] ?? bidType}</Text></View> : null}
+                    {bidType ? <View style={[styles.typeBadge, { backgroundColor: themeColors.accent + '15' }]}><Text style={[styles.typeBadgeText, { color: themeColors.accent }]}>{BID_TYPE_LABELS[bidType] ?? bidType}</Text></View> : null}
                     {setAside ? <View style={[styles.typeBadge, { backgroundColor: Colors.successLight }]}><Text style={[styles.typeBadgeText, { color: Colors.successDark }]}>{setAside}</Text></View> : null}
                   </View>
                 </View>
                 <Text style={styles.bidTitle}>{title}</Text>
                 {department ? <Text style={styles.agency}>{department}</Text> : null}
-                {(city || state) ? <View style={styles.locationRow}><MapPin size={14} color={Colors.textSecondary} /><Text style={styles.locationText}>{[city, state].filter(Boolean).join(', ')}</Text></View> : null}
+                {(city || state) ? <View style={styles.locationRow}><MapPin size={14} color={themeColors.textSecondary} /><Text style={styles.locationText}>{[city, state].filter(Boolean).join(', ')}</Text></View> : null}
               </View>
               {description ? <View style={styles.section}><Text style={styles.sectionTitle}>Description</Text><Text style={styles.description}>{description}</Text></View> : null}
               {scopeOfWork ? <View style={styles.section}><Text style={styles.sectionTitle}>Scope of Work</Text><Text style={styles.description}>{scopeOfWork}</Text></View> : null}
@@ -301,7 +306,7 @@ export default function BidDetailScreen() {
                   <View style={styles.certGrid}>
                     {requiredCerts.map((certId, idx) => {
                       const info = CERTIFICATIONS.find(c => c.id === certId);
-                      const color = CERT_COLORS[certId] || Colors.primary;
+                      const color = CERT_COLORS[certId] || themeColors.accent;
                       return <View key={`${certId}-${idx}`} style={[styles.certCard, { borderLeftColor: color }]}><Text style={[styles.certShort, { color }]}>{info?.shortLabel ?? certId}</Text><Text style={styles.certFull} numberOfLines={2}>{info?.label ?? certId}</Text></View>;
                     })}
                   </View>
@@ -312,7 +317,7 @@ export default function BidDetailScreen() {
                 {qualifiedCompanies.length === 0 ? <Text style={styles.noResults}>No companies match</Text> : qualifiedCompanies.slice(0, 5).map(company => (
                   <TouchableOpacity key={company.id} style={styles.companyRow} onPress={() => { if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: '/company-detail' as any, params: { id: company.id } }); }}>
                     <View style={styles.companyInfo}><Text style={styles.companyName}>{company.companyName}</Text><Text style={styles.companyMeta}>{company.city}, {company.state}</Text></View>
-                    <ChevronRight size={16} color={Colors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -320,9 +325,9 @@ export default function BidDetailScreen() {
             <View style={bidDesktopStyles.sideCol}>
               {trackedBid && <View style={[styles.statusBadgeLarge, { backgroundColor: STATUS_COLORS[trackedBid.status]?.bg ?? Colors.infoLight, marginBottom: 12 }]}><Text style={[styles.statusBadgeLargeText, { color: STATUS_COLORS[trackedBid.status]?.text ?? Colors.infoDark }]}>{STATUS_LABELS[trackedBid.status]}</Text></View>}
               <View style={[styles.statsGrid, { padding: 0, flexDirection: 'column' as const }]}>
-                <View style={[styles.statCard, { width: '100%' as any }]}><DollarSign size={18} color={Colors.primary} /><Text style={styles.statLabel}>Estimated Value</Text><Text style={styles.statValue}>{formatCurrency(estimatedValue)}</Text></View>
-                <View style={[styles.statCard, { width: '100%' as any }]}><Clock size={18} color={countdown.urgent ? Colors.error : Colors.textSecondary} /><Text style={styles.statLabel}>Deadline</Text><Text style={[styles.statValue, countdown.urgent && { color: Colors.error }]}>{countdown.text}</Text><Text style={styles.statSub}>{formatDate(deadline)}</Text></View>
-                <View style={[styles.statCard, { width: '100%' as any }]}><Shield size={18} color={Colors.accent} /><Text style={styles.statLabel}>Bond Required</Text><Text style={styles.statValue}>{formatCurrency(bondRequired)}</Text></View>
+                <View style={[styles.statCard, { width: '100%' as any }]}><DollarSign size={18} color={themeColors.accent} /><Text style={styles.statLabel}>Estimated Value</Text><Text style={styles.statValue}>{formatCurrency(estimatedValue)}</Text></View>
+                <View style={[styles.statCard, { width: '100%' as any }]}><Clock size={18} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} /><Text style={styles.statLabel}>Deadline</Text><Text style={[styles.statValue, countdown.urgent && { color: themeColors.danger }]}>{countdown.text}</Text><Text style={styles.statSub}>{formatDate(deadline)}</Text></View>
+                <View style={[styles.statCard, { width: '100%' as any }]}><Shield size={18} color={themeColors.accent} /><Text style={styles.statLabel}>Bond Required</Text><Text style={styles.statValue}>{formatCurrency(bondRequired)}</Text></View>
               </View>
               {(contactEmail || contactPhone) ? (
                 <View style={[styles.contactCard, { marginTop: 12 }]}>
@@ -340,14 +345,14 @@ export default function BidDetailScreen() {
                       ...mailSignOff(),
                     ],
                   }))}><Mail size={16} color="#FFF" /><Text style={styles.contactBtnText}>Email</Text></TouchableOpacity> : null}
-                    {contactPhone ? <TouchableOpacity style={[styles.contactBtn, { backgroundColor: Colors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}><Phone size={16} color="#FFF" /><Text style={styles.contactBtnText}>Call</Text></TouchableOpacity> : null}
+                    {contactPhone ? <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}><Phone size={16} color="#FFF" /><Text style={styles.contactBtnText}>Call</Text></TouchableOpacity> : null}
                   </View>
-                  {sourceUrl ? <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(sourceUrl)}><Globe size={14} color={Colors.primary} /><Text style={styles.sourceLinkText}>{sourceName || 'View on Portal'}</Text><ExternalLink size={12} color={Colors.primary} /></TouchableOpacity> : null}
+                  {sourceUrl ? <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(sourceUrl)}><Globe size={14} color={themeColors.accent} /><Text style={styles.sourceLinkText}>{sourceName || 'View on Portal'}</Text><ExternalLink size={12} color={themeColors.accent} /></TouchableOpacity> : null}
                 </View>
               ) : null}
               <View style={[styles.contactActions, { marginTop: 12, flexDirection: 'column' as const, gap: 8 }]}>
                 <TouchableOpacity style={[styles.actionBtn, trackedBid ? styles.actionBtnSaved : styles.actionBtnOutline, { width: '100%' as any, justifyContent: 'center' as const }]} onPress={handleToggleSave} activeOpacity={0.8}>
-                  <Heart size={18} color={trackedBid ? '#FFF' : Colors.primary} fill={trackedBid ? '#FFF' : 'none'} />
+                  <Heart size={18} color={trackedBid ? '#FFF' : themeColors.accent} fill={trackedBid ? '#FFF' : 'none'} />
                   <Text style={[styles.actionBtnText, trackedBid ? styles.actionBtnTextSaved : styles.actionBtnTextOutline]}>{trackedBid ? 'Saved' : 'Save Bid'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, styles.actionBtnTrack, { width: '100%' as any }]} onPress={() => setShowStatusPicker(true)} activeOpacity={0.8}>
@@ -363,8 +368,8 @@ export default function BidDetailScreen() {
           <View style={styles.topRow}>
             <View style={styles.topBadges}>
               {bidType ? (
-                <View style={[styles.typeBadge, { backgroundColor: Colors.primary + '15' }]}>
-                  <Text style={[styles.typeBadgeText, { color: Colors.primary }]}>{BID_TYPE_LABELS[bidType] ?? bidType}</Text>
+                <View style={[styles.typeBadge, { backgroundColor: themeColors.accent + '15' }]}>
+                  <Text style={[styles.typeBadgeText, { color: themeColors.accent }]}>{BID_TYPE_LABELS[bidType] ?? bidType}</Text>
                 </View>
               ) : null}
               {setAside ? (
@@ -387,7 +392,7 @@ export default function BidDetailScreen() {
 
           {(city || state) ? (
             <View style={styles.locationRow}>
-              <MapPin size={14} color={Colors.textSecondary} />
+              <MapPin size={14} color={themeColors.textSecondary} />
               <Text style={styles.locationText}>{[city, state].filter(Boolean).join(', ')}</Text>
             </View>
           ) : null}
@@ -395,23 +400,23 @@ export default function BidDetailScreen() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <DollarSign size={18} color={Colors.primary} />
+            <DollarSign size={18} color={themeColors.accent} />
             <Text style={styles.statLabel}>Estimated Value</Text>
             <Text style={styles.statValue}>{formatCurrency(estimatedValue)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Shield size={18} color={Colors.accent} />
+            <Shield size={18} color={themeColors.accent} />
             <Text style={styles.statLabel}>Bond Required</Text>
             <Text style={styles.statValue}>{formatCurrency(bondRequired)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Clock size={18} color={countdown.urgent ? Colors.error : Colors.textSecondary} />
+            <Clock size={18} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} />
             <Text style={styles.statLabel}>Deadline</Text>
-            <Text style={[styles.statValue, countdown.urgent && { color: Colors.error }]}>{countdown.text}</Text>
+            <Text style={[styles.statValue, countdown.urgent && { color: themeColors.danger }]}>{countdown.text}</Text>
             <Text style={styles.statSub}>{formatDate(deadline)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Building2 size={18} color={Colors.textSecondary} />
+            <Building2 size={18} color={themeColors.textSecondary} />
             <Text style={styles.statLabel}>Category</Text>
             <Text style={styles.statValue}>{BID_CATEGORY_LABELS[category] ? BID_CATEGORY_LABELS[category] : (category || 'General')}</Text>
           </View>
@@ -437,7 +442,7 @@ export default function BidDetailScreen() {
             <View style={styles.dateGrid}>
               {postedDate ? (
                 <View style={styles.dateItem}>
-                  <Calendar size={14} color={Colors.textSecondary} />
+                  <Calendar size={14} color={themeColors.textSecondary} />
                   <View>
                     <Text style={styles.dateLabel}>Posted</Text>
                     <Text style={styles.dateValue}>{formatDate(postedDate)}</Text>
@@ -446,16 +451,16 @@ export default function BidDetailScreen() {
               ) : null}
               {deadline ? (
                 <View style={styles.dateItem}>
-                  <Clock size={14} color={countdown.urgent ? Colors.error : Colors.textSecondary} />
+                  <Clock size={14} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} />
                   <View>
                     <Text style={styles.dateLabel}>Deadline</Text>
-                    <Text style={[styles.dateValue, countdown.urgent && { color: Colors.error }]}>{formatDate(deadline)}</Text>
+                    <Text style={[styles.dateValue, countdown.urgent && { color: themeColors.danger }]}>{formatDate(deadline)}</Text>
                   </View>
                 </View>
               ) : null}
               {preBidDate ? (
                 <View style={styles.dateItem}>
-                  <Users size={14} color={Colors.info} />
+                  <Users size={14} color={themeColors.info} />
                   <View>
                     <Text style={styles.dateLabel}>Pre-Bid Conference</Text>
                     <Text style={styles.dateValue}>{formatDate(preBidDate)}</Text>
@@ -472,14 +477,14 @@ export default function BidDetailScreen() {
             <View style={styles.reqGrid}>
               {naicsCode ? (
                 <View style={styles.reqItem}>
-                  <Tag size={13} color={Colors.textSecondary} />
+                  <Tag size={13} color={themeColors.textSecondary} />
                   <Text style={styles.reqLabel}>NAICS Code</Text>
                   <Text style={styles.reqValue}>{naicsCode}</Text>
                 </View>
               ) : null}
               {solicitationNumber ? (
                 <View style={styles.reqItem}>
-                  <FileText size={13} color={Colors.textSecondary} />
+                  <FileText size={13} color={themeColors.textSecondary} />
                   <Text style={styles.reqLabel}>Solicitation #</Text>
                   <Text style={styles.reqValue}>{solicitationNumber}</Text>
                 </View>
@@ -494,7 +499,7 @@ export default function BidDetailScreen() {
             <View style={styles.certGrid}>
               {requiredCerts.map((certId, idx) => {
                 const info = CERTIFICATIONS.find(c => c.id === certId);
-                const color = CERT_COLORS[certId] || Colors.primary;
+                const color = CERT_COLORS[certId] || themeColors.accent;
                 return (
                   <View key={`${certId}-${idx}`} style={[styles.certCard, { borderLeftColor: color }]}>
                     <Text style={[styles.certShort, { color }]}>{info?.shortLabel ?? certId}</Text>
@@ -541,7 +546,7 @@ export default function BidDetailScreen() {
                     })}
                   </View>
                 </View>
-                <ChevronRight size={16} color={Colors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             ))
           )}
@@ -572,13 +577,13 @@ export default function BidDetailScreen() {
                   </TouchableOpacity>
                 ) : null}
                 {contactPhone ? (
-                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: Colors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}>
+                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}>
                     <Phone size={16} color="#FFF" />
                     <Text style={styles.contactBtnText}>Call</Text>
                   </TouchableOpacity>
                 ) : null}
                 {applyUrl ? (
-                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: Colors.accent }]} onPress={() => void Linking.openURL(applyUrl)}>
+                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.accent }]} onPress={() => void Linking.openURL(applyUrl)}>
                     <ExternalLink size={16} color="#FFF" />
                     <Text style={styles.contactBtnText}>Apply</Text>
                   </TouchableOpacity>
@@ -586,9 +591,9 @@ export default function BidDetailScreen() {
               </View>
               {documentsUrl ? (
                 <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(documentsUrl)}>
-                  <FileText size={14} color={Colors.primary} />
+                  <FileText size={14} color={themeColors.accent} />
                   <Text style={styles.sourceLinkText}>View Documents</Text>
-                  <ExternalLink size={12} color={Colors.primary} />
+                  <ExternalLink size={12} color={themeColors.accent} />
                 </TouchableOpacity>
               ) : null}
               {sourceUrl ? (
@@ -596,9 +601,9 @@ export default function BidDetailScreen() {
                   if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   void Linking.openURL(sourceUrl);
                 }}>
-                  <Globe size={14} color={Colors.primary} />
+                  <Globe size={14} color={themeColors.accent} />
                   <Text style={styles.sourceLinkText}>{sourceName || 'View on Procurement Portal'}</Text>
-                  <ExternalLink size={12} color={Colors.primary} />
+                  <ExternalLink size={12} color={themeColors.accent} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -630,7 +635,7 @@ export default function BidDetailScreen() {
           onPress={handleToggleSave}
           activeOpacity={0.8}
         >
-          <Heart size={18} color={trackedBid ? '#FFF' : Colors.primary} fill={trackedBid ? '#FFF' : 'none'} />
+          <Heart size={18} color={trackedBid ? '#FFF' : themeColors.accent} fill={trackedBid ? '#FFF' : 'none'} />
           <Text style={[styles.actionBtnText, trackedBid ? styles.actionBtnTextSaved : styles.actionBtnTextOutline]}>
             {trackedBid ? 'Saved' : 'Save'}
           </Text>
@@ -653,7 +658,7 @@ export default function BidDetailScreen() {
             style={[styles.actionBtn, styles.actionBtnPortal]}
             onPress={() => void Linking.openURL(sourceUrl)}
             activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Open website">
-            <Globe size={18} color={Colors.primary} />
+            <Globe size={18} color={themeColors.accent} />
           </TouchableOpacity>
         ) : null}
       </View>}
@@ -673,7 +678,7 @@ export default function BidDetailScreen() {
                 onPress={() => handleStatusSelect(status)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.pickerDot, { backgroundColor: STATUS_COLORS[status]?.text ?? Colors.primary }]} />
+                <View style={[styles.pickerDot, { backgroundColor: STATUS_COLORS[status]?.text ?? themeColors.accent }]} />
                 <Text style={[styles.pickerOptionText, trackedBid?.status === status && { color: STATUS_COLORS[status]?.text, fontWeight: '700' as const }]}>
                   {STATUS_LABELS[status]}
                 </Text>
@@ -686,88 +691,88 @@ export default function BidDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  errorText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary },
-  topCard: { backgroundColor: Colors.surface, padding: 20, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  loadingText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
+  errorText: { fontSize: Type.callout.fontSize, color: t.textSecondary },
+  topCard: { backgroundColor: t.surface, padding: 20, borderBottomWidth: 0.5, borderBottomColor: t.line },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   topBadges: { flexDirection: 'row', gap: 6, flex: 1 },
   typeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.xs },
   typeBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, textTransform: 'uppercase' as const },
   statusBadgeLarge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
   statusBadgeLargeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
-  bidTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, lineHeight: 28, marginBottom: 6 },
-  agency: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginBottom: 8 },
+  bidTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, lineHeight: 28, marginBottom: 6 },
+  agency: { fontSize: Type.subhead.fontSize, color: t.textSecondary, marginBottom: 8 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  locationText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
-  statCard: { width: '47%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: 4 },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
-  statValue: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.text, textAlign: 'center' as const },
-  statSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  section: { backgroundColor: Colors.surface, padding: 20, marginTop: 8 },
+  statCard: { width: '47%' as any, backgroundColor: t.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: 4 },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
+  statValue: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: t.text, textAlign: 'center' as const },
+  statSub: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+  section: { backgroundColor: t.surface, padding: 20, marginTop: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 8 },
-  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12 },
-  description: { fontSize: Type.subhead.fontSize, color: Colors.text, lineHeight: 22 },
+  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 8 },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 12 },
+  description: { fontSize: Type.subhead.fontSize, color: t.text, lineHeight: 22 },
   dateGrid: { gap: 12 },
   dateItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  dateLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  dateValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  dateLabel: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '500' as const },
+  dateValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
   reqGrid: { gap: 10 },
   reqItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reqLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, flex: 1 },
-  reqValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  reqLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
+  reqValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
   certGrid: { gap: 8 },
-  certCard: { backgroundColor: Colors.background, padding: 12, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
+  certCard: { backgroundColor: t.bg, padding: 12, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
   certShort: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, marginBottom: 2 },
-  certFull: { fontSize: Type.footnote.fontSize, color: Colors.text },
-  certSource: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  countBadge: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.md, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  certFull: { fontSize: Type.footnote.fontSize, color: t.text },
+  certSource: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  countBadge: { backgroundColor: t.accent, borderRadius: Tokens.radius.md, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   countText: { color: '#FFF', fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  noResults: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
-  companyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  noResults: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
+  companyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: t.line },
   companyInfo: { flex: 1 },
-  companyName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
-  companyMeta: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  companyName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text, marginBottom: 2 },
+  companyMeta: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   companyCerts: { flexDirection: 'row', gap: 4, marginTop: 4 },
   miniCertBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 3 },
   miniCertText: { fontSize: 9, fontWeight: '700' as const, color: Colors.successDark },
-  contactCard: { backgroundColor: Colors.background, padding: 16, borderRadius: Tokens.radius.card, gap: 8 },
-  postedLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  postedDate: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  contactCard: { backgroundColor: t.bg, padding: 16, borderRadius: Tokens.radius.card, gap: 8 },
+  postedLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  postedDate: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   contactActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md },
+  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md },
   contactBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
-  sourceLink: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  sourceLinkText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' as const, flex: 1 },
+  sourceLink: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: t.line },
+  sourceLinkText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '600' as const, flex: 1 },
   actionBar: {
     position: 'absolute' as const, bottom: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34,
-    backgroundColor: Colors.surface,
-    borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    backgroundColor: t.surface,
+    borderTopWidth: 0.5, borderTopColor: t.line,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 10,
   },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card },
-  actionBtnOutline: { backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '30' },
-  actionBtnSaved: { backgroundColor: Colors.primary },
-  actionBtnTrack: { flex: 1, backgroundColor: Colors.primary, justifyContent: 'center' as const },
-  actionBtnPortal: { backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '30' },
+  actionBtnOutline: { backgroundColor: t.accent + '10', borderWidth: 1, borderColor: t.accent + '30' },
+  actionBtnSaved: { backgroundColor: t.accent },
+  actionBtnTrack: { flex: 1, backgroundColor: t.accent, justifyContent: 'center' as const },
+  actionBtnPortal: { backgroundColor: t.accent + '10', borderWidth: 1, borderColor: t.accent + '30' },
   actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
-  actionBtnTextOutline: { color: Colors.primary },
+  actionBtnTextOutline: { color: t.accent },
   actionBtnTextSaved: { color: '#FFF' },
   actionBtnTextWhite: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
   pickerOverlay: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' as const },
-  pickerCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  pickerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 16 },
+  pickerCard: { backgroundColor: t.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  pickerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 16 },
   pickerOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 12, borderRadius: Tokens.radius.md, marginBottom: 4 },
   pickerDot: { width: 10, height: 10, borderRadius: 5 },
-  pickerOptionText: { fontSize: Type.callout.fontSize, color: Colors.text, fontWeight: '500' as const },
+  pickerOptionText: { fontSize: Type.callout.fontSize, color: t.text, fontWeight: '500' as const },
 });
 
 const bidDesktopStyles = StyleSheet.create({

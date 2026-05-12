@@ -11,6 +11,9 @@ import {
   HardHat, Building2, FileText, Inbox, Mail,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { SubPortalLink } from '@/types';
 import { generateUUID } from '@/utils/generateId';
@@ -36,6 +39,8 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
   || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
 export default function SubPortalSetupScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   // Subcontractor management is a Business-only feature per the paywall
@@ -57,6 +62,8 @@ export default function SubPortalSetupScreen() {
 }
 
 function SubPortalSetupScreenInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { projectId, subId } = useLocalSearchParams<{ projectId: string; subId: string }>();
@@ -353,7 +360,7 @@ function SubPortalSetupScreenInner() {
           title: 'Sub Portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
         }}
@@ -365,7 +372,7 @@ function SubPortalSetupScreenInner() {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <HardHat size={22} color={Colors.primary} />
+            <HardHat size={22} color={themeColors.accent} />
           </View>
           <Text style={styles.heroEyebrow}>Sub portal</Text>
           <Text style={styles.heroTitle}>{sub.companyName}</Text>
@@ -379,7 +386,7 @@ function SubPortalSetupScreenInner() {
             </View>
             <View style={styles.heroStat}>
               <Text style={styles.heroStatLabel}>Pending review</Text>
-              <Text style={[styles.heroStatValue, submitted.pending.length > 0 && { color: Colors.primary }]}>
+              <Text style={[styles.heroStatValue, submitted.pending.length > 0 && { color: themeColors.accent }]}>
                 {submitted.pending.length} · {formatMoney(pendingTotal)}
               </Text>
             </View>
@@ -393,16 +400,16 @@ function SubPortalSetupScreenInner() {
             One link to review their scope, submit invoices, and track payment — no account needed.
           </Text>
           <View style={styles.linkBox}>
-            <Link size={14} color={Colors.textMuted} />
+            <Link size={14} color={themeColors.textMuted} />
             <Text style={styles.linkText} numberOfLines={1}>{portalUrl}</Text>
           </View>
           <View style={styles.shareRow}>
             <TouchableOpacity style={styles.shareBtn} onPress={handleCopy} activeOpacity={0.85}>
-              <Copy size={16} color={Colors.text} />
+              <Copy size={16} color={themeColors.text} />
               <Text style={styles.shareBtnText}>Copy</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
-              <Send size={16} color={Colors.text} />
+              <Send size={16} color={themeColors.text} />
               <Text style={styles.shareBtnText}>Share</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -430,7 +437,7 @@ function SubPortalSetupScreenInner() {
           <View style={styles.togglesCard}>
             <View style={[styles.toggleRow, styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <RefreshCw size={18} color={Colors.primary} />
+                <RefreshCw size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Portal enabled</Text>
                   <Text style={styles.toggleDesc}>Disable to revoke the link</Text>
@@ -439,13 +446,13 @@ function SubPortalSetupScreenInner() {
               <Switch
                 value={link.enabled}
                 onValueChange={val => persist({ enabled: val })}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
             <View style={[styles.toggleRow, link.requirePasscode && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <Lock size={18} color={Colors.primary} />
+                <Lock size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Require passcode</Text>
                   <Text style={styles.toggleDesc}>4-digit code shared separately</Text>
@@ -454,7 +461,7 @@ function SubPortalSetupScreenInner() {
               <Switch
                 value={!!link.requirePasscode}
                 onValueChange={val => persist({ requirePasscode: val, passcode: val ? (link.passcode || String(Math.floor(1000 + Math.random() * 9000))) : undefined })}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
@@ -478,7 +485,7 @@ function SubPortalSetupScreenInner() {
           <Text style={styles.sectionTitle}>Scope shared on portal</Text>
           {commitments.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Building2 size={28} color={Colors.textMuted} />
+              <Building2 size={28} color={themeColors.textMuted} />
               <Text style={styles.emptyText}>No commitments for this sub yet.</Text>
               <Text style={styles.emptySub}>Add a commitment to scope what they&apos;re billing against.</Text>
             </View>
@@ -517,16 +524,16 @@ function SubPortalSetupScreenInner() {
           </View>
           {submitted.invoices.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Inbox size={28} color={Colors.textMuted} />
+              <Inbox size={28} color={themeColors.textMuted} />
               <Text style={styles.emptyText}>No invoices submitted yet.</Text>
               <Text style={styles.emptySub}>You&apos;ll see them here as soon as they&apos;re sent through the portal.</Text>
             </View>
           ) : (
             <View style={styles.cardList}>
               {submitted.invoices.map(inv => {
-                const statusColor = inv.status === 'paid' ? Colors.success
-                  : inv.status === 'approved' ? Colors.primary
-                  : inv.status === 'rejected' ? Colors.error
+                const statusColor = inv.status === 'paid' ? themeColors.success
+                  : inv.status === 'approved' ? themeColors.accent
+                  : inv.status === 'rejected' ? themeColors.danger
                   : Colors.warning;
                 return (
                   <View key={inv.id} style={styles.invoiceCard}>
@@ -568,7 +575,7 @@ function SubPortalSetupScreenInner() {
                           onPress={() => handleReject(inv.id)}
                           disabled={submitted.isResponding}
                         >
-                          <X size={14} color={Colors.text} />
+                          <X size={14} color={themeColors.text} />
                           <Text style={styles.invCtaText}>Reject</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -607,116 +614,116 @@ function SubPortalSetupScreenInner() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  loadingText: { color: Colors.textMuted, fontSize: Type.bodyCompact.fontSize },
+  loadingText: { color: t.textMuted, fontSize: Type.bodyCompact.fontSize },
 
   hero: {
     margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '20',
   },
   heroIconWrap: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
   heroEyebrow: {
     fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5,
-    color: Colors.primary, textTransform: 'uppercase', marginBottom: 4,
+    color: t.accent, textTransform: 'uppercase', marginBottom: 4,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 4 },
-  heroMeta: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 4 },
+  heroMeta: { fontSize: Type.footnote.fontSize, color: t.textMuted },
   heroStats: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  heroStat: { flex: 1, padding: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
-  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
-  heroStatValue: { fontSize: Type.body.fontSize, fontWeight: '800', color: Colors.text },
+  heroStat: { flex: 1, padding: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
+  heroStatValue: { fontSize: Type.body.fontSize, fontWeight: '800', color: t.text },
 
   section: { marginHorizontal: 16, marginBottom: 22 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
-  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 2, marginBottom: 12, lineHeight: 18 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 2, marginBottom: 12, lineHeight: 18 },
 
   linkBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 10,
   },
-  linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text },
+  linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text },
   shareRow: { flexDirection: 'row', gap: 8 },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  shareBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  lastShared: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8 },
+  shareBtnPrimary: { backgroundColor: t.accent, borderColor: t.accent },
+  shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  lastShared: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 8 },
 
   togglesCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+    borderWidth: 1, borderColor: t.line, overflow: 'hidden',
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
-  toggleRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  toggleRowBorder: { borderBottomWidth: 1, borderBottomColor: t.line },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   toggleLabels: { flex: 1 },
-  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
+  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  toggleDesc: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
   passcodeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
-  passcodeLabel: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
+  passcodeLabel: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' },
   passcodeInput: {
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.sm,
+    borderWidth: 1, borderColor: t.line,
     paddingHorizontal: 12, paddingVertical: 8,
     fontSize: Type.subheadline.fontSize, fontWeight: '700', letterSpacing: 4,
     minWidth: 100, textAlign: 'center',
-    color: Colors.text,
+    color: t.text,
   },
 
   cardList: { gap: 10 },
   commitCard: {
     padding: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
   commitHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
-  commitNumPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary + '15' },
-  commitNumText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
-  commitDesc: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 19 },
+  commitNumPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs, backgroundColor: t.accent + '15' },
+  commitNumText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
+  commitDesc: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text, lineHeight: 19 },
   commitFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  commitAmount: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
-  commitStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  commitAmount: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text },
+  commitStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   emptyCard: {
     alignItems: 'center', padding: 26,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
+    borderWidth: 1, borderColor: t.line, borderStyle: 'dashed',
     gap: 6,
   },
-  emptyText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  emptySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 17 },
+  emptyText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  emptySub: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 17 },
 
-  pendingBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
-  pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  pendingBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: t.accent + '15' },
+  pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   invoiceCard: {
     padding: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
   invoiceHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
-  invoiceNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  invoiceMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  invoiceAmount: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginVertical: 4 },
-  invoiceRet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 4 },
-  invoiceDesc: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginVertical: 6 },
-  invoiceLines: { marginTop: 8, gap: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+  invoiceNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  invoiceMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
+  invoiceAmount: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginVertical: 4 },
+  invoiceRet: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginBottom: 4 },
+  invoiceDesc: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18, marginVertical: 6 },
+  invoiceLines: { marginTop: 8, gap: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line },
   invoiceLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  invoiceLineDesc: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  invoiceLineAmt: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  invoiceLineDesc: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted },
+  invoiceLineAmt: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
 
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
@@ -725,13 +732,13 @@ const styles = StyleSheet.create({
   invCtaApprove: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 11, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   invCtaReject: {
     paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 11, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  invCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  invoiceNotes: { marginTop: 10, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 17 },
+  invCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  invoiceNotes: { marginTop: 10, fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic', lineHeight: 17 },
 });

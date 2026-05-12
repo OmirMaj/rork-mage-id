@@ -32,6 +32,9 @@ import {
   Clock, Plus, X, Save, Camera, FileText, Trash2, ChevronDown,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO, SPECIAL_INSPECTION_LABELS } from '@/mocks/permits';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
@@ -50,6 +53,8 @@ const SPECIAL_INSPECTION_TYPES: SpecialInspectionCategory[] = [
 const PERMIT_STATUSES: PermitStatus[] = ['applied', 'under_review', 'approved', 'denied', 'expired', 'inspection_scheduled', 'inspection_passed', 'inspection_failed'];
 
 function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const typeInfo = PERMIT_TYPE_INFO[permit.type] ?? PERMIT_TYPE_INFO.other;
   const statusInfo = PERMIT_STATUS_INFO[permit.status] ?? PERMIT_STATUS_INFO.applied;
@@ -124,7 +129,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
 
         {permit.attachmentUri && (
           <View style={styles.attachRow}>
-            <FileText size={12} color={Colors.textSecondary} />
+            <FileText size={12} color={themeColors.textSecondary} />
             <Text style={styles.attachText}>Permit document attached</Text>
           </View>
         )}
@@ -192,6 +197,8 @@ const EMPTY_FORM: PermitFormState = {
 };
 
 export default function PermitsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const insetTopWeb = (insets.top || 16) + 4;
   const { projects, permits, addPermit, updatePermit, deletePermit } = useProjects();
@@ -378,11 +385,11 @@ export default function PermitsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Permits',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         headerRight: () => (
-          <TouchableOpacity onPress={openNewForm} style={{ paddingHorizontal: 12, paddingVertical: 6 }} testID="new-permit-btn" accessibilityRole="button" accessibilityLabel="Add"><Plus size={22} color={Colors.primary} /></TouchableOpacity>
+          <TouchableOpacity onPress={openNewForm} style={{ paddingHorizontal: 12, paddingVertical: 6 }} testID="new-permit-btn" accessibilityRole="button" accessibilityLabel="Add"><Plus size={22} color={themeColors.accent} /></TouchableOpacity>
         ),
       }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
@@ -449,8 +456,8 @@ export default function PermitsScreen() {
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '14' }]}>
-              <ClipboardCheck size={16} color={Colors.primary} />
+            <View style={[styles.statIconWrap, { backgroundColor: themeColors.accent + '14' }]}>
+              <ClipboardCheck size={16} color={themeColors.accent} />
             </View>
             <Text style={styles.statValue}>{permits.length}</Text>
             <Text style={styles.statLabel}>Total</Text>
@@ -526,7 +533,7 @@ export default function PermitsScreen() {
         <View style={styles.listSection}>
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
-              <ClipboardCheck size={32} color={Colors.textMuted} />
+              <ClipboardCheck size={32} color={themeColors.textMuted} />
               <Text style={styles.emptyTitle}>No permits yet</Text>
               <Text style={styles.emptySub}>Tap + above to log your first permit. We&apos;ll track inspections and renewal dates from there.</Text>
               <TouchableOpacity style={styles.emptyCta} onPress={openNewForm}>
@@ -548,7 +555,7 @@ export default function PermitsScreen() {
             <Pressable style={[styles.modalCard, { paddingTop: Platform.OS === 'web' ? insetTopWeb : 16 }]} onPress={() => undefined}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingPermit ? 'Edit Permit' : 'New Permit'}</Text>
-                <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textMuted} /></TouchableOpacity>
+                <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} /></TouchableOpacity>
               </View>
 
               {editingPermit && (
@@ -575,7 +582,7 @@ export default function PermitsScreen() {
                 <Text style={styles.formLabel}>Project *</Text>
                 <TouchableOpacity style={styles.formPicker} onPress={() => setPickerOpen(pickerOpen === 'project' ? null : 'project')}>
                   <Text style={styles.formPickerText}>{selectedProjectName}</Text>
-                  <ChevronDown size={16} color={Colors.textMuted} />
+                  <ChevronDown size={16} color={themeColors.textMuted} />
                 </TouchableOpacity>
                 {pickerOpen === 'project' && (
                   <View style={styles.pickerOptions}>
@@ -596,7 +603,7 @@ export default function PermitsScreen() {
                 <Text style={styles.formLabel}>Type</Text>
                 <TouchableOpacity style={styles.formPicker} onPress={() => setPickerOpen(pickerOpen === 'type' ? null : 'type')}>
                   <Text style={styles.formPickerText}>{(PERMIT_TYPE_INFO[form.type]?.label) ?? form.type}</Text>
-                  <ChevronDown size={16} color={Colors.textMuted} />
+                  <ChevronDown size={16} color={themeColors.textMuted} />
                 </TouchableOpacity>
                 {pickerOpen === 'type' && (
                   <View style={styles.pickerOptions}>
@@ -626,7 +633,7 @@ export default function PermitsScreen() {
                       <Text style={styles.formPickerText}>
                         {form.specialInspectionCategory ? SPECIAL_INSPECTION_LABELS[form.specialInspectionCategory] : 'Pick a category'}
                       </Text>
-                      <ChevronDown size={16} color={Colors.textMuted} />
+                      <ChevronDown size={16} color={themeColors.textMuted} />
                     </TouchableOpacity>
                     {pickerOpen === 'specialCategory' && (
                       <View style={styles.pickerOptions}>
@@ -650,7 +657,7 @@ export default function PermitsScreen() {
                       value={form.inspectorName ?? ''}
                       onChangeText={t => setForm(f => ({ ...f, inspectorName: t }))}
                       placeholder='e.g. "Geotek Engineering — Lic. STX-4112"'
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
 
                     <Text style={styles.formLabel}>Last report date</Text>
@@ -659,7 +666,7 @@ export default function PermitsScreen() {
                       value={form.lastReportDate ?? ''}
                       onChangeText={t => setForm(f => ({ ...f, lastReportDate: t }))}
                       placeholder="YYYY-MM-DD"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
 
                     <Text style={styles.formLabel}>Last report summary</Text>
@@ -668,7 +675,7 @@ export default function PermitsScreen() {
                       value={form.lastReportSummary ?? ''}
                       onChangeText={t => setForm(f => ({ ...f, lastReportSummary: t }))}
                       placeholder="One-line summary of findings, e.g. 'Concrete sample 4-day compressive 4180 psi — passing'"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                       multiline
                     />
                   </>
@@ -677,7 +684,7 @@ export default function PermitsScreen() {
                 <Text style={styles.formLabel}>Status</Text>
                 <TouchableOpacity style={styles.formPicker} onPress={() => setPickerOpen(pickerOpen === 'status' ? null : 'status')}>
                   <Text style={styles.formPickerText}>{(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status}</Text>
-                  <ChevronDown size={16} color={Colors.textMuted} />
+                  <ChevronDown size={16} color={themeColors.textMuted} />
                 </TouchableOpacity>
                 {pickerOpen === 'status' && (
                   <View style={styles.pickerOptions}>
@@ -699,7 +706,7 @@ export default function PermitsScreen() {
                   value={form.permitNumber}
                   onChangeText={t => setForm(f => ({ ...f, permitNumber: t }))}
                   placeholder="e.g. BP-2026-04521"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
 
                 <Text style={styles.formLabel}>Jurisdiction *</Text>
@@ -708,7 +715,7 @@ export default function PermitsScreen() {
                   value={form.jurisdiction}
                   onChangeText={t => setForm(f => ({ ...f, jurisdiction: t }))}
                   placeholder="City of Phoenix, AZ"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
 
                 <Text style={styles.formLabel}>Phase Tag</Text>
@@ -717,7 +724,7 @@ export default function PermitsScreen() {
                   value={form.phase}
                   onChangeText={t => setForm(f => ({ ...f, phase: t }))}
                   placeholder="e.g. Foundation, Rough-in, Final"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
 
                 <View style={styles.formRow}>
@@ -728,7 +735,7 @@ export default function PermitsScreen() {
                       value={form.appliedDate}
                       onChangeText={t => setForm(f => ({ ...f, appliedDate: t }))}
                       placeholder="YYYY-MM-DD"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -738,7 +745,7 @@ export default function PermitsScreen() {
                       value={form.inspectionDate}
                       onChangeText={t => setForm(f => ({ ...f, inspectionDate: t }))}
                       placeholder="YYYY-MM-DD"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
                   </View>
                 </View>
@@ -750,7 +757,7 @@ export default function PermitsScreen() {
                   onChangeText={t => setForm(f => ({ ...f, fee: t.replace(/[^0-9.]/g, '') }))}
                   placeholder="0.00"
                   keyboardType="decimal-pad"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
 
                 <Text style={styles.formLabel}>Inspection Notes</Text>
@@ -759,7 +766,7 @@ export default function PermitsScreen() {
                   value={form.inspectionNotes}
                   onChangeText={t => setForm(f => ({ ...f, inspectionNotes: t }))}
                   placeholder="Any inspector notes / required corrections"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                 />
 
@@ -769,13 +776,13 @@ export default function PermitsScreen() {
                   value={form.notes}
                   onChangeText={t => setForm(f => ({ ...f, notes: t }))}
                   placeholder="Internal notes (not on the permit itself)"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                 />
 
                 <Text style={styles.formLabel}>Permit Document</Text>
                 <TouchableOpacity style={styles.attachBtn} onPress={handleAttach} activeOpacity={0.7}>
-                  <Camera size={16} color={Colors.primary} />
+                  <Camera size={16} color={themeColors.accent} />
                   <Text style={styles.attachBtnText}>
                     {form.attachmentUri ? 'Replace attachment' : 'Attach permit scan'}
                   </Text>
@@ -787,7 +794,7 @@ export default function PermitsScreen() {
 
               <View style={styles.formActions}>
                 {editingPermit && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={Colors.error} /></TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} /></TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="permit-save-btn">
                   <Save size={16} color="#fff" />
@@ -802,14 +809,14 @@ export default function PermitsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   // ── Next-inspection hero ──
   nextInspectionCard: {
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     borderWidth: 1.5,
@@ -849,24 +856,24 @@ const styles = StyleSheet.create({
   },
   nextInspectionDate: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600' as const,
   },
   nextInspectionType: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.4,
     marginBottom: 4,
   },
   nextInspectionProject: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600' as const,
   },
   nextInspectionPermitNum: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '600' as const,
     marginTop: 4,
     fontVariant: ['tabular-nums'],
@@ -909,7 +916,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   blockerStatus: {
     fontSize: Type.caption2.fontSize,
@@ -925,20 +932,20 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 12,
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   statIconWrap: { width: 30, height: 30, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
+  statValue: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textSecondary },
   feeCard: {
     marginHorizontal: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     flexDirection: 'row',
@@ -946,27 +953,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  feeLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  feeValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  feeLabel: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  feeValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
   filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
   filterChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   filterChipTextActive: { color: '#fff' },
   listSection: { paddingHorizontal: 16 },
   permitCard: {
     marginBottom: 10,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -976,12 +983,12 @@ const styles = StyleSheet.create({
   permitCardInner: { padding: 14, gap: 4 },
   permitHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   permitTypeDot: { width: 8, height: 8, borderRadius: 4 },
-  permitType: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, flex: 1 },
+  permitType: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, flex: 1 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
   statusBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
-  permitNumber: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.textMuted },
-  permitProject: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  permitJurisdiction: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  permitNumber: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: t.textMuted },
+  permitProject: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  permitJurisdiction: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   // IBC Ch.17 category chip — sits between permit number and project name
   // on Special Inspection cards. Color tied to PERMIT_TYPE_INFO.special_inspection.
   specialCategoryChip: {
@@ -1000,19 +1007,19 @@ const styles = StyleSheet.create({
   },
   specialInspectorLine: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
     fontStyle: 'italic' as const,
   },
   phaseTag: {
     alignSelf: 'flex-start',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
     marginTop: 4,
   },
-  phaseTagText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.4 },
+  phaseTagText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textSecondary, letterSpacing: 0.4 },
   inspectionAlert: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1037,65 +1044,65 @@ const styles = StyleSheet.create({
   },
   failedAlertText: { fontSize: Type.caption1.fontSize, color: Colors.errorDark, flex: 1 },
   attachRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  attachText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  attachText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   permitFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  permitFee: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  permitDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  permitFee: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  permitDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 56, gap: 8 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
-  emptySub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, lineHeight: 18 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
+  emptySub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', paddingHorizontal: 40, lineHeight: 18 },
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 12,
     paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   emptyCtaText: { color: '#fff', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
 
   modalOverlay: { flex: 1, backgroundColor: '#00000080', justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingBottom: 24,
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  formLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, marginTop: 12, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
+  formLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textSecondary, marginTop: 12, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   formInput: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    color: Colors.text, fontSize: Type.subhead.fontSize,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    color: t.text, fontSize: Type.subhead.fontSize,
+    borderWidth: 1, borderColor: t.line,
   },
   formRow: { flexDirection: 'row', gap: 10 },
   formPicker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 12,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
-  formPickerText: { fontSize: Type.subhead.fontSize, color: Colors.text, flex: 1 },
-  pickerOptions: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, marginTop: 6, borderWidth: 1, borderColor: Colors.cardBorder, maxHeight: 220 },
-  pickerRow: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder + '60' },
-  pickerRowActive: { backgroundColor: Colors.primary + '14' },
-  pickerRowText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  pickerRowTextActive: { color: Colors.primary, fontWeight: '700' as const },
-  pickerEmpty: { padding: 14, fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' },
+  formPickerText: { fontSize: Type.subhead.fontSize, color: t.text, flex: 1 },
+  pickerOptions: { backgroundColor: t.surface, borderRadius: Tokens.radius.md, marginTop: 6, borderWidth: 1, borderColor: t.line, maxHeight: 220 },
+  pickerRow: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line + '60' },
+  pickerRowActive: { backgroundColor: t.accent + '14' },
+  pickerRowText: { fontSize: Type.bodyCompact.fontSize, color: t.text },
+  pickerRowTextActive: { color: t.accent, fontWeight: '700' as const },
+  pickerEmpty: { padding: 14, fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center' },
   attachBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 14, paddingVertical: 12,
   },
-  attachBtnText: { color: Colors.primary, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
-  attachHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 4, paddingHorizontal: 4 },
+  attachBtnText: { color: t.accent, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
+  attachHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 4, paddingHorizontal: 4 },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   saveBtn: {
     flex: 1,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
@@ -1103,7 +1110,7 @@ const styles = StyleSheet.create({
   deleteBtn: {
     width: 50, height: 50,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.error + '14',
+    backgroundColor: t.danger + '14',
     borderRadius: Tokens.radius.card,
   },
 });

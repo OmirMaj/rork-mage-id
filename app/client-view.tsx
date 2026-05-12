@@ -16,6 +16,9 @@ import {
   FileSignature, X, Check, ThumbsDown, ShieldCheck, Send,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
@@ -33,6 +36,8 @@ type SectionKey = 'messages' | 'schedule' | 'budget' | 'invoices' | 'changeOrder
 function SectionHeader({ title, icon, count, expanded, onToggle }: {
   title: string; icon: React.ReactNode; count?: number; expanded: boolean; onToggle: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity style={styles.sectionHeader} onPress={onToggle} activeOpacity={0.7}>
       {icon}
@@ -40,12 +45,14 @@ function SectionHeader({ title, icon, count, expanded, onToggle }: {
       {count !== undefined && (
         <View style={styles.badge}><Text style={styles.badgeText}>{count}</Text></View>
       )}
-      {expanded ? <ChevronUp size={16} color={Colors.textMuted} /> : <ChevronDown size={16} color={Colors.textMuted} />}
+      {expanded ? <ChevronUp size={16} color={themeColors.textMuted} /> : <ChevronDown size={16} color={themeColors.textMuted} />}
     </TouchableOpacity>
   );
 }
 
 function TaskRow({ task }: { task: ScheduleTask }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const statusColor = getStatusColor(task.status);
   const phaseColor = getPhaseColor(task.phase);
   return (
@@ -54,7 +61,7 @@ function TaskRow({ task }: { task: ScheduleTask }) {
       <View style={styles.taskContent}>
         <View style={styles.taskTitleRow}>
           {task.isMilestone && <Flag size={11} color={Colors.warning} />}
-          {task.isCriticalPath && <GitBranch size={11} color={Colors.error} />}
+          {task.isCriticalPath && <GitBranch size={11} color={themeColors.danger} />}
           <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
         </View>
         <Text style={styles.taskMeta}>{task.phase} · {task.durationDays}d</Text>
@@ -73,6 +80,8 @@ function TaskRow({ task }: { task: ScheduleTask }) {
 }
 
 export default function ClientViewScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { portalId, inviteId, clientName: clientNameParam } = useLocalSearchParams<{ portalId: string; inviteId?: string; clientName?: string }>();
   const {
@@ -423,7 +432,7 @@ export default function ClientViewScreen() {
     return (
       <View style={styles.notFoundContainer}>
         <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
-        <Globe size={48} color={Colors.textMuted} />
+        <Globe size={48} color={themeColors.textMuted} />
         <Text style={styles.notFoundTitle}>Portal Not Found</Text>
         <Text style={styles.notFoundSubtitle}>This portal link may be expired or invalid.</Text>
       </View>
@@ -492,7 +501,7 @@ export default function ClientViewScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.passcodeCard}>
           <View style={styles.passcodeIconWrap}>
-            <Lock size={32} color={Colors.primary} />
+            <Lock size={32} color={themeColors.accent} />
           </View>
           <Text style={styles.passcodeTitle}>Protected Portal</Text>
           <Text style={styles.passcodeSub}>{project.name}</Text>
@@ -500,7 +509,7 @@ export default function ClientViewScreen() {
             Enter the passcode shared with you to access this project portal.
           </Text>
           <TextInput
-            style={[styles.passcodeInput, passcodeError && { borderColor: Colors.error }]}
+            style={[styles.passcodeInput, passcodeError && { borderColor: themeColors.danger }]}
             value={passcodeEntry}
             onChangeText={(v) => {
               setPasscodeEntry(v);
@@ -510,7 +519,7 @@ export default function ClientViewScreen() {
               }
             }}
             placeholder="Enter passcode"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
@@ -564,7 +573,7 @@ export default function ClientViewScreen() {
             Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? '#34C75940' : '#FF950040' }]}>
-            <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? Colors.success : Colors.warning }]}>
+            <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? themeColors.success : Colors.warning }]}>
               {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
             </Text>
           </View>
@@ -573,7 +582,7 @@ export default function ClientViewScreen() {
         {/* Welcome message */}
         {!!portal.welcomeMessage && (
           <View style={styles.welcomeCard}>
-            <MessageSquare size={16} color={Colors.primary} />
+            <MessageSquare size={16} color={themeColors.accent} />
             <Text style={styles.welcomeText}>{portal.welcomeMessage}</Text>
           </View>
         )}
@@ -582,7 +591,7 @@ export default function ClientViewScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Schedule</Text>
-            <Text style={[styles.statValue, { color: healthScore >= 80 ? Colors.success : healthScore >= 60 ? Colors.warning : Colors.error }]}>
+            <Text style={[styles.statValue, { color: healthScore >= 80 ? themeColors.success : healthScore >= 60 ? Colors.warning : themeColors.danger }]}>
               {scheduleProgress}%
             </Text>
             <Text style={styles.statSub}>complete</Text>
@@ -596,7 +605,7 @@ export default function ClientViewScreen() {
           )}
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Punch List</Text>
-            <Text style={[styles.statValue, { color: punchItems.filter(p => p.status !== 'closed').length > 0 ? Colors.warning : Colors.success }]}>
+            <Text style={[styles.statValue, { color: punchItems.filter(p => p.status !== 'closed').length > 0 ? Colors.warning : themeColors.success }]}>
               {punchItems.filter(p => p.status !== 'closed').length}
             </Text>
             <Text style={styles.statSub}>open items</Text>
@@ -607,7 +616,7 @@ export default function ClientViewScreen() {
         <View style={styles.section}>
           <SectionHeader
             title="Messages"
-            icon={<MessageSquare size={18} color={Colors.primary} />}
+            icon={<MessageSquare size={18} color={themeColors.accent} />}
             count={messages.length || undefined}
             expanded={expanded.messages}
             onToggle={() => toggleSection('messages')}
@@ -616,7 +625,7 @@ export default function ClientViewScreen() {
             <View style={styles.sectionBody}>
               {messages.length === 0 ? (
                 <View style={styles.msgEmpty}>
-                  <MessageSquare size={20} color={Colors.textMuted} />
+                  <MessageSquare size={20} color={themeColors.textMuted} />
                   <Text style={styles.msgEmptyTitle}>Ask us anything.</Text>
                   <Text style={styles.msgEmptyHint}>
                     Questions about the schedule, finishes, or anything on-site — this goes straight to your GC.
@@ -655,7 +664,7 @@ export default function ClientViewScreen() {
                   value={composeBody}
                   onChangeText={setComposeBody}
                   placeholder="Write a message…"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                   textAlignVertical="top"
                   editable={!sendingMsg}
@@ -675,7 +684,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Project Schedule"
-              icon={<CalendarDays size={18} color={Colors.info} />}
+              icon={<CalendarDays size={18} color={themeColors.info} />}
               count={tasks.length}
               expanded={expanded.schedule}
               onToggle={() => toggleSection('schedule')}
@@ -688,11 +697,11 @@ export default function ClientViewScreen() {
                   <View style={styles.healthBar}>
                     <View style={[styles.healthFill, {
                       width: `${healthScore}%` as any,
-                      backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : Colors.error,
+                      backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : themeColors.danger,
                     }]} />
                   </View>
                   <Text style={[styles.healthPct, {
-                    color: healthScore >= 80 ? Colors.success : healthScore >= 60 ? Colors.warning : Colors.error,
+                    color: healthScore >= 80 ? themeColors.success : healthScore >= 60 ? Colors.warning : themeColors.danger,
                   }]}>{healthScore}%</Text>
                 </View>
                 {/* Tasks by phase */}
@@ -707,7 +716,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Budget Summary"
-              icon={<BarChart3 size={18} color={Colors.success} />}
+              icon={<BarChart3 size={18} color={themeColors.success} />}
               expanded={expanded.budget}
               onToggle={() => toggleSection('budget')}
             />
@@ -720,7 +729,7 @@ export default function ClientViewScreen() {
                 {coTotal !== 0 && (
                   <View style={styles.budgetRow}>
                     <Text style={styles.budgetLabel}>Approved Change Orders</Text>
-                    <Text style={[styles.budgetValue, { color: coTotal > 0 ? Colors.error : Colors.success }]}>
+                    <Text style={[styles.budgetValue, { color: coTotal > 0 ? themeColors.danger : themeColors.success }]}>
                       {coTotal > 0 ? '+' : ''}{formatMoney(coTotal)}
                     </Text>
                   </View>
@@ -735,7 +744,7 @@ export default function ClientViewScreen() {
                 </View>
                 <View style={styles.budgetRow}>
                   <Text style={styles.budgetLabel}>Total Paid</Text>
-                  <Text style={[styles.budgetValue, { color: Colors.success }]}>{formatMoney(paidTotal)}</Text>
+                  <Text style={[styles.budgetValue, { color: themeColors.success }]}>{formatMoney(paidTotal)}</Text>
                 </View>
                 {/* Invoice progress bar */}
                 <View style={styles.invoiceProgressRow}>
@@ -764,7 +773,7 @@ export default function ClientViewScreen() {
             {expanded.invoices && (
               <View style={styles.sectionBody}>
                 {invoices.map(inv => {
-                  const statusColor = inv.status === 'paid' ? '#34C759' : inv.status === 'overdue' ? Colors.error : '#FF9500';
+                  const statusColor = inv.status === 'paid' ? '#34C759' : inv.status === 'overdue' ? themeColors.danger : '#FF9500';
                   return (
                     <View key={inv.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -792,7 +801,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Change Orders"
-              icon={<FileText size={18} color={Colors.error} />}
+              icon={<FileText size={18} color={themeColors.danger} />}
               count={changeOrders.length}
               expanded={expanded.changeOrders}
               onToggle={() => toggleSection('changeOrders')}
@@ -800,7 +809,7 @@ export default function ClientViewScreen() {
             {expanded.changeOrders && (
               <View style={styles.sectionBody}>
                 {changeOrders.map(co => {
-                  const statusColor = co.status === 'approved' ? '#34C759' : co.status === 'rejected' ? Colors.error : '#FF9500';
+                  const statusColor = co.status === 'approved' ? '#34C759' : co.status === 'rejected' ? themeColors.danger : '#FF9500';
                   const awaitingClient = co.status === 'submitted' || co.status === 'under_review' || co.status === 'revised';
                   return (
                     <View key={co.id} style={styles.coCard}>
@@ -810,7 +819,7 @@ export default function ClientViewScreen() {
                           <Text style={styles.listRowMeta}>{new Date(co.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
                         </View>
                         <View style={styles.listRowRight}>
-                          <Text style={[styles.listRowAmount, { color: co.changeAmount > 0 ? Colors.error : Colors.success }]}>
+                          <Text style={[styles.listRowAmount, { color: co.changeAmount > 0 ? themeColors.danger : themeColors.success }]}>
                             {co.changeAmount > 0 ? '+' : ''}{formatMoney(co.changeAmount)}
                           </Text>
                           <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
@@ -827,8 +836,8 @@ export default function ClientViewScreen() {
                             onPress={() => openApprovalFlow(co, 'reject')}
                             activeOpacity={0.85}
                           >
-                            <ThumbsDown size={14} color={Colors.error} />
-                            <Text style={[styles.coActionText, { color: Colors.error }]}>Reject</Text>
+                            <ThumbsDown size={14} color={themeColors.danger} />
+                            <Text style={[styles.coActionText, { color: themeColors.danger }]}>Reject</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={[styles.coActionBtn, styles.coActionApprove]}
@@ -842,7 +851,7 @@ export default function ClientViewScreen() {
                       )}
                       {co.status === 'approved' && co.approvers?.some(a => a.role === 'Client' && a.status === 'approved') && (
                         <View style={styles.coSignedBanner}>
-                          <ShieldCheck size={12} color={Colors.success} />
+                          <ShieldCheck size={12} color={themeColors.success} />
                           <Text style={styles.coSignedBannerText}>
                             Approved by {co.approvers.find(a => a.role === 'Client' && a.status === 'approved')?.name} on{' '}
                             {new Date(co.approvers.find(a => a.role === 'Client' && a.status === 'approved')?.responseDate ?? co.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -921,7 +930,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Punch List"
-              icon={<CheckCircle2 size={18} color={Colors.success} />}
+              icon={<CheckCircle2 size={18} color={themeColors.success} />}
               count={punchItems.filter(p => p.status !== 'closed').length}
               expanded={expanded.punchList}
               onToggle={() => toggleSection('punchList')}
@@ -962,7 +971,7 @@ export default function ClientViewScreen() {
             {expanded.rfis && (
               <View style={styles.sectionBody}>
                 {rfis.map(rfi => {
-                  const statusColor = rfi.status === 'answered' ? '#34C759' : rfi.status === 'closed' ? Colors.textMuted : '#FF9500';
+                  const statusColor = rfi.status === 'answered' ? '#34C759' : rfi.status === 'closed' ? themeColors.textMuted : '#FF9500';
                   return (
                     <View key={rfi.id} style={styles.listRow}>
                       <View style={styles.listRowLeft}>
@@ -996,14 +1005,14 @@ export default function ClientViewScreen() {
               <View style={styles.sectionBody}>
                 {documents.length === 0 ? (
                   <View style={styles.emptyDocs}>
-                    <FileText size={20} color={Colors.textMuted} />
+                    <FileText size={20} color={themeColors.textMuted} />
                     <Text style={styles.emptyDocsText}>No documents shared yet.</Text>
                     <Text style={styles.emptyDocsHint}>Contracts, lien waivers, permits, and COIs will appear here.</Text>
                   </View>
                 ) : (
                   documents.map(doc => {
-                    const typeInfo = DOCUMENT_TYPE_INFO[doc.type] ?? { label: doc.type, color: Colors.textMuted, bgColor: Colors.surfaceAlt };
-                    const statusColor = doc.status === 'signed' ? '#34C759' : doc.status === 'expired' ? Colors.error : doc.status === 'pending_signature' ? '#FF9500' : Colors.textMuted;
+                    const typeInfo = DOCUMENT_TYPE_INFO[doc.type] ?? { label: doc.type, color: themeColors.textMuted, bgColor: Colors.surfaceAlt };
+                    const statusColor = doc.status === 'signed' ? '#34C759' : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
                     return (
                       <View key={doc.id} style={styles.listRow}>
                         <View style={styles.listRowLeft}>
@@ -1030,7 +1039,7 @@ export default function ClientViewScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Globe size={14} color={Colors.textMuted} />
+          <Globe size={14} color={themeColors.textMuted} />
           <Text style={styles.footerText}>Powered by MAGE ID · Secure client portal</Text>
         </View>
       </ScrollView>
@@ -1048,7 +1057,7 @@ export default function ClientViewScreen() {
               <Text style={styles.modalTitle}>
                 {approvalMode === 'approve' ? 'Sign & Approve' : 'Reject Change Order'}
               </Text>
-              <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
@@ -1058,7 +1067,7 @@ export default function ClientViewScreen() {
                   <Text style={styles.modalSummaryTitle}>{approvalCO.description}</Text>
                   <View style={styles.modalSummaryRow}>
                     <Text style={styles.modalSummaryKey}>Change Amount</Text>
-                    <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? Colors.error : Colors.success }]}>
+                    <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? themeColors.danger : themeColors.success }]}>
                       {approvalCO.changeAmount > 0 ? '+' : ''}{formatMoney(approvalCO.changeAmount)}
                     </Text>
                   </View>
@@ -1078,7 +1087,7 @@ export default function ClientViewScreen() {
                 value={approverName}
                 onChangeText={setApproverName}
                 placeholder="Full legal name as on contract"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="words"
               />
 
@@ -1098,7 +1107,7 @@ export default function ClientViewScreen() {
                   </View>
                   {signaturePaths.length > 0 && (
                     <View style={styles.signatureConfirm}>
-                      <Check size={14} color={Colors.success} />
+                      <Check size={14} color={themeColors.success} />
                       <Text style={styles.signatureConfirmText}>Signature captured</Text>
                     </View>
                   )}
@@ -1111,7 +1120,7 @@ export default function ClientViewScreen() {
                     value={rejectionReason}
                     onChangeText={setRejectionReason}
                     placeholder="Briefly explain what needs to change before you can approve…"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     multiline
                   />
                 </>
@@ -1125,7 +1134,7 @@ export default function ClientViewScreen() {
               <TouchableOpacity
                 style={[
                   styles.modalSubmitBtn,
-                  approvalMode === 'reject' && { backgroundColor: Colors.error },
+                  approvalMode === 'reject' && { backgroundColor: themeColors.danger },
                   submittingApproval && { opacity: 0.6 },
                 ]}
                 onPress={submitApproval}
@@ -1150,26 +1159,26 @@ export default function ClientViewScreen() {
 
 const PHOTO_SIZE = (SCREEN_WIDTH - 32 - 8) / 3;
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
 
   notFoundContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
-  notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: Colors.text },
-  notFoundSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' },
+  notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: t.text },
+  notFoundSubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' },
 
-  passcodeContainer: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  passcodeCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
-  passcodeIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  passcodeTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: Colors.text },
-  passcodeSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.primary, fontWeight: '600' },
-  passcodeDesc: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 18, marginTop: 4 },
-  passcodeInput: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: Colors.text, marginTop: 12, textAlign: 'center', letterSpacing: 2 },
-  passcodeErrorText: { fontSize: Type.caption1.fontSize, color: Colors.error, marginTop: 4 },
-  passcodeBtn: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  passcodeContainer: { flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  passcodeCard: { backgroundColor: t.surface, borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, alignItems: 'center', borderWidth: 1, borderColor: t.line, gap: 10 },
+  passcodeIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: t.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  passcodeTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: t.text },
+  passcodeSub: { fontSize: Type.bodyCompact.fontSize, color: t.accent, fontWeight: '600' },
+  passcodeDesc: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 18, marginTop: 4 },
+  passcodeInput: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: t.line, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: t.text, marginTop: 12, textAlign: 'center', letterSpacing: 2 },
+  passcodeErrorText: { fontSize: Type.caption1.fontSize, color: t.danger, marginTop: 4 },
+  passcodeBtn: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   passcodeBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
 
   header: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingHorizontal: 20,
     paddingBottom: 24,
     alignItems: 'flex-start',
@@ -1184,53 +1193,53 @@ const styles = StyleSheet.create({
 
   welcomeCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    margin: 16, backgroundColor: Colors.primary + '10',
+    margin: 16, backgroundColor: t.accent + '10',
     borderRadius: Tokens.radius.card, padding: 14,
-    borderLeftWidth: 3, borderLeftColor: Colors.primary,
+    borderLeftWidth: 3, borderLeftColor: t.accent,
   },
-  welcomeText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
+  welcomeText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text, lineHeight: 20 },
 
   statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 8 },
   statCard: {
     flex: 1, backgroundColor: Colors.card,
     borderRadius: Tokens.radius.card, padding: 12, alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
-  statValue: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text },
-  statSub: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600', marginBottom: 4 },
+  statValue: { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text },
+  statSub: { fontSize: 10, color: t.textMuted, marginTop: 2 },
 
   section: {
     marginHorizontal: 16, marginBottom: 12,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+    borderWidth: 1, borderColor: t.line, overflow: 'hidden',
   },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    padding: 14, borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
-  badge: { backgroundColor: Colors.primary + '20', borderRadius: Tokens.radius.md, paddingHorizontal: 7, paddingVertical: 2 },
-  badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text, flex: 1 },
+  badge: { backgroundColor: t.accent + '20', borderRadius: Tokens.radius.md, paddingHorizontal: 7, paddingVertical: 2 },
+  badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   sectionBody: { padding: 12, gap: 8 },
 
   // Health bar
   healthRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  healthLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, width: 100 },
-  healthBar: { flex: 1, height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden' },
+  healthLabel: { fontSize: Type.caption1.fontSize, color: t.textMuted, width: 100 },
+  healthBar: { flex: 1, height: 6, backgroundColor: t.line, borderRadius: 3, overflow: 'hidden' },
   healthFill: { height: '100%', borderRadius: 3 },
   healthPct: { fontSize: Type.caption1.fontSize, fontWeight: '700', width: 34, textAlign: 'right' },
 
   // Task rows
-  taskRow: { flexDirection: 'row', backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, overflow: 'hidden', marginBottom: 4 },
+  taskRow: { flexDirection: 'row', backgroundColor: t.bg, borderRadius: Tokens.radius.sm, overflow: 'hidden', marginBottom: 4 },
   taskPhaseBar: { width: 3 },
   taskContent: { flex: 1, padding: 10 },
   taskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  taskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, flex: 1 },
-  taskMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginBottom: 6 },
+  taskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text, flex: 1 },
+  taskMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginBottom: 6 },
   taskProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  taskProgressBar: { flex: 1, height: 4, backgroundColor: Colors.border, borderRadius: 2, overflow: 'hidden' },
+  taskProgressBar: { flex: 1, height: 4, backgroundColor: t.line, borderRadius: 2, overflow: 'hidden' },
   taskProgressFill: { height: '100%', borderRadius: 2 },
   taskProgressPct: { fontSize: Type.caption2.fontSize, fontWeight: '600', width: 28, textAlign: 'right' },
   taskStatusBadge: { margin: 10, alignSelf: 'center', borderRadius: Tokens.radius.xs, paddingHorizontal: 7, paddingVertical: 3 },
@@ -1238,29 +1247,29 @@ const styles = StyleSheet.create({
 
   // Budget
   budgetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  budgetRowTotal: { borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 4, paddingTop: 10 },
-  budgetLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
-  budgetValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  budgetLabelTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  budgetValueTotal: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
+  budgetRowTotal: { borderTopWidth: 1, borderTopColor: t.line, marginTop: 4, paddingTop: 10 },
+  budgetLabel: { fontSize: Type.footnote.fontSize, color: t.textMuted },
+  budgetValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  budgetLabelTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  budgetValueTotal: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text },
   invoiceProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  invoiceProgressBar: { flex: 1, height: 8, backgroundColor: Colors.border, borderRadius: 4, overflow: 'hidden' },
-  invoiceProgressFill: { height: '100%', backgroundColor: Colors.success, borderRadius: 4 },
-  invoiceProgressPct: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.textMuted },
+  invoiceProgressBar: { flex: 1, height: 8, backgroundColor: t.line, borderRadius: 4, overflow: 'hidden' },
+  invoiceProgressFill: { height: '100%', backgroundColor: t.success, borderRadius: 4 },
+  invoiceProgressPct: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textMuted },
 
   // List rows (invoices, COs, RFIs, punch)
-  listRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 4 },
+  listRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.bg, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 4 },
   listRowLeft: { flex: 1, marginRight: 10 },
-  listRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 2 },
-  listRowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  listRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text, marginBottom: 2 },
+  listRowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted },
   listRowRight: { alignItems: 'flex-end', gap: 4 },
-  listRowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  listRowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   listStatusBadge: { borderRadius: Tokens.radius.xs, paddingHorizontal: 7, paddingVertical: 3 },
-  listStatusText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
+  listStatusText: { fontSize: 10, fontWeight: '700', color: t.textMuted },
 
   // Photos
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 4 },
-  photoThumb: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: Colors.border },
+  photoThumb: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: t.line },
   photoImg: { width: '100%', height: '100%' },
   photoTag: { position: 'absolute', bottom: 4, left: 4, backgroundColor: '#00000080', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 },
   photoTagText: { fontSize: 9, color: '#FFF', fontWeight: '600' },
@@ -1268,20 +1277,20 @@ const styles = StyleSheet.create({
   photoMoreText: { fontSize: Type.title3.fontSize, fontWeight: '800', color: '#FFF' },
 
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 },
-  footerText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  footerText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
 
   // Change order card (wrapper for row + actions)
-  coCard: { backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, marginBottom: 6, overflow: 'hidden' },
+  coCard: { backgroundColor: t.bg, borderRadius: Tokens.radius.sm, marginBottom: 6, overflow: 'hidden' },
   coActions: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 10, paddingBottom: 10,
-    borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: t.line, paddingTop: 10,
   },
   coActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 9, borderRadius: Tokens.radius.sm,
   },
-  coActionApprove: { backgroundColor: Colors.success },
-  coActionReject: { backgroundColor: Colors.error + '15', borderWidth: 1, borderColor: Colors.error + '40' },
+  coActionApprove: { backgroundColor: t.success },
+  coActionReject: { backgroundColor: t.danger + '15', borderWidth: 1, borderColor: t.danger + '40' },
   coActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
   coSignedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -1292,13 +1301,13 @@ const styles = StyleSheet.create({
 
   // Empty documents state
   emptyDocs: { alignItems: 'center', padding: 20, gap: 6 },
-  emptyDocsText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
-  emptyDocsHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center' },
+  emptyDocsText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  emptyDocsHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center' },
 
   // Messages (Q&A thread)
   msgEmpty: { alignItems: 'center', padding: 18, gap: 6 },
-  msgEmptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  msgEmptyHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 17, paddingHorizontal: 10 },
+  msgEmptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  msgEmptyHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 17, paddingHorizontal: 10 },
   msgList: { gap: 8, paddingBottom: 12 },
   msgRow: { flexDirection: 'row' },
   msgRowMine: { justifyContent: 'flex-end' },
@@ -1306,27 +1315,27 @@ const styles = StyleSheet.create({
   msgBubble: {
     maxWidth: '84%', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 8,
   },
-  msgBubbleMine: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
+  msgBubbleMine: { backgroundColor: t.accent, borderBottomRightRadius: 4 },
   msgBubbleTheirs: { backgroundColor: Colors.surfaceAlt, borderBottomLeftRadius: 4 },
-  msgAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
+  msgAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, marginBottom: 2 },
   msgAuthorMine: { color: 'rgba(255,255,255,0.85)' },
-  msgBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 19 },
+  msgBody: { fontSize: Type.bodyCompact.fontSize, color: t.text, lineHeight: 19 },
   msgBodyMine: { color: '#fff' },
-  msgTime: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  msgTime: { fontSize: 10, color: t.textMuted, marginTop: 4 },
   msgTimeMine: { color: 'rgba(255,255,255,0.7)' },
   msgCompose: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
-    paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+    paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
   },
   msgInput: {
     flex: 1, minHeight: 40, maxHeight: 120,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text, backgroundColor: Colors.surface,
+    fontSize: Type.bodyCompact.fontSize, color: t.text, backgroundColor: t.surface,
   },
   msgSendBtn: {
     width: 40, height: 40, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   msgSendBtnDisabled: { opacity: 0.5 },
@@ -1334,48 +1343,48 @@ const styles = StyleSheet.create({
   // Approval modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: Colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: t.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     maxHeight: '90%', paddingBottom: 20,
   },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text },
   modalClose: { padding: 4 },
   modalBody: { paddingHorizontal: 20, paddingTop: 14 },
   modalSummary: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 16,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card, padding: 14,
+    borderWidth: 1, borderColor: t.line, marginBottom: 16,
   },
-  modalSummaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: 4, letterSpacing: 0.5 },
-  modalSummaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 10 },
+  modalSummaryLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600', marginBottom: 4, letterSpacing: 0.5 },
+  modalSummaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text, marginBottom: 10 },
   modalSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  modalSummaryKey: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
-  modalSummaryVal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalSummaryReason: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 17 },
-  modalFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 6, marginTop: 4 },
-  modalFieldHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
+  modalSummaryKey: { fontSize: Type.footnote.fontSize, color: t.textMuted },
+  modalSummaryVal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  modalSummaryReason: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 17 },
+  modalFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text, marginBottom: 6, marginTop: 4 },
+  modalFieldHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginBottom: 10, lineHeight: 16 },
   modalInput: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginBottom: 14,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: t.text, marginBottom: 14,
   },
   signatureWrap: { alignItems: 'center', marginBottom: 10 },
   signatureConfirm: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 14 },
-  signatureConfirmText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.success },
+  signatureConfirmText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.success },
   modalActions: {
     flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1, borderTopColor: t.line,
   },
   modalCancelBtn: {
     flex: 1, paddingVertical: 13, borderRadius: Tokens.radius.card, alignItems: 'center',
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
   },
-  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
   modalSubmitBtn: {
     flex: 2, flexDirection: 'row', gap: 8, paddingVertical: 13, borderRadius: Tokens.radius.card,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.success,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: t.success,
   },
   modalSubmitText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
 });

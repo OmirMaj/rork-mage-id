@@ -15,6 +15,9 @@ import {
   Briefcase, Check,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { CREW_MEMBERS } from '@/mocks/timeTracking';
 import type { TimeEntry } from '@/types';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
@@ -30,8 +33,10 @@ function getElapsedHours(clockIn: string): string {
 }
 
 function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry: TimeEntry, action: string) => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const statusColor = entry.status === 'clocked_in' ? '#2E7D32' : entry.status === 'break' ? '#E65100' : Colors.textMuted;
+  const statusColor = entry.status === 'clocked_in' ? '#2E7D32' : entry.status === 'break' ? '#E65100' : themeColors.textMuted;
   const statusBg = entry.status === 'clocked_in' ? '#E8F5E9' : entry.status === 'break' ? '#FFF3E0' : '#F5F5F5';
   const statusLabel = entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On Break' : 'Clocked Out';
 
@@ -61,7 +66,7 @@ function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry:
 
         {entry.status !== 'clocked_out' && (
           <View style={styles.liveCardTimer}>
-            <Clock size={14} color={Colors.primary} />
+            <Clock size={14} color={themeColors.accent} />
             <Text style={styles.liveCardTimerText}>{getElapsedHours(entry.clockIn)}</Text>
             {entry.notes ? (
               <>
@@ -111,6 +116,8 @@ function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry:
 }
 
 export default function TimeTrackingScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   // Time Tracking is a Business-tier feature. We gate via the
@@ -132,6 +139,8 @@ export default function TimeTrackingScreen() {
 }
 
 function TimeTrackingScreenInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   // Real backend hook (created May 2026 to replace MOCK_TIME_ENTRIES).
@@ -252,26 +261,26 @@ function TimeTrackingScreenInner() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '14' }]}>
-              <Users size={16} color={Colors.primary} />
+            <View style={[styles.statIconWrap, { backgroundColor: themeColors.accent + '14' }]}>
+              <Users size={16} color={themeColors.accent} />
             </View>
             <Text style={styles.statValue}>{todayStats.liveCount}</Text>
             <Text style={styles.statLabel}>On Site</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: Colors.info + '14' }]}>
-              <Clock size={16} color={Colors.info} />
+            <View style={[styles.statIconWrap, { backgroundColor: themeColors.info + '14' }]}>
+              <Clock size={16} color={themeColors.info} />
             </View>
             <Text style={styles.statValue}>{todayStats.totalHours.toFixed(1)}</Text>
             <Text style={styles.statLabel}>Hours Today</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? '#FFF3E0' : Colors.success + '14' }]}>
-              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} /> : <TrendingUp size={16} color={Colors.success} />}
+            <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? '#FFF3E0' : themeColors.success + '14' }]}>
+              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} /> : <TrendingUp size={16} color={themeColors.success} />}
             </View>
             <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: Colors.warningDark }]}>{todayStats.totalOT.toFixed(1)}</Text>
             <Text style={styles.statLabel}>OT Hours</Text>
@@ -294,15 +303,15 @@ function TimeTrackingScreenInner() {
             style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
               paddingVertical: 14, paddingHorizontal: 16,
-              backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+              backgroundColor: Colors.card, borderWidth: 1, borderColor: themeColors.line,
               borderRadius: Tokens.radius.md,
             }}
             onPress={handleExportCSV}
             activeOpacity={0.85}
             testID="time-tracking-export"
           >
-            <FileDown size={16} color={Colors.text} />
-            <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text }}>Export CSV</Text>
+            <FileDown size={16} color={themeColors.text} />
+            <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text }}>Export CSV</Text>
           </TouchableOpacity>
         </View>
 
@@ -330,7 +339,7 @@ function TimeTrackingScreenInner() {
         {selectedTab === 'live' ? (
           liveEntries.length === 0 ? (
             <View style={styles.emptyState}>
-              <Clock size={32} color={Colors.textMuted} />
+              <Clock size={32} color={themeColors.textMuted} />
               <Text style={styles.emptyTitle}>No active time cards</Text>
               <Text style={styles.emptyDesc}>
                 Tap Clock In Crew above, pick a worker and project, and their hours start logging here in real time.
@@ -387,7 +396,7 @@ function TimeTrackingScreenInner() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock In</Text>
               <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>Select a crew member to clock in</Text>
@@ -405,7 +414,7 @@ function TimeTrackingScreenInner() {
                 accessibilityLabel="Choose project"
               >
                 <View style={styles.projectPickerIcon}>
-                  <Briefcase size={16} color={Colors.primary} />
+                  <Briefcase size={16} color={themeColors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.projectPickerLabel}>Project</Text>
@@ -415,7 +424,7 @@ function TimeTrackingScreenInner() {
                 </View>
                 <ChevronDown
                   size={16}
-                  color={Colors.textMuted}
+                  color={themeColors.textMuted}
                   style={{ transform: [{ rotate: showProjectPicker ? '180deg' : '0deg' }] }}
                 />
               </TouchableOpacity>
@@ -439,7 +448,7 @@ function TimeTrackingScreenInner() {
                         <Text style={[styles.projectListRowText, active && styles.projectListRowTextActive]} numberOfLines={1}>
                           {p.name}
                         </Text>
-                        {active ? <Check size={16} color={Colors.primary} /> : null}
+                        {active ? <Check size={16} color={themeColors.accent} /> : null}
                       </TouchableOpacity>
                     );
                   })}
@@ -462,7 +471,7 @@ function TimeTrackingScreenInner() {
                     <Text style={styles.memberName}>{member.name}</Text>
                     <Text style={styles.memberTrade}>{member.trade} · ${member.rate}/hr</Text>
                   </View>
-                  <Play size={16} color={Colors.primary} />
+                  <Play size={16} color={themeColors.accent} />
                 </TouchableOpacity>
               ))}
               {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).length === 0 && (
@@ -476,8 +485,8 @@ function TimeTrackingScreenInner() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -487,7 +496,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     alignItems: 'flex-start',
@@ -498,11 +507,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   statIconWrap: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  statValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  statValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   clockInButton: {
     marginHorizontal: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     flexDirection: 'row',
@@ -510,7 +519,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginBottom: 20,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -520,7 +529,7 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.card,
     padding: 3,
     marginBottom: 16,
@@ -531,14 +540,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: Tokens.radius.md,
   },
-  tabActive: { backgroundColor: Colors.surface },
-  tabText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
-  tabTextActive: { color: Colors.text },
+  tabActive: { backgroundColor: t.surface },
+  tabText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.textMuted },
+  tabTextActive: { color: t.text },
   listSection: { paddingHorizontal: 16 },
   liveCard: {
     marginBottom: 10,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -549,16 +558,16 @@ const styles = StyleSheet.create({
   liveCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   liveCardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  liveCardName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
+  liveCardName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: t.text },
   liveStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
   liveStatusText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
   liveCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveCardTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  liveCardDot: { color: Colors.textMuted, fontSize: 10 },
-  liveCardProject: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, flex: 1 },
+  liveCardTrade: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  liveCardDot: { color: t.textMuted, fontSize: 10 },
+  liveCardProject: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
   liveCardTimer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveCardTimerText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  liveCardNote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, flex: 1 },
+  liveCardTimerText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accent },
+  liveCardNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, flex: 1 },
   liveCardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn: {
     flex: 1,
@@ -571,84 +580,84 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const },
   historyCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 8,
     gap: 4,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  historyName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  historyHours: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  historyName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  historyHours: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
   historyMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historyTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  historyDot: { color: Colors.textMuted, fontSize: 10 },
-  historyProject: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, flex: 1 },
+  historyTrade: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  historyDot: { color: t.textMuted, fontSize: 10 },
+  historyProject: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
   historyFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  historyDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  historyDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   otBadge: { backgroundColor: Colors.warningLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warningDark },
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32, gap: 8 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 320 },
-  emptyCtaBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
-  emptyCtaText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 320 },
+  emptyCtaBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accent, borderRadius: Tokens.radius.md },
+  emptyCtaText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 20,
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text },
-  closeBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  modalSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, marginBottom: 16 },
+  modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text },
+  closeBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: t.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  modalSubtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, marginBottom: 16 },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   memberAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: t.accent + '18',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  memberAvatarText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  memberAvatarText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.accent },
   memberInfo: { flex: 1, gap: 2 },
-  memberName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  memberTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  allClockedIn: { textAlign: 'center' as const, color: Colors.textMuted, paddingVertical: 20, fontSize: Type.bodyCompact.fontSize },
+  memberName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  memberTrade: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  allClockedIn: { textAlign: 'center' as const, color: t.textMuted, paddingVertical: 20, fontSize: Type.bodyCompact.fontSize },
   projectPickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.lg,
     marginBottom: 12,
   },
   projectPickerIcon: {
     width: 28, height: 28, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: t.accent + '18',
   },
-  projectPickerLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, letterSpacing: 0.4, textTransform: 'uppercase' as const },
-  projectPickerValue: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '600' as const, marginTop: 2 },
+  projectPickerLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+  projectPickerValue: { fontSize: Type.subhead.fontSize, color: t.text, fontWeight: '600' as const, marginTop: 2 },
   projectListWrap: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
     marginBottom: 12,
   },
   projectListRow: {
@@ -658,9 +667,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
-  projectListRowActive: { backgroundColor: Colors.primary + '10' },
-  projectListRowText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  projectListRowTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  projectListRowActive: { backgroundColor: t.accent + '10' },
+  projectListRowText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text },
+  projectListRowTextActive: { color: t.accent, fontWeight: '600' as const },
 });

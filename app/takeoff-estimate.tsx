@@ -43,6 +43,9 @@ import {
 } from 'lucide-react-native';
 
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -78,6 +81,8 @@ const SCHEMA_HINT = {
 };
 
 export default function TakeoffEstimateScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   // Same gate as the takeoff screen itself — Pro+ only. Without this someone
@@ -96,6 +101,8 @@ export default function TakeoffEstimateScreen() {
 }
 
 function TakeoffEstimateInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -316,7 +323,7 @@ function TakeoffEstimateInner() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={themeColors.accent} />
           <Text style={styles.statusText}>Loading takeoff…</Text>
         </View>
       </View>
@@ -329,7 +336,7 @@ function TakeoffEstimateInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-            <ChevronLeft size={22} color={Colors.text} />
+            <ChevronLeft size={22} color={themeColors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Priced Estimate</Text>
           <View style={{ width: 28 }} />
@@ -344,7 +351,7 @@ function TakeoffEstimateInner() {
             style={styles.primaryBtn}
             onPress={() => router.replace({ pathname: '/takeoff', params: projectId ? { projectId } : {} } as never)}
           >
-            <Sparkles size={16} color={Colors.surface} />
+            <Sparkles size={16} color={themeColors.surface} />
             <Text style={styles.primaryBtnText}>Run AI Takeoff</Text>
           </TouchableOpacity>
         </View>
@@ -358,7 +365,7 @@ function TakeoffEstimateInner() {
 
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>FROM TAKEOFF</Text>
@@ -366,7 +373,7 @@ function TakeoffEstimateInner() {
         </View>
         {!pricing && lines.length > 0 ? (
           <TouchableOpacity onPress={handleRegenerate} style={styles.headerBack}>
-            <RefreshCw size={18} color={Colors.textSecondary} />
+            <RefreshCw size={18} color={themeColors.textSecondary} />
           </TouchableOpacity>
         ) : (
           <View style={{ width: 28 }} />
@@ -376,9 +383,9 @@ function TakeoffEstimateInner() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 220 }}>
         {/* Pricing in flight */}
         {pricing && (
-          <View style={[styles.banner, { backgroundColor: Colors.primary + '12' }]}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={[styles.bannerText, { color: Colors.primary }]}>
+          <View style={[styles.banner, { backgroundColor: themeColors.accent + '12' }]}>
+            <ActivityIndicator size="small" color={themeColors.accent} />
+            <Text style={[styles.bannerText, { color: themeColors.accent }]}>
               AI is pricing {countQuantities(takeoff)} takeoff items. Hold tight — this takes 10–20 seconds.
             </Text>
           </View>
@@ -400,7 +407,7 @@ function TakeoffEstimateInner() {
         {/* Source summary */}
         {!pricing && lines.length > 0 && (
           <View style={styles.sourceCard}>
-            <Sparkles size={14} color={Colors.primary} />
+            <Sparkles size={14} color={themeColors.accent} />
             <Text style={styles.sourceText}>
               Auto-generated from {countQuantities(takeoff)} takeoff items. Tap any line to edit description, quantity, or unit price. Add custom lines for anything the AI missed.
             </Text>
@@ -431,7 +438,7 @@ function TakeoffEstimateInner() {
         {/* Add line button */}
         {!pricing && (
           <TouchableOpacity style={styles.addLineBtn} onPress={addLine}>
-            <Plus size={16} color={Colors.primary} />
+            <Plus size={16} color={themeColors.accent} />
             <Text style={styles.addLineText}>Add line item</Text>
           </TouchableOpacity>
         )}
@@ -471,8 +478,8 @@ function TakeoffEstimateInner() {
             disabled={saving}
           >
             {saving
-              ? <ActivityIndicator size="small" color={Colors.surface} />
-              : <Save size={16} color={Colors.surface} />}
+              ? <ActivityIndicator size="small" color={themeColors.surface} />
+              : <Save size={16} color={themeColors.surface} />}
             <Text style={styles.saveBtnText}>
               {saving ? 'Saving…' : project ? `Save to ${project.name}` : 'Save Estimate'}
             </Text>
@@ -500,6 +507,8 @@ function LineRow({
   onCancel: () => void;
   onRemove: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [desc, setDesc] = useState(line.description);
   const [qty, setQty] = useState(String(line.quantity));
   const [price, setPrice] = useState(String(line.unitPrice));
@@ -526,7 +535,7 @@ function LineRow({
           </Text>
         </View>
         <Text style={styles.lineTotal}>{formatMoney(line.quantity * line.unitPrice)}</Text>
-        <Pencil size={14} color={Colors.textMuted} style={{ marginLeft: 8 }} />
+        <Pencil size={14} color={themeColors.textMuted} style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
   }
@@ -538,7 +547,7 @@ function LineRow({
         value={desc}
         onChangeText={setDesc}
         placeholder="Line description"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={themeColors.textMuted}
         multiline
       />
       <View style={styles.editInputRow}>
@@ -550,7 +559,7 @@ function LineRow({
             onChangeText={setQty}
             keyboardType="numeric"
             placeholder="0"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
           />
         </View>
         <View style={{ width: 70 }}>
@@ -560,7 +569,7 @@ function LineRow({
             value={unit}
             onChangeText={setUnit}
             placeholder="EA"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             autoCapitalize="characters"
           />
         </View>
@@ -572,7 +581,7 @@ function LineRow({
             onChangeText={setPrice}
             keyboardType="decimal-pad"
             placeholder="0.00"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
           />
         </View>
         <View style={{ flex: 1 }}>
@@ -598,7 +607,7 @@ function LineRow({
           })}
           style={styles.commitBtn}
         >
-          <Check size={14} color={Colors.surface} />
+          <Check size={14} color={themeColors.surface} />
           <Text style={styles.commitBtnText}>Done</Text>
         </TouchableOpacity>
       </View>
@@ -715,29 +724,29 @@ Be thorough and specific. The GC will review and edit every line; producing deta
 
 // ─── Styles ──────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-  statusText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, marginTop: 12 },
-  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 8 },
-  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  statusText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, marginTop: 12 },
+  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 8 },
+  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20 },
 
   headerBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+    backgroundColor: t.surface,
+    borderBottomWidth: 0.5, borderBottomColor: t.line,
   },
   headerBack: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   headerEyebrow: {
-    fontSize: 10, fontWeight: '700' as const, color: Colors.primary,
+    fontSize: 10, fontWeight: '700' as const, color: t.accent,
     letterSpacing: 0.5, textTransform: 'uppercase' as const,
   },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
+  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.3 },
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -753,117 +762,117 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginTop: 12, marginBottom: 4,
     paddingHorizontal: 12, paddingVertical: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
   },
-  sourceText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 16 },
+  sourceText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 16 },
 
   divisionSection: { marginTop: 16, paddingHorizontal: 16 },
   divisionLabel: {
-    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 11, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.4, textTransform: 'uppercase' as const, marginBottom: 6,
   },
 
   lineRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 12, paddingHorizontal: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    borderWidth: 0.5, borderColor: t.line,
     marginBottom: 6,
   },
-  lineDesc: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 18 },
-  lineMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  lineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text, minWidth: 80, textAlign: 'right' },
+  lineDesc: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text, lineHeight: 18 },
+  lineMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
+  lineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: t.text, minWidth: 80, textAlign: 'right' },
 
   lineRowEditing: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.primary,
+    borderWidth: 1, borderColor: t.accent,
     padding: 12, gap: 10, marginBottom: 6,
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8,
   },
   editInputDesc: {
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    borderWidth: 0.5, borderColor: t.line,
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
     backgroundColor: Colors.fillSecondary,
     minHeight: 38,
   },
   editInputRow: { flexDirection: 'row', gap: 8 },
-  editLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.3, textTransform: 'uppercase' as const, marginBottom: 3 },
+  editLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.3, textTransform: 'uppercase' as const, marginBottom: 3 },
   editInputSmall: {
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    borderWidth: 0.5, borderColor: t.line,
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 8, paddingVertical: 6,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
     backgroundColor: Colors.fillSecondary,
   },
   editLineTotal: {
     paddingVertical: 7, paddingHorizontal: 8,
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text,
   },
   editActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
   deleteBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.errorDark },
   cancelBtn: { paddingHorizontal: 12, paddingVertical: 8 },
-  cancelBtnText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
+  cancelBtnText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   commitBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary,
+    borderRadius: Tokens.radius.sm, backgroundColor: t.accent,
   },
-  commitBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  commitBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.surface },
 
   addLineBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginHorizontal: 16, marginTop: 12,
     paddingVertical: 12,
     borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderStyle: 'dashed' as const, borderColor: Colors.borderLight,
+    borderWidth: 1, borderStyle: 'dashed' as const, borderColor: t.line,
     backgroundColor: 'transparent',
   },
-  addLineText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  addLineText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.accent },
 
   totalsBar: {
     position: 'absolute' as const, left: 0, right: 0, bottom: 0,
-    backgroundColor: Colors.surface,
-    borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    backgroundColor: t.surface,
+    borderTopWidth: 0.5, borderTopColor: t.line,
     paddingHorizontal: 16, paddingTop: 12,
     gap: 8,
     shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -2 },
   },
   totalsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  totalsRowGrand: { paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  totalsLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  totalsValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  totalsGrandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.text },
-  totalsGrandValue: { fontSize: Type.title3.fontSize, fontWeight: '900' as const, color: Colors.primary, letterSpacing: -0.3 },
+  totalsRowGrand: { paddingTop: 8, borderTopWidth: 0.5, borderTopColor: t.line },
+  totalsLabel: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
+  totalsValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  totalsGrandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.text },
+  totalsGrandValue: { fontSize: Type.title3.fontSize, fontWeight: '900' as const, color: t.accent, letterSpacing: -0.3 },
 
   markupPickerRow: { flexDirection: 'row', gap: 4, marginLeft: 4 },
   markupPill: {
     paddingHorizontal: 8, paddingVertical: 4,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  markupPillActive: { backgroundColor: Colors.primary },
-  markupPillText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary },
-  markupPillTextActive: { color: Colors.surface },
+  markupPillActive: { backgroundColor: t.accent },
+  markupPillText: { fontSize: 11, fontWeight: '700' as const, color: t.textSecondary },
+  markupPillTextActive: { color: t.surface },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, marginTop: 8,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: t.accent,
+    shadowColor: t.accent, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
   },
-  saveBtnText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.surface, letterSpacing: 0.2 },
+  saveBtnText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.surface, letterSpacing: 0.2 },
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 18, paddingVertical: 12, marginTop: 12,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
-  primaryBtnText: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  primaryBtnText: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.surface },
 });

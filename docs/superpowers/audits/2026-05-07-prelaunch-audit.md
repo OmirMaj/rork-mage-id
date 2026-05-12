@@ -487,9 +487,93 @@ _All findings, all sources. Use the finding template defined in the plan. Sort b
 
 ## 6. Hardware verification runbook
 
-_Compiled in Task 8 for the user to execute on the iOS production OTA build._
+This is the user-executable portion of the audit. The headless pass (Tasks 1–7) traced code; this pass confirms behavior on a real iOS production OTA build. Anything below changes the severity / status of findings already in §5.
 
-(empty — populated by Task 8)
+### Pre-flight (do before starting hardware verification)
+
+1. Build a fresh OTA bundle on the production EAS profile so the audit reflects the App Store bits, not dev:
+   ```bash
+   eas update --branch production --message "audit: hardware verification build"
+   ```
+2. On both iPhones, force-update the app to pull the new bundle (close and reopen).
+3. Use `app/dev-seeder.tsx` to seed three test orgs:
+   - **Residential GC** + homeowner persona (for Path 1 spot-checks)
+   - **Commercial GC** + owner-rep + sub persona (for Path 2 spot-checks)
+   - **Internal GC** for portfolio testing (Paths 1 + 2 must be partially advanced first)
+4. Two iPhones on hand: GC persona on iPhone A, client/sub persona on iPhone B. Plus desktop browser tab for cross-checks.
+5. Open this audit doc on a third screen to log results inline.
+
+### A. A6 mobile-parity spot-checks (primary field workflows)
+
+Per assertion A6 (global), every primary field workflow must work on iOS. Walk these on iPhone A (GC persona):
+
+| # | Screen | Action | Pass criteria |
+|---|---|---|---|
+| A1 | `/(tabs)/(home)` | Open the home tab | Tile grid loads; no blank tiles |
+| A2 | `daily-report` | Submit a daily report with weather + manpower + 3 photos + voice notes | Saves; offline-queue indicator if applicable; appears on the project's daily-reports list |
+| A3 | `photo-annotator` / `photo-triage` | Take a photo, annotate, tag a room | Annotation tools work; photo persists; tag saves |
+| A4 | `rfi` | Issue an RFI; reassign ball-in-court | Handoff log appends; status update propagates |
+| A5 | `submittal` | Open existing submittal; advance status; link to a schedule task | linkedTaskId saves; status transitions through 6 states |
+| A6 | `punch-walk` → `punch-list` | Walk through, voice-add 3 punch items | Items persist; assigned to the right room |
+| A7 | `time-tracking` | Clock in, take a break, clock out | All three TimeEntry status transitions persist |
+| A8 | `aia-pay-app` | Open existing pay app; check carry-forward populated; export PDF | Prior-period totals carry; PDF downloads |
+| A9 | `change-order` | Create a CO with line items + scheduleImpactDays | Saves; schedule auto-extends per project-detail.tsx render logic |
+| A10 | `client-view` (homeowner persona on iPhone B) | Walk every section the homeowner sees | All sections render; values match GC's view |
+
+### B. A7 airplane-mode interventions (offline behavior)
+
+For each: (1) put iPhone in airplane mode, (2) perform the action, (3) confirm app shows queued/pending state, (4) re-enable network, (5) verify clean reconcile (no data loss, no duplicates, server-side state matches).
+
+| # | Path/Step | Action | Pass criteria |
+|---|---|---|---|
+| O1 | P1/10 | Submit a daily report with 5 photos | All 5 photos upload on reconnect; report appears once (not duplicated); homeowner digest fires next Friday |
+| O2 | P1/13 | Create a progress invoice + tap "Send payment link" | Invoice persists locally; uploads on reconnect; payment link generates after sync; no duplicate invoice in client portal |
+| O3 | P2/11 | Submit an RFI to A/E | RFI persists locally; uploads on reconnect; A/E recipient is notified once; ball-in-court correctly set |
+| O4 | P2/15 | Submit an AIA pay app | Pay app persists; on reconnect submits to owner; G703 totals correct; no duplicate row |
+| O5 | P3/7 | Enter time-tracking for a crew (3 workers) | Hours persist locally; flow to job costing on reconnect; no duplicate time entries |
+| O6 | P3/9 | Request a data export | Request queues; export generates on reconnect; download link delivered |
+
+**Specifically watch for:**
+- AUD-001 (silent non-network failure): force a non-network error mid-flow (e.g. log out on another device to invalidate JWT, then perform a write) and verify whether the user sees a clear failure signal.
+- AUD-019 (insert/upsert divergence on retry): submit a write, observe it succeed server-side via Supabase dashboard, then force the client to retry the same mutation. Verify it doesn't error and discard.
+
+### C. Other hardware-only checks
+
+| Check | Screen / surface | Pass criteria |
+|---|---|---|
+| Push notification arrival | trigger any `notify` fn invocation (e.g. send portal message from iPhone B) | Notification arrives on iPhone A's lock screen within 30s |
+| Push deep link | tap a push notification | Lands on the right project / record (uses `rork-app://` scheme) |
+| Stripe IAP / subscription purchase | `app/paywall.tsx` | Sandbox purchase completes; entitlement reflects in `useTierAccess` immediately on dismiss |
+| Stripe Connect (sandbox) | `payments-setup` → AIA pay app pay button | Connect onboarding completes; pay link works |
+| Biometric auth (Face ID) | wherever `expo-local-authentication` is used | Prompts correctly; failure falls back to passcode |
+| Camera permission | `photo-annotator`, `photo-triage`, `daily-report` | First-tap prompts permission; denial is gracefully handled (no crash) |
+| Photo upload from camera | `daily-report` | Photo persists end-to-end; visible in `client-update` next digest |
+| Deep link from email | open a `homeowner-weekly-digest` link | Lands on `client-view` with correct project context |
+| Haptics | any haptic-firing button (e.g. `selections.tsx` chosen option) | Felt on device, not silent |
+
+### D. Phase 2 verifies these specific predicted-needs-verification findings
+
+Findings filed in §5 with `status: predicted-needs-verification` to confirm or refute on hardware:
+
+- **AUD-013** (SOV multi-hop chain) — actual behavior on a CO that adds a new line item: does the next AIA pay app's G703 include it?
+- **Path 1 step 5** (client-view shows estimate line items) — verify line items match estimator's view, not just grandTotal.
+- **Path 1 step 8** (homeowner picks selection via marketing portal) — perform the homeowner pick from `marketing/portal/` web; verify chosen option appears in GC's `selections.tsx` view immediately.
+- **Path 1 step 10** (photo auto-tagging) — verify a photo taken in `daily-report` auto-tags to room/phase rather than requiring manual tagging.
+- **Path 1 step 13** (paid invoice → cash flow) — pay an invoice; verify cash-flow forecast updates without manual refresh.
+- **Path 2 step 9** (cross-sub leakage on web portal) — log in to two different subs' portals; verify each sees only their own scope.
+- **Path 2 step 8** (submittal status blocks dependent task) — change a submittal to `revise_resubmit`; verify the linked schedule task gets a visible warning / block.
+- **Path 3 step 13** (accounting bidirectional) — connect QuickBooks; verify both push and pull modes are exposed in the UI.
+- **Path 3 step 15** (tier downgrade revokes access) — RevenueCat sandbox: downgrade Pro→Free; verify Pro features (AIA pay app, etc.) are immediately blocked.
+
+### E. After hardware verification
+
+For each finding the user worked on:
+
+1. **Confirmed (predicted finding holds on hardware)**: leave `status: confirmed-headless` and add a brief note to the finding's notes field.
+2. **Refuted (works fine on hardware)**: change `status: refuted` and remove from active punch-list count. Mark the row in §7 filter views with `[refuted]` so it's clear.
+3. **New finding (headless missed it)**: append to §5 with `source: hardware-only-pending → confirmed-on-device`, sequential AUD-### ID, severity per rubric.
+
+After verification, ping back so the headless triage in §7 can be re-run with updated findings.
 
 ## 7. Triage filter views
 

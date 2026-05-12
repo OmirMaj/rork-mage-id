@@ -10,6 +10,9 @@ import {
   ClipboardList, ArrowRight, CheckCircle2, Circle, Info, Percent, DollarSign,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Invoice, InvoiceLineItem, LinkedEstimateItem, MaterialLineItem } from '@/types';
 import { Type } from '@/constants/typography';
@@ -68,6 +71,8 @@ interface Row {
 }
 
 export default function BillFromEstimateScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId, type } = useLocalSearchParams<{ projectId: string; type?: string }>();
@@ -283,13 +288,13 @@ export default function BillFromEstimateScreen() {
       <View style={styles.container}>
         <Stack.Screen options={{
           title: 'Bill from Estimate',
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+          headerStyle: { backgroundColor: themeColors.bg },
+          headerTintColor: themeColors.accent,
+          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         }} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 16 }}>
           <View style={styles.emptyCard}>
-            <ClipboardList size={28} color={Colors.textMuted} />
+            <ClipboardList size={28} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No estimate yet</Text>
             <Text style={styles.emptyBody}>
               This project doesn&apos;t have an estimate with line items. Build one first so invoices draw
@@ -303,7 +308,7 @@ export default function BillFromEstimateScreen() {
               testID="bill-from-estimate-blank-invoice"
             >
               <Text style={styles.primaryBtnText}>Create Blank Invoice</Text>
-              <ArrowRight size={16} color={Colors.textOnPrimary} />
+              <ArrowRight size={16} color={'#FFFFFF'} />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -315,9 +320,9 @@ export default function BillFromEstimateScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Bill from Estimate',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
@@ -338,11 +343,11 @@ export default function BillFromEstimateScreen() {
               </View>
               <View style={styles.heroMetric}>
                 <Text style={styles.heroMetricLabel}>Already billed</Text>
-                <Text style={[styles.heroMetricValue, { color: Colors.info }]}>{money(totalAlreadyBilled)}</Text>
+                <Text style={[styles.heroMetricValue, { color: themeColors.info }]}>{money(totalAlreadyBilled)}</Text>
               </View>
               <View style={styles.heroMetric}>
                 <Text style={styles.heroMetricLabel}>Remaining</Text>
-                <Text style={[styles.heroMetricValue, { color: Colors.success }]}>{money(totalRemaining)}</Text>
+                <Text style={[styles.heroMetricValue, { color: themeColors.success }]}>{money(totalRemaining)}</Text>
               </View>
             </View>
             {totalAlreadyBilled > 0 && (
@@ -374,7 +379,7 @@ export default function BillFromEstimateScreen() {
           </View>
 
           <View style={styles.helpBanner}>
-            <Info size={14} color={Colors.info} />
+            <Info size={14} color={themeColors.info} />
             <Text style={styles.helpBannerText}>
               Tap a row to include or exclude it. Enter a percent of the remaining balance you want
               to bill this round — the totals below update live.
@@ -405,11 +410,11 @@ export default function BillFromEstimateScreen() {
                   testID={`row-toggle-${r.key}`}
                 >
                   {isFullyBilled ? (
-                    <CheckCircle2 size={18} color={Colors.success} />
+                    <CheckCircle2 size={18} color={themeColors.success} />
                   ) : isSelected ? (
-                    <CheckCircle2 size={18} color={Colors.primary} />
+                    <CheckCircle2 size={18} color={themeColors.accent} />
                   ) : (
-                    <Circle size={18} color={Colors.textMuted} />
+                    <Circle size={18} color={themeColors.textMuted} />
                   )}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowName} numberOfLines={2}>{r.name}</Text>
@@ -427,7 +432,7 @@ export default function BillFromEstimateScreen() {
                       ? 'Fully billed'
                       : `Billed ${money(r.alreadyBilled)} of ${money(r.lineTotal)} (${billedPctOfLine.toFixed(0)}%)`}
                   </Text>
-                  <Text style={[styles.rowStatusText, { color: Colors.success }]}>
+                  <Text style={[styles.rowStatusText, { color: themeColors.success }]}>
                     {money(r.remaining)} remaining
                   </Text>
                 </View>
@@ -466,7 +471,7 @@ export default function BillFromEstimateScreen() {
                           keyboardType="decimal-pad"
                           testID={`row-pct-${r.key}`}
                         />
-                        <Percent size={14} color={Colors.textMuted} />
+                        <Percent size={14} color={themeColors.textMuted} />
                       </View>
                       <View style={styles.miniPresetRow}>
                         {[25, 50, 100].map(p => (
@@ -484,7 +489,7 @@ export default function BillFromEstimateScreen() {
                     <View style={styles.rowAmtCol}>
                       <Text style={styles.rowControlLabel}>Line amount</Text>
                       <View style={styles.rowAmtWrap}>
-                        <DollarSign size={14} color={Colors.success} />
+                        <DollarSign size={14} color={themeColors.success} />
                         <Text style={styles.rowAmtText}>{money(amount).replace('$', '')}</Text>
                       </View>
                       <Text style={styles.rowAmtHint}>
@@ -522,7 +527,7 @@ export default function BillFromEstimateScreen() {
             testID="bill-from-estimate-create"
           >
             <Text style={styles.primaryBtnText}>Continue to Invoice</Text>
-            <ArrowRight size={16} color={Colors.textOnPrimary} />
+            <ArrowRight size={16} color={'#FFFFFF'} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -530,27 +535,27 @@ export default function BillFromEstimateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   center: { justifyContent: 'center', alignItems: 'center', padding: 24 },
-  notFoundText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary, marginBottom: 12 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Tokens.radius.md },
-  backBtnText: { color: Colors.textOnPrimary, fontWeight: '600' as const },
+  notFoundText: { fontSize: Type.callout.fontSize, color: t.textSecondary, marginBottom: 12 },
+  backBtn: { backgroundColor: t.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Tokens.radius.md },
+  backBtnText: { color: '#FFFFFF', fontWeight: '600' as const },
 
   hero: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  heroLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  heroLabel: { fontSize: Type.caption1.fontSize, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
   heroRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   heroMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md },
-  heroMetricLabel: { fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase' as const, marginBottom: 3 },
-  heroMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  heroMetricLabel: { fontSize: 10, color: t.textMuted, textTransform: 'uppercase' as const, marginBottom: 3 },
+  heroMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   progressTrack: {
     height: 6,
     backgroundColor: Colors.surfaceAlt,
@@ -558,20 +563,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden' as const,
     marginTop: 4,
   },
-  progressFill: { height: '100%', backgroundColor: Colors.info, borderRadius: 3 },
+  progressFill: { height: '100%', backgroundColor: t.info, borderRadius: 3 },
 
   presetRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  presetLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontWeight: '600' as const, marginRight: 4 },
+  presetLabel: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontWeight: '600' as const, marginRight: 4 },
   presetBtn: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.md,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  presetBtnText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '700' as const },
+  presetBtnText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '700' as const },
 
   helpBanner: {
     flexDirection: 'row',
@@ -581,25 +586,25 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: Tokens.radius.md,
   },
-  helpBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.info, lineHeight: 16 },
+  helpBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.info, lineHeight: 16 },
 
   rowCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   rowCardInactive: { opacity: 0.6 },
   rowCardDone: { opacity: 0.55, backgroundColor: Colors.successLight },
   rowHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  rowLineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  rowLineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
 
   rowStatusLine: { flexDirection: 'row', justifyContent: 'space-between' as const },
-  rowStatusText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  rowStatusText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   rowProgressTrack: {
     height: 5,
     backgroundColor: Colors.surfaceAlt,
@@ -610,20 +615,20 @@ const styles = StyleSheet.create({
   rowProgressFillBilled: {
     position: 'absolute' as const,
     left: 0, top: 0, bottom: 0,
-    backgroundColor: Colors.info,
+    backgroundColor: t.info,
     borderRadius: 3,
   },
   rowProgressFillNow: {
     position: 'absolute' as const,
     top: 0, bottom: 0,
-    backgroundColor: Colors.success,
+    backgroundColor: t.success,
     borderRadius: 3,
   },
 
   rowControlGrid: { flexDirection: 'row', gap: 10 },
   rowPctCol: { flex: 1 },
   rowAmtCol: { flex: 1 },
-  rowControlLabel: { fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase' as const, marginBottom: 6 },
+  rowControlLabel: { fontSize: 10, color: t.textMuted, textTransform: 'uppercase' as const, marginBottom: 6 },
   rowPctInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -637,7 +642,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     padding: 0,
   },
   miniPresetRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
@@ -648,9 +653,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
   },
-  miniPresetActive: { backgroundColor: Colors.primary },
-  miniPresetText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
-  miniPresetTextActive: { color: Colors.textOnPrimary },
+  miniPresetActive: { backgroundColor: t.accent },
+  miniPresetText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600' as const },
+  miniPresetTextActive: { color: '#FFFFFF' },
 
   rowAmtWrap: {
     flexDirection: 'row',
@@ -661,48 +666,48 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     gap: 2,
   },
-  rowAmtText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.success },
-  rowAmtHint: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  rowAmtText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.success },
+  rowAmtHint: { fontSize: 10, color: t.textMuted, marginTop: 4 },
 
   footer: {
     position: 'absolute' as const,
     left: 0, right: 0, bottom: 0,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.cardBorder,
+    borderTopColor: t.line,
     paddingHorizontal: 16,
     paddingTop: 12,
     gap: 10,
   },
   footerTotals: { gap: 4 },
   footerTotalRow: { flexDirection: 'row', justifyContent: 'space-between' as const },
-  footerTotalRowBold: { borderTopWidth: 1, borderTopColor: Colors.cardBorder, paddingTop: 6, marginTop: 4 },
-  footerTotalLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  footerTotalValue: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
-  footerTotalLabelBold: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '700' as const },
-  footerTotalValueBold: { fontSize: Type.body.fontSize, color: Colors.text, fontWeight: '700' as const },
+  footerTotalRowBold: { borderTopWidth: 1, borderTopColor: t.line, paddingTop: 6, marginTop: 4 },
+  footerTotalLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  footerTotalValue: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' as const },
+  footerTotalLabelBold: { fontSize: Type.subhead.fontSize, color: t.text, fontWeight: '700' as const },
+  footerTotalValueBold: { fontSize: Type.body.fontSize, color: t.text, fontWeight: '700' as const },
 
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
-  primaryBtnDisabled: { backgroundColor: Colors.textMuted, opacity: 0.5 },
-  primaryBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
+  primaryBtnDisabled: { backgroundColor: t.textMuted, opacity: 0.5 },
+  primaryBtnText: { color: '#FFFFFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 
   emptyCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 24,
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 6 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
 });

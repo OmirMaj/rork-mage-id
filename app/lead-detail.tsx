@@ -23,6 +23,9 @@ import {
   Trash2, Save, Sparkles, ArrowRight, Briefcase, Mic, X,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCES, LEAD_SOURCE_LABELS,
@@ -51,6 +54,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function LeadDetailScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { leadId, mode } = useLocalSearchParams<{ leadId?: string; mode?: string }>();
@@ -196,12 +201,12 @@ export default function LeadDetailScreen() {
                 <>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                     onPress={() => Linking.openURL(`tel:${existing.phone}`)}>
-                    <Phone size={16} color={Colors.text} />
+                    <Phone size={16} color={themeColors.text} />
                     <Text style={styles.quickBtnText}>Call</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                     onPress={() => Linking.openURL(`sms:${existing.phone}`)}>
-                    <MessageSquare size={16} color={Colors.text} />
+                    <MessageSquare size={16} color={themeColors.text} />
                     <Text style={styles.quickBtnText}>Text</Text>
                   </TouchableOpacity>
                 </>
@@ -223,14 +228,14 @@ export default function LeadDetailScreen() {
                       ...mailSignOff(),
                     ],
                   }))}>
-                  <Mail size={16} color={Colors.text} />
+                  <Mail size={16} color={themeColors.text} />
                   <Text style={styles.quickBtnText}>Email</Text>
                 </TouchableOpacity>
               )}
               {!!existing.address && (
                 <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                   onPress={() => Linking.openURL(`maps:?q=${encodeURIComponent(existing.address!)}`)}>
-                  <MapPin size={16} color={Colors.text} />
+                  <MapPin size={16} color={themeColors.text} />
                   <Text style={styles.quickBtnText}>Map</Text>
                 </TouchableOpacity>
               )}
@@ -241,7 +246,7 @@ export default function LeadDetailScreen() {
           {score != null && (
             <View style={styles.scoreCard}>
               <View style={[styles.scoreCircle, score >= 8 && styles.scoreCircleHot]}>
-                <Sparkles size={14} color={score >= 8 ? '#FFF' : Colors.primary} />
+                <Sparkles size={14} color={score >= 8 ? '#FFF' : themeColors.accent} />
                 <Text style={[styles.scoreCircleText, score >= 8 && styles.scoreCircleTextHot]}>{score}</Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -299,9 +304,9 @@ export default function LeadDetailScreen() {
                 onPress={() => router.replace({ pathname: '/project-detail' as never, params: { id: existing.convertedProjectId } as never })}
                 activeOpacity={0.85}
               >
-                <Briefcase size={16} color={Colors.primary} />
+                <Briefcase size={16} color={themeColors.accent} />
                 <Text style={styles.convertedBtnText}>Open the project</Text>
-                <ChevronRight size={16} color={Colors.primary} />
+                <ChevronRight size={16} color={themeColors.accent} />
               </TouchableOpacity>
             )}
           </View>
@@ -340,36 +345,36 @@ export default function LeadDetailScreen() {
           {/* Fields */}
           <View style={styles.section}>
             <Text style={styles.fieldLabel}>Name *</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Homeowner name" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Homeowner name" placeholderTextColor={themeColors.textMuted} />
 
             <Text style={styles.fieldLabel}>Phone</Text>
-            <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 555-1234" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
+            <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 555-1234" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
 
             <Text style={styles.fieldLabel}>Email</Text>
-            <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="name@email.com" placeholderTextColor={Colors.textMuted} keyboardType="email-address" autoCapitalize="none" />
+            <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" />
 
             <Text style={styles.fieldLabel}>Address</Text>
-            <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="123 Main St, City" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="123 Main St, City" placeholderTextColor={themeColors.textMuted} />
 
             <Text style={styles.fieldLabel}>Project type</Text>
-            <TextInput style={styles.input} value={projectType} onChangeText={setProjectType} placeholder="Kitchen remodel, bathroom, ADU…" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={projectType} onChangeText={setProjectType} placeholder="Kitchen remodel, bathroom, ADU…" placeholderTextColor={themeColors.textMuted} />
 
             <Text style={styles.fieldLabel}>Scope notes</Text>
-            <TextInput style={[styles.input, styles.multilineInput]} value={scope} onChangeText={setScope} placeholder="Anything specific the homeowner mentioned" placeholderTextColor={Colors.textMuted} multiline textAlignVertical="top" />
+            <TextInput style={[styles.input, styles.multilineInput]} value={scope} onChangeText={setScope} placeholder="Anything specific the homeowner mentioned" placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
             <View style={styles.budgetRow}>
               <View style={{ flex: 1, marginRight: 6 }}>
                 <Text style={styles.fieldLabel}>Budget min</Text>
-                <TextInput style={styles.input} value={budgetMin} onChangeText={setBudgetMin} placeholder="0" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+                <TextInput style={styles.input} value={budgetMin} onChangeText={setBudgetMin} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               </View>
               <View style={{ flex: 1, marginLeft: 6 }}>
                 <Text style={styles.fieldLabel}>Budget max</Text>
-                <TextInput style={styles.input} value={budgetMax} onChangeText={setBudgetMax} placeholder="0" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+                <TextInput style={styles.input} value={budgetMax} onChangeText={setBudgetMax} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               </View>
             </View>
 
             <Text style={styles.fieldLabel}>Timeline</Text>
-            <TextInput style={styles.input} value={timeline} onChangeText={setTimeline} placeholder="When do they want to start?" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={timeline} onChangeText={setTimeline} placeholder="When do they want to start?" placeholderTextColor={themeColors.textMuted} />
 
             <Text style={styles.fieldLabel}>Source</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -398,10 +403,10 @@ export default function LeadDetailScreen() {
                   value={touchBody}
                   onChangeText={setTouchBody}
                   placeholder={`Log a ${touchKind.replace('_',' ')}…`}
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
                 <TouchableOpacity style={styles.touchVoiceBtn} onPress={() => setVoiceLogOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Record">
-                  <Mic size={16} color={Colors.primary} />
+                  <Mic size={16} color={themeColors.accent} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.touchAddBtn, !touchBody.trim() && styles.touchAddBtnDisabled]}
@@ -436,7 +441,7 @@ export default function LeadDetailScreen() {
         {/* Sticky bottom save bar */}
         <View style={[styles.saveBar, { paddingBottom: insets.bottom + 12 }]}>
           {existing && (
-            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={Colors.error} /></TouchableOpacity>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} /></TouchableOpacity>
           )}
           <TouchableOpacity
             style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
@@ -535,123 +540,123 @@ const LOST_REASONS = [
   'Other',
 ] as const;
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
   quickRow: { flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 0, flexWrap: 'wrap' },
   quickBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
-  quickBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  quickBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
   scoreCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     margin: 16, marginBottom: 0,
-    backgroundColor: Colors.surface,
-    padding: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface,
+    padding: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line,
   },
   scoreCircle: {
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center', gap: 1,
   },
-  scoreCircleHot: { backgroundColor: Colors.primary },
-  scoreCircleText: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  scoreCircleHot: { backgroundColor: t.accent },
+  scoreCircleText: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.accent },
   scoreCircleTextHot: { color: '#FFF' },
-  scoreCardTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
-  scoreCardReason: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 2, lineHeight: 18 },
+  scoreCardTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  scoreCardReason: { fontSize: Type.footnote.fontSize, color: t.text, marginTop: 2, lineHeight: 18 },
   section: { padding: 16, paddingBottom: 8 },
-  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
-  fieldLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 12, marginBottom: 6, fontWeight: '600' as const },
+  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
+  fieldLabel: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 12, marginBottom: 6, fontWeight: '600' as const },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder,
-    fontSize: Type.subhead.fontSize, color: Colors.text,
+    borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line,
+    fontSize: Type.subhead.fontSize, color: t.text,
   },
   multilineInput: { minHeight: 80 },
   budgetRow: { flexDirection: 'row', marginTop: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
+  chipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  chipText: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
   convertBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 12,
-    backgroundColor: Colors.success,
+    backgroundColor: t.success,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
   },
   convertBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   convertedBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 12,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.primary + '40',
+    borderWidth: 1, borderColor: t.accent + '40',
   },
-  convertedBtnText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
+  convertedBtnText: { color: t.accent, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
   touchKindRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   chipSmall: {
     paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.sm,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.sm,
+    borderWidth: 1, borderColor: t.line,
   },
-  chipSmallActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  chipSmallText: { fontSize: Type.caption1.fontSize, color: Colors.text, textTransform: 'capitalize' as const },
+  chipSmallActive: { backgroundColor: t.text, borderColor: t.text },
+  chipSmallText: { fontSize: Type.caption1.fontSize, color: t.text, textTransform: 'capitalize' as const },
   chipSmallTextActive: { color: '#FFF' },
   touchInputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   touchVoiceBtn: {
     width: 42, height: 42, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    borderWidth: 1, borderColor: t.accent + '30',
   },
   touchAddBtn: {
-    backgroundColor: Colors.text,
+    backgroundColor: t.text,
     paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card,
   },
-  touchAddBtnDisabled: { backgroundColor: Colors.fillTertiary },
+  touchAddBtnDisabled: { backgroundColor: t.surfaceAlt },
   touchAddBtnText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '600' as const },
   touchList: { marginTop: 12, gap: 10 },
   touchRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     padding: 12, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   touchKindBadge: {
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
-  touchKindBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase' },
-  touchBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
-  touchMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  touchKindBadgeText: { fontSize: 10, fontWeight: '700' as const, color: t.accent, textTransform: 'uppercase' },
+  touchBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
+  touchMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  emptyText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', paddingVertical: 12 },
   saveBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', gap: 8,
-    backgroundColor: Colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder,
+    backgroundColor: t.bg,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
     paddingHorizontal: 16, paddingTop: 12,
   },
   deleteBtn: {
     width: 48, height: 48, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.error + '15',
+    backgroundColor: t.danger + '15',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: Colors.error + '30',
+    borderWidth: 1, borderColor: t.danger + '30',
   },
   saveBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
   },
-  saveBtnDisabled: { backgroundColor: Colors.fillTertiary },
+  saveBtnDisabled: { backgroundColor: t.surfaceAlt },
   saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 
   // ── Lose-reason modal ──────────────────────────────────────────
@@ -672,12 +677,12 @@ const styles = StyleSheet.create({
   lostModalTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 6,
   },
   lostModalSubtitle: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginBottom: 16,
     lineHeight: 19,
   },
@@ -695,15 +700,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center' as const,
   },
-  lostModalSkipText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
+  lostModalSkipText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textMuted },
   lostModalSaveBtn: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center' as const,
   },
   lostModalSaveText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFF' },

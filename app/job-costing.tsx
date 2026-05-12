@@ -27,6 +27,9 @@ import {
 import EmptyState from '@/components/EmptyState';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -44,6 +47,8 @@ import { Tokens } from '@/constants/designTokens';
 // ─────────────────────────────────────────────────────────────
 
 export default function JobCostingScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   if (!canAccess('job_costing')) {
@@ -60,6 +65,8 @@ export default function JobCostingScreen() {
 }
 
 function JobCostingInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -98,10 +105,10 @@ function JobCostingInner() {
 
   if (!project) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Job Costing' }} />
         <EmptyState
-          icon={<Calculator size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<Calculator size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No project to cost yet"
           message="Job costing rolls up commitments, invoices, and change orders for one project. To see live numbers:"
           steps={[
@@ -127,14 +134,14 @@ function JobCostingInner() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Job Costing · MAGE</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add">
-          <Plus size={18} color={Colors.textOnPrimary} />
+          <Plus size={18} color={'#FFFFFF'} />
         </TouchableOpacity>
       </View>
 
@@ -146,28 +153,28 @@ function JobCostingInner() {
             label="Budget"
             value={formatMoney(summary.budget)}
             subtitle={`${project.linkedEstimate?.items.length ?? 0} line items`}
-            accent={Colors.primary}
+            accent={themeColors.accent}
             icon={DollarSign}
           />
           <KpiCard
             label="Committed"
             value={formatMoney(summary.committed)}
             subtitle={`${summary.commitmentCoverage.toFixed(0)}% of budget`}
-            accent={Colors.info}
+            accent={themeColors.info}
             icon={FileSignature}
           />
           <KpiCard
             label="Actual paid"
             value={formatMoney(summary.actual)}
             subtitle={`${summary.spendPercent.toFixed(0)}% of budget`}
-            accent={Colors.text}
+            accent={themeColors.text}
             icon={CheckCircle2}
           />
           <KpiCard
             label={variancePositive ? 'Under by' : 'Over by'}
             value={formatMoney(Math.abs(summary.variance))}
             subtitle={`Projected ${formatMoney(summary.projectedFinal)}`}
-            accent={variancePositive ? Colors.success : Colors.error}
+            accent={variancePositive ? themeColors.success : themeColors.danger}
             icon={variancePositive ? TrendingDown : TrendingUp}
           />
         </View>
@@ -175,7 +182,7 @@ function JobCostingInner() {
         {/* Projection banner — the TL;DR */}
         <View style={[styles.banner, {
           backgroundColor: variancePositive ? Colors.successLight : Colors.errorLight,
-          borderLeftColor: variancePositive ? Colors.success : Colors.error,
+          borderLeftColor: variancePositive ? themeColors.success : themeColors.danger,
         }]}>
           <Text style={styles.bannerTitle}>
             {variancePositive
@@ -200,11 +207,11 @@ function JobCostingInner() {
                   </Text>
                 </View>
                 <Text style={[styles.varianceDelta, {
-                  color: p.variance >= 0 ? Colors.success : Colors.error,
+                  color: p.variance >= 0 ? themeColors.success : themeColors.danger,
                 }]}>
                   {formatMoney(p.variance, { sign: true })}
                 </Text>
-                <ChevronRight size={16} color={Colors.textSecondary} />
+                <ChevronRight size={16} color={themeColors.textSecondary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -226,7 +233,7 @@ function JobCostingInner() {
         {summary.overcommittedCommitments.length > 0 && (
           <View style={[styles.section, styles.warningSection]}>
             <View style={styles.warningHeader}>
-              <AlertTriangle size={16} color={Colors.error} />
+              <AlertTriangle size={16} color={themeColors.danger} />
               <Text style={styles.warningTitle}>Over-committed against budget</Text>
             </View>
             {summary.overcommittedCommitments.map(c => (
@@ -242,13 +249,13 @@ function JobCostingInner() {
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Commitments ({projectCommitments.length})</Text>
             <TouchableOpacity onPress={() => setShowAdd(true)} style={styles.addLink}>
-              <Plus size={14} color={Colors.primary} />
+              <Plus size={14} color={themeColors.accent} />
               <Text style={styles.addLinkText}>Add</Text>
             </TouchableOpacity>
           </View>
           {projectCommitments.length === 0 ? (
             <View style={styles.emptyBox}>
-              <FileSignature size={22} color={Colors.textMuted} />
+              <FileSignature size={22} color={themeColors.textMuted} />
               <Text style={styles.emptyText}>
                 Log signed subcontracts and POs here. They drive your cost-to-complete.
               </Text>
@@ -283,7 +290,7 @@ function JobCostingInner() {
                   </Text>
                   <StatusChip status={c.status} />
                   <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                    <Trash2 size={14} color={Colors.error} />
+                    <Trash2 size={14} color={themeColors.danger} />
                   </TouchableOpacity>
                 </TouchableOpacity>
               );
@@ -331,6 +338,8 @@ function KpiCard({ label, value, subtitle, accent, icon: Icon }: {
   label: string; value: string; subtitle?: string; accent: string;
   icon: React.ComponentType<IconLike>;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.kpiCard, { borderLeftColor: accent }]}>
       <View style={styles.kpiHeader}>
@@ -344,13 +353,15 @@ function KpiCard({ label, value, subtitle, accent, icon: Icon }: {
 }
 
 function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const max = Math.max(line.budget, line.projectedFinal, 1);
   const actualPct = (line.actual / max) * 100;
   const committedPct = (Math.max(0, line.committed - line.actual) / max) * 100;
   const budgetPct = (line.budget / max) * 100;
   const projectedPct = (line.projectedFinal / max) * 100;
 
-  const statusColor = line.status === 'over' ? Colors.error : line.status === 'warning' ? Colors.warning : Colors.success;
+  const statusColor = line.status === 'over' ? themeColors.danger : line.status === 'warning' ? Colors.warning : themeColors.success;
   const statusLabel = line.status === 'over' ? 'Over' : line.status === 'warning' ? 'Watch' : 'On track';
 
   return (
@@ -364,9 +375,9 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
 
       <View style={styles.phaseTrack}>
         {/* Committed (remaining) underlay */}
-        <View style={[styles.trackSeg, { width: `${actualPct + committedPct}%`, backgroundColor: Colors.info, opacity: 0.35 }]} />
+        <View style={[styles.trackSeg, { width: `${actualPct + committedPct}%`, backgroundColor: themeColors.info, opacity: 0.35 }]} />
         {/* Actual solid */}
-        <View style={[styles.trackSeg, { width: `${actualPct}%`, backgroundColor: Colors.primary }]} />
+        <View style={[styles.trackSeg, { width: `${actualPct}%`, backgroundColor: themeColors.accent }]} />
         {/* Budget tick line */}
         <View style={[styles.budgetTick, { left: `${budgetPct}%` }]} />
         {/* Projected final marker */}
@@ -384,10 +395,12 @@ function PhaseBar({ line, onPress }: { line: JobCostLine; onPress: () => void })
 }
 
 function StatusChip({ status }: { status: Commitment['status'] }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { color, label } = status === 'active'
-    ? { color: Colors.success, label: 'Active' }
-    : status === 'draft' ? { color: Colors.textSecondary, label: 'Draft' }
-    : { color: Colors.info, label: 'Closed' };
+    ? { color: themeColors.success, label: 'Active' }
+    : status === 'draft' ? { color: themeColors.textSecondary, label: 'Draft' }
+    : { color: themeColors.info, label: 'Closed' };
   return (
     <View style={[styles.statusChip, { backgroundColor: `${color}22` }]}>
       <Text style={[styles.statusChipText, { color }]}>{label}</Text>
@@ -408,6 +421,8 @@ interface CommitmentEditorProps {
 }
 
 function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: CommitmentEditorProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { subcontractors } = useProjects();
   const [number, setNumber] = useState<string>('');
   const [type, setType] = useState<CommitmentType>('subcontract');
@@ -475,7 +490,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{existing ? 'Edit commitment' : 'New commitment'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView style={{ maxHeight: 500 }}>
@@ -546,7 +561,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
               <Text style={styles.btnGhostText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} style={styles.btnPrimary}>
-              <Check size={16} color={Colors.textOnPrimary} />
+              <Check size={16} color={'#FFFFFF'} />
               <Text style={styles.btnPrimaryText}>{existing ? 'Save' : 'Add'}</Text>
             </TouchableOpacity>
           </View>
@@ -557,6 +572,8 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -574,6 +591,8 @@ function PhaseDetailModal({ line, summary, onClose }: {
   summary: JobCostSummary;
   onClose: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (!line) return null;
   const variancePositive = line.variance >= 0;
   return (
@@ -582,7 +601,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{line.phase}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
           </View>
           <View style={{ padding: 16 }}>
             <DetailRow label="Budget" value={formatMoneyFull(line.budget)} />
@@ -593,7 +612,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <DetailRow
               label="Variance"
               value={`${variancePositive ? 'Under' : 'Over'} by ${formatMoney(Math.abs(line.variance))}`}
-              color={variancePositive ? Colors.success : Colors.error}
+              color={variancePositive ? themeColors.success : themeColors.danger}
               bold
             />
             <View style={styles.detailDivider} />
@@ -621,6 +640,8 @@ function PhaseDetailModal({ line, summary, onClose }: {
 function DetailRow({ label, value, bold, color }: {
   label: string; value: string; bold?: boolean; color?: string;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -637,24 +658,24 @@ function DetailRow({ label, value, bold, color }: {
 // Styles
 // ─────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
   errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  errorText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
+  errorText: { fontSize: Type.subhead.fontSize, color: t.textSecondary },
 
   // Header
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 12, paddingTop: 6,
-    gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    gap: 8, borderBottomWidth: 1, borderBottomColor: t.line,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  headerCta: { backgroundColor: Colors.primary },
+  headerCta: { backgroundColor: t.accent },
   headerText: { flex: 1 },
-  headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
+  headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
 
   // KPI grid
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
@@ -664,16 +685,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 1, shadowRadius: 2, elevation: 1,
   },
   kpiHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  kpiLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  kpiLabel: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   kpiValue: { fontSize: Type.title2.fontSize, fontWeight: '800', marginBottom: 2 },
-  kpiSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  kpiSub: { fontSize: Type.caption2.fontSize, color: t.textMuted },
 
   // Banner
   banner: {
     borderRadius: Tokens.radius.card, padding: 14, marginBottom: 16, borderLeftWidth: 4,
   },
-  bannerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  bannerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 3 },
+  bannerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  bannerSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 3 },
 
   // Sections
   section: {
@@ -681,32 +702,32 @@ const styles = StyleSheet.create({
     shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 1, shadowRadius: 2, elevation: 1,
   },
-  sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 10 },
+  sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, marginBottom: 10 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   addLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  addLinkText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' },
+  addLinkText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '600' },
 
-  warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${Colors.error}40` },
+  warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${t.danger}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.error },
-  warningItem: { fontSize: Type.caption1.fontSize, color: Colors.text, marginLeft: 6, marginTop: 2 },
+  warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.danger },
+  warningItem: { fontSize: Type.caption1.fontSize, color: t.text, marginLeft: 6, marginTop: 2 },
 
   // Variance rows
   varianceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  varianceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  varianceSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  varianceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  varianceSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   varianceDelta: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Phase bar
   phaseWrap: {
     paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: Colors.borderLight,
+    borderTopWidth: 1, borderTopColor: t.line,
   },
   phaseHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  phaseName: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
+  phaseName: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, flex: 1 },
   phasePill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.sm },
   phasePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   phaseTrack: {
@@ -714,78 +735,78 @@ const styles = StyleSheet.create({
     position: 'relative', marginBottom: 6,
   },
   trackSeg: { height: 14, position: 'absolute', top: 0, left: 0 },
-  budgetTick: { position: 'absolute', width: 2, height: 14, backgroundColor: Colors.text, top: 0 },
+  budgetTick: { position: 'absolute', width: 2, height: 14, backgroundColor: t.text, top: 0 },
   projectedTick: { position: 'absolute', width: 3, height: 14, top: 0, borderRadius: 1 },
   phaseNumbers: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  phaseNumber: { fontSize: 10.5, color: Colors.textSecondary },
-  phaseNumberBold: { fontWeight: '700', color: Colors.text },
+  phaseNumber: { fontSize: 10.5, color: t.textSecondary },
+  phaseNumberBold: { fontWeight: '700', color: t.text },
 
   // Commitment rows
   commitmentRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: Colors.borderLight,
+    borderTopWidth: 1, borderTopColor: t.line,
   },
   commitmentNumBox: {
     width: 44, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.fillSecondary,
     alignItems: 'center',
   },
-  commitmentNumText: { fontSize: 10, fontWeight: '700', color: Colors.text },
-  commitmentTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
-  commitmentSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
-  commitmentAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, fontVariant: ['tabular-nums'] },
+  commitmentNumText: { fontSize: 10, fontWeight: '700', color: t.text },
+  commitmentTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  commitmentSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 1 },
+  commitmentAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, fontVariant: ['tabular-nums'] },
   deleteBtn: { padding: 4 },
   statusChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
   statusChipText: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // Empty state
   emptyBox: { alignItems: 'center', padding: 20 },
-  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 8, marginBottom: 8 },
-  emptyCta: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.sm },
-  emptyCtaText: { color: Colors.textOnPrimary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  emptyText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, textAlign: 'center', marginTop: 8, marginBottom: 8 },
+  emptyCta: { backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.sm },
+  emptyCtaText: { color: '#FFFFFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  footerNote: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 16, lineHeight: 14, paddingHorizontal: 16 },
+  footerNote: { fontSize: 10, color: t.textMuted, textAlign: 'center', marginTop: 16, lineHeight: 14, paddingHorizontal: 16 },
 
   // Modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalCard: { backgroundColor: Colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    padding: 16, borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  modalTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
-  modalFooter: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  modalTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  modalFooter: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: t.line },
 
   btnGhost: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
-  btnGhostText: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
-  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
-  btnPrimaryText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  btnGhostText: { color: t.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
+  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  btnPrimaryText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Form
   segWrap: { flexDirection: 'row', margin: 16, backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, padding: 2 },
   segBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Tokens.radius.sm },
-  segBtnActive: { backgroundColor: Colors.surface },
-  segBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
-  segBtnTextActive: { color: Colors.text },
+  segBtnActive: { backgroundColor: t.surface },
+  segBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.textSecondary },
+  segBtnTextActive: { color: t.text },
 
   fieldWrap: { marginHorizontal: 16, marginBottom: 12 },
-  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   input: {
     backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
 
   subList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   subChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
-  subChipActive: { backgroundColor: Colors.primary },
-  subChipText: { fontSize: Type.caption1.fontSize, color: Colors.text },
-  subChipTextActive: { color: Colors.textOnPrimary, fontWeight: '700' },
+  subChipActive: { backgroundColor: t.accent },
+  subChipText: { fontSize: Type.caption1.fontSize, color: t.text },
+  subChipTextActive: { color: '#FFFFFF', fontWeight: '700' },
 
   // Detail modal
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  detailLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  detailValue: { fontSize: Type.footnote.fontSize, color: Colors.text, fontVariant: ['tabular-nums'] },
-  detailDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 6 },
-  detailNote: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 14, lineHeight: 15 },
+  detailLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  detailValue: { fontSize: Type.footnote.fontSize, color: t.text, fontVariant: ['tabular-nums'] },
+  detailDivider: { height: 1, backgroundColor: t.line, marginVertical: 6 },
+  detailNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 14, lineHeight: 15 },
 });
 
 // This is exported so other screens can embed a mini job-cost summary if needed.
