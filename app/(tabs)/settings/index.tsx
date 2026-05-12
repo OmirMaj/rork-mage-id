@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
@@ -74,6 +75,7 @@ export default function SettingsScreen() {
   const { settings, updateSettings, projects, deleteProject } = useProjects();
   const { user, logout, deleteAccount, isAuthenticated } = useAuth();
   const { tier } = useSubscription();
+  const { colors: themeColors } = useTheme();
   const [aiUsed, setAiUsed] = useState(0);
   const [aiLimit, setAiLimit] = useState(10);
   const [aiSmartUsed, setAiSmartUsed] = useState(0);
@@ -364,7 +366,7 @@ export default function SettingsScreen() {
   const sigPadWidth = Math.min(SCREEN_WIDTH - 80, 340);
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}

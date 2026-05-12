@@ -49,6 +49,7 @@ import {
   Save,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Project, ProjectSchedule, ScheduleTask, DependencyLink, DependencyType } from '@/types';
 import {
@@ -132,6 +133,7 @@ export default function ScheduleScreen() {
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { projects, updateProject, addProject, contacts } = useProjects();
+  const { colors: themeColors } = useTheme();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
@@ -1572,7 +1574,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
   if (layout.isDesktop && hasScheduleData && activeSchedule) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <View style={desktopStyles.desktopHeader}>
           {/* Desktop ribbon: project chips on the left half, view tabs
               on the right half — both scrollable so they don't fight
@@ -2062,7 +2064,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
