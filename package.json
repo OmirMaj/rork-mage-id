@@ -11,7 +11,8 @@
     "test:tokens": "bun run scripts/validate-design-tokens.ts",
     "test:colors": "bun run scripts/validate-schedule-colors.ts",
     "test:health": "bun run scripts/validate-schedule-health.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:tokens && bun run test:colors && bun run test:health",
+    "test:barlabel": "bun run scripts/validate-bar-label.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:tokens && bun run test:colors && bun run test:health && bun run test:barlabel",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
