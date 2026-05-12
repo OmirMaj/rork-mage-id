@@ -12,9 +12,11 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 
 interface EmptyStateProps {
   icon: React.ReactNode;
@@ -37,6 +39,8 @@ export default function EmptyState({
   icon, title, message, actionLabel, onAction,
   secondaryLabel, onSecondaryAction, accent, steps,
 }: EmptyStateProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const enter = useRef(new Animated.Value(0)).current;
   // Icon-halo gentle pulse so the screen doesn't feel static.
   const pulse = useRef(new Animated.Value(0)).current;
@@ -60,7 +64,7 @@ export default function EmptyState({
   const haloScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
   const haloOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
 
-  const accentColor = accent ?? Colors.primary;
+  const accentColor = accent ?? colors.accent;
 
   const handlePrimary = () => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -136,7 +140,7 @@ export default function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
@@ -157,14 +161,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
   },
   gridLineV: {
     position: 'absolute' as const,
     top: 0,
     bottom: 0,
     width: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
   },
   iconStack: {
     width: 96,
@@ -187,16 +191,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
   },
   title: {
-    fontSize: Type.title2.fontSize,
-    fontWeight: '800' as const,
-    color: Colors.text,
+    ...Type.serifHeadline,
+    color: t.text,
     textAlign: 'center' as const,
     marginBottom: 10,
-    letterSpacing: -0.4,
   },
   message: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center' as const,
     lineHeight: 22,
     marginBottom: 28,
@@ -232,7 +234,7 @@ const styles = StyleSheet.create({
   stepText: {
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 20,
   },
   button: {
@@ -245,7 +247,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   buttonText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     letterSpacing: 0.2,
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   secondaryText: {
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
   },

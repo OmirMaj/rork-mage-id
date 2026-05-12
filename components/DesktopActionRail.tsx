@@ -19,11 +19,13 @@ import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { AlertTriangle, ChevronRight, CheckCircle2 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useSmartInbox, type InboxItem } from '@/hooks/useSmartInbox';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 
 const SEVERITY_COLOR: Record<1 | 2 | 3, string> = {
   1: '#8E8E93',
@@ -40,6 +42,8 @@ interface Props {
 const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_WIDTH }: Props) {
   const { items, isReady } = useSmartInbox();
   const { navigateTo } = useEntityNavigation();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const top = useMemo(() => items.slice(0, 8), [items]);
 
@@ -64,7 +68,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
       {items.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIconWrap}>
-            <CheckCircle2 size={22} color={Colors.success} strokeWidth={1.8} />
+            <CheckCircle2 size={22} color={colors.success} strokeWidth={1.8} />
           </View>
           <Text style={styles.emptyTitle}>All caught up</Text>
           <Text style={styles.emptySubtitle}>Nothing urgent across your projects.</Text>
@@ -86,7 +90,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
                   <Text style={styles.rowSubtitle} numberOfLines={1}>{item.subtitle}</Text>
                 ) : null}
               </View>
-              <ChevronRight size={14} color={Colors.textMuted} />
+              <ChevronRight size={14} color={colors.textMuted} />
             </TouchableOpacity>
           ))}
           {items.length > top.length && (
@@ -100,18 +104,18 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
 
 export default DesktopActionRail;
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rail: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderLeftWidth: 1,
-    borderLeftColor: 'rgba(60,60,67,0.08)',
+    borderLeftColor: t.line,
     paddingHorizontal: 16,
     paddingTop: 24,
     paddingBottom: 16,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 8,
     paddingHorizontal: 4,
     marginBottom: 14,
@@ -119,7 +123,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.1,
     flex: 1,
   },
@@ -127,61 +131,61 @@ const styles = StyleSheet.create({
     minWidth: 22,
     height: 22,
     paddingHorizontal: 8,
-    borderRadius: 11,
-    backgroundColor: Colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.danger,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   countPillText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700' as const,
     letterSpacing: 0.1,
   },
   emptyState: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     paddingVertical: 28,
     paddingHorizontal: 16,
-    alignItems: 'center',
+    alignItems: 'center' as const,
     gap: 8,
   },
   emptyIconWrap: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.successLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.successSoft,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     marginBottom: 4,
   },
   emptyTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   emptySubtitle: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
-    textAlign: 'center',
+    color: t.textSecondary,
+    textAlign: 'center' as const,
   },
   listWrap: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     paddingVertical: 4,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(60,60,67,0.06)',
+    borderBottomColor: t.line,
   },
   severityDot: {
     width: 8,
@@ -195,20 +199,20 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.1,
   },
   rowSubtitle: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 2,
   },
   moreText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
 });

@@ -1,28 +1,24 @@
 // ============================================================================
 // components/PageHeader.tsx
 //
-// Unified page-header strip used at the top of every primary tab. Replaces
-// the old pattern of two stacked rows (a "navBar" with logo + icons, then a
-// separate large title underneath) with a single horizontal toolbar:
+// Unified page-header strip used at the top of every primary tab.
 //
 //   [ Title         status-pill ]      [ search   actions ]
 //
-// Models the SaaS-dashboard reference the user shared (Nexus Corp), where
-// section title + freshness chip live on the left and search + actions live
-// on the right, all in one row. Reads as a real toolbar instead of two
-// disconnected rows of UI.
-//
-// On phone widths the search input collapses into the actions stack so
-// nothing wraps. The search slot is optional — pass `null` to omit.
+// Phase 1.5: migrated to themed styles + Fraunces serif title + mono eyebrow.
+// The title now uses Type.serifTitle for a more editorial feel that matches
+// the marketing site. Theme-aware throughout.
 // ============================================================================
 
 import React from 'react';
 import { View, Text, StyleSheet, TextInput, Platform, type ViewStyle } from 'react-native';
 import { Search } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 
 interface PageHeaderProps {
   title: string;
@@ -51,20 +47,19 @@ const PageHeader = React.memo(function PageHeader({
   subtitle,
   style,
 }: PageHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const responsive = useResponsiveLayout();
-  // Search field only renders inline on tablet+ widths. On phone we let
-  // the existing icon-button in the actions cluster handle search so the
-  // header doesn't wrap.
   const showSearchField = !hideSearch && !responsive.isPhone;
 
   return (
     <View style={[styles.root, style]}>
       <View style={styles.left}>
         <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{title}</Text>
           {statusPill}
         </View>
-        {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
 
       <View style={styles.right}>
@@ -75,18 +70,18 @@ const PageHeader = React.memo(function PageHeader({
             // @ts-expect-error — RN Web accepts onClick for div-equivalent surfaces
             onClick={Platform.OS === 'web' ? onSearchPress : undefined}
           >
-            <Search size={15} color={Colors.textMuted} strokeWidth={1.8} />
+            <Search size={15} color={colors.textMuted} strokeWidth={1.8} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.text }]}
               placeholder={searchPlaceholder}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               editable={false}
               pointerEvents="none"
               value=""
             />
             {Platform.OS === 'web' && (
               <View style={styles.kbdWrap}>
-                <Text style={styles.kbd}>⌘K</Text>
+                <Text style={[styles.kbd, { color: colors.textSecondary }]}>⌘K</Text>
               </View>
             )}
           </View>
@@ -99,78 +94,69 @@ const PageHeader = React.memo(function PageHeader({
 
 export default PageHeader;
 
-const styles = StyleSheet.create({
-  root: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-    gap: 16,
-  },
-  left: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minWidth: 0,
-  },
-  title: {
-    fontSize: Type.title1.fontSize,
-    fontWeight: '800' as const,
-    color: Colors.text,
-    letterSpacing: -0.5,
-    flexShrink: 1,
-  },
-  subtitle: {
-    fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
-    fontWeight: '500' as const,
-  },
-  right: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  // Inline search field — looks like an input but is actually a button that
-  // opens the universal search palette. Editable={false} + pointerEvents=none
-  // on the TextInput ensures keyboard doesn't open; the onTouchEnd fires
-  // openSearch instead. Reads as a search box, behaves as a CTA.
-  searchField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
-    borderWidth: 1,
-    borderColor: 'rgba(60,60,67,0.08)',
-    minWidth: 240,
-    maxWidth: 320,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: Type.footnote.fontSize,
-    color: Colors.text,
-    padding: 0,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' as any, outlineStyle: 'none' as any } : {}),
-  },
-  kbdWrap: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: 'rgba(60,60,67,0.08)',
-  },
-  kbd: {
-    fontSize: 10,
-    fontWeight: '600' as const,
-    color: Colors.textSecondary,
-    letterSpacing: 0.3,
-  },
-});
+const makeStyles = (t: ThemeColors) =>
+  StyleSheet.create({
+    root: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      paddingHorizontal: 20,
+      paddingTop: 16,
+      paddingBottom: 16,
+      gap: 16,
+    },
+    left: {
+      flex: 1,
+      minWidth: 0,
+      gap: 4,
+    },
+    titleRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      minWidth: 0,
+    },
+    title: {
+      ...Type.serifTitle,
+      flexShrink: 1,
+    },
+    subtitle: {
+      fontSize: Type.footnote.fontSize,
+      fontWeight: '500' as const,
+    },
+    right: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+    },
+    searchField: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+      height: 36,
+      paddingHorizontal: 12,
+      borderRadius: Tokens.radius.md,
+      backgroundColor: t.surfaceAlt,
+      borderWidth: 1,
+      borderColor: t.line,
+      minWidth: 240,
+      maxWidth: 320,
+      ...(Platform.OS === 'web' ? { cursor: 'pointer' as any } : {}),
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: Type.footnote.fontSize,
+      padding: 0,
+      ...(Platform.OS === 'web' ? { cursor: 'pointer' as any, outlineStyle: 'none' as any } : {}),
+    },
+    kbdWrap: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: t.line,
+    },
+    kbd: {
+      fontSize: 10,
+      fontWeight: '600' as const,
+      letterSpacing: 0.3,
+    },
+  });

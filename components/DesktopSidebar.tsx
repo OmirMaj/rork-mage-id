@@ -9,11 +9,11 @@ import {
   Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
   PenTool, Store, Clock,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
 import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface NavItem {
   key: string;
@@ -126,6 +126,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const insets = useSafeAreaInsets();
   const { openSearch } = useSearch();
   const { canAccess } = useTierAccess();
+  const { colors } = useTheme();
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const handleNav = useCallback((route: string) => {
@@ -140,8 +141,8 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   return (
     <View style={[styles.container, { width, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.brandSection}>
-        <View style={styles.brandIcon}>
-          <Wrench size={20} color={Colors.textOnPrimary} />
+        <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
+          <Wrench size={20} color={'#FFFFFF'} />
         </View>
         <Text style={styles.brandName}>MAGE ID</Text>
         <Text style={styles.brandTagline}>Construction Suite</Text>
@@ -161,7 +162,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
           >
             <Search
               size={18}
-              color={hoveredKey === '__search' ? Colors.text : Colors.textSecondary}
+              color={hoveredKey === '__search' ? '#FFFFFF' : 'rgba(255,255,255,0.6)'}
               strokeWidth={1.8}
             />
             <Text style={[styles.navLabel, hoveredKey === '__search' && styles.navLabelHovered]}>
@@ -188,7 +189,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                   key={item.key}
                   style={[
                     styles.navItem,
-                    active && styles.navItemActive,
+                    active && [styles.navItemActive, { backgroundColor: colors.accent }],
                     hovered && !active && styles.navItemHovered,
                   ]}
                   onPress={() => handleNav(item.route)}
@@ -206,7 +207,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                       the active item. */}
                   <Icon
                     size={18}
-                    color={active ? Colors.textOnPrimary : hovered ? Colors.text : Colors.textSecondary}
+                    color={active ? '#FFFFFF' : hovered ? '#FFFFFF' : 'rgba(255,255,255,0.6)'}
                     strokeWidth={active ? 2.2 : 1.8}
                   />
                   <Text style={[
@@ -262,7 +263,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginBottom: 8,
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
-    color: Colors.surface,
+    color: '#FFFFFF',
     letterSpacing: 1,
   },
   brandTagline: {
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   // treatment. Replaces the 9%-opacity tint + left-bar combo, which was
   // too subtle on a dark bg to read as "you are here".
   navItemActive: {
-    backgroundColor: Colors.primary,
+    // backgroundColor set inline via theme colors.accent
   },
   navItemHovered: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -320,11 +320,11 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
   },
   navLabelActive: {
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
     fontWeight: '600' as const,
   },
   navLabelHovered: {
-    color: Colors.surface,
+    color: '#FFFFFF',
   },
   searchItem: {
     backgroundColor: 'rgba(255,255,255,0.04)',
