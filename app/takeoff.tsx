@@ -32,6 +32,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -109,6 +111,7 @@ function TakeoffInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, addBidPackage } = useProjects();
   const { isBusinessTier, isEnterpriseTier } = useSubscription();
@@ -540,7 +543,7 @@ function TakeoffInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Quantity takeoff</Text>
@@ -591,7 +594,7 @@ function TakeoffInner() {
               </View>
               {!isBusinessTier && (
                 <View style={styles.upsell}>
-                  <Crown size={12} color={Colors.warning} />
+                  <Crown size={12} color={themeColors.accent} />
                   <Text style={styles.upsellText}>
                     Pro Takeoff is included with Business. Sonnet 4.6 (highest accuracy on stamped scans) is included with Enterprise.
                   </Text>
@@ -599,7 +602,7 @@ function TakeoffInner() {
               )}
               {isBusinessTier && !isEnterpriseTier && (
                 <View style={styles.upsell}>
-                  <Crown size={12} color={Colors.warning} />
+                  <Crown size={12} color={themeColors.accent} />
                   <Text style={styles.upsellText}>
                     Sonnet 4.6 (highest accuracy on stamped + marked-up scans) is included with Enterprise.
                   </Text>
@@ -635,7 +638,7 @@ function TakeoffInner() {
 
             <TouchableOpacity style={styles.uploadCard} onPress={handlePick} activeOpacity={0.85}>
               <View style={styles.uploadIcon}>
-                <FileUp size={34} color={Colors.primary} />
+                <FileUp size={34} color={themeColors.accent} />
               </View>
               <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
               <Text style={styles.uploadBody}>
@@ -657,7 +660,7 @@ function TakeoffInner() {
               testID="open-analyzer-link"
             >
               <View style={styles.sisterToolIconWrap}>
-                <Sparkles size={16} color={Colors.primary} />
+                <Sparkles size={16} color={themeColors.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sisterToolTitle}>Want a priced estimate instead?</Text>
@@ -665,14 +668,14 @@ function TakeoffInner() {
                   The AI Drawing Estimator returns a CSI-organized estimate with unit pricing, contingency, and a reasoning trail per line.
                 </Text>
               </View>
-              <ChevronRight size={16} color={Colors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
           </>
         )}
 
         {error && step === 'idle' && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={Colors.error} />
+            <AlertTriangle size={16} color={themeColors.danger} />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.errorRetry} onPress={() => setError(null)}>
               <Text style={styles.errorRetryText}>Dismiss</Text>
@@ -683,7 +686,7 @@ function TakeoffInner() {
         {(step === 'uploading' || step === 'analyzing') && (
           <>
             <View style={styles.progressCard}>
-              <ActivityIndicator size="small" color={Colors.primary} />
+              <ActivityIndicator size="small" color={themeColors.accent} />
               <Text style={styles.progressTitle}>
                 {step === 'uploading' ? 'Rendering PDF pages…' : 'Reading dimensions + schedules…'}
               </Text>
@@ -777,6 +780,8 @@ function BuyoutPreviewModal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.modalBackdrop} pointerEvents="auto">
       <View style={styles.modalCard}>
@@ -787,11 +792,11 @@ function BuyoutPreviewModal({
               {projectName ? `Drafts for ${projectName}` : 'Pick a project — buyouts attach to a project.'}
             </Text>
           </View>
-          <TouchableOpacity onPress={onCancel} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onCancel} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
         </View>
         <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
           {drafts.map((d, idx) => {
-            const conf = d.confidence === 'high' ? Colors.success : d.confidence === 'medium' ? Colors.warning : Colors.error;
+            const conf = d.confidence === 'high' ? themeColors.success : d.confidence === 'medium' ? themeColors.accent : themeColors.danger;
             return (
               <View key={idx} style={styles.draftCard}>
                 <View style={styles.draftHead}>
@@ -840,6 +845,8 @@ function BuyoutPreviewModal({
 function ModelOption({ modelKey, active, disabled, onPress }: {
   modelKey: TakeoffModel; active: boolean; disabled: boolean; onPress: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const meta = MODEL_DISPLAY[modelKey];
   const Icon = modelKey === 'gemini-2.5-pro' ? Crown : Zap;
   return (
@@ -853,11 +860,11 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
       activeOpacity={0.85}
     >
       <View style={styles.modelOptionHead}>
-        <Icon size={14} color={active ? Colors.primary : disabled ? Colors.textMuted : Colors.text} />
+        <Icon size={14} color={active ? themeColors.accent : disabled ? themeColors.textMuted : themeColors.text} />
         <Text style={[
           styles.modelOptionLabel,
-          active && { color: Colors.primary },
-          disabled && { color: Colors.textMuted },
+          active && { color: themeColors.accent },
+          disabled && { color: themeColors.textMuted },
         ]}>
           {meta.label}
         </Text>
@@ -867,7 +874,7 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
           </View>
         )}
       </View>
-      <Text style={[styles.modelOptionTagline, disabled && { color: Colors.textMuted }]}>
+      <Text style={[styles.modelOptionTagline, disabled && { color: themeColors.textMuted }]}>
         {meta.tagline}
       </Text>
     </TouchableOpacity>
@@ -910,6 +917,8 @@ function ResultView({
   onBulkReject: (level: 'low' | 'medium_or_lower') => void;
   onRestoreAllRejected: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const specLookup = useMemo(
     () => specMatch ? buildSpecLookup(specMatch.entries) : new Map<string, SpecEntry>(),
     [specMatch],
@@ -987,18 +996,18 @@ function ResultView({
           {modelMeta && (
             <View style={styles.modelBadge}>
               {modelUsed === 'gemini-2.5-pro'
-                ? <Crown size={10} color={Colors.primary} />
-                : <Zap size={10} color={Colors.textMuted} />}
+                ? <Crown size={10} color={themeColors.accent} />
+                : <Zap size={10} color={themeColors.textMuted} />}
               <Text style={styles.modelBadgeText}>{modelMeta.label}</Text>
             </View>
           )}
-          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={Colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={themeColors.textMuted} /></TouchableOpacity>
         </View>
         <Text style={styles.summaryTitle}>{result.summary}</Text>
         <Text style={styles.summarySub}>{result.confidenceExplanation}</Text>
 
         <View style={styles.scaleRow}>
-          <Ruler size={14} color={Colors.primary} />
+          <Ruler size={14} color={themeColors.accent} />
           <Text style={styles.scaleText} numberOfLines={1}>
             Scale: {result.scale.label}
           </Text>
@@ -1050,13 +1059,13 @@ function ResultView({
         <TouchableOpacity style={styles.teaserCard} onPress={onUpgrade} activeOpacity={0.85}>
           <View style={styles.teaserHead}>
             <View style={styles.teaserIcon}>
-              <Crown size={16} color={Colors.warning} />
+              <Crown size={16} color={themeColors.accent} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.teaserEyebrow}>Business tier · Pro Takeoff</Text>
               <Text style={styles.teaserTitle}>Want sharper counts on this set?</Text>
             </View>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </View>
           <Text style={styles.teaserBody}>
             Pro Takeoff reads schedules more reliably, escalates ambiguous wall heights to concerns, and won&apos;t guess at unlabeled areas — better numbers when drawings are incomplete.
@@ -1069,7 +1078,7 @@ function ResultView({
       )}
 
       {/* Pages the AI saw */}
-      <SectionHeader icon={<Eye size={16} color={Colors.primary} />} title="Pages the AI read" />
+      <SectionHeader icon={<Eye size={16} color={themeColors.accent} />} title="Pages the AI read" />
       <Text style={styles.sectionHelper}>
         Verify these match what you uploaded. If a page is &quot;poor,&quot; rerun with a higher-resolution scan. Tap a thumbnail to inspect the page + every quantity extracted from it.
       </Text>
@@ -1077,9 +1086,9 @@ function ResultView({
         {result.drawingsSeen.map((d, idx) => {
           const page = pages.find(p => p.pageNumber === d.page);
           const readColor =
-            d.readability === 'clear' ? Colors.success
-            : d.readability === 'partial' ? Colors.warning
-            : Colors.error;
+            d.readability === 'clear' ? themeColors.success
+            : d.readability === 'partial' ? themeColors.accent
+            : themeColors.danger;
           return (
             <TouchableOpacity
               key={idx}
@@ -1100,7 +1109,7 @@ function ResultView({
                 <Text style={styles.drawingType}>{d.type}</Text>
                 <Text style={styles.drawingScope} numberOfLines={3}>{d.scope}</Text>
               </View>
-              <ChevronRight size={14} color={Colors.textMuted} />
+              <ChevronRight size={14} color={themeColors.textMuted} />
             </TouchableOpacity>
           );
         })}
@@ -1109,7 +1118,7 @@ function ResultView({
       {/* Walls */}
       {result.walls.length > 0 && (
         <QuantitySection
-          icon={<Ruler size={16} color={Colors.primary} />}
+          icon={<Ruler size={16} color={themeColors.accent} />}
           title={`Walls (${result.walls.length})`}
           helper="Length × height × 2 sides → finishable surface area."
         >
@@ -1141,7 +1150,7 @@ function ResultView({
       {/* Floor areas */}
       {result.floorAreas.length > 0 && (
         <QuantitySection
-          icon={<Square size={16} color={Colors.primary} />}
+          icon={<Square size={16} color={themeColors.accent} />}
           title={`Floor areas (${result.floorAreas.length})`}
           helper="Net floor SF per room. Subtotals what you'll bid for finishes + structure."
         >
@@ -1173,7 +1182,7 @@ function ResultView({
       {/* Doors */}
       {result.doors.length > 0 && (
         <QuantitySection
-          icon={<DoorOpen size={16} color={Colors.primary} />}
+          icon={<DoorOpen size={16} color={themeColors.accent} />}
           title={`Doors (${result.doors.length} types)`}
           helper="Door schedule. Counts are by mark/type."
         >
@@ -1204,7 +1213,7 @@ function ResultView({
       {/* Windows */}
       {result.windows.length > 0 && (
         <QuantitySection
-          icon={<AppWindow size={16} color={Colors.primary} />}
+          icon={<AppWindow size={16} color={themeColors.accent} />}
           title={`Windows (${result.windows.length} types)`}
           helper="Window schedule. Counts are by mark/type."
         >
@@ -1267,7 +1276,7 @@ function ResultView({
       {/* Bulk materials */}
       {result.bulkMaterials.length > 0 && (
         <QuantitySection
-          icon={<Boxes size={16} color={Colors.primary} />}
+          icon={<Boxes size={16} color={themeColors.accent} />}
           title={`Bulk materials (${result.bulkMaterials.length})`}
           helper="Concrete, gravel base, asphalt — anything measured in volume or weight."
         >
@@ -1298,7 +1307,7 @@ function ResultView({
       {result.concerns.length > 0 && (
         <>
           <SectionHeader
-            icon={<ShieldAlert size={16} color={Colors.warning} />}
+            icon={<ShieldAlert size={16} color={themeColors.accent} />}
             title="Areas of concern"
           />
           <Text style={styles.sectionHelper}>
@@ -1307,9 +1316,9 @@ function ResultView({
           <View style={styles.cardList}>
             {result.concerns.map((c, idx) => {
               const sevColor =
-                c.severity === 'critical' ? Colors.error
-                : c.severity === 'moderate' ? Colors.warning
-                : Colors.textMuted;
+                c.severity === 'critical' ? themeColors.danger
+                : c.severity === 'moderate' ? themeColors.accent
+                : themeColors.textMuted;
               return (
                 <View key={idx} style={[styles.concernCard, { borderLeftColor: sevColor }]}>
                   <View style={styles.concernHead}>
@@ -1332,7 +1341,7 @@ function ResultView({
 
       {result.doubleCheck.length > 0 && (
         <>
-          <SectionHeader icon={<HelpCircle size={16} color={Colors.primary} />} title="Double-check before bidding" />
+          <SectionHeader icon={<HelpCircle size={16} color={themeColors.accent} />} title="Double-check before bidding" />
           <View style={styles.checklistCard}>
             {result.doubleCheck.map((item, idx) => (
               <View key={idx} style={styles.checklistRow}>
@@ -1346,11 +1355,11 @@ function ResultView({
 
       {result.missingScopes.length > 0 && (
         <>
-          <SectionHeader icon={<AlertTriangle size={16} color={Colors.warning} />} title="Scopes not in these drawings" />
+          <SectionHeader icon={<AlertTriangle size={16} color={themeColors.accent} />} title="Scopes not in these drawings" />
           <View style={styles.checklistCard}>
             {result.missingScopes.map((item, idx) => (
               <View key={idx} style={styles.checklistRow}>
-                <View style={[styles.checklistDot, { backgroundColor: Colors.warning }]} />
+                <View style={[styles.checklistDot, { backgroundColor: themeColors.accent }]} />
                 <Text style={styles.checklistText}>{item}</Text>
               </View>
             ))}
@@ -1401,6 +1410,8 @@ function FinishesSection({
   rejected: RejectedRows;
   onToggleReject: (rowKey: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const grouped = useMemo(() => {
     const map = new Map<string, TakeoffFinish[]>();
     for (const f of finishes) {
@@ -1413,7 +1424,7 @@ function FinishesSection({
 
   return (
     <QuantitySection
-      icon={<Paintbrush size={16} color={Colors.primary} />}
+      icon={<Paintbrush size={16} color={themeColors.accent} />}
       title={`Finishes (${finishes.length})`}
       helper="Paint, flooring, base, casing — grouped by surface."
     >
@@ -1462,6 +1473,8 @@ function FixturesSection({
   rejected: RejectedRows;
   onToggleReject: (rowKey: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const grouped = useMemo(() => {
     const map = new Map<string, TakeoffFixture[]>();
     for (const f of fixtures) {
@@ -1474,7 +1487,7 @@ function FixturesSection({
 
   return (
     <QuantitySection
-      icon={<Wrench size={16} color={Colors.primary} />}
+      icon={<Wrench size={16} color={themeColors.accent} />}
       title={`Fixtures (${fixtures.length})`}
       helper="Plumbing, electrical, HVAC, appliances — grouped by trade."
     >
@@ -1515,6 +1528,7 @@ function QuantitySection({
   helper: string;
   children: React.ReactNode;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <>
       <SectionHeader icon={icon} title={title} />
@@ -1525,6 +1539,8 @@ function QuantitySection({
 }
 
 function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionHeaderIcon}>{icon}</View>
@@ -1534,6 +1550,7 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
 }
 
 function Tile({ label, value, unit }: { label: string; value: string; unit: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label}</Text>
@@ -1569,6 +1586,8 @@ function EditableRow({
   rejected?: boolean;
   onToggleReject?: (rowKey: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(quantity));
   const confColor = confidenceColor(confidence);
@@ -1615,7 +1634,7 @@ function EditableRow({
           <Text style={[styles.rowQtyUnit, rejected && styles.rowTextRejected]}>{unit}</Text>
           {!rejected && (
             <TouchableOpacity onPress={() => { setDraft(String(quantity)); setEditing(true); }} hitSlop={6} accessibilityRole="button" accessibilityLabel="Edit">
-              <Pencil size={12} color={Colors.textMuted} />
+              <Pencil size={12} color={themeColors.textMuted} />
             </TouchableOpacity>
           )}
           {onToggleReject && (
@@ -1628,7 +1647,7 @@ function EditableRow({
               {rejected ? (
                 <Text style={styles.rowRestoreText}>Restore</Text>
               ) : (
-                <X size={14} color={Colors.error} />
+                <X size={14} color={themeColors.danger} />
               )}
             </TouchableOpacity>
           )}
@@ -1639,8 +1658,8 @@ function EditableRow({
           <Text style={[styles.miniPillText, { color: confColor }]}>{confidence}</Text>
         </View>
         {wasEdited && (
-          <View style={[styles.miniPill, { backgroundColor: Colors.primary + '15' }]}>
-            <Text style={[styles.miniPillText, { color: Colors.primary }]}>edited</Text>
+          <View style={[styles.miniPill, { backgroundColor: themeColors.accent + '15' }]}>
+            <Text style={[styles.miniPillText, { color: themeColors.accent }]}>edited</Text>
           </View>
         )}
         {sourcePages.length > 0 && onInspectPage ? (
@@ -1649,7 +1668,7 @@ function EditableRow({
             hitSlop={6}
             style={styles.rowSourceLink}
           >
-            <Eye size={11} color={Colors.primary} />
+            <Eye size={11} color={themeColors.accent} />
             <Text style={styles.rowSourceLinkText}>pp. {sourcePages.join(', ')}</Text>
           </TouchableOpacity>
         ) : (
@@ -1673,7 +1692,7 @@ function EditableRow({
       </View>
       {specEntry && (
         <View style={styles.specInline}>
-          <BookOpen size={11} color={Colors.primary} />
+          <BookOpen size={11} color={themeColors.accent} />
           <View style={{ flex: 1 }}>
             <Text style={styles.specInlineTitle} numberOfLines={1}>
               {specEntry.manufacturer ?? 'Spec'}{specEntry.product ? ` · ${specEntry.product}` : ''}
@@ -1707,10 +1726,12 @@ function BulkRejectToolbar({
   onDropLowAndMedium: () => void;
   onRestore: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.bulkRejectCard}>
       <View style={styles.bulkRejectHead}>
-        <ShieldAlert size={14} color={Colors.warning} />
+        <ShieldAlert size={14} color={themeColors.accent} />
         <Text style={styles.bulkRejectTitle}>Clean up low-confidence rows</Text>
       </View>
       <Text style={styles.bulkRejectHelper}>
@@ -1723,7 +1744,7 @@ function BulkRejectToolbar({
             onPress={onDropLow}
             activeOpacity={0.85}
           >
-            <X size={12} color={Colors.error} />
+            <X size={12} color={themeColors.danger} />
             <Text style={styles.bulkRejectBtnText}>Drop {lowConfCount} low-confidence</Text>
           </TouchableOpacity>
         )}
@@ -1733,7 +1754,7 @@ function BulkRejectToolbar({
             onPress={onDropLowAndMedium}
             activeOpacity={0.85}
           >
-            <X size={12} color={Colors.error} />
+            <X size={12} color={themeColors.danger} />
             <Text style={styles.bulkRejectBtnText}>Drop {lowConfCount + mediumConfCount} low + medium</Text>
           </TouchableOpacity>
         )}
@@ -1743,8 +1764,8 @@ function BulkRejectToolbar({
             onPress={onRestore}
             activeOpacity={0.85}
           >
-            <RefreshCw size={12} color={Colors.primary} />
-            <Text style={[styles.bulkRejectBtnText, { color: Colors.primary }]}>Restore all</Text>
+            <RefreshCw size={12} color={themeColors.accent} />
+            <Text style={[styles.bulkRejectBtnText, { color: themeColors.accent }]}>Restore all</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1762,12 +1783,14 @@ function SpecMatchCard({
   onClear: () => void;
   targetCodesCount: number;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (loading) {
     return (
       <View style={styles.specCard}>
         <View style={styles.specCardHead}>
           <View style={styles.specCardIcon}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.specCardTitle}>Reading spec book…</Text>
@@ -1782,7 +1805,7 @@ function SpecMatchCard({
       <View style={styles.specCard}>
         <View style={styles.specCardHead}>
           <View style={styles.specCardIcon}>
-            <BookOpen size={16} color={Colors.primary} />
+            <BookOpen size={16} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.specCardTitle}>Spec book matched</Text>
@@ -1825,7 +1848,7 @@ function SpecMatchCard({
     <View style={styles.specCard}>
       <View style={styles.specCardHead}>
         <View style={styles.specCardIcon}>
-          <BookOpen size={16} color={Colors.primary} />
+          <BookOpen size={16} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.specCardTitle}>Match callouts to the spec book</Text>
@@ -1838,7 +1861,7 @@ function SpecMatchCard({
       </View>
       {error && (
         <View style={[styles.errorCard, { marginBottom: 0 }]}>
-          <AlertTriangle size={14} color={Colors.error} />
+          <AlertTriangle size={14} color={themeColors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
@@ -1873,7 +1896,7 @@ function sumOverridable<T extends { id: string }>(
 }
 
 function confidenceColor(c: TakeoffConfidence): string {
-  return c === 'high' ? Colors.success : c === 'medium' ? Colors.warning : Colors.error;
+  return c === 'high' ? '#16A34A' : c === 'medium' ? '#FF6A1A' : '#DC2626';
 }
 
 function formatNum(n: number): string {
@@ -1893,330 +1916,330 @@ export type {
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.4, marginTop: 4 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line, marginBottom: 14,
   },
-  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
 
   modelRow: { flexDirection: 'row', gap: 8 },
   modelOption: {
     flex: 1, padding: 12, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.background,
-    borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: themeColors.bg,
+    borderWidth: 1.5, borderColor: themeColors.line,
     gap: 4,
   },
-  modelOptionActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  modelOptionActive: { borderColor: themeColors.accent, backgroundColor: themeColors.accent + '08' },
   modelOptionDisabled: { opacity: 0.6 },
   modelOptionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modelOptionLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  modelOptionTagline: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
+  modelOptionLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
+  modelOptionTagline: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15 },
   tierTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
-  tierTagBusiness: { backgroundColor: Colors.primary + '20' },
-  tierTagLocked: { backgroundColor: Colors.warning + '20' },
-  tierTagText: { fontSize: 9, fontWeight: '800', color: Colors.text, letterSpacing: 0.4 },
+  tierTagBusiness: { backgroundColor: themeColors.accent + '20' },
+  tierTagLocked: { backgroundColor: themeColors.accent + '20' },
+  tierTagText: { fontSize: 9, fontWeight: '800', color: themeColors.text, letterSpacing: 0.4 },
 
   upsell: {
     marginTop: 8, padding: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.warning + '0D',
-    borderWidth: 1, borderColor: Colors.warning + '30',
+    backgroundColor: themeColors.accent + '0D',
+    borderWidth: 1, borderColor: themeColors.accent + '30',
     flexDirection: 'row', gap: 6, alignItems: 'flex-start',
   },
-  upsellText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text, lineHeight: 16, fontStyle: 'italic' },
+  upsellText: { flex: 1, fontSize: Type.caption2.fontSize, color: themeColors.text, lineHeight: 16, fontStyle: 'italic' },
 
   modelBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
   },
-  modelBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.text, letterSpacing: 0.3 },
+  modelBadgeText: { fontSize: 10, fontWeight: '700', color: themeColors.text, letterSpacing: 0.3 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
     maxWidth: 200,
   },
-  chipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  chipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text },
+  chipActive: { backgroundColor: themeColors.text, borderColor: themeColors.text },
+  chipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.text },
   chipTextActive: { color: '#FFF' },
 
   uploadCard: {
-    backgroundColor: Colors.primary + '0D', borderRadius: Tokens.radius.xl, padding: 28,
-    borderWidth: 1.5, borderColor: Colors.primary + '40', borderStyle: 'dashed',
+    backgroundColor: themeColors.accent + '0D', borderRadius: Tokens.radius.xl, padding: 28,
+    borderWidth: 1.5, borderColor: themeColors.accent + '40', borderStyle: 'dashed',
     alignItems: 'center', gap: 8, marginBottom: 14,
   },
   uploadIcon: {
-    width: 64, height: 64, borderRadius: Tokens.radius.xl, backgroundColor: Colors.primary + '15',
+    width: 64, height: 64, borderRadius: Tokens.radius.xl, backgroundColor: themeColors.accent + '15',
     alignItems: 'center', justifyContent: 'center', marginBottom: 6,
   },
-  uploadTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  uploadBody: { fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  uploadTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text, marginTop: 4 },
+  uploadBody: { fontSize: Type.footnote.fontSize, color: themeColors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   uploadCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary, marginTop: 10,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: themeColors.accent, marginTop: 10,
+    shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   uploadCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
-  uploadHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+  uploadHint: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     padding: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.error + '0D', borderWidth: 1, borderColor: Colors.error + '30',
+    backgroundColor: themeColors.danger + '0D', borderWidth: 1, borderColor: themeColors.danger + '30',
     marginBottom: 14,
   },
-  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
-  errorRetry: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error + '15' },
-  errorRetryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.error },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.danger, lineHeight: 18 },
+  errorRetry: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.danger + '15' },
+  errorRetryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.danger },
 
   progressCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 22,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 22,
+    borderWidth: 1, borderColor: themeColors.line,
     alignItems: 'center', gap: 10,
   },
-  progressTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  progressBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  progressTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: themeColors.text },
+  progressBody: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   skeletonStack: { marginTop: 16, gap: 10 },
   skeletonRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line,
   },
 
   summaryCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 22,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18,
+    borderWidth: 1, borderColor: themeColors.line, marginBottom: 22,
   },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 8 },
   confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full },
   confidenceDot: { width: 7, height: 7, borderRadius: 4 },
   confidenceText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
-  summaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 22, marginBottom: 6 },
-  summarySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 18, marginBottom: 14 },
+  summaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: themeColors.text, lineHeight: 22, marginBottom: 6 },
+  summarySub: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 18, marginBottom: 14 },
 
   scaleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
     marginBottom: 14,
   },
-  scaleText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  scaleText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: themeColors.text },
 
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: {
     flexBasis: '47%', flexGrow: 1,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md, padding: 10,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.md, padding: 10,
+    borderWidth: 1, borderColor: themeColors.line,
   },
-  tileLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  tileLabel: { fontSize: 10, fontWeight: '700', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
   tileValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 4 },
-  tileValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
-  tileUnit: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted },
+  tileValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.4 },
+  tileUnit: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.textMuted },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 4 },
-  sectionHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  sectionHeaderText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  sectionHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  sectionHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  sectionHeaderText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.2 },
+  sectionHelper: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
 
   cardList: { gap: 8, marginBottom: 14 },
 
   drawingCard: {
     flexDirection: 'row', gap: 12,
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 12,
+    borderWidth: 1, borderColor: themeColors.line,
   },
-  drawingThumb: { width: 64, height: 64, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background },
+  drawingThumb: { width: 64, height: 64, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.bg },
   drawingHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  drawingPage: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  drawingPage: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   readabilityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   readabilityText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  drawingType: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  drawingScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
+  drawingType: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text, marginBottom: 2 },
+  drawingScope: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17 },
 
   // Editable row
   row: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.md, padding: 12,
+    borderWidth: 1, borderColor: themeColors.line,
     gap: 6,
   },
   rowRejected: {
-    backgroundColor: Colors.background,
-    borderColor: Colors.border + '60',
+    backgroundColor: themeColors.bg,
+    borderColor: themeColors.line + '60',
     opacity: 0.55,
   },
   rowTextRejected: {
     textDecorationLine: 'line-through' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   rowRejectBtn: {
     marginLeft: 4, paddingHorizontal: 6, paddingVertical: 4,
     borderRadius: Tokens.radius.xs,
   },
-  rowRestoreText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' },
+  rowRestoreText: { fontSize: Type.caption2.fontSize, color: themeColors.accent, fontWeight: '700' },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text },
+  rowSubtitle: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2, lineHeight: 16 },
   rowQty: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  rowQtyValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2, minWidth: 40, textAlign: 'right' },
+  rowQtyValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.2, minWidth: 40, textAlign: 'right' },
   rowQtyInput: {
-    fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text,
+    fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text,
     minWidth: 60, textAlign: 'right',
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary + '08',
-    borderWidth: 1, borderColor: Colors.primary + '40',
+    backgroundColor: themeColors.accent + '08',
+    borderWidth: 1, borderColor: themeColors.accent + '40',
   },
-  rowQtyUnit: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' },
+  rowQtyUnit: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textMuted, textTransform: 'uppercase' },
   rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  rowSource: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginLeft: 'auto' },
+  rowSource: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginLeft: 'auto' },
   rowSourceLink: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     marginLeft: 'auto',
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary + '0D',
+    backgroundColor: themeColors.accent + '0D',
   },
-  rowSourceLinkText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' },
-  rowResetLink: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700', textDecorationLine: 'underline' },
-  rowNotes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 15 },
+  rowSourceLinkText: { fontSize: Type.caption2.fontSize, color: themeColors.accent, fontWeight: '700' },
+  rowResetLink: { fontSize: Type.caption2.fontSize, color: themeColors.accent, fontWeight: '700', textDecorationLine: 'underline' },
+  rowNotes: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic', lineHeight: 15 },
 
   miniPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
   miniPillText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   categoryGroup: { gap: 6 },
-  categoryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 1, marginTop: 6, marginBottom: 2 },
+  categoryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.accent, textTransform: 'uppercase', letterSpacing: 1, marginTop: 6, marginBottom: 2 },
 
   concernCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 4,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line, borderLeftWidth: 4,
     gap: 8,
   },
   concernHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   severityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   severityText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  concernTopic: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  concernDetail: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  concernRec: { paddingTop: 6, borderTopWidth: 1, borderTopColor: Colors.border },
-  concernRecLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
-  concernRecText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  concernTopic: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text },
+  concernDetail: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  concernRec: { paddingTop: 6, borderTopWidth: 1, borderTopColor: themeColors.line },
+  concernRecLabel: { fontSize: 10, fontWeight: '700', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
+  concernRecText: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
 
   checklistCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line, marginBottom: 14,
     gap: 10,
   },
   checklistRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  checklistDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary, marginTop: 7 },
-  checklistText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  checklistDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: themeColors.accent, marginTop: 7 },
+  checklistText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
 
   ctaBar: { flexDirection: 'row', gap: 10, marginTop: 18, marginBottom: 8 },
   ctaBarSecondary: { marginTop: 4, marginBottom: 8 },
   ctaSecondary: {
     flex: 1, paddingVertical: 13, borderRadius: 11,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
     alignItems: 'center', justifyContent: 'center',
   },
-  ctaSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  ctaSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
   ctaPrimary: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.primary,
+    paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.accent,
   },
   ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   teaserCard: {
-    backgroundColor: Colors.warning + '0D',
+    backgroundColor: themeColors.accent + '0D',
     borderRadius: Tokens.radius.panel, padding: 16,
-    borderWidth: 1.5, borderColor: Colors.warning + '40',
+    borderWidth: 1.5, borderColor: themeColors.accent + '40',
     marginBottom: 22, gap: 12,
   },
   teaserHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   teaserIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.warning + '20',
+    backgroundColor: themeColors.accent + '20',
     alignItems: 'center', justifyContent: 'center',
   },
-  teaserEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.warning, letterSpacing: 0.8, textTransform: 'uppercase' },
-  teaserTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 2, letterSpacing: -0.2 },
-  teaserBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  teaserEyebrow: { fontSize: 10, fontWeight: '800', color: themeColors.accent, letterSpacing: 0.8, textTransform: 'uppercase' },
+  teaserTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text, marginTop: 2, letterSpacing: -0.2 },
+  teaserBody: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
   teaserCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.text,
+    paddingVertical: 12, borderRadius: 11, backgroundColor: themeColors.text,
   },
   teaserCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
   sisterToolCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14, borderRadius: Tokens.radius.card, marginBottom: 14,
-    backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1, borderColor: themeColors.line,
   },
   sisterToolIconWrap: {
     width: 32, height: 32, borderRadius: 9,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
     alignItems: 'center', justifyContent: 'center',
   },
-  sisterToolTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  sisterToolBody: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  sisterToolTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
+  sisterToolBody: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2, lineHeight: 16 },
 
   specInline: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 10, paddingVertical: 8, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '08',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: themeColors.accent + '08',
+    borderWidth: 1, borderColor: themeColors.accent + '20',
     marginTop: 4,
   },
-  specInlineTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
-  specInlineSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
+  specInlineTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.text },
+  specInlineSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 1 },
 
   specCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line, marginBottom: 14,
     gap: 10,
   },
   specCardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   specCardIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
     alignItems: 'center', justifyContent: 'center',
   },
-  specCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  specCardSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
+  specCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.1 },
+  specCardSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2, lineHeight: 15 },
   specCardCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary, alignSelf: 'flex-start',
+    backgroundColor: themeColors.accent, alignSelf: 'flex-start',
   },
   specCardCtaText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
   specCardStatRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border,
+    paddingTop: 10, borderTopWidth: 1, borderTopColor: themeColors.line,
   },
   specCardStat: { flex: 1 },
-  specCardStatLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  specCardStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 2, letterSpacing: -0.2 },
+  specCardStatLabel: { fontSize: 10, fontWeight: '700', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  specCardStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text, marginTop: 2, letterSpacing: -0.2 },
   specCardClear: { paddingHorizontal: 10, paddingVertical: 6 },
-  specCardClearText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.error },
+  specCardClearText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.danger },
   specUnmatchedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   specUnmatchedChip: {
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.warning + '15',
-    borderWidth: 1, borderColor: Colors.warning + '30',
+    backgroundColor: themeColors.accent + '15',
+    borderWidth: 1, borderColor: themeColors.accent + '30',
   },
-  specUnmatchedText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.warning },
+  specUnmatchedText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent },
 
   modalBackdrop: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -2226,63 +2249,63 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '100%', maxWidth: 560,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.panel,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.panel,
+    borderWidth: 1, borderColor: themeColors.line,
     overflow: 'hidden',
   },
   modalHead: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    backgroundColor: Colors.card,
+    borderBottomWidth: 1, borderBottomColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
-  modalTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  modalTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.2 },
+  modalSub: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     alignItems: 'center', justifyContent: 'center',
   },
   modalFooter: {
     flexDirection: 'row', gap: 10, padding: 14,
-    borderTopWidth: 1, borderTopColor: Colors.border,
-    backgroundColor: Colors.card,
+    borderTopWidth: 1, borderTopColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
   draftCard: {
     margin: 12, padding: 12, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
     gap: 6,
   },
   draftHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  draftName: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
+  draftName: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.1 },
   draftMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  draftMetaText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  draftScope: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
-  draftItemCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' },
+  draftMetaText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  draftScope: { fontSize: Type.caption1.fontSize, color: themeColors.text, lineHeight: 17 },
+  draftItemCount: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic' },
 
   bulkRejectCard: {
-    backgroundColor: Colors.warning + '0D',
+    backgroundColor: themeColors.accent + '0D',
     borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.warning + '30',
+    borderWidth: 1, borderColor: themeColors.accent + '30',
     marginBottom: 14, gap: 10,
   },
   bulkRejectHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  bulkRejectTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  bulkRejectHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
+  bulkRejectTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.1 },
+  bulkRejectHelper: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15 },
   bulkRejectActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   bulkRejectBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg,
+    borderWidth: 1, borderColor: themeColors.line,
   },
   bulkRejectBtnWarn: {
-    backgroundColor: Colors.error + '0D',
-    borderColor: Colors.error + '30',
+    backgroundColor: themeColors.danger + '0D',
+    borderColor: themeColors.danger + '30',
   },
   bulkRejectBtnRestore: {
-    backgroundColor: Colors.primary + '0D',
-    borderColor: Colors.primary + '30',
+    backgroundColor: themeColors.accent + '0D',
+    borderColor: themeColors.accent + '30',
   },
-  bulkRejectBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.error, letterSpacing: 0.2 },
+  bulkRejectBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.danger, letterSpacing: 0.2 },
 });

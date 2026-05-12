@@ -17,6 +17,8 @@ import EmptyState from '@/components/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
@@ -45,6 +47,9 @@ export default function DailyReportScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const hsStyles = useThemedStyles(makeHsStyles);
+  const voiceStyles = useThemedStyles(makeVoiceStyles);
   const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
@@ -718,7 +723,7 @@ export default function DailyReportScreen() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Daily Report' }} />
         <EmptyState
-          icon={<ClipboardList size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<ClipboardList size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No daily report open yet"
           message="Daily field reports (DFRs) log weather, manpower, and progress on a specific project. To start one:"
           steps={[
@@ -752,7 +757,7 @@ export default function DailyReportScreen() {
             accessibilityLabel="Back"
             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
-            <ChevronLeft size={22} color={Colors.text} />
+            <ChevronLeft size={22} color={themeColors.text} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.topBarTitleCol}
@@ -767,7 +772,7 @@ export default function DailyReportScreen() {
               <Text style={styles.topBarDate}>
                 {new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </Text>
-              {!isLocked && <CalendarDays size={11} color={Colors.textMuted} />}
+              {!isLocked && <CalendarDays size={11} color={themeColors.textMuted} />}
             </View>
           </TouchableOpacity>
           {!isLocked ? (
@@ -795,8 +800,8 @@ export default function DailyReportScreen() {
             </View>
           ) : (
             <View style={styles.topBarActions}>
-              <View style={[styles.statusBadge, { backgroundColor: Colors.successLight, marginTop: 0 }]}>
-                <Text style={[styles.statusText, { color: Colors.success }]}>Sent</Text>
+              <View style={[styles.statusBadge, { backgroundColor: themeColors.successSoft, marginTop: 0 }]}>
+                <Text style={[styles.statusText, { color: themeColors.success }]}>Sent</Text>
               </View>
             </View>
           )}
@@ -884,10 +889,10 @@ export default function DailyReportScreen() {
           {showVoiceBanner && voiceParsed && (
             <View style={voiceStyles.previewCard}>
               <View style={voiceStyles.previewHead}>
-                <Sparkles size={14} color={Colors.primary} />
+                <Sparkles size={14} color={themeColors.accent} />
                 <Text style={voiceStyles.previewTitle}>Here&apos;s what I heard</Text>
                 <TouchableOpacity onPress={() => { setShowVoiceBanner(false); setVoiceParsed(null); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={Colors.textMuted} />
+                  <X size={14} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
               <Text style={voiceStyles.previewHelper}>
@@ -907,7 +912,7 @@ export default function DailyReportScreen() {
                   <VoiceRow label="Materials" value={voiceParsed.materialsDelivered.join(', ')} />
                 )}
                 {voiceParsed.issuesAndDelays && (
-                  <VoiceRow label="Issues" value={voiceParsed.issuesAndDelays.length > 90 ? voiceParsed.issuesAndDelays.slice(0, 90) + '…' : voiceParsed.issuesAndDelays} valueColor={Colors.error} />
+                  <VoiceRow label="Issues" value={voiceParsed.issuesAndDelays.length > 90 ? voiceParsed.issuesAndDelays.slice(0, 90) + '…' : voiceParsed.issuesAndDelays} valueColor={themeColors.danger} />
                 )}
               </View>
             </View>
@@ -915,12 +920,12 @@ export default function DailyReportScreen() {
 
           {showVoiceBanner && !voiceParsed && (
             <TouchableOpacity
-              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: themeColors.info, borderRadius: Tokens.radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               onPress={() => setShowVoiceBanner(false)}
               activeOpacity={0.7}
             >
-              <Text style={{ flex: 1, fontSize: Type.footnote.fontSize, color: Colors.info }}>Nothing new picked up — the fields you already had stay as-is.</Text>
-              <X size={14} color={Colors.info} />
+              <Text style={{ flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.info }}>Nothing new picked up — the fields you already had stay as-is.</Text>
+              <X size={14} color={themeColors.info} />
             </TouchableOpacity>
           )}
 
@@ -983,15 +988,15 @@ export default function DailyReportScreen() {
             <Text style={styles.heroDate}>{todayStr}</Text>
             {projectDayInfo && (
               <View style={styles.heroDayRow}>
-                <CalendarDays size={13} color={Colors.textMuted} />
+                <CalendarDays size={13} color={themeColors.textMuted} />
                 <Text style={styles.heroDayText}>
                   Day {projectDayInfo.day} of {projectDayInfo.total}
                 </Text>
               </View>
             )}
             {existingReport && (
-              <View style={[styles.statusBadge, { backgroundColor: existingReport.status === 'sent' ? Colors.successLight : Colors.fillTertiary }]}>
-                <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? Colors.success : Colors.textSecondary }]}>
+              <View style={[styles.statusBadge, { backgroundColor: existingReport.status === 'sent' ? themeColors.successSoft : themeColors.line }]}>
+                <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? themeColors.success : themeColors.textSecondary }]}>
                   {existingReport.status === 'sent' ? 'Sent' : 'Saved'}
                 </Text>
               </View>
@@ -1010,11 +1015,11 @@ export default function DailyReportScreen() {
               progressMeta.isReady ? styles.progressPillReady : null,
             ]}>
               {progressMeta.isReady ? (
-                <CheckCircle2 size={14} color={Colors.success} strokeWidth={2.2} />
+                <CheckCircle2 size={14} color={themeColors.success} strokeWidth={2.2} />
               ) : null}
               <Text style={[
                 styles.progressPillText,
-                progressMeta.isReady ? { color: Colors.success } : null,
+                progressMeta.isReady ? { color: themeColors.success } : null,
               ]}>
                 {progressMeta.done} of {progressMeta.total} filled
                 {progressMeta.isReady ? ' · ready to send' : ''}
@@ -1027,13 +1032,13 @@ export default function DailyReportScreen() {
                 activeOpacity={0.7}
                 testID="carry-forward-btn"
               >
-                <Copy size={14} color={Colors.primary} strokeWidth={2.2} />
+                <Copy size={14} color={themeColors.accent} strokeWidth={2.2} />
                 <Text style={styles.carryBtnText}>Copy from {lastReportLabel}</Text>
               </TouchableOpacity>
             )}
             {carryFormFromId && (
               <View style={styles.carriedBadge}>
-                <CheckCircle2 size={12} color={Colors.primary} strokeWidth={2.4} />
+                <CheckCircle2 size={12} color={themeColors.accent} strokeWidth={2.4} />
                 <Text style={styles.carriedBadgeText}>Carried forward</Text>
               </View>
             )}
@@ -1041,7 +1046,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Cloud size={18} color={Colors.info} />
+              <Cloud size={18} color={themeColors.info} />
               <Text style={styles.sectionTitle}>Weather</Text>
               {!isLocked && (
                 <TouchableOpacity
@@ -1058,42 +1063,42 @@ export default function DailyReportScreen() {
             </View>
             <View style={styles.weatherGrid}>
               <View style={styles.weatherItem}>
-                <Thermometer size={14} color={Colors.accent} />
+                <Thermometer size={14} color={themeColors.accent} />
                 {!isLocked ? (
                   <TextInput
                     style={styles.weatherInput}
                     value={weather.temperature}
                     onChangeText={(v) => setWeather(prev => ({ ...prev, temperature: v, isManual: true }))}
                     placeholder="72°F"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                 ) : (
                   <Text style={styles.weatherValue}>{weather.temperature || 'N/A'}</Text>
                 )}
               </View>
               <View style={styles.weatherItem}>
-                <Cloud size={14} color={Colors.info} />
+                <Cloud size={14} color={themeColors.info} />
                 {!isLocked ? (
                   <TextInput
                     style={styles.weatherInput}
                     value={weather.conditions}
                     onChangeText={(v) => setWeather(prev => ({ ...prev, conditions: v, isManual: true }))}
                     placeholder="Sunny, Cloudy..."
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                 ) : (
                   <Text style={styles.weatherValue}>{weather.conditions || 'N/A'}</Text>
                 )}
               </View>
               <View style={styles.weatherItem}>
-                <Wind size={14} color={Colors.textSecondary} />
+                <Wind size={14} color={themeColors.textSecondary} />
                 {!isLocked ? (
                   <TextInput
                     style={styles.weatherInput}
                     value={weather.wind}
                     onChangeText={(v) => setWeather(prev => ({ ...prev, wind: v, isManual: true }))}
                     placeholder="5 mph NW"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                 ) : (
                   <Text style={styles.weatherValue}>{weather.wind || 'N/A'}</Text>
@@ -1110,7 +1115,7 @@ export default function DailyReportScreen() {
               data flows downstream without re-entry. */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <BarChart3 size={18} color={Colors.primary} />
+              <BarChart3 size={18} color={themeColors.accent} />
               <Text style={styles.sectionTitle}>Work Progress</Text>
               <Text style={styles.sectionTotal}>{workProgress.length > 0 ? `${workProgress.length} task${workProgress.length === 1 ? '' : 's'}` : 'What was completed today?'}</Text>
               {!isLocked && (project.schedule?.tasks?.length ?? 0) > 0 && (
@@ -1119,7 +1124,7 @@ export default function DailyReportScreen() {
                   onPress={() => setShowTaskPicker(true)}
                   activeOpacity={0.7}
                   testID="add-work-progress-btn" accessibilityRole="button" accessibilityLabel="Add work">
-                  <Plus size={14} color={Colors.primary} />
+                  <Plus size={14} color={themeColors.accent} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1150,7 +1155,7 @@ export default function DailyReportScreen() {
                           accessibilityRole="button"
                           accessibilityLabel="Remove"
                         >
-                          <X size={14} color={Colors.textMuted} />
+                          <X size={14} color={themeColors.textMuted} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1162,7 +1167,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Users size={18} color={Colors.primary} />
+              <Users size={18} color={themeColors.accent} />
               <Text style={styles.sectionTitle}>Workforce</Text>
               <Text style={styles.sectionTotal}>Total · {totalManpower}</Text>
               {!isLocked && (
@@ -1171,7 +1176,7 @@ export default function DailyReportScreen() {
                   onPress={() => setShowManpowerModal(true)}
                   activeOpacity={0.7}
                   testID="add-manpower-btn" accessibilityRole="button" accessibilityLabel="Add">
-                  <Plus size={14} color={Colors.primary} />
+                  <Plus size={14} color={themeColors.accent} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1203,7 +1208,7 @@ export default function DailyReportScreen() {
                 </View>
                 {!isLocked && (
                   <TouchableOpacity onPress={() => handleRemoveManpower(entry.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
-                    <Trash2 size={14} color={Colors.error} />
+                    <Trash2 size={14} color={themeColors.danger} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1212,7 +1217,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <HardHat size={18} color={Colors.accent} />
+              <HardHat size={18} color={themeColors.accent} />
               <Text style={styles.sectionTitle}>Work Performed</Text>
             </View>
             {!isLocked ? (
@@ -1221,7 +1226,7 @@ export default function DailyReportScreen() {
                 value={workPerformed}
                 onChangeText={setWorkPerformed}
                 placeholder="Describe work completed today..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
                 testID="work-performed-input"
@@ -1233,7 +1238,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Package size={18} color={Colors.primary} />
+              <Package size={18} color={themeColors.accent} />
               <Text style={styles.sectionTitle}>Materials Delivered</Text>
             </View>
             {!isLocked && (
@@ -1243,11 +1248,11 @@ export default function DailyReportScreen() {
                   value={newMaterial}
                   onChangeText={setNewMaterial}
                   placeholder="Material received..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   onSubmitEditing={handleAddMaterial}
                   returnKeyType="done"
                 />
-                <TouchableOpacity style={styles.addMaterialBtn} onPress={handleAddMaterial} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={16} color={Colors.primary} /></TouchableOpacity>
+                <TouchableOpacity style={styles.addMaterialBtn} onPress={handleAddMaterial} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={16} color={themeColors.accent} /></TouchableOpacity>
               </View>
             )}
             {materialsDelivered.length === 0 && (
@@ -1259,7 +1264,7 @@ export default function DailyReportScreen() {
                 <Text style={styles.materialText}>{mat}</Text>
                 {!isLocked && (
                   <TouchableOpacity onPress={() => handleRemoveMaterial(idx)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={Colors.error} />
+                    <X size={14} color={themeColors.danger} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1268,7 +1273,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <AlertTriangle size={18} color={Colors.error} />
+              <AlertTriangle size={18} color={themeColors.danger} />
               <Text style={styles.sectionTitle}>Issues & Delays</Text>
             </View>
             {!isLocked ? (
@@ -1277,7 +1282,7 @@ export default function DailyReportScreen() {
                 value={issuesAndDelays}
                 onChangeText={setIssuesAndDelays}
                 placeholder="Note any problems or delays..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
               />
@@ -1293,7 +1298,7 @@ export default function DailyReportScreen() {
               by email). */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <HomeIcon size={18} color={Colors.primary} />
+              <HomeIcon size={18} color={themeColors.accent} />
               <Text style={styles.sectionTitle}>Homeowner update</Text>
               {hsPublished && (
                 <View style={hsStyles.publishedPill}>
@@ -1314,12 +1319,12 @@ export default function DailyReportScreen() {
               >
                 {hsGenerating ? (
                   <>
-                    <RefreshCw size={14} color={Colors.primary} />
+                    <RefreshCw size={14} color={themeColors.accent} />
                     <Text style={hsStyles.aiBtnText}>Writing the homeowner version…</Text>
                   </>
                 ) : (
                   <>
-                    <Sparkles size={14} color={Colors.primary} />
+                    <Sparkles size={14} color={themeColors.accent} />
                     <Text style={hsStyles.aiBtnText}>{homeownerSummary ? 'Re-generate from notes' : 'Generate from today\'s notes'}</Text>
                   </>
                 )}
@@ -1335,7 +1340,7 @@ export default function DailyReportScreen() {
                   if (hsPublished) setHsPublished(false);  // edit invalidates the published copy
                 }}
                 placeholder='AI draft will appear here. Or write your own — "Hi Sarah, big day on site today…"'
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
                 editable={!hsGenerating}
@@ -1380,7 +1385,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <HardHat size={18} color={Colors.error} />
+              <HardHat size={18} color={themeColors.danger} />
               <Text style={styles.sectionTitle}>Safety & Incident</Text>
             </View>
             {!isLocked ? (
@@ -1391,7 +1396,7 @@ export default function DailyReportScreen() {
                   activeOpacity={0.85}
                 >
                   <View style={[styles.incidentToggleDot, incident.hasIncident && styles.incidentToggleDotActive]} />
-                  <Text style={[styles.incidentToggleText, incident.hasIncident && { color: Colors.error }]}>
+                  <Text style={[styles.incidentToggleText, incident.hasIncident && { color: themeColors.danger }]}>
                     {incident.hasIncident ? 'Incident occurred today' : 'No incidents today'}
                   </Text>
                 </TouchableOpacity>
@@ -1423,7 +1428,7 @@ export default function DailyReportScreen() {
                       value={incident.description ?? ''}
                       onChangeText={val => setIncident(p => ({ ...p, description: val }))}
                       placeholder="Describe the incident..."
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                       multiline
                       textAlignVertical="top"
                     />
@@ -1434,7 +1439,7 @@ export default function DailyReportScreen() {
                       value={incident.peopleInvolved ?? ''}
                       onChangeText={val => setIncident(p => ({ ...p, peopleInvolved: val }))}
                       placeholder="Names or roles"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
 
                     <View style={styles.checkboxRow}>
@@ -1458,7 +1463,7 @@ export default function DailyReportScreen() {
                       value={incident.correctiveAction ?? ''}
                       onChangeText={val => setIncident(p => ({ ...p, correctiveAction: val }))}
                       placeholder="Immediate fixes, training, policy changes..."
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                       multiline
                       textAlignVertical="top"
                     />
@@ -1469,7 +1474,7 @@ export default function DailyReportScreen() {
                       value={incident.reportedBy ?? ''}
                       onChangeText={val => setIncident(p => ({ ...p, reportedBy: val }))}
                       placeholder="Your name / role"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
                   </View>
                 )}
@@ -1485,19 +1490,19 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <ImageIcon size={18} color={Colors.accent} />
+              <ImageIcon size={18} color={themeColors.accent} />
               <Text style={styles.sectionTitle}>Photos ({photos.length}/10)</Text>
             </View>
             {!isLocked && (
               <View style={styles.photoActions}>
                 {Platform.OS !== 'web' && (
                   <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
-                    <Camera size={16} color={Colors.primary} />
+                    <Camera size={16} color={themeColors.accent} />
                     <Text style={styles.photoBtnText}>Take Photo</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} activeOpacity={0.7}>
-                  <ImageIcon size={16} color={Colors.primary} />
+                  <ImageIcon size={16} color={themeColors.accent} />
                   <Text style={styles.photoBtnText}>From Library</Text>
                 </TouchableOpacity>
               </View>
@@ -1510,7 +1515,7 @@ export default function DailyReportScreen() {
                 {photos.map((photo) => (
                   <View key={photo.id} style={styles.photoCard}>
                     <View style={styles.photoPlaceholder}>
-                      <Camera size={20} color={Colors.textMuted} />
+                      <Camera size={20} color={themeColors.textMuted} />
                       <Text style={styles.photoTimestamp}>
                         {new Date(photo.timestamp).toLocaleTimeString()}
                       </Text>
@@ -1520,7 +1525,7 @@ export default function DailyReportScreen() {
                         style={styles.photoRemoveBtn}
                         onPress={() => handleRemovePhoto(photo.id)}
                         activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                        <X size={12} color={Colors.error} />
+                        <X size={12} color={themeColors.danger} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1541,19 +1546,19 @@ export default function DailyReportScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Report To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
               {contactPicked ? (
                 <View style={styles.selectedRecipientCard}>
-                  <User size={16} color={Colors.primary} />
+                  <User size={16} color={themeColors.accent} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
                   <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={Colors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -1564,7 +1569,7 @@ export default function DailyReportScreen() {
                     value={sendRecipientName}
                     onChangeText={setSendRecipientName}
                     placeholder="Enter name or pick from contacts"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                   <Text style={styles.modalFieldLabel}>Email</Text>
                   <TextInput
@@ -1572,7 +1577,7 @@ export default function DailyReportScreen() {
                     value={sendRecipientEmail}
                     onChangeText={setSendRecipientEmail}
                     placeholder="email@example.com"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
@@ -1582,7 +1587,7 @@ export default function DailyReportScreen() {
                       onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
                       activeOpacity={0.7}
                     >
-                      <BookUser size={14} color={Colors.primary} />
+                      <BookUser size={14} color={themeColors.accent} />
                       <Text style={styles.pickContactText}>Pick from Contacts</Text>
                     </TouchableOpacity>
                   )}
@@ -1603,7 +1608,7 @@ export default function DailyReportScreen() {
                 accessibilityState={{ checked: saveToProjectFiles }}
               >
                 <View style={styles.toggleIconWrap}>
-                  <FolderOpen size={16} color={Colors.primary} />
+                  <FolderOpen size={16} color={themeColors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.toggleTitle}>Save copy to project files</Text>
@@ -1622,7 +1627,7 @@ export default function DailyReportScreen() {
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
-                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Send size={16} color={"#FFFFFF"} />
                   <Text style={styles.sendBtnText}>
                     {sendRecipientEmail.trim() ? 'Send' : (saveToProjectFiles ? 'Save' : 'Send')}
                   </Text>
@@ -1669,7 +1674,7 @@ export default function DailyReportScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Work Progress</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalHelper}>Pick a task and the percent complete you observed today.</Text>
@@ -1699,7 +1704,7 @@ export default function DailyReportScreen() {
                         <Text style={styles.pickerTitle} numberOfLines={1}>{t.title || 'Untitled'}</Text>
                         <Text style={styles.pickerMeta}>{t.phase} · {(t.progress ?? 0)}%</Text>
                       </View>
-                      <Plus size={16} color={Colors.primary} />
+                      <Plus size={16} color={themeColors.accent} />
                     </TouchableOpacity>
                   );
                 })}
@@ -1748,7 +1753,7 @@ export default function DailyReportScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Manpower</Text>
                 <TouchableOpacity onPress={() => setShowManpowerModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Trade</Text>
@@ -1757,7 +1762,7 @@ export default function DailyReportScreen() {
                 value={mpTrade}
                 onChangeText={setMpTrade}
                 placeholder="e.g. Electrician, Plumber..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
               <Text style={styles.modalFieldLabel}>Company / Sub</Text>
               <TextInput
@@ -1765,7 +1770,7 @@ export default function DailyReportScreen() {
                 value={mpCompany}
                 onChangeText={setMpCompany}
                 placeholder="Company name (optional)"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
               <View style={styles.modalRow}>
                 <View style={{ flex: 1 }}>
@@ -1775,7 +1780,7 @@ export default function DailyReportScreen() {
                     value={mpHeadcount}
                     onChangeText={setMpHeadcount}
                     placeholder="1"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     keyboardType="numeric"
                   />
                 </View>
@@ -1786,7 +1791,7 @@ export default function DailyReportScreen() {
                     value={mpHours}
                     onChangeText={setMpHours}
                     placeholder="8"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     keyboardType="numeric"
                   />
                 </View>
@@ -1803,6 +1808,7 @@ export default function DailyReportScreen() {
 }
 
 function VoiceRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  const voiceStyles = useThemedStyles(makeVoiceStyles);
   return (
     <View style={voiceStyles.row}>
       <Text style={voiceStyles.rowLabel}>{label}</Text>
@@ -1822,6 +1828,7 @@ function RoleTile(props: {
 }) {
   const { icon: Icon, label, count, color } = props;
   const dim = count === 0;
+  const roleTileStyles = useThemedStyles(makeRoleTileStyles);
   return (
     <View style={[roleTileStyles.tile, dim && { opacity: 0.55 }]}>
       <View style={[roleTileStyles.iconChip, { backgroundColor: color + '1A' }]}>
@@ -1833,7 +1840,7 @@ function RoleTile(props: {
   );
 }
 
-const roleTileStyles = StyleSheet.create({
+const makeRoleTileStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // Vertical-stacked tile so the role label has room to breathe — narrow
   // 4-up grid on phone width truncates a horizontal layout to "Sup...".
   tile: {
@@ -1842,7 +1849,7 @@ const roleTileStyles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 10,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     flex: 1,
     minWidth: 0,
   },
@@ -1854,67 +1861,67 @@ const roleTileStyles = StyleSheet.create({
   },
   label: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     fontWeight: '600' as const,
   },
   count: {
     fontSize: Type.headline.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.3,
   },
 });
 
-const voiceStyles = StyleSheet.create({
+const makeVoiceStyles = (themeColors: ThemeColors) => StyleSheet.create({
   previewCard: {
     marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: themeColors.accent + '0D',
+    borderWidth: 1, borderColor: themeColors.accent + '30',
     borderRadius: Tokens.radius.card, padding: 14, gap: 8,
   },
   previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  previewTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
-  previewHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
+  previewTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.accent, letterSpacing: -0.2 },
+  previewHelper: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15 },
   previewList: { gap: 6, marginTop: 4 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  rowLabel: { width: 90, fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
-  rowValue: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  rowLabel: { width: 90, fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
+  rowValue: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
 });
 
-const hsStyles = StyleSheet.create({
-  helperText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  helperText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
   publishedPill: {
     backgroundColor: 'rgba(30,142,74,0.12)', paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: Tokens.radius.full, marginLeft: 'auto',
   },
-  publishedPillText: { fontSize: 9, fontWeight: '800', color: Colors.successDark, letterSpacing: 0.6 },
+  publishedPillText: { fontSize: 9, fontWeight: '800', color: themeColors.success, letterSpacing: 0.6 },
   aiBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 11, borderRadius: 11,
-    backgroundColor: Colors.primary + '0F', borderWidth: 1, borderColor: Colors.primary + '40',
+    backgroundColor: themeColors.accent + '0F', borderWidth: 1, borderColor: themeColors.accent + '40',
   },
   aiBtnDisabled: { opacity: 0.7 },
-  aiBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
+  aiBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.accent },
   highlightsBlock: { marginTop: 10, gap: 4 },
-  highlightsLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
+  highlightsLabel: { fontSize: 10, fontWeight: '800', color: themeColors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
   highlightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 2 },
-  highlightDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 7 },
-  highlightText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  lookingAhead: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
+  highlightDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: themeColors.accent, marginTop: 7 },
+  highlightText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  lookingAhead: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 8, fontStyle: 'italic' },
   publishBtn: {
     marginTop: 12, paddingVertical: 11, borderRadius: 11,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
     alignItems: 'center',
   },
   publishBtnPublished: { backgroundColor: 'rgba(30,142,74,0.10)', borderColor: '#1E8E4A' },
-  publishBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  publishBtnTextPublished: { color: Colors.successDark },
+  publishBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
+  publishBtnTextPublished: { color: themeColors.success },
 });
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
 
   // Custom top bar — replaces the default Stack header so Save Draft +
   // Submit can sit at the top right (matches the mock).
@@ -1924,16 +1931,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     gap: 10,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   topBarBack: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: themeColors.line,
   },
   topBarTitleCol: {
     flex: 1,
@@ -1942,12 +1949,12 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.4,
   },
   topBarDate: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 1,
   },
   topBarActions: {
@@ -1962,25 +1969,25 @@ const styles = StyleSheet.create({
   topBarDraftText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
   },
   topBarSubmitBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
   },
   topBarSubmitText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '800' as const,
-    color: Colors.textOnPrimary,
+    color: "#FFFFFF",
     letterSpacing: -0.2,
   },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
-  backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 12, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
+  backBtn: { backgroundColor: themeColors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtnText: { color: "#FFFFFF", fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
+  heroCard: { backgroundColor: themeColors.accent, marginHorizontal: 20, marginTop: 12, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   heroDate: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   heroDayRow: {
     flexDirection: 'row' as const,
@@ -1998,10 +2005,10 @@ const styles = StyleSheet.create({
   },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  sectionCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
+  sectionCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  sectionTotal: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
+  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  sectionTotal: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontWeight: '600' as const },
   roleTileGrid: {
     flexDirection: 'row' as const,
     gap: 8,
@@ -2009,111 +2016,111 @@ const styles = StyleSheet.create({
   },
   workforceTotalLine: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginBottom: 8,
   },
-  refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: Colors.infoLight },
-  refreshBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.info },
+  refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.info },
+  refreshBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.info },
   weatherGrid: { gap: 10 },
   weatherItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  weatherInput: { flex: 1, minHeight: 38, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  weatherValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  addSmallBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
-  mpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 10 },
+  weatherInput: { flex: 1, minHeight: 38, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  weatherValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  addSmallBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: themeColors.accent + '15', alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const },
+  mpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: themeColors.line, gap: 10 },
   mpInfo: { flex: 1, gap: 2 },
-  mpTrade: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  mpMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  textArea: { minHeight: 80, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  textInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  readOnlyText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
-  incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder },
-  incidentToggleActive: { backgroundColor: Colors.errorLight, borderColor: Colors.error + '40' },
-  incidentToggleDot: { width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 2, borderColor: Colors.border },
-  incidentToggleDotActive: { backgroundColor: Colors.error, borderColor: Colors.error },
-  incidentToggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  mpTrade: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  mpMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  textArea: { minHeight: 80, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  textInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  readOnlyText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
+  incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line },
+  incidentToggleActive: { backgroundColor: themeColors.danger, borderColor: themeColors.danger + '40' },
+  incidentToggleDot: { width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 2, borderColor: themeColors.line },
+  incidentToggleDotActive: { backgroundColor: themeColors.danger, borderColor: themeColors.danger },
+  incidentToggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   incidentBlock: { marginTop: 10, gap: 6 },
-  incidentLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
+  incidentLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 8 },
   severityRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
-  severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  severityChipActive: { backgroundColor: Colors.error },
-  severityChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },
+  severityChipActive: { backgroundColor: themeColors.danger },
+  severityChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   severityChipTextActive: { color: '#FFF' },
   checkboxRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 12, marginTop: 8 },
   checkboxItem: { flexDirection: 'row', alignItems: 'center' as const, gap: 6 },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: Colors.border },
-  checkboxActive: { backgroundColor: Colors.error, borderColor: Colors.error },
-  checkboxLabel: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
+  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: themeColors.line },
+  checkboxActive: { backgroundColor: themeColors.danger, borderColor: themeColors.danger },
+  checkboxLabel: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '500' as const },
   addMaterialRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  materialInput: { flex: 1, minHeight: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  addMaterialBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
+  materialInput: { flex: 1, minHeight: 40, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  addMaterialBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '15', alignItems: 'center', justifyContent: 'center' },
   materialRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  materialDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  materialText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  materialDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: themeColors.accent },
+  materialText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
   photoActions: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20' },
-  photoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '10', borderWidth: 1, borderColor: themeColors.accent + '20' },
+  photoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  photoCard: { width: 80, height: 80, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
+  photoCard: { width: 80, height: 80, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
   photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  photoTimestamp: { fontSize: 9, color: Colors.textMuted },
-  photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  photoTimestamp: { fontSize: 9, color: themeColors.textMuted },
+  photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: Tokens.radius.md, backgroundColor: themeColors.danger, alignItems: 'center', justifyContent: 'center' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   toggleRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: Tokens.radius.md,
     marginTop: 12,
   },
   toggleIconWrap: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: themeColors.accent + '14',
   },
-  toggleTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  toggleSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  toggleTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  toggleSub: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, marginTop: 2 },
   toggleSwitch: {
     width: 38, height: 22, borderRadius: 11,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
     padding: 2,
     justifyContent: 'center' as const,
   },
-  toggleSwitchOn: { backgroundColor: Colors.primary },
-  toggleKnob: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.surface },
+  toggleSwitchOn: { backgroundColor: themeColors.accent },
+  toggleKnob: { width: 18, height: 18, borderRadius: 9, backgroundColor: themeColors.surface },
   toggleKnobOn: { transform: [{ translateX: 16 }] },
-  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
-  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
-  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '15', borderWidth: 1.5, borderColor: themeColors.accent, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: themeColors.accent + '25' },
+  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '10' },
+  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: themeColors.text },
   modalRow: { flexDirection: 'row', gap: 10 },
-  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  modalAddBtn: { backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
 
   modalHelper: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginBottom: 4,
   },
   modalDoneBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     alignItems: 'center' as const,
@@ -2122,7 +2129,7 @@ const styles = StyleSheet.create({
   modalDoneBtnText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textOnPrimary,
+    color: "#FFFFFF",
   },
   pickerRow: {
     flexDirection: 'row' as const,
@@ -2131,7 +2138,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
   },
   pickerDot: {
     width: 10, height: 10, borderRadius: 5,
@@ -2139,11 +2146,11 @@ const styles = StyleSheet.create({
   pickerTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   pickerMeta: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 2,
   },
   pctStepperRow: {
@@ -2155,13 +2162,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: Tokens.radius.sm,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
   pctStepBtnText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
 
   // Work Progress chips on the DFR section card.
@@ -2178,9 +2185,9 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingRight: 8,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     maxWidth: '100%',
   },
   progressChipDot: {
@@ -2189,7 +2196,7 @@ const styles = StyleSheet.create({
   progressChipName: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
     maxWidth: 140,
   },
   progressChipPctPill: {
@@ -2222,18 +2229,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   progressPillReady: {
-    backgroundColor: Colors.successLight,
-    borderColor: Colors.success + '40',
+    backgroundColor: themeColors.successSoft,
+    borderColor: themeColors.success + '40',
   },
   progressPillText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.1,
   },
   carryBtn: {
@@ -2243,14 +2250,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
+    borderColor: themeColors.accent + '40',
   },
   carryBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
     letterSpacing: 0.1,
   },
   carriedBadge: {
@@ -2260,12 +2267,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: themeColors.accent + '14',
   },
   carriedBadgeText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
     letterSpacing: 0.2,
   },
 });

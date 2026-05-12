@@ -21,6 +21,8 @@ import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityR
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
@@ -80,6 +82,8 @@ export default function ProjectDetailScreen() {
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const detailStyles = useThemedStyles(makeDetailStyles);
   const { navigateTo } = useEntityNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const ctx = useProjects() as any;
@@ -667,9 +671,9 @@ export default function ProjectDetailScreen() {
   const renderTotalDetailModal = useCallback(() => {
     if (!estimate || !totalBreakdown) return null;
     const rows = [
-      { label: 'Materials', value: estimate.materialTotal, pct: totalBreakdown.materialPct, color: Colors.successDark, icon: Package },
-      { label: 'Labor', value: estimate.laborTotal, pct: totalBreakdown.laborPct, color: Colors.info, icon: Users },
-      { label: 'Permits & Fees', value: estimate.permits, pct: totalBreakdown.permitPct, color: Colors.warning, icon: Shield },
+      { label: 'Materials', value: estimate.materialTotal, pct: totalBreakdown.materialPct, color: themeColors.success, icon: Package },
+      { label: 'Labor', value: estimate.laborTotal, pct: totalBreakdown.laborPct, color: themeColors.info, icon: Users },
+      { label: 'Permits & Fees', value: estimate.permits, pct: totalBreakdown.permitPct, color: themeColors.accent, icon: Shield },
       { label: 'Overhead', value: estimate.overhead, pct: totalBreakdown.overheadPct, color: '#AF52DE', icon: Layers },
     ];
     const maxPct = Math.max(...rows.map(r => r.pct));
@@ -678,7 +682,7 @@ export default function ProjectDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
         <View style={detailStyles.heroSection}>
           <View style={detailStyles.heroIconWrap}>
-            <BarChart3 size={28} color={Colors.primary} />
+            <BarChart3 size={28} color={themeColors.accent} />
           </View>
           <Text style={detailStyles.heroAmount}>{formatMoney(estimate.grandTotal)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Project Value</Text>
@@ -687,9 +691,9 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.heroChipLabel}>${(estimate.pricePerSqFt ?? 0).toFixed(2)}</Text>
               <Text style={detailStyles.heroChipSub}>per sq ft</Text>
             </View>
-            <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
-              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
-              <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings applied</Text>
+            <View style={[detailStyles.heroChip, { backgroundColor: themeColors.successSoft }]}>
+              <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
+              <Text style={[detailStyles.heroChipSub, { color: themeColors.success }]}>savings applied</Text>
             </View>
           </View>
         </View>
@@ -715,7 +719,7 @@ export default function ProjectDetailScreen() {
         <View style={detailStyles.additionalCard}>
           <View style={detailStyles.additionalRow}>
             <View style={detailStyles.additionalLeft}>
-              <View style={[detailStyles.additionalDot, { backgroundColor: Colors.warning }]} />
+              <View style={[detailStyles.additionalDot, { backgroundColor: themeColors.accent }]} />
               <Text style={detailStyles.additionalLabel}>Tax</Text>
             </View>
             <View style={detailStyles.additionalRight}>
@@ -726,7 +730,7 @@ export default function ProjectDetailScreen() {
           <View style={detailStyles.additionalDivider} />
           <View style={detailStyles.additionalRow}>
             <View style={detailStyles.additionalLeft}>
-              <View style={[detailStyles.additionalDot, { backgroundColor: Colors.error }]} />
+              <View style={[detailStyles.additionalDot, { backgroundColor: themeColors.danger }]} />
               <Text style={detailStyles.additionalLabel}>Contingency</Text>
             </View>
             <View style={detailStyles.additionalRight}>
@@ -737,11 +741,11 @@ export default function ProjectDetailScreen() {
           <View style={detailStyles.additionalDivider} />
           <View style={detailStyles.additionalRow}>
             <View style={detailStyles.additionalLeft}>
-              <View style={[detailStyles.additionalDot, { backgroundColor: Colors.success }]} />
-              <Text style={[detailStyles.additionalLabel, { color: Colors.success }]}>Bulk Savings</Text>
+              <View style={[detailStyles.additionalDot, { backgroundColor: themeColors.success }]} />
+              <Text style={[detailStyles.additionalLabel, { color: themeColors.success }]}>Bulk Savings</Text>
             </View>
             <View style={detailStyles.additionalRight}>
-              <Text style={[detailStyles.additionalValue, { color: Colors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
+              <Text style={[detailStyles.additionalValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
             </View>
           </View>
         </View>
@@ -776,8 +780,8 @@ export default function ProjectDetailScreen() {
             <Text style={detailStyles.breakdownValue}>{formatMoney(estimate.contingency)}</Text>
           </View>
           <View style={detailStyles.breakdownRow}>
-            <Text style={[detailStyles.breakdownLabel, { color: Colors.success }]}>- Bulk Savings</Text>
-            <Text style={[detailStyles.breakdownValue, { color: Colors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
+            <Text style={[detailStyles.breakdownLabel, { color: themeColors.success }]}>- Bulk Savings</Text>
+            <Text style={[detailStyles.breakdownValue, { color: themeColors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
           </View>
           <View style={detailStyles.breakdownDividerThick} />
           <View style={detailStyles.breakdownRow}>
@@ -795,15 +799,15 @@ export default function ProjectDetailScreen() {
     return (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
         <View style={detailStyles.heroSection}>
-          <View style={[detailStyles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
-            <TrendingDown size={28} color={Colors.success} />
+          <View style={[detailStyles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
+            <TrendingDown size={28} color={themeColors.success} />
           </View>
-          <Text style={[detailStyles.heroAmount, { color: Colors.success }]}>{formatMoney(savingsBreakdown.totalBulkSavings)}</Text>
+          <Text style={[detailStyles.heroAmount, { color: themeColors.success }]}>{formatMoney(savingsBreakdown.totalBulkSavings)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
           <View style={detailStyles.heroChips}>
-            <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
-              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>{(savingsBreakdown.savingsRate ?? 0).toFixed(1)}%</Text>
-              <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings rate</Text>
+            <View style={[detailStyles.heroChip, { backgroundColor: themeColors.successSoft }]}>
+              <Text style={[detailStyles.heroChipLabel, { color: themeColors.success }]}>{(savingsBreakdown.savingsRate ?? 0).toFixed(1)}%</Text>
+              <Text style={[detailStyles.heroChipSub, { color: themeColors.success }]}>savings rate</Text>
             </View>
             <View style={detailStyles.heroChip}>
               <Text style={detailStyles.heroChipLabel}>{savingsBreakdown.itemsAtBulk}/{savingsBreakdown.totalItems}</Text>
@@ -815,8 +819,8 @@ export default function ProjectDetailScreen() {
         <Text style={detailStyles.sectionLabel}>How Bulk Savings Work</Text>
         <View style={detailStyles.infoCard}>
           <View style={detailStyles.infoRow}>
-            <View style={[detailStyles.infoStep, { backgroundColor: Colors.primary + '15' }]}>
-              <Text style={[detailStyles.infoStepNum, { color: Colors.primary }]}>1</Text>
+            <View style={[detailStyles.infoStep, { backgroundColor: themeColors.accent + '15' }]}>
+              <Text style={[detailStyles.infoStepNum, { color: themeColors.accent }]}>1</Text>
             </View>
             <View style={detailStyles.infoTextWrap}>
               <Text style={detailStyles.infoTitle}>Volume Thresholds</Text>
@@ -824,8 +828,8 @@ export default function ProjectDetailScreen() {
             </View>
           </View>
           <View style={detailStyles.infoRow}>
-            <View style={[detailStyles.infoStep, { backgroundColor: Colors.success + '15' }]}>
-              <Text style={[detailStyles.infoStepNum, { color: Colors.success }]}>2</Text>
+            <View style={[detailStyles.infoStep, { backgroundColor: themeColors.success + '15' }]}>
+              <Text style={[detailStyles.infoStepNum, { color: themeColors.success }]}>2</Text>
             </View>
             <View style={detailStyles.infoTextWrap}>
               <Text style={detailStyles.infoTitle}>Automatic Application</Text>
@@ -833,8 +837,8 @@ export default function ProjectDetailScreen() {
             </View>
           </View>
           <View style={detailStyles.infoRow}>
-            <View style={[detailStyles.infoStep, { backgroundColor: Colors.accent + '15' }]}>
-              <Text style={[detailStyles.infoStepNum, { color: Colors.accent }]}>3</Text>
+            <View style={[detailStyles.infoStep, { backgroundColor: themeColors.accent + '15' }]}>
+              <Text style={[detailStyles.infoStepNum, { color: themeColors.accent }]}>3</Text>
             </View>
             <View style={detailStyles.infoTextWrap}>
               <Text style={detailStyles.infoTitle}>Reflected in Total</Text>
@@ -875,9 +879,9 @@ export default function ProjectDetailScreen() {
         {savingsBreakdown.itemsAtBulk < savingsBreakdown.totalItems && (
           <>
             <Text style={detailStyles.sectionLabel}>Optimization Tip</Text>
-            <View style={[detailStyles.infoCard, { backgroundColor: Colors.warningLight, borderColor: Colors.warning + '30' }]}>
+            <View style={[detailStyles.infoCard, { backgroundColor: themeColors.accentSoft, borderColor: themeColors.accent + '30' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-                <Lightbulb size={18} color={Colors.warning} />
+                <Lightbulb size={18} color={themeColors.accent} />
                 <View style={{ flex: 1 }}>
                   <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
                   <Text style={detailStyles.infoDesc}>
@@ -904,7 +908,7 @@ export default function ProjectDetailScreen() {
   // a missing project via the optional chain in the title fallback.
   const headerRight = useCallback(
     () => (
-      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={Colors.primary} /></TouchableOpacity>
+      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={themeColors.accent} /></TouchableOpacity>
     ),
     [openEditModal],
   );
@@ -951,7 +955,7 @@ export default function ProjectDetailScreen() {
             <View style={styles.heroTitleBlock}>
               <Text style={styles.heroName}>{project.name}</Text>
               <View style={styles.heroMeta}>
-                <MapPin size={14} color={Colors.textMuted} />
+                <MapPin size={14} color={themeColors.textMuted} />
                 <Text style={styles.heroMetaText}>{project.location}</Text>
               </View>
               {project.description ? (
@@ -997,7 +1001,7 @@ export default function ProjectDetailScreen() {
                       testID="hero-savings-tap"
                     >
                       <Text style={styles.smallStatLabel}>Bulk Savings</Text>
-                      <Text style={[styles.smallStatValue, { color: Colors.success }]}>
+                      <Text style={[styles.smallStatValue, { color: themeColors.success }]}>
                         {formatMoney(estimate.bulkSavingsTotal)}
                       </Text>
                       <ArrowDownRight size={10} color="rgba(255,255,255,0.5)" />
@@ -1016,7 +1020,7 @@ export default function ProjectDetailScreen() {
                     </View>
                     <View style={styles.heroStatSmall}>
                       <Text style={styles.smallStatLabel}>+ Markup</Text>
-                      <Text style={[styles.smallStatValue, { color: Colors.accent }]}>
+                      <Text style={[styles.smallStatValue, { color: themeColors.accent }]}>
                         {formatMoney(linkedEstimate.markupTotal)}
                       </Text>
                     </View>
@@ -1035,8 +1039,8 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="project-weekly-snapshot-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
-              <CalendarDays size={18} color={Colors.primary} />
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+              <CalendarDays size={18} color={themeColors.accent} />
             </View>
             <Text style={styles.quickActionLabel}>This Week</Text>
           </TouchableOpacity>
@@ -1046,8 +1050,8 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="project-cash-flow-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.success + '15' }]}>
-              <Wallet size={18} color={Colors.success} />
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.success + '15' }]}>
+              <Wallet size={18} color={themeColors.success} />
             </View>
             <Text style={styles.quickActionLabel}>Cash Flow</Text>
           </TouchableOpacity>
@@ -1058,8 +1062,8 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-create-estimate-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
-                <Receipt size={18} color={Colors.primary} />
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                <Receipt size={18} color={themeColors.accent} />
               </View>
               <Text style={styles.quickActionLabel}>Estimate</Text>
             </TouchableOpacity>
@@ -1071,8 +1075,8 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-create-schedule-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: Colors.info + '15' }]}>
-                <CalendarDays size={18} color={Colors.info} />
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
+                <CalendarDays size={18} color={themeColors.info} />
               </View>
               <Text style={styles.quickActionLabel}>Schedule</Text>
             </TouchableOpacity>
@@ -1084,8 +1088,8 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-view-schedule-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: Colors.info + '15' }]}>
-                <CalendarDays size={18} color={Colors.info} />
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
+                <CalendarDays size={18} color={themeColors.info} />
               </View>
               <Text style={styles.quickActionLabel}>Schedule</Text>
             </TouchableOpacity>
@@ -1097,8 +1101,8 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-view-estimate-btn"
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
-                <Receipt size={18} color={Colors.primary} />
+              <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+                <Receipt size={18} color={themeColors.accent} />
               </View>
               <Text style={styles.quickActionLabel}>Estimate</Text>
             </TouchableOpacity>
@@ -1109,8 +1113,8 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="project-payment-forecast-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <TrendingDown size={18} color={Colors.accent} />
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+              <TrendingDown size={18} color={themeColors.accent} />
             </View>
             <Text style={styles.quickActionLabel}>Forecast</Text>
           </TouchableOpacity>
@@ -1121,8 +1125,8 @@ export default function ProjectDetailScreen() {
             disabled={generatingCloseout}
             testID="project-closeout-packet-btn"
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.warning + '15' }]}>
-              <Archive size={18} color={Colors.warning} />
+            <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
+              <Archive size={18} color={themeColors.accent} />
             </View>
             <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
             {/* Concrete-pour progress bar appears under the button while
@@ -1130,7 +1134,7 @@ export default function ProjectDetailScreen() {
                 a real % from the PDF generator, so we show a slow ramp to
                 ~85% and finish on success. */}
             {generatingCloseout && (
-              <ConcretePour value={0.85} height={3} fillColor={Colors.warning} duration={2400} hideShine={false} style={{ marginTop: 6, width: '100%' }} />
+              <ConcretePour value={0.85} height={3} fillColor={themeColors.accent} duration={2400} hideShine={false} style={{ marginTop: 6, width: '100%' }} />
             )}
           </TouchableOpacity>
         </View>
@@ -1141,13 +1145,13 @@ export default function ProjectDetailScreen() {
             tile counts so you can spot a busy section without expanding it. */}
         {(() => {
           type Tile = { key: SectionKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; count: number | null };
-          // Tile icons are intentionally NEUTRAL (Colors.textSecondary).
+          // Tile icons are intentionally NEUTRAL (themeColors.textSecondary).
           // Color earns its way onto the screen by communicating STATE,
           // not by decorating workflow categories. The status badge under
           // each tile is the only colored thing — that's what the user
           // should scan for "what needs me right now?". Group headers keep
           // their soft category tint to differentiate workflow domains.
-          const NEUTRAL = Colors.textSecondary;
+          const NEUTRAL = themeColors.textSecondary;
           const allTiles: Tile[] = [
             ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: NEUTRAL, count: linkedItems.length || estimate?.materials.length || 0 }] : []),
             ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: NEUTRAL, count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
@@ -1177,10 +1181,10 @@ export default function ProjectDetailScreen() {
           ];
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
-            { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
-            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
-            { key: 'docs', label: 'Documentation', icon: FolderOpen, color: Colors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'activity', 'calendar'] },
-            { key: 'people', label: 'People & Communication', icon: Users, color: Colors.purple, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
+            { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
+            { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
+            { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'activity', 'calendar'] },
+            { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
           ];
 
           const tileByKey = new Map<SectionKey, Tile>(allTiles.map(t => [t.key, t]));
@@ -1228,7 +1232,7 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
                   </View>
                 )}
-                <ChevronRight size={16} color={Colors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} />
               </HardHatTap>
             );
           };
@@ -1258,7 +1262,7 @@ export default function ProjectDetailScreen() {
                           <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
                         </View>
                       )}
-                      {collapsed ? <ChevronDown size={18} color={Colors.textMuted} /> : <ChevronUp size={18} color={Colors.textMuted} />}
+                      {collapsed ? <ChevronDown size={18} color={themeColors.textMuted} /> : <ChevronUp size={18} color={themeColors.textMuted} />}
                     </TouchableOpacity>
                     {/* No wrapper — conditional render only. LayoutAnimation
                         in toggleGroup() handles the smooth open/close.
@@ -1283,7 +1287,7 @@ export default function ProjectDetailScreen() {
           presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
           onRequestClose={() => setActiveTile(null)}
         >
-          <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
+          <View style={{ flex: 1, backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
             <View style={styles.sectionModalHeader}>
               <TouchableOpacity
                 onPress={() => setActiveTile(null)}
@@ -1291,7 +1295,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="section-modal-back"
               >
-                <ChevronLeft size={22} color={Colors.text} />
+                <ChevronLeft size={22} color={themeColors.text} />
                 <Text style={styles.sectionModalBackText}>Back</Text>
               </TouchableOpacity>
               <Text style={styles.sectionModalTitle} numberOfLines={1}>
@@ -1330,14 +1334,14 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="linked-estimate-section"
             >
-              <ShoppingCart size={20} color={Colors.primary} />
+              <ShoppingCart size={20} color={themeColors.accent} />
               <Text style={styles.sectionTitle}>
                 Estimate Items — {formatMoney(linkedEstimate.grandTotal, 2)}
               </Text>
               {expanded.linkedEstimate ? (
-                <ChevronUp size={18} color={Colors.textMuted} />
+                <ChevronUp size={18} color={themeColors.textMuted} />
               ) : (
-                <ChevronDown size={18} color={Colors.textMuted} />
+                <ChevronDown size={18} color={themeColors.textMuted} />
               )}
             </TouchableOpacity>
 
@@ -1375,7 +1379,7 @@ export default function ProjectDetailScreen() {
                         </Text>
                         {item.usesBulk && (
                           <View style={styles.bulkBadge}>
-                            <TrendingDown size={10} color={Colors.success} />
+                            <TrendingDown size={10} color={themeColors.success} />
                             <Text style={styles.bulkBadgeText}>Bulk rate</Text>
                           </View>
                         )}
@@ -1398,12 +1402,12 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.linkedSummaryValue}>{formatMoney(linkedEstimate.baseTotal, 2)}</Text>
                   </View>
                   <View style={styles.linkedSummaryItem}>
-                    <Text style={[styles.linkedSummaryLabel, { color: Colors.accent }]}>Markup</Text>
-                    <Text style={[styles.linkedSummaryValue, { color: Colors.accent }]}>+{formatMoney(linkedEstimate.markupTotal, 2)}</Text>
+                    <Text style={[styles.linkedSummaryLabel, { color: themeColors.accent }]}>Markup</Text>
+                    <Text style={[styles.linkedSummaryValue, { color: themeColors.accent }]}>+{formatMoney(linkedEstimate.markupTotal, 2)}</Text>
                   </View>
                   <View style={styles.linkedSummaryItem}>
                     <Text style={[styles.linkedSummaryLabel, { fontWeight: '700' as const }]}>Total</Text>
-                    <Text style={[styles.linkedSummaryValue, { color: Colors.primary, fontWeight: '800' as const }]}>{formatMoney(linkedEstimate.grandTotal, 2)}</Text>
+                    <Text style={[styles.linkedSummaryValue, { color: themeColors.accent, fontWeight: '800' as const }]}>{formatMoney(linkedEstimate.grandTotal, 2)}</Text>
                   </View>
                 </View>
                 {!project.schedule && (
@@ -1425,9 +1429,9 @@ export default function ProjectDetailScreen() {
                     activeOpacity={0.7}
                     testID="estimate-view-schedule-link"
                   >
-                    <CalendarDays size={16} color={Colors.info} />
+                    <CalendarDays size={16} color={themeColors.info} />
                     <Text style={styles.crossLinkText}>View Schedule ({Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0} tasks · {project.schedule.totalDurationDays ?? 0}d)</Text>
-                    <ChevronRight size={16} color={Colors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1443,12 +1447,12 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-schedule-section"
             >
-              <CalendarDays size={20} color={Colors.info} />
+              <CalendarDays size={20} color={themeColors.info} />
               <Text style={styles.sectionTitle}>Schedule</Text>
               {expanded.schedule ? (
-                <ChevronUp size={18} color={Colors.textMuted} />
+                <ChevronUp size={18} color={themeColors.textMuted} />
               ) : (
-                <ChevronDown size={18} color={Colors.textMuted} />
+                <ChevronDown size={18} color={themeColors.textMuted} />
               )}
             </TouchableOpacity>
 
@@ -1472,7 +1476,7 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.scheduleSectionTitle}>Tasks</Text>
                 {(Array.isArray(project.schedule.tasks) ? project.schedule.tasks : []).map(task => (
                   <View key={task.id} style={styles.scheduleTaskRow}>
-                    <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? Colors.success : task.status === 'in_progress' ? Colors.info : Colors.warning }]} />
+                    <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? themeColors.success : task.status === 'in_progress' ? themeColors.info : themeColors.accent }]} />
                     <View style={styles.scheduleTaskTextWrap}>
                       <Text style={styles.scheduleTaskName}>{task.title}</Text>
                       <Text style={styles.scheduleTaskMeta}>{task.phase} · Day {task.startDay} · {task.durationDays}d · {task.crew}</Text>
@@ -1487,9 +1491,9 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="schedule-open-full-link"
                 >
-                  <CalendarDays size={16} color={Colors.info} />
+                  <CalendarDays size={16} color={themeColors.info} />
                   <Text style={styles.crossLinkText}>Open Full Schedule</Text>
-                  <ChevronRight size={16} color={Colors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} />
                 </TouchableOpacity>
 
                 {hasAnyEstimate && (
@@ -1499,9 +1503,9 @@ export default function ProjectDetailScreen() {
                     activeOpacity={estimate ? 0.7 : 1}
                     testID="schedule-view-estimate-link"
                   >
-                    <Receipt size={16} color={Colors.primary} />
+                    <Receipt size={16} color={themeColors.accent} />
                     <Text style={styles.crossLinkText}>View Estimate ({formatMoney(heroTotal)})</Text>
-                    <ChevronRight size={16} color={Colors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 )}
                 {!hasAnyEstimate && (
@@ -1511,9 +1515,9 @@ export default function ProjectDetailScreen() {
                     activeOpacity={0.7}
                     testID="schedule-create-estimate-link"
                   >
-                    <Receipt size={16} color={Colors.primary} />
+                    <Receipt size={16} color={themeColors.accent} />
                     <Text style={styles.crossLinkText}>Create Estimate for This Project</Text>
-                    <ChevronRight size={16} color={Colors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1529,14 +1533,14 @@ export default function ProjectDetailScreen() {
                 onPress={() => toggleSection('materials')}
                 activeOpacity={0.7}
               >
-                <Package size={20} color={Colors.primary} />
+                <Package size={20} color={themeColors.accent} />
                 <Text style={styles.sectionTitle}>
                   Materials — {formatMoney(estimate.materialTotal)}
                 </Text>
                 {expanded.materials ? (
-                  <ChevronUp size={18} color={Colors.textMuted} />
+                  <ChevronUp size={18} color={themeColors.textMuted} />
                 ) : (
-                  <ChevronDown size={18} color={Colors.textMuted} />
+                  <ChevronDown size={18} color={themeColors.textMuted} />
                 )}
               </TouchableOpacity>
 
@@ -1554,7 +1558,7 @@ export default function ProjectDetailScreen() {
                         <Text style={styles.tableCellName} numberOfLines={1}>{item.name}</Text>
                         {(item.savings ?? 0) > 0 && (
                           <View style={styles.savingsBadge}>
-                            <TrendingDown size={10} color={Colors.success} />
+                            <TrendingDown size={10} color={themeColors.success} />
                             <Text style={styles.savingsText}>Save ${(item.savings ?? 0).toFixed(0)}</Text>
                           </View>
                         )}
@@ -1580,14 +1584,14 @@ export default function ProjectDetailScreen() {
                 onPress={() => toggleSection('labor')}
                 activeOpacity={0.7}
               >
-                <Users size={20} color={Colors.primary} />
+                <Users size={20} color={themeColors.accent} />
                 <Text style={styles.sectionTitle}>
                   Labor — {formatMoney(estimate.laborTotal)}
                 </Text>
                 {expanded.labor ? (
-                  <ChevronUp size={18} color={Colors.textMuted} />
+                  <ChevronUp size={18} color={themeColors.textMuted} />
                 ) : (
-                  <ChevronDown size={18} color={Colors.textMuted} />
+                  <ChevronDown size={18} color={themeColors.textMuted} />
                 )}
               </TouchableOpacity>
 
@@ -1619,12 +1623,12 @@ export default function ProjectDetailScreen() {
                 onPress={() => toggleSection('summary')}
                 activeOpacity={0.7}
               >
-                <DollarSign size={20} color={Colors.primary} />
+                <DollarSign size={20} color={themeColors.accent} />
                 <Text style={styles.sectionTitle}>Cost Summary</Text>
                 {expanded.summary ? (
-                  <ChevronUp size={18} color={Colors.textMuted} />
+                  <ChevronUp size={18} color={themeColors.textMuted} />
                 ) : (
-                  <ChevronDown size={18} color={Colors.textMuted} />
+                  <ChevronDown size={18} color={themeColors.textMuted} />
                 )}
               </TouchableOpacity>
 
@@ -1661,10 +1665,10 @@ export default function ProjectDetailScreen() {
                   </View>
                   <View style={styles.summaryRow}>
                     <View style={styles.savingsHighlight}>
-                      <TrendingDown size={14} color={Colors.success} />
-                      <Text style={[styles.summaryLabel, { color: Colors.success }]}>Bulk Savings</Text>
+                      <TrendingDown size={14} color={themeColors.success} />
+                      <Text style={[styles.summaryLabel, { color: themeColors.success }]}>Bulk Savings</Text>
                     </View>
-                    <Text style={[styles.summaryValue, { color: Colors.success }]}>
+                    <Text style={[styles.summaryValue, { color: themeColors.success }]}>
                       -{formatMoney(estimate.bulkSavingsTotal)}
                     </Text>
                   </View>
@@ -1684,12 +1688,12 @@ export default function ProjectDetailScreen() {
                   onPress={() => toggleSection('notes')}
                   activeOpacity={0.7}
                 >
-                  <Lightbulb size={20} color={Colors.accent} />
+                  <Lightbulb size={20} color={themeColors.accent} />
                   <Text style={styles.sectionTitle}>Tips & Notes</Text>
                   {expanded.notes ? (
-                    <ChevronUp size={18} color={Colors.textMuted} />
+                    <ChevronUp size={18} color={themeColors.textMuted} />
                   ) : (
-                    <ChevronDown size={18} color={Colors.textMuted} />
+                    <ChevronDown size={18} color={themeColors.textMuted} />
                   )}
                 </TouchableOpacity>
 
@@ -1716,35 +1720,35 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="collaborators-section"
           >
-            <Users size={20} color={Colors.info} />
+            <Users size={20} color={themeColors.info} />
             <Text style={styles.sectionTitle}>
               Team ({collaborators.length + 1})
             </Text>
             {expanded.collaborators ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
           {expanded.collaborators && (
             <View style={styles.collabCard}>
               <View style={styles.collabMember}>
-                <View style={[styles.collabAvatar, { backgroundColor: Colors.primary }]}>
-                  <Crown size={14} color={Colors.textOnPrimary} />
+                <View style={[styles.collabAvatar, { backgroundColor: themeColors.accent }]}>
+                  <Crown size={14} color={"#FFFFFF"} />
                 </View>
                 <View style={styles.collabInfo}>
                   <Text style={styles.collabName}>You (Owner)</Text>
                   <Text style={styles.collabEmail}>{branding.email || 'Set email in settings'}</Text>
                 </View>
-                <View style={[styles.collabRoleBadge, { backgroundColor: Colors.primary + '15' }]}>
-                  <Text style={[styles.collabRoleText, { color: Colors.primary }]}>Owner</Text>
+                <View style={[styles.collabRoleBadge, { backgroundColor: themeColors.accent + '15' }]}>
+                  <Text style={[styles.collabRoleText, { color: themeColors.accent }]}>Owner</Text>
                 </View>
               </View>
 
               {collaborators.map(collab => (
                 <View key={collab.id} style={styles.collabMember}>
-                  <View style={[styles.collabAvatar, { backgroundColor: collab.role === 'editor' ? Colors.info : Colors.textMuted }]}>
+                  <View style={[styles.collabAvatar, { backgroundColor: collab.role === 'editor' ? themeColors.info : themeColors.textMuted }]}>
                     {collab.role === 'editor' ? <PenTool size={12} color="#fff" /> : <Eye size={12} color="#fff" />}
                   </View>
                   <View style={styles.collabInfo}>
@@ -1753,10 +1757,10 @@ export default function ProjectDetailScreen() {
                   </View>
                   <View style={styles.collabActions}>
                     <View style={[styles.collabRoleBadge, {
-                      backgroundColor: collab.status === 'pending' ? Colors.warningLight : (collab.role === 'editor' ? Colors.infoLight : Colors.fillTertiary),
+                      backgroundColor: collab.status === 'pending' ? themeColors.accentSoft : (collab.role === 'editor' ? themeColors.info : themeColors.line),
                     }]}>
                       <Text style={[styles.collabRoleText, {
-                        color: collab.status === 'pending' ? Colors.warning : (collab.role === 'editor' ? Colors.info : Colors.textSecondary),
+                        color: collab.status === 'pending' ? themeColors.accent : (collab.role === 'editor' ? themeColors.info : themeColors.textSecondary),
                       }]}>
                         {collab.status === 'pending' ? 'Pending' : collab.role === 'editor' ? 'Editor' : 'Viewer'}
                       </Text>
@@ -1765,7 +1769,7 @@ export default function ProjectDetailScreen() {
                       style={styles.collabRemoveBtn}
                       onPress={() => handleRemoveCollaborator(collab.id, collab.name)}
                       activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={14} color={Colors.error} />
+                      <X size={14} color={themeColors.danger} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1777,7 +1781,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="invite-collab-btn"
               >
-                <UserPlus size={16} color={Colors.primary} />
+                <UserPlus size={16} color={themeColors.accent} />
                 <Text style={styles.inviteBtnText}>Invite Collaborator</Text>
               </TouchableOpacity>
             </View>
@@ -1793,14 +1797,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="change-orders-section"
           >
-            <Repeat size={20} color={Colors.accent} />
+            <Repeat size={20} color={themeColors.accent} />
             <Text style={styles.sectionTitle}>
               Change Orders ({changeOrders.length})
             </Text>
             {expanded.changeOrders ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -1815,8 +1819,8 @@ export default function ProjectDetailScreen() {
                   approved: changeOrders.filter(c => c.status === 'approved').length,
                 };
                 const chips: FilterChip<'pending' | 'approved' | 'all'>[] = [
-                  { value: 'pending', label: 'Pending', count: counts.pending, color: Colors.warning },
-                  { value: 'approved', label: 'Approved', count: counts.approved, color: Colors.success },
+                  { value: 'pending', label: 'Pending', count: counts.pending, color: themeColors.accent },
+                  { value: 'approved', label: 'Approved', count: counts.approved, color: themeColors.success },
                   { value: 'all', label: 'All', count: changeOrders.length },
                 ];
                 return (
@@ -1845,14 +1849,14 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.coDesc} numberOfLines={1}>{co.description}</Text>
                   </View>
                   <View style={styles.coRight}>
-                    <Text style={[styles.coAmount, { color: (co.changeAmount ?? 0) >= 0 ? Colors.accent : Colors.success }]}>
+                    <Text style={[styles.coAmount, { color: (co.changeAmount ?? 0) >= 0 ? themeColors.accent : themeColors.success }]}>
                       {(co.changeAmount ?? 0) >= 0 ? '+' : ''}{formatMoney(co.changeAmount, 2)}
                     </Text>
                     <View style={[styles.coBadge, {
-                      backgroundColor: co.status === 'approved' ? Colors.successLight : co.status === 'rejected' ? Colors.errorLight : co.status === 'submitted' ? Colors.infoLight : Colors.fillTertiary
+                      backgroundColor: co.status === 'approved' ? themeColors.successSoft : co.status === 'rejected' ? themeColors.danger : co.status === 'submitted' ? themeColors.info : themeColors.line
                     }]}>
                       <Text style={[styles.coBadgeText, {
-                        color: co.status === 'approved' ? Colors.success : co.status === 'rejected' ? Colors.error : co.status === 'submitted' ? Colors.info : Colors.textSecondary
+                        color: co.status === 'approved' ? themeColors.success : co.status === 'rejected' ? themeColors.danger : co.status === 'submitted' ? themeColors.info : themeColors.textSecondary
                       }]}>
                         {co.status.charAt(0).toUpperCase() + co.status.slice(1)}
                       </Text>
@@ -1913,7 +1917,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="add-change-order-btn"
               >
-                <Plus size={16} color={Colors.accent} />
+                <Plus size={16} color={themeColors.accent} />
                 <Text style={styles.coAddBtnText}>New Change Order</Text>
               </TouchableOpacity>
             </View>
@@ -1929,14 +1933,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="invoices-section"
           >
-            <Receipt size={20} color={Colors.success} />
+            <Receipt size={20} color={themeColors.success} />
             <Text style={styles.sectionTitle}>
               Invoices ({projectInvoices.length})
             </Text>
             {expanded.invoices ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -1951,8 +1955,8 @@ export default function ProjectDetailScreen() {
                   paid: projectInvoices.filter(i => i.amountPaid >= i.totalDue).length,
                 };
                 const chips: FilterChip<'unpaid' | 'paid' | 'all'>[] = [
-                  { value: 'unpaid', label: 'Unpaid', count: counts.unpaid, color: Colors.warning },
-                  { value: 'paid', label: 'Paid', count: counts.paid, color: Colors.success },
+                  { value: 'unpaid', label: 'Unpaid', count: counts.unpaid, color: themeColors.accent },
+                  { value: 'paid', label: 'Paid', count: counts.paid, color: themeColors.success },
                   { value: 'all', label: 'All', count: projectInvoices.length },
                 ];
                 return (
@@ -1999,10 +2003,10 @@ export default function ProjectDetailScreen() {
                     <View style={styles.coRight}>
                       <Text style={styles.invAmount}>{formatMoney(inv.totalDue, 2)}</Text>
                       <View style={[styles.coBadge, {
-                        backgroundColor: displayStatus === 'paid' ? Colors.successLight : displayStatus === 'overdue' ? Colors.errorLight : displayStatus === 'partially_paid' ? Colors.warningLight : displayStatus === 'sent' ? Colors.infoLight : Colors.fillTertiary
+                        backgroundColor: displayStatus === 'paid' ? themeColors.successSoft : displayStatus === 'overdue' ? themeColors.danger : displayStatus === 'partially_paid' ? themeColors.accentSoft : displayStatus === 'sent' ? themeColors.info : themeColors.line
                       }]}>
                         <Text style={[styles.coBadgeText, {
-                          color: displayStatus === 'paid' ? Colors.success : displayStatus === 'overdue' ? Colors.error : displayStatus === 'partially_paid' ? Colors.warning : displayStatus === 'sent' ? Colors.info : Colors.textSecondary
+                          color: displayStatus === 'paid' ? themeColors.success : displayStatus === 'overdue' ? themeColors.danger : displayStatus === 'partially_paid' ? themeColors.accent : displayStatus === 'sent' ? themeColors.info : themeColors.textSecondary
                         }]}>
                           {displayStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                         </Text>
@@ -2024,8 +2028,8 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-quick-invoice-btn"
                 >
-                  <Zap size={16} color={Colors.primary} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Quick</Text>
+                  <Zap size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Quick</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
@@ -2033,8 +2037,8 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-progress-bill-btn"
                 >
-                  <ClipboardList size={16} color={Colors.info} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.info }]}>Progress</Text>
+                  <ClipboardList size={16} color={themeColors.info} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Progress</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
@@ -2042,8 +2046,8 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-full-invoice-btn"
                 >
-                  <Receipt size={16} color={Colors.success} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full</Text>
+                  <Receipt size={16} color={themeColors.success} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.success }]}>Full</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2059,14 +2063,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="daily-reports-section"
           >
-            <ClipboardList size={20} color={Colors.primary} />
+            <ClipboardList size={20} color={themeColors.accent} />
             <Text style={styles.sectionTitle}>
               Daily Reports ({dailyReports.length})
             </Text>
             {expanded.dailyReports ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -2124,10 +2128,10 @@ export default function ProjectDetailScreen() {
                           </Text>
                         </View>
                         <View style={[styles.coBadge, {
-                          backgroundColor: dr.status === 'sent' ? Colors.successLight : Colors.primary + '15'
+                          backgroundColor: dr.status === 'sent' ? themeColors.successSoft : themeColors.accent + '15'
                         }]}>
                           <Text style={[styles.coBadgeText, {
-                            color: dr.status === 'sent' ? Colors.success : Colors.primary
+                            color: dr.status === 'sent' ? themeColors.success : themeColors.accent
                           }]}>
                             {dr.status === 'sent' ? 'Sent' : 'Saved'}
                           </Text>
@@ -2143,7 +2147,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="add-daily-report-btn"
               >
-                <Plus size={16} color={Colors.primary} />
+                <Plus size={16} color={themeColors.accent} />
                 <Text style={styles.coAddBtnText}>New Daily Report</Text>
               </TouchableOpacity>
             </View>
@@ -2159,14 +2163,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="punch-list-section"
           >
-            <CheckSquare size={20} color={Colors.accent} />
+            <CheckSquare size={20} color={themeColors.accent} />
             <Text style={styles.sectionTitle}>
               Punch List ({punchItems.length})
             </Text>
             {expanded.punchList ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -2190,16 +2194,16 @@ export default function ProjectDetailScreen() {
               )}
               {punchItems.slice(0, 5).map(pi => (
                 <View key={pi.id} style={styles.coRow}>
-                  <View style={[styles.punchDot, { backgroundColor: pi.status === 'closed' ? Colors.success : pi.status === 'ready_for_review' ? Colors.warning : pi.status === 'in_progress' ? Colors.info : Colors.error }]} />
+                  <View style={[styles.punchDot, { backgroundColor: pi.status === 'closed' ? themeColors.success : pi.status === 'ready_for_review' ? themeColors.accent : pi.status === 'in_progress' ? themeColors.info : themeColors.danger }]} />
                   <View style={styles.coInfo}>
                     <Text style={styles.coNumber} numberOfLines={1}>{pi.description}</Text>
                     <Text style={styles.coDesc} numberOfLines={1}>{pi.location || 'No location'} · {pi.assignedSub || 'Unassigned'}</Text>
                   </View>
                   <View style={[styles.coBadge, {
-                    backgroundColor: pi.status === 'closed' ? Colors.successLight : pi.status === 'ready_for_review' ? Colors.warningLight : pi.status === 'in_progress' ? Colors.infoLight : Colors.errorLight
+                    backgroundColor: pi.status === 'closed' ? themeColors.successSoft : pi.status === 'ready_for_review' ? themeColors.accentSoft : pi.status === 'in_progress' ? themeColors.info : themeColors.danger
                   }]}>
                     <Text style={[styles.coBadgeText, {
-                      color: pi.status === 'closed' ? Colors.success : pi.status === 'ready_for_review' ? Colors.warning : pi.status === 'in_progress' ? Colors.info : Colors.error
+                      color: pi.status === 'closed' ? themeColors.success : pi.status === 'ready_for_review' ? themeColors.accent : pi.status === 'in_progress' ? themeColors.info : themeColors.danger
                     }]}>
                       {pi.status === 'ready_for_review' ? 'Review' : pi.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                     </Text>
@@ -2215,8 +2219,8 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="open-punch-list-btn"
               >
-                <CheckSquare size={16} color={Colors.accent} />
-                <Text style={[styles.coAddBtnText, { color: Colors.accent }]}>Manage Punch List</Text>
+                <CheckSquare size={16} color={themeColors.accent} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Manage Punch List</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.coAddBtn, { marginTop: 8 }]}
@@ -2224,8 +2228,8 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="open-warranties-btn"
               >
-                <CheckSquare size={16} color={Colors.primary} />
-                <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Warranties</Text>
+                <CheckSquare size={16} color={themeColors.accent} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Warranties</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.coAddBtn, { marginTop: 8 }]}
@@ -2233,8 +2237,8 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="open-retention-btn"
               >
-                <CheckSquare size={16} color={Colors.warning} />
-                <Text style={[styles.coAddBtnText, { color: Colors.warning }]}>Retention Tracker</Text>
+                <CheckSquare size={16} color={themeColors.accent} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Retention Tracker</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2249,14 +2253,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="rfis-section"
           >
-            <FileText size={20} color={Colors.info} />
+            <FileText size={20} color={themeColors.info} />
             <Text style={styles.sectionTitle}>
               RFIs ({projectRFIs.length})
             </Text>
             {expanded.rfis ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -2272,9 +2276,9 @@ export default function ProjectDetailScreen() {
                   closed: projectRFIs.filter(r => r.status === 'closed' || r.status === 'void').length,
                 };
                 const chips: FilterChip<'open' | 'answered' | 'closed' | 'all'>[] = [
-                  { value: 'open', label: 'Open', count: counts.open, color: Colors.warning },
-                  { value: 'answered', label: 'Answered', count: counts.answered, color: Colors.info },
-                  { value: 'closed', label: 'Closed', count: counts.closed, color: Colors.success },
+                  { value: 'open', label: 'Open', count: counts.open, color: themeColors.accent },
+                  { value: 'answered', label: 'Answered', count: counts.answered, color: themeColors.info },
+                  { value: 'closed', label: 'Closed', count: counts.closed, color: themeColors.success },
                   { value: 'all', label: 'All', count: projectRFIs.length },
                 ];
                 return (
@@ -2320,12 +2324,12 @@ export default function ProjectDetailScreen() {
                       <Text style={styles.coDesc} numberOfLines={1}>{rfi.assignedTo || 'Unassigned'} · {rfi.priority}</Text>
                     </View>
                     <View style={styles.coRight}>
-                      {isOverdue && <Text style={{ fontSize: Type.caption2.fontSize, color: Colors.error, fontWeight: '600' as const }}>Overdue</Text>}
+                      {isOverdue && <Text style={{ fontSize: Type.caption2.fontSize, color: themeColors.danger, fontWeight: '600' as const }}>Overdue</Text>}
                       <View style={[styles.coBadge, {
-                        backgroundColor: rfi.status === 'open' ? Colors.warningLight : rfi.status === 'answered' ? Colors.infoLight : rfi.status === 'closed' ? Colors.successLight : Colors.fillTertiary
+                        backgroundColor: rfi.status === 'open' ? themeColors.accentSoft : rfi.status === 'answered' ? themeColors.info : rfi.status === 'closed' ? themeColors.successSoft : themeColors.line
                       }]}>
                         <Text style={[styles.coBadgeText, {
-                          color: rfi.status === 'open' ? Colors.warning : rfi.status === 'answered' ? Colors.info : rfi.status === 'closed' ? Colors.success : Colors.textSecondary
+                          color: rfi.status === 'open' ? themeColors.accent : rfi.status === 'answered' ? themeColors.info : rfi.status === 'closed' ? themeColors.success : themeColors.textSecondary
                         }]}>
                           {rfi.status.charAt(0).toUpperCase() + rfi.status.slice(1)}
                         </Text>
@@ -2341,18 +2345,18 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-rfi-btn"
                 >
-                  <Plus size={16} color={Colors.info} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.info }]}>New RFI</Text>
+                  <Plus size={16} color={themeColors.info} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>New RFI</Text>
                 </TouchableOpacity>
                 {projectRFIs.length > 0 && (
                   <TouchableOpacity
-                    style={[styles.coAddBtn, { flex: 1, backgroundColor: Colors.fillSecondary ?? Colors.fillTertiary }]}
+                    style={[styles.coAddBtn, { flex: 1, backgroundColor: themeColors.surfaceAlt ?? themeColors.line }]}
                     onPress={handleExportRFILog}
                     activeOpacity={0.7}
                     testID="export-rfi-log-btn"
                   >
-                    <Share2 size={15} color={Colors.text} />
-                    <Text style={[styles.coAddBtnText, { color: Colors.text }]}>Export Log</Text>
+                    <Share2 size={15} color={themeColors.text} />
+                    <Text style={[styles.coAddBtnText, { color: themeColors.text }]}>Export Log</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -2369,14 +2373,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="submittals-section"
           >
-            <FileText size={20} color={Colors.purple} />
+            <FileText size={20} color={themeColors.info} />
             <Text style={styles.sectionTitle}>
               Submittals ({projectSubmittals.length})
             </Text>
             {expanded.submittals ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -2397,10 +2401,10 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.coDesc} numberOfLines={1}>{sub.specSection} · {sub.reviewCycles.length} cycles</Text>
                   </View>
                   <View style={[styles.coBadge, {
-                    backgroundColor: sub.currentStatus === 'approved' ? Colors.successLight : sub.currentStatus === 'rejected' ? Colors.errorLight : sub.currentStatus === 'revise_resubmit' ? Colors.errorLight : Colors.warningLight
+                    backgroundColor: sub.currentStatus === 'approved' ? themeColors.successSoft : sub.currentStatus === 'rejected' ? themeColors.danger : sub.currentStatus === 'revise_resubmit' ? themeColors.danger : themeColors.accentSoft
                   }]}>
                     <Text style={[styles.coBadgeText, {
-                      color: sub.currentStatus === 'approved' ? Colors.success : sub.currentStatus === 'rejected' ? Colors.error : sub.currentStatus === 'revise_resubmit' ? Colors.error : Colors.warning
+                      color: sub.currentStatus === 'approved' ? themeColors.success : sub.currentStatus === 'rejected' ? themeColors.danger : sub.currentStatus === 'revise_resubmit' ? themeColors.danger : themeColors.accent
                     }]}>
                       {sub.currentStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                     </Text>
@@ -2413,8 +2417,8 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="add-submittal-btn"
               >
-                <Plus size={16} color={Colors.purple} />
-                <Text style={[styles.coAddBtnText, { color: Colors.purple }]}>New Submittal</Text>
+                <Plus size={16} color={themeColors.info} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>New Submittal</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
@@ -2422,8 +2426,8 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="extract-submittals-btn"
               >
-                <Sparkles size={16} color={Colors.primary} />
-                <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Extract from spec book (AI)</Text>
+                <Sparkles size={16} color={themeColors.accent} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Extract from spec book (AI)</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2438,27 +2442,27 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="budget-section"
             >
-              <DollarSign size={20} color={Colors.success} />
+              <DollarSign size={20} color={themeColors.success} />
               <Text style={styles.sectionTitle}>Financial Health</Text>
               {expanded.budget ? (
-                <ChevronUp size={18} color={Colors.textMuted} />
+                <ChevronUp size={18} color={themeColors.textMuted} />
               ) : (
-                <ChevronDown size={18} color={Colors.textMuted} />
+                <ChevronDown size={18} color={themeColors.textMuted} />
               )}
             </TouchableOpacity>
 
             {expanded.budget && (
               <View style={styles.coCard}>
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
-                  <View style={{ flex: 1, backgroundColor: Colors.successLight, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
-                    <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success }}>Budget</Text>
-                    <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.success }}>
+                  <View style={{ flex: 1, backgroundColor: themeColors.successSoft, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
+                    <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.success }}>Budget</Text>
+                    <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: themeColors.success }}>
                       {formatMoney(project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0)}
                     </Text>
                   </View>
-                  <View style={{ flex: 1, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
-                    <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.info }}>Spent</Text>
-                    <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.info }}>
+                  <View style={{ flex: 1, backgroundColor: themeColors.info, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
+                    <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.info }}>Spent</Text>
+                    <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: themeColors.info }}>
                       {formatMoney(allInvoices.filter(inv => inv.projectId === id).reduce((s, inv) => s + (inv.amountPaid ?? 0), 0))}
                     </Text>
                   </View>
@@ -2469,8 +2473,8 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-budget-dashboard"
                 >
-                  <DollarSign size={16} color={Colors.success} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full Budget Dashboard</Text>
+                  <DollarSign size={16} color={themeColors.success} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.success }]}>Full Budget Dashboard</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
@@ -2478,8 +2482,8 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-job-costing"
                 >
-                  <BarChart3 size={16} color={Colors.primary} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Job Cost-to-Complete</Text>
+                  <BarChart3 size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Job Cost-to-Complete</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -2494,14 +2498,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="photos-section"
           >
-            <Camera size={20} color={Colors.info} />
+            <Camera size={20} color={themeColors.info} />
             <Text style={styles.sectionTitle}>
               Photos ({projectPhotos.length})
             </Text>
             {expanded.photos ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -2552,11 +2556,11 @@ export default function ProjectDetailScreen() {
                           {photo.uri ? (
                             <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} resizeMode="cover" />
                           ) : (
-                            <Camera size={20} color={Colors.textMuted} />
+                            <Camera size={20} color={themeColors.textMuted} />
                           )}
                           {(photo.markup?.length ?? 0) > 0 && (
                             <View style={styles.photoThumbMarkupBadge}>
-                              <Pencil size={10} color={Colors.surface} />
+                              <Pencil size={10} color={themeColors.surface} />
                             </View>
                           )}
                           <View style={styles.photoThumbDateOverlay}>
@@ -2584,19 +2588,19 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="client-portal-section"
           >
-            <Globe size={20} color={Colors.purple} />
+            <Globe size={20} color={themeColors.info} />
             <Text style={styles.sectionTitle}>Client Portal</Text>
             {expanded.clientPortal ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
           {expanded.clientPortal && (
             <View style={styles.coCard}>
               <View style={styles.portalInfo}>
-                <Globe size={24} color={Colors.purple} />
+                <Globe size={24} color={themeColors.info} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.portalTitle}>Share Project with Client</Text>
                   <Text style={styles.portalDesc}>Give clients a read-only link to view schedule, invoices, photos & more. Control exactly what they see.</Text>
@@ -2606,15 +2610,15 @@ export default function ProjectDetailScreen() {
                 <>
                   <View style={styles.portalLinkRow}>
                     <View style={styles.portalLinkBox}>
-                      <Link size={12} color={Colors.info} />
+                      <Link size={12} color={themeColors.info} />
                       <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
                     </View>
                     <TouchableOpacity style={styles.portalCopyBtn} onPress={() => { Alert.alert('Copied', 'Portal link copied to clipboard.'); }} accessibilityRole="button" accessibilityLabel="Copy">
-                      <Copy size={14} color={Colors.primary} />
+                      <Copy size={14} color={themeColors.accent} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.portalInviteCount}>
-                    <Users size={13} color={Colors.textMuted} />
+                    <Users size={13} color={themeColors.textMuted} />
                     <Text style={styles.portalInviteCountText}>
                       {project.clientPortal.invites?.length ?? 0} client{(project.clientPortal.invites?.length ?? 0) !== 1 ? 's' : ''} invited
                     </Text>
@@ -2624,7 +2628,7 @@ export default function ProjectDetailScreen() {
                     onPress={() => navigateFromTile({ pathname: '/client-portal-setup', params: { id } })}
                     activeOpacity={0.7}
                   >
-                    <Globe size={16} color={Colors.purple} />
+                    <Globe size={16} color={themeColors.info} />
                     <Text style={styles.portalEnableBtnText}>Manage Portal Settings</Text>
                   </TouchableOpacity>
                 </>
@@ -2653,7 +2657,7 @@ export default function ProjectDetailScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Globe size={16} color={Colors.purple} />
+                  <Globe size={16} color={themeColors.info} />
                   <Text style={styles.portalEnableBtnText}>Enable Client Portal</Text>
                 </TouchableOpacity>
               )}
@@ -2670,15 +2674,15 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="communications-section"
           >
-            <Mail size={20} color={Colors.info} />
+            <Mail size={20} color={themeColors.info} />
             <Text style={styles.sectionTitle}>Communications</Text>
             <View style={styles.coBadge}>
               <Text style={styles.coBadgeText}>{commEvents.length}</Text>
             </View>
             {expanded.communications ? (
-              <ChevronUp size={18} color={Colors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} />
             ) : (
-              <ChevronDown size={18} color={Colors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} />
             )}
           </TouchableOpacity>
 
@@ -2686,18 +2690,18 @@ export default function ProjectDetailScreen() {
             <View style={styles.coCard}>
               {commEvents.length === 0 ? (
                 <View style={styles.commEmpty}>
-                  <Mail size={24} color={Colors.textMuted} />
+                  <Mail size={24} color={themeColors.textMuted} />
                   <Text style={styles.commEmptyText}>No activity yet. Sending documents, approvals, and notes will appear here.</Text>
                 </View>
               ) : (
                 commEvents.slice(0, 10).map(event => (
                   <View key={event.id} style={styles.commEventRow}>
                     <View style={[styles.commEventDot, {
-                      backgroundColor: event.type.includes('approved') ? Colors.success
-                        : event.type.includes('rejected') ? Colors.error
-                        : event.type.includes('overdue') ? Colors.warning
-                        : event.isPrivate ? Colors.textMuted
-                        : Colors.info
+                      backgroundColor: event.type.includes('approved') ? themeColors.success
+                        : event.type.includes('rejected') ? themeColors.danger
+                        : event.type.includes('overdue') ? themeColors.accent
+                        : event.isPrivate ? themeColors.textMuted
+                        : themeColors.info
                     }]} />
                     <View style={styles.commEventContent}>
                       <Text style={styles.commEventSummary} numberOfLines={2}>{event.summary}</Text>
@@ -2732,7 +2736,7 @@ export default function ProjectDetailScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <Plus size={14} color={Colors.info} />
+                <Plus size={14} color={themeColors.info} />
                 <Text style={styles.commAddNoteBtnText}>Add Internal Note</Text>
               </TouchableOpacity>
             </View>
@@ -2751,7 +2755,7 @@ export default function ProjectDetailScreen() {
             ) : null}
             {branding.signatureData && branding.signatureData.length > 0 && (
               <View style={styles.signatureNote}>
-                <PenTool size={12} color={Colors.primary} />
+                <PenTool size={12} color={themeColors.accent} />
                 <Text style={styles.signatureNoteText}>Signature will be included</Text>
               </View>
             )}
@@ -2761,7 +2765,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="open-share-modal"
             >
-              <Share2 size={18} color={Colors.textOnPrimary} />
+              <Share2 size={18} color={"#FFFFFF"} />
               <Text style={styles.shareBtnPrimaryText}>Share Estimate</Text>
             </TouchableOpacity>
           </View>
@@ -2769,7 +2773,7 @@ export default function ProjectDetailScreen() {
 
         {!hasAnyEstimate && (
           <View style={styles.noEstimate}>
-            <AlertTriangle size={32} color={Colors.warning} />
+            <AlertTriangle size={32} color={themeColors.accent} />
             <Text style={styles.noEstimateTitle}>No Estimate Yet</Text>
             <Text style={styles.noEstimateText}>
               Go to the Estimate tab to search materials and link an estimate to this project.
@@ -2789,12 +2793,12 @@ export default function ProjectDetailScreen() {
         )}
 
         <TouchableOpacity style={styles.editButton} onPress={openEditModal} activeOpacity={0.7} testID="edit-project-bottom-btn">
-          <Pencil size={18} color={Colors.primary} />
+          <Pencil size={18} color={themeColors.accent} />
           <Text style={styles.editButtonText}>Edit Project</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.7}>
-          <Trash2 size={18} color={Colors.error} />
+          <Trash2 size={18} color={themeColors.danger} />
           <Text style={styles.deleteButtonText}>Delete Project</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -2816,7 +2820,7 @@ export default function ProjectDetailScreen() {
               onPress={() => setDetailModal(null)}
               activeOpacity={0.7}
               testID="close-detail-modal" accessibilityRole="button" accessibilityLabel="Close">
-              <X size={20} color={Colors.text} />
+              <X size={20} color={themeColors.text} />
             </TouchableOpacity>
           </View>
           {detailModal === 'total' && renderTotalDetailModal()}
@@ -2835,7 +2839,7 @@ export default function ProjectDetailScreen() {
             <View style={styles.shareModalHeader}>
               <Text style={styles.shareModalTitle}>Share Estimate</Text>
               <TouchableOpacity onPress={() => setShowShareModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -2844,8 +2848,8 @@ export default function ProjectDetailScreen() {
             </Text>
 
             <TouchableOpacity style={styles.shareOption} onPress={handleSharePDF} activeOpacity={0.7} testID="share-pdf-option">
-              <View style={[styles.shareOptionIcon, { backgroundColor: Colors.primary + '12' }]}>
-                <FileText size={20} color={Colors.primary} />
+              <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.accent + '12' }]}>
+                <FileText size={20} color={themeColors.accent} />
               </View>
               <View style={styles.shareOptionInfo}>
                 <Text style={styles.shareOptionTitle}>Share as PDF</Text>
@@ -2854,8 +2858,8 @@ export default function ProjectDetailScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.shareOption} onPress={handleShareEmail} activeOpacity={0.7} testID="share-email-option">
-              <View style={[styles.shareOptionIcon, { backgroundColor: Colors.info + '12' }]}>
-                <Mail size={20} color={Colors.info} />
+              <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.info + '12' }]}>
+                <Mail size={20} color={themeColors.info} />
               </View>
               <View style={styles.shareOptionInfo}>
                 <Text style={styles.shareOptionTitle}>Send via Email</Text>
@@ -2864,8 +2868,8 @@ export default function ProjectDetailScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.shareOption} onPress={handleShareText} activeOpacity={0.7} testID="share-text-option">
-              <View style={[styles.shareOptionIcon, { backgroundColor: Colors.success + '12' }]}>
-                <MessageSquare size={20} color={Colors.success} />
+              <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.success + '12' }]}>
+                <MessageSquare size={20} color={themeColors.success} />
               </View>
               <View style={styles.shareOptionInfo}>
                 <Text style={styles.shareOptionTitle}>Send via Text</Text>
@@ -2875,8 +2879,8 @@ export default function ProjectDetailScreen() {
 
             {project.schedule && (
               <TouchableOpacity style={styles.shareOption} onPress={handleShareSchedulePDF} activeOpacity={0.7} testID="share-schedule-option">
-                <View style={[styles.shareOptionIcon, { backgroundColor: Colors.warning + '12' }]}>
-                  <CalendarDays size={20} color={Colors.warning} />
+                <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.accent + '12' }]}>
+                  <CalendarDays size={20} color={themeColors.accent} />
                 </View>
                 <View style={styles.shareOptionInfo}>
                   <Text style={styles.shareOptionTitle}>Schedule PDF</Text>
@@ -2905,7 +2909,7 @@ export default function ProjectDetailScreen() {
                 <View style={styles.inviteModalHeader}>
                   <Text style={styles.inviteModalTitle}>Edit Project</Text>
                   <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={Colors.textMuted} />
+                    <X size={20} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
 
@@ -2915,7 +2919,7 @@ export default function ProjectDetailScreen() {
                   value={editName}
                   onChangeText={setEditName}
                   placeholder="Project name"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   testID="edit-name-input"
                 />
 
@@ -2925,7 +2929,7 @@ export default function ProjectDetailScreen() {
                   value={editDescription}
                   onChangeText={setEditDescription}
                   placeholder="Brief description..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                   testID="edit-desc-input"
                 />
@@ -2936,7 +2940,7 @@ export default function ProjectDetailScreen() {
                   value={editLocation}
                   onChangeText={setEditLocation}
                   placeholder="City, State"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   testID="edit-location-input"
                 />
 
@@ -2946,7 +2950,7 @@ export default function ProjectDetailScreen() {
                   value={editSquareFootage}
                   onChangeText={setEditSquareFootage}
                   placeholder="e.g. 2000"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   keyboardType="numeric"
                   testID="edit-sqft-input"
                 />
@@ -2996,7 +3000,7 @@ export default function ProjectDetailScreen() {
               <View style={styles.inviteModalHeader}>
                 <Text style={styles.inviteModalTitle}>Invite Collaborator</Text>
                 <TouchableOpacity onPress={() => setShowInviteModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
@@ -3010,7 +3014,7 @@ export default function ProjectDetailScreen() {
                 value={inviteEmail}
                 onChangeText={setInviteEmail}
                 placeholder="colleague@company.com"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 testID="invite-email-input"
@@ -3022,7 +3026,7 @@ export default function ProjectDetailScreen() {
                 value={inviteName}
                 onChangeText={setInviteName}
                 placeholder="John Smith"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 testID="invite-name-input"
               />
 
@@ -3033,7 +3037,7 @@ export default function ProjectDetailScreen() {
                   onPress={() => setInviteRole('editor')}
                   activeOpacity={0.7}
                 >
-                  <PenTool size={14} color={inviteRole === 'editor' ? Colors.textOnPrimary : Colors.text} />
+                  <PenTool size={14} color={inviteRole === 'editor' ? "#FFFFFF" : themeColors.text} />
                   <Text style={[styles.inviteRoleBtnText, inviteRole === 'editor' && styles.inviteRoleBtnTextActive]}>Editor</Text>
                   <Text style={[styles.inviteRoleDesc, inviteRole === 'editor' && { color: 'rgba(255,255,255,0.7)' }]}>Can edit</Text>
                 </TouchableOpacity>
@@ -3042,7 +3046,7 @@ export default function ProjectDetailScreen() {
                   onPress={() => setInviteRole('viewer')}
                   activeOpacity={0.7}
                 >
-                  <Eye size={14} color={inviteRole === 'viewer' ? Colors.textOnPrimary : Colors.text} />
+                  <Eye size={14} color={inviteRole === 'viewer' ? "#FFFFFF" : themeColors.text} />
                   <Text style={[styles.inviteRoleBtnText, inviteRole === 'viewer' && styles.inviteRoleBtnTextActive]}>Viewer</Text>
                   <Text style={[styles.inviteRoleDesc, inviteRole === 'viewer' && { color: 'rgba(255,255,255,0.7)' }]}>Read only</Text>
                 </TouchableOpacity>
@@ -3053,7 +3057,7 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.inviteCancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.inviteSendBtn} onPress={handleInvite} activeOpacity={0.85} testID="send-invite-btn">
-                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Send size={16} color={"#FFFFFF"} />
                   <Text style={styles.inviteSendBtnText}>Send Invite</Text>
                 </TouchableOpacity>
               </View>
@@ -3100,7 +3104,7 @@ export default function ProjectDetailScreen() {
             onPress={() => setLightboxPhoto(null)}
             activeOpacity={0.7}
             testID="photo-lightbox-close" accessibilityRole="button" accessibilityLabel="Close">
-            <X size={20} color={Colors.surface} />
+            <X size={20} color={themeColors.surface} />
           </TouchableOpacity>
           {lightboxPhoto && (
             <TouchableOpacity
@@ -3115,7 +3119,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.85}
               testID="photo-lightbox-markup"
             >
-              <Pencil size={14} color={Colors.surface} />
+              <Pencil size={14} color={themeColors.surface} />
               <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
             </TouchableOpacity>
           )}
@@ -3142,6 +3146,7 @@ const COLOR_HEX_MARKUP: Record<'red' | 'yellow' | 'green', string> = {
   green:  '#1E8E4A',
 };
 function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
+  const { colors: themeColors } = useTheme();
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   // Defensive: a photo persisted before markup support, or a partial AI
   // tool failure, can leave `markup` undefined. Treat non-array as empty.
@@ -3199,7 +3204,7 @@ function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
                     fill={stroke}
                     opacity={0.92}
                   />
-                  <SvgTextEl x={x + 8} y={y + 2} fill={Colors.surface} fontSize={13} fontWeight="700">{m.text}</SvgTextEl>
+                  <SvgTextEl x={x + 8} y={y + 2} fill={themeColors.surface} fontSize={13} fontWeight="700">{m.text}</SvgTextEl>
                 </React.Fragment>
               );
             }
@@ -3211,16 +3216,16 @@ function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
-  backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, shadowColor: Colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: themeColors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtnText: { color: "#FFFFFF", fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
+  heroCard: { backgroundColor: themeColors.accent, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, shadowColor: themeColors.accentLabel, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
   heroHeader: { marginBottom: 16 },
   heroTitleBlock: {},
-  heroName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -0.3 },
+  heroName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: "#FFFFFF", letterSpacing: -0.3 },
   heroMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
   heroMetaText: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.75)' },
   heroDesc: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 18 },
@@ -3228,11 +3233,11 @@ const styles = StyleSheet.create({
   heroStatMain: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Tokens.radius.lg, padding: 16, alignItems: 'center', marginBottom: 12 },
   heroTapHint: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '500' as const, marginTop: 4, letterSpacing: 0.3 },
   heroStatLabel: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.7)', fontWeight: '500' as const, marginBottom: 4 },
-  heroStatValue: { fontSize: 32, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -1 },
+  heroStatValue: { fontSize: 32, fontWeight: '800' as const, color: "#FFFFFF", letterSpacing: -1 },
   heroStatsRow: { flexDirection: 'row', gap: 8 },
   heroStatSmall: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: Tokens.radius.md, padding: 10, alignItems: 'center' },
   smallStatLabel: { fontSize: Type.caption2.fontSize, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: 2 },
-  smallStatValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  smallStatValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   section: { marginHorizontal: 20, marginTop: 18 },
   // Section headers across project-detail. Bumped border weight 1 → 1.5px
   // and ink-tinted color so each section reads as its own card with a
@@ -3241,11 +3246,11 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: Colors.text + '12',
+    borderColor: themeColors.text + '12',
     gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -3257,148 +3262,148 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.body.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.3,
   },
-  tableContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
-  tableHeader: { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  tableHeaderText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  tableRowAlt: { backgroundColor: Colors.surfaceAlt },
-  tableCellName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  tableCellSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  tableCell: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  tableCellBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  tableContainer: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: themeColors.line, overflow: 'hidden' },
+  tableHeader: { flexDirection: 'row', backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  tableHeaderText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  tableRowAlt: { backgroundColor: themeColors.surfaceAlt },
+  tableCellName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  tableCellSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  tableCell: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
+  tableCellBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   bulkBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
-  bulkBadgeText: { fontSize: 10, fontWeight: '600' as const, color: Colors.success },
+  bulkBadgeText: { fontSize: 10, fontWeight: '600' as const, color: themeColors.success },
   savingsBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  savingsText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success },
-  linkedSummaryRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, gap: 8, backgroundColor: Colors.primary + '06', borderTopWidth: 1, borderTopColor: Colors.primary + '15' },
+  savingsText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.success },
+  linkedSummaryRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, gap: 8, backgroundColor: themeColors.accent + '06', borderTopWidth: 1, borderTopColor: themeColors.accent + '15' },
   linkedSummaryItem: { flex: 1, alignItems: 'center', gap: 2 },
-  linkedSummaryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
-  linkedSummaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  summaryCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 18, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
-  scheduleCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
+  linkedSummaryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '500' as const, color: themeColors.textSecondary },
+  linkedSummaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  summaryCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 18, marginTop: 8, borderWidth: 1, borderColor: themeColors.line },
+  scheduleCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: themeColors.line },
   scheduleTopRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  scheduleMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 12 },
-  scheduleMetricLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
-  scheduleMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  scheduleSectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 10 },
-  scheduleTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  scheduleMetric: { flex: 1, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 12 },
+  scheduleMetricLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  scheduleMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  scheduleSectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 10 },
+  scheduleTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: themeColors.line },
   scheduleStatusDot: { width: 8, height: 8, borderRadius: 4 },
   scheduleTaskTextWrap: { flex: 1 },
-  scheduleTaskName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
-  scheduleTaskMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.info },
-  crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder },
-  crossLinkText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  scheduleTaskName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, marginBottom: 2 },
+  scheduleTaskMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.info },
+  crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: themeColors.line },
+  crossLinkText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  summaryLabel: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
-  summaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  summaryDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 8 },
+  summaryLabel: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary },
+  summaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  summaryDivider: { height: 1, backgroundColor: themeColors.line, marginVertical: 8 },
   savingsHighlight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  grandTotalDivider: { height: 2, backgroundColor: Colors.primary, marginVertical: 10, borderRadius: 1 },
-  grandTotalLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
-  grandTotalValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  notesContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  grandTotalDivider: { height: 2, backgroundColor: themeColors.accent, marginVertical: 10, borderRadius: 1 },
+  grandTotalLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: themeColors.text },
+  grandTotalValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  notesContainer: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: themeColors.line, gap: 12 },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  noteBullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent, marginTop: 7 },
-  noteText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  noteBullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: themeColors.accent, marginTop: 7 },
+  noteText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
   noEstimate: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, marginTop: 20 },
-  noEstimateTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 12 },
-  noEstimateText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 8, lineHeight: 22 },
-  collabCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
+  noEstimateTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text, marginTop: 12 },
+  noEstimateText: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const, marginTop: 8, lineHeight: 22 },
+  collabCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: themeColors.line, padding: 14, gap: 10 },
   collabMember: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   collabAvatar: { width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center' },
   collabInfo: { flex: 1, gap: 2 },
-  collabName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  collabEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  collabName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  collabEmail: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
   collabActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   collabRoleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
   collabRoleText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
-  collabRemoveBtn: { width: 28, height: 28, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
-  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 4 },
-  inviteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  shareSection: { marginHorizontal: 20, marginTop: 18, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
-  shareSectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  shareBrandingNote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: -6 },
+  collabRemoveBtn: { width: 28, height: 28, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.danger, alignItems: 'center', justifyContent: 'center' },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '10', borderWidth: 1, borderColor: themeColors.accent + '20', marginTop: 4 },
+  inviteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  shareSection: { marginHorizontal: 20, marginTop: 18, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line, gap: 12 },
+  shareSectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  shareBrandingNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: -6 },
   signatureNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
-  signatureNoteText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '500' as const },
-  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
-  shareBtnPrimaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: Colors.primary + '20' },
-  editButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  signatureNoteText: { fontSize: Type.caption1.fontSize, color: themeColors.accent, fontWeight: '500' as const },
+  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  shareBtnPrimaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: themeColors.accent + '20' },
+  editButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   editTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  editTypeChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary },
-  editTypeChipActive: { backgroundColor: Colors.primary },
-  editTypeChipLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  editTypeChipLabelActive: { color: Colors.textOnPrimary },
-  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: Colors.error + '30' },
-  deleteButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.error },
-  shareModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
-  shareModalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 14, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  editTypeChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.card, backgroundColor: themeColors.line },
+  editTypeChipActive: { backgroundColor: themeColors.accent },
+  editTypeChipLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  editTypeChipLabelActive: { color: "#FFFFFF" },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.danger, borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: themeColors.danger + '30' },
+  deleteButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: themeColors.danger },
+  shareModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'center', padding: 20 },
+  shareModalCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 14, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   shareModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  shareModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  shareModalDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
-  shareOption: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  shareModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  shareModalDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
+  shareOption: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: themeColors.line },
   shareOptionIcon: { width: 44, height: 44, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
   shareOptionInfo: { flex: 1, gap: 2 },
-  shareOptionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  shareOptionDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  inviteModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  inviteModalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
+  shareOptionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  shareOptionDesc: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  inviteModalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
+  inviteModalCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
   inviteModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  inviteModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  inviteDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
-  inviteFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  inviteInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
+  inviteModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  inviteDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
+  inviteFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
+  inviteInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   inviteRoleRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  inviteRoleBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary },
-  inviteRoleBtnActive: { backgroundColor: Colors.primary },
-  inviteRoleBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  inviteRoleBtnTextActive: { color: Colors.textOnPrimary },
-  inviteRoleDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
+  inviteRoleBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line },
+  inviteRoleBtnActive: { backgroundColor: themeColors.accent },
+  inviteRoleBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  inviteRoleBtnTextActive: { color: "#FFFFFF" },
+  inviteRoleDesc: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary },
   inviteActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  inviteCancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  inviteCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  inviteSendBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  inviteSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  coCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 4 },
-  coEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 8 },
-  coRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
+  inviteCancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  inviteCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  inviteSendBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  inviteSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  coCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: themeColors.line, padding: 14, gap: 4 },
+  coEmptyText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, paddingVertical: 8 },
+  coRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 10 },
   coInfo: { flex: 1, gap: 2 },
-  coNumber: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  coDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  coNumber: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  coDesc: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
   coRight: { alignItems: 'flex-end', gap: 4 },
   coAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
-  invAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  invAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   coBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   coBadgeText: { fontSize: 10, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   coApproveRow: { flexDirection: 'row', gap: 8, paddingTop: 8 },
-  coApproveBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.successLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.success + '30' },
-  coApproveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.success },
-  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.error + '30' },
-  coRejectBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.error },
-  coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 8 },
-  coAddBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  coApproveBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.successSoft, alignItems: 'center', borderWidth: 1, borderColor: themeColors.success + '30' },
+  coApproveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.success },
+  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: themeColors.danger, alignItems: 'center', borderWidth: 1, borderColor: themeColors.danger + '30' },
+  coRejectBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.danger },
+  coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '10', borderWidth: 1, borderColor: themeColors.accent + '20', marginTop: 8 },
+  coAddBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   invBtnRow: { flexDirection: 'row', gap: 8 },
   punchProgress: { marginBottom: 8 },
   punchProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  punchProgressLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  punchProgressPercent: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  punchProgressTrack: { height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, overflow: 'hidden' as const },
-  punchProgressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
+  punchProgressLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  punchProgressPercent: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  punchProgressTrack: { height: 6, backgroundColor: themeColors.line, borderRadius: 3, overflow: 'hidden' as const },
+  punchProgressFill: { height: 6, backgroundColor: themeColors.accent, borderRadius: 3 },
   punchDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-  punchMoreText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
+  punchMoreText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
   dfrWeekBucket: { marginBottom: 8 },
   dfrWeekHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 4, paddingVertical: 6 },
-  dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
-  dfrWeekBadge: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.sm, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
-  dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.textSecondary },
+  dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  dfrWeekBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.sm, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
+  dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: themeColors.textSecondary },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
+  photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
   photoThumbImage: { width: '100%', height: '100%' },
-  photoThumbDate: { fontSize: 9, color: Colors.surface, fontWeight: '700' as const },
+  photoThumbDate: { fontSize: 9, color: themeColors.surface, fontWeight: '700' as const },
   photoThumbDateOverlay: { position: 'absolute' as const, bottom: 4, left: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 1, paddingHorizontal: 4, borderRadius: 5, alignItems: 'center' as const },
   photoThumbMarkupBadge: {
     position: 'absolute' as const, top: 4, right: 4,
@@ -3415,34 +3420,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 12, borderRadius: Tokens.radius.full,
     backgroundColor: 'rgba(255,106,26,0.95)',
   },
-  lightboxMarkupBtnText: { color: Colors.surface, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
+  lightboxMarkupBtnText: { color: themeColors.surface, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
   portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
-  portalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  portalDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
+  portalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 2 },
+  portalDesc: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
   portalBadge: { alignSelf: 'flex-start' as const, backgroundColor: '#5856D6' + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginBottom: 8 },
-  portalBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.purple },
+  portalBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.info },
   portalLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  portalLinkBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10 },
-  portalLinkText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.info },
-  portalCopyBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
+  portalLinkBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10 },
+  portalLinkText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.info },
+  portalCopyBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '12', alignItems: 'center', justifyContent: 'center' },
   portalEnableBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: '#5856D6' + '12', borderWidth: 1, borderColor: '#5856D6' + '20' },
-  portalEnableBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.purple },
+  portalEnableBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.info },
   portalInviteCount: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginBottom: 10 },
-  portalInviteCountText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  portalInviteCountText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
   commEmpty: { alignItems: 'center' as const, paddingVertical: 20, gap: 8 },
-  commEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
-  commEventRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  commEmptyText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  commEventRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.line },
   commEventDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   commEventContent: { flex: 1, gap: 2 },
-  commEventSummary: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.text, lineHeight: 18 },
-  commEventTime: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.infoLight, marginTop: 8 },
-  commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.info },
+  commEventSummary: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: themeColors.text, lineHeight: 18 },
+  commEventTime: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
+  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.info, marginTop: 8 },
+  commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.info },
   quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
-  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
+  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
   quickActionBtnFull: { flexBasis: '100%' as const },
   quickActionIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
-  quickActionLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
+  quickActionLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, flexShrink: 1 },
   sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
   // Tight, predictable spacing: collapsed groups stack snugly. The body
   // has no marginBottom — separation between groups comes ONLY from
@@ -3451,80 +3456,80 @@ const styles = StyleSheet.create({
   tileGroup: { gap: 6 },
   tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 6, minHeight: 40 },
   tileGroupHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
-  tileGroupHeaderLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
-  tileGroupBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
-  tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
+  tileGroupHeaderLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  tileGroupBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
+  tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
   tileGroupBody: { gap: 8 },
-  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
+  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
-  sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
   sectionTileStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, marginTop: 2, letterSpacing: 0.1 },
-  sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
-  sectionTileBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
-  sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  sectionTileBadge: { backgroundColor: themeColors.line, borderRadius: Tokens.radius.md, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
+  sectionTileBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: themeColors.line },
   sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72 },
-  sectionModalBackText: { fontSize: Type.callout.fontSize, fontWeight: '500' as const, color: Colors.primary },
-  sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  sectionModalBackText: { fontSize: Type.callout.fontSize, fontWeight: '500' as const, color: themeColors.accent },
+  sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: Type.body.fontSize, fontWeight: '700' as const, color: themeColors.text },
 });
 
-const detailStyles = StyleSheet.create({
-  modalContainer: { flex: 1, backgroundColor: Colors.background },
-  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  modalCloseBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+const makeDetailStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  modalContainer: { flex: 1, backgroundColor: themeColors.bg },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: themeColors.line, alignSelf: 'center', marginBottom: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: themeColors.line, backgroundColor: themeColors.bg },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text, letterSpacing: -0.3 },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
-  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.5 },
-  heroSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: themeColors.accent + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -1.5 },
+  heroSubtitle: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const },
   heroChips: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
-  heroChipLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  heroChipSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  sectionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
-  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  heroChip: { backgroundColor: themeColors.line, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
+  heroChipLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  heroChipSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontWeight: '500' as const },
+  sectionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
+  barChartWrap: { marginHorizontal: 20, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: themeColors.line },
   barRow: { gap: 6 },
   barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  barLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  barPct: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
+  barLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  barPct: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: themeColors.line, overflow: 'hidden' as const },
   barFill: { height: 8, borderRadius: 4 },
-  barValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  additionalCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  barValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  additionalCard: { marginHorizontal: 20, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: themeColors.line },
   additionalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   additionalLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   additionalDot: { width: 8, height: 8, borderRadius: 4 },
-  additionalLabel: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '500' as const },
+  additionalLabel: { fontSize: Type.subhead.fontSize, color: themeColors.text, fontWeight: '500' as const },
   additionalRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  additionalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  additionalPct: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
-  additionalDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
-  fullBreakdownCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 18, gap: 8, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  additionalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  additionalPct: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, backgroundColor: themeColors.line, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
+  additionalDivider: { height: 1, backgroundColor: themeColors.line, marginVertical: 4 },
+  fullBreakdownCard: { marginHorizontal: 20, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, gap: 8, marginBottom: 20, borderWidth: 1, borderColor: themeColors.line },
   breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  breakdownLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  breakdownValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  breakdownLabelBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  breakdownValueBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  breakdownDivider: { height: 1, backgroundColor: Colors.borderLight },
-  breakdownDividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 4 },
-  grandLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
-  grandValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  breakdownLabel: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
+  breakdownValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  breakdownLabelBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  breakdownValueBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  breakdownDivider: { height: 1, backgroundColor: themeColors.line },
+  breakdownDividerThick: { height: 2, backgroundColor: themeColors.accent + '30', borderRadius: 1, marginVertical: 4 },
+  grandLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: themeColors.text },
+  grandValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  infoCard: { marginHorizontal: 20, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: themeColors.line },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   infoStep: { width: 28, height: 28, borderRadius: Tokens.radius.lg, alignItems: 'center', justifyContent: 'center' },
   infoStepNum: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
   infoTextWrap: { flex: 1 },
-  infoTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  infoDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
-  topSaversCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  infoTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  infoDesc: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 19, marginTop: 2 },
+  topSaversCard: { marginHorizontal: 20, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: themeColors.line },
   saverRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
-  saverRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center' },
-  saverRankText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.success },
+  saverRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: themeColors.successSoft, alignItems: 'center', justifyContent: 'center' },
+  saverRankText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.success },
   saverInfo: { flex: 1, gap: 2 },
-  saverName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  saverMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  saverName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  saverMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
   saverSavings: { alignItems: 'flex-end', gap: 1 },
-  saverAmount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.success },
-  saverPct: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success },
-  saverDivider: { height: 1, backgroundColor: Colors.borderLight },
+  saverAmount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.success },
+  saverPct: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.success },
+  saverDivider: { height: 1, backgroundColor: themeColors.line },
 });

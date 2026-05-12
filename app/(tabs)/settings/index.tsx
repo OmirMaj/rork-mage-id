@@ -7,6 +7,8 @@ import {
   MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
@@ -76,6 +78,7 @@ export default function SettingsScreen() {
   const { user, logout, deleteAccount, isAuthenticated } = useAuth();
   const { tier } = useSubscription();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [aiUsed, setAiUsed] = useState(0);
   const [aiLimit, setAiLimit] = useState(10);
   const [aiSmartUsed, setAiSmartUsed] = useState(0);
@@ -410,18 +413,18 @@ export default function SettingsScreen() {
                   // through to the Free styling, so paying $150/mo
                   // customers saw a "FREE" pill in their Settings.
                   tier === 'enterprise'
-                    ? { backgroundColor: Colors.purple + '22', borderColor: Colors.purple }
+                    ? { backgroundColor: themeColors.info + '22', borderColor: themeColors.info }
                     : tier === 'business'
                       ? { backgroundColor: '#FFD700' + '22', borderColor: '#FFD700' }
                       : tier === 'pro'
-                        ? { backgroundColor: Colors.primary + '22', borderColor: Colors.primary }
-                        : { backgroundColor: Colors.fillTertiary, borderColor: Colors.borderLight },
+                        ? { backgroundColor: themeColors.accent + '22', borderColor: themeColors.accent }
+                        : { backgroundColor: themeColors.line, borderColor: themeColors.line },
                 ]}>
                   <Text style={[
                     styles.profileTierText,
-                    tier === 'enterprise' ? { color: Colors.purple } :
+                    tier === 'enterprise' ? { color: themeColors.info } :
                     tier === 'business' ? { color: '#A87800' } :
-                    tier === 'pro' ? { color: Colors.primary } : { color: Colors.textSecondary },
+                    tier === 'pro' ? { color: themeColors.accent } : { color: themeColors.textSecondary },
                   ]}>
                     {tier === 'enterprise' ? 'ENTERPRISE'
                       : tier === 'business' ? 'BUSINESS'
@@ -448,7 +451,7 @@ export default function SettingsScreen() {
               }}
               activeOpacity={0.7}
               testID="logout-button" accessibilityRole="button" accessibilityLabel="Sign out">
-              <LogOut size={16} color={Colors.textSecondary} />
+              <LogOut size={16} color={themeColors.textSecondary} />
             </TouchableOpacity>
           </View>
         ) : (
@@ -458,25 +461,25 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>AI USAGE</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Sparkles size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Today: {aiUsed} of {aiLimit} requests</Text>
-              <View style={{ height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, marginTop: 6 }}>
-                <View style={{ height: 6, backgroundColor: Colors.primary, borderRadius: 3, width: `${Math.min((aiUsed / aiLimit) * 100, 100)}%` }} />
+              <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
+                <View style={{ height: 6, backgroundColor: themeColors.accent, borderRadius: 3, width: `${Math.min((aiUsed / aiLimit) * 100, 100)}%` }} />
               </View>
             </View>
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.accent }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Sparkles size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Advanced: {aiSmartUsed} of {aiSmartLimit}</Text>
-              <View style={{ height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, marginTop: 6 }}>
-                <View style={{ height: 6, backgroundColor: Colors.accent, borderRadius: 3, width: `${Math.min((aiSmartUsed / aiSmartLimit) * 100, 100)}%` }} />
+              <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
+                <View style={{ height: 6, backgroundColor: themeColors.accent, borderRadius: 3, width: `${Math.min((aiSmartUsed / aiSmartLimit) * 100, 100)}%` }} />
               </View>
             </View>
           </View>
@@ -494,10 +497,10 @@ export default function SettingsScreen() {
               <Text style={styles.rowLabel}>
                 Takeoff: {takeoffQuota.used} of {takeoffQuota.cap} pages this month
               </Text>
-              <View style={{ height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, marginTop: 6 }}>
+              <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
                 <View style={{
                   height: 6,
-                  backgroundColor: takeoffQuota.cap > 0 && takeoffQuota.used / takeoffQuota.cap > 0.8 ? Colors.warningDark : '#7C3AED',
+                  backgroundColor: takeoffQuota.cap > 0 && takeoffQuota.used / takeoffQuota.cap > 0.8 ? themeColors.accentLabel : '#7C3AED',
                   borderRadius: 3,
                   width: `${takeoffQuota.cap > 0 ? Math.min((takeoffQuota.used / takeoffQuota.cap) * 100, 100) : 0}%`,
                 }} />
@@ -506,7 +509,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={[styles.row, { paddingVertical: 10 }]}>
-            <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, flex: 1 }}>
+            <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, flex: 1 }}>
               Daily AI resets at midnight · Takeoff resets the 1st · Plan: {tier === 'enterprise' ? 'Enterprise'
                 : tier === 'business' ? 'Business'
                 : tier === 'pro' ? 'Pro'
@@ -514,7 +517,7 @@ export default function SettingsScreen() {
             </Text>
             {tier === 'free' && (
               <TouchableOpacity onPress={() => router.push('/paywall' as any)} activeOpacity={0.7}>
-                <Text style={{ fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary }}>Upgrade</Text>
+                <Text style={{ fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent }}>Upgrade</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -523,7 +526,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>LOCATION & UNITS</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
               <MapPin size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Location</Text>
@@ -532,14 +535,14 @@ export default function SettingsScreen() {
               value={location}
               onChangeText={setLocation}
               placeholder="City, State"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="settings-location"
             />
           </View>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleToggleUnits} activeOpacity={0.6}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
               <Ruler size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Units</Text>
@@ -550,9 +553,9 @@ export default function SettingsScreen() {
               <Switch
                 value={settings.units === 'metric'}
                 onValueChange={handleToggleUnits}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
-                thumbColor={Colors.surface}
-                ios_backgroundColor={Colors.fillTertiary}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                thumbColor={themeColors.surface}
+                ios_backgroundColor={themeColors.line}
               />
             </View>
           </TouchableOpacity>
@@ -568,7 +571,7 @@ export default function SettingsScreen() {
             </View>
             <Text style={styles.rowLabel}>Appearance</Text>
             <View style={styles.rowRight}>
-              <ChevronRight size={18} color={Colors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} />
             </View>
           </TouchableOpacity>
         </View>
@@ -576,7 +579,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>ESTIMATE DEFAULTS</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Percent size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Sales Tax Rate</Text>
@@ -587,7 +590,7 @@ export default function SettingsScreen() {
                 onChangeText={setTaxRate}
                 keyboardType="decimal-pad"
                 placeholder="7.5"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 textAlign="right"
                 testID="settings-tax"
               />
@@ -596,7 +599,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
               <ShieldCheck size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Contingency Rate</Text>
@@ -607,7 +610,7 @@ export default function SettingsScreen() {
                 onChangeText={setContingency}
                 keyboardType="decimal-pad"
                 placeholder="10"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 textAlign="right"
                 testID="settings-contingency"
               />
@@ -631,7 +634,7 @@ export default function SettingsScreen() {
               value={companyName}
               onChangeText={setCompanyName}
               placeholder="Your Company LLC"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="branding-company"
             />
@@ -647,14 +650,14 @@ export default function SettingsScreen() {
               value={tagline}
               onChangeText={setTagline}
               placeholder="Quality you can trust"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="branding-tagline"
             />
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
               <User size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Contact Name</Text>
@@ -663,14 +666,14 @@ export default function SettingsScreen() {
               value={contactName}
               onChangeText={setContactName}
               placeholder="John Smith"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="branding-contact"
             />
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
               <Phone size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Phone</Text>
@@ -679,7 +682,7 @@ export default function SettingsScreen() {
               value={brandingPhone}
               onChangeText={setBrandingPhone}
               placeholder="(555) 123-4567"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               keyboardType="phone-pad"
               textAlign="right"
               testID="branding-phone"
@@ -687,7 +690,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Mail size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Email</Text>
@@ -696,7 +699,7 @@ export default function SettingsScreen() {
               value={brandingEmail}
               onChangeText={setBrandingEmail}
               placeholder="info@company.com"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
               textAlign="right"
@@ -705,7 +708,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
               <MapPin size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Address</Text>
@@ -714,7 +717,7 @@ export default function SettingsScreen() {
               value={brandingAddress}
               onChangeText={setBrandingAddress}
               placeholder="123 Main St, City"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="branding-address"
             />
@@ -730,7 +733,7 @@ export default function SettingsScreen() {
               value={licenseNumber}
               onChangeText={setLicenseNumber}
               placeholder="GC-12345"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               textAlign="right"
               testID="branding-license"
             />
@@ -751,11 +754,11 @@ export default function SettingsScreen() {
               />
               <View style={styles.logoActions}>
                 <TouchableOpacity style={styles.logoChangeBtn} onPress={handlePickLogo} activeOpacity={0.7}>
-                  <Camera size={14} color={Colors.primary} />
+                  <Camera size={14} color={themeColors.accent} />
                   <Text style={styles.logoChangeBtnText}>Change</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.logoRemoveBtn} onPress={handleRemoveLogo} activeOpacity={0.7}>
-                  <Trash2 size={14} color={Colors.error} />
+                  <Trash2 size={14} color={themeColors.danger} />
                   <Text style={styles.logoRemoveBtnText}>Remove</Text>
                 </TouchableOpacity>
               </View>
@@ -766,7 +769,7 @@ export default function SettingsScreen() {
                 <ImageIcon size={14} color="#fff" />
               </View>
               <Text style={styles.rowLabel}>Upload Logo</Text>
-              <ChevronRight size={16} color={Colors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -781,7 +784,7 @@ export default function SettingsScreen() {
               <View style={styles.signaturePreviewBox}>
                 <Text style={styles.signaturePreviewLabel}>Your saved signature</Text>
                 <View style={styles.signatureMiniPreview}>
-                  <PenTool size={16} color={Colors.primary} />
+                  <PenTool size={16} color={themeColors.accent} />
                   <Text style={styles.signatureSavedText}>Signature saved ({signatureData.length} strokes)</Text>
                 </View>
               </View>
@@ -791,7 +794,7 @@ export default function SettingsScreen() {
                   onPress={() => setShowSignatureModal(true)}
                   activeOpacity={0.7}
                 >
-                  <PenTool size={14} color={Colors.primary} />
+                  <PenTool size={14} color={themeColors.accent} />
                   <Text style={styles.signatureRedrawBtnText}>Redraw</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -802,7 +805,7 @@ export default function SettingsScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Trash2 size={14} color={Colors.error} />
+                  <Trash2 size={14} color={themeColors.danger} />
                   <Text style={styles.signatureRemoveBtnText}>Remove</Text>
                 </TouchableOpacity>
               </View>
@@ -814,17 +817,17 @@ export default function SettingsScreen() {
               activeOpacity={0.7}
               testID="draw-signature"
             >
-              <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
+              <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
                 <PenTool size={14} color="#fff" />
               </View>
               <Text style={styles.rowLabel}>Draw Signature</Text>
-              <ChevronRight size={16} color={Colors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
 
         <View style={styles.pdfPreviewNote}>
-          <FileText size={14} color={Colors.info} />
+          <FileText size={14} color={themeColors.info} />
           <Text style={styles.pdfPreviewNoteText}>
             Your company info, logo, and signature will appear on generated PDF estimates when sharing via email or text.
           </Text>
@@ -854,16 +857,16 @@ export default function SettingsScreen() {
                 setPdfNaming(prev => ({ ...prev, enabled: val }));
                 if (Platform.OS !== 'web') void Haptics.selectionAsync();
               }}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor={Colors.surface}
-              ios_backgroundColor={Colors.fillTertiary}
+              trackColor={{ false: themeColors.line, true: themeColors.accent }}
+              thumbColor={themeColors.surface}
+              ios_backgroundColor={themeColors.line}
             />
           </TouchableOpacity>
           {pdfNaming.enabled && (
             <>
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
                   <TypeIcon size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Prefix</Text>
@@ -872,7 +875,7 @@ export default function SettingsScreen() {
                   value={pdfNaming.prefix}
                   onChangeText={(val) => setPdfNaming(prev => ({ ...prev, prefix: val }))}
                   placeholder="e.g. MAGE"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   textAlign="right"
                   testID="pdf-naming-prefix"
                 />
@@ -886,7 +889,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
                   <Building2 size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Include Project Name</Text>
@@ -896,9 +899,9 @@ export default function SettingsScreen() {
                     setPdfNaming(prev => ({ ...prev, includeProjectName: val }));
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   }}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
-                  thumbColor={Colors.surface}
-                  ios_backgroundColor={Colors.fillTertiary}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor={themeColors.surface}
+                  ios_backgroundColor={themeColors.line}
                 />
               </TouchableOpacity>
               <View style={styles.rowSeparator} />
@@ -910,7 +913,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
                   <FileText size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Include Document Type</Text>
@@ -920,9 +923,9 @@ export default function SettingsScreen() {
                     setPdfNaming(prev => ({ ...prev, includeDocType: val }));
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   }}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
-                  thumbColor={Colors.surface}
-                  ios_backgroundColor={Colors.fillTertiary}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor={themeColors.surface}
+                  ios_backgroundColor={themeColors.line}
                 />
               </TouchableOpacity>
               <View style={styles.rowSeparator} />
@@ -934,7 +937,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
                   <Info size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Include Date</Text>
@@ -944,9 +947,9 @@ export default function SettingsScreen() {
                     setPdfNaming(prev => ({ ...prev, includeDate: val }));
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   }}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
-                  thumbColor={Colors.surface}
-                  ios_backgroundColor={Colors.fillTertiary}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor={themeColors.surface}
+                  ios_backgroundColor={themeColors.line}
                 />
               </TouchableOpacity>
               <View style={styles.rowSeparator} />
@@ -979,7 +982,7 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
                   <Hash size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Next Number</Text>
@@ -996,7 +999,7 @@ export default function SettingsScreen() {
                   }}
                   keyboardType="number-pad"
                   placeholder="1"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   textAlign="right"
                   testID="pdf-naming-next-number"
                 />
@@ -1006,10 +1009,10 @@ export default function SettingsScreen() {
         </View>
         {pdfNaming.enabled && pdfNamingPreview ? (
           <View style={styles.pdfPreviewNote}>
-            <FileText size={14} color={Colors.primary} />
+            <FileText size={14} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.pdfPreviewNoteText, { color: Colors.textSecondary, fontWeight: '600' as const, marginBottom: 2 }]}>Preview</Text>
-              <Text style={[styles.pdfPreviewNoteText, { color: Colors.text }]} numberOfLines={1}>{pdfNamingPreview}</Text>
+              <Text style={[styles.pdfPreviewNoteText, { color: themeColors.textSecondary, fontWeight: '600' as const, marginBottom: 2 }]}>Preview</Text>
+              <Text style={[styles.pdfPreviewNoteText, { color: themeColors.text }]} numberOfLines={1}>{pdfNamingPreview}</Text>
             </View>
           </View>
         ) : null}
@@ -1060,7 +1063,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
                   <ScanFace size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Face ID / Touch ID</Text>
@@ -1070,9 +1073,9 @@ export default function SettingsScreen() {
                     setBiometricsEnabled(val);
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   }}
-                  trackColor={{ false: Colors.border, true: Colors.primary }}
-                  thumbColor={Colors.surface}
-                  ios_backgroundColor={Colors.fillTertiary}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor={themeColors.surface}
+                  ios_backgroundColor={themeColors.line}
                 />
               </TouchableOpacity>
             </View>
@@ -1113,11 +1116,11 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="payments-setup-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
               <Wallet size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Set up payments</Text>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
           {/* Payments dashboard — was an orphan route until May 2026 audit
               wiring. Shows received-vs-pending across all invoices, paid
@@ -1129,11 +1132,11 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="payments-dashboard-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
               <Wallet size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Payments dashboard</Text>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -1151,11 +1154,11 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="public-profile-setup-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <UserCircle size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Edit public profile</Text>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -1167,11 +1170,11 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="contacts-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
               <User size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Contacts</Text>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -1186,11 +1189,11 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="data-export-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <FolderDown size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -1207,11 +1210,11 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
                 testID="dev-seeder-link"
               >
-                <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
                   <Database size={14} color="#fff" />
                 </View>
                 <Text style={[styles.rowLabel, { flex: 1 }]}>Demo data seeder</Text>
-                <ChevronRight size={16} color={Colors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
           </>
@@ -1225,7 +1228,7 @@ export default function SettingsScreen() {
           {supplierProfile ? (
             <View style={styles.supplierRegistered}>
               <View style={styles.supplierRegisteredHeader}>
-                <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
                   <Store size={14} color="#fff" />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
@@ -1235,11 +1238,11 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.supplierRegisteredMeta}>
                 <View style={styles.supplierMetaChip}>
-                  <Package size={10} color={Colors.info} />
+                  <Package size={10} color={themeColors.info} />
                   <Text style={styles.supplierMetaText}>{supplierProfile.categories.length} categories</Text>
                 </View>
                 <View style={styles.supplierMetaChip}>
-                  <Truck size={10} color={Colors.textMuted} />
+                  <Truck size={10} color={themeColors.textMuted} />
                   <Text style={styles.supplierMetaText}>{supplierProfile.deliveryOptions.length} delivery options</Text>
                 </View>
               </View>
@@ -1248,7 +1251,7 @@ export default function SettingsScreen() {
                 onPress={() => setShowSupplierForm(true)}
                 activeOpacity={0.7}
               >
-                <PenTool size={14} color={Colors.primary} />
+                <PenTool size={14} color={themeColors.accent} />
                 <Text style={styles.supplierEditBtnText}>Edit Profile</Text>
               </TouchableOpacity>
             </View>
@@ -1259,14 +1262,14 @@ export default function SettingsScreen() {
               activeOpacity={0.7}
               testID="register-supplier"
             >
-              <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
+              <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
                 <Store size={14} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Register as Supplier</Text>
-                <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textSecondary }}>List your materials for sale</Text>
+                <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textSecondary }}>List your materials for sale</Text>
               </View>
-              <ChevronRight size={16} color={Colors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -1282,7 +1285,7 @@ export default function SettingsScreen() {
                 id: 'free' as const,
                 label: 'Free',
                 price: '$0/mo',
-                color: Colors.textMuted,
+                color: themeColors.textMuted,
                 icon: Star,
                 features: ['1 active project', 'Basic estimate wizard', 'Materials browser (view only)'],
                 disabled: ['No PDF export', 'No schedule maker', 'No cloud sync'],
@@ -1291,7 +1294,7 @@ export default function SettingsScreen() {
                 id: 'pro' as const,
                 label: 'Pro',
                 price: '$29/mo',
-                color: Colors.primary,
+                color: themeColors.accent,
                 icon: Zap,
                 features: ['Unlimited projects', 'Full estimate + markup', 'Schedule maker (all views)', 'Branded PDF export', 'Change orders & invoicing', 'Daily field reports', 'Material price alerts', 'Cloud sync'],
                 disabled: [],
@@ -1300,7 +1303,7 @@ export default function SettingsScreen() {
                 id: 'business' as const,
                 label: 'Business',
                 price: '$79/mo',
-                color: Colors.purple,
+                color: themeColors.info,
                 icon: Crown,
                 features: ['Everything in Pro', 'Subcontractor management', 'Punch list & closeout', 'Client portal (shareable link)', 'Unlimited collaborators', 'Custom branding + logos', 'Priority support'],
                 disabled: [],
@@ -1309,7 +1312,7 @@ export default function SettingsScreen() {
                 id: 'enterprise' as const,
                 label: 'Enterprise',
                 price: '$150/mo',
-                color: Colors.purple,
+                color: themeColors.info,
                 icon: Crown,
                 features: ['Everything in Business', 'Highest AI usage caps', '100 drawing analyses/mo', '200 photo analyses/mo', '4500 text-AI calls/mo', 'Priority queue on heavy AI', 'Concierge onboarding'],
                 disabled: [],
@@ -1361,8 +1364,8 @@ export default function SettingsScreen() {
                     ))}
                     {plan.disabled.map((f, i) => (
                       <View key={`d-${i}`} style={styles.planFeatureRow}>
-                        <X size={12} color={Colors.textMuted} />
-                        <Text style={[styles.planFeatureText, { color: Colors.textMuted }]}>{f}</Text>
+                        <X size={12} color={themeColors.textMuted} />
+                        <Text style={[styles.planFeatureText, { color: themeColors.textMuted }]}>{f}</Text>
                       </View>
                     ))}
                   </View>
@@ -1380,11 +1383,11 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="show-tutorial"
           >
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <BookOpen size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Show Tutorial</Text>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity
@@ -1407,11 +1410,11 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="contact-support"
           >
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <MessageCircle size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Contact Support</Text>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -1428,7 +1431,7 @@ export default function SettingsScreen() {
                   activeOpacity={0.6}
                   testID={`faq-${i}`}
                 >
-                  <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+                  <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
                     <HelpCircle size={14} color="#fff" />
                   </View>
                   <Text style={[styles.rowLabel, { flex: 1 }]} numberOfLines={isOpen ? undefined : 2}>
@@ -1436,13 +1439,13 @@ export default function SettingsScreen() {
                   </Text>
                   <ChevronRight
                     size={16}
-                    color={Colors.textMuted}
+                    color={themeColors.textMuted}
                     style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
                   />
                 </TouchableOpacity>
                 {isOpen ? (
                   <View style={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 0 }}>
-                    <Text style={{ fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 19 }}>
+                    <Text style={{ fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 19 }}>
                       {item.a}
                     </Text>
                   </View>
@@ -1456,7 +1459,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>ABOUT</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Info size={14} color="#fff" />
             </View>
             <View style={styles.aboutBlock}>
@@ -1466,7 +1469,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={[styles.row, { opacity: 0.7 }]}>
-            <View style={[styles.iconWrap, { backgroundColor: Colors.textMuted }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.textMuted }]}>
               <ChevronRight size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Version</Text>
@@ -1474,22 +1477,22 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={[styles.sectionHeader, { color: Colors.error }]}>DANGER ZONE</Text>
+        <Text style={[styles.sectionHeader, { color: themeColors.danger }]}>DANGER ZONE</Text>
         <View style={styles.group}>
           <TouchableOpacity style={styles.row} onPress={handleClearAll} activeOpacity={0.6} testID="clear-all">
-            <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
               <Trash2 size={14} color="#fff" />
             </View>
-            <Text style={[styles.rowLabel, { color: Colors.error }]}>Clear All Projects & Data</Text>
+            <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Clear All Projects & Data</Text>
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleDeleteAccount} activeOpacity={0.6} testID="delete-account">
-            <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
               <UserCircle size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: Colors.error }]}>Delete Account</Text>
-              <Text style={[styles.aboutDesc, { color: Colors.textMuted }]}>
+              <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Delete Account</Text>
+              <Text style={[styles.aboutDesc, { color: themeColors.textMuted }]}>
                 Permanently remove your account, projects, and all data. This can&apos;t be undone.
               </Text>
             </View>
@@ -1521,7 +1524,7 @@ export default function SettingsScreen() {
             <View style={styles.sigModalHeader}>
               <Text style={styles.sigModalTitle}>Draw Your Signature</Text>
               <TouchableOpacity onPress={() => setShowSignatureModal(false)}>
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sigModalDesc}>
@@ -1582,7 +1585,7 @@ export default function SettingsScreen() {
                   activeOpacity={0.7}
                   testID="sup-close"
                 >
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
@@ -1599,7 +1602,7 @@ export default function SettingsScreen() {
                     value={supCompanyName}
                     onChangeText={setSupCompanyName}
                     placeholder="Your Supply Company"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     testID="sup-company"
                   />
                 </View>
@@ -1611,7 +1614,7 @@ export default function SettingsScreen() {
                     value={supContactName}
                     onChangeText={setSupContactName}
                     placeholder="John Smith"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                 </View>
 
@@ -1623,7 +1626,7 @@ export default function SettingsScreen() {
                       value={supEmail}
                       onChangeText={setSupEmail}
                       placeholder="sales@company.com"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                       keyboardType="email-address"
                       autoCapitalize="none"
                     />
@@ -1635,7 +1638,7 @@ export default function SettingsScreen() {
                       value={supPhone}
                       onChangeText={setSupPhone}
                       placeholder="(555) 123-4567"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                       keyboardType="phone-pad"
                     />
                   </View>
@@ -1648,7 +1651,7 @@ export default function SettingsScreen() {
                     value={supAddress}
                     onChangeText={setSupAddress}
                     placeholder="123 Industrial Blvd, City, State"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                 </View>
 
@@ -1659,7 +1662,7 @@ export default function SettingsScreen() {
                     value={supWebsite}
                     onChangeText={setSupWebsite}
                     placeholder="yourcompany.com"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     autoCapitalize="none"
                   />
                 </View>
@@ -1671,7 +1674,7 @@ export default function SettingsScreen() {
                     value={supDescription}
                     onChangeText={setSupDescription}
                     placeholder="Brief description of your business..."
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     multiline
                   />
                 </View>
@@ -1684,7 +1687,7 @@ export default function SettingsScreen() {
                       value={supMinOrder}
                       onChangeText={setSupMinOrder}
                       placeholder="250"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                       keyboardType="numeric"
                     />
                   </View>
@@ -1695,7 +1698,7 @@ export default function SettingsScreen() {
                       value={supDelivery}
                       onChangeText={setSupDelivery}
                       placeholder="Local, Freight"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
                   </View>
                 </View>
@@ -1775,15 +1778,15 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.5,
     paddingHorizontal: 20,
     paddingTop: 4,
@@ -1800,10 +1803,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
     padding: 18,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.xl,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -1814,31 +1817,31 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   profileAvatarText: {
     fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
-    color: Colors.surface,
+    color: themeColors.surface,
     letterSpacing: -0.5,
   },
   profileMeta: { flex: 1, gap: 2 },
   profileName: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.3,
   },
   profileCompany: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   profileEmail: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   profileBadgesRow: {
     flexDirection: 'row' as const,
@@ -1861,7 +1864,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -1870,7 +1873,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.8,
     paddingHorizontal: 22,
     marginBottom: 6,
@@ -1879,13 +1882,13 @@ const styles = StyleSheet.create({
   },
   sectionSubtext: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     paddingHorizontal: 20,
     marginBottom: 10,
     lineHeight: 18,
   },
   group: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     marginHorizontal: 16,
     borderRadius: Tokens.radius.card,
     overflow: 'hidden' as const,
@@ -1893,7 +1896,7 @@ const styles = StyleSheet.create({
     // Black outline matches every other card surface across the app.
     // Drops the soft shadow — the defined edge carries enough weight.
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   row: {
     flexDirection: 'row',
@@ -1914,11 +1917,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.callout.fontSize,
     fontWeight: '400' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   rowSubtext: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 2,
   },
   rowRight: {
@@ -1928,30 +1931,30 @@ const styles = StyleSheet.create({
   },
   rowValue: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginRight: 4,
   },
   inlineInput: {
     flex: 1,
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textAlign: 'right' as const,
     minWidth: 120,
   },
   numericInput: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     textAlign: 'right' as const,
     minWidth: 50,
   },
   suffix: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '400' as const,
   },
   rowSeparator: {
     height: 0.5,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
     marginLeft: 58,
   },
   aboutBlock: {
@@ -1960,7 +1963,7 @@ const styles = StyleSheet.create({
   },
   aboutDesc: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 16,
   },
   logoPreviewContainer: {
@@ -1971,7 +1974,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 80,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
   },
   logoActions: {
     flexDirection: 'row',
@@ -1984,12 +1987,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
   },
   logoChangeBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
   },
   logoRemoveBtn: {
     flexDirection: 'row',
@@ -1998,12 +2001,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: themeColors.danger,
   },
   logoRemoveBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.error,
+    color: themeColors.danger,
   },
   logoUploadRow: {
     flexDirection: 'row',
@@ -2017,7 +2020,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   signaturePreviewBox: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: Tokens.radius.md,
     padding: 14,
     gap: 8,
@@ -2025,7 +2028,7 @@ const styles = StyleSheet.create({
   signaturePreviewLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
   },
@@ -2037,7 +2040,7 @@ const styles = StyleSheet.create({
   signatureSavedText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   signatureActions: {
     flexDirection: 'row',
@@ -2051,12 +2054,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
   },
   signatureRedrawBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
   },
   signatureRemoveBtn: {
     flexDirection: 'row',
@@ -2065,12 +2068,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: themeColors.danger,
   },
   signatureRemoveBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.error,
+    color: themeColors.danger,
   },
   signatureDrawRow: {
     flexDirection: 'row',
@@ -2085,24 +2088,24 @@ const styles = StyleSheet.create({
     gap: 10,
     marginHorizontal: 16,
     marginBottom: 20,
-    backgroundColor: Colors.infoLight,
+    backgroundColor: themeColors.info,
     borderRadius: Tokens.radius.card,
     padding: 14,
   },
   pdfPreviewNoteText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.info,
+    color: themeColors.info,
     lineHeight: 18,
   },
   saveButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     marginHorizontal: 16,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 28,
-    shadowColor: Colors.primary,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -2116,7 +2119,7 @@ const styles = StyleSheet.create({
   },
   dangerNote: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     paddingHorizontal: 20,
     marginTop: -12,
     marginBottom: 20,
@@ -2133,7 +2136,7 @@ const styles = StyleSheet.create({
   },
   supplierRegisteredSub: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.success,
+    color: themeColors.success,
     fontWeight: '500' as const,
   },
   supplierRegisteredMeta: {
@@ -2144,7 +2147,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Tokens.radius.xs,
@@ -2152,7 +2155,7 @@ const styles = StyleSheet.create({
   supplierMetaText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   supplierEditBtn: {
     flexDirection: 'row',
@@ -2161,12 +2164,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
   },
   supplierEditBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
   },
   supplierRegisterRow: {
     flexDirection: 'row',
@@ -2178,10 +2181,10 @@ const styles = StyleSheet.create({
   supplierInput: {
     minHeight: 44,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     paddingHorizontal: 14,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     marginBottom: 4,
   },
   supplierCatGrid: {
@@ -2194,18 +2197,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
   },
   supplierCatChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
   },
   supplierCatText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   supplierCatTextActive: {
-    color: Colors.textOnPrimary,
+    color: "#FFFFFF",
   },
   // --- Supplier Profile modal (responsive: iOS pageSheet + web centered card) ---
   supProfileBackdrop: {
@@ -2213,7 +2216,7 @@ const styles = StyleSheet.create({
     // On iOS the Modal uses pageSheet so the "backdrop" is the native sheet
     // chrome — we don't want a second dim layer. On web/Android we dim the
     // underlying view manually.
-    backgroundColor: Platform.OS === 'ios' ? Colors.background : 'rgba(0,0,0,0.45)',
+    backgroundColor: Platform.OS === 'ios' ? themeColors.bg : 'rgba(0,0,0,0.45)',
   },
   supProfileCenter: {
     flex: 1,
@@ -2228,7 +2231,7 @@ const styles = StyleSheet.create({
     // On iOS the pageSheet already rounds the top corners for us — round only
     // on web/Android.
     borderRadius: Platform.OS === 'ios' ? 0 : 20,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     overflow: 'hidden',
     // On web we cap the height so the card doesn't fill the whole viewport.
     ...(Platform.OS === 'web' ? { maxHeight: '92%' as any, flex: 0 as any } : {}),
@@ -2241,18 +2244,18 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 18 : 20,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
   supProfileTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.3,
   },
   supProfileDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 18,
     marginTop: 4,
   },
@@ -2262,7 +2265,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.panel,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
   },
   supProfileScroll: {
     flex: 1,
@@ -2277,19 +2280,19 @@ const styles = StyleSheet.create({
   supFieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: -0.1,
   },
   supFieldInput: {
     minHeight: 44,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   supFieldInputMulti: {
     minHeight: 80,
@@ -2314,36 +2317,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   supCatChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: themeColors.accent,
+    borderColor: themeColors.accent,
   },
   supCatText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   supCatTextActive: {
-    color: Colors.textOnPrimary,
+    color: "#FFFFFF",
   },
   supProfileFooter: {
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderTopColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
   supProfileSaveBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,
@@ -2352,18 +2355,18 @@ const styles = StyleSheet.create({
   supProfileSaveBtnText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textOnPrimary,
+    color: "#FFFFFF",
     letterSpacing: -0.2,
   },
   sigModalOverlay: {
     flex: 1,
-    backgroundColor: Colors.overlay,
+    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   sigModalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius["2xl"],
     padding: 24,
     width: '100%',
@@ -2378,11 +2381,11 @@ const styles = StyleSheet.create({
   sigModalTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   sigModalDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 20,
   },
   themeGrid: {
@@ -2398,13 +2401,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderWidth: 2,
     borderColor: 'transparent',
   },
   themeChipActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.surface,
+    borderColor: themeColors.accent,
+    backgroundColor: themeColors.surface,
   },
   themeSwatches: {
     flexDirection: 'row',
@@ -2418,15 +2421,15 @@ const styles = StyleSheet.create({
   themeChipLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     flexShrink: 1,
   },
   planCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     gap: 12,
   },
   planHeader: {
@@ -2444,7 +2447,7 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   planPrice: {
     fontSize: Type.bodyCompact.fontSize,
@@ -2471,7 +2474,7 @@ const styles = StyleSheet.create({
   },
   planFeatureText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 18,
   },
   pdfSepPicker: {
@@ -2482,17 +2485,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
   },
   pdfSepChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
   },
   pdfSepChipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   pdfSepChipTextActive: {
-    color: Colors.textOnPrimary,
+    color: "#FFFFFF",
   },
 });
