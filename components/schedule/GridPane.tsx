@@ -44,6 +44,7 @@ import {
   type CpmResult, type CpmTaskResult,
 } from '@/utils/cpm';
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
+import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, Sparkles, X, Anchor } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
@@ -154,6 +155,12 @@ export interface GridPaneProps {
   onBulkSetCrew?: (ids: string[], crew: string) => void;
   /** Open the AI drawer pre-scoped to selection. */
   onBulkAskAI?: (ids: string[]) => void;
+  /**
+   * Full-width list mode. Adds Float, Resources, and Phase columns that
+   * are hidden in compact (split-Gantt) mode because the Gantt already
+   * visualises them. Use this when GridPane is rendered alone (ListTab).
+   */
+  showExtendedColumns?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +174,7 @@ export default function GridPane({
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
   onBulkSetPhase, onBulkSetCrew, onBulkAskAI,
   compact = false,
+  showExtendedColumns = false,
 }: GridPaneProps) {
   // Column list — filtered for split view so the grid doesn't duplicate the
   // date axis rendered by the gantt. Order preserved.
@@ -197,6 +205,15 @@ export default function GridPane({
     }
     return map;
   }, [visibleColumns]);
+  // Extended column widths — Float (72), Resources (140), Phase (100).
+  // These are rendered outside the COLUMNS array so they don't interfere with
+  // the existing compact / non-compact filter logic.
+  const EXT_COL_FLOAT_W = 72;
+  const EXT_COL_RES_W = 140;
+  const EXT_COL_PHASE_W = 100;
+  const extColumnsWidth = showExtendedColumns
+    ? EXT_COL_FLOAT_W + EXT_COL_RES_W + EXT_COL_PHASE_W
+    : 0;
   const visibleTotalWidth = useMemo(
     () => visibleColumns.reduce((s, c) => s + c.width, 0),
     [visibleColumns],
@@ -1161,7 +1178,7 @@ export default function GridPane({
       {renderConflictBanner()}
 
       <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View style={{ width: visibleTotalWidth }}>
+        <View style={{ width: visibleTotalWidth + extColumnsWidth }}>
           {/* Sticky header row */}
           <View style={styles.headerRow}>
             {visibleColumns.map(col => {
@@ -1187,6 +1204,19 @@ export default function GridPane({
                 </View>
               );
             })}
+            {showExtendedColumns && (
+              <>
+                <View style={[styles.headerCell, { width: EXT_COL_FLOAT_W, alignItems: 'flex-end' }]}>
+                  <Text style={styles.headerText}>FLOAT</Text>
+                </View>
+                <View style={[styles.headerCell, { width: EXT_COL_RES_W, alignItems: 'flex-start' }]}>
+                  <Text style={styles.headerText}>RES</Text>
+                </View>
+                <View style={[styles.headerCell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
+                  <Text style={styles.headerText}>PHASE</Text>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Body rows — children of collapsed summaries are hidden. We keep
@@ -1228,6 +1258,25 @@ export default function GridPane({
                   testID={`grid-row-${rowIndex}`}
                 >
                   {visibleColumns.map(col => renderCell(task, rowIndex, col, cpmRow, rowBgColor))}
+                  {showExtendedColumns && (
+                    <>
+                      <View style={[styles.cell, { width: EXT_COL_FLOAT_W, alignItems: 'flex-end' }]}>
+                        <Text style={[styles.cellText, styles.cellTextMono]}>
+                          {cpmRow != null ? `${cpmRow.totalFloat}d` : '—'}
+                        </Text>
+                      </View>
+                      <View style={[styles.cell, { width: EXT_COL_RES_W, alignItems: 'flex-start' }]}>
+                        <Text style={styles.cellText} numberOfLines={1}>
+                          {task.crew ?? '—'}
+                        </Text>
+                      </View>
+                      <View style={[styles.cell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
+                        <Text style={styles.cellText} numberOfLines={1}>
+                          {tradeLabel(tradeKeyForTask(task))}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                 </View>
               );
             })}
