@@ -477,6 +477,13 @@ export interface ScheduleTask {
    * without forcing them to register.
    */
   subscribers?: string[];
+  /**
+   * Explicit trade classification for Gantt bar color and Board phase-dot.
+   * Set in Task 19 (trade picker in TaskInspector); for now, color is
+   * inferred from the task title via regex in utils/scheduleColors.ts.
+   * Optional — absence falls back to inference → 'general' (brand amber).
+   */
+  tradeKey?: string;
 }
 
 export interface ScheduleRiskItem {
