@@ -11,12 +11,17 @@
 //   the undo stack + persist debounce — threading them through context
 //   would couple SchedulerContext to the edit/undo machinery, which is
 //   owned by the screen. Props keeps the separation clear.
+//
+// Phone fallback: at bp === 'phone' the GridPane disappears and only
+// InteractiveGantt is rendered, with `mode="phone"` so it knows to swap
+// to its sticky-task-column / horizontal-scroll layout.
 
 import { View, StyleSheet } from 'react-native';
 import GridPaneDefault from '../GridPane';
 import InteractiveGanttDefault from '../InteractiveGantt';
 import { useScheduler } from '../SchedulerContext';
 import { Colors } from '@/constants/colors';
+import { useResponsive } from '@/utils/useResponsive';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 
@@ -65,6 +70,25 @@ export function GanttTab({
   onBulkAskAI,
 }: GanttTabProps) {
   const { tasks } = useScheduler();
+  const { bp } = useResponsive();
+
+  if (bp === 'phone') {
+    return (
+      <View style={styles.phoneRoot}>
+        <InteractiveGanttDefault
+          tasks={tasks as ScheduleTask[]}
+          cpm={cpm}
+          projectStartDate={projectStartDate}
+          onEdit={onEdit}
+          onDependencyCreate={onDependencyCreate}
+          focusedTaskId={focusedTaskId}
+          onFocusTask={onFocusTask}
+          compact={false}
+          mode="phone"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.row}>
@@ -113,4 +137,5 @@ const styles = StyleSheet.create({
     borderRightColor: Colors.border,
   },
   gantt: { flex: 1 },
+  phoneRoot: { flex: 1 },
 });

@@ -86,6 +86,14 @@ export interface InteractiveGanttProps {
    */
   compact?: boolean;
   /**
+   * Layout mode. `'desktop'` (default) is the full toolbar + 240px gutter.
+   * `'phone'` is the Task 18 single-pane fallback: no toolbar, a narrow 90px
+   * sticky task-name gutter on the left, and the same horizontal-scroll
+   * timeline body on the right. Bars and dependencies render identically;
+   * we only compress the chrome.
+   */
+  mode?: 'desktop' | 'phone';
+  /**
    * The "pathed" task. When set, the gantt dims every bar that is NOT part of
    * the focused task's driving-predecessor chain (ancestors walked through
    * dependencyLinks/legacy dependencies). Empty/null = no highlight, all bars
@@ -154,7 +162,8 @@ function daysBetween(a: Date, b: Date): number {
 export default function InteractiveGantt(props: InteractiveGanttProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, focusedTaskId, onFocusTask } = props;
+  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask } = props;
+  const isPhone = mode === 'phone';
   // Filter rows belonging to collapsed summaries. CPM still honored them (we
   // received the pre-rolled set); we only hide them visually so the gantt
   // stays uncluttered while the user is focused on top-level phases.
@@ -162,9 +171,11 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     const hidden = getHiddenTaskIds(tasksRaw);
     return tasksRaw.filter(t => !hidden.has(t.id));
   }, [tasksRaw]);
-  // In compact (split-view) mode the left task-name column is suppressed. We
-  // branch on a local constant so the rest of the layout math stays the same.
-  const leftGutter = compact ? 0 : LEFT_GUTTER;
+  // Left gutter width: phones get a compressed 90px sticky col (single-line
+  // names), split-view (compact) hides the gutter entirely (the GridPane to
+  // the left already shows names), desktop standalone uses the full 240px
+  // two-line gutter.
+  const leftGutter = isPhone ? 90 : compact ? 0 : LEFT_GUTTER;
 
   // --- Zoom -----------------------------------------------------------------
   // Continuous zoom: pxPerDay is the single source of truth. The `zoom`
@@ -809,10 +820,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // --- Render ---------------------------------------------------------------
   return (
     <View
-      style={styles.container}
+      style={[styles.container, isPhone && styles.containerPhone]}
       {...(Platform.OS === 'web' ? ({ onWheel: handleWheelZoom } as any) : {})}
     >
-      {/* Toolbar */}
+      {/* Toolbar — hidden on phone; zoom/Fit/Today live in the parent shell
+          on small screens to reclaim vertical space for the bars. */}
+      {!isPhone && (
       <View style={styles.toolbar}>
         <Text style={styles.toolbarTitle}>Gantt</Text>
         {/* iOS-style segmented control with a sliding pill behind the active
@@ -941,6 +954,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           </View>
         </View>
       </View>
+      )}
 
       {/* Body: left task column + scrollable timeline */}
       <View style={styles.body}>
@@ -950,14 +964,38 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             and the timeline side-by-side. The gutter stays fixed horizontally
             because the outer container clips. */}
         {leftGutter > 0 && (
-        <View style={[styles.gutter, { width: leftGutter }]}>
+        <View style={[styles.gutter, { width: leftGutter }, isPhone && styles.gutterPhone]}>
           <View style={[styles.gutterHeader, { height: HEADER_HEIGHT }]}>
-            <Text style={styles.gutterHeaderText}>Task</Text>
+            <Text style={styles.gutterHeaderText}>{isPhone ? 'TASK' : 'Task'}</Text>
           </View>
           {tasks.map((t, i) => {
             const isCritical = cpm.perTask.get(t.id)?.isCritical;
             const isHovered = hoverTaskId === t.id;
             const phaseColor = colorForTask(t);
+            if (isPhone) {
+              // Phone: single-line compressed row. "T1 Pour foundation" so the
+              // 90px column still resolves the visual mapping bar → name even
+              // when titles are long. The bars to the right carry the date /
+              // duration context, so we drop the subtitle here.
+              return (
+                <View
+                  key={t.id}
+                  style={[
+                    styles.gutterRow,
+                    styles.gutterRowPhone,
+                    { height: ROW_HEIGHT },
+                  ]}
+                >
+                  <View style={[styles.phaseDot, { backgroundColor: phaseColor }]} />
+                  <Text
+                    style={[styles.gutterName, styles.gutterNamePhone, isCritical && styles.gutterNameCritical]}
+                    numberOfLines={1}
+                  >
+                    T{i + 1} {t.title || 'Untitled'}
+                  </Text>
+                </View>
+              );
+            }
             // Compact date label — "Mar 20 → Mar 24" style. startDay is a
             // 1-indexed offset from projectStartDate (Day 1), durationDays is
             // the count, so end is start + duration - 1.
@@ -2319,6 +2357,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: t.textMuted,
     fontWeight: '500' as const,
+  },
+
+  // ---- Phone overrides (Task 18) ----
+  containerPhone: {
+    borderWidth: 0,
+    borderRadius: 0,
+  },
+  gutterPhone: {
+    backgroundColor: Colors.background,
+  },
+  gutterRowPhone: {
+    paddingHorizontal: 6,
+    gap: 5,
+  },
+  gutterNamePhone: {
+    fontSize: 11,
+    fontWeight: '600' as const,
   },
 
   timelineScroll: {
