@@ -9,8 +9,9 @@ import * as Haptics from 'expo-haptics';
 import {
   CheckCircle, XCircle, Crown, Zap, Building2, Rocket, X, Shield,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -68,14 +69,15 @@ const AI_LIMITS: AILimitRow[] = [
   { label: 'Photo analyses /mo',   free: '—',   pro: '50',  business: '150', enterprise: '200' },
 ];
 
-function FeatureCheck({ available }: { available: boolean }) {
+function FeatureCheck({ available, colors }: { available: boolean; colors: ThemeColors }) {
   return available
-    ? <CheckCircle size={16} color={Colors.success} />
-    : <XCircle size={16} color={Colors.textMuted} />;
+    ? <CheckCircle size={16} color={colors.success} />
+    : <XCircle size={16} color={colors.textMuted} />;
 }
 
 export default function PaywallScreen() {
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -184,15 +186,15 @@ export default function PaywallScreen() {
             squeeze each card to ~78px when a 4th joined. */}
         <View style={styles.plansGrid}>
           <View style={[styles.planCard, tier === 'free' && styles.planCardActive]}>
-            <View style={[styles.planIconWrap, { backgroundColor: Colors.fillTertiary }]}>
-              <Zap size={20} color={Colors.textSecondary} />
+            <View style={[styles.planIconWrap, { backgroundColor: themeColors.surfaceAlt }]}>
+              <Zap size={20} color={themeColors.textSecondary} />
             </View>
             <Text style={styles.planName}>Free</Text>
             <Text style={styles.planPrice}>$0</Text>
             <Text style={styles.planPeriod}>forever</Text>
             {tier === 'free' && (
-              <View style={[styles.currentBadge, { backgroundColor: Colors.fillTertiary }]}>
-                <Text style={[styles.currentBadgeText, { color: Colors.textSecondary }]}>Current</Text>
+              <View style={[styles.currentBadge, { backgroundColor: themeColors.surfaceAlt }]}>
+                <Text style={[styles.currentBadgeText, { color: themeColors.textSecondary }]}>Current</Text>
               </View>
             )}
           </View>
@@ -201,19 +203,19 @@ export default function PaywallScreen() {
             <View style={styles.popularTag}>
               <Text style={styles.popularTagText}>POPULAR</Text>
             </View>
-            <View style={[styles.planIconWrap, { backgroundColor: Colors.primary + '20' }]}>
-              <Crown size={20} color={Colors.primary} />
+            <View style={[styles.planIconWrap, { backgroundColor: themeColors.accent + '20' }]}>
+              <Crown size={20} color={themeColors.accent} />
             </View>
             <Text style={styles.planName}>Pro</Text>
             {proPrice ? (
               <Text style={styles.planPrice}>{proPrice}</Text>
             ) : (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ height: 22 }} />
+              <ActivityIndicator size="small" color={themeColors.accent} style={{ height: 22 }} />
             )}
             <Text style={styles.planPeriod}>per month</Text>
             {tier === 'pro' ? (
-              <View style={[styles.currentBadge, { backgroundColor: Colors.success + '20' }]}>
-                <Text style={[styles.currentBadgeText, { color: Colors.success }]}>Current</Text>
+              <View style={[styles.currentBadge, { backgroundColor: themeColors.successSoft }]}>
+                <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
               <TouchableOpacity
@@ -233,23 +235,23 @@ export default function PaywallScreen() {
           </View>
 
           <View style={[styles.planCard, tier === 'business' && styles.planCardActive]}>
-            <View style={[styles.planIconWrap, { backgroundColor: Colors.accent + '20' }]}>
-              <Building2 size={20} color={Colors.accent} />
+            <View style={[styles.planIconWrap, { backgroundColor: themeColors.accentSoft }]}>
+              <Building2 size={20} color={themeColors.accent} />
             </View>
             <Text style={styles.planName}>Business</Text>
             {businessPrice ? (
               <Text style={styles.planPrice}>{businessPrice}</Text>
             ) : (
-              <ActivityIndicator size="small" color={Colors.accent} style={{ height: 22 }} />
+              <ActivityIndicator size="small" color={themeColors.accent} style={{ height: 22 }} />
             )}
             <Text style={styles.planPeriod}>per month</Text>
             {tier === 'business' ? (
-              <View style={[styles.currentBadge, { backgroundColor: Colors.success + '20' }]}>
-                <Text style={[styles.currentBadgeText, { color: Colors.success }]}>Current</Text>
+              <View style={[styles.currentBadge, { backgroundColor: themeColors.successSoft }]}>
+                <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.ctaBtn, { backgroundColor: Colors.accent }, isFallbackPricing && styles.ctaBtnDisabled]}
+                style={[styles.ctaBtn, { backgroundColor: themeColors.accent }, isFallbackPricing && styles.ctaBtnDisabled]}
                 onPress={handlePurchaseBusiness}
                 activeOpacity={0.85}
                 disabled={isPurchasing || isFallbackPricing}
@@ -265,23 +267,23 @@ export default function PaywallScreen() {
           </View>
 
           <View style={[styles.planCard, tier === 'enterprise' && styles.planCardActive]}>
-            <View style={[styles.planIconWrap, { backgroundColor: Colors.warning + '20' }]}>
-              <Rocket size={20} color={Colors.warning} />
+            <View style={[styles.planIconWrap, { backgroundColor: themeColors.accentSoft }]}>
+              <Rocket size={20} color={themeColors.accent} />
             </View>
             <Text style={styles.planName}>Enterprise</Text>
             {enterprisePrice ? (
               <Text style={styles.planPrice}>{enterprisePrice}</Text>
             ) : (
-              <ActivityIndicator size="small" color={Colors.warning} style={{ height: 22 }} />
+              <ActivityIndicator size="small" color={themeColors.accent} style={{ height: 22 }} />
             )}
             <Text style={styles.planPeriod}>per month</Text>
             {tier === 'enterprise' ? (
-              <View style={[styles.currentBadge, { backgroundColor: Colors.success + '20' }]}>
-                <Text style={[styles.currentBadgeText, { color: Colors.success }]}>Current</Text>
+              <View style={[styles.currentBadge, { backgroundColor: themeColors.successSoft }]}>
+                <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.ctaBtn, { backgroundColor: Colors.warning }, isFallbackPricing && styles.ctaBtnDisabled]}
+                style={[styles.ctaBtn, { backgroundColor: themeColors.accent }, isFallbackPricing && styles.ctaBtnDisabled]}
                 onPress={handlePurchaseEnterprise}
                 activeOpacity={0.85}
                 disabled={isPurchasing || isFallbackPricing}
@@ -309,13 +311,13 @@ export default function PaywallScreen() {
             <View key={f.label} style={styles.compareRow}>
               <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{f.label}</Text>
               <View style={[styles.compareCell, styles.compareCenterCell]}>
-                <FeatureCheck available={f.free} />
+                <FeatureCheck available={f.free} colors={themeColors} />
               </View>
               <View style={[styles.compareCell, styles.compareCenterCell]}>
-                <FeatureCheck available={f.pro} />
+                <FeatureCheck available={f.pro} colors={themeColors} />
               </View>
               <View style={[styles.compareCell, styles.compareCenterCell]}>
-                <FeatureCheck available={f.business} />
+                <FeatureCheck available={f.business} colors={themeColors} />
               </View>
             </View>
           ))}
@@ -344,7 +346,7 @@ export default function PaywallScreen() {
         </View>
 
         <View style={styles.trustRow}>
-          <Shield size={14} color={Colors.textSecondary} />
+          <Shield size={14} color={themeColors.textSecondary} />
           <Text style={styles.trustText}>
             Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
           </Text>
@@ -364,7 +366,7 @@ export default function PaywallScreen() {
           </TouchableOpacity>
           <Text style={styles.legalDot}>·</Text>
           <TouchableOpacity onPress={handleRestore} disabled={isFallbackPricing} testID="restore-purchases">
-            <Text style={[styles.legalLink, isFallbackPricing && { color: Colors.textMuted }]}>Restore</Text>
+            <Text style={[styles.legalLink, isFallbackPricing && { color: themeColors.textMuted }]}>Restore</Text>
           </TouchableOpacity>
           <Text style={styles.legalDot}>·</Text>
           <TouchableOpacity onPress={() => openLegal('terms')}>
@@ -377,7 +379,7 @@ export default function PaywallScreen() {
 
         {packagesStillLoading && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator color={Colors.primary} size="small" />
+            <ActivityIndicator color={themeColors.accent} size="small" />
             <Text style={styles.loadingText}>Loading plans...</Text>
           </View>
         )}
@@ -386,33 +388,33 @@ export default function PaywallScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.fillTertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: t.surfaceAlt,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   headerTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   scrollContent: {
     padding: 16,
@@ -423,14 +425,14 @@ const styles = StyleSheet.create({
   // we deliberately don't go to a 1x4 row because each card would shrink
   // below the readable threshold for the price+CTA.
   plansGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
     gap: 8,
     marginBottom: 28,
   },
   planCard: {
     width: '48%' as const,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 14,
     alignItems: 'center',
@@ -441,15 +443,15 @@ const styles = StyleSheet.create({
     overflow: 'visible' as const,
   },
   planCardHighlight: {
-    borderColor: Colors.primary + '30',
+    borderColor: t.accent + '40',
   },
   planCardActive: {
-    borderColor: Colors.success,
+    borderColor: t.success,
   },
   popularTag: {
     position: 'absolute' as const,
     top: -10,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
@@ -473,16 +475,16 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   planPrice: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   planPeriod: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginBottom: 6,
   },
   currentBadge: {
@@ -495,7 +497,7 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
   },
   ctaBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: Tokens.radius.md,
@@ -510,24 +512,24 @@ const styles = StyleSheet.create({
   compareTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 12,
   },
   compareTable: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     overflow: 'hidden',
     marginBottom: 20,
   },
   compareHeaderRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.surfaceAlt,
     paddingVertical: 10,
   },
   compareRow: {
     flexDirection: 'row',
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
     paddingVertical: 10,
   },
   compareCell: {
@@ -538,13 +540,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingLeft: 14,
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '400' as const,
   },
   compareHeaderCell: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
   },
   compareCenterCell: {
@@ -561,10 +563,10 @@ const styles = StyleSheet.create({
   aiValueText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   aiValueTextEnt: {
-    color: Colors.warning,
+    color: t.accentLabel,
   },
   trustRow: {
     flexDirection: 'row',
@@ -575,7 +577,7 @@ const styles = StyleSheet.create({
   },
   trustText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   legalRow: {
     flexDirection: 'row',
@@ -586,16 +588,16 @@ const styles = StyleSheet.create({
   },
   legalLink: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.primary,
+    color: t.accentLabel,
     fontWeight: '600' as const,
   },
   legalDot: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   legalFinePrint: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center' as const,
     lineHeight: 16,
     paddingHorizontal: 24,
@@ -610,10 +612,10 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   fallbackNotice: {
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.md,
     padding: 12,
     marginBottom: 12,
@@ -621,7 +623,7 @@ const styles = StyleSheet.create({
   },
   fallbackNoticeText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center' as const,
     lineHeight: 18,
   },

@@ -23,8 +23,9 @@ import {
   CheckCircle2, Circle, ArrowRight, X, Sparkles, FolderPlus, Calculator,
   Receipt, Mic, Ruler,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -58,7 +59,8 @@ function OnboardingChecklistImpl({
   projectCount, estimateCount, invoiceCount, takeoffRun, voiceUsed,
 }: OnboardingChecklistProps) {
   const router = useRouter();
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [dismissed, setDismissed] = useState<boolean | null>(null);
   const enter = useState(() => new Animated.Value(0))[0];
 
@@ -172,8 +174,6 @@ function OnboardingChecklistImpl({
       style={[
         styles.card,
         {
-          backgroundColor: themeColors.surface,
-          borderColor: themeColors.line,
           opacity: enter,
           transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
         },
@@ -182,7 +182,7 @@ function OnboardingChecklistImpl({
       <View style={styles.head}>
         <View style={styles.headLeft}>
           <View style={styles.headIcon}>
-            <Sparkles size={14} color={Colors.primary} />
+            <Sparkles size={14} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Get up and running</Text>
@@ -193,7 +193,7 @@ function OnboardingChecklistImpl({
             </Text>
           </View>
         </View>
-        <TouchableOpacity onPress={handleDismiss} hitSlop={10} style={styles.closeBtn} testID="onboarding-checklist-dismiss" accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={Colors.textMuted} /></TouchableOpacity>
+        <TouchableOpacity onPress={handleDismiss} hitSlop={10} style={styles.closeBtn} testID="onboarding-checklist-dismiss" accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={colors.textMuted} /></TouchableOpacity>
       </View>
 
       <View style={styles.progressTrack}>
@@ -213,11 +213,11 @@ function OnboardingChecklistImpl({
             >
               <View style={styles.itemLeft}>
                 {item.done ? (
-                  <CheckCircle2 size={18} color={Colors.success} />
+                  <CheckCircle2 size={18} color={colors.success} />
                 ) : (
-                  <Circle size={18} color={Colors.textMuted} strokeWidth={1.8} />
+                  <Circle size={18} color={colors.textMuted} strokeWidth={1.8} />
                 )}
-                <Icon size={14} color={item.done ? Colors.textMuted : Colors.primary} />
+                <Icon size={14} color={item.done ? colors.textMuted : colors.accent} />
                 <Text style={[styles.itemTitle, item.done && styles.itemTitleDone]}>
                   {item.title}
                 </Text>
@@ -225,7 +225,7 @@ function OnboardingChecklistImpl({
               {!item.done && (
                 <View style={styles.itemCta}>
                   <Text style={styles.itemCtaText}>{item.cta}</Text>
-                  <ArrowRight size={12} color={Colors.primary} />
+                  <ArrowRight size={12} color={colors.accent} />
                 </View>
               )}
             </TouchableOpacity>
@@ -250,67 +250,67 @@ export async function resetOnboardingDismissed(): Promise<void> {
   try { await AsyncStorage.removeItem(DISMISSED_KEY); } catch {}
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: {
-    backgroundColor: Colors.card,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: Colors.primary + '25',
+    borderColor: t.accent + '40',
     padding: 14,
     marginHorizontal: 16,
     marginBottom: 12,
     gap: 10,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
     elevation: 2,
   },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  headLeft: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  head: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
+  headLeft: { flex: 1, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
   headIcon: {
     width: 28, height: 28, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '14',
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: t.accentSoft,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  subtitle: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
+  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.1 },
+  subtitle: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 15 },
   closeBtn: {
     width: 28, height: 28, borderRadius: Tokens.radius.sm,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.background,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    backgroundColor: t.surfaceAlt,
   },
   progressTrack: {
     height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
-    overflow: 'hidden',
+    backgroundColor: t.line,
+    overflow: 'hidden' as const,
   },
   progressFill: {
-    height: '100%', backgroundColor: Colors.primary,
+    height: '100%' as const, backgroundColor: t.accent,
     borderRadius: 2,
   },
   list: { gap: 6 },
   item: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
     paddingHorizontal: 10, paddingVertical: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.background,
+    backgroundColor: t.surfaceAlt,
   },
   itemDone: {
-    backgroundColor: Colors.success + '08',
+    backgroundColor: t.successSoft,
     opacity: 0.85,
   },
-  itemLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  itemTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  itemLeft: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  itemTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
   itemTitleDone: {
-    color: Colors.textMuted,
+    color: t.textMuted,
     textDecorationLine: 'line-through' as const,
   },
   itemCta: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
     paddingHorizontal: 8, paddingVertical: 4,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accentSoft,
   },
-  itemCtaText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' },
+  itemCtaText: { fontSize: Type.caption2.fontSize, color: t.accentLabel, fontWeight: '700' as const },
 });

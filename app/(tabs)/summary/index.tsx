@@ -10,8 +10,9 @@ import {
   Receipt, Wrench, Calendar, TrendingUp, FolderOpen, FileDown,
   Inbox, Wallet, UserPlus, Gavel,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import EmptyState from '@/components/EmptyState';
@@ -143,6 +144,7 @@ export default function SummaryScreen() {
   const router = useRouter();
   const { projects, invoices, punchItems, changeOrders, isLoading } = useProjects();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const active = useMemo(
     () => projects.filter(p => p.status !== 'closed' && p.status !== 'completed'),
@@ -212,7 +214,7 @@ export default function SummaryScreen() {
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
         <Text style={styles.heading}>Summary</Text>
         <EmptyState
-          icon={<FolderOpen size={36} color={Colors.primary} />}
+          icon={<FolderOpen size={36} color={themeColors.accent} />}
           title="No projects yet"
           message="Summary rolls up budget, outstanding cash, punch, and risk across every project. To populate it:"
           steps={[
@@ -239,10 +241,10 @@ export default function SummaryScreen() {
         </Text>
 
         <View style={styles.portfolioRow}>
-          <PortfolioStat label="Total Budget" value={formatMoneyShort(portfolio.budget)} tint={Colors.primary} />
-          <PortfolioStat label="Outstanding" value={formatMoneyShort(portfolio.outstanding)} tint={Colors.warning} />
-          <PortfolioStat label="Open Punch" value={`${portfolio.punch}`} tint={Colors.info} />
-          <PortfolioStat label="At Risk" value={`${portfolio.risks}`} tint={portfolio.risks > 0 ? Colors.error : Colors.success} />
+          <PortfolioStat styles={styles} label="Total Budget" value={formatMoneyShort(portfolio.budget)} tint={themeColors.accent} />
+          <PortfolioStat styles={styles} label="Outstanding" value={formatMoneyShort(portfolio.outstanding)} tint={themeColors.accent} />
+          <PortfolioStat styles={styles} label="Open Punch" value={`${portfolio.punch}`} tint={themeColors.info} />
+          <PortfolioStat styles={styles} label="At Risk" value={`${portfolio.risks}`} tint={portfolio.risks > 0 ? themeColors.danger : themeColors.success} />
         </View>
 
         {projects.length > 0 && (
@@ -263,7 +265,7 @@ export default function SummaryScreen() {
             testID="summary-reports-cta"
           >
             <View style={styles.reportsIcon}>
-              <FileDown size={18} color={Colors.primary} />
+              <FileDown size={18} color={themeColors.accent} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.reportsTitle}>Bank-ready reports</Text>
@@ -271,7 +273,7 @@ export default function SummaryScreen() {
                 WIP · Profit by project · A/R aging · PDF + CSV export
               </Text>
             </View>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         )}
 
@@ -331,21 +333,21 @@ export default function SummaryScreen() {
 
         {stats.length === 0 ? (
           <View style={styles.emptyCard}>
-            <CheckCircle2 size={32} color={Colors.success} />
+            <CheckCircle2 size={32} color={themeColors.success} />
             <Text style={styles.emptyTitle}>All projects wrapped</Text>
             <Text style={styles.emptyDesc}>
               Every project is marked completed or closed. Kick off a new one to see it here.
             </Text>
           </View>
         ) : (
-          stats.map(s => <SummaryCard key={s.project.id} stats={s} onPress={() => openProject(s.project.id)} />)
+          stats.map(s => <SummaryCard key={s.project.id} stats={s} onPress={() => openProject(s.project.id)} styles={styles} colors={themeColors} />)
         )}
       </ScrollView>
     </View>
   );
 }
 
-function PortfolioStat({ label, value, tint }: { label: string; value: string; tint: string }) {
+function PortfolioStat({ label, value, tint, styles }: { label: string; value: string; tint: string; styles: ReturnType<typeof makeStyles> }) {
   return (
     <View style={styles.portfolioStat}>
       <Text style={[styles.portfolioValue, { color: tint }]}>{value}</Text>
@@ -354,13 +356,13 @@ function PortfolioStat({ label, value, tint }: { label: string; value: string; t
   );
 }
 
-function SummaryCard({ stats, onPress }: { stats: ProjectSummaryStats; onPress: () => void }) {
+function SummaryCard({ stats, onPress, styles, colors }: { stats: ProjectSummaryStats; onPress: () => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors }) {
   const { project, budget, outstandingInvoices, paidInvoices, openPunchItems,
     urgentPunchItems, nextMilestone, pendingChangeOrders, healthScore, healthReason } = stats;
 
   const healthTint = healthScore === 'good'
-    ? Colors.success
-    : healthScore === 'watch' ? Colors.warning : Colors.error;
+    ? colors.success
+    : healthScore === 'watch' ? colors.accent : colors.danger;
 
   const percentBilled = budget > 0 ? Math.min(100, Math.round(((paidInvoices + outstandingInvoices) / budget) * 100)) : 0;
 
@@ -386,26 +388,28 @@ function SummaryCard({ stats, onPress }: { stats: ProjectSummaryStats; onPress: 
       <Text style={styles.healthReason} numberOfLines={1}>{healthReason}</Text>
 
       <View style={styles.statGrid}>
-        <Stat icon={DollarSign} label="Budget" value={formatMoneyShort(budget)} tint={Colors.primary} />
-        <Stat icon={Receipt} label="Outstanding" value={formatMoney(outstandingInvoices)} tint={outstandingInvoices > 0 ? Colors.warning : Colors.textMuted} />
+        <Stat styles={styles} icon={DollarSign} label="Budget" value={formatMoneyShort(budget)} tint={colors.accent} />
+        <Stat styles={styles} icon={Receipt} label="Outstanding" value={formatMoney(outstandingInvoices)} tint={outstandingInvoices > 0 ? colors.accent : colors.textMuted} />
         <Stat
+          styles={styles}
           icon={Wrench}
           label="Punch"
           value={`${openPunchItems}${urgentPunchItems > 0 ? ` · ${urgentPunchItems}!` : ''}`}
-          tint={urgentPunchItems > 0 ? Colors.error : openPunchItems > 0 ? Colors.info : Colors.textMuted}
+          tint={urgentPunchItems > 0 ? colors.danger : openPunchItems > 0 ? colors.info : colors.textMuted}
         />
         <Stat
+          styles={styles}
           icon={ClipboardList}
           label="COs pending"
           value={`${pendingChangeOrders}`}
-          tint={pendingChangeOrders > 0 ? Colors.warning : Colors.textMuted}
+          tint={pendingChangeOrders > 0 ? colors.accent : colors.textMuted}
         />
       </View>
 
       {budget > 0 && (
         <View style={styles.billedRow}>
           <Text style={styles.billedLabel}>
-            <TrendingUp size={11} color={Colors.textMuted} /> Billed {percentBilled}% of budget
+            <TrendingUp size={11} color={colors.textMuted} /> Billed {percentBilled}% of budget
           </Text>
           <View style={styles.billedBar}>
             <View style={[styles.billedFill, { width: `${percentBilled}%` }]} />
@@ -415,7 +419,7 @@ function SummaryCard({ stats, onPress }: { stats: ProjectSummaryStats; onPress: 
 
       {nextMilestone && (
         <View style={styles.milestoneRow}>
-          <Calendar size={13} color={Colors.primary} />
+          <Calendar size={13} color={colors.accent} />
           <Text style={styles.milestoneText} numberOfLines={1}>
             Next: {nextMilestone.title}
           </Text>
@@ -427,13 +431,13 @@ function SummaryCard({ stats, onPress }: { stats: ProjectSummaryStats; onPress: 
 
       <View style={styles.cardFooter}>
         <Text style={styles.openDetailText}>Open project</Text>
-        <ChevronRight size={16} color={Colors.primary} />
+        <ChevronRight size={16} color={colors.accent} />
       </View>
     </TouchableOpacity>
   );
 }
 
-function Stat({ icon: Icon, label, value, tint }: { icon: typeof DollarSign; label: string; value: string; tint: string }) {
+function Stat({ icon: Icon, label, value, tint, styles }: { icon: typeof DollarSign; label: string; value: string; tint: string; styles: ReturnType<typeof makeStyles> }) {
   return (
     <View style={styles.stat}>
       <Icon size={14} color={tint} />
@@ -443,70 +447,69 @@ function Stat({ icon: Icon, label, value, tint }: { icon: typeof DollarSign; lab
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: Colors.text, paddingHorizontal: 20, letterSpacing: -0.5 },
-  subheading: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
-  portfolioRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8, marginBottom: 16 },
-  portfolioStat: { flex: 1, minWidth: '46%' as any, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
+  center: { alignItems: 'center' as const, justifyContent: 'center' as const },
+  heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
+  subheading: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
+  portfolioRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, paddingHorizontal: 12, gap: 8, marginBottom: 16 },
+  portfolioStat: { flex: 1, minWidth: '46%' as any, backgroundColor: t.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
   portfolioValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, letterSpacing: -0.3 },
-  portfolioLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
-  card: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.2 },
-  cardSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' as const },
-  healthPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  portfolioLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
+  card: { marginHorizontal: 16, marginBottom: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: t.line, padding: 14, gap: 10 },
+  cardHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
+  cardTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.2 },
+  cardSubtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, textTransform: 'capitalize' as const },
+  healthPill: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm },
   healthPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
-  healthReason: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: -4 },
-  statGrid: { flexDirection: 'row', gap: 8 },
-  stat: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingVertical: 8, paddingHorizontal: 8, gap: 2, alignItems: 'flex-start' as const },
+  healthReason: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: -4 },
+  statGrid: { flexDirection: 'row' as const, gap: 8 },
+  stat: { flex: 1, backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, paddingVertical: 8, paddingHorizontal: 8, gap: 2, alignItems: 'flex-start' as const },
   statValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const },
-  statLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '500' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  statLabel: { fontSize: 10, color: t.textMuted, fontWeight: '500' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   billedRow: { gap: 6 },
-  billedLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  billedBar: { height: 5, backgroundColor: Colors.fillTertiary, borderRadius: 3, overflow: 'hidden' as const },
-  billedFill: { height: '100%' as any, backgroundColor: Colors.primary, borderRadius: 3 },
-  milestoneRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.md, paddingVertical: 8, paddingHorizontal: 10 },
-  milestoneText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.text },
-  milestoneDate: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: -2 },
-  openDetailText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  emptyCard: { marginHorizontal: 16, padding: 24, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  billedLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '500' as const },
+  billedBar: { height: 5, backgroundColor: t.line, borderRadius: 3, overflow: 'hidden' as const },
+  billedFill: { height: '100%' as any, backgroundColor: t.accent, borderRadius: 3 },
+  milestoneRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, backgroundColor: t.accentSoft, borderRadius: Tokens.radius.md, paddingVertical: 8, paddingHorizontal: 10 },
+  milestoneText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.text },
+  milestoneDate: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.accentLabel },
+  cardFooter: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'flex-end' as const, gap: 4, marginTop: -2 },
+  openDetailText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.accentLabel },
+  emptyCard: { marginHorizontal: 16, padding: 24, alignItems: 'center' as const, gap: 10, backgroundColor: t.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: t.line },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
+  emptyDesc: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center' as const, lineHeight: 18 },
   reportsCard: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
     marginHorizontal: 16, marginBottom: 12,
     padding: 14, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
   },
   reportsIcon: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accentSoft,
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  reportsTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.2 },
-  reportsBody:  { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  reportsTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.2 },
+  reportsBody:  { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2, lineHeight: 16 },
 
   // Tools group — the dropped 8-icon navbar items live here as a clean
-  // grouped list, iOS-Settings-style. Subtle visual weight; users come
-  // here when they want to navigate, not as a default destination.
+  // grouped list, iOS-Settings-style.
   toolsGroup: { marginHorizontal: 16, marginTop: 18, marginBottom: 6 },
   toolsHeader: {
     fontSize: Type.caption2.fontSize, fontWeight: '700' as const,
-    color: Colors.textMuted, letterSpacing: 0.6,
+    color: t.textMuted, letterSpacing: 0.6,
     textTransform: 'uppercase' as const,
     paddingHorizontal: 4, marginBottom: 8,
   },
   toolsCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
     overflow: 'hidden' as const,
   },
   toolsDivider: {
-    height: 1, backgroundColor: Colors.cardBorder,
+    height: 1, backgroundColor: t.line,
     marginLeft: 64,
   },
 });

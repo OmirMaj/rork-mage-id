@@ -17,8 +17,9 @@ import {
   AlertTriangle, CheckCircle2, Clock, DollarSign, HardHat, ChevronDown,
   X as XIcon,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useSmartInbox, type InboxItem, type InboxCategory } from '@/hooks/useSmartInbox';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { Type } from '@/constants/typography';
@@ -45,7 +46,8 @@ const CATEGORY_META: Record<FilterKey, { label: string; Icon: typeof AlertTriang
 export default function SmartInbox() {
   const { items, byCategory, counts, dismiss, isReady } = useSmartInbox();
   const { navigateTo } = useEntityNavigation();
-  const { colors: themeColors } = useTheme();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const [filter, setFilter] = useState<FilterKey>('all');
   const [expanded, setExpanded] = useState(false);
@@ -73,14 +75,14 @@ export default function SmartInbox() {
 
   if (items.length === 0) {
     return (
-      <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
+      <View style={styles.card}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Needs attention</Text>
           <Text style={styles.headerCount}>0</Text>
         </View>
         <View style={styles.emptyWrap}>
           <View style={styles.emptyIcon}>
-            <CheckCircle2 size={20} color={Colors.success} strokeWidth={2.2} />
+            <CheckCircle2 size={20} color={colors.success} strokeWidth={2.2} />
           </View>
           <Text style={styles.emptyText}>All caught up.</Text>
           <Text style={styles.emptySub}>Nothing urgent across your projects.</Text>
@@ -90,7 +92,7 @@ export default function SmartInbox() {
   }
 
   return (
-    <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
+    <View style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={styles.headerTitle}>Needs attention</Text>
         <Text style={styles.headerCount}>· {counts.all}</Text>
@@ -109,7 +111,7 @@ export default function SmartInbox() {
               activeOpacity={0.7}
               testID={`inbox-chip-${key}`}
             >
-              <meta.Icon size={12} color={active ? Colors.surface : Colors.textSecondary} strokeWidth={2} />
+              <meta.Icon size={12} color={active ? '#FFFFFF' : colors.textSecondary} strokeWidth={2} />
               <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>
                 {meta.label}
               </Text>
@@ -130,7 +132,14 @@ export default function SmartInbox() {
       ) : (
         <View style={styles.list}>
           {shown.map(item => (
-            <InboxRow key={item.id} item={item} onPress={onRowPress} onDismiss={onRowDismiss} />
+            <InboxRow
+              key={item.id}
+              item={item}
+              onPress={onRowPress}
+              onDismiss={onRowDismiss}
+              styles={styles}
+              colors={colors}
+            />
           ))}
         </View>
       )}
@@ -143,7 +152,7 @@ export default function SmartInbox() {
           testID="inbox-show-all"
         >
           <Text style={styles.showAllText}>Show {hiddenCount} more</Text>
-          <ChevronDown size={14} color={Colors.primary} strokeWidth={2.2} />
+          <ChevronDown size={14} color={colors.accent} strokeWidth={2.2} />
         </TouchableOpacity>
       )}
       {expanded && visible.length > DEFAULT_TOP && (
@@ -160,9 +169,15 @@ export default function SmartInbox() {
   );
 }
 
-function InboxRow({
-  item, onPress, onDismiss,
-}: { item: InboxItem; onPress: (i: InboxItem) => void; onDismiss: (i: InboxItem) => void }) {
+interface InboxRowProps {
+  item: InboxItem;
+  onPress: (i: InboxItem) => void;
+  onDismiss: (i: InboxItem) => void;
+  styles: ReturnType<typeof makeStyles>;
+  colors: ThemeColors;
+}
+
+function InboxRow({ item, onPress, onDismiss, styles, colors }: InboxRowProps) {
   return (
     <View style={styles.row}>
       <TouchableOpacity
@@ -186,101 +201,101 @@ function InboxRow({
         hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
         testID={`inbox-dismiss-${item.id}`}
       >
-        <XIcon size={14} color={Colors.textSecondary} strokeWidth={2} />
+        <XIcon size={14} color={colors.textSecondary} strokeWidth={2} />
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexDirection: 'row' as const,
+    alignItems: 'baseline' as const,
     gap: 6,
     marginBottom: 12,
   },
   headerTitle: {
     fontSize: Type.body.fontSize,
-    fontWeight: '700',
-    color: Colors.text,
+    fontWeight: '700' as const,
+    color: t.text,
     letterSpacing: -0.3,
   },
   headerCount: {
     fontSize: Type.subhead.fontSize,
-    fontWeight: '600',
-    color: Colors.textSecondary,
+    fontWeight: '600' as const,
+    color: t.textSecondary,
   },
   chipRow: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     gap: 6,
     marginBottom: 12,
-    flexWrap: 'wrap',
+    flexWrap: 'wrap' as const,
   },
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   chipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   chipLabel: {
     fontSize: Type.caption1.fontSize,
-    fontWeight: '600',
-    color: Colors.textSecondary,
+    fontWeight: '600' as const,
+    color: t.textSecondary,
   },
   chipLabelActive: {
-    color: Colors.surface,
+    color: '#FFFFFF',
   },
   chipCountWrap: {
     minWidth: 18,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 9,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: t.line,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   chipCountWrapActive: {
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   chipCount: {
     fontSize: 10,
-    fontWeight: '700',
-    color: Colors.textSecondary,
+    fontWeight: '700' as const,
+    color: t.textSecondary,
   },
   chipCountActive: {
-    color: Colors.surface,
+    color: '#FFFFFF',
   },
   list: {
     gap: 2,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   rowMain: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 10,
   },
   severityDot: {
@@ -293,12 +308,12 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     fontSize: Type.bodyCompact.fontSize,
-    fontWeight: '600',
-    color: Colors.text,
+    fontWeight: '600' as const,
+    color: t.text,
   },
   rowSub: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 2,
   },
   dismissBtn: {
@@ -306,39 +321,39 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   showAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     gap: 4,
     paddingVertical: 10,
     marginTop: 4,
   },
   showAllText: {
     fontSize: Type.footnote.fontSize,
-    fontWeight: '600',
-    color: Colors.primary,
+    fontWeight: '600' as const,
+    color: t.accent,
   },
   emptyWrap: {
-    alignItems: 'center',
+    alignItems: 'center' as const,
     paddingVertical: 20,
   },
   emptyIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.successLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: t.successSoft,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: Type.bodyCompact.fontSize,
-    fontWeight: '600',
-    color: Colors.text,
+    fontWeight: '600' as const,
+    color: t.text,
   },
   emptySub: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 2,
   },
 });
