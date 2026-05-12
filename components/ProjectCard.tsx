@@ -141,6 +141,8 @@ function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardPr
         onPressOut={handlePressOut}
         activeOpacity={1}
         testID={`project-card-${project.id}`}
+        accessibilityRole="button"
+        accessibilityLabel={`Open project: ${project.name}, status ${statusLabel}`}
       >
         <View style={styles.card}>
           <View style={styles.topRow}>

@@ -151,7 +151,29 @@ export async function supabaseWrite(
       console.log('[OfflineQueue] Network error, queuing mutation:', table, operation);
       await addToOfflineQueue({ table, operation, data });
     } else {
-      console.log('[OfflineQueue] Non-network Supabase error:', err);
+      // Non-network failure (RLS denial, validation, server 500, schema
+      // mismatch). These won't be fixed by reconnecting — we need to tell
+      // the user so they can retry / report / fix the input. Logging
+      // alone (the previous behavior) silently lost the write from the
+      // user's perspective. AUD-001.
+      const msg = err instanceof Error ? err.message : 'Sync failed';
+      console.log('[OfflineQueue] Non-network Supabase error:', table, operation, msg);
+      // Best-effort lazy require — keeping offlineQueue side-effect free
+      // at module load. If the toast host isn't mounted yet, the call
+      // is a no-op (intentional — pre-mount errors aren't actionable).
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { oops } = require('@/components/animations/NailItToast');
+        oops(`Couldn't save (${table}). ${msg.slice(0, 80)}`);
+      } catch {/* ignore */}
+      // Forward to Sentry so we can see what's failing in prod.
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const Sentry = require('@sentry/react-native');
+        Sentry.captureException(err instanceof Error ? err : new Error(msg), {
+          tags: { source: 'offlineQueue', table, operation },
+        });
+      } catch {/* ignore */}
     }
 
     return false;

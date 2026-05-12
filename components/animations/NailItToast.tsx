@@ -14,7 +14,7 @@
 // from any screen via the exported helper. No props, no provider.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View, Dimensions } from 'react-native';
-import { Hammer, CheckCircle2 } from 'lucide-react-native';
+import { Hammer, CheckCircle2, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -23,9 +23,12 @@ import * as Haptics from 'expo-haptics';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 
+type ToastKind = 'success' | 'error';
+
 interface ToastEvent {
   message: string;
   id: number;
+  kind: ToastKind;
 }
 
 let listeners: ((e: ToastEvent) => void)[] = [];
@@ -38,7 +41,27 @@ let nextId = 1;
  */
 export function nailIt(message: string): void {
   if (!message || message.length === 0) return;
-  const event: ToastEvent = { message: message.length > 80 ? message.slice(0, 77) + '…' : message, id: nextId++ };
+  const event: ToastEvent = {
+    message: message.length > 80 ? message.slice(0, 77) + '…' : message,
+    id: nextId++,
+    kind: 'success',
+  };
+  listeners.forEach(l => l(event));
+}
+
+/**
+ * Trigger an error variant — same toast slot, danger tint, no hammer/spark
+ * (errors don't celebrate). Use for surfacing non-network sync failures or
+ * other "tried to save but couldn't" moments where Alert would be too
+ * disruptive but a silent log would lose the user.
+ */
+export function oops(message: string): void {
+  if (!message || message.length === 0) return;
+  const event: ToastEvent = {
+    message: message.length > 120 ? message.slice(0, 117) + '…' : message,
+    id: nextId++,
+    kind: 'error',
+  };
   listeners.forEach(l => l(event));
 }
 
@@ -60,7 +83,12 @@ export function NailItToastHost() {
     sparkScale.setValue(0);
     sparkOpacity.setValue(0);
 
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (Platform.OS !== 'web') {
+      const kind = event.kind === 'error'
+        ? Haptics.NotificationFeedbackType.Error
+        : Haptics.NotificationFeedbackType.Success;
+      void Haptics.notificationAsync(kind);
+    }
 
     Animated.sequence([
       // Fade the card in.
@@ -96,48 +124,64 @@ export function NailItToastHost() {
   if (!active) return null;
 
   const screenWidth = Dimensions.get('window').width;
+  const isError = active.kind === 'error';
 
   return (
     <View pointerEvents="none" style={[styles.host, { width: screenWidth }]}>
-      <Animated.View style={[styles.toast, { opacity }]}>
+      <Animated.View style={[
+        styles.toast,
+        { opacity },
+        isError && {
+          backgroundColor: themeColors.danger + '15',
+          borderColor: themeColors.danger + '40',
+        },
+      ]}>
         <View style={styles.checkBubble}>
-          <CheckCircle2 size={18} color={themeColors.success} fill={Colors.successLight} />
+          {isError ? (
+            <AlertTriangle size={18} color={themeColors.danger} />
+          ) : (
+            <CheckCircle2 size={18} color={themeColors.success} fill={Colors.successLight} />
+          )}
         </View>
         <Text style={styles.message} numberOfLines={2}>{active.message}</Text>
-        {/* Hammer strikes from the right. */}
-        <Animated.View
-          style={[
-            styles.hammerWrap,
-            {
-              transform: [
-                { translateX: hammerX },
-                { rotate: hammerRotate.interpolate({ inputRange: [0, 1], outputRange: ['-30deg', '20deg'] }) },
-              ],
-            },
-          ]}
-        >
-          <Hammer size={20} color={Colors.warning} />
-        </Animated.View>
-        {/* Spark burst at impact point. */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.sparkWrap,
-            { opacity: sparkOpacity, transform: [{ scale: sparkScale }] },
-          ]}
-        >
-          {[0, 60, 120, 180, 240, 300].map(deg => (
-            <View
-              key={deg}
+        {/* Hammer + sparks only celebrate success. Error mode keeps the slot
+            clean — the icon + tint carry the meaning. */}
+        {!isError && (
+          <>
+            <Animated.View
               style={[
-                styles.spark,
+                styles.hammerWrap,
                 {
-                  transform: [{ rotate: `${deg}deg` }, { translateY: -10 }],
+                  transform: [
+                    { translateX: hammerX },
+                    { rotate: hammerRotate.interpolate({ inputRange: [0, 1], outputRange: ['-30deg', '20deg'] }) },
+                  ],
                 },
               ]}
-            />
-          ))}
-        </Animated.View>
+            >
+              <Hammer size={20} color={Colors.warning} />
+            </Animated.View>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.sparkWrap,
+                { opacity: sparkOpacity, transform: [{ scale: sparkScale }] },
+              ]}
+            >
+              {[0, 60, 120, 180, 240, 300].map(deg => (
+                <View
+                  key={deg}
+                  style={[
+                    styles.spark,
+                    {
+                      transform: [{ rotate: `${deg}deg` }, { translateY: -10 }],
+                    },
+                  ]}
+                />
+              ))}
+            </Animated.View>
+          </>
+        )}
       </Animated.View>
     </View>
   );

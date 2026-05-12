@@ -36,6 +36,8 @@ interface CardProps {
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /** Screen-reader label when pressable. Falls back to "Card" if omitted. */
+  accessibilityLabel?: string;
 }
 
 interface SlotProps {
@@ -43,7 +45,7 @@ interface SlotProps {
   style?: StyleProp<TextStyle>;
 }
 
-function CardRoot({ children, pressable, onPress, style, testID }: CardProps) {
+function CardRoot({ children, pressable, onPress, style, testID, accessibilityLabel }: CardProps) {
   const styles = useThemedStyles(makeStyles);
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -74,6 +76,8 @@ function CardRoot({ children, pressable, onPress, style, testID }: CardProps) {
         onPressOut={handlePressOut}
         style={[styles.card, style]}
         testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? 'Card'}
       >
         {children}
       </Pressable>
