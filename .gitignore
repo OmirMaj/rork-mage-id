@@ -25,6 +25,9 @@ android/
 .superpowers/
 .obsidian/
 
+# Brainstorming session mockups (visual companion)
+.superpowers/
+
 # Supabase CLI temp files
 supabase/.temp/
 
