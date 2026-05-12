@@ -30,8 +30,9 @@ import {
   Plus, Mic, Sparkles, ChevronRight, AlertTriangle, CheckCircle2,
   Clock, TrendingUp, TrendingDown, Package, X, Save,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
@@ -81,6 +82,7 @@ export default function BuyoutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, getBidPackagesForProject, getBidsForPackage, addBidPackage } = useProjects();
 
@@ -249,7 +251,7 @@ export default function BuyoutScreen() {
 
         {!project ? (
           <View style={styles.emptyState}>
-            <Package size={48} color={Colors.textMuted} />
+            <Package size={48} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No project selected</Text>
             <Text style={styles.emptyDesc}>Pick a project above to see its buyout dashboard.</Text>
           </View>
@@ -278,10 +280,10 @@ export default function BuyoutScreen() {
                 <View style={styles.kpiTileTopRow}>
                   <Text style={styles.kpiLabel}>Buyout {kpi.savingsToDate >= 0 ? 'savings' : 'overrun'}</Text>
                   {kpi.savingsToDate >= 0
-                    ? <TrendingUp size={14} color={Colors.success} />
-                    : <TrendingDown size={14} color={Colors.error} />}
+                    ? <TrendingUp size={14} color={themeColors.success} />
+                    : <TrendingDown size={14} color={themeColors.danger} />}
                 </View>
-                <Text style={[styles.kpiNum, { color: kpi.savingsToDate >= 0 ? Colors.success : Colors.error }]}>
+                <Text style={[styles.kpiNum, { color: kpi.savingsToDate >= 0 ? themeColors.success : themeColors.danger }]}>
                   {kpi.savingsToDate >= 0 ? '+' : ''}{formatMoney(kpi.savingsToDate)}
                 </Text>
                 <Text style={styles.kpiSub}>vs. estimate carry across awarded packages</Text>
@@ -294,7 +296,7 @@ export default function BuyoutScreen() {
                 <Text style={styles.kpiNum}>{kpi.awarded}<Text style={styles.kpiNumSecondary}> / {kpi.total}</Text></Text>
                 <View style={styles.kpiPaceRow}>
                   <View style={[styles.pacePill, { backgroundColor: '#FF6A1A22' }]}>
-                    <Text style={[styles.pacePillText, { color: Colors.orange }]}>{kpi.open} open</Text>
+                    <Text style={[styles.pacePillText, { color: themeColors.accent }]}>{kpi.open} open</Text>
                   </View>
                   <View style={[styles.pacePill, { backgroundColor: '#0D6CB122' }]}>
                     <Text style={[styles.pacePillText, { color: '#0D6CB1' }]}>{kpi.leveling} leveling</Text>
@@ -312,7 +314,7 @@ export default function BuyoutScreen() {
 
               {packages.length === 0 ? (
                 <View style={styles.emptyPackages}>
-                  <Package size={32} color={Colors.textMuted} />
+                  <Package size={32} color={themeColors.textMuted} />
                   <Text style={styles.emptyPackagesText}>
                     Create a scope package — Plumbing rough-in, Drywall, MEP, etc. Send it out for bid, log the responses, and let MAGE ID level them.
                   </Text>
@@ -340,12 +342,12 @@ export default function BuyoutScreen() {
                             {overdue && (
                               <>
                                 <Text style={styles.pkgMeta}>·</Text>
-                                <Text style={[styles.pkgMeta, { color: Colors.error, fontWeight: '700' }]}>OVERDUE</Text>
+                                <Text style={[styles.pkgMeta, { color: themeColors.danger, fontWeight: '700' }]}>OVERDUE</Text>
                               </>
                             )}
                           </View>
                         </View>
-                        <ChevronRight size={16} color={Colors.textMuted} />
+                        <ChevronRight size={16} color={themeColors.textMuted} />
                       </View>
 
                       <View style={styles.pkgBudgetRow}>
@@ -356,7 +358,7 @@ export default function BuyoutScreen() {
                         {pkg.status === 'awarded' && pkg.buyoutSavings != null ? (
                           <View style={styles.pkgBudgetCell}>
                             <Text style={styles.pkgBudgetLabel}>Buyout {pkg.buyoutSavings >= 0 ? 'savings' : 'overrun'}</Text>
-                            <Text style={[styles.pkgBudgetValue, { color: pkg.buyoutSavings >= 0 ? Colors.success : Colors.error }]}>
+                            <Text style={[styles.pkgBudgetValue, { color: pkg.buyoutSavings >= 0 ? themeColors.success : themeColors.danger }]}>
                               {pkg.buyoutSavings >= 0 ? '+' : ''}{formatMoney(pkg.buyoutSavings)}
                             </Text>
                           </View>
@@ -397,19 +399,19 @@ export default function BuyoutScreen() {
 
         {/* New-package modal */}
         <Modal visible={showNewPkg} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowNewPkg(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: Colors.background }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>New scope package</Text>
               <TouchableOpacity onPress={() => setShowNewPkg(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={22} color={Colors.text} />
+                <X size={22} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               <Text style={styles.fieldLabel}>Name *</Text>
-              <TextInput style={styles.input} value={newPkgName} onChangeText={setNewPkgName} placeholder='e.g. "Plumbing rough-in"' placeholderTextColor={Colors.textMuted} autoFocus />
+              <TextInput style={styles.input} value={newPkgName} onChangeText={setNewPkgName} placeholder='e.g. "Plumbing rough-in"' placeholderTextColor={themeColors.textMuted} autoFocus />
 
               <Text style={styles.fieldLabel}>Phase</Text>
-              <TextInput style={styles.input} value={newPkgPhase} onChangeText={setNewPkgPhase} placeholder='e.g. "Rough-in", "Finishes"' placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={newPkgPhase} onChangeText={setNewPkgPhase} placeholder='e.g. "Rough-in", "Finishes"' placeholderTextColor={themeColors.textMuted} />
 
               <Text style={styles.fieldLabel}>CSI Division</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.csiRow}>
@@ -478,7 +480,7 @@ export default function BuyoutScreen() {
               )}
 
               <Text style={styles.fieldLabel}>Estimate budget (carry)</Text>
-              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Auto-fills from selected items, or type manually' placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Auto-fills from selected items, or type manually' placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
 
               <Text style={styles.tip}>You'll add bids on the next screen — by voice or by hand.</Text>
             </ScrollView>
@@ -495,28 +497,28 @@ export default function BuyoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
   projectChipsRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8, alignItems: 'center', flexDirection: 'row' as const },
-  projectChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, maxWidth: 220 },
-  projectChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  projectChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  projectChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, maxWidth: 220 },
+  projectChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  projectChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
   projectChipTextActive: { color: '#FFF' },
-  emptyChipText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, paddingHorizontal: 4 },
+  emptyChipText: { fontSize: Type.footnote.fontSize, color: t.textMuted, paddingHorizontal: 4 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' },
 
   kpiBand: { flexDirection: 'row', gap: 10, paddingHorizontal: 12, paddingTop: 6 },
-  kpiTile: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 6 },
+  kpiTile: { flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: t.line, gap: 6 },
   kpiTileTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 18 },
-  kpiLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
-  kpiNum: { fontSize: Type.title1.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  kpiNumSecondary: { color: Colors.textMuted, fontSize: Type.subheadline.fontSize, fontWeight: '600' as const },
-  kpiSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  progressTrack: { height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 2 },
-  kpiAlert: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.sm },
+  kpiLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  kpiNum: { fontSize: Type.title1.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
+  kpiNumSecondary: { color: t.textMuted, fontSize: Type.subheadline.fontSize, fontWeight: '600' as const },
+  kpiSub: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+  progressTrack: { height: 4, borderRadius: 2, backgroundColor: t.line, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: t.accent, borderRadius: 2 },
+  kpiAlert: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.danger, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.sm },
   kpiAlertText: { fontSize: 10, fontWeight: '700' as const, color: '#FFF', textTransform: 'uppercase', letterSpacing: 0.5 },
   kpiPaceRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
   pacePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
@@ -524,54 +526,54 @@ const styles = StyleSheet.create({
 
   section: { padding: 16, paddingBottom: 8 },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  sectionSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  sectionSub: { fontSize: Type.caption1.fontSize, color: t.textMuted },
 
-  emptyPackages: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 22, gap: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyPackagesText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19 },
+  emptyPackages: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 22, gap: 10, alignItems: 'center', borderWidth: 1, borderColor: t.line },
+  emptyPackagesText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19 },
 
-  pkgCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10, gap: 12 },
+  pkgCard: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: t.line, marginBottom: 10, gap: 12 },
   pkgHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   statusDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
-  pkgName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  pkgName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   pkgMetaRow: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  pkgMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  pkgBudgetRow: { flexDirection: 'row', gap: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
+  pkgMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted },
+  pkgBudgetRow: { flexDirection: 'row', gap: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line },
   pkgBudgetCell: { flex: 1 },
-  pkgBudgetLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
-  pkgBudgetValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  pkgBudgetValueMuted: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  pkgBudgetLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
+  pkgBudgetValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
+  pkgBudgetValueMuted: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
 
   fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 8 },
-  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
-  modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.cardBorder },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 14, marginBottom: 6 },
-  fieldHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: -2, marginBottom: 8, lineHeight: 16 },
-  input: { backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder, fontSize: Type.subhead.fontSize, color: Colors.text },
-  tip: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 18, fontStyle: 'italic', textAlign: 'center' },
+  modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textMuted, marginTop: 14, marginBottom: 6 },
+  fieldHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: -2, marginBottom: 8, lineHeight: 16 },
+  input: { backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, fontSize: Type.subhead.fontSize, color: t.text },
+  tip: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 18, fontStyle: 'italic', textAlign: 'center' },
   csiRow: { flexDirection: 'row', gap: 6, paddingBottom: 4 },
-  csiChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder },
-  csiChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  csiChipText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.text },
+  csiChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line },
+  csiChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  csiChipText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.text },
   csiChipTextActive: { color: '#FFF', fontWeight: '700' as const },
   itemsList: { gap: 6, marginTop: 4, marginBottom: 4 },
-  itemRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.cardBorder },
-  itemRowPicked: { backgroundColor: Colors.primary + '0F', borderColor: Colors.primary + '60' },
-  itemCheck: { width: 22, height: 22, borderRadius: Tokens.radius.xs, borderWidth: 2, borderColor: Colors.cardBorder, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background, marginTop: 1 },
-  itemCheckActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  itemRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: t.surface, padding: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line },
+  itemRowPicked: { backgroundColor: t.accent + '0F', borderColor: t.accent + '60' },
+  itemCheck: { width: 22, height: 22, borderRadius: Tokens.radius.xs, borderWidth: 2, borderColor: t.line, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, marginTop: 1 },
+  itemCheckActive: { backgroundColor: t.accent, borderColor: t.accent },
   itemCheckMark: { color: '#FFF', fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
   itemTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  itemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, flex: 1 },
-  itemMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  allowanceBadge: { backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
+  itemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text, flex: 1 },
+  itemMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
+  allowanceBadge: { backgroundColor: t.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
   allowanceBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
-  pickedSummary: { padding: 12, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.md, marginTop: 8, gap: 4 },
-  pickedSummaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  allowanceNote: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '600' as const },
-  modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card },
+  pickedSummary: { padding: 12, backgroundColor: t.accent + '10', borderRadius: Tokens.radius.md, marginTop: 8, gap: 4 },
+  pickedSummaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accent },
+  allowanceNote: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' as const },
+  modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.card },
   saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 });

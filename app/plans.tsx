@@ -31,8 +31,9 @@ import {
   ChevronLeft, Plus, MapPin, Trash2, Image as ImageIcon,
   ChevronRight, AlertTriangle, FileImage, X, Check, FileText, Sparkles,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
@@ -47,6 +48,7 @@ export default function PlansScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const params = useLocalSearchParams<{ projectId?: string }>();
   const projectId = typeof params.projectId === 'string' ? params.projectId : undefined;
   const { canAccess } = useTierAccess();
@@ -218,25 +220,25 @@ export default function PlansScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>{project.name}</Text>
           <Text style={styles.headerTitle}>Plans</Text>
         </View>
         <TouchableOpacity onPress={handleImportPdf} style={styles.ghostBtn} disabled={pdfImporting || importing}>
-          {pdfImporting ? <ActivityIndicator size="small" color={Colors.text} /> : <FileText size={15} color={Colors.text} />}
+          {pdfImporting ? <ActivityIndicator size="small" color={themeColors.text} /> : <FileText size={15} color={themeColors.text} />}
           <Text style={styles.ghostBtnText}>{pdfImporting ? 'Working' : 'PDF'}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleImport} style={styles.primaryBtn} disabled={importing || pdfImporting}>
-          {importing ? <ActivityIndicator size="small" color={Colors.textOnPrimary} /> : <Plus size={16} color={Colors.textOnPrimary} />}
+          {importing ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Plus size={16} color="#FFFFFF" />}
           <Text style={styles.primaryBtnText}>{importing ? 'Opening' : 'Image'}</Text>
         </TouchableOpacity>
       </View>
 
       {pdfImporting && pdfStatus ? (
         <View style={styles.statusBar}>
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
           <Text style={styles.statusBarText}>{pdfStatus}</Text>
         </View>
       ) : null}
@@ -252,16 +254,16 @@ export default function PlansScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {sheets.length === 0 ? (
           <View style={styles.emptyCard}>
-            <FileImage size={28} color={Colors.textMuted} />
+            <FileImage size={28} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No plan sheets yet</Text>
             <Text style={styles.emptyText}>Import a multi-page PDF and we'll convert each sheet automatically, or pick a single image (PNG/JPG).</Text>
             <View style={styles.emptyBtnRow}>
               <TouchableOpacity onPress={handleImportPdf} style={[styles.primaryBtn]} disabled={pdfImporting || importing}>
-                {pdfImporting ? <ActivityIndicator size="small" color={Colors.textOnPrimary} /> : <FileText size={16} color={Colors.textOnPrimary} />}
+                {pdfImporting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <FileText size={16} color="#FFFFFF" />}
                 <Text style={styles.primaryBtnText}>{pdfImporting ? 'Working' : 'Import PDF'}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleImport} style={[styles.ghostBtn]} disabled={importing || pdfImporting}>
-                {importing ? <ActivityIndicator size="small" color={Colors.text} /> : <ImageIcon size={15} color={Colors.text} />}
+                {importing ? <ActivityIndicator size="small" color={themeColors.text} /> : <ImageIcon size={15} color={themeColors.text} />}
                 <Text style={styles.ghostBtnText}>{importing ? 'Opening' : 'Import image'}</Text>
               </TouchableOpacity>
             </View>
@@ -286,8 +288,8 @@ export default function PlansScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     {s.sheetNumber ? <Text style={styles.sheetNumber}>{s.sheetNumber}</Text> : null}
                     {s.revision && s.revision > 1 && (
-                      <View style={[styles.revPill, s.superseded && { backgroundColor: Colors.fillTertiary }]}>
-                        <Text style={[styles.revPillText, s.superseded && { color: Colors.textMuted }]}>
+                      <View style={[styles.revPill, s.superseded && { backgroundColor: themeColors.surfaceAlt }]}>
+                        <Text style={[styles.revPillText, s.superseded && { color: themeColors.textMuted }]}>
                           Rev {s.revision}{s.superseded ? ' · superseded' : ''}
                         </Text>
                       </View>
@@ -296,16 +298,16 @@ export default function PlansScreen() {
                   <Text style={styles.sheetName} numberOfLines={2}>{s.name}</Text>
                   <View style={styles.sheetMetaRow}>
                     <View style={styles.metaPill}>
-                      <MapPin size={11} color={Colors.primary} />
+                      <MapPin size={11} color={themeColors.accent} />
                       <Text style={styles.metaPillText}>{pinCount} {pinCount === 1 ? 'pin' : 'pins'}</Text>
                     </View>
                     <Text style={styles.sheetDate}>{new Date(s.updatedAt).toLocaleDateString()}</Text>
                   </View>
                 </View>
                 <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={styles.iconBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={16} color={Colors.error} />
+                  <Trash2 size={16} color={themeColors.danger} />
                 </TouchableOpacity>
-                <ChevronRight size={16} color={Colors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             );
           })
@@ -334,12 +336,12 @@ export default function PlansScreen() {
             style={styles.compareBtn}
             testID="compare-drawings-cta"
           >
-            <Sparkles size={16} color={Colors.primary} />
+            <Sparkles size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.compareBtnTitle}>AI compare to revision</Text>
               <Text style={styles.compareBtnSub}>Pick a sheet + upload its new rev — AI flags every change</Text>
             </View>
-            <ChevronRight size={16} color={Colors.primary} />
+            <ChevronRight size={16} color={themeColors.accent} />
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -351,7 +353,7 @@ export default function PlansScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New sheet</Text>
               <TouchableOpacity onPress={() => setNewSheet(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             {newSheet?.uri ? (
@@ -373,7 +375,7 @@ export default function PlansScreen() {
               style={styles.input}
             />
             <TouchableOpacity style={styles.primaryBtn} onPress={confirmImport}>
-              <Check size={16} color={Colors.textOnPrimary} />
+              <Check size={16} color="#FFFFFF" />
               <Text style={styles.primaryBtnText}>Save & open</Text>
             </TouchableOpacity>
           </View>
@@ -393,11 +395,12 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
 }) {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
           <Text style={styles.headerTitle}>Pick a project</Text>
@@ -406,7 +409,7 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
-            <ImageIcon size={28} color={Colors.textMuted} />
+            <ImageIcon size={28} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No projects yet</Text>
             <Text style={styles.emptyText}>Plans attach to a project so every pin (punch items, photos, RFIs) ties back to a job. Create a project first, then come back here to import drawings.</Text>
             <TouchableOpacity onPress={onBack} style={[styles.primaryBtn, { marginTop: 12 }]}>
@@ -416,12 +419,12 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
         ) : (
           projects.map(p => (
             <TouchableOpacity key={p.id} style={styles.pickerRow} onPress={() => onPick(p.id)}>
-              <ImageIcon size={14} color={Colors.primary} />
+              <ImageIcon size={14} color={themeColors.accent} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.pickerRowTitle}>{p.name}</Text>
                 {p.status && <Text style={styles.pickerRowSub}>{p.status}</Text>}
               </View>
-              <ChevronRight size={14} color={Colors.textMuted} />
+              <ChevronRight size={14} color={themeColors.textMuted} />
             </TouchableOpacity>
           ))
         )}
@@ -432,11 +435,12 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
 
 function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onBack: () => void; insets: { top: number } }) {
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
           <Text style={styles.headerTitle}>Pro feature</Text>
@@ -444,7 +448,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
       </View>
       <View style={{ padding: 24 }}>
         <View style={styles.emptyCard}>
-          <FileImage size={28} color={Colors.primary} />
+          <FileImage size={28} color={themeColors.accent} />
           <Text style={styles.emptyTitle}>Plan markup is a Pro feature</Text>
           <Text style={styles.emptyText}>Upgrade to Pro to import drawings, drop pins tied to photos and punch items, and annotate sheets with the crew.</Text>
           <TouchableOpacity onPress={onUpgrade} style={[styles.primaryBtn, { marginTop: 14 }]}>
@@ -458,56 +462,56 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
 
 // ─────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: Colors.surface, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
+    backgroundColor: t.surface, borderBottomColor: t.line, borderBottomWidth: 1,
   },
   headerBtn: { padding: 6, borderRadius: Tokens.radius.sm },
-  headerEyebrow: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  headerTitle: { color: Colors.text, fontSize: Type.subheadline.fontSize, fontWeight: '700' },
+  headerEyebrow: { color: t.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
+  headerTitle: { color: t.text, fontSize: Type.subheadline.fontSize, fontWeight: '700' },
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
   },
-  primaryBtnText: { color: Colors.textOnPrimary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  primaryBtnText: { color: '#FFFFFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   ghostBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Tokens.radius.md,
-    borderColor: Colors.borderLight, borderWidth: 1,
+    backgroundColor: t.surfaceAlt, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Tokens.radius.md,
+    borderColor: t.line, borderWidth: 1,
   },
-  ghostBtnText: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
+  ghostBtnText: { color: t.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
 
   emptyBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   statusBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 14, paddingVertical: 9,
-    backgroundColor: Colors.surfaceAlt, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
+    backgroundColor: t.surfaceAlt, borderBottomColor: t.line, borderBottomWidth: 1,
   },
-  statusBarText: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+  statusBarText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   sheetCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.lg,
-    borderColor: Colors.borderLight, borderWidth: 1, marginBottom: 10,
+    backgroundColor: t.surface, padding: 12, borderRadius: Tokens.radius.lg,
+    borderColor: t.line, borderWidth: 1, marginBottom: 10,
   },
   sheetThumbWrap: {
     width: 72, height: 72, borderRadius: Tokens.radius.md, overflow: 'hidden',
-    backgroundColor: Colors.surfaceAlt, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: t.surfaceAlt, justifyContent: 'center', alignItems: 'center',
   },
   sheetThumb: { width: '100%', height: '100%' },
-  sheetNumber: { color: Colors.primary, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },
+  sheetNumber: { color: t.accent, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },
   revPill: {
     paddingHorizontal: 6, paddingVertical: 2,
     borderRadius: 8,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
   },
   revPillText: {
-    fontSize: 9, fontWeight: '700' as const, color: Colors.primary,
+    fontSize: 9, fontWeight: '700' as const, color: t.accent,
     letterSpacing: 0.3, textTransform: 'uppercase' as const,
   },
   supersededToggle: {
@@ -515,60 +519,60 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
   },
   supersededToggleText: {
-    fontSize: Type.caption1.fontSize, color: Colors.textSecondary,
+    fontSize: Type.caption1.fontSize, color: t.textSecondary,
     fontWeight: '600' as const,
   },
-  sheetName: { color: Colors.text, fontSize: Type.subhead.fontSize, fontWeight: '600', marginTop: 2 },
+  sheetName: { color: t.text, fontSize: Type.subhead.fontSize, fontWeight: '600', marginTop: 2 },
   sheetMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   metaPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm,
+    backgroundColor: t.surfaceAlt, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm,
   },
-  metaPillText: { color: Colors.text, fontSize: Type.caption2.fontSize, fontWeight: '600' },
-  sheetDate: { color: Colors.textMuted, fontSize: Type.caption2.fontSize },
+  metaPillText: { color: t.text, fontSize: Type.caption2.fontSize, fontWeight: '600' },
+  sheetDate: { color: t.textMuted, fontSize: Type.caption2.fontSize },
   iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
 
   emptyCard: {
-    backgroundColor: Colors.surface, padding: 24, borderRadius: Tokens.radius.lg, alignItems: 'center',
-    borderColor: Colors.borderLight, borderWidth: 1, gap: 6,
+    backgroundColor: t.surface, padding: 24, borderRadius: Tokens.radius.lg, alignItems: 'center',
+    borderColor: t.line, borderWidth: 1, gap: 6,
   },
-  emptyTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700', marginTop: 8 },
-  emptyText: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, textAlign: 'center', lineHeight: 19 },
-  helperText: { color: Colors.textMuted, fontSize: Type.caption2.fontSize, textAlign: 'center', marginTop: 12, lineHeight: 16 },
+  emptyTitle: { color: t.text, fontSize: Type.callout.fontSize, fontWeight: '700', marginTop: 8 },
+  emptyText: { color: t.textSecondary, fontSize: Type.footnote.fontSize, textAlign: 'center', lineHeight: 19 },
+  helperText: { color: t.textMuted, fontSize: Type.caption2.fontSize, textAlign: 'center', marginTop: 12, lineHeight: 16 },
 
   pickerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.md,
-    borderColor: Colors.borderLight, borderWidth: 1, marginBottom: 8,
+    backgroundColor: t.surface, padding: 12, borderRadius: Tokens.radius.md,
+    borderColor: t.line, borderWidth: 1, marginBottom: 8,
   },
-  pickerRowTitle: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
-  pickerRowSub: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, marginTop: 2 },
+  pickerRowTitle: { color: t.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
+  pickerRowSub: { color: t.textSecondary, fontSize: Type.caption1.fontSize, marginTop: 2 },
 
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: Colors.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: t.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     gap: 8,
     ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: 20 } as object, default: {} as object }),
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  modalTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
-  previewImg: { width: '100%', height: 180, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, marginBottom: 8 },
-  label: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600', marginTop: 4 },
+  modalTitle: { color: t.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
+  previewImg: { width: '100%', height: 180, backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, marginBottom: 8 },
+  label: { color: t.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600', marginTop: 4 },
   input: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
-    color: Colors.text, fontSize: Type.bodyCompact.fontSize, borderColor: Colors.borderLight, borderWidth: 1,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    color: t.text, fontSize: Type.bodyCompact.fontSize, borderColor: t.line, borderWidth: 1,
   },
 
   compareBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginTop: 16, padding: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '30',
   },
-  compareBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  compareBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  compareBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  compareBtnSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 });
 
