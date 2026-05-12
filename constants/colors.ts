@@ -55,6 +55,38 @@ export function setCustomColors(primary: string | null, accent: string | null) {
   _customAccent = accent;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Theme state — flipped by ThemeContext via setColorTheme().
+// ─────────────────────────────────────────────────────────────────────
+//
+// Phase 26 (post-pre-launch-audit): the static Colors module had
+// hardcoded LIGHT-theme values for `background`, `surface`, `text`,
+// etc. — so any screen that referenced `Colors.surface` saw a white
+// card even in dark mode. Migrated screens (those using useTheme()
+// + useThemedStyles) were unaffected; non-migrated screens showed
+// the broken contrast bugs in the user's screenshots.
+//
+// Making the theme-sensitive properties GETTERS that read from a
+// module-level `_currentTheme` variable fixes the bake-in problem
+// for inline-JSX reads (every render re-reads the getter, returns the
+// right value). It does NOT fully fix the StyleSheet.create case
+// (those styles bake at module load), but it DOES fix any file the
+// app lazy-imports for the first time AFTER a theme change.
+//
+// Brand colors (primary, accent, semantic states like success/error)
+// stay static — those carry meaning that shouldn't theme.
+let _currentTheme: 'light' | 'dark' = 'light';
+
+/** Called by ThemeContext on every resolved-theme change. */
+export function setColorTheme(theme: 'light' | 'dark') {
+  _currentTheme = theme;
+}
+
+/** Read the current theme — useful for branching outside React. */
+export function getColorTheme(): 'light' | 'dark' {
+  return _currentTheme;
+}
+
 export const Colors = {
   get primary() { return _customPrimary || '#1A6B3C'; },
   get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#2A9055'; },
@@ -63,25 +95,26 @@ export const Colors = {
   accentLight: '#FFCC00',
   accentMuted: '#FFE0A0',
 
-  background: '#F2F2F7',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F2F2F7',
-  surfaceElevated: '#FFFFFF',
-  card: '#FFFFFF',
-  // Card outline. Soft system-gray (Apple's default separator color) so
-  // cards group content without competing for attention. Reserve solid
-  // black for primary CTAs only — that way buttons users should press
-  // are the only hard-black thing on screen and actually pop.
-  cardBorder: 'rgba(60,60,67,0.18)',
+  // ── Surfaces — THEME-AWARE GETTERS (read _currentTheme at access) ──
+  get background()       { return _currentTheme === 'dark' ? '#0B0D10' : '#F2F2F7'; },
+  get surface()          { return _currentTheme === 'dark' ? '#14181D' : '#FFFFFF'; },
+  get surfaceAlt()       { return _currentTheme === 'dark' ? '#1A1F26' : '#F2F2F7'; },
+  get surfaceElevated()  { return _currentTheme === 'dark' ? '#1F252D' : '#FFFFFF'; },
+  get card()             { return _currentTheme === 'dark' ? '#14181D' : '#FFFFFF'; },
+  // Card outline. Soft system-gray in light (Apple's default separator),
+  // faint cream in dark. Same identity ("subtle border") either way.
+  get cardBorder()       { return _currentTheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(60,60,67,0.18)'; },
 
-  text: '#000000',
-  textSecondary: 'rgba(60,60,67,0.6)',
-  textMuted: 'rgba(60,60,67,0.36)',
+  // ── Text — theme-aware ──
+  get text()             { return _currentTheme === 'dark' ? '#F4EFE6' : '#000000'; },
+  get textSecondary()    { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.7)' : 'rgba(60,60,67,0.6)'; },
+  get textMuted()        { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.42)' : 'rgba(60,60,67,0.36)'; },
   textOnPrimary: '#FFFFFF',
   textOnAccent: '#FFFFFF',
 
-  border: 'rgba(60,60,67,0.18)',
-  borderLight: 'rgba(60,60,67,0.08)',
+  // ── Borders — theme-aware ──
+  get border()           { return _currentTheme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(60,60,67,0.18)'; },
+  get borderLight()      { return _currentTheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(60,60,67,0.08)'; },
 
   success: '#34C759',
   successLight: '#E8FAF0',
@@ -108,11 +141,13 @@ export const Colors = {
   // chips that aren't strictly "warning" semantically.
   orange: '#FF6A1A',        // 11 inline uses
 
-  shadow: 'rgba(0,0,0,0.05)',
-  overlay: 'rgba(0,0,0,0.45)',
+  // ── Shadows + overlays — theme-aware ──
+  get shadow()           { return _currentTheme === 'dark' ? 'rgba(0,0,0,0.40)' : 'rgba(0,0,0,0.05)'; },
+  get overlay()          { return _currentTheme === 'dark' ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.45)'; },
 
-  fillTertiary: 'rgba(120,120,128,0.12)',
-  fillSecondary: 'rgba(120,120,128,0.08)',
+  // ── Fills — theme-aware ──
+  get fillTertiary()     { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.06)' : 'rgba(120,120,128,0.12)'; },
+  get fillSecondary()    { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.10)' : 'rgba(120,120,128,0.08)'; },
 };
 
 export default {

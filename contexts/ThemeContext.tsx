@@ -13,7 +13,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import { Theme, type ThemeColors } from '@/constants/colors';
+import { Theme, setColorTheme, type ThemeColors } from '@/constants/colors';
 
 const STORAGE_KEY = 'mageid_theme';
 
@@ -61,6 +61,15 @@ export const [ThemeProvider, useTheme] = createContextHook(() => {
   }, []);
 
   const colors: ThemeColors = useMemo(() => Theme[resolved], [resolved]);
+
+  // Mirror the resolved theme into the static Colors module so any
+  // file that reads `Colors.surface` / `Colors.text` / etc. (instead
+  // of going through useTheme()) automatically picks up dark-mode
+  // values. Critical for screens that haven't been migrated yet —
+  // see Phase 26 comment in constants/colors.ts.
+  useEffect(() => {
+    setColorTheme(resolved);
+  }, [resolved]);
 
   return useMemo(
     () => ({ pref, resolved, colors, setPref }),

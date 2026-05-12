@@ -838,7 +838,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBtn: { padding: 6, borderRadius: Tokens.radius.sm },
   headerEyebrow: { color: t.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
   headerTitle: { color: t.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
-  modePill: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.md },
+  modePill: { backgroundColor: t.surfaceAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.md },
   modePillText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   canvasWrap: { flex: 1, backgroundColor: '#1C1C1E', overflow: 'hidden' },
@@ -898,13 +898,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
   label: { color: t.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600' },
   input: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
     color: t.text, fontSize: Type.bodyCompact.fontSize, borderColor: t.line, borderWidth: 1, minHeight: 44,
   },
 
   linkRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
   linkCell: {
-    flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md,
+    flex: 1, backgroundColor: t.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md,
     borderColor: t.line, borderWidth: 1, gap: 3,
   },
   linkCellTitle: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '700', marginTop: 4 },
@@ -912,7 +912,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   linkedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.successLight, padding: 10, borderRadius: Tokens.radius.md, marginTop: 6,
+    backgroundColor: t.successSoft, padding: 10, borderRadius: Tokens.radius.md, marginTop: 6,
   },
   linkedThumb: { width: 36, height: 36, borderRadius: Tokens.radius.xs },
   linkedText: { flex: 1, color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
@@ -929,12 +929,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backLinkText: { color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '600' },
   emptyHint: { color: t.textSecondary, fontSize: Type.footnote.fontSize, padding: 20, textAlign: 'center' },
 
-  photoTile: { width: 80, height: 80, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: Colors.surfaceAlt },
+  photoTile: { width: 80, height: 80, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: t.surfaceAlt },
   photoTileImg: { width: '100%', height: '100%' },
 
   punchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md, marginBottom: 6,
+    backgroundColor: t.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md, marginBottom: 6,
   },
   punchRowTitle: { color: t.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
   punchRowSub: { color: t.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 },
