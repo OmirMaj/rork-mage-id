@@ -24,7 +24,9 @@ import * as Haptics from 'expo-haptics';
 import {
   ExternalLink, Link, Share2, CheckCircle2, Copy, Trash2, X,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import {
   getEntityActions, getEntityDeepLink, getEntityShareBody,
@@ -66,6 +68,8 @@ export default function EntityActionSheet({
   const store = useProjects() as unknown as EntityStore;
   const { navigateTo } = useEntityNavigation();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   const actions = useMemo<EntityAction[]>(() => {
     if (!entityRef) return [];
@@ -195,7 +199,7 @@ export default function EntityActionSheet({
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
             <TouchableOpacity onPress={onClose} accessibilityLabel="Close" style={styles.closeBtn}>
-              <X size={18} color={Colors.textSecondary} />
+              <X size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -211,7 +215,7 @@ export default function EntityActionSheet({
               >
                 {Icon ? (
                   <View style={[styles.rowIcon, action.destructive && styles.rowIconDestructive]}>
-                    <Icon size={18} color={action.destructive ? Colors.error : Colors.text} />
+                    <Icon size={18} color={action.destructive ? colors.danger : colors.text} />
                   </View>
                 ) : null}
                 <Text style={[styles.rowLabel, action.destructive && styles.rowLabelDestructive]}>
@@ -226,45 +230,47 @@ export default function EntityActionSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-end' as const,
   },
   sheet: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    backgroundColor: t.bg,
+    borderTopLeftRadius: Tokens.radius.xl,
+    borderTopRightRadius: Tokens.radius.xl,
     paddingHorizontal: 8,
     paddingTop: 8,
   },
   handle: {
-    alignSelf: 'center',
+    alignSelf: 'center' as const,
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     marginBottom: 8,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     paddingHorizontal: 8,
     paddingVertical: 8,
   },
   title: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    fontWeight: '600',
-    color: Colors.textSecondary,
+    fontWeight: '600' as const,
+    color: t.textSecondary,
   },
   closeBtn: {
-    width: 30, height: 30, alignItems: 'center', justifyContent: 'center',
+    width: 30, height: 30,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderRadius: Tokens.radius.md,
@@ -273,18 +279,19 @@ const styles = StyleSheet.create({
   rowIcon: {
     width: 34, height: 34,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: t.surfaceAlt,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   rowIconDestructive: {
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.danger + '1F',
   },
   rowLabel: {
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
-    fontWeight: '500',
+    color: t.text,
+    fontWeight: '500' as const,
   },
   rowLabelDestructive: {
-    color: Colors.error,
+    color: t.danger,
   },
 });
