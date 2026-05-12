@@ -13,6 +13,8 @@ import {
   Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { generateUUID } from '@/utils/generateId';
 import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';
@@ -56,6 +58,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
   // Same width threshold as DesktopActionRail in the tabs layout — when the
   // rail is mounted, the inline SmartInbox below would duplicate its content.
@@ -420,23 +423,23 @@ export default function HomeScreen() {
                 <>
                   {responsive.isPhone && (
                     <TouchableOpacity
-                      style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                      style={[styles.addButton, { backgroundColor: themeColors.surfaceAlt }]}
                       onPress={openSearch}
                       activeOpacity={0.7}
                       testID="universal-search-btn"
                       accessibilityRole="button"
                       accessibilityLabel="Search"
                     >
-                      <Search size={20} color={Colors.primary} strokeWidth={2} />
+                      <Search size={20} color={themeColors.accent} strokeWidth={2} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
-                    style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                    style={[styles.addButton, { backgroundColor: themeColors.surfaceAlt }]}
                     onPress={() => router.push('/notifications-inbox' as any)}
                     activeOpacity={0.7}
                     testID="notifications-inbox-btn"
                   >
-                    <Bell size={20} color={Colors.primary} strokeWidth={2} />
+                    <Bell size={20} color={themeColors.accent} strokeWidth={2} />
                     {notifFeed.unreadCount > 0 && (
                       <View style={styles.notifBadge}>
                         <Text style={styles.notifBadgeText}>
@@ -453,7 +456,7 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Add"
                   >
-                    <Plus size={18} color={Colors.surface} strokeWidth={2.5} />
+                    <Plus size={18} color={themeColors.surface} strokeWidth={2.5} />
                   </TouchableOpacity>
                 </>
               }
@@ -548,7 +551,7 @@ export default function HomeScreen() {
                           {entry.activeTaskTitles.join(' · ')}
                         </Text>
                       </View>
-                      <ChevronRight size={14} color={Colors.textMuted} />
+                      <ChevronRight size={14} color={themeColors.textMuted} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -578,14 +581,14 @@ export default function HomeScreen() {
                   testID="ai-briefing-toggle"
                 >
                   <View style={styles.aiBriefingToggleLeft}>
-                    <Sparkles size={14} color={Colors.primary} strokeWidth={2.2} />
+                    <Sparkles size={14} color={themeColors.accent} strokeWidth={2.2} />
                     <Text style={styles.aiBriefingToggleText}>
                       {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
                     </Text>
                   </View>
                   {showAIBriefing
-                    ? <ChevronUp size={14} color={Colors.textSecondary} strokeWidth={2} />
-                    : <ChevronDown size={14} color={Colors.textSecondary} strokeWidth={2} />}
+                    ? <ChevronUp size={14} color={themeColors.textSecondary} strokeWidth={2} />
+                    : <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={2} />}
                 </TouchableOpacity>
                 {showAIBriefing && (
                   <AIHomeBriefing
@@ -610,7 +613,7 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            icon={<HardHat size={40} color={Colors.primary} strokeWidth={1.6} />}
+            icon={<HardHat size={40} color={themeColors.accent} strokeWidth={1.6} />}
             title="Build something"
             message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail."
             actionLabel="Create your first project"
@@ -629,7 +632,7 @@ export default function HomeScreen() {
               <View style={styles.createModalHeader}>
                 <Text style={styles.createModalTitle}>New Project</Text>
                 <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
@@ -657,7 +660,7 @@ export default function HomeScreen() {
                   value={projectName}
                   onChangeText={setProjectName}
                   placeholder="e.g. Kitchen Renovation"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   autoFocus
                   testID="project-name-input"
                 />
@@ -668,7 +671,7 @@ export default function HomeScreen() {
                   value={projectDescription}
                   onChangeText={setProjectDescription}
                   placeholder="Brief description of the project..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                   textAlignVertical="top"
                   testID="project-desc-input"
@@ -703,7 +706,7 @@ export default function HomeScreen() {
         <Pressable style={styles.modalOverlayCenter} onPress={() => handleNextStep('later')}>
           <Pressable style={styles.nextStepCard} onPress={() => undefined}>
             <View style={styles.nextStepSuccessIcon}>
-              <CheckCircle2 size={36} color={Colors.success} strokeWidth={2.4} />
+              <CheckCircle2 size={36} color={themeColors.success} strokeWidth={2.4} />
             </View>
             <Text style={styles.nextStepTitle}>Project Created!</Text>
             <Text style={styles.nextStepDesc}>What would you like to do next?</Text>
@@ -714,7 +717,7 @@ export default function HomeScreen() {
                 <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
                 <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
               </View>
-              <ChevronRight size={18} color={Colors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
@@ -723,7 +726,7 @@ export default function HomeScreen() {
                 <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
                 <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>
               </View>
-              <ChevronRight size={18} color={Colors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.laterBtn} onPress={() => handleNextStep('later')} activeOpacity={0.7}>
@@ -784,10 +787,10 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   loaderWrap: {
     alignItems: 'center',
@@ -814,14 +817,14 @@ const styles = StyleSheet.create({
   navTitle: {
     fontSize: Type.title2.fontSize,
     fontWeight: '900' as const,
-    color: Colors.primary,
+    color: t.accent,
     letterSpacing: -0.4,
   },
   addButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -832,12 +835,12 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.error,
+    backgroundColor: t.danger,
     paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: Colors.background,
+    borderColor: t.bg,
   },
   notifBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' as const, letterSpacing: -0.2 },
   titleRow: {
@@ -851,7 +854,7 @@ const styles = StyleSheet.create({
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.5,
   },
   statsSection: {
@@ -869,16 +872,16 @@ const styles = StyleSheet.create({
   // matching the SaaS-dashboard reference layout the user shared.
   statCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 18,
     alignItems: 'flex-start',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     minHeight: 96,
   },
   statCardMiddle: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   // Icon now sits in a neutral fill chip — color is reserved for the
   // number itself when meaningful. The icon becomes a quiet category
@@ -890,18 +893,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   statNumber: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.6,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
     letterSpacing: 0.1,
   },
@@ -923,25 +926,25 @@ const styles = StyleSheet.create({
   denseListSectionTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.1,
   },
   denseListSectionCount: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600' as const,
   },
   denseListContainer: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     overflow: 'hidden' as const,
   },
   sectionHeader: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 0.6,
     paddingHorizontal: 20,
     marginBottom: 10,
@@ -958,9 +961,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   aiBriefingToggleLeft: {
     flexDirection: 'row' as const,
@@ -970,7 +973,7 @@ const styles = StyleSheet.create({
   aiBriefingToggleText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   modalOverlay: {
     flex: 1,
@@ -984,7 +987,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   createModalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 20,
@@ -999,14 +1002,14 @@ const styles = StyleSheet.create({
   createModalTitle: {
     fontSize: Type.title2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.3,
   },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1016,17 +1019,17 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginBottom: 6,
     marginTop: 12,
   },
   input: {
     minHeight: 48,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 14,
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   descInput: {
     minHeight: 90,
@@ -1043,25 +1046,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   typeChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   typeChipLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   typeChipLabelActive: {
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
   },
   createBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -1070,42 +1073,42 @@ const styles = StyleSheet.create({
   createBtnText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
   },
   nextStepCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius["2xl"],
     padding: 24,
     gap: 16,
     // Match the other home-screen cards.
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   nextStepSuccessIcon: {
     alignSelf: 'center' as const,
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: Colors.success + '15',
+    backgroundColor: t.success + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   nextStepTitle: {
     fontSize: Type.title2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     textAlign: 'center',
   },
   nextStepDesc: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
     marginBottom: 4,
   },
   nextStepOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 14,
@@ -1124,11 +1127,11 @@ const styles = StyleSheet.create({
   nextStepOptionTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   nextStepOptionDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   laterBtn: {
     alignItems: 'center',
@@ -1137,7 +1140,7 @@ const styles = StyleSheet.create({
   laterBtnText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 
   // ── Status filter chips ────────────────────────────────────────
@@ -1157,18 +1160,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
   },
   filterChipActive: {
-    backgroundColor: Colors.text,
-    borderColor: Colors.text,
+    backgroundColor: t.accent,
+    borderColor: t.accent,
   },
   filterChipLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   filterChipLabelActive: {
     color: '#FFF',
@@ -1176,7 +1179,7 @@ const styles = StyleSheet.create({
   filterChipCount: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     minWidth: 14,
     textAlign: 'right' as const,
   },
@@ -1191,10 +1194,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   todayCard: {
-    backgroundColor: Colors.card,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: t.line,
     overflow: 'hidden' as const,
   },
   todayRow: {
@@ -1206,22 +1209,22 @@ const styles = StyleSheet.create({
   },
   todayRowDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.line,
   },
   todayDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.success,
+    backgroundColor: t.success,
   },
   todayProjectName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   todayTasks: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
 });

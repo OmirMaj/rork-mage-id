@@ -10,9 +10,11 @@ import {
   Plus, Search, Award, Sparkles, CalendarDays, ChevronRight, DollarSign,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface BidSource {
   name: string;
@@ -121,6 +123,8 @@ function NavigationCard({
   countColor?: string;
   onPress: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   return (
@@ -145,7 +149,7 @@ function NavigationCard({
               <Text style={[styles.navCountText, { color: countColor }]}>{count}</Text>
             </View>
           )}
-          <ChevronRight size={18} color={Colors.textMuted} />
+          <ChevronRight size={18} color={themeColors.textMuted} />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -157,6 +161,7 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const tabScrollRef = useRef<ScrollView>(null);
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
 
   console.log('[Discover] Rendering DiscoverScreen v2');
 
@@ -208,7 +213,7 @@ export default function DiscoverScreen() {
                 activeOpacity={0.7}
                 testID={`discover-tab-${tab.id}`}
               >
-                {TabIcon && <TabIcon size={14} color={isActive ? '#FFF' : Colors.textSecondary} />}
+                {TabIcon && <TabIcon size={14} color={isActive ? '#FFF' : themeColors.textSecondary} />}
                 <Text style={[styles.tabPillText, isActive && styles.tabPillTextActive]}>
                   {tab.label}
                 </Text>
@@ -421,49 +426,52 @@ export default function DiscoverScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   headerArea: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     paddingHorizontal: 20,
     paddingBottom: 0,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
-  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5, marginTop: 8 },
-  headerSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginTop: 2, marginBottom: 14 },
+  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.5, marginTop: 8 },
+  headerSubtitle: { fontSize: Type.subhead.fontSize, color: t.textSecondary, marginTop: 2, marginBottom: 14 },
   tabBarScroll: { marginHorizontal: -20 },
   tabBar: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     gap: 6,
     paddingHorizontal: 20,
     paddingBottom: 14,
   },
   tabPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 5,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
+  // Active pill uses the brand accent so the "you're here" cue reads
+  // cleanly in BOTH light (amber on cream) and dark (amber on ink) mode.
+  // The earlier pattern (bg = Colors.text) inverted oddly in dark mode.
   tabPillActive: {
-    backgroundColor: Colors.text,
-    borderColor: Colors.text,
+    backgroundColor: t.accent,
+    borderColor: t.accent,
   },
   tabPillText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   tabPillTextActive: {
-    color: '#FFF',
+    color: '#FFFFFF',
   },
   quickActions: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     paddingHorizontal: 20,
     gap: 12,
     marginTop: 18,
@@ -471,29 +479,29 @@ const styles = StyleSheet.create({
   },
   quickAction: {
     flex: 1,
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
+    alignItems: 'center' as const,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     gap: 8,
     borderWidth: 1,
-    borderColor: Colors.primary + '20',
+    borderColor: t.accentSoft,
   },
   quickActionIcon: {
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   quickActionLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 10,
     paddingHorizontal: 20,
     marginTop: 18,
@@ -503,17 +511,17 @@ const styles = StyleSheet.create({
     width: 4,
     height: 36,
     borderRadius: 2,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   sectionLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: 0.6,
   },
   sectionHint: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 17,
     marginTop: 1,
   },
@@ -521,15 +529,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 10,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.surface,
-    // Black outline matches the rest of the app's card surfaces.
-    // Drops the shadow — the defined edge carries enough weight.
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   navCardInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     padding: 16,
     gap: 14,
   },
@@ -537,15 +543,15 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: Tokens.radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   navInfo: { flex: 1, gap: 2 },
-  navTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
-  navSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  navTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
+  navSubtitle: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   navRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 8,
   },
   navCountBadge: {
@@ -558,24 +564,24 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
   },
   bidSourcesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
     paddingHorizontal: 16,
     gap: 10,
     marginBottom: 20,
   },
   bidSourceCard: {
     width: '47.5%' as any,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   bidSourceTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
     marginBottom: 8,
   },
   bidSourceDot: { width: 8, height: 8, borderRadius: 4 },
@@ -585,29 +591,29 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   bidSourceTypeText: { fontSize: 9, fontWeight: '700' as const, textTransform: 'uppercase' as const },
-  bidSourceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 4 },
-  bidSourceDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, lineHeight: 15, marginBottom: 10 },
+  bidSourceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 4 },
+  bidSourceDesc: { fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 15, marginBottom: 10 },
   bidSourceFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
   },
   bidSourceLink: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
   tipCard: {
     marginHorizontal: 16,
-    backgroundColor: Colors.primary + '08',
+    backgroundColor: t.accentSoft,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.primary + '18',
+    borderColor: t.accentSoft,
     marginBottom: 20,
   },
   tipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 8,
     marginBottom: 8,
   },
-  tipTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  tipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19 },
+  tipTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accent },
+  tipText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
 });
