@@ -28,6 +28,9 @@ import EmptyState from '@/components/EmptyState';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { sendEmail } from '@/utils/emailService';
@@ -57,14 +60,17 @@ const SECTION_LABELS: Record<OACAgendaSection, string> = {
   next_meeting:    'Next Meeting',
 };
 
+// Module-level — hardcoded hex (theme-agnostic).
 const STATUS_COLOR = {
-  info: Colors.textSecondary,
+  info: '#9AA3AD',
   warn: Colors.warning,
-  urgent: Colors.error,
-  done: Colors.success,
+  urgent: '#C84038',
+  done: '#2E7D44',
 } as const;
 
 export default function OACMeetingScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   if (!canAccess('rfis_submittals')) {
@@ -81,6 +87,8 @@ export default function OACMeetingScreen() {
 }
 
 function OACMeetingInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -369,7 +377,7 @@ function OACMeetingInner() {
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'OAC Meetings' }} />
         <EmptyState
-          icon={<Users size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<Users size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No OAC meeting open yet"
           message="Owner-Architect-Contractor meetings live inside a project so attendees, agenda, and minutes stay tied together. To start one:"
           steps={[
@@ -391,7 +399,7 @@ function OACMeetingInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={() => setActiveId(null)} hitSlop={10} style={styles.headerBack}>
-            <ChevronLeft size={22} color={Colors.primary} />
+            <ChevronLeft size={22} color={themeColors.accent} />
             <Text style={styles.headerBackText}>All meetings</Text>
           </TouchableOpacity>
           <View style={styles.statusPill}>
@@ -412,7 +420,7 @@ function OACMeetingInner() {
           {/* Attendees */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Users size={16} color={Colors.primary} />
+              <Users size={16} color={themeColors.accent} />
               <Text style={styles.cardLabel}>Attendees ({active.attendees.length})</Text>
             </View>
             {active.attendees.length === 0 ? (
@@ -432,7 +440,7 @@ function OACMeetingInner() {
               onPress={() => promptAddAttendee(active, ctx)}
               testID="oac-add-attendee"
             >
-              <Plus size={14} color={Colors.primary} />
+              <Plus size={14} color={themeColors.accent} />
               <Text style={styles.smallBtnText}>Add attendee</Text>
             </TouchableOpacity>
           </View>
@@ -440,12 +448,12 @@ function OACMeetingInner() {
           {/* Agenda */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Sparkles size={16} color={Colors.primary} />
+              <Sparkles size={16} color={themeColors.accent} />
               <Text style={styles.cardLabel}>Agenda · auto-built from project state</Text>
               <TouchableOpacity onPress={handleRefreshAgenda} disabled={generatingAgenda} hitSlop={10}>
                 {generatingAgenda
-                  ? <ActivityIndicator size="small" color={Colors.primary} />
-                  : <RefreshCw size={15} color={Colors.primary} />}
+                  ? <ActivityIndicator size="small" color={themeColors.accent} />
+                  : <RefreshCw size={15} color={themeColors.accent} />}
               </TouchableOpacity>
             </View>
             <Text style={styles.cardHelper}>Tap each item to mark covered. Add a manual note below any item.</Text>
@@ -459,8 +467,8 @@ function OACMeetingInner() {
                     <View key={item.id} style={styles.agendaItem}>
                       <TouchableOpacity onPress={() => handleToggleCovered(item.id)} style={styles.agendaCheck} hitSlop={6}>
                         {item.covered
-                          ? <CheckCircle2 size={20} color={Colors.success} />
-                          : <Circle size={20} color={Colors.textMuted} />}
+                          ? <CheckCircle2 size={20} color={themeColors.success} />
+                          : <Circle size={20} color={themeColors.textMuted} />}
                       </TouchableOpacity>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.agendaTitle, item.covered && styles.agendaTitleDone]}>
@@ -474,7 +482,7 @@ function OACMeetingInner() {
                           value={item.manualNote ?? ''}
                           onChangeText={t => handleNoteChange(item.id, t)}
                           placeholder="Add a note..."
-                          placeholderTextColor={Colors.textMuted}
+                          placeholderTextColor={themeColors.textMuted}
                           multiline
                         />
                       </View>
@@ -498,7 +506,7 @@ function OACMeetingInner() {
           {/* Voice capture */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Mic size={16} color={Colors.primary} />
+              <Mic size={16} color={themeColors.accent} />
               <Text style={styles.cardLabel}>Voice capture</Text>
             </View>
             <Text style={styles.cardHelper}>
@@ -523,8 +531,8 @@ function OACMeetingInner() {
               testID="oac-upload-audio"
             >
               {uploadingAudio
-                ? <ActivityIndicator size="small" color={Colors.primary} />
-                : <Upload size={16} color={Colors.primary} />}
+                ? <ActivityIndicator size="small" color={themeColors.accent} />
+                : <Upload size={16} color={themeColors.accent} />}
               <View style={{ flex: 1 }}>
                 <Text style={styles.uploadAudioLabel}>
                   {uploadingAudio ? 'Transcribing audio…' : 'Upload existing recording'}
@@ -547,7 +555,7 @@ function OACMeetingInner() {
           {/* Minutes */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Sparkles size={16} color={Colors.primary} />
+              <Sparkles size={16} color={themeColors.accent} />
               <Text style={styles.cardLabel}>Minutes</Text>
             </View>
             {active.minutes ? (
@@ -558,7 +566,7 @@ function OACMeetingInner() {
                   onChangeText={t => ctx.updateOACMeeting?.(active.id, { minutes: t, updatedAt: new Date().toISOString() })}
                   multiline
                   textAlignVertical="top"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
                 <TouchableOpacity
                   style={[styles.primaryBtn, distributing && styles.primaryBtnDisabled]}
@@ -589,7 +597,7 @@ function OACMeetingInner() {
           {active.actionItems.length > 0 && (
             <View style={styles.card}>
               <View style={styles.cardHead}>
-                <CheckCircle2 size={16} color={Colors.primary} />
+                <CheckCircle2 size={16} color={themeColors.accent} />
                 <Text style={styles.cardLabel}>Action items ({active.actionItems.length})</Text>
               </View>
               {active.actionItems.map(a => (
@@ -651,7 +659,7 @@ function OACMeetingInner() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
         {meetings.length === 0 ? (
           <View style={styles.emptyState}>
-            <Calendar size={36} color={Colors.textMuted} />
+            <Calendar size={36} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No OAC meetings yet</Text>
             <Text style={styles.emptyBody}>
               The OAC weekly is the central meeting where owner, architect, and contractor sync. Tap "New meeting" — MAGE ID auto-builds the agenda from open RFIs, submittals, change orders, and schedule slips.
@@ -669,8 +677,8 @@ function OACMeetingInner() {
                 activeOpacity={0.7}
                 testID={`oac-meeting-${m.id}`}
               >
-                <View style={[styles.meetingBadge, m.status === 'distributed' && { backgroundColor: Colors.success + '20' }]}>
-                  <Text style={[styles.meetingBadgeText, m.status === 'distributed' && { color: Colors.success }]}>
+                <View style={[styles.meetingBadge, m.status === 'distributed' && { backgroundColor: themeColors.success + '20' }]}>
+                  <Text style={[styles.meetingBadgeText, m.status === 'distributed' && { color: themeColors.success }]}>
                     #{m.number}
                   </Text>
                 </View>
@@ -683,10 +691,10 @@ function OACMeetingInner() {
                   </Text>
                 </View>
                 {m.status === 'distributed'
-                  ? <CheckCircle2 size={18} color={Colors.success} />
+                  ? <CheckCircle2 size={18} color={themeColors.success} />
                   : m.status === 'concluded'
                     ? <Clock size={18} color={Colors.warning} />
-                    : <Circle size={18} color={Colors.textMuted} />}
+                    : <Circle size={18} color={themeColors.textMuted} />}
               </TouchableOpacity>
             ))
         )}
@@ -809,11 +817,11 @@ function buildMinutesEmailHtml(opts: {
   </body></html>`;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFound: { fontSize: Type.callout.fontSize, color: Colors.text, fontWeight: '600' as const, marginBottom: 12 },
-  backBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
+  notFound: { fontSize: Type.callout.fontSize, color: t.text, fontWeight: '600' as const, marginBottom: 12 },
+  backBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: t.accent, borderRadius: Tokens.radius.md },
   backBtnText: { color: '#fff', fontWeight: '700' as const },
 
   // List mode
@@ -825,84 +833,84 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   eyebrow: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
   },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 2, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   newMeetingBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
     paddingHorizontal: 14, paddingVertical: 11,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accent, borderRadius: Tokens.radius.card,
   },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: t.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
   meetingRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
     gap: 12,
   },
   meetingBadge: {
     width: 44, height: 44, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  meetingBadgeText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  meetingTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  meetingMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  meetingBadgeText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: t.accent },
+  meetingTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  meetingMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   // Detail mode
   detailHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.accent },
   statusPill: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
   },
-  statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary, letterSpacing: 0.4 },
+  statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent, letterSpacing: 0.4 },
   titleBlock: { marginBottom: 16 },
 
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 12,
   },
   cardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 8 },
-  cardLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const },
-  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16, marginBottom: 8 },
-  emptyHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
+  cardLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 16, marginBottom: 8 },
+  emptyHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic' as const },
   smallBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '30',
     alignSelf: 'flex-start' as const,
     marginTop: 8,
   },
-  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.accent },
 
   attendeeRow: { paddingVertical: 6 },
-  attendeeName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  attendeeMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  attendeeName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  attendeeMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   section: { marginTop: 6, marginBottom: 4 },
   sectionLabel: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.primary,
+    fontSize: 10, fontWeight: '800' as const, color: t.accent,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
     marginTop: 8, marginBottom: 4,
   },
@@ -910,38 +918,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     gap: 10,
     paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
   agendaCheck: { paddingTop: 2 },
-  agendaTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, lineHeight: 19 },
-  agendaTitleDone: { color: Colors.textMuted, textDecorationLine: 'line-through' as const },
-  agendaDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 3, lineHeight: 16 },
+  agendaTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text, lineHeight: 19 },
+  agendaTitleDone: { color: t.textMuted, textDecorationLine: 'line-through' as const },
+  agendaDetail: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 3, lineHeight: 16 },
   agendaNote: {
-    fontSize: Type.caption1.fontSize, color: Colors.text,
-    backgroundColor: Colors.background,
+    fontSize: Type.caption1.fontSize, color: t.text,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.xs, padding: 6, marginTop: 6,
     minHeight: 28,
   },
   itemPill: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   itemPillText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const },
   coveredSummary: {
-    fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
+    fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic' as const,
     textAlign: 'right' as const, marginTop: 6,
   },
 
   transcriptCard: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.sm, padding: 10,
     marginTop: 8,
   },
-  transcriptLabel: { fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const, marginBottom: 4 },
-  transcriptText: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
+  transcriptLabel: { fontSize: 10, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const, marginBottom: 4 },
+  transcriptText: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 16 },
 
   minutesInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
     borderRadius: Tokens.radius.md, padding: 12,
-    fontSize: Type.footnote.fontSize, color: Colors.text,
+    fontSize: Type.footnote.fontSize, color: t.text,
     minHeight: 200,
     marginBottom: 12,
   },
@@ -950,7 +958,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.card, paddingVertical: 14,
   },
   primaryBtnDisabled: { opacity: 0.5 },
@@ -960,26 +968,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: t.line,
     gap: 10,
   },
-  actionDesc: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  actionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  actionDesc: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  actionMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   actionStatus: {
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.warning + '15',
   },
-  actionStatusDone: { backgroundColor: Colors.success + '15' },
+  actionStatusDone: { backgroundColor: t.success + '15' },
   actionStatusText: { fontSize: 10, fontWeight: '700' as const, color: Colors.warning, letterSpacing: 0.3, textTransform: 'uppercase' as const },
-  actionStatusTextDone: { color: Colors.success },
+  actionStatusTextDone: { color: t.success },
 
   uploadAudioBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
     marginTop: 10, padding: 12,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '30',
   },
-  uploadAudioLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  uploadAudioSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  uploadAudioLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  uploadAudioSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
 });

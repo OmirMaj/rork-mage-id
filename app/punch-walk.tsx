@@ -33,6 +33,9 @@ import {
   AlertTriangle, ChevronRight, Plus, Flag, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -69,6 +72,8 @@ const TRADE_ORDER: SubTrade[] = SUB_TRADES;
 // ─────────────────────────────────────────────────────────────
 
 export default function PunchWalkScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const projectId = typeof params.projectId === 'string' ? params.projectId : undefined;
@@ -114,6 +119,8 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   onDelete: (id: string) => void;
   onBack: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   // Look up the project for AI-context (description -> location/trade/priority).
@@ -298,8 +305,8 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   }, [onDelete]);
 
   const priorityColor =
-    draft.priority === 'high' ? Colors.error :
-    draft.priority === 'low' ? Colors.textSecondary : Colors.warning;
+    draft.priority === 'high' ? themeColors.danger :
+    draft.priority === 'low' ? themeColors.textSecondary : Colors.warning;
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -307,7 +314,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
@@ -327,19 +334,19 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
           {/* Location — sticky context bar */}
           <View style={styles.locationRow}>
-            <MapPin size={14} color={Colors.primary} />
+            <MapPin size={14} color={themeColors.accent} />
             <TextInput
               style={styles.locationInput}
               value={draft.location}
               onChangeText={(v) => setDraft(d => ({ ...d, location: v }))}
               placeholder="Location (e.g. Hall 2, Unit 204, Kitchen)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               autoCapitalize="sentences"
               testID="walk-location"
             />
             {draft.location.length > 0 && (
               <TouchableOpacity onPress={() => setDraft(d => ({ ...d, location: '' }))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={Colors.textMuted} />
+                <X size={14} color={themeColors.textMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -351,7 +358,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
               value={draft.description}
               onChangeText={(v) => setDraft(d => ({ ...d, description: v }))}
               placeholder={'What\u2019s the issue?\nTap mic and talk, or type here.'}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               multiline
               autoCapitalize="sentences"
               testID="walk-description"
@@ -365,7 +372,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                 {draft.matchedKeyword && (
                   <Text style={styles.metaChipHint}>· {draft.matchedKeyword}</Text>
                 )}
-                <ChevronRight size={10} color={Colors.textMuted} />
+                <ChevronRight size={10} color={themeColors.textMuted} />
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.metaChip, { backgroundColor: `${priorityColor}18` }]} onPress={cyclePriority}>
@@ -406,7 +413,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
               />
             </View>
             <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera}>
-              <Camera size={18} color={Colors.text} />
+              <Camera size={18} color={themeColors.text} />
               <Text style={styles.cameraBtnText}>Photo</Text>
             </TouchableOpacity>
           </View>
@@ -420,12 +427,12 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             onPress={() => router.push({ pathname: '/ai-punch' as never, params: { projectId } as never })}
             activeOpacity={0.85}
           >
-            <Sparkles size={16} color={Colors.primary} />
+            <Sparkles size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.aiPunchBtnTitle}>AI Punch from Photos</Text>
               <Text style={styles.aiPunchBtnSub}>Take a few photos, AI builds the punch list</Text>
             </View>
-            <ChevronRight size={16} color={Colors.primary} />
+            <ChevronRight size={16} color={themeColors.accent} />
           </TouchableOpacity>
 
           {/* Photo Triage — broader sibling that doesn't assume the
@@ -437,12 +444,12 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             onPress={() => router.push({ pathname: '/photo-triage' as never, params: { projectId } as never })}
             activeOpacity={0.85}
           >
-            <Sparkles size={16} color={Colors.primary} />
+            <Sparkles size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.aiPunchBtnTitle}>AI Photo Triage</Text>
               <Text style={styles.aiPunchBtnSub}>Mixed batch — sorts to punch, RFI, daily report, progress</Text>
             </View>
-            <ChevronRight size={16} color={Colors.primary} />
+            <ChevronRight size={16} color={themeColors.accent} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -452,7 +459,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             activeOpacity={0.85}
             testID="walk-save"
           >
-            <Check size={18} color={Colors.textOnPrimary} />
+            <Check size={18} color={'#FFFFFF'} />
             <Text style={styles.saveBtnText}>Save & keep walking</Text>
           </TouchableOpacity>
 
@@ -472,7 +479,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                     <Text style={styles.sessionMeta}>{c.location} · {c.trade} · {c.priority}</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleUndo(c.id)} hitSlop={12}>
-                    <Undo2 size={14} color={Colors.textMuted} />
+                    <Undo2 size={14} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -481,7 +488,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
           {session.length === 0 && (
             <View style={styles.emptyCard}>
-              <Mic size={18} color={Colors.textMuted} />
+              <Mic size={18} color={themeColors.textMuted} />
               <Text style={styles.emptyText}>
                 Tap the mic below and say what you see. Walk mode is built for capturing 30 items in 10 minutes — don{'\u2019'}t worry about getting the trade or priority right, you can fix them later from the punch list screen.
               </Text>
@@ -497,7 +504,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pick trade</Text>
               <TouchableOpacity onPress={() => setShowTradeOverride(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 12 }}>
@@ -512,7 +519,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                 >
                   <View style={[styles.metaDot, { backgroundColor: tradeColor(t) }]} />
                   <Text style={styles.tradeOptionText}>{t}</Text>
-                  {draft.trade === t && <Check size={14} color={Colors.primary} />}
+                  {draft.trade === t && <Check size={14} color={themeColors.accent} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -531,12 +538,14 @@ function ProjectPicker({ projects, onPick, onBack }: {
   onPick: (projectId: string) => void;
   onBack: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
           <Text style={styles.headerTitle}>Pick a project</Text>
@@ -551,12 +560,12 @@ function ProjectPicker({ projects, onPick, onBack }: {
         ) : (
           projects.map(p => (
             <TouchableOpacity key={p.id} style={styles.pickerRow} onPress={() => onPick(p.id)}>
-              <Plus size={14} color={Colors.primary} />
+              <Plus size={14} color={themeColors.accent} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.pickerRowTitle}>{p.name}</Text>
                 {p.status && <Text style={styles.pickerRowSub}>{p.status}</Text>}
               </View>
-              <ChevronRight size={14} color={Colors.textMuted} />
+              <ChevronRight size={14} color={themeColors.textMuted} />
             </TouchableOpacity>
           ))
         )}
@@ -581,45 +590,45 @@ function tradeColor(trade: SubTrade): string {
     case 'Landscaping': return '#16A34A';
     case 'General':
     case 'Other':
-    default:           return Colors.textMuted;
+    default:           return '#9AA3AD';
   }
 }
 
 // ─────────────────────────────────────────────────────────────
 // Styles
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
 
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 8,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
+  headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
   sessionChip: {
     minWidth: 28, height: 28, borderRadius: Tokens.radius.lg, paddingHorizontal: 8,
-    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center',
   },
-  sessionChipText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: Type.caption1.fontSize },
+  sessionChipText: { color: '#FFFFFF', fontWeight: '800', fontSize: Type.caption1.fontSize },
 
   locationRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 14,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
   },
-  locationInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  locationInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text },
 
   descCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16, marginHorizontal: 14, marginTop: 12,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
   },
   descInput: {
-    minHeight: 110, fontSize: Type.subheadline.fontSize, color: Colors.text, textAlignVertical: 'top',
+    minHeight: 110, fontSize: Type.subheadline.fontSize, color: t.text, textAlignVertical: 'top',
     lineHeight: 24, fontWeight: '500',
   },
 
@@ -629,10 +638,10 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary,
   },
   metaDot: { width: 8, height: 8, borderRadius: 4 },
-  metaChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
-  metaChipHint: { fontSize: 10, color: Colors.textMuted },
+  metaChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
+  metaChipHint: { fontSize: 10, color: t.textMuted },
   metaChipGhost: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6 },
-  metaChipGhostText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '600' },
+  metaChipGhostText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '600' },
 
   photoPreview: {
     marginTop: 12, position: 'relative', alignSelf: 'flex-start',
@@ -650,62 +659,62 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12,
     borderRadius: Tokens.radius.card, backgroundColor: Colors.fillSecondary,
   },
-  cameraBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  cameraBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   aiPunchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: Colors.primary + '0F',
+    backgroundColor: t.accent + '0F',
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
+    borderColor: t.accent + '40',
     marginTop: 10,
   },
-  aiPunchBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  aiPunchBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  aiPunchBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accent },
+  aiPunchBtnSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 14, marginTop: 14, paddingVertical: 16, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
-  saveBtnDisabled: { backgroundColor: Colors.textMuted },
-  saveBtnText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: Type.subhead.fontSize },
+  saveBtnDisabled: { backgroundColor: t.textMuted },
+  saveBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: Type.subhead.fontSize },
 
-  hint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginHorizontal: 20, marginTop: 10, lineHeight: 15 },
+  hint: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', marginHorizontal: 20, marginTop: 10, lineHeight: 15 },
 
   sessionCard: {
     marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.borderLight,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  sessionTitle: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 10 },
-  sessionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  sessionTitle: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 10 },
+  sessionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 8, borderTopWidth: 1, borderTopColor: t.line },
   sessionDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-  sessionDesc: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
-  sessionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  sessionDesc: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' },
+  sessionMeta: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
 
   emptyCard: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
     marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillSecondary,
   },
-  emptyText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
+  emptyText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
 
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalSheet: { backgroundColor: Colors.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: '70%' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  modalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: t.line },
+  modalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
   tradeOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.md },
-  tradeOptionActive: { backgroundColor: `${Colors.primary}15` },
-  tradeOptionText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '600' },
+  tradeOptionActive: { backgroundColor: `${t.accent}15` },
+  tradeOptionText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '600' },
 
   pickerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
   },
-  pickerRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  pickerRowSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  pickerRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  pickerRowSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
 });

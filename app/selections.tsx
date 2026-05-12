@@ -18,6 +18,9 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   fetchSelectionsForProject, saveSelectionCategory, deleteSelectionCategory,
@@ -31,6 +34,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function SelectionsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -157,7 +162,7 @@ export default function SelectionsScreen() {
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <EmptyState
-          icon={<PenTool size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<PenTool size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No selections set up yet"
           message="Selections live inside a project so each allowance ties back to the contract. To open one:"
           steps={[
@@ -178,7 +183,7 @@ export default function SelectionsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -195,12 +200,12 @@ export default function SelectionsScreen() {
         <View style={styles.summaryStrip}>
           <SummaryStat label="Allowance" value={formatMoney(summary.totalBudget)} />
           <View style={styles.summaryDiv} />
-          <SummaryStat label="Chosen" value={formatMoney(summary.totalChosen)} accent={summary.totalChosen > summary.totalBudget ? Colors.error : Colors.text} />
+          <SummaryStat label="Chosen" value={formatMoney(summary.totalChosen)} accent={summary.totalChosen > summary.totalBudget ? themeColors.danger : themeColors.text} />
           <View style={styles.summaryDiv} />
           <SummaryStat
             label={summary.totalOver > 0 ? 'Over' : 'Remaining'}
             value={formatMoney(summary.totalOver > 0 ? summary.totalOver : summary.totalBudget - summary.totalChosen)}
-            accent={summary.totalOver > 0 ? Colors.error : Colors.success}
+            accent={summary.totalOver > 0 ? themeColors.danger : themeColors.success}
           />
         </View>
       )}
@@ -208,13 +213,13 @@ export default function SelectionsScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}>
         {loading && (
           <View style={styles.loading}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColors.accent} />
           </View>
         )}
 
         {!loading && categories.length === 0 && (
           <View style={styles.emptyCard}>
-            <Sparkles size={28} color={Colors.primary} />
+            <Sparkles size={28} color={themeColors.accent} />
             <Text style={styles.emptyTitle}>Add your first allowance</Text>
             <Text style={styles.emptyBody}>
               Tell us what the homeowner will pick — Kitchen Cabinets, Bathroom Tile, Lighting,
@@ -260,6 +265,8 @@ export default function SelectionsScreen() {
 // ─── Sub-components ─────────────────────────────────────────────────
 
 function SummaryStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.summaryStat}>
       <Text style={styles.summaryStatLabel}>{label}</Text>
@@ -276,6 +283,8 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
   onDelete: () => void;
   onDraftCO: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const opts = category.options ?? [];
   const chosen = opts.find(o => o.isChosen);
   const isExceeded = category.status === 'exceeded';
@@ -294,17 +303,17 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
           <Text style={styles.catBudgetLabel}>BUDGET</Text>
           <Text style={styles.catBudgetValue}>{formatMoney(category.budget)}</Text>
         </View>
-        <TouchableOpacity onPress={onDelete} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={Colors.error} /></TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.danger} /></TouchableOpacity>
       </View>
 
       {chosen && (
-        <View style={[styles.chosenBanner, isExceeded && { backgroundColor: Colors.error + '0D', borderColor: Colors.error + '30' }]}>
+        <View style={[styles.chosenBanner, isExceeded && { backgroundColor: themeColors.danger + '0D', borderColor: themeColors.danger + '30' }]}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
             {isExceeded
-              ? <AlertTriangle size={14} color={Colors.error} />
-              : <CheckCircle2  size={14} color={Colors.success} />}
+              ? <AlertTriangle size={14} color={themeColors.danger} />
+              : <CheckCircle2  size={14} color={themeColors.success} />}
             <View style={{ flex: 1 }}>
-              <Text style={[styles.chosenTitle, isExceeded && { color: Colors.error }]}>
+              <Text style={[styles.chosenTitle, isExceeded && { color: themeColors.danger }]}>
                 {isExceeded ? 'Over allowance' : 'Chosen'}: {chosen.productName}
               </Text>
               <Text style={styles.chosenSub}>
@@ -344,7 +353,7 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
           ))}
           {!isChosen && !isExceeded && (
             <TouchableOpacity style={styles.regenerateBtn} onPress={onCurate}>
-              <Sparkles size={12} color={Colors.primary} />
+              <Sparkles size={12} color={themeColors.accent} />
               <Text style={styles.regenerateText}>Regenerate options</Text>
             </TouchableOpacity>
           )}
@@ -355,11 +364,13 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
 }
 
 function OptionRow({ option, budget, onPress }: { option: SelectionOption; budget: number; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const overBudget = budget > 0 && option.total > budget;
   const tier = option.total <= budget * 0.75 ? 'BUDGET'
              : option.total <= budget * 1.05 ? 'ON TARGET'
              :                                  'PREMIUM';
-  const tierColor = tier === 'BUDGET' ? Colors.success : tier === 'ON TARGET' ? Colors.primary : Colors.warning;
+  const tierColor = tier === 'BUDGET' ? themeColors.success : tier === 'ON TARGET' ? themeColors.accent : Colors.warning;
 
   return (
     <TouchableOpacity
@@ -389,10 +400,10 @@ function OptionRow({ option, budget, onPress }: { option: SelectionOption; budge
         </View>
       )}
       <View style={styles.optFoot}>
-        {option.supplier ? <View style={styles.optMeta}><Package size={11} color={Colors.textMuted} /><Text style={styles.optMetaText}>{option.supplier}</Text></View> : null}
-        {option.leadTimeDays != null ? <View style={styles.optMeta}><Clock size={11} color={Colors.textMuted} /><Text style={styles.optMetaText}>{option.leadTimeDays}d lead time</Text></View> : null}
-        {option.productUrl ? <View style={styles.optMeta}><ExternalLink size={11} color={Colors.textMuted} /><Text style={styles.optMetaText}>Link</Text></View> : null}
-        {option.isChosen && <View style={styles.chosenPill}><CheckCircle2 size={11} color={Colors.success} /><Text style={styles.chosenPillText}>CHOSEN</Text></View>}
+        {option.supplier ? <View style={styles.optMeta}><Package size={11} color={themeColors.textMuted} /><Text style={styles.optMetaText}>{option.supplier}</Text></View> : null}
+        {option.leadTimeDays != null ? <View style={styles.optMeta}><Clock size={11} color={themeColors.textMuted} /><Text style={styles.optMetaText}>{option.leadTimeDays}d lead time</Text></View> : null}
+        {option.productUrl ? <View style={styles.optMeta}><ExternalLink size={11} color={themeColors.textMuted} /><Text style={styles.optMetaText}>Link</Text></View> : null}
+        {option.isChosen && <View style={styles.chosenPill}><CheckCircle2 size={11} color={themeColors.success} /><Text style={styles.chosenPillText}>CHOSEN</Text></View>}
       </View>
     </TouchableOpacity>
   );
@@ -403,6 +414,8 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
   onClose: () => void;
   onAdd: (input: { category: string; budget: number; styleBrief: string }) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [category, setCategory] = useState('');
   const [budget, setBudget] = useState('');
   const [styleBrief, setStyleBrief] = useState('');
@@ -443,19 +456,19 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
             value={category}
             onChangeText={setCategory}
             placeholder="e.g. Kitchen Cabinets, Bathroom Tile, Lighting"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             autoCapitalize="words"
           />
 
           <Text style={styles.modalLabel}>Allowance budget *</Text>
           <View style={styles.modalAmountField}>
-            <DollarSign size={14} color={Colors.textMuted} />
+            <DollarSign size={14} color={themeColors.textMuted} />
             <TextInput
               style={styles.modalAmountInput}
               value={budget}
               onChangeText={setBudget}
               placeholder="0"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               keyboardType="numeric"
             />
           </View>
@@ -466,7 +479,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
             value={styleBrief}
             onChangeText={setStyleBrief}
             placeholder='e.g. "modern farmhouse, off-white, soft-close drawers, no inset"'
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             multiline
             textAlignVertical="top"
           />
@@ -490,142 +503,142 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   summaryStrip: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomWidth: 1, borderBottomColor: t.line,
+    backgroundColor: t.surface,
   },
   summaryStat: { flex: 1 },
-  summaryStatLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
-  summaryStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
-  summaryDiv: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: 4 },
+  summaryStatLabel: { fontSize: 9, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
+  summaryStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.3 },
+  summaryDiv: { width: 1, alignSelf: 'stretch', backgroundColor: t.line, marginVertical: 4 },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 10, marginTop: 22,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  emptyBody:  { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   bigCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11,
-    backgroundColor: Colors.primary, marginTop: 8,
+    backgroundColor: t.accent, marginTop: 8,
   },
   bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   catCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 12,
+    borderWidth: 1, borderColor: t.line, marginBottom: 12, gap: 12,
   },
   catHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  catName: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  catBrief: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic' },
+  catName: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  catBrief: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, fontStyle: 'italic' },
   catBudget: { alignItems: 'flex-end' },
-  catBudgetLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6 },
-  catBudgetValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text },
+  catBudgetLabel: { fontSize: 9, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6 },
+  catBudgetValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text },
 
   chosenBanner: {
     flexDirection: 'column', gap: 8,
     padding: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.success + '0D',
-    borderWidth: 1, borderColor: Colors.success + '30',
+    backgroundColor: t.success + '0D',
+    borderWidth: 1, borderColor: t.success + '30',
   },
-  chosenTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.success },
-  chosenSub:   { fontSize: Type.caption2.fontSize, color: Colors.text, marginTop: 2 },
+  chosenTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.success },
+  chosenSub:   { fontSize: Type.caption2.fontSize, color: t.text, marginTop: 2 },
 
   draftCoCta: {
     paddingVertical: 8, paddingHorizontal: 12, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.error + '12',
-    borderWidth: 1, borderColor: Colors.error + '40',
+    backgroundColor: t.danger + '12',
+    borderWidth: 1, borderColor: t.danger + '40',
   },
-  draftCoCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.error, letterSpacing: -0.1 },
+  draftCoCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.danger, letterSpacing: -0.1 },
 
   curateCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: t.accent,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 8, elevation: 4,
   },
   curateCtaText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 
   optionsList: { gap: 8 },
   opt: {
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.card, padding: 12,
-    borderWidth: 1.5, borderColor: Colors.border, gap: 6,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.card, padding: 12,
+    borderWidth: 1.5, borderColor: t.line, gap: 6,
   },
-  optChosen: { borderColor: Colors.success, backgroundColor: Colors.success + '08' },
+  optChosen: { borderColor: t.success, backgroundColor: t.success + '08' },
   optOver:   { borderColor: Colors.warning + '60' },
   optHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tierPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   tierPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  optTotal: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  optName:  { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  optBrand: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
-  optDesc:  { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, marginTop: 2 },
+  optTotal: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  optName:  { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  optBrand: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
+  optDesc:  { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17, marginTop: 2 },
   highlightsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   highlight: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30',
   },
-  highlightText: { fontSize: 9, fontWeight: '700', color: Colors.text },
+  highlightText: { fontSize: 9, fontWeight: '700', color: t.text },
   optFoot: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 },
   optMeta: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  optMetaText: { fontSize: 10, fontWeight: '600', color: Colors.textMuted },
+  optMetaText: { fontSize: 10, fontWeight: '600', color: t.textMuted },
   chosenPill: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 'auto' },
-  chosenPillText: { fontSize: 10, fontWeight: '800', color: Colors.success, letterSpacing: 0.4 },
+  chosenPillText: { fontSize: 10, fontWeight: '800', color: t.success, letterSpacing: 0.4 },
 
   regenerateBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
     paddingVertical: 8, borderRadius: 9,
-    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
+    borderWidth: 1, borderColor: t.line, borderStyle: 'dashed',
   },
-  regenerateText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  regenerateText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 10 },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
-  modalBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
-  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
+  modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 10 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text },
+  modalBody:  { fontSize: Type.footnote.fontSize, color: t.textMuted, lineHeight: 18 },
+  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
   modalInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 11,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   modalAmountField: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
     paddingHorizontal: 14,
   },
-  modalAmountInput: { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  modalAmountInput: { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: t.text },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: t.bg, alignItems: 'center', borderWidth: 1, borderColor: t.line },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: t.accent },
   modalConfirmDisabled: { opacity: 0.45 },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

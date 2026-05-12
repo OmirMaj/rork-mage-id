@@ -11,6 +11,9 @@ import {
   ChevronRight, Trash2, Edit3, Briefcase,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EmptyState from '@/components/EmptyState';
@@ -35,21 +38,23 @@ const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   { value: 'Other', label: 'Other' },
 ];
 
-function getRoleColor(role: ContactRole): string {
+function getRoleColor(role: ContactRole, t: ThemeColors): string {
   switch (role) {
-    case 'Client': return Colors.primary;
-    case 'Architect': return Colors.info;
-    case "Owner's Rep": return Colors.accent;
+    case 'Client': return t.accent;
+    case 'Architect': return t.info;
+    case "Owner's Rep": return t.accent;
     case 'Engineer': return '#6B7280';
-    case 'Sub': return Colors.success;
+    case 'Sub': return t.success;
     case 'Supplier': return '#8B5CF6';
     case 'Lender': return '#EC4899';
     case 'Inspector': return '#F59E0B';
-    default: return Colors.textSecondary;
+    default: return t.textSecondary;
   }
 }
 
 export default function ContactsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { navigateTo } = useEntityNavigation();
   const { contacts, addContact, updateContact, deleteContact, projects, getInvoicesForProject } = useProjects();
@@ -195,7 +200,7 @@ export default function ContactsScreen() {
   }, [getInvoicesForProject]);
 
   const renderContact = useCallback(({ item }: { item: Contact }) => {
-    const roleColor = getRoleColor(item.role);
+    const roleColor = getRoleColor(item.role, themeColors);
     const displayName = `${item.firstName} ${item.lastName}`.trim() || item.companyName;
     return (
       <TouchableOpacity
@@ -223,7 +228,7 @@ export default function ContactsScreen() {
             ) : null}
           </View>
         </View>
-        <ChevronRight size={16} color={Colors.textMuted} />
+        <ChevronRight size={16} color={themeColors.textMuted} />
       </TouchableOpacity>
     );
   }, [openDetail]);
@@ -232,28 +237,28 @@ export default function ContactsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Contacts',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         headerRight: () => (
-          <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn} accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color={Colors.primary} /></TouchableOpacity>
+          <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn} accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color={themeColors.accent} /></TouchableOpacity>
         ),
       }} />
 
       <View style={styles.searchSection}>
         <View style={styles.searchBar}>
-          <Search size={16} color={Colors.textMuted} />
+          <Search size={16} color={themeColors.textMuted} />
           <TextInput
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
             placeholder="Search contacts..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             testID="contacts-search"
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={14} color={Colors.textMuted} />
+              <X size={14} color={themeColors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -285,7 +290,7 @@ export default function ContactsScreen() {
         ListEmptyComponent={
           <View style={{ minHeight: 360 }}>
             <EmptyState
-              icon={<User size={36} color={Colors.primary} />}
+              icon={<User size={36} color={themeColors.accent} />}
               title={query || filterRole !== 'all' ? 'No contacts match' : 'No contacts yet'}
               message={query || filterRole !== 'all'
                 ? 'Try a different search term or clear the role filter to see everyone.'
@@ -305,7 +310,7 @@ export default function ContactsScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingContact ? 'Edit Contact' : 'New Contact'}</Text>
                 <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
@@ -313,16 +318,16 @@ export default function ContactsScreen() {
                 <View style={styles.formRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.formLabel}>First Name</Text>
-                    <TextInput style={styles.formInput} value={firstName} onChangeText={setFirstName} placeholder="John" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={styles.formInput} value={firstName} onChangeText={setFirstName} placeholder="John" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.formLabel}>Last Name</Text>
-                    <TextInput style={styles.formInput} value={lastName} onChangeText={setLastName} placeholder="Smith" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={styles.formInput} value={lastName} onChangeText={setLastName} placeholder="Smith" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
                 <Text style={styles.formLabel}>Company</Text>
-                <TextInput style={styles.formInput} value={companyName} onChangeText={setCompanyName} placeholder="Company name" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.formInput} value={companyName} onChangeText={setCompanyName} placeholder="Company name" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.formLabel}>Role</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleChipsRow}>
@@ -338,16 +343,16 @@ export default function ContactsScreen() {
                 </ScrollView>
 
                 <Text style={styles.formLabel}>Email</Text>
-                <TextInput style={styles.formInput} value={email} onChangeText={setEmail} placeholder="email@example.com" placeholderTextColor={Colors.textMuted} keyboardType="email-address" autoCapitalize="none" />
+                <TextInput style={styles.formInput} value={email} onChangeText={setEmail} placeholder="email@example.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" />
 
                 <Text style={styles.formLabel}>Phone</Text>
-                <TextInput style={styles.formInput} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
+                <TextInput style={styles.formInput} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
 
                 <Text style={styles.formLabel}>Address</Text>
-                <TextInput style={styles.formInput} value={address} onChangeText={setAddress} placeholder="123 Main St, City, State" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.formInput} value={address} onChangeText={setAddress} placeholder="123 Main St, City, State" placeholderTextColor={themeColors.textMuted} />
 
                 <Text style={styles.formLabel}>Notes</Text>
-                <TextInput style={[styles.formInput, { minHeight: 70 }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={Colors.textMuted} multiline textAlignVertical="top" />
+                <TextInput style={[styles.formInput, { minHeight: 70 }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={themeColors.textMuted} multiline textAlignVertical="top" />
 
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
                   <Text style={styles.saveBtnText}>{editingContact ? 'Save Changes' : 'Add Contact'}</Text>
@@ -364,7 +369,7 @@ export default function ContactsScreen() {
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '85%' }]}>
             {selectedContact && (() => {
               const displayName = `${selectedContact.firstName} ${selectedContact.lastName}`.trim() || selectedContact.companyName;
-              const roleColor = getRoleColor(selectedContact.role);
+              const roleColor = getRoleColor(selectedContact.role, themeColors);
               const financials = getContactFinancials(selectedContact);
               const linkedProjects = projects.filter(p => selectedContact.linkedProjectIds.includes(p.id));
 
@@ -373,7 +378,7 @@ export default function ContactsScreen() {
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>{displayName}</Text>
                     <TouchableOpacity onPress={() => setShowDetailModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={20} color={Colors.textMuted} />
+                      <X size={20} color={themeColors.textMuted} />
                     </TouchableOpacity>
                   </View>
 
@@ -389,19 +394,19 @@ export default function ContactsScreen() {
                     <View style={styles.detailSection}>
                       {selectedContact.email ? (
                         <View style={styles.detailRow}>
-                          <Mail size={14} color={Colors.textMuted} />
+                          <Mail size={14} color={themeColors.textMuted} />
                           <Text style={styles.detailText}>{selectedContact.email}</Text>
                         </View>
                       ) : null}
                       {selectedContact.phone ? (
                         <View style={styles.detailRow}>
-                          <Phone size={14} color={Colors.textMuted} />
+                          <Phone size={14} color={themeColors.textMuted} />
                           <Text style={styles.detailText}>{selectedContact.phone}</Text>
                         </View>
                       ) : null}
                       {selectedContact.address ? (
                         <View style={styles.detailRow}>
-                          <MapPin size={14} color={Colors.textMuted} />
+                          <MapPin size={14} color={themeColors.textMuted} />
                           <Text style={styles.detailText}>{selectedContact.address}</Text>
                         </View>
                       ) : null}
@@ -416,12 +421,12 @@ export default function ContactsScreen() {
                         </View>
                         <View style={styles.financialRow}>
                           <Text style={styles.financialLabel}>Total Paid</Text>
-                          <Text style={[styles.financialValue, { color: Colors.success }]}>${financials.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                          <Text style={[styles.financialValue, { color: themeColors.success }]}>${financials.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                         </View>
                         <View style={styles.financialDivider} />
                         <View style={styles.financialRow}>
                           <Text style={styles.financialLabelBold}>Outstanding</Text>
-                          <Text style={[styles.financialValueBold, { color: financials.outstanding > 0 ? Colors.error : Colors.success }]}>
+                          <Text style={[styles.financialValueBold, { color: financials.outstanding > 0 ? themeColors.danger : themeColors.success }]}>
                             ${financials.outstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </Text>
                         </View>
@@ -443,7 +448,7 @@ export default function ContactsScreen() {
                             }}
                           >
                             <Text style={styles.linkedProjectName}>{p.name}</Text>
-                            <ChevronRight size={14} color={Colors.textMuted} />
+                            <ChevronRight size={14} color={themeColors.textMuted} />
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -464,14 +469,14 @@ export default function ContactsScreen() {
                           setTimeout(() => openEditModal(selectedContact), 350);
                         }}
                       >
-                        <Edit3 size={14} color={Colors.primary} />
+                        <Edit3 size={14} color={themeColors.accent} />
                         <Text style={styles.editBtnText}>Edit</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.deleteBtn}
                         onPress={() => handleDelete(selectedContact)}
                       >
-                        <Trash2 size={14} color={Colors.error} />
+                        <Trash2 size={14} color={themeColors.danger} />
                         <Text style={styles.deleteBtnText}>Delete</Text>
                       </TouchableOpacity>
                     </View>
@@ -486,69 +491,69 @@ export default function ContactsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  headerAddBtn: { marginRight: 8, width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
-  searchSection: { backgroundColor: Colors.surface, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, marginHorizontal: 16, paddingHorizontal: 12, gap: 8, height: 42 },
-  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
+  headerAddBtn: { marginRight: 8, width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: t.accent + '12', alignItems: 'center', justifyContent: 'center' },
+  searchSection: { backgroundColor: t.surface, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: t.line },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: t.surfaceAlt, borderRadius: Tokens.radius.card, marginHorizontal: 16, paddingHorizontal: 12, gap: 8, height: 42 },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: t.text },
   filterRow: { paddingHorizontal: 16, gap: 6, marginTop: 8 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: Colors.fillTertiary },
-  filterChipActive: { backgroundColor: Colors.primary },
-  filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
-  filterChipTextActive: { color: Colors.textOnPrimary, fontWeight: '600' as const },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: t.surfaceAlt },
+  filterChipActive: { backgroundColor: t.accent },
+  filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.textSecondary },
+  filterChipTextActive: { color: '#FFFFFF', fontWeight: '600' as const },
   listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
-  contactCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, gap: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  contactCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, gap: 12, borderWidth: 1, borderColor: t.line },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const },
   contactInfo: { flex: 1, gap: 2 },
-  contactName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  contactCompany: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  contactName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  contactCompany: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
   contactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.xs },
   roleBadgeText: { fontSize: 10, fontWeight: '700' as const },
-  contactEmail: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, flex: 1 },
+  contactEmail: { fontSize: Type.caption2.fontSize, color: t.textMuted, flex: 1 },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' as const },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22 },
+  modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
   formRow: { flexDirection: 'row', gap: 10 },
-  formLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  formInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  formLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 10, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  formInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: t.text, borderWidth: 1, borderColor: t.line },
   roleChipsRow: { gap: 6, paddingVertical: 2 },
-  roleChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  roleChipActive: { backgroundColor: Colors.primary },
-  roleChipText: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
-  roleChipTextActive: { color: Colors.textOnPrimary, fontWeight: '600' as const },
-  saveBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
-  saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  roleChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.md, backgroundColor: t.surfaceAlt },
+  roleChipActive: { backgroundColor: t.accent },
+  roleChipText: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: t.textSecondary },
+  roleChipTextActive: { color: '#FFFFFF', fontWeight: '600' as const },
+  saveBtn: { backgroundColor: t.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
   detailRoleBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, marginBottom: 12 },
   detailRoleText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
-  detailCompany: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  detailCompany: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
   detailSection: { gap: 10, marginBottom: 16 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  detailText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  detailText: { fontSize: Type.bodyCompact.fontSize, color: t.text },
   financialCard: { backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 14, gap: 8, marginBottom: 16 },
-  financialTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  financialTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
   financialRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  financialLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  financialValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  financialDivider: { height: 1, backgroundColor: Colors.borderLight },
-  financialLabelBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  financialLabel: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
+  financialValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },
+  financialDivider: { height: 1, backgroundColor: t.line },
+  financialLabelBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   financialValueBold: { fontSize: Type.body.fontSize, fontWeight: '800' as const },
   linkedSection: { marginBottom: 16 },
-  linkedTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 8 },
+  linkedTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 8 },
   linkedProjectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 4 },
-  linkedProjectName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
+  linkedProjectName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: t.text },
   notesSection: { marginBottom: 16 },
-  notesTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
-  notesText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
+  notesTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
+  notesText: { fontSize: Type.bodyCompact.fontSize, color: t.text, lineHeight: 20 },
   detailActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  editBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary + '12', borderRadius: Tokens.radius.card, paddingVertical: 12 },
-  editBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  editBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: t.accent + '12', borderRadius: Tokens.radius.card, paddingVertical: 12 },
+  editBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.accent },
   deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.card, paddingVertical: 12 },
-  deleteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.error },
+  deleteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.danger },
 });

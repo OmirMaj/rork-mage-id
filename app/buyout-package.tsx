@@ -30,6 +30,9 @@ import {
 } from 'lucide-react-native';
 import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   BID_PACKAGE_STATUS_LABELS, type BidPackage, type BidPackageBid, type BidPackageStatus,
@@ -52,6 +55,8 @@ const STATUS_COLORS: Record<BidPackageStatus, string> = {
 };
 
 export default function BuyoutPackageScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { packageId } = useLocalSearchParams<{ packageId: string }>();
@@ -373,7 +378,7 @@ export default function BuyoutPackageScreen() {
               {pkg.status === 'awarded' && pkg.buyoutSavings != null ? (
                 <View style={styles.heroBudgetCell}>
                   <Text style={styles.heroBudgetLabel}>Buyout {pkg.buyoutSavings >= 0 ? 'savings' : 'overrun'}</Text>
-                  <Text style={[styles.heroBudgetValue, { color: pkg.buyoutSavings >= 0 ? Colors.success : Colors.error }]}>
+                  <Text style={[styles.heroBudgetValue, { color: pkg.buyoutSavings >= 0 ? themeColors.success : themeColors.danger }]}>
                     {pkg.buyoutSavings >= 0 ? '+' : ''}{formatMoney(pkg.buyoutSavings)}
                   </Text>
                 </View>
@@ -447,13 +452,13 @@ export default function BuyoutPackageScreen() {
               {!!levelingResult?.summary && (
                 <View style={styles.levelingSummary}>
                   <View style={styles.levelingSummaryHead}>
-                    <Sparkles size={14} color={Colors.primary} />
+                    <Sparkles size={14} color={themeColors.accent} />
                     <Text style={styles.levelingSummaryHeadText}>AI leveling summary</Text>
                   </View>
                   <Text style={styles.levelingSummaryBody}>{levelingResult.summary}</Text>
                   {!!levelingResult.recommendedWinnerReason && (
                     <View style={styles.recommendation}>
-                      <Trophy size={14} color={Colors.success} />
+                      <Trophy size={14} color={themeColors.success} />
                       <Text style={styles.recommendationText}>{levelingResult.recommendedWinnerReason}</Text>
                     </View>
                   )}
@@ -524,7 +529,7 @@ export default function BuyoutPackageScreen() {
                         {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
                       </View>
                       <TouchableOpacity onPress={() => deleteBidPackageBid(bid.id)} hitSlop={10} style={styles.bidDelete} accessibilityRole="button" accessibilityLabel="Delete">
-                        <Trash2 size={14} color={Colors.textMuted} />
+                        <Trash2 size={14} color={themeColors.textMuted} />
                       </TouchableOpacity>
                     </View>
 
@@ -536,14 +541,14 @@ export default function BuyoutPackageScreen() {
                       {bid.normalizedAdjustment != null && bid.normalizedAdjustment !== 0 && (
                         <View style={styles.bidAmountCell}>
                           <Text style={styles.bidAmountLabel}>Adj.</Text>
-                          <Text style={[styles.bidAmountValue, { color: bid.normalizedAdjustment > 0 ? Colors.warning : Colors.success }]}>
+                          <Text style={[styles.bidAmountValue, { color: bid.normalizedAdjustment > 0 ? Colors.warning : themeColors.success }]}>
                             {bid.normalizedAdjustment > 0 ? '+' : ''}{formatMoney(bid.normalizedAdjustment)}
                           </Text>
                         </View>
                       )}
                       <View style={styles.bidAmountCell}>
-                        <Text style={[styles.bidAmountLabel, { color: Colors.text, fontWeight: '700' }]}>Leveled total</Text>
-                        <Text style={[styles.bidAmountValueTotal, { color: vsBudget >= 0 ? Colors.success : Colors.error }]}>
+                        <Text style={[styles.bidAmountLabel, { color: themeColors.text, fontWeight: '700' }]}>Leveled total</Text>
+                        <Text style={[styles.bidAmountValueTotal, { color: vsBudget >= 0 ? themeColors.success : themeColors.danger }]}>
                           {formatMoney(total)}
                         </Text>
                       </View>
@@ -556,14 +561,14 @@ export default function BuyoutPackageScreen() {
                       </View>
                     )}
                     {!!bid.excludes && (
-                      <View style={[styles.bidScopeBlock, { backgroundColor: Colors.error + '0F', borderLeftColor: Colors.error }]}>
-                        <Text style={[styles.bidScopeLabel, { color: Colors.error }]}>Excludes</Text>
+                      <View style={[styles.bidScopeBlock, { backgroundColor: themeColors.danger + '0F', borderLeftColor: themeColors.danger }]}>
+                        <Text style={[styles.bidScopeLabel, { color: themeColors.danger }]}>Excludes</Text>
                         <Text style={styles.bidScopeText}>{bid.excludes}</Text>
                       </View>
                     )}
                     {!!bid.normalizedAdjustmentReason && (
                       <View style={styles.adjReason}>
-                        <Sparkles size={11} color={Colors.primary} />
+                        <Sparkles size={11} color={themeColors.accent} />
                         <Text style={styles.adjReasonText}>{bid.normalizedAdjustmentReason}</Text>
                       </View>
                     )}
@@ -589,9 +594,9 @@ export default function BuyoutPackageScreen() {
                 onPress={() => router.push({ pathname: '/project-detail' as never, params: { id: pkg.projectId } as never })}
                 activeOpacity={0.85}
               >
-                <Briefcase size={16} color={Colors.primary} />
+                <Briefcase size={16} color={themeColors.accent} />
                 <Text style={styles.openCommitmentText}>Open project · view this commitment</Text>
-                <ChevronUp size={16} color={Colors.primary} style={{ transform: [{ rotate: '90deg' }] }} />
+                <ChevronUp size={16} color={themeColors.accent} style={{ transform: [{ rotate: '90deg' }] }} />
               </TouchableOpacity>
             </View>
           )}
@@ -608,7 +613,7 @@ export default function BuyoutPackageScreen() {
                 activeOpacity={0.85}
                 testID="generate-a401"
               >
-                <FileDown size={16} color={Colors.primary} />
+                <FileDown size={16} color={themeColors.accent} />
                 <Text style={styles.openCommitmentText}>Generate A401-style subcontract PDF</Text>
               </TouchableOpacity>
             </View>
@@ -617,7 +622,7 @@ export default function BuyoutPackageScreen() {
           {/* Delete package */}
           <View style={styles.section}>
             <TouchableOpacity onPress={handleDeletePackage} style={styles.deletePkgBtn} activeOpacity={0.7}>
-              <Trash2 size={14} color={Colors.error} />
+              <Trash2 size={14} color={themeColors.danger} />
               <Text style={styles.deletePkgText}>Delete this package</Text>
             </TouchableOpacity>
           </View>
@@ -627,7 +632,7 @@ export default function BuyoutPackageScreen() {
         {pkg.status !== 'awarded' && (
           <View style={[styles.fabRow, { bottom: insets.bottom + 18 }]}>
             <TouchableOpacity style={styles.fabSecondary} onPress={() => setShowAddBid(true)} activeOpacity={0.85}>
-              <Plus size={16} color={Colors.text} />
+              <Plus size={16} color={themeColors.text} />
               <Text style={styles.fabSecondaryText}>Add by hand</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.fabPrimary} onPress={() => setVoiceOpen(true)} activeOpacity={0.85}>
@@ -655,24 +660,24 @@ export default function BuyoutPackageScreen() {
 
         {/* Add-bid modal */}
         <Modal visible={showAddBid} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAddBid(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: Colors.background }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: themeColors.bg }}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Log a bid</Text>
               <TouchableOpacity onPress={() => setShowAddBid(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={22} color={Colors.text} />
+                <X size={22} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               <Text style={styles.fieldLabel}>Vendor *</Text>
-              <TextInput style={styles.input} value={newVendor} onChangeText={setNewVendor} placeholder="e.g. Joe's Plumbing" placeholderTextColor={Colors.textMuted} autoFocus />
+              <TextInput style={styles.input} value={newVendor} onChangeText={setNewVendor} placeholder="e.g. Joe's Plumbing" placeholderTextColor={themeColors.textMuted} autoFocus />
               <Text style={styles.fieldLabel}>Amount *</Text>
-              <TextInput style={styles.input} value={newAmount} onChangeText={setNewAmount} placeholder="Total dollar bid" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+              <TextInput style={styles.input} value={newAmount} onChangeText={setNewAmount} placeholder="Total dollar bid" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
               <Text style={styles.fieldLabel}>Includes</Text>
-              <TextInput style={[styles.input, styles.multilineInput]} value={newIncludes} onChangeText={setNewIncludes} placeholder="What's covered (drives leveling)" placeholderTextColor={Colors.textMuted} multiline />
+              <TextInput style={[styles.input, styles.multilineInput]} value={newIncludes} onChangeText={setNewIncludes} placeholder="What's covered (drives leveling)" placeholderTextColor={themeColors.textMuted} multiline />
               <Text style={styles.fieldLabel}>Excludes</Text>
-              <TextInput style={[styles.input, styles.multilineInput]} value={newExcludes} onChangeText={setNewExcludes} placeholder="What's NOT covered (the gotcha)" placeholderTextColor={Colors.textMuted} multiline />
+              <TextInput style={[styles.input, styles.multilineInput]} value={newExcludes} onChangeText={setNewExcludes} placeholder="What's NOT covered (the gotcha)" placeholderTextColor={themeColors.textMuted} multiline />
               <Text style={styles.fieldLabel}>Terms</Text>
-              <TextInput style={styles.input} value={newTerms} onChangeText={setNewTerms} placeholder="Net 30, 10% deposit, etc." placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={newTerms} onChangeText={setNewTerms} placeholder="Net 30, 10% deposit, etc." placeholderTextColor={themeColors.textMuted} />
             </ScrollView>
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddBid} activeOpacity={0.85}>
@@ -687,119 +692,119 @@ export default function BuyoutPackageScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: Type.subhead.fontSize, color: Colors.textMuted },
+  notFoundText: { fontSize: Type.subhead.fontSize, color: t.textMuted },
 
   hero: {
     margin: 16,
     padding: 18,
     borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, letterSpacing: 0.3, textTransform: 'uppercase' },
-  heroPhase: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
-  heroName: { fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5, marginBottom: 14 },
+  heroPhase: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' as const },
+  heroName: { fontSize: 24, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5, marginBottom: 14 },
   heroBudgetRow: { flexDirection: 'row', gap: 16 },
   heroBudgetCell: { flex: 1 },
-  heroBudgetLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
-  heroBudgetValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text },
+  heroBudgetLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
+  heroBudgetValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text },
 
   section: { paddingHorizontal: 16, paddingBottom: 8 },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 },
-  sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  sectionSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  sectionSub: { fontSize: Type.caption1.fontSize, color: t.textMuted },
 
   levelBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.text,
+    backgroundColor: t.text,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
   },
   levelBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   levelingSummary: {
     marginTop: 12,
-    backgroundColor: Colors.primary + '0F',
+    backgroundColor: t.accent + '0F',
     borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
+    borderLeftColor: t.accent,
     borderRadius: Tokens.radius.card,
     padding: 14,
     gap: 6,
   },
   levelingSummaryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  levelingSummaryHeadText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  levelingSummaryBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  recommendation: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, padding: 8, backgroundColor: Colors.success + '15', borderRadius: Tokens.radius.sm },
-  recommendationText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, fontWeight: '600' as const },
+  levelingSummaryHeadText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent, textTransform: 'uppercase', letterSpacing: 0.5 },
+  levelingSummaryBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
+  recommendation: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, padding: 8, backgroundColor: t.success + '15', borderRadius: Tokens.radius.sm },
+  recommendationText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17, fontWeight: '600' as const },
 
-  emptyBids: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 22, borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyBidsText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19 },
+  emptyBids: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 22, borderWidth: 1, borderColor: t.line },
+  emptyBidsText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19 },
 
-  bidCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10, gap: 10 },
-  bidCardWinner: { borderColor: Colors.success, borderWidth: 2, backgroundColor: Colors.success + '08' },
-  bidCardAwarded: { borderColor: Colors.success, borderWidth: 2 },
+  bidCard: { backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: t.line, marginBottom: 10, gap: 10 },
+  bidCardWinner: { borderColor: t.success, borderWidth: 2, backgroundColor: t.success + '08' },
+  bidCardAwarded: { borderColor: t.success, borderWidth: 2 },
   bidCardOutlier: { borderColor: Colors.warning + '80', borderWidth: 1.5 },
   outlierBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   outlierBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
   outlierHint: { fontSize: Type.caption2.fontSize, color: Colors.warning, marginTop: 4, lineHeight: 15, fontWeight: '600' as const },
   warningCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.warning + '12', borderLeftWidth: 4, borderLeftColor: Colors.warning, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 8 },
-  warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  warningBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
+  warningBody: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 17 },
   bidHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   bidNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  bidVendor: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  bidTerms: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  bidVendor: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
+  bidTerms: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   bidDelete: { padding: 4 },
-  winnerBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  winnerBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   winnerBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
-  lowestBadge: { backgroundColor: Colors.primary + '22', paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
-  lowestBadgeText: { fontSize: 9, fontWeight: '800' as const, color: Colors.primary, letterSpacing: 0.5 },
-  awardedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  lowestBadge: { backgroundColor: t.accent + '22', paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  lowestBadgeText: { fontSize: 9, fontWeight: '800' as const, color: t.accent, letterSpacing: 0.5 },
+  awardedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: t.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   awardedBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
 
-  bidAmountsRow: { flexDirection: 'row', gap: 14, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: Colors.cardBorder },
+  bidAmountsRow: { flexDirection: 'row', gap: 14, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: t.line },
   bidAmountCell: { flex: 1 },
-  bidAmountLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
-  bidAmountValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  bidAmountLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
+  bidAmountValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
   bidAmountValueTotal: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const },
 
-  bidScopeBlock: { backgroundColor: Colors.fillTertiary, borderLeftWidth: 4, borderLeftColor: Colors.success, borderRadius: Tokens.radius.sm, padding: 10, gap: 4 },
-  bidScopeLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.success, letterSpacing: 0.5, textTransform: 'uppercase' },
-  bidScopeText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  bidScopeBlock: { backgroundColor: t.surfaceAlt, borderLeftWidth: 4, borderLeftColor: t.success, borderRadius: Tokens.radius.sm, padding: 10, gap: 4 },
+  bidScopeLabel: { fontSize: 10, fontWeight: '700' as const, color: t.success, letterSpacing: 0.5, textTransform: 'uppercase' },
+  bidScopeText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
 
-  adjReason: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, backgroundColor: Colors.primary + '08', borderRadius: Tokens.radius.sm },
-  adjReasonText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, fontStyle: 'italic' },
+  adjReason: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, backgroundColor: t.accent + '08', borderRadius: Tokens.radius.sm },
+  adjReasonText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17, fontStyle: 'italic' },
 
-  awardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.success, paddingVertical: 12, borderRadius: Tokens.radius.card },
+  awardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.success, paddingVertical: 12, borderRadius: Tokens.radius.card },
   awardBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
-  openCommitmentBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary + '15', paddingVertical: 14, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.primary + '40' },
-  openCommitmentText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
+  openCommitmentBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent + '15', paddingVertical: 14, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.accent + '40' },
+  openCommitmentText: { color: t.accent, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
 
   deletePkgBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
-  deletePkgText: { fontSize: Type.footnote.fontSize, color: Colors.error, fontWeight: '600' as const },
+  deletePkgText: { fontSize: Type.footnote.fontSize, color: t.danger, fontWeight: '600' as const },
 
   fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 8 },
-  fabSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
-  fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line },
+  fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
-  modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.cardBorder },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 14, marginBottom: 6 },
-  input: { backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder, fontSize: Type.subhead.fontSize, color: Colors.text },
+  modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textMuted, marginTop: 14, marginBottom: 6 },
+  input: { backgroundColor: t.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.line, fontSize: Type.subhead.fontSize, color: t.text },
   multilineInput: { minHeight: 70 },
-  modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card },
+  modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.card },
   saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 });

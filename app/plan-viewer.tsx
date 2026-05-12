@@ -29,6 +29,9 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -45,13 +48,15 @@ type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
 const MIN_CALIBRATION_PX = 20;
 
 const PIN_COLORS: Record<DrawingPinKind, string> = {
-  note: Colors.primary,
+  note: '#FF6A1A',
   photo: '#3B82F6',
   punch: '#FF9500',
   rfi: '#8B5CF6',
 };
 
 export default function PlanViewerScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   if (!canAccess('plan_viewer')) {
@@ -68,6 +73,8 @@ export default function PlanViewerScreen() {
 }
 
 function PlanViewerScreenInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ sheetId?: string }>();
@@ -196,7 +203,7 @@ function PlanViewerScreenInner() {
         planSheetId: sheet.id,
         projectId: sheet.projectId,
         type: 'freehand',
-        color: Colors.error,
+        color: themeColors.danger,
         strokeWidth: 3,
         points: activeStroke,
       });
@@ -268,7 +275,7 @@ function PlanViewerScreenInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-            <ChevronLeft size={22} color={Colors.text} />
+            <ChevronLeft size={22} color={themeColors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sheet not found</Text>
         </View>
@@ -283,7 +290,7 @@ function PlanViewerScreenInner() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           {sheet.sheetNumber ? <Text style={styles.headerEyebrow}>{sheet.sheetNumber}</Text> : null}
@@ -291,7 +298,7 @@ function PlanViewerScreenInner() {
         </View>
         {calibration ? (
           <View style={[styles.modePill, { backgroundColor: Colors.successLight }]}>
-            <Text style={[styles.modePillText, { color: Colors.success }]}>
+            <Text style={[styles.modePillText, { color: themeColors.success }]}>
               Scale: {calibration.realDistanceFt} ft ref
             </Text>
           </View>
@@ -369,7 +376,7 @@ function PlanViewerScreenInner() {
               >
                 <Polyline
                   points={activeStroke.map(p => `${p.x * imgLayout.w},${p.y * imgLayout.h}`).join(' ')}
-                  stroke={Colors.error}
+                  stroke={themeColors.danger}
                   strokeWidth={3}
                   fill="none"
                   strokeLinecap="round"
@@ -382,7 +389,7 @@ function PlanViewerScreenInner() {
             {imgLayout && (mode === 'measure' || mode === 'calibrate') && pointBuffer.length > 0 ? (
               <Svg style={StyleSheet.absoluteFill} width={imgLayout.w} height={imgLayout.h} pointerEvents="none">
                 {pointBuffer.map((p, i) => (
-                  <Circle key={`pt-${i}`} cx={p.x * imgLayout.w} cy={p.y * imgLayout.h} r={5} fill={Colors.primary} stroke={Colors.surface} strokeWidth={2} />
+                  <Circle key={`pt-${i}`} cx={p.x * imgLayout.w} cy={p.y * imgLayout.h} r={5} fill={themeColors.accent} stroke={themeColors.surface} strokeWidth={2} />
                 ))}
                 {pointBuffer.length === 2 ? (
                   <>
@@ -391,7 +398,7 @@ function PlanViewerScreenInner() {
                       y1={pointBuffer[0].y * imgLayout.h}
                       x2={pointBuffer[1].x * imgLayout.w}
                       y2={pointBuffer[1].y * imgLayout.h}
-                      stroke={Colors.primary}
+                      stroke={themeColors.accent}
                       strokeWidth={2}
                       strokeDasharray="4 4"
                     />
@@ -402,8 +409,8 @@ function PlanViewerScreenInner() {
                           y={(pointBuffer[0].y + pointBuffer[1].y) / 2 * imgLayout.h - 8}
                           fontSize="14"
                           fontWeight="700"
-                          fill={Colors.surface}
-                          stroke={Colors.surface}
+                          fill={themeColors.surface}
+                          stroke={themeColors.surface}
                           strokeWidth="4"
                           textAnchor="middle"
                         >
@@ -414,7 +421,7 @@ function PlanViewerScreenInner() {
                           y={(pointBuffer[0].y + pointBuffer[1].y) / 2 * imgLayout.h - 8}
                           fontSize="14"
                           fontWeight="700"
-                          fill={Colors.primary}
+                          fill={themeColors.accent}
                           textAnchor="middle"
                         >
                           {`${measuredFt.toFixed(1)} ft`}
@@ -434,7 +441,7 @@ function PlanViewerScreenInner() {
                   y1={calibration.p1.y * imgLayout.h}
                   x2={calibration.p2.x * imgLayout.w}
                   y2={calibration.p2.y * imgLayout.h}
-                  stroke={Colors.success}
+                  stroke={themeColors.success}
                   strokeWidth={1.5}
                   strokeDasharray="2 4"
                   opacity={0.55}
@@ -452,13 +459,13 @@ function PlanViewerScreenInner() {
                     left: pin.x * imgLayout.w - 14,
                     top: pin.y * imgLayout.h - 28,
                     backgroundColor: pin.color ?? PIN_COLORS[pin.kind],
-                    borderColor: selectedPinId === pin.id ? Colors.accent : '#FFFFFF',
+                    borderColor: selectedPinId === pin.id ? themeColors.accent : '#FFFFFF',
                     borderWidth: selectedPinId === pin.id ? 3 : 2,
                   },
                 ]}
                 onPress={() => setSelectedPinId(pin.id)}
                 hitSlop={8} accessibilityRole="button" accessibilityLabel="View location">
-                <MapPin size={14} color={Colors.surface} strokeWidth={2.5} />
+                <MapPin size={14} color={themeColors.surface} strokeWidth={2.5} />
               </TouchableOpacity>
             ))}
           </View>
@@ -468,7 +475,7 @@ function PlanViewerScreenInner() {
       {/* Mode hint line (measure / calibrate) */}
       {(mode === 'measure' || mode === 'calibrate') && (
         <View style={styles.hintBar}>
-          <Ruler size={14} color={Colors.primary} />
+          <Ruler size={14} color={themeColors.accent} />
           <Text style={styles.hintText}>
             {mode === 'measure'
               ? (scaleFtPerPx
@@ -480,7 +487,7 @@ function PlanViewerScreenInner() {
                  pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
           </Text>
           <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <X size={14} color={Colors.textSecondary} />
+            <X size={14} color={themeColors.textSecondary} />
           </TouchableOpacity>
         </View>
       )}
@@ -491,14 +498,14 @@ function PlanViewerScreenInner() {
           style={[styles.toolBtn, mode === 'pin' && styles.toolBtnActive]}
           onPress={() => switchMode('pin')}
         >
-          <MapPin size={18} color={mode === 'pin' ? Colors.textOnPrimary : Colors.text} />
+          <MapPin size={18} color={mode === 'pin' ? '#FFFFFF' : themeColors.text} />
           <Text style={[styles.toolBtnText, mode === 'pin' && styles.toolBtnTextActive]}>Pin</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.toolBtn, mode === 'draw' && styles.toolBtnActive]}
           onPress={() => switchMode('draw')}
         >
-          <Pencil size={18} color={mode === 'draw' ? Colors.textOnPrimary : Colors.text} />
+          <Pencil size={18} color={mode === 'draw' ? '#FFFFFF' : themeColors.text} />
           <Text style={[styles.toolBtnText, mode === 'draw' && styles.toolBtnTextActive]}>Draw</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -506,7 +513,7 @@ function PlanViewerScreenInner() {
           onPress={() => switchMode('measure')}
           disabled={!scaleFtPerPx}
         >
-          <Ruler size={18} color={!scaleFtPerPx ? Colors.textMuted : mode === 'measure' ? Colors.textOnPrimary : Colors.text} />
+          <Ruler size={18} color={!scaleFtPerPx ? themeColors.textMuted : mode === 'measure' ? '#FFFFFF' : themeColors.text} />
           <Text style={[
             styles.toolBtnText,
             mode === 'measure' && styles.toolBtnTextActive,
@@ -517,13 +524,13 @@ function PlanViewerScreenInner() {
           style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive]}
           onPress={() => switchMode('calibrate')}
         >
-          <Check size={18} color={mode === 'calibrate' ? Colors.textOnPrimary : (calibration ? Colors.success : Colors.text)} />
+          <Check size={18} color={mode === 'calibrate' ? '#FFFFFF' : (calibration ? themeColors.success : themeColors.text)} />
           <Text style={[styles.toolBtnText, mode === 'calibrate' && styles.toolBtnTextActive]}>
             {calibration ? 'Re-cal' : 'Calibrate'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.toolBtn} onPress={undoLastMarkup} disabled={markups.length === 0}>
-          <Undo2 size={18} color={markups.length === 0 ? Colors.textMuted : Colors.text} />
+          <Undo2 size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} />
           <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Undo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.toolBtn} onPress={() => {
@@ -533,7 +540,7 @@ function PlanViewerScreenInner() {
             { text: 'Clear', style: 'destructive', onPress: () => markups.forEach(m => deletePlanMarkup(m.id)) },
           ]);
         }} disabled={markups.length === 0}>
-          <Eraser size={18} color={markups.length === 0 ? Colors.textMuted : Colors.text} />
+          <Eraser size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} />
           <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Clear</Text>
         </TouchableOpacity>
       </View>
@@ -590,11 +597,11 @@ function PlanViewerScreenInner() {
           <View style={[styles.modalCard, { paddingBottom: 24 }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ruler size={16} color={Colors.primary} />
+                <Ruler size={16} color={themeColors.accent} />
                 <Text style={styles.modalTitle}>Set scale</Text>
               </View>
               <TouchableOpacity onPress={() => { setCalibrationInput(null); setPointBuffer([]); }} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             <Text style={styles.emptyHint}>
@@ -612,7 +619,7 @@ function PlanViewerScreenInner() {
               <Text style={styles.unitLabel}>ft</Text>
             </View>
             <TouchableOpacity style={[styles.primaryBtn, { marginTop: 10 }]} onPress={confirmCalibration}>
-              <Check size={16} color={Colors.textOnPrimary} />
+              <Check size={16} color={'#FFFFFF'} />
               <Text style={styles.primaryBtnText}>Set scale</Text>
             </TouchableOpacity>
           </View>
@@ -638,6 +645,8 @@ function PinDetailModal({
   onDelete: () => void;
   onAddPhoto: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [draftLabel, setDraftLabel] = useState<string>('');
   const [view, setView] = useState<'main' | 'photo' | 'punch'>('main');
 
@@ -661,13 +670,13 @@ function PinDetailModal({
           <View style={styles.modalHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={[styles.modalPinBadge, { backgroundColor: pin.color ?? PIN_COLORS[pin.kind] }]}>
-                <MapPin size={12} color={Colors.surface} />
+                <MapPin size={12} color={themeColors.surface} />
               </View>
               <Text style={styles.modalTitle}>
                 {view === 'main' ? 'Pin' : view === 'photo' ? 'Link a photo' : 'Link a punch item'}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           {view === 'main' && (
@@ -687,17 +696,17 @@ function PinDetailModal({
                   style={styles.linkCell}
                   onPress={onAddPhoto}
                 >
-                  <Camera size={16} color={Colors.primary} />
+                  <Camera size={16} color={themeColors.accent} />
                   <Text style={styles.linkCellTitle}>Take photo</Text>
                   <Text style={styles.linkCellSub}>Shoot & pin it here</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('photo')}>
-                  <ImageIcon size={16} color={Colors.primary} />
+                  <ImageIcon size={16} color={themeColors.accent} />
                   <Text style={styles.linkCellTitle}>Existing photo</Text>
                   <Text style={styles.linkCellSub}>Link one already on file</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('punch')}>
-                  <ClipboardList size={16} color={Colors.primary} />
+                  <ClipboardList size={16} color={themeColors.accent} />
                   <Text style={styles.linkCellTitle}>Punch item</Text>
                   <Text style={styles.linkCellSub}>Link to open punch</Text>
                 </TouchableOpacity>
@@ -708,16 +717,16 @@ function PinDetailModal({
                   <Image source={{ uri: linkedPhoto.uri }} style={styles.linkedThumb} />
                   <Text style={styles.linkedText}>Photo linked</Text>
                   <TouchableOpacity onPress={() => onUpdate({ linkedPhotoId: undefined, kind: 'note' })} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={Colors.textSecondary} />
+                    <X size={14} color={themeColors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               )}
               {linkedPunch && (
                 <View style={styles.linkedRow}>
-                  <ClipboardList size={14} color={Colors.accent} />
+                  <ClipboardList size={14} color={themeColors.accent} />
                   <Text style={styles.linkedText} numberOfLines={2}>{linkedPunch.description}</Text>
                   <TouchableOpacity onPress={() => onUpdate({ linkedPunchItemId: undefined, kind: 'note' })} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={Colors.textSecondary} />
+                    <X size={14} color={themeColors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               )}
@@ -728,7 +737,7 @@ function PinDetailModal({
                   { text: 'Delete', style: 'destructive', onPress: onDelete },
                 ]);
               }}>
-                <Trash2 size={15} color={Colors.error} />
+                <Trash2 size={15} color={themeColors.danger} />
                 <Text style={styles.deleteBtnText}>Delete pin</Text>
               </TouchableOpacity>
             </>
@@ -760,10 +769,12 @@ function PhotoPicker({ photos, onPick, onBack }: {
   onPick: (id: string) => void;
   onBack: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View>
       <TouchableOpacity onPress={onBack} style={styles.backLink}>
-        <ChevronLeft size={14} color={Colors.primary} />
+        <ChevronLeft size={14} color={themeColors.accent} />
         <Text style={styles.backLinkText}>Back</Text>
       </TouchableOpacity>
       {photos.length === 0 ? (
@@ -786,11 +797,13 @@ function PunchPicker({ items, onPick, onBack }: {
   onPick: (id: string) => void;
   onBack: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const open = items.filter(i => i.status !== 'closed');
   return (
     <View>
       <TouchableOpacity onPress={onBack} style={styles.backLink}>
-        <ChevronLeft size={14} color={Colors.primary} />
+        <ChevronLeft size={14} color={themeColors.accent} />
         <Text style={styles.backLinkText}>Back</Text>
       </TouchableOpacity>
       {open.length === 0 ? (
@@ -799,12 +812,12 @@ function PunchPicker({ items, onPick, onBack }: {
         <ScrollView style={{ maxHeight: 260 }}>
           {open.map(pi => (
             <TouchableOpacity key={pi.id} onPress={() => onPick(pi.id)} style={styles.punchRow}>
-              <ClipboardList size={14} color={Colors.accent} />
+              <ClipboardList size={14} color={themeColors.accent} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.punchRowTitle} numberOfLines={2}>{pi.description}</Text>
                 {pi.location ? <Text style={styles.punchRowSub}>{pi.location}</Text> : null}
               </View>
-              <Check size={14} color={Colors.primary} />
+              <Check size={14} color={themeColors.accent} />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -815,18 +828,18 @@ function PunchPicker({ items, onPick, onBack }: {
 
 // ─────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: '#1C1C1E' },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: Colors.surface, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
+    backgroundColor: t.surface, borderBottomColor: t.line, borderBottomWidth: 1,
   },
   headerBtn: { padding: 6, borderRadius: Tokens.radius.sm },
-  headerEyebrow: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  headerTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
+  headerEyebrow: { color: t.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
+  headerTitle: { color: t.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
   modePill: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.md },
-  modePillText: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+  modePillText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   canvasWrap: { flex: 1, backgroundColor: '#1C1C1E', overflow: 'hidden' },
   canvasScroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
@@ -842,67 +855,67 @@ const styles = StyleSheet.create({
   },
 
   toolbar: {
-    flexDirection: 'row', backgroundColor: Colors.surface,
+    flexDirection: 'row', backgroundColor: t.surface,
     paddingHorizontal: 12, paddingTop: 10,
-    borderTopColor: Colors.borderLight, borderTopWidth: 1,
+    borderTopColor: t.line, borderTopWidth: 1,
     gap: 6, justifyContent: 'space-around',
   },
   toolBtn: {
     flex: 1, alignItems: 'center', gap: 2,
     paddingVertical: 8, paddingHorizontal: 6, borderRadius: Tokens.radius.md,
   },
-  toolBtnActive: { backgroundColor: Colors.primary },
-  toolBtnText: { color: Colors.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: 2 },
-  toolBtnTextActive: { color: Colors.textOnPrimary },
-  toolBtnTextDisabled: { color: Colors.textMuted },
+  toolBtnActive: { backgroundColor: t.accent },
+  toolBtnText: { color: t.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: 2 },
+  toolBtnTextActive: { color: '#FFFFFF' },
+  toolBtnTextDisabled: { color: t.textMuted },
 
   hintBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 14, paddingVertical: 8,
     backgroundColor: '#F0F9F2',
-    borderTopColor: Colors.borderLight, borderTopWidth: 1,
-    borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
+    borderTopColor: t.line, borderTopWidth: 1,
+    borderBottomColor: t.line, borderBottomWidth: 1,
   },
-  hintText: { flex: 1, color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '500' },
+  hintText: { flex: 1, color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '500' },
 
   distanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  unitLabel: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
+  unitLabel: { color: t.textSecondary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
   },
-  primaryBtnText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  primaryBtnText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: Colors.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: t.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     gap: 10, maxHeight: '80%',
     ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: 20 } as object, default: {} as object }),
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  modalTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
+  modalTitle: { color: t.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
   modalPinBadge: { width: 24, height: 24, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
   iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
-  label: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+  label: { color: t.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600' },
   input: {
     backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
-    color: Colors.text, fontSize: Type.bodyCompact.fontSize, borderColor: Colors.borderLight, borderWidth: 1, minHeight: 44,
+    color: t.text, fontSize: Type.bodyCompact.fontSize, borderColor: t.line, borderWidth: 1, minHeight: 44,
   },
 
   linkRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
   linkCell: {
     flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md,
-    borderColor: Colors.borderLight, borderWidth: 1, gap: 3,
+    borderColor: t.line, borderWidth: 1, gap: 3,
   },
-  linkCellTitle: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '700', marginTop: 4 },
-  linkCellSub: { color: Colors.textSecondary, fontSize: 10 },
+  linkCellTitle: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '700', marginTop: 4 },
+  linkCellSub: { color: t.textSecondary, fontSize: 10 },
 
   linkedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: Colors.successLight, padding: 10, borderRadius: Tokens.radius.md, marginTop: 6,
   },
   linkedThumb: { width: 36, height: 36, borderRadius: Tokens.radius.xs },
-  linkedText: { flex: 1, color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+  linkedText: { flex: 1, color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -910,11 +923,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10, borderRadius: Tokens.radius.md, marginTop: 8,
     borderColor: Colors.errorLight, borderWidth: 1,
   },
-  deleteBtnText: { color: Colors.error, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  deleteBtnText: { color: t.danger, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 4 },
-  backLinkText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
-  emptyHint: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, padding: 20, textAlign: 'center' },
+  backLinkText: { color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '600' },
+  emptyHint: { color: t.textSecondary, fontSize: Type.footnote.fontSize, padding: 20, textAlign: 'center' },
 
   photoTile: { width: 80, height: 80, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: Colors.surfaceAlt },
   photoTileImg: { width: '100%', height: '100%' },
@@ -923,6 +936,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md, marginBottom: 6,
   },
-  punchRowTitle: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
-  punchRowSub: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 },
+  punchRowTitle: { color: t.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
+  punchRowSub: { color: t.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 },
 });

@@ -21,6 +21,9 @@ import {
   DollarSign, Activity, Banknote,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   computeWIPReport, computeProfitReport, computeARAgingReport,
@@ -36,6 +39,8 @@ import { Tokens } from '@/constants/designTokens';
 type Tab = 'wip' | 'profit' | 'aging';
 
 export default function ReportsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, invoices, changeOrders, commitments, settings } = useProjects();
@@ -96,7 +101,7 @@ export default function ReportsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Financial Reports</Text>
@@ -121,7 +126,7 @@ export default function ReportsScreen() {
       <View style={[styles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
         {tab !== 'profit' && (
           <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleCopyCsv} activeOpacity={0.85}>
-            <Copy size={14} color={Colors.text} />
+            <Copy size={14} color={themeColors.text} />
             <Text style={styles.actionBtnSecondaryText}>Copy CSV</Text>
           </TouchableOpacity>
         )}
@@ -148,9 +153,11 @@ export default function ReportsScreen() {
 }
 
 function TabBtn({ label, icon: Icon, active, onPress }: { label: string; icon: typeof TrendingUp; active: boolean; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity style={[styles.tabBtn, active && styles.tabBtnActive]} onPress={onPress} activeOpacity={0.85}>
-      <Icon size={14} color={active ? Colors.primary : Colors.textMuted} />
+      <Icon size={14} color={active ? themeColors.accent : themeColors.textMuted} />
       <Text style={[styles.tabBtnText, active && styles.tabBtnTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -159,6 +166,8 @@ function TabBtn({ label, icon: Icon, active, onPress }: { label: string; icon: t
 // ─── WIP view ────────────────────────────────────────────────────────
 
 function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (report.rows.length === 0) {
     return <EmptyState icon={ClipboardList} title="No active projects" body="WIP reports compile across active projects. Add or activate a project to populate this report." />;
   }
@@ -170,13 +179,13 @@ function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
           <Text style={styles.summaryEyebrow}>WIP TOTAL — {report.rows.length} project{report.rows.length === 1 ? '' : 's'}</Text>
         </View>
         <View style={styles.summaryGrid}>
-          <SummaryStat label="Revised contract" value={formatMoney(report.totals.revisedContract)} accent={Colors.text} />
-          <SummaryStat label="Billed"            value={formatMoney(report.totals.billedToDate)} accent={Colors.text} />
+          <SummaryStat label="Revised contract" value={formatMoney(report.totals.revisedContract)} accent={themeColors.text} />
+          <SummaryStat label="Billed"            value={formatMoney(report.totals.billedToDate)} accent={themeColors.text} />
           <SummaryStat label="Retainage held"    value={formatMoney(report.totals.retainageHeld)} accent={Colors.warning} />
           <SummaryStat
             label="Projected profit"
             value={formatMoney(report.totals.projectedProfit)}
-            accent={report.totals.projectedProfit >= 0 ? Colors.success : Colors.error}
+            accent={report.totals.projectedProfit >= 0 ? themeColors.success : themeColors.danger}
           />
         </View>
       </View>
@@ -215,6 +224,8 @@ function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
 // ─── Profit view ─────────────────────────────────────────────────────
 
 function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport> }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (profit.rows.length === 0) {
     return <EmptyState icon={TrendingUp} title="No projects yet" body="Profit dashboard pulls live margins across every project. Add one to get started." />;
   }
@@ -234,9 +245,9 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
       </View>
 
       <View style={styles.bandRow}>
-        <Band color={Colors.success} label=" ≥ 12% (good)" />
+        <Band color={themeColors.success} label=" ≥ 12% (good)" />
         <Band color={Colors.warning} label=" 5–11% (watch)" />
-        <Band color={Colors.error}   label=" < 5% (risk)" />
+        <Band color={themeColors.danger}   label=" < 5% (risk)" />
       </View>
 
       {profit.rows.map(r => (
@@ -266,6 +277,8 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
 // ─── AR Aging view ───────────────────────────────────────────────────
 
 function AgingView({ report }: { report: ARAgingReport }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   if (report.rows.length === 0) {
     return <EmptyState
       icon={CheckCircle2}
@@ -321,6 +334,8 @@ function AgingView({ report }: { report: ARAgingReport }) {
 // ─── Tiny presentational components ──────────────────────────────────
 
 function SummaryStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.summaryStatItem}>
       <Text style={styles.summaryStatLabel}>{label}</Text>
@@ -330,15 +345,17 @@ function SummaryStat({ label, value, accent }: { label: string; value: string; a
 }
 
 function KV({ k, v, bold, tone, muted }: { k: string; v: string; bold?: boolean; tone?: 'good' | 'bad'; muted?: boolean }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.kv}>
       <Text style={styles.kvKey}>{k}</Text>
       <Text style={[
         styles.kvVal,
         bold ? styles.kvValBold : null,
-        tone === 'good' ? { color: Colors.success } : null,
-        tone === 'bad' ? { color: Colors.error } : null,
-        muted ? { color: Colors.textMuted } : null,
+        tone === 'good' ? { color: themeColors.success } : null,
+        tone === 'bad' ? { color: themeColors.danger } : null,
+        muted ? { color: themeColors.textMuted } : null,
       ]}>
         {v}
       </Text>
@@ -347,6 +364,8 @@ function KV({ k, v, bold, tone, muted }: { k: string; v: string; bold?: boolean;
 }
 
 function Band({ color, label }: { color: string; label: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.band}>
       <View style={[styles.bandDot, { backgroundColor: color }]} />
@@ -356,7 +375,9 @@ function Band({ color, label }: { color: string; label: string }) {
 }
 
 function Bucket({ label, value, tone }: { label: string; value: number; tone: 'muted' | 'warn' | 'bad' }) {
-  const color = tone === 'muted' ? Colors.text : tone === 'warn' ? Colors.warning : Colors.error;
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const color = tone === 'muted' ? themeColors.text : tone === 'warn' ? Colors.warning : themeColors.danger;
   return (
     <View style={styles.bucket}>
       <Text style={styles.bucketLabel}>{label}</Text>
@@ -366,126 +387,129 @@ function Bucket({ label, value, tone }: { label: string; value: number; tone: 'm
 }
 
 function EmptyState({ icon: Icon, title, body, tone }: { icon: typeof TrendingUp; title: string; body: string; tone?: 'good' }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
-    <View style={[styles.emptyCard, tone === 'good' ? { backgroundColor: Colors.success + '0D', borderColor: Colors.success + '30' } : null]}>
-      <Icon size={28} color={tone === 'good' ? Colors.success : Colors.textMuted} />
+    <View style={[styles.emptyCard, tone === 'good' ? { backgroundColor: themeColors.success + '0D', borderColor: themeColors.success + '30' } : null]}>
+      <Icon size={28} color={tone === 'good' ? themeColors.success : themeColors.textMuted} />
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyBody}>{body}</Text>
     </View>
   );
 }
 
-// Tone helpers — colour rules for margin and health.
+// Tone helpers — colour rules for margin and health. Module-level, so
+// they hardcode hex (theme-agnostic) instead of using ThemeColors.
 function marginTone(pct: number) {
-  if (pct >= 12) return { backgroundColor: Colors.success + '15' };
+  if (pct >= 12) return { backgroundColor: '#2E7D44' + '15' };
   if (pct >=  5) return { backgroundColor: Colors.warning + '15' };
-  return                 { backgroundColor: Colors.error   + '15' };
+  return                 { backgroundColor: '#C84038' + '15' };
 }
 function marginTextTone(pct: number) {
-  if (pct >= 12) return { color: Colors.success };
+  if (pct >= 12) return { color: '#2E7D44' };
   if (pct >=  5) return { color: Colors.warning };
-  return                 { color: Colors.error };
+  return                 { color: '#C84038' };
 }
 function healthTone(h: 'green' | 'yellow' | 'red') {
-  if (h === 'green')  return { backgroundColor: Colors.success };
+  if (h === 'green')  return { backgroundColor: '#2E7D44' };
   if (h === 'yellow') return { backgroundColor: Colors.warning };
-  return                       { backgroundColor: Colors.error };
+  return                       { backgroundColor: '#C84038' };
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 2 },
+  eyebrow: { fontSize: 10, fontWeight: '800', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 2 },
 
   tabRow: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    backgroundColor: Colors.background,
+    borderBottomWidth: 1, borderBottomColor: t.line,
+    backgroundColor: t.bg,
   },
   tabBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 10, borderRadius: 11,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  tabBtnActive: { backgroundColor: Colors.primary + '12', borderColor: Colors.primary },
-  tabBtnText:   { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textMuted },
-  tabBtnTextActive: { color: Colors.primary },
+  tabBtnActive: { backgroundColor: t.accent + '12', borderColor: t.accent },
+  tabBtnText:   { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.textMuted },
+  tabBtnTextActive: { color: t.accent },
 
   summaryCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14, gap: 10,
+    borderWidth: 1, borderColor: t.line, marginBottom: 14, gap: 10,
   },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  summaryEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 1.2, textTransform: 'uppercase' },
+  summaryEyebrow: { fontSize: 10, fontWeight: '800', color: t.accent, letterSpacing: 1.2, textTransform: 'uppercase' },
   summaryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   summaryStatItem: { width: '47%', paddingVertical: 4 },
-  summaryStatLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
-  summaryStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
+  summaryStatLabel: { fontSize: 10, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
+  summaryStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.3 },
 
   profitHero: { flexDirection: 'row', alignItems: 'baseline', gap: 12, marginTop: 4 },
-  profitHeroAmount: { fontSize: Type.title1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.6 },
+  profitHeroAmount: { fontSize: Type.title1.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.6 },
   profitHeroPct:    { fontSize: Type.callout.fontSize, fontWeight: '800' },
-  profitHeroSub:    { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  profitHeroSub:    { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   bandRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   band:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bandDot: { width: 8, height: 8, borderRadius: 4 },
-  bandText:{ fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  bandText:{ fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
 
-  agingHeroAmount: { fontSize: 26, fontWeight: '800', color: Colors.error, letterSpacing: -0.6, marginTop: 4 },
+  agingHeroAmount: { fontSize: 26, fontWeight: '800', color: t.danger, letterSpacing: -0.6, marginTop: 4 },
   bucketRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  bucket:    { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  bucketLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  bucket:    { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
+  bucketLabel: { fontSize: 9, fontWeight: '800', color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   bucketValue: { fontSize: Type.caption1.fontSize, fontWeight: '800', marginTop: 3, letterSpacing: -0.2 },
   bucketPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
-  bucketPillMuted: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  bucketPillMuted: { backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
   bucketPillWarn:  { backgroundColor: Colors.warning + '15' },
-  bucketPillBad:   { backgroundColor: Colors.error   + '15' },
-  bucketPillText:  { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, color: Colors.text },
+  bucketPillBad:   { backgroundColor: t.danger   + '15' },
+  bucketPillText:  { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, color: t.text },
 
   row: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
+    borderWidth: 1, borderColor: t.line, marginBottom: 10,
   },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  rowTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  rowTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
   marginPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: Tokens.radius.full },
   marginPillText: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.3 },
   healthDot: { width: 10, height: 10, borderRadius: 5 },
 
   kvGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   kv: { width: '48%', flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  kvKey: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
-  kvVal: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
+  kvKey: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
+  kvVal: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
   kvValBold: { fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 8, marginTop: 22,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  emptyBody:  { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   actionBar: {
     flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface,
+    borderTopWidth: 1, borderTopColor: t.line, backgroundColor: t.surface,
   },
   actionBtnSecondary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 13, paddingHorizontal: 16, borderRadius: 11,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  actionBtnSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  actionBtnSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   actionBtnPrimary: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 11, backgroundColor: Colors.primary,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    paddingVertical: 14, borderRadius: 11, backgroundColor: t.accent,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 10, elevation: 4,
   },
   actionBtnPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },

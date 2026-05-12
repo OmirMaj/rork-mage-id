@@ -12,6 +12,9 @@ import {
   HelpCircle, FileText, RefreshCw, ChevronRight, Crown, Zap,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -27,6 +30,8 @@ import { Tokens } from '@/constants/designTokens';
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
 
 export default function DrawingAnalyzerScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   if (!canAccess('ai_estimate_wizard')) {
@@ -43,6 +48,8 @@ export default function DrawingAnalyzerScreen() {
 }
 
 function DrawingAnalyzerInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -166,7 +173,7 @@ function DrawingAnalyzerInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>AI drawing analyzer</Text>
@@ -245,7 +252,7 @@ function DrawingAnalyzerInner() {
         {step === 'idle' && (
           <TouchableOpacity style={styles.uploadCard} onPress={handlePick} activeOpacity={0.85}>
             <View style={styles.uploadIcon}>
-              <FileUp size={34} color={Colors.primary} />
+              <FileUp size={34} color={themeColors.accent} />
             </View>
             <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
             <Text style={styles.uploadBody}>
@@ -269,7 +276,7 @@ function DrawingAnalyzerInner() {
             testID="open-takeoff-link"
           >
             <View style={styles.sisterToolIconWrap}>
-              <FileText size={16} color={Colors.primary} />
+              <FileText size={16} color={themeColors.accent} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.sisterToolTitle}>Need raw quantities instead?</Text>
@@ -277,13 +284,13 @@ function DrawingAnalyzerInner() {
                 Open the Quantity Takeoff tool — same PDF in, but you get LF / SF / EA counts you can edit before sending out for sub bids.
               </Text>
             </View>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         )}
 
         {error && step === 'idle' && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={Colors.error} />
+            <AlertTriangle size={16} color={themeColors.danger} />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.errorRetry} onPress={() => setError(null)}>
               <Text style={styles.errorRetryText}>Dismiss</Text>
@@ -295,7 +302,7 @@ function DrawingAnalyzerInner() {
         {(step === 'uploading' || step === 'analyzing') && (
           <>
             <View style={styles.progressCard}>
-              <ActivityIndicator size="small" color={Colors.primary} />
+              <ActivityIndicator size="small" color={themeColors.accent} />
               <Text style={styles.progressTitle}>
                 {step === 'uploading' ? 'Rendering PDF pages…' : 'Reading drawings + estimating…'}
               </Text>
@@ -343,6 +350,8 @@ function DrawingAnalyzerInner() {
 function ModelOption({ modelKey, active, disabled, onPress }: {
   modelKey: AnalyzerModel; active: boolean; disabled: boolean; onPress: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const meta = MODEL_DISPLAY[modelKey];
   const Icon = modelKey === 'gemini-2.5-pro' ? Crown : Zap;
   return (
@@ -356,11 +365,11 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
       activeOpacity={0.85}
     >
       <View style={styles.modelOptionHead}>
-        <Icon size={14} color={active ? Colors.primary : disabled ? Colors.textMuted : Colors.text} />
+        <Icon size={14} color={active ? themeColors.accent : disabled ? themeColors.textMuted : themeColors.text} />
         <Text style={[
           styles.modelOptionLabel,
-          active && { color: Colors.primary },
-          disabled && { color: Colors.textMuted },
+          active && { color: themeColors.accent },
+          disabled && { color: themeColors.textMuted },
         ]}>
           {meta.label}
         </Text>
@@ -370,7 +379,7 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
           </View>
         )}
       </View>
-      <Text style={[styles.modelOptionTagline, disabled && { color: Colors.textMuted }]}>
+      <Text style={[styles.modelOptionTagline, disabled && { color: themeColors.textMuted }]}>
         {meta.tagline}
       </Text>
     </TouchableOpacity>
@@ -386,6 +395,8 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
   showProTeaser: boolean;
   onUpgrade: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const modelMeta = modelUsed ? MODEL_DISPLAY[modelUsed] : null;
   const lineItemsByCategory = useMemo(() => {
     const map = new Map<string, typeof result.lineItems>();
@@ -398,9 +409,9 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
   }, [result.lineItems]);
 
   const confidenceColor =
-    result.confidenceOverall === 'high' ? Colors.success
+    result.confidenceOverall === 'high' ? themeColors.success
     : result.confidenceOverall === 'medium' ? Colors.warning
-    : Colors.error;
+    : themeColors.danger;
 
   return (
     <View>
@@ -416,12 +427,12 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
           {modelMeta && (
             <View style={styles.modelBadge}>
               {modelUsed === 'gemini-2.5-pro'
-                ? <Crown size={10} color={Colors.primary} />
-                : <Zap size={10} color={Colors.textMuted} />}
+                ? <Crown size={10} color={themeColors.accent} />
+                : <Zap size={10} color={themeColors.textMuted} />}
               <Text style={styles.modelBadgeText}>{modelMeta.label}</Text>
             </View>
           )}
-          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={Colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={themeColors.textMuted} /></TouchableOpacity>
         </View>
         <Text style={styles.summaryTitle}>{result.summary}</Text>
         <Text style={styles.summarySub}>{result.confidenceExplanation}</Text>
@@ -453,7 +464,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
               <Text style={styles.teaserEyebrow}>Business tier · Pro Estimator</Text>
               <Text style={styles.teaserTitle}>Want sharper numbers on this set?</Text>
             </View>
-            <ChevronRight size={16} color={Colors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} />
           </View>
           <Text style={styles.teaserBody}>
             Pro Estimator routinely catches scope Standard misses on incomplete drawings — electrical rough-ins, structural metals, site work, permits. It also escalates ambiguous areas to critical-severity concerns so you don&apos;t ship a bid without an RFI.
@@ -477,7 +488,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
       )}
 
       {/* What the AI looked at */}
-      <SectionHeader icon={<Eye size={16} color={Colors.primary} />} title="What the AI looked at" />
+      <SectionHeader icon={<Eye size={16} color={themeColors.accent} />} title="What the AI looked at" />
       <Text style={styles.sectionHelper}>
         Verify these match what you uploaded. If a page is read &quot;poor,&quot; rerun with a higher-resolution scan.
       </Text>
@@ -485,9 +496,9 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
         {result.drawingsSeen.map((d, idx) => {
           const page = pages.find(p => p.pageNumber === d.page);
           const readabilityColor =
-            d.readability === 'clear' ? Colors.success
+            d.readability === 'clear' ? themeColors.success
             : d.readability === 'partial' ? Colors.warning
-            : Colors.error;
+            : themeColors.danger;
           return (
             <View key={idx} style={styles.drawingCard}>
               {page?.publicUrl && (
@@ -530,9 +541,9 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
           <View style={styles.cardList}>
             {result.concerns.map((c, idx) => {
               const sevColor =
-                c.severity === 'critical' ? Colors.error
+                c.severity === 'critical' ? themeColors.danger
                 : c.severity === 'moderate' ? Colors.warning
-                : Colors.textMuted;
+                : themeColors.textMuted;
               return (
                 <View key={idx} style={[styles.concernCard, { borderLeftColor: sevColor }]}>
                   <View style={styles.concernHead}>
@@ -557,7 +568,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
       {result.doubleCheck && result.doubleCheck.length > 0 && (
         <>
           <SectionHeader
-            icon={<HelpCircle size={16} color={Colors.primary} />}
+            icon={<HelpCircle size={16} color={themeColors.accent} />}
             title="Double-check before sending"
           />
           <View style={styles.checklistCard}>
@@ -591,7 +602,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
 
       {/* Line items grouped by category */}
       <SectionHeader
-        icon={<FileText size={16} color={Colors.primary} />}
+        icon={<FileText size={16} color={themeColors.accent} />}
         title={`Line items (${result.lineItems.length})`}
       />
       <Text style={styles.sectionHelper}>
@@ -603,9 +614,9 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
             <Text style={styles.categoryLabel}>{category}</Text>
             {items.map((li, idx) => {
               const confColor =
-                li.confidence === 'high' ? Colors.success
+                li.confidence === 'high' ? themeColors.success
                 : li.confidence === 'medium' ? Colors.warning
-                : Colors.error;
+                : themeColors.danger;
               return (
                 <View key={idx} style={styles.lineItem}>
                   <View style={styles.lineItemHead}>
@@ -657,6 +668,8 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
 }
 
 function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionHeaderIcon}>{icon}</View>
@@ -665,41 +678,41 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
+    borderWidth: 1, borderColor: t.line, marginBottom: 14,
   },
-  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
 
   modelRow: { flexDirection: 'row', gap: 8 },
   modelOption: {
     flex: 1, padding: 12, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.background,
-    borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1.5, borderColor: t.line,
     gap: 4,
   },
   modelOptionActive: {
-    borderColor: Colors.primary, backgroundColor: Colors.primary + '08',
+    borderColor: t.accent, backgroundColor: t.accent + '08',
   },
   modelOptionDisabled: { opacity: 0.6 },
   modelOptionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modelOptionLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  modelOptionTagline: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
+  modelOptionLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  modelOptionTagline: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
   tierTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
-  tierTagBusiness: { backgroundColor: Colors.primary + '20' },
+  tierTagBusiness: { backgroundColor: t.accent + '20' },
   tierTagLocked: { backgroundColor: Colors.warning + '20' },
-  tierTagText: { fontSize: 9, fontWeight: '800', color: Colors.text, letterSpacing: 0.4 },
+  tierTagText: { fontSize: 9, fontWeight: '800', color: t.text, letterSpacing: 0.4 },
 
   upsell: {
     marginTop: 8, padding: 10, borderRadius: Tokens.radius.md,
@@ -707,171 +720,171 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.warning + '30',
     flexDirection: 'row', gap: 6, alignItems: 'flex-start',
   },
-  upsellText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text, lineHeight: 16, fontStyle: 'italic' },
+  upsellText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text, lineHeight: 16, fontStyle: 'italic' },
 
   modelBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line,
   },
-  modelBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.text, letterSpacing: 0.3 },
+  modelBadgeText: { fontSize: 10, fontWeight: '700', color: t.text, letterSpacing: 0.3 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line,
     maxWidth: 200,
   },
-  chipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  chipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text },
+  chipActive: { backgroundColor: t.text, borderColor: t.text },
+  chipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.text },
   chipTextActive: { color: '#FFF' },
 
   uploadCard: {
-    backgroundColor: Colors.primary + '0D',
+    backgroundColor: t.accent + '0D',
     borderRadius: Tokens.radius.xl, padding: 28,
-    borderWidth: 1.5, borderColor: Colors.primary + '40',
+    borderWidth: 1.5, borderColor: t.accent + '40',
     borderStyle: 'dashed',
     alignItems: 'center', gap: 8,
     marginBottom: 14,
   },
   uploadIcon: {
     width: 64, height: 64, borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 6,
   },
-  uploadTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  uploadBody: { fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  uploadTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  uploadBody: { fontSize: Type.footnote.fontSize, color: t.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   uploadCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary, marginTop: 10,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: t.accent, marginTop: 10,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   uploadCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
-  uploadHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+  uploadHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     padding: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.error + '0D',
-    borderWidth: 1, borderColor: Colors.error + '30',
+    backgroundColor: t.danger + '0D',
+    borderWidth: 1, borderColor: t.danger + '30',
     marginBottom: 14,
   },
-  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
-  errorRetry: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error + '15' },
-  errorRetryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.error },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.danger, lineHeight: 18 },
+  errorRetry: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.danger + '15' },
+  errorRetryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.danger },
 
   progressCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 22,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     alignItems: 'center', gap: 10,
   },
-  progressTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  progressBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  progressTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  progressBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   skeletonStack: { marginTop: 16, gap: 10 },
   skeletonRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
   },
 
   summaryCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 22,
+    borderWidth: 1, borderColor: t.line, marginBottom: 22,
   },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full },
   confidenceDot: { width: 7, height: 7, borderRadius: 4 },
   confidenceText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
-  summaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 22, marginBottom: 6 },
-  summarySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 18, marginBottom: 16 },
-  summaryGrand: { alignItems: 'center', paddingTop: 8, paddingBottom: 16, borderTopWidth: 1, borderTopColor: Colors.border },
-  summaryGrandLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
-  summaryGrandValue: { fontSize: 36, fontWeight: '800', color: Colors.text, letterSpacing: -1 },
-  summarySplit: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.border },
+  summaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text, lineHeight: 22, marginBottom: 6 },
+  summarySub: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 18, marginBottom: 16 },
+  summaryGrand: { alignItems: 'center', paddingTop: 8, paddingBottom: 16, borderTopWidth: 1, borderTopColor: t.line },
+  summaryGrandLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
+  summaryGrandValue: { fontSize: 36, fontWeight: '800', color: t.text, letterSpacing: -1 },
+  summarySplit: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 14, borderTopWidth: 1, borderTopColor: t.line },
   summarySplitItem: { flex: 1, alignItems: 'center' },
-  summarySplitDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border },
-  summarySplitLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  summarySplitValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  summarySplitDivider: { width: 1, alignSelf: 'stretch', backgroundColor: t.line },
+  summarySplitLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  summarySplitValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 4 },
-  sectionHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  sectionHeaderText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  sectionHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  sectionHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line, alignItems: 'center', justifyContent: 'center' },
+  sectionHeaderText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  sectionHelper: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginBottom: 10, lineHeight: 17 },
 
   cardList: { gap: 8, marginBottom: 14 },
 
   drawingCard: {
     flexDirection: 'row', gap: 12,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  drawingThumb: { width: 64, height: 64, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background },
+  drawingThumb: { width: 64, height: 64, borderRadius: Tokens.radius.sm, backgroundColor: t.bg },
   drawingHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  drawingPage: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  drawingPage: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   readabilityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   readabilityText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  drawingType: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  drawingScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
-  drawingDims: { fontSize: Type.caption2.fontSize, color: Colors.text, marginTop: 6, fontStyle: 'italic' },
+  drawingType: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, marginBottom: 2 },
+  drawingScope: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
+  drawingDims: { fontSize: Type.caption2.fontSize, color: t.text, marginTop: 6, fontStyle: 'italic' },
 
   concernCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 4,
+    borderWidth: 1, borderColor: t.line, borderLeftWidth: 4,
     gap: 8,
   },
   concernHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   severityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   severityText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  concernTopic: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  concernDetail: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  concernRec: { paddingTop: 6, borderTopWidth: 1, borderTopColor: Colors.border },
-  concernRecLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
-  concernRecText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  concernTopic: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  concernDetail: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
+  concernRec: { paddingTop: 6, borderTopWidth: 1, borderTopColor: t.line },
+  concernRecLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
+  concernRecText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
 
   checklistCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
+    borderWidth: 1, borderColor: t.line, marginBottom: 14,
     gap: 10,
   },
   checklistRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  checklistDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary, marginTop: 7 },
-  checklistText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  checklistDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.accent, marginTop: 7 },
+  checklistText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
 
   categoryGroup: { gap: 6 },
-  categoryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 1, marginTop: 6, marginBottom: 2 },
+  categoryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.accent, textTransform: 'uppercase', letterSpacing: 1, marginTop: 6, marginBottom: 2 },
   lineItem: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     gap: 6,
   },
   lineItemHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  lineItemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  lineItemDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
-  lineItemTotal: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text },
+  lineItemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  lineItemDesc: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 17 },
+  lineItemTotal: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text },
   lineItemMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  lineItemMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  lineItemMetaText: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' },
   miniPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
   miniPillText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  lineItemPages: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginLeft: 'auto' },
-  reasoningWrap: { paddingTop: 6, borderTopWidth: 1, borderTopColor: Colors.border },
-  reasoningLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
-  reasoningText: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, fontStyle: 'italic' },
+  lineItemPages: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginLeft: 'auto' },
+  reasoningWrap: { paddingTop: 6, borderTopWidth: 1, borderTopColor: t.line },
+  reasoningLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
+  reasoningText: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17, fontStyle: 'italic' },
 
   ctaBar: {
     flexDirection: 'row', gap: 10, marginTop: 18, marginBottom: 8,
   },
   ctaSecondary: {
     flex: 1, paddingVertical: 13, borderRadius: 11,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center',
   },
-  ctaSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  ctaSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   ctaPrimary: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.primary,
+    paddingVertical: 13, borderRadius: 11, backgroundColor: t.accent,
   },
   ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
@@ -889,21 +902,21 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   teaserEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.warning, letterSpacing: 0.8, textTransform: 'uppercase' },
-  teaserTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 2, letterSpacing: -0.2 },
-  teaserBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  teaserTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 2, letterSpacing: -0.2 },
+  teaserBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
   teaserStatRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 12, paddingHorizontal: 8, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.warning + '25',
+    backgroundColor: t.bg, borderWidth: 1, borderColor: Colors.warning + '25',
   },
   teaserStat: { flex: 1, alignItems: 'center', gap: 2 },
-  teaserStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
-  teaserStatLabel: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14, paddingHorizontal: 4 },
+  teaserStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4 },
+  teaserStatLabel: { fontSize: 10, color: t.textMuted, textAlign: 'center', lineHeight: 14, paddingHorizontal: 4 },
   teaserStatDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.warning + '25' },
   teaserCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: 11,
-    backgroundColor: Colors.text,
+    backgroundColor: t.text,
   },
   teaserCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
@@ -911,13 +924,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14, borderRadius: Tokens.radius.card, marginBottom: 14,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
   sisterToolIconWrap: {
     width: 32, height: 32, borderRadius: 9,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     alignItems: 'center', justifyContent: 'center',
   },
-  sisterToolTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  sisterToolBody: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  sisterToolTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  sisterToolBody: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
 });
