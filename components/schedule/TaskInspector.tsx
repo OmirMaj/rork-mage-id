@@ -16,7 +16,7 @@
 // matches a phone's portrait so it acts like a full-screen drawer.
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Image, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Image, TextInput, Alert, Modal, Pressable } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { X, Anchor, Flag, Users, CalendarClock, Info, Camera, Bell, Plus, Trash2 } from 'lucide-react-native';
@@ -25,6 +25,7 @@ import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { TRADE_KEYS, tradeKeyForTask, tradeLabel, type TradeKey } from '@/utils/scheduleColors';
 
 interface TaskInspectorProps {
   task: ScheduleTask | null;
@@ -53,6 +54,7 @@ export default function TaskInspector({
   task, allTasks, cpm, projectStartDate, onClose, onEdit,
 }: TaskInspectorProps) {
   const [subscriberDraft, setSubscriberDraft] = useState('');
+  const [tradeDropdownOpen, setTradeDropdownOpen] = useState(false);
 
   // Photo capture — camera + library, both fall through to handleEdit
   // appending to the photos array. iOS handles HEIC→JPEG natively at the
@@ -216,6 +218,24 @@ export default function TaskInspector({
           </View>
         </View>
 
+        {/* Trade picker — lets users override the regex-inferred trade colour. */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeadRow}>
+            <Text style={styles.sectionTitle}>Trade</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.dropdownButton}
+            onPress={() => setTradeDropdownOpen(true)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Select trade"
+          >
+            <View style={[styles.dropdownDot, { backgroundColor: Colors.tradeColors[tradeKeyForTask(task)] }]} />
+            <Text style={styles.dropdownText}>{tradeLabel(tradeKeyForTask(task))}</Text>
+            <Text style={styles.dropdownChev}>{'▾'}</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Anchor summary — read-only here; the grid owns anchor editing. */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
@@ -353,6 +373,39 @@ export default function TaskInspector({
           )}
         </View>
       </ScrollView>
+
+      {/* Trade-picker modal sheet */}
+      <Modal
+        visible={tradeDropdownOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTradeDropdownOpen(false)}
+      >
+        <View style={styles.dropdownOverlay}>
+          <Pressable style={styles.dropdownBackdrop} onPress={() => setTradeDropdownOpen(false)} />
+          <View style={styles.dropdownSheet}>
+            <Text style={styles.dropdownSheetTitle}>Trade</Text>
+            {TRADE_KEYS.map((k: TradeKey) => (
+              <TouchableOpacity
+                key={k}
+                style={styles.tradeOpt}
+                activeOpacity={0.7}
+                onPress={() => {
+                  onEdit(task.id, { tradeKey: k });
+                  setTradeDropdownOpen(false);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <View style={[styles.tradeOptDot, { backgroundColor: Colors.tradeColors[k] }]} />
+                <Text style={styles.tradeOptLabel}>{tradeLabel(k)}</Text>
+                {tradeKeyForTask(task) === k && (
+                  <Text style={styles.tradeOptCheck}>{'✓'}</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -516,4 +569,46 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   },
   subChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.text },
+
+  // Trade picker
+  dropdownButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+  },
+  dropdownDot: { width: 10, height: 10, borderRadius: 5 },
+  dropdownText: { flex: 1, color: Colors.text, fontSize: 13, fontWeight: '500' },
+  dropdownChev: { color: Colors.textSecondary, fontSize: 14 },
+  dropdownOverlay: { flex: 1, justifyContent: 'flex-end' },
+  dropdownBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  dropdownSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    padding: 14,
+    paddingBottom: 28,
+    gap: 4,
+  },
+  dropdownSheetTitle: {
+    color: Colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  tradeOpt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 6,
+  },
+  tradeOptDot: { width: 12, height: 12, borderRadius: 6 },
+  tradeOptLabel: { flex: 1, color: Colors.text, fontSize: 13 },
+  tradeOptCheck: { color: Colors.primary, fontSize: 16, fontWeight: '700' },
 });
