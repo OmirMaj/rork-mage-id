@@ -31,6 +31,7 @@ import {
   Clock, TrendingUp, TrendingDown, Package, X, Save,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
@@ -79,6 +80,7 @@ const CSI_DIVISIONS = [
 export default function BuyoutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, getBidPackagesForProject, getBidsForPackage, addBidPackage } = useProjects();
 
@@ -203,7 +205,7 @@ export default function BuyoutScreen() {
       {/* Native iOS header already accounts for the safe area (notch/
           dynamic island). Manual `insets.top + 8` was double-counting
           and producing a tall blank gap above the project chip row. */}
-      <View style={[styles.root, { paddingTop: 8 }]}>
+      <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: 8 }]}>
         <FeatureHeader
           eyebrow="Subcontractor Awards"
           title="Get your subs to bid"

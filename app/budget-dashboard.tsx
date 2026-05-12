@@ -15,6 +15,7 @@ import {
 import EmptyState from '@/components/EmptyState';
 import Svg, { Path, Line } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { calculateEVM, generateCashFlowData } from '@/utils/earnedValueEngine';
 import { mageAI } from '@/utils/mageAI';
@@ -57,6 +58,7 @@ export default function BudgetDashboardScreen() {
 function BudgetDashboardScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, invoices } = useProjects();
 
@@ -141,7 +143,7 @@ Be specific and actionable. Use construction industry terminology.`;
 
   if (!project || !metrics) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Budget Dashboard' }} />
         <EmptyState
           icon={<BarChart3 size={36} color={Colors.primary} strokeWidth={1.6} />}

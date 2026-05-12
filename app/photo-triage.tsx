@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   type PunchItem, type PunchItemPriority, type SubTrade, type DailyFieldReport, type RFI,
@@ -91,6 +92,7 @@ const ORDER: AiTriageClass[] = ['punch', 'rfi', 'dfr', 'progress', 'noise'];
 export default function PhotoTriageScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, getPhotosForProject, addPunchItem, addRFI, addDailyReport, settings } = useProjects();
   const { tier } = useSubscription();
@@ -345,7 +347,7 @@ export default function PhotoTriageScreen() {
           ),
         }}
       />
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+      <ScrollView style={[styles.container, { backgroundColor: themeColors.bg }]} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         {!reviewMode && (
           <>
             <View style={styles.hero}>

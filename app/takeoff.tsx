@@ -31,6 +31,7 @@ import {
   Gavel, X,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -107,6 +108,7 @@ export default function TakeoffScreen() {
 function TakeoffInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, addBidPackage } = useProjects();
   const { isBusinessTier, isEnterpriseTier } = useSubscription();
@@ -534,7 +536,7 @@ function TakeoffInner() {
   }, [buyoutDrafts, pickedProjectId, addBidPackage, router]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">

@@ -32,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -125,6 +126,7 @@ export default function EstimateWizardScreen() {
 function EstimateWizardScreenInner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
   const { settings } = useProjects();
   const { tier } = useSubscription();
 
@@ -298,7 +300,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
     const completionAmt = result.total * 0.10;
 
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Estimate' }} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}>
           {/* "Client preview" banner — reminds the GC that what they see
@@ -562,7 +564,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ title: 'Quick Estimate' }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.progressWrap}>

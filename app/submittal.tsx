@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send, FileText } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -78,6 +79,7 @@ export default function SubmittalScreen() {
 function SubmittalScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   // prefill* params come from the floating-mic flow when the GC
   // dictated a submittal at the FAB. They pre-seed the new form so
   // the parsed fields land instantly without a manual re-fill.
@@ -269,7 +271,7 @@ function SubmittalScreenInner() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: themeColors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Stack.Screen options={{ title: existingSubmittal ? `Submittal #${existingSubmittal.number}` : 'Approval Before Order' }} />
       <ScrollView
         style={styles.container}

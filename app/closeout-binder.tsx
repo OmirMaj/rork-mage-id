@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
@@ -54,6 +55,7 @@ type BinderStatus = CloseoutBinder['status'];
 export default function CloseoutBinderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
@@ -401,7 +403,7 @@ export default function CloseoutBinderScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <EmptyState
           icon={<ShieldCheck size={36} color={Colors.primary} strokeWidth={1.6} />}
@@ -437,7 +439,7 @@ export default function CloseoutBinderScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">

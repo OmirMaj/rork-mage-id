@@ -12,6 +12,7 @@ import {
   Calendar, Clock, Wallet, BarChart3, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import CashFlowChart from '@/components/CashFlowChart';
@@ -140,6 +141,7 @@ export default function CashFlowScreen() {
 function CashFlowScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject } = useProjects();
 
@@ -445,7 +447,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{
         title: projectId ? 'Project Cash Flow' : 'Cash Flow Forecast',
         headerStyle: { backgroundColor: Colors.background },
