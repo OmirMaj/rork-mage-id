@@ -47,6 +47,7 @@ components/schedule/
   SchedulerTabShell.tsx                     (NEW — tab nav + content router)
   SchedulerHeader.tsx                       (NEW — KPI strip + status pill + view pickers)
   StatusPill.tsx                            (NEW — "On Track / At Risk / Late" derived from CPM)
+  ExportSheet.tsx                           (NEW — unified 5-option export, desktop popover / phone bottom sheet)
   tabs/
     GanttTab.tsx                            (NEW — wraps existing GridPane + InteractiveGantt)
     ListTab.tsx                             (NEW — wraps existing GridPane, full-width)
@@ -54,8 +55,8 @@ components/schedule/
     DashboardTab.tsx                        (NEW — KPI tiles + charts)
     TabComingSoon.tsx                       (NEW — reusable stub for Calendar/Workload/Timeline)
   GridPane.tsx                              (existing — restyled, no logic change)
-  InteractiveGantt.tsx                      (existing — restyled, no logic change)
-  TaskInspector.tsx                         (existing — restyled, no logic change)
+  InteractiveGantt.tsx                      (existing — restyled, bar-label scaling added)
+  TaskInspector.tsx                         (existing — restyled, trade picker added)
   BaselineManagerModal.tsx                  (existing — untouched)
   AIAssistantPanel.tsx                      (existing — untouched)
   …other modals                             (existing — untouched)
@@ -63,6 +64,12 @@ components/schedule/
 utils/
   scheduleColors.ts                         (NEW — trade → color map, name-inference regex)
   scheduleHealth.ts                         (NEW — derive On-Track / At-Risk / Late from CPM + overdue)
+  useBarLabel.ts                            (NEW — width → label-set hook for InteractiveGantt)
+  scheduleExportIcal.ts                     (NEW — client-side helper to fetch & open the iCal URL)
+
+supabase/functions/
+  schedule-ical/                            (NEW — RFC 5545 calendar feed, signed-token gated)
+    index.ts
 
 constants/
   colors.ts                                 (extend with tradeColors.{key} tokens)
@@ -141,11 +148,18 @@ Two-pane: GridPane on left (38% width), InteractiveGantt on right (62%). On phon
 
 **InteractiveGantt restyle:**
 - Bar colors driven by `scheduleColors.colorForTask(task)` (see §5).
-- Inner progress fill: white at 18% opacity, width = `task.progress`%.
-- Critical-path bars: red track underneath (see §5.3).
-- Today line: 1.5px dashed `#FF5A51`, full Gantt-pane height.
-- Milestones: 14px amber-light diamond (rotated square), centered on day.
-- Dependency arrows: 1px solid `stone` color, right-angle path, small filled triangle arrowhead. Hover-dims everything else.
+- Inner progress fill: white at 22% opacity, width = `task.progress`%.
+- Bar labels: `useBarLabel(widthPx, task)` returns full / medium / ID-only / empty per §5.5.
+- Critical-path bars: red track underneath (see §5.3). Dependency arrows ENTERING a CP bar render in red, creating one visual chain.
+- Day-number axis row above the bar area (every 7th day labeled).
+- Weekend column shading: Saturday + Sunday tinted at 2.2% white.
+- Vertical week-grid lines (subtle 1px columns) so bars feel anchored to a real timeline.
+- Today line: 1.5px dashed `#FF5A51`, full Gantt-pane height, with anchored "TODAY · MMM D" red pill at top.
+- Milestones: 14px amber-light diamond (start/intermediate) or 14px red diamond (project completion).
+- Baseline ghost bars: 4px gray strip below each main bar showing original planned dates (only renders when current ≠ baseline).
+- Resource avatars: 18px circle at right end of bar with crew initial.
+- Dependency arrows: 1px solid `stone` color (or `#FF5A51` 1.5px for CP→CP), right-angle path, small filled triangle arrowhead. Hover-dims everything else.
+- Hover tooltip on every bar regardless of size: task name, dates, duration, %, predecessors, successors, crew, optional "X days late".
 - Drag-to-reschedule (existing) preserved.
 
 ### 4.4 ListTab
@@ -259,12 +273,29 @@ User can override per-task in TaskInspector via a trade picker dropdown. Overrid
 
 | State | Visual |
 |---|---|
-| Default | Trade-colored rectangle, 18px height, 6px corner radius. Inner fill = white at 18% opacity, width = `task.progress`%. |
-| Critical path | Trade-colored bar sits inside a slightly larger red "shell": 24px outer height, `#FF5A51`, 8px corner radius. Inner bar is 18px, 3px inset top/bottom, 4px left/right, original trade color. Net visual: red border appears above + below + at both ends. |
-| Milestone | 14px amber-light (`#FFCC80`) square rotated 45°. No bar (durationDays = 0). |
+| Default | Trade-colored rectangle, 20px height, 5px corner radius, subtle drop shadow (`0 1px 3px rgba(0,0,0,0.3)`). Inner fill = white at 22% opacity, width = `task.progress`%. |
+| Critical path | Trade-colored bar sits inside a slightly larger red "shell": 26px outer height, `#FF5A51`, 7px corner radius, soft red halo (`0 0 8px rgba(255,90,81,0.4)`). Inner bar = 20px, 3px inset, original trade color. Red appears above + below + at both ends. Dependency arrows ENTERING a critical-path bar also draw in red — the CP chain reads as one continuous visual thread. |
+| Milestone (start / intermediate) | 14px amber-light (`#FFCC80`) square rotated 45°. No bar (durationDays = 0). Soft amber glow. |
+| Milestone (project completion) | 14px red (`#FF5A51`) square rotated 45°. Soft red glow. Distinguishes the final "Substantial Completion" event from start milestones. |
 | Overdue | Bar opacity drops to 40%. Inner progress fill switches to red (`#FF5A51`). Subtle pulse animation (1.5s opacity 0.6 ↔ 1.0, infinite). Optional "● late" pill at bar's right end (collapses on small Gantt scales). |
-| Today line | 1.5px dashed `#FF5A51`, full Gantt-pane height, z-index above bars, below tooltips. Auto-scrolls to center on screen open. |
-| Dependency arrow | 1px solid `stone` (`#4A5159`), right-angle path. 5px filled triangle arrowhead. Hover-dim others to 30% opacity to highlight the chain. |
+| Today line | 1.5px dashed `#FF5A51`, full Gantt-pane height, z-index above bars / below tooltips. Auto-scrolls to center on screen open. Anchored "TODAY · MMM D" pill at the top so the line is labeled, not just decoration. |
+| Dependency arrow | 1px solid `stone` (`#4A5159`), right-angle path with 5px filled triangle arrowhead. CP-→CP links draw at 1.5px solid `#FF5A51`. Hover any bar dims everything else to 30% opacity to highlight that bar's predecessor/successor chain. |
+| Baseline ghost | Thin 4px gray bar (`rgba(154,163,173,0.25)`) directly below each main bar, spanning the original baseline dates. Only renders when a baseline exists. Invisible when current dates match baseline (saves vertical noise). |
+| Resource avatar | 18px circle at the right end of the bar, `surface` background, 1.5px `stone` border, single-letter crew initial in `text` color. Tap → opens crew filter ("show only Mike's tasks"). |
+| Weekend column | Saturday + Sunday columns rendered with 2.2% white tint background to dim non-working days. Holidays from `schedule.nonWorkingDates` get the same treatment plus a small dot in the day-axis row. |
+
+### 5.5 Bar label scaling
+
+Bar inner labels auto-degrade as the bar gets narrower. A small `useBarLabel(widthPx, task)` hook returns the appropriate label set:
+
+| Bar width | Inside the bar | Outside / on hover |
+|---|---|---|
+| ≥ 110px (wide) | `T{id} {name}` + `{progress}%` right-aligned | — |
+| 70–109px (medium) | `T{id} {name}` (no %) | % only on hover tooltip |
+| 40–69px (narrow) | `T{id}` only, centered | Full name floats to the right of the bar in `textMuted` 60% opacity |
+| < 40px (tiny) | empty | Name + dates + duration + % all on hover tooltip |
+
+All bars regardless of size show a tooltip on hover containing: task name, start date, finish date, duration, %-complete, predecessors, successors, assigned crew, and (if applicable) a "X days late" line in red. Tooltip styled as `surface` card with 1px `cardBorder`, 6px radius, drop shadow.
 
 ### 5.4 Tokens added to `Colors`
 
@@ -369,13 +400,55 @@ Full reference layout as specified. Two-pane Gantt (Grid + Gantt side by side). 
 
 ### 7.2 Phone (< 600px wide)
 
-- Project header collapses: title + status pill on one line.
-- KPI strip becomes a horizontal-scroll chip rail (snap to chip, swipeable).
-- Tab nav moves to **bottom** (matches iOS conventions). Only 4 tabs visible (Gantt · Board · Dashboard · ···). Overflow `···` opens a sheet listing the remaining 3 (List, Calendar, Workload, Timeline).
-- Inside GanttTab: segmented control at top (List | Gantt). Single pane only. List default.
-- TaskInspector becomes a bottom sheet (slides up 90% of screen height).
-- Board cards stack in single column with a tab-strip switcher for status columns.
-- Dashboard tiles wrap to 2 cols × 2 rows. Charts stack vertically.
+**Nav header:**
+- Back button "‹ Project" left, **"⤓ Export"** + overflow `⋯` right — both in `accent` color, iOS-tap-target sized.
+- Project title (17px bold) + 2-line subtitle: status pill + finish date + slip days.
+
+**KPI chip rail:**
+- Horizontal-scroll, snap-to-chip. Each chip is 74px wide minimum: 8px label / 13px value / 7px delta line.
+- 5 chips on first load: Progress · Duration · Done · Overdue · Crit Path. Swipe to see more if user has extras configured.
+
+**Gantt tab body:**
+- **No segmented control.** The phone shows ONE view per tab — for the Gantt tab, that's the Gantt. (Rationale: on a phone, a "List view" vs "Gantt view" toggle adds friction without value — task names already left-pin in the Gantt view, so the user already has both.)
+- Body is a horizontally-scrollable Gantt. Width grows beyond the screen; user swipes left/right to see later dates.
+- Task-name column (90px) is **sticky-left** with a soft gradient fade, so the user always knows which row they're scrolling.
+- Month axis header is **sticky-top**, so scrolling tasks vertically keeps the date scale visible.
+- First-load floating hint pill ("⇄ Scroll for full schedule") appears bottom-right of the Gantt area for 3 seconds OR until the first horizontal scroll, whichever is sooner. Stored in AsyncStorage `scheduler_phone_scroll_hint_dismissed` so it never reappears for the same user.
+- Bar labels follow the §5.5 sizing rules. Bars are 12px tall on phone (vs 20px desktop) to fit more rows in view.
+- Pinch-zoom horizontally adjusts the time scale (Days ↔ Weeks ↔ Months).
+- Long-press a bar → opens TaskInspector as a bottom sheet (90% screen height).
+
+**Tabs:**
+- Tab nav moves to **bottom** (iOS convention). Only 4 visible: Gantt · Board · Dash · More.
+- "More" opens a sheet listing the remaining tabs: List, Calendar, Workload, Timeline.
+- Active tab amber `accent`; inactive `textMuted`.
+
+**Floating "+" FAB:**
+- 44px amber circle, bottom-right within thumb reach. Opens new-task bottom sheet.
+
+**Board tab on phone:**
+- Cards stack in single column with a tab-strip switcher for status columns (Not Started / In Progress / Done). Swipe horizontally between columns.
+
+**Dashboard tab on phone:**
+- KPI tiles wrap to 2 cols × 2 rows. Charts stack vertically. Critical path list scrolls full-width.
+
+### 7.4 Export (NEW — replaces older PDF-only export)
+
+A unified Export action sheet — accessible from the desktop "⊕ Share" button and the phone "⤓ Export" button. Same five options on both surfaces:
+
+| Option | Output | Backend |
+|---|---|---|
+| **PDF · Full Gantt** | Multi-page PDF, baseline overlay, color legend, project KPIs in cover page. | Existing PDF generator (`utils/scheduleExportPdf.ts`) — already shipped. |
+| **CSV · Task list** | One row per task: id, name, trade, start, finish, duration, progress, predecessors, crew, float, status. | Existing CSV generator — already shipped. |
+| **Share link · Read-only** | Base64-encoded URL the recipient opens in browser (no login required). | Existing `/shared-schedule` route — already shipped. |
+| **iCal · Calendar feed** *(NEW)* | `.ics` file the user subscribes to in Apple/Google Calendar; auto-updates when schedule changes. | NEW edge function `schedule-ical/index.ts` returns `text/calendar`, RFC 5545 VEVENT per task. URL contains a signed token (HMAC of `schedule_id + user_id`) for access control. |
+| **Print / AirPrint** | Routes the PDF through iOS share sheet → AirPrint. | Phone-only. Calls the existing PDF generator, then `Print.printAsync(uri)` from `expo-print`. |
+
+**iCal implementation notes:**
+- New edge function: `supabase/functions/schedule-ical/index.ts`. `verify_jwt: false`; access is gated by the signed token in the URL.
+- Token shape: `base64url(hmac_sha256(SCHEDULE_ICAL_SECRET, scheduleId + userId)).slice(0, 16)`.
+- ICS body: one VEVENT per non-milestone task with non-zero duration, DTSTART/DTEND, SUMMARY = task name, DESCRIPTION = trade + crew + %-complete, UID = `<scheduleId>-<taskId>@mageid.app`. Milestones get VEVENT with DTSTART=DTEND.
+- Client-side: a single `<ExportSheet>` component renders the same 5-option list on both desktop and phone — on desktop it appears as a popover under the "⊕ Share" button; on phone it's a bottom sheet.
 
 ### 7.3 Tablet (600–899px wide)
 
@@ -398,17 +471,20 @@ Compressed desktop layout. Two panes still side-by-side but Grid pane shrinks to
 
 **Result:** screen looks like the reference. Old functionality preserved. New tabs visible but inactive.
 
-### Week 2 — New tabs + phone polish (OTA-shippable)
+### Week 2 — New tabs + phone polish + unified export (OTA-shippable)
 
 - `BoardTab` — Kanban with 3 status columns, drag mutations, CP badges, phase filter.
 - `DashboardTab` — KPI tiles, earned-value chart, status donut, critical path list.
 - `TabComingSoon` reusable component + Calendar/Workload/Timeline stubs.
 - Migration: create `feature_interest` table (see §6.2).
 - Wire "Notify me" buttons to `feature_interest` table.
-- Phone fallback: segmented pane switcher inside GanttTab, chip-rail KPIs, bottom-sheet TaskInspector, overflow tab for 7→4 nav compression.
+- Phone fallback: horizontally-scrollable Gantt with sticky task-name column + sticky month axis, chip-rail KPIs, scroll-hint pill, bottom-sheet TaskInspector, overflow tab for 7→4 nav compression. **No segmented control** — phone shows the Gantt directly.
 - Add `tradeKey?` field to `ScheduleTask` type + TaskInspector trade picker.
+- `<ExportSheet>` component — unified 5-option export sheet (PDF · CSV · Share link · iCal · AirPrint). Desktop popover, phone bottom sheet.
+- NEW edge function `schedule-ical/index.ts` (signed-token RFC 5545 feed).
+- Phone Print/AirPrint wired via `expo-print`.
 
-**Result:** Tier 2 complete. Marketing site can use a Pro Scheduler screenshot as the Pro plan's primary value-prop.
+**Result:** Tier 2 complete. Marketing site can use a Pro Scheduler screenshot as the Pro plan's primary value-prop. Users can hand a fresh PDF to the owner, a CSV to the bookkeeper, or an iCal feed to a sub — all from one button.
 
 ---
 
