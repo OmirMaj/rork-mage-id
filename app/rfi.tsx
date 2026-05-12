@@ -10,6 +10,8 @@ import { Save, ChevronDown, Link2, X, CheckCircle2, Send, FileText } from 'lucid
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -80,6 +82,7 @@ function RFIScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId, rfiId, prefillPhotoId } = useLocalSearchParams<{
     projectId: string;
     rfiId?: string;
@@ -215,7 +218,7 @@ function RFIScreenInner() {
     router.back();
   }, [subject, question, assignedTo, submittedBy, dateRequired, priority, status, linkedDrawing, response, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
 
-  const priorityColor = priority === 'urgent' ? Colors.error : priority === 'normal' ? Colors.primary : Colors.textSecondary;
+  const priorityColor = priority === 'urgent' ? themeColors.danger : priority === 'normal' ? themeColors.accent : themeColors.textSecondary;
 
   // Open the "Send to Architect / Engineer" modal. Prefills the To-Name
   // from the RFI's `assignedTo` field, so if the GC already noted who
@@ -306,10 +309,10 @@ function RFIScreenInner() {
 
   if (!project && !existingRFI) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'RFIs' }} />
         <EmptyState
-          icon={<FileText size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No RFI open yet"
           message="RFIs (Requests for Information) attach to a project so the answer becomes part of that job's record. To send one:"
           steps={[
@@ -445,7 +448,7 @@ function RFIScreenInner() {
           value={subject}
           onChangeText={setSubject}
           placeholder="Brief description of the question"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
           testID="rfi-subject"
         />
 
@@ -455,7 +458,7 @@ function RFIScreenInner() {
           value={question}
           onChangeText={setQuestion}
           placeholder="Full RFI question body..."
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
           multiline
           textAlignVertical="top"
           testID="rfi-question"
@@ -469,7 +472,7 @@ function RFIScreenInner() {
               value={submittedBy}
               onChangeText={setSubmittedBy}
               placeholder="Name or company"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
           <View style={styles.halfField}>
@@ -479,7 +482,7 @@ function RFIScreenInner() {
               value={assignedTo}
               onChangeText={setAssignedTo}
               placeholder="Architect, engineer..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
         </View>
@@ -490,7 +493,7 @@ function RFIScreenInner() {
           value={dateRequired}
           onChangeText={setDateRequired}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
         />
 
         <Text style={styles.fieldLabel}>Priority</Text>
@@ -501,7 +504,7 @@ function RFIScreenInner() {
         >
           <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
           <Text style={styles.pickerBtnText}>{priority.charAt(0).toUpperCase() + priority.slice(1)}</Text>
-          <ChevronDown size={16} color={Colors.textMuted} />
+          <ChevronDown size={16} color={themeColors.textMuted} />
         </TouchableOpacity>
         {showPriorityPicker && (
           <View style={styles.pickerOptions}>
@@ -528,7 +531,7 @@ function RFIScreenInner() {
               activeOpacity={0.7}
             >
               <Text style={styles.pickerBtnText}>{status.replace('_', ' ').charAt(0).toUpperCase() + status.slice(1)}</Text>
-              <ChevronDown size={16} color={Colors.textMuted} />
+              <ChevronDown size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
             {showStatusPicker && (
               <View style={styles.pickerOptions}>
@@ -554,7 +557,7 @@ function RFIScreenInner() {
           value={linkedDrawing}
           onChangeText={setLinkedDrawing}
           placeholder="e.g. A-101"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
         />
 
         {(existingRFI && (status === 'answered' || status === 'closed')) && (
@@ -565,7 +568,7 @@ function RFIScreenInner() {
               value={response}
               onChangeText={setResponse}
               placeholder="Official response..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               multiline
               textAlignVertical="top"
             />
@@ -576,18 +579,18 @@ function RFIScreenInner() {
           <>
             <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
-              <Link2 size={15} color={Colors.info} />
+              <Link2 size={15} color={themeColors.info} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
                 {linkedTask ? linkedTask.title : 'None — tap to link a task'}
               </Text>
-              <ChevronDown size={16} color={Colors.textMuted} />
+              <ChevronDown size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
             {linkedTask && (
               <View style={styles.linkedTaskBadge}>
                 <Text style={styles.linkedTaskPhase}>{linkedTask.phase}</Text>
                 <Text style={styles.linkedTaskName} numberOfLines={1}>{linkedTask.title}</Text>
                 <TouchableOpacity onPress={() => setLinkedTaskId('')} style={styles.unlinkBtn} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={Colors.error} />
+                  <X size={14} color={themeColors.danger} />
                 </TouchableOpacity>
               </View>
             )}
@@ -610,7 +613,7 @@ function RFIScreenInner() {
             activeOpacity={0.85}
             testID="rfi-send-to-pro"
           >
-            <Send size={16} color={Colors.primary} />
+            <Send size={16} color={themeColors.accent} />
             <Text style={styles.sendToProBtnText}>Send to Architect / Engineer</Text>
           </TouchableOpacity>
         )}
@@ -623,7 +626,7 @@ function RFIScreenInner() {
             <View style={styles.sendCardHeader}>
               <Text style={styles.sendCardTitle}>Send RFI #{existingRFI?.number}</Text>
               <TouchableOpacity onPress={() => setShowSendModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sendCardHelper}>
@@ -636,7 +639,7 @@ function RFIScreenInner() {
               value={sendEmail_To}
               onChangeText={setSendEmailTo}
               placeholder="architect@firm.com"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -647,7 +650,7 @@ function RFIScreenInner() {
               value={sendEmail_Name}
               onChangeText={setSendEmailName}
               placeholder="e.g. Sarah Chen, AIA"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
             <Text style={styles.sendFieldLabel}>Personal note (optional)</Text>
             <TextInput
@@ -655,7 +658,7 @@ function RFIScreenInner() {
               value={sendEmail_Note}
               onChangeText={setSendEmailNote}
               placeholder="Hey Sarah, need this back by Friday if possible…"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               multiline
               textAlignVertical="top"
             />
@@ -679,7 +682,7 @@ function RFIScreenInner() {
           <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
-              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
               <TouchableOpacity
@@ -694,7 +697,7 @@ function RFIScreenInner() {
                   style={[styles.taskOption, linkedTaskId === task.id && styles.taskOptionActive]}
                   onPress={() => { setLinkedTaskId(task.id); setShowTaskPicker(false); }}
                 >
-                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={Colors.primary} />}
+                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={themeColors.accent} />}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.taskOptionText, linkedTaskId === task.id && styles.taskOptionTextActive]} numberOfLines={1}>{task.title}</Text>
                     <Text style={styles.taskOptionMeta}>{task.phase} · {task.durationDays}d · {task.progress}% done</Text>
@@ -709,34 +712,34 @@ function RFIScreenInner() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     padding: 16,
   },
   projectLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
     marginBottom: 16,
   },
   fieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 6,
     marginTop: 12,
   },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   multilineInput: {
     minHeight: 100,
@@ -753,17 +756,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   pickerBtnText: {
     flex: 1,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   priorityDot: {
     width: 10,
@@ -781,15 +784,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
   },
   pickerOptionActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
   },
   pickerOptionText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   pickerOptionTextActive: {
     color: '#fff',
@@ -799,11 +802,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 28,
-    shadowColor: Colors.primary,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -820,9 +823,9 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1.5,
-    borderColor: Colors.primary + '40',
+    borderColor: themeColors.accent + '40',
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     marginTop: 12,
@@ -830,13 +833,13 @@ const styles = StyleSheet.create({
   sendToProBtnText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
     letterSpacing: 0.2,
   },
   sendCard: {
     width: '90%' as const,
     maxWidth: 440,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.panel,
     padding: 20,
     shadowColor: '#000',
@@ -854,32 +857,32 @@ const styles = StyleSheet.create({
   sendCardTitle: {
     fontSize: Type.body.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   sendCardHelper: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     lineHeight: 17,
     marginBottom: 14,
   },
   sendFieldLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.7,
     textTransform: 'uppercase' as const,
     marginTop: 10,
     marginBottom: 5,
   },
   sendInput: {
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   sendInputMulti: {
     minHeight: 70,
@@ -889,7 +892,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     marginTop: 16,
@@ -901,21 +904,21 @@ const styles = StyleSheet.create({
   },
   linkedTaskBadge: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.sm,
+    backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10, paddingVertical: 8, marginTop: 6,
   },
-  linkedTaskPhase: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  linkedTaskName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
+  linkedTaskPhase: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  linkedTaskName: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
   unlinkBtn: { padding: 2 },
   modalOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  taskPickerCard: { backgroundColor: Colors.card ?? Colors.surface, borderRadius: Tokens.radius.panel, width: '100%', overflow: 'hidden' },
-  taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder },
-  taskPickerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder + '80' },
-  taskOptionActive: { backgroundColor: Colors.primary + '10' },
-  taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  taskOptionTextActive: { fontWeight: '700' as const, color: Colors.primary },
-  taskOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
+  taskPickerCard: { backgroundColor: themeColors.surface ?? themeColors.surface, borderRadius: Tokens.radius.panel, width: '100%', overflow: 'hidden' },
+  taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  taskPickerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: themeColors.line + '80' },
+  taskOptionActive: { backgroundColor: themeColors.accent + '10' },
+  taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  taskOptionTextActive: { fontWeight: '700' as const, color: themeColors.accent },
+  taskOptionMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary ?? themeColors.textMuted, marginTop: 1 },
 
   pipelineWrap: {
     paddingHorizontal: 16,
@@ -927,29 +930,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 14,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    backgroundColor: themeColors.surface,
+    borderWidth: 0.5, borderColor: themeColors.line,
     gap: 10,
   },
   ballInCourtRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
   ballInCourtEyebrow: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: themeColors.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase' as const,
   },
   ballInCourtBadge: {
     paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 12,
   },
-  ballInCourtBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  ballInCourtBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.surface },
   handoffLog: {
-    paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    paddingTop: 8, borderTopWidth: 0.5, borderTopColor: themeColors.line,
     gap: 4,
   },
   handoffLogLabel: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: themeColors.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase' as const, marginBottom: 4,
   },
   handoffRow: { gap: 1 },
-  handoffArrow: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.text },
-  handoffMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
+  handoffArrow: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  handoffMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary },
 });

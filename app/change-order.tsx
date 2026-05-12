@@ -12,6 +12,8 @@ import {
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -74,6 +76,7 @@ function ChangeOrderInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId, coId, prefillReason, prefillDescription, prefillAmount } = useLocalSearchParams<{
     projectId: string;
     coId?: string;
@@ -461,7 +464,7 @@ function ChangeOrderInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Change Orders' }} />
         <EmptyState
-          icon={<PenTool size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<PenTool size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No change order open yet"
           message="Change orders adjust an existing project's contract amount, so they live inside the project. To start one:"
           steps={[
@@ -482,9 +485,9 @@ function ChangeOrderInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{
         title: existingCO ? `CO #${existingCO.number}` : `New Change Order`,
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
@@ -496,8 +499,8 @@ function ChangeOrderInner() {
             <Text style={styles.heroLabel}>Change Order #{nextCoNumber}</Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             {existingCO && (
-              <View style={[styles.statusBadge, statusColors[existingCO.status]]}>
-                <Text style={[styles.statusText, { color: statusTextColors[existingCO.status] }]}>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusBg(themeColors, existingCO.status) }]}>
+                <Text style={[styles.statusText, { color: getStatusText(themeColors, existingCO.status) }]}>
                   {existingCO.status.charAt(0).toUpperCase() + existingCO.status.slice(1)}
                 </Text>
               </View>
@@ -533,10 +536,10 @@ function ChangeOrderInner() {
             </View>
             <View style={styles.divider} />
             <View style={styles.totalRow}>
-              <Text style={[styles.totalLabel, { color: changeAmount >= 0 ? Colors.accent : Colors.success }]}>
+              <Text style={[styles.totalLabel, { color: changeAmount >= 0 ? themeColors.accent : themeColors.success }]}>
                 This CO Amount
               </Text>
-              <Text style={[styles.totalValueBold, { color: changeAmount >= 0 ? Colors.accent : Colors.success }]}>
+              <Text style={[styles.totalValueBold, { color: changeAmount >= 0 ? themeColors.accent : themeColors.success }]}>
                 {changeAmount >= 0 ? '+' : ''}{formatCurrency(changeAmount)}
               </Text>
             </View>
@@ -608,7 +611,7 @@ function ChangeOrderInner() {
                   value={description}
                   onChangeText={setDescription}
                   placeholder="Describe the change..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                   textAlignVertical="top"
                   testID="co-description-input"
@@ -622,7 +625,7 @@ function ChangeOrderInner() {
                   value={reason}
                   onChangeText={setReason}
                   placeholder="Why is this change needed?"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   testID="co-reason-input"
                 />
               </View>
@@ -634,7 +637,7 @@ function ChangeOrderInner() {
                   value={scheduleImpactDays}
                   onChangeText={setScheduleImpactDays}
                   placeholder="Additional days added to project (0 if none)"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   keyboardType="numeric"
                   testID="co-schedule-impact-input"
                 />
@@ -677,7 +680,7 @@ function ChangeOrderInner() {
                     activeOpacity={0.7}
                     testID="search-materials-btn"
                   >
-                    <Search size={14} color={Colors.success} />
+                    <Search size={14} color={themeColors.success} />
                     <Text style={styles.addSearchBtnText}>Materials</Text>
                   </TouchableOpacity>
                   {estimateItems.length > 0 && (
@@ -686,7 +689,7 @@ function ChangeOrderInner() {
                       onPress={() => setShowEstimateItems(true)}
                       activeOpacity={0.7}
                     >
-                      <FileText size={14} color={Colors.info} />
+                      <FileText size={14} color={themeColors.info} />
                       <Text style={styles.addFromBtnText}>Estimate</Text>
                     </TouchableOpacity>
                   )}
@@ -696,7 +699,7 @@ function ChangeOrderInner() {
                     activeOpacity={0.7}
                     testID="add-co-item-btn"
                   >
-                    <Plus size={14} color={Colors.primary} />
+                    <Plus size={14} color={themeColors.accent} />
                     <Text style={styles.addNewBtnText}>Custom</Text>
                   </TouchableOpacity>
                 </View>
@@ -718,7 +721,7 @@ function ChangeOrderInner() {
                   </View>
                   {!isLocked && (
                     <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={16} color={Colors.error} />
+                      <Trash2 size={16} color={themeColors.danger} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -776,7 +779,7 @@ function ChangeOrderInner() {
               activeOpacity={0.7}
               testID="issue-as-ccd-btn"
             >
-              <FileText size={13} color={Colors.textSecondary} />
+              <FileText size={13} color={themeColors.textSecondary} />
               <Text style={styles.ccdLinkText}>
                 Need work to start before pricing is agreed? Issue as Construction Change Directive (G714)
               </Text>
@@ -800,7 +803,7 @@ function ChangeOrderInner() {
               activeOpacity={0.7}
               testID="send-co-btn"
             >
-              <Send size={16} color={Colors.textOnPrimary} />
+              <Send size={16} color={"#FFFFFF"} />
               <Text style={styles.sendBtnText}>Send & Save</Text>
             </TouchableOpacity>
           </View>
@@ -814,19 +817,19 @@ function ChangeOrderInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send for Approval To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
               {contactPicked ? (
                 <View style={styles.selectedRecipientCard}>
-                  <User size={16} color={Colors.primary} />
+                  <User size={16} color={themeColors.accent} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
                   <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={Colors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -837,7 +840,7 @@ function ChangeOrderInner() {
                     value={sendRecipientName}
                     onChangeText={setSendRecipientName}
                     placeholder="Enter name or pick from contacts"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                   <Text style={styles.modalFieldLabel}>Email</Text>
                   <TextInput
@@ -845,7 +848,7 @@ function ChangeOrderInner() {
                     value={sendRecipientEmail}
                     onChangeText={setSendRecipientEmail}
                     placeholder="email@example.com"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
@@ -855,7 +858,7 @@ function ChangeOrderInner() {
                       onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
                       activeOpacity={0.7}
                     >
-                      <BookUser size={14} color={Colors.primary} />
+                      <BookUser size={14} color={themeColors.accent} />
                       <Text style={styles.pickContactText}>Pick from Contacts</Text>
                     </TouchableOpacity>
                   )}
@@ -867,7 +870,7 @@ function ChangeOrderInner() {
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
-                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Send size={16} color={"#FFFFFF"} />
                   <Text style={styles.sendBtnText}>Send</Text>
                 </TouchableOpacity>
               </View>
@@ -897,24 +900,24 @@ function ChangeOrderInner() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add New Item</Text>
-                <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Item Name</Text>
-              <TextInput style={styles.modalInput} value={newItemName} onChangeText={setNewItemName} placeholder="Item name" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.modalInput} value={newItemName} onChangeText={setNewItemName} placeholder="Item name" placeholderTextColor={themeColors.textMuted} />
               <Text style={styles.modalFieldLabel}>Description</Text>
-              <TextInput style={styles.modalInput} value={newItemDesc} onChangeText={setNewItemDesc} placeholder="Optional description" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.modalInput} value={newItemDesc} onChangeText={setNewItemDesc} placeholder="Optional description" placeholderTextColor={themeColors.textMuted} />
               <View style={styles.modalRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalFieldLabel}>Quantity</Text>
-                  <TextInput style={styles.modalInput} value={newItemQty} onChangeText={setNewItemQty} placeholder="0" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+                  <TextInput style={styles.modalInput} value={newItemQty} onChangeText={setNewItemQty} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalFieldLabel}>Unit</Text>
-                  <TextInput style={styles.modalInput} value={newItemUnit} onChangeText={setNewItemUnit} placeholder="ea, sq ft..." placeholderTextColor={Colors.textMuted} />
+                  <TextInput style={styles.modalInput} value={newItemUnit} onChangeText={setNewItemUnit} placeholder="ea, sq ft..." placeholderTextColor={themeColors.textMuted} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalFieldLabel}>Unit Price</Text>
-                  <TextInput style={styles.modalInput} value={newItemPrice} onChangeText={setNewItemPrice} placeholder="0.00" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+                  <TextInput style={styles.modalInput} value={newItemPrice} onChangeText={setNewItemPrice} placeholder="0.00" placeholderTextColor={themeColors.textMuted} keyboardType="numeric" />
                 </View>
               </View>
               <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddNewItem} activeOpacity={0.85}>
@@ -930,7 +933,7 @@ function ChangeOrderInner() {
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add from Estimate</Text>
-              <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               {estimateItems.map((item, idx) => (
@@ -944,7 +947,7 @@ function ChangeOrderInner() {
                     <Text style={styles.estimateItemName}>{item.name}</Text>
                     <Text style={styles.estimateItemMeta}>{item.category} · {formatCurrency(item.unitPrice)}/{item.unit}</Text>
                   </View>
-                  <Plus size={18} color={Colors.primary} />
+                  <Plus size={18} color={themeColors.accent} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -957,23 +960,23 @@ function ChangeOrderInner() {
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Search Materials</Text>
-              <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
             </View>
 
             <View style={styles.matSearchBar}>
-              <Search size={16} color={Colors.textMuted} />
+              <Search size={16} color={themeColors.textMuted} />
               <TextInput
                 style={styles.matSearchInput}
                 value={materialQuery}
                 onChangeText={setMaterialQuery}
                 placeholder="Search lumber, concrete, HVAC..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 autoFocus
                 testID="co-material-search"
               />
               {materialQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setMaterialQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={Colors.textMuted} />
+                  <X size={14} color={themeColors.textMuted} />
                 </TouchableOpacity>
               )}
             </View>
@@ -992,14 +995,14 @@ function ChangeOrderInner() {
                 <Text style={[styles.priceTypeText, selectedPriceType === 'bulk' && styles.priceTypeTextActive]}>Bulk</Text>
               </TouchableOpacity>
               <View style={styles.matMarkupRow}>
-                <Percent size={12} color={Colors.accent} />
+                <Percent size={12} color={themeColors.accent} />
                 <TextInput
                   style={styles.matMarkupInput}
                   value={itemMarkup}
                   onChangeText={setItemMarkup}
                   keyboardType="numeric"
                   placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
                 <Text style={styles.matMarkupLabel}>markup</Text>
               </View>
@@ -1039,7 +1042,7 @@ function ChangeOrderInner() {
                       <Text style={styles.matResultBulk}>${material.baseBulkPrice.toFixed(2)}</Text>
                       {markup > 0 && <Text style={styles.matResultFinal}>${finalPrice.toFixed(2)}</Text>}
                     </View>
-                    <Plus size={18} color={Colors.primary} />
+                    <Plus size={18} color={themeColors.accent} />
                   </TouchableOpacity>
                 );
               }}
@@ -1055,81 +1058,82 @@ function formatCurrency(n: number): string {
   return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const statusColors: Record<string, { backgroundColor: string }> = {
-  draft: { backgroundColor: Colors.fillTertiary },
-  submitted: { backgroundColor: Colors.infoLight },
-  under_review: { backgroundColor: Colors.warningLight },
-  sent: { backgroundColor: Colors.infoLight },
-  approved: { backgroundColor: Colors.successLight },
-  rejected: { backgroundColor: Colors.errorLight },
-  revised: { backgroundColor: Colors.warningLight },
-  void: { backgroundColor: Colors.fillTertiary },
-};
+function getStatusBg(t: ThemeColors, status: string): string {
+  switch (status) {
+    case 'draft': case 'void': return t.line;
+    case 'submitted': case 'sent': return t.info;
+    case 'under_review': case 'revised': return t.accentSoft;
+    case 'approved': return t.successSoft;
+    case 'rejected': return t.danger;
+    default: return t.line;
+  }
+}
 
-const statusTextColors: Record<string, string> = {
-  draft: Colors.textSecondary,
-  submitted: Colors.info,
-  under_review: Colors.warning,
-  sent: Colors.info,
-  approved: Colors.success,
-  rejected: Colors.error,
-  revised: Colors.warning,
-  void: Colors.textMuted,
-};
+function getStatusText(t: ThemeColors, status: string): string {
+  switch (status) {
+    case 'draft': return t.textSecondary;
+    case 'submitted': case 'sent': return t.info;
+    case 'under_review': case 'revised': return t.accent;
+    case 'approved': return t.success;
+    case 'rejected': return t.danger;
+    case 'void': return t.textMuted;
+    default: return t.text;
+  }
+}
 
 // Wraps the StatusPipeline component with the screen's standard side padding.
 const pipelineWrapStyle = { paddingHorizontal: 16, marginTop: 12, marginBottom: 8 } as const;
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   pipelineWrap: pipelineWrapStyle,
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
-  backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: themeColors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtnText: { color: "#FFFFFF", fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
+  heroCard: { backgroundColor: themeColors.accent, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
+  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  totalLabel: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  totalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  totalLabel: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const },
+  totalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
   totalValueBold: { fontSize: Type.body.fontSize, fontWeight: '700' as const },
-  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
-  dividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 6 },
-  grandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.text },
-  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  divider: { height: 1, backgroundColor: themeColors.line, marginVertical: 4 },
+  dividerThick: { height: 2, backgroundColor: themeColors.accent + '30', borderRadius: 1, marginVertical: 6 },
+  grandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: themeColors.text },
+  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   fieldSection: { marginHorizontal: 20, marginTop: 18 },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  helperText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' as const },
-  input: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.card, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
-  textArea: { minHeight: 90, borderRadius: Tokens.radius.lg, backgroundColor: Colors.card, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  helperText: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 6, fontStyle: 'italic' as const },
+  input: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surface, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
+  textArea: { minHeight: 90, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surface, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.subhead.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   addBtnRow: { flexDirection: 'row', gap: 8 },
-  addFromBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.infoLight },
-  addFromBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.info },
-  addNewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '15' },
-  addNewBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  emptyItems: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyItemsText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const },
-  lineItemCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: Colors.cardBorder },
+  addFromBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.info },
+  addFromBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.info },
+  addNewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '15' },
+  addNewBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  emptyItems: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: themeColors.line },
+  emptyItemsText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted, textAlign: 'center' as const },
+  lineItemCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: themeColors.line },
   lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   lineItemNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  newBadge: { backgroundColor: Colors.accent + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  newBadgeText: { fontSize: 9, fontWeight: '700' as const, color: Colors.accent },
-  lineItemName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, flex: 1 },
+  newBadge: { backgroundColor: themeColors.accent + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  newBadgeText: { fontSize: 9, fontWeight: '700' as const, color: themeColors.accent },
+  lineItemName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text, flex: 1 },
   lineItemFields: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lineItemFieldSmall: { flex: 1, gap: 2 },
-  lineItemFieldLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
-  lineItemInput: { minHeight: 36, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 8, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  lineItemUnitText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, paddingVertical: 8 },
-  lineItemTotal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  lockedCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4 },
-  lockedTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  lockedSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  lockedFieldText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  lineItemFieldLabel: { fontSize: 10, fontWeight: '600' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const },
+  lineItemInput: { minHeight: 36, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 8, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  lineItemUnitText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, paddingVertical: 8 },
+  lineItemTotal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  lockedCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 4 },
+  lockedTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  lockedSub: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
+  lockedFieldText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
   // Subtle text-link row for "Issue as G714 (CCD)" — sits above the
   // bottom action bar. Tertiary-action treatment so it's discoverable
   // by GCs who know what a CCD is, but doesn't compete with the
@@ -1138,7 +1142,7 @@ const styles = StyleSheet.create({
     position: 'absolute' as const,
     bottom: 76, left: 0, right: 0,
     paddingHorizontal: 20, paddingVertical: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
   },
   ccdLink: {
     flexDirection: 'row' as const,
@@ -1149,56 +1153,56 @@ const styles = StyleSheet.create({
   ccdLinkText: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     fontWeight: '500' as const,
     lineHeight: 16,
   },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
-  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
-  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
-  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '15', borderWidth: 1.5, borderColor: themeColors.accent, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: themeColors.accent + '25' },
+  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '10' },
+  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: themeColors.text },
   modalRow: { flexDirection: 'row', gap: 10 },
-  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  estimateItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 12 },
-  estimateItemName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  estimateItemMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  addSearchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.successLight },
-  addSearchBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.success },
-  matSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 44, borderWidth: 1, borderColor: Colors.cardBorder },
-  matSearchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
+  modalAddBtn: { backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  estimateItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 12 },
+  estimateItemName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  estimateItemMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  addSearchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.successSoft },
+  addSearchBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.success },
+  matSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 44, borderWidth: 1, borderColor: themeColors.line },
+  matSearchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text },
   priceTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  priceTypeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
-  priceTypeChipActive: { backgroundColor: Colors.primary },
-  priceTypeText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  priceTypeTextActive: { color: Colors.textOnPrimary },
-  matMarkupRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' as const, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 4 },
-  matMarkupInput: { width: 36, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, textAlign: 'center' as const },
-  matMarkupLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  matResultCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 6, marginBottom: 4 },
-  matResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
-  matResultName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  priceTypeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
+  priceTypeChipActive: { backgroundColor: themeColors.accent },
+  priceTypeText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  priceTypeTextActive: { color: "#FFFFFF" },
+  matMarkupRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' as const, backgroundColor: themeColors.line, borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 4 },
+  matMarkupInput: { width: 36, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, textAlign: 'center' as const },
+  matMarkupLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
+  matResultCount: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 6, marginBottom: 4 },
+  matResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 10 },
+  matResultName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   matResultMeta: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  matResultCat: { fontSize: Type.caption2.fontSize, color: Colors.info, fontWeight: '500' as const },
-  matResultSupplier: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  matOriginalPrice: { fontSize: 10, color: Colors.warning, fontWeight: '500' as const, marginTop: 2 },
+  matResultCat: { fontSize: Type.caption2.fontSize, color: themeColors.info, fontWeight: '500' as const },
+  matResultSupplier: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted },
+  matOriginalPrice: { fontSize: 10, color: themeColors.accent, fontWeight: '500' as const, marginTop: 2 },
   matResultPrices: { alignItems: 'flex-end', gap: 1 },
-  matResultRetail: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
-  matResultBulk: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.success },
-  matResultFinal: { fontSize: 10, color: Colors.accent, fontWeight: '600' as const },
+  matResultRetail: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textDecorationLine: 'line-through' as const },
+  matResultBulk: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.success },
+  matResultFinal: { fontSize: 10, color: themeColors.accent, fontWeight: '600' as const },
 });

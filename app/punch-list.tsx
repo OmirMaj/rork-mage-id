@@ -12,6 +12,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -30,18 +32,22 @@ function createId(_prefix: string): string {
   return generateUUID();
 }
 
-const STATUS_CONFIG: Record<PunchItemStatus, { label: string; color: string; bg: string }> = {
-  open: { label: 'Open', color: Colors.error, bg: Colors.errorLight },
-  in_progress: { label: 'In Progress', color: Colors.info, bg: Colors.infoLight },
-  ready_for_review: { label: 'Review', color: Colors.warning, bg: Colors.warningLight },
-  closed: { label: 'Closed', color: Colors.success, bg: Colors.successLight },
-};
+function getStatusConfig(t: ThemeColors, status: PunchItemStatus): { label: string; color: string; bg: string } {
+  switch (status) {
+    case 'open': return { label: 'Open', color: t.danger, bg: t.danger };
+    case 'in_progress': return { label: 'In Progress', color: t.info, bg: t.info };
+    case 'ready_for_review': return { label: 'Review', color: t.accent, bg: t.accentSoft };
+    case 'closed': return { label: 'Closed', color: t.success, bg: t.successSoft };
+  }
+}
 
-const PRIORITY_CONFIG: Record<PunchItemPriority, { label: string; color: string }> = {
-  low: { label: 'Low', color: Colors.textMuted },
-  medium: { label: 'Medium', color: Colors.warning },
-  high: { label: 'High', color: Colors.error },
-};
+function getPriorityConfig(t: ThemeColors, p: PunchItemPriority): { label: string; color: string } {
+  switch (p) {
+    case 'low': return { label: 'Low', color: t.textMuted };
+    case 'medium': return { label: 'Medium', color: t.accent };
+    case 'high': return { label: 'High', color: t.danger };
+  }
+}
 
 export default function PunchListScreen() {
   const router = useRouter();
@@ -64,6 +70,7 @@ function PunchListScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId, prefillPhotoUri, prefillPhotoId } = useLocalSearchParams<{
     projectId: string;
     prefillPhotoUri?: string;
@@ -313,7 +320,7 @@ function PunchListScreenInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Punch List' }} />
         <EmptyState
-          icon={<ListChecks size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<ListChecks size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No punch list open yet"
           message="Punch lists are tied to a project so each item links to its trade and location. To start one:"
           steps={[
@@ -347,7 +354,7 @@ function PunchListScreenInner() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             {(['all', 'open', 'in_progress', 'ready_for_review', 'closed'] as const).map(s => {
               const count = s === 'all' ? items.length : items.filter(i => i.status === s).length;
-              const config = s === 'all' ? { label: 'All', color: Colors.text, bg: Colors.fillTertiary } : STATUS_CONFIG[s];
+              const config = s === 'all' ? { label: 'All', color: themeColors.text, bg: themeColors.line } : getStatusConfig(themeColors, s);
               return (
                 <TouchableOpacity
                   key={s}
@@ -366,13 +373,13 @@ function PunchListScreenInner() {
               non-status active filters so the GC sees at a glance
               that their list is filtered. */}
           <TouchableOpacity
-            style={[styles.moreFiltersBtn, activeFilterCount > 0 && { borderColor: Colors.primary }]}
+            style={[styles.moreFiltersBtn, activeFilterCount > 0 && { borderColor: themeColors.accent }]}
             onPress={() => setShowFilterDrawer(true)}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="More filters"
           >
-            <Filter size={14} color={activeFilterCount > 0 ? Colors.primary : Colors.textSecondary} />
+            <Filter size={14} color={activeFilterCount > 0 ? themeColors.accent : themeColors.textSecondary} />
             {activeFilterCount > 0 && (
               <View style={styles.moreFiltersBadge}>
                 <Text style={styles.moreFiltersBadgeText}>{activeFilterCount}</Text>
@@ -389,30 +396,30 @@ function PunchListScreenInner() {
             {filterSub && (
               <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterSub('')}>
                 <Text style={styles.activeFilterPillText}>Sub: {filterSub}</Text>
-                <X size={11} color={Colors.primary} />
+                <X size={11} color={themeColors.accent} />
               </TouchableOpacity>
             )}
             {filterPriority !== 'all' && (
               <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterPriority('all')}>
                 <Text style={styles.activeFilterPillText}>Priority: {filterPriority}</Text>
-                <X size={11} color={Colors.primary} />
+                <X size={11} color={themeColors.accent} />
               </TouchableOpacity>
             )}
             {filterLocation && (
               <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterLocation('')}>
                 <Text style={styles.activeFilterPillText}>Location: {filterLocation}</Text>
-                <X size={11} color={Colors.primary} />
+                <X size={11} color={themeColors.accent} />
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: Colors.fillTertiary }]}>
-              <Text style={[styles.activeFilterPillText, { color: Colors.textSecondary }]}>Clear all</Text>
+            <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: themeColors.line }]}>
+              <Text style={[styles.activeFilterPillText, { color: themeColors.textSecondary }]}>Clear all</Text>
             </TouchableOpacity>
           </ScrollView>
         )}
 
         {filteredItems.map(item => {
-          const sc = STATUS_CONFIG[item.status];
-          const pc = PRIORITY_CONFIG[item.priority];
+          const sc = getStatusConfig(themeColors, item.status);
+          const pc = getPriorityConfig(themeColors, item.priority);
           return (
             <View key={item.id} style={styles.punchCard}>
               <View style={styles.punchCardTop}>
@@ -445,14 +452,14 @@ function PunchListScreenInner() {
 
               {item.linkedTaskName ? (
                 <View style={styles.linkedTaskBadge}>
-                  <Link2 size={11} color={Colors.primary} />
+                  <Link2 size={11} color={themeColors.accent} />
                   <Text style={styles.linkedTaskBadgeText} numberOfLines={1}>Task: {item.linkedTaskName}</Text>
                 </View>
               ) : null}
 
               {item.rejectionNote ? (
                 <View style={styles.rejectionBox}>
-                  <MessageSquare size={12} color={Colors.error} />
+                  <MessageSquare size={12} color={themeColors.danger} />
                   <Text style={styles.rejectionText}>{item.rejectionNote}</Text>
                 </View>
               ) : null}
@@ -460,25 +467,25 @@ function PunchListScreenInner() {
               <View style={styles.punchActions}>
                 {item.status === 'open' && (
                   <TouchableOpacity style={styles.punchActionBtn} onPress={() => handleStatusChange(item, 'in_progress')}>
-                    <Clock size={14} color={Colors.info} />
-                    <Text style={[styles.punchActionText, { color: Colors.info }]}>Start</Text>
+                    <Clock size={14} color={themeColors.info} />
+                    <Text style={[styles.punchActionText, { color: themeColors.info }]}>Start</Text>
                   </TouchableOpacity>
                 )}
                 {item.status === 'in_progress' && (
                   <TouchableOpacity style={styles.punchActionBtn} onPress={() => handleStatusChange(item, 'ready_for_review')}>
-                    <Eye size={14} color={Colors.warning} />
-                    <Text style={[styles.punchActionText, { color: Colors.warning }]}>Submit for Review</Text>
+                    <Eye size={14} color={themeColors.accent} />
+                    <Text style={[styles.punchActionText, { color: themeColors.accent }]}>Submit for Review</Text>
                   </TouchableOpacity>
                 )}
                 {item.status === 'ready_for_review' && (
                   <>
-                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: Colors.successLight }]} onPress={() => handleStatusChange(item, 'closed')}>
-                      <CheckCircle size={14} color={Colors.success} />
-                      <Text style={[styles.punchActionText, { color: Colors.success }]}>Close</Text>
+                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.successSoft }]} onPress={() => handleStatusChange(item, 'closed')}>
+                      <CheckCircle size={14} color={themeColors.success} />
+                      <Text style={[styles.punchActionText, { color: themeColors.success }]}>Close</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: Colors.errorLight }]} onPress={() => { setShowRejectModal(item.id); setRejectionNote(''); }}>
-                      <X size={14} color={Colors.error} />
-                      <Text style={[styles.punchActionText, { color: Colors.error }]}>Reject</Text>
+                    <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.danger }]} onPress={() => { setShowRejectModal(item.id); setRejectionNote(''); }}>
+                      <X size={14} color={themeColors.danger} />
+                      <Text style={[styles.punchActionText, { color: themeColors.danger }]}>Reject</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -488,7 +495,7 @@ function PunchListScreenInner() {
                     { text: 'Delete', style: 'destructive', onPress: () => deletePunchItem(item.id) },
                   ]);
                 }} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={Colors.error} />
+                  <Trash2 size={14} color={themeColors.danger} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -498,7 +505,7 @@ function PunchListScreenInner() {
         {filteredItems.length === 0 && (
           <View style={{ minHeight: 360 }}>
             <EmptyState
-              icon={<CheckCircle size={36} color={Colors.primary} />}
+              icon={<CheckCircle size={36} color={themeColors.accent} />}
               title={filterStatus !== 'all' ? 'Nothing matches that filter' : 'No punch items yet'}
               message={filterStatus !== 'all'
                 ? `No items currently sit in "${filterStatus.replace(/_/g, ' ')}". Switch filters above to see the rest.`
@@ -510,7 +517,7 @@ function PunchListScreenInner() {
         )}
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item">
-          <Plus size={16} color={Colors.primary} />
+          <Plus size={16} color={themeColors.accent} />
           <Text style={styles.addItemBtnText}>Add Punch Item</Text>
         </TouchableOpacity>
 
@@ -520,7 +527,7 @@ function PunchListScreenInner() {
           activeOpacity={0.7}
           testID="apply-punch-template"
         >
-          <ListChecks size={16} color={Colors.primary} />
+          <ListChecks size={16} color={themeColors.accent} />
           <Text style={styles.addItemBtnText}>Apply trade template</Text>
         </TouchableOpacity>
 
@@ -530,7 +537,7 @@ function PunchListScreenInner() {
           activeOpacity={0.85}
           testID="open-punch-walk"
         >
-          <Mic size={16} color={Colors.textOnPrimary} />
+          <Mic size={16} color={"#FFFFFF"} />
           <Text style={styles.walkBtnText}>Walk Mode — voice capture</Text>
         </TouchableOpacity>
 
@@ -550,21 +557,21 @@ function PunchListScreenInner() {
                 <View style={styles.formHeader}>
                   <Text style={styles.formTitle}>{editingItem ? 'Edit Item' : 'New Punch Item'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={Colors.textMuted} />
+                    <X size={20} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
 
                 <Text style={styles.fieldLabel}>Description *</Text>
-                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={Colors.textMuted} multiline testID="punch-desc-input" />
+                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Location/Area</Text>
-                    <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Kitchen, Room 3B" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Kitchen, Room 3B" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Due Date</Text>
-                    <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
@@ -582,13 +589,13 @@ function PunchListScreenInner() {
                     ))}
                   </ScrollView>
                 ) : (
-                  <TextInput style={styles.input} value={assignedSub} onChangeText={setAssignedSub} placeholder="Sub name" placeholderTextColor={Colors.textMuted} />
+                  <TextInput style={styles.input} value={assignedSub} onChangeText={setAssignedSub} placeholder="Sub name" placeholderTextColor={themeColors.textMuted} />
                 )}
 
                 <Text style={styles.fieldLabel}>Priority</Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   {(['low', 'medium', 'high'] as PunchItemPriority[]).map(p => {
-                    const pc = PRIORITY_CONFIG[p];
+                    const pc = getPriorityConfig(themeColors, p);
                     return (
                       <TouchableOpacity
                         key={p}
@@ -605,16 +612,16 @@ function PunchListScreenInner() {
                   <>
                     <Text style={styles.fieldLabel}>Link to Schedule Task (optional)</Text>
                     <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
-                      <Link2 size={14} color={Colors.primary} />
-                      <Text style={[styles.pickerBtnText, !linkedTask && { color: Colors.textMuted }]} numberOfLines={1}>
+                      <Link2 size={14} color={themeColors.accent} />
+                      <Text style={[styles.pickerBtnText, !linkedTask && { color: themeColors.textMuted }]} numberOfLines={1}>
                         {linkedTask ? linkedTask.title : 'No task linked'}
                       </Text>
                       {linkedTask ? (
                         <TouchableOpacity onPress={() => setLinkedTaskId('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                          <X size={14} color={Colors.textMuted} />
+                          <X size={14} color={themeColors.textMuted} />
                         </TouchableOpacity>
                       ) : (
-                        <ChevronDown size={14} color={Colors.textMuted} />
+                        <ChevronDown size={14} color={themeColors.textMuted} />
                       )}
                     </TouchableOpacity>
                   </>
@@ -640,7 +647,7 @@ function PunchListScreenInner() {
             <View style={styles.formHeader}>
               <Text style={styles.rejectTitle}>Link to Task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 400 }}>
@@ -673,14 +680,14 @@ function PunchListScreenInner() {
               value={rejectionNote}
               onChangeText={setRejectionNote}
               placeholder="Reason for rejection..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               multiline
             />
             <View style={styles.formActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowRejectModal(null)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: Colors.error }]} onPress={() => showRejectModal && handleReject(showRejectModal)} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: themeColors.danger }]} onPress={() => showRejectModal && handleReject(showRejectModal)} activeOpacity={0.85}>
                 <Text style={styles.saveBtnText}>Reject</Text>
               </TouchableOpacity>
             </View>
@@ -700,17 +707,17 @@ function PunchListScreenInner() {
             <View style={styles.formHeader}>
               <Text style={styles.formTitle}>Apply trade template</Text>
               <TouchableOpacity onPress={() => setShowTemplates(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={22} color={Colors.text} />
+                <X size={22} color={themeColors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 }}>
+            <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 14, lineHeight: 17 }}>
               Drop a curated checklist into this punch list. Edit / remove items that don&apos;t apply to this project — the template is a starting point, not a contract.
             </Text>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }}>
               {templateGroups.map(group => (
                 <View key={group.trade} style={{ marginBottom: 16 }}>
                   <Text style={{
-                    fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
+                    fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted,
                     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
                   }}>
                     {group.trade}
@@ -723,20 +730,20 @@ function PunchListScreenInner() {
                       style={{
                         flexDirection: 'row', alignItems: 'center', gap: 10,
                         padding: 12, borderRadius: Tokens.radius.md,
-                        backgroundColor: Colors.card,
-                        borderWidth: 1, borderColor: Colors.border,
+                        backgroundColor: themeColors.surface,
+                        borderWidth: 1, borderColor: themeColors.line,
                         marginBottom: 6,
                       }}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text }}>
+                        <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text }}>
                           {t.label}
                         </Text>
-                        <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 }}>
+                        <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 }}>
                           {t.context} · {t.items.length} items
                         </Text>
                       </View>
-                      <ChevronRight size={16} color={Colors.textMuted} />
+                      <ChevronRight size={16} color={themeColors.textMuted} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -755,7 +762,7 @@ function PunchListScreenInner() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
               <TouchableOpacity onPress={() => setShowFilterDrawer(false)} style={{ padding: 4 }}>
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -782,7 +789,7 @@ function PunchListScreenInner() {
                     </TouchableOpacity>
                   ))}
                   {subsInList.length === 0 && (
-                    <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, padding: 4 }}>
+                    <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, padding: 4 }}>
                       No subs assigned yet on any item.
                     </Text>
                   )}
@@ -815,17 +822,17 @@ function PunchListScreenInner() {
                   value={filterLocation}
                   onChangeText={setFilterLocation}
                   placeholder="e.g. Kitchen, 2nd floor, Master bath"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
               </View>
             </ScrollView>
 
-            <View style={{ flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.borderLight }}>
-              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: Colors.fillTertiary }]} onPress={clearAllFilters}>
-                <Text style={[styles.filterDrawerBtnText, { color: Colors.text }]}>Clear all</Text>
+            <View style={{ flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: themeColors.line }}>
+              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: themeColors.line }]} onPress={clearAllFilters}>
+                <Text style={[styles.filterDrawerBtnText, { color: themeColors.text }]}>Clear all</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: Colors.primary, flex: 1.4 }]} onPress={() => setShowFilterDrawer(false)}>
-                <Text style={[styles.filterDrawerBtnText, { color: Colors.textOnPrimary }]}>
+              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: themeColors.accent, flex: 1.4 }]} onPress={() => setShowFilterDrawer(false)}>
+                <Text style={[styles.filterDrawerBtnText, { color: "#FFFFFF" }]}>
                   Show {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
                 </Text>
               </TouchableOpacity>
@@ -837,63 +844,63 @@ function PunchListScreenInner() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 60 },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const, marginTop: 60 },
   progressSection: { marginHorizontal: 20, marginTop: 16, marginBottom: 16 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  progressTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  progressPercent: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  progressTrack: { height: 8, backgroundColor: Colors.fillTertiary, borderRadius: 4, overflow: 'hidden' as const },
-  progressFill: { height: 8, backgroundColor: Colors.primary, borderRadius: 4 },
-  progressSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4 },
+  progressTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  progressPercent: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  progressTrack: { height: 8, backgroundColor: themeColors.line, borderRadius: 4, overflow: 'hidden' as const },
+  progressFill: { height: 8, backgroundColor: themeColors.accent, borderRadius: 4 },
+  progressSub: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 4 },
   filterRow: { paddingHorizontal: 20, gap: 6, marginBottom: 16 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
-  filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: themeColors.line },
+  filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   filterBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingRight: 16 },
   moreFiltersBtn: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    backgroundColor: Colors.surface,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1, borderColor: themeColors.line,
     position: 'relative' as const,
     marginRight: 4,
   },
   moreFiltersBadge: {
     position: 'absolute' as const, top: -4, right: -4,
     minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  moreFiltersBadgeText: { fontSize: 9, fontWeight: '800' as const, color: Colors.surface, lineHeight: 11 },
+  moreFiltersBadgeText: { fontSize: 9, fontWeight: '800' as const, color: themeColors.surface, lineHeight: 11 },
   activeFiltersRow: { paddingHorizontal: 20, gap: 6, paddingBottom: 12 },
   activeFilterPill: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: 14,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: themeColors.accent + '14',
   },
-  activeFilterPillText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  activeFilterPillText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   filterSectionLabel: {
-    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 11, fontWeight: '800' as const, color: themeColors.textMuted,
     letterSpacing: 0.4, textTransform: 'uppercase' as const, marginBottom: 8,
   },
   filterChipsWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 },
   filterDrawerChip: {
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
   },
-  filterDrawerChipActive: { backgroundColor: Colors.primary },
-  filterDrawerChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  filterDrawerChipTextActive: { color: Colors.surface },
+  filterDrawerChipActive: { backgroundColor: themeColors.accent },
+  filterDrawerChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  filterDrawerChipTextActive: { color: themeColors.surface },
   filterDrawerInput: {
     paddingHorizontal: 12, paddingVertical: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillSecondary,
-    borderWidth: 0.5, borderColor: Colors.borderLight,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 0.5, borderColor: themeColors.line,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   filterDrawerBtn: {
     flex: 1,
@@ -905,7 +912,7 @@ const styles = StyleSheet.create({
   // Modal scaffolding for the filter drawer — slide-up sheet shape
   // matching the existing item-edit modal in this file.
   modalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopLeftRadius: Tokens.radius.panel,
     borderTopRightRadius: Tokens.radius.panel,
     padding: 20,
@@ -917,12 +924,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     marginBottom: 16,
   },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
-  punchCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -0.3 },
+  punchCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   punchCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-  punchDesc: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 21 },
-  punchLocation: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  punchDesc: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text, lineHeight: 21 },
+  punchLocation: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 2 },
   punchBadge: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -936,49 +943,49 @@ const styles = StyleSheet.create({
   punchBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   punchBadgeChevron: { fontSize: (Type.caption2.fontSize ?? 11) + 2, fontWeight: '900' as const, marginTop: -1, opacity: 0.85 },
   punchMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingLeft: 18 },
-  punchMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  rejectionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.sm, padding: 10, marginLeft: 18 },
-  rejectionText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.error, lineHeight: 17 },
+  punchMetaText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  rejectionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: themeColors.danger, borderRadius: Tokens.radius.sm, padding: 10, marginLeft: 18 },
+  rejectionText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.danger, lineHeight: 17 },
   punchActions: { flexDirection: 'row', gap: 8, paddingLeft: 18, flexWrap: 'wrap' },
-  punchActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  punchActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
   punchActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
-  punchDeleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
+  punchDeleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.danger, alignItems: 'center', justifyContent: 'center' },
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '20' },
-  addItemBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary },
-  walkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 16, borderRadius: Tokens.radius.lg, backgroundColor: Colors.success },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
+  addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '20' },
+  addItemBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent },
+  walkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 16, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.success },
   closeProjectBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  formCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
+  formCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
-  subChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  subChipActive: { backgroundColor: Colors.primary },
-  subChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
+  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
+  subChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },
+  subChipActive: { backgroundColor: themeColors.accent },
+  subChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   subChipTextActive: { color: '#fff' },
-  priorityBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
-  priorityBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  priorityBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line, alignItems: 'center' },
+  priorityBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
-  rejectOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
-  rejectCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
-  rejectTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.error },
-  rejectDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  pickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt },
-  pickerBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  linkedTaskBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12', alignSelf: 'flex-start', marginLeft: 18 },
-  linkedTaskBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.primary, flex: 1 },
-  pickerOption: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, marginBottom: 8 },
-  pickerOptionActive: { backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary },
-  pickerOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  pickerOptionMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rejectOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'center', padding: 20 },
+  rejectCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  rejectTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.danger },
+  rejectDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
+  pickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt },
+  pickerBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text },
+  linkedTaskBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '12', alignSelf: 'flex-start', marginLeft: 18 },
+  linkedTaskBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.accent, flex: 1 },
+  pickerOption: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, marginBottom: 8 },
+  pickerOptionActive: { backgroundColor: themeColors.accent + '15', borderWidth: 1, borderColor: themeColors.accent },
+  pickerOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  pickerOptionMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
 });

@@ -14,6 +14,8 @@ import {
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -108,6 +110,7 @@ function InvoiceInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // prefillLines / prefillNotes come from the floating-mic flow when
   // the GC said something like "invoice them for demolition twenty-eight
   // hundred". JSON-encoded so we don't have to re-parse the AI's
@@ -741,7 +744,7 @@ function InvoiceInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Invoices' }} />
         <EmptyState
-          icon={<Receipt size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<Receipt size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No invoice open yet"
           message="Invoices live inside a project so they roll up to the right billing total. To create one:"
           steps={[
@@ -764,7 +767,7 @@ function InvoiceInner() {
 
   const isLocked = effectiveStatus === 'paid';
 
-  const statusColor = effectiveStatus ? invoiceStatusColors[effectiveStatus] : null;
+  const statusColor = effectiveStatus ? getInvoiceStatusColors(themeColors, effectiveStatus) : null;
   const statusLabel = effectiveStatus ? (
     effectiveStatus === 'sent' ? 'Awaiting Payment' :
     effectiveStatus === 'partially_paid' ? 'Partially Paid' :
@@ -777,9 +780,9 @@ function InvoiceInner() {
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{
         title: existingInvoice ? `Invoice #${existingInvoice.number}` : 'New Invoice',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
@@ -870,7 +873,7 @@ function InvoiceInner() {
                   <Text style={[styles.termsOptionText, paymentTerms === opt.value && styles.termsOptionTextActive]}>
                     {opt.label}
                   </Text>
-                  {paymentTerms === opt.value && <Check size={16} color={Colors.primary} />}
+                  {paymentTerms === opt.value && <Check size={16} color={themeColors.accent} />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -878,7 +881,7 @@ function InvoiceInner() {
 
           <View style={styles.termsRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Percent size={14} color={Colors.textSecondary} />
+              <Percent size={14} color={themeColors.textSecondary} />
               <Text style={styles.fieldLabelInline}>Retention</Text>
             </View>
             {!isLocked ? (
@@ -889,7 +892,7 @@ function InvoiceInner() {
                   onChangeText={setRetentionPercent}
                   keyboardType="decimal-pad"
                   placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   maxLength={5}
                 />
                 <Text style={styles.retentionPct}>%</Text>
@@ -941,7 +944,7 @@ function InvoiceInner() {
                   <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
                   {!isLocked && (
                     <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={14} color={Colors.error} />
+                      <Trash2 size={14} color={themeColors.danger} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -978,13 +981,13 @@ function InvoiceInner() {
               <>
                 <View style={styles.divider} />
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: Colors.warning }]}>Retention Held ({retentionPctValue}%)</Text>
-                  <Text style={[styles.totalValue, { color: Colors.warning }]}>-{formatCurrency(retentionPending)}</Text>
+                  <Text style={[styles.totalLabel, { color: themeColors.accent }]}>Retention Held ({retentionPctValue}%)</Text>
+                  <Text style={[styles.totalValue, { color: themeColors.accent }]}>-{formatCurrency(retentionPending)}</Text>
                 </View>
                 {retentionReleased > 0 && (
                   <View style={styles.totalRow}>
-                    <Text style={[styles.totalLabel, { color: Colors.success }]}>Retention Released</Text>
-                    <Text style={[styles.totalValue, { color: Colors.success }]}>{formatCurrency(retentionReleased)}</Text>
+                    <Text style={[styles.totalLabel, { color: themeColors.success }]}>Retention Released</Text>
+                    <Text style={[styles.totalValue, { color: themeColors.success }]}>{formatCurrency(retentionReleased)}</Text>
                   </View>
                 )}
                 <View style={styles.totalRow}>
@@ -1002,12 +1005,12 @@ function InvoiceInner() {
               <>
                 <View style={styles.divider} />
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: Colors.success }]}>Amount Paid</Text>
-                  <Text style={[styles.totalValue, { color: Colors.success }]}>-{formatCurrency(amountPaid)}</Text>
+                  <Text style={[styles.totalLabel, { color: themeColors.success }]}>Amount Paid</Text>
+                  <Text style={[styles.totalValue, { color: themeColors.success }]}>-{formatCurrency(amountPaid)}</Text>
                 </View>
                 <View style={styles.totalRow}>
                   <Text style={styles.grandLabel}>Balance Due</Text>
-                  <Text style={[styles.grandValue, { color: balanceDue > 0 ? Colors.error : Colors.success }]}>
+                  <Text style={[styles.grandValue, { color: balanceDue > 0 ? themeColors.danger : themeColors.success }]}>
                     {formatCurrency(balanceDue)}
                   </Text>
                 </View>
@@ -1022,7 +1025,7 @@ function InvoiceInner() {
               activeOpacity={0.85}
               testID="release-retention-btn"
             >
-              <Unlock size={16} color={Colors.warning} />
+              <Unlock size={16} color={themeColors.accent} />
               <Text style={styles.releaseRetentionBtnText}>Release Retention</Text>
               <Text style={styles.releaseRetentionBtnMeta}>{formatCurrency(retentionPending)} pending</Text>
             </TouchableOpacity>
@@ -1040,7 +1043,7 @@ function InvoiceInner() {
                       {r.note ? ` · ${r.note}` : ''}
                     </Text>
                   </View>
-                  <Text style={[styles.paymentAmount, { color: Colors.warning }]}>{formatCurrency(r.amount)}</Text>
+                  <Text style={[styles.paymentAmount, { color: themeColors.accent }]}>{formatCurrency(r.amount)}</Text>
                 </View>
               ))}
             </View>
@@ -1064,7 +1067,7 @@ function InvoiceInner() {
             <View style={styles.payLinkCard}>
               <View style={styles.payLinkHeader}>
                 <View style={styles.payLinkIconWrap}>
-                  <Zap size={18} color={Colors.primary} />
+                  <Zap size={18} color={themeColors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.payLinkTitle}>Stripe Payment Link</Text>
@@ -1079,7 +1082,7 @@ function InvoiceInner() {
               {existingInvoice.payLinkUrl ? (
                 <>
                   <View style={styles.payLinkUrlBox}>
-                    <Link2 size={14} color={Colors.textSecondary} />
+                    <Link2 size={14} color={themeColors.textSecondary} />
                     <Text style={styles.payLinkUrlText} numberOfLines={1} ellipsizeMode="middle">
                       {existingInvoice.payLinkUrl}
                     </Text>
@@ -1091,7 +1094,7 @@ function InvoiceInner() {
                       activeOpacity={0.7}
                       testID="copy-pay-link-btn"
                     >
-                      <Copy size={14} color={Colors.primary} />
+                      <Copy size={14} color={themeColors.accent} />
                       <Text style={styles.payLinkActionText}>Copy</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1100,7 +1103,7 @@ function InvoiceInner() {
                       activeOpacity={0.7}
                       testID="share-pay-link-btn"
                     >
-                      <Share2 size={14} color={Colors.primary} />
+                      <Share2 size={14} color={themeColors.accent} />
                       <Text style={styles.payLinkActionText}>Share</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1111,7 +1114,7 @@ function InvoiceInner() {
                       testID="regenerate-pay-link-btn"
                     >
                       {generatingPayLink ? (
-                        <ActivityIndicator size="small" color={Colors.textSecondary} />
+                        <ActivityIndicator size="small" color={themeColors.textSecondary} />
                       ) : (
                         <Text style={styles.payLinkRegenText}>Regenerate</Text>
                       )}
@@ -1128,12 +1131,12 @@ function InvoiceInner() {
                 >
                   {generatingPayLink ? (
                     <>
-                      <ActivityIndicator size="small" color={Colors.textOnPrimary} />
+                      <ActivityIndicator size="small" color={"#FFFFFF"} />
                       <Text style={styles.payLinkGenerateText}>Generating…</Text>
                     </>
                   ) : (
                     <>
-                      <Zap size={16} color={Colors.textOnPrimary} />
+                      <Zap size={16} color={"#FFFFFF"} />
                       <Text style={styles.payLinkGenerateText}>Generate Payment Link</Text>
                     </>
                   )}
@@ -1169,7 +1172,7 @@ function InvoiceInner() {
                 value={notes}
                 onChangeText={setNotes}
                 placeholder="Payment instructions, terms, etc."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
               />
@@ -1183,7 +1186,7 @@ function InvoiceInner() {
               activeOpacity={0.85}
             >
               <View style={styles.aiaCtaIconWrap}>
-                <FileSpreadsheet size={20} color={Colors.primary} />
+                <FileSpreadsheet size={20} color={themeColors.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.aiaCtaTitle}>Generate AIA G702/G703</Text>
@@ -1216,7 +1219,7 @@ function InvoiceInner() {
               testID="invoice-to-lien-waiver-cta"
             >
               <View style={styles.aiaCtaIconWrap}>
-                <FileText size={20} color={Colors.primary} />
+                <FileText size={20} color={themeColors.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.aiaCtaTitle}>Collect a lien waiver</Text>
@@ -1238,7 +1241,7 @@ function InvoiceInner() {
                 activeOpacity={0.7}
                 testID="mark-paid-btn"
               >
-                <CreditCard size={16} color={Colors.success} />
+                <CreditCard size={16} color={themeColors.success} />
                 <Text style={styles.markPaidBtnText}>Record Payment</Text>
               </TouchableOpacity>
             )}
@@ -1258,7 +1261,7 @@ function InvoiceInner() {
                   activeOpacity={0.7}
                   testID="send-invoice-btn"
                 >
-                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Send size={16} color={"#FFFFFF"} />
                   <Text style={styles.sendBtnText}>Send & Save</Text>
                 </TouchableOpacity>
               </>
@@ -1274,7 +1277,7 @@ function InvoiceInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Record Payment</Text>
                 <TouchableOpacity onPress={() => setShowPaymentModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
@@ -1285,7 +1288,7 @@ function InvoiceInner() {
                 onChangeText={setPaymentAmount}
                 keyboardType="numeric"
                 placeholder="0.00"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
 
               <Text style={styles.modalFieldLabel}>Payment Method</Text>
@@ -1305,7 +1308,7 @@ function InvoiceInner() {
               </View>
 
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleMarkPaid} activeOpacity={0.85}>
-                <Check size={18} color={Colors.textOnPrimary} />
+                <Check size={18} color={"#FFFFFF"} />
                 <Text style={styles.modalSaveBtnText}>Record Payment</Text>
               </TouchableOpacity>
             </View>
@@ -1320,12 +1323,12 @@ function InvoiceInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Release Retention</Text>
                 <TouchableOpacity onPress={() => setShowRetentionModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.retentionModalMeta}>
-                Pending: <Text style={{ color: Colors.warning, fontWeight: '700' }}>{formatCurrency(retentionPending)}</Text>
+                Pending: <Text style={{ color: themeColors.accent, fontWeight: '700' }}>{formatCurrency(retentionPending)}</Text>
                 {retentionReleased > 0 ? `  ·  Released: ${formatCurrency(retentionReleased)}` : ''}
               </Text>
 
@@ -1337,7 +1340,7 @@ function InvoiceInner() {
                   onChangeText={setRetentionReleaseAmount}
                   keyboardType="decimal-pad"
                   placeholder="0.00"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
                 <TouchableOpacity
                   style={styles.fullReleaseBtn}
@@ -1370,11 +1373,11 @@ function InvoiceInner() {
                 value={retentionReleaseNote}
                 onChangeText={setRetentionReleaseNote}
                 placeholder="e.g. Substantial completion, punch list cleared"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
 
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleReleaseRetention} activeOpacity={0.85}>
-                <Unlock size={18} color={Colors.textOnPrimary} />
+                <Unlock size={18} color={"#FFFFFF"} />
                 <Text style={styles.modalSaveBtnText}>Release</Text>
               </TouchableOpacity>
             </View>
@@ -1389,19 +1392,19 @@ function InvoiceInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Invoice To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
 
               {contactPicked ? (
                 <View style={styles.selectedRecipientCard}>
-                  <User size={16} color={Colors.primary} />
+                  <User size={16} color={themeColors.accent} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
                   <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={Colors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -1412,7 +1415,7 @@ function InvoiceInner() {
                     value={sendRecipientName}
                     onChangeText={setSendRecipientName}
                     placeholder="Enter name or pick from contacts"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                   <Text style={styles.modalFieldLabel}>Email</Text>
                   <TextInput
@@ -1420,7 +1423,7 @@ function InvoiceInner() {
                     value={sendRecipientEmail}
                     onChangeText={setSendRecipientEmail}
                     placeholder="email@example.com"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
@@ -1430,7 +1433,7 @@ function InvoiceInner() {
                       onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
                       activeOpacity={0.7}
                     >
-                      <BookUser size={14} color={Colors.primary} />
+                      <BookUser size={14} color={themeColors.accent} />
                       <Text style={styles.pickContactText}>Pick from Contacts</Text>
                     </TouchableOpacity>
                   )}
@@ -1442,7 +1445,7 @@ function InvoiceInner() {
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
-                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Send size={16} color={"#FFFFFF"} />
                   <Text style={styles.sendBtnText}>Send</Text>
                 </TouchableOpacity>
               </View>
@@ -1487,151 +1490,154 @@ function InvoiceInner() {
   );
 }
 
-const invoiceStatusColors: Record<string, { bg: string; text: string }> = {
-  draft: { bg: Colors.fillTertiary, text: Colors.textSecondary },
-  sent: { bg: Colors.infoLight, text: Colors.info },
-  partially_paid: { bg: Colors.warningLight, text: Colors.warning },
-  paid: { bg: Colors.successLight, text: Colors.success },
-  overdue: { bg: Colors.errorLight, text: Colors.error },
-};
+function getInvoiceStatusColors(t: ThemeColors, status: string): { bg: string; text: string } {
+  switch (status) {
+    case 'draft': return { bg: t.line, text: t.textSecondary };
+    case 'sent': return { bg: t.info, text: t.info };
+    case 'partially_paid': return { bg: t.accentSoft, text: t.accent };
+    case 'paid': return { bg: t.successSoft, text: t.success };
+    case 'overdue': return { bg: t.danger, text: t.danger };
+    default: return { bg: t.line, text: t.textSecondary };
+  }
+}
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   pipelineWrap: { paddingHorizontal: 16, marginTop: 12, marginBottom: 8 },
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
-  backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: themeColors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtnText: { color: "#FFFFFF", fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
+  heroCard: { backgroundColor: themeColors.accent, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  progressSection: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
-  progressLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8 },
+  progressSection: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: themeColors.line },
+  progressLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 8 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  progressInput: { width: 70, minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.primary, textAlign: 'center' as const },
-  progressSign: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  progressBarTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
-  progressBarFill: { height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  termsRow: { marginHorizontal: 20, marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
-  fieldLabelInline: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  termsSelector: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm },
-  termsSelectorText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  termsDropdown: { marginHorizontal: 20, marginTop: 4, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
-  termsOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  termsOptionActive: { backgroundColor: Colors.primary + '08' },
-  termsOptionText: { fontSize: Type.subhead.fontSize, color: Colors.text },
-  termsOptionTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  progressInput: { width: 70, minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.accent, textAlign: 'center' as const },
+  progressSign: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
+  progressBarTrack: { height: 6, borderRadius: 3, backgroundColor: themeColors.line, overflow: 'hidden' as const },
+  progressBarFill: { height: 6, borderRadius: 3, backgroundColor: themeColors.accent },
+  termsRow: { marginHorizontal: 20, marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: themeColors.line },
+  fieldLabelInline: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  termsSelector: { backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm },
+  termsSelectorText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  termsDropdown: { marginHorizontal: 20, marginTop: 4, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: themeColors.line, overflow: 'hidden' as const },
+  termsOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  termsOptionActive: { backgroundColor: themeColors.accent + '08' },
+  termsOptionText: { fontSize: Type.subhead.fontSize, color: themeColors.text },
+  termsOptionTextActive: { color: themeColors.accent, fontWeight: '600' as const },
   fieldSection: { marginHorizontal: 20, marginTop: 18 },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  lineItemCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 8, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  lineItemCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: themeColors.line },
   lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  lineItemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  lineItemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, flex: 1, marginRight: 8 },
   lineItemMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  lineItemMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  lineItemTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
+  lineItemMetaText: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  lineItemTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: themeColors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
-  totalLabel: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  totalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
-  dividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 6 },
-  grandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.text },
-  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  textArea: { minHeight: 80, borderRadius: Tokens.radius.lg, backgroundColor: Colors.card, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
-  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  totalLabel: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const },
+  totalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  divider: { height: 1, backgroundColor: themeColors.line, marginVertical: 4 },
+  dividerThick: { height: 2, backgroundColor: themeColors.accent + '30', borderRadius: 1, marginVertical: 6 },
+  grandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: themeColors.text },
+  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  textArea: { minHeight: 80, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surface, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.subhead.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
+  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: themeColors.surface, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: themeColors.line },
   paymentInfo: { gap: 2 },
-  paymentDate: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  paymentMethodText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  paymentAmount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.success },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
-  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  paymentDate: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  paymentMethodText: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  paymentAmount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.success },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '15', borderWidth: 1.5, borderColor: themeColors.accent, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   aiaCtaCard: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
     marginHorizontal: 20, marginTop: 8, marginBottom: 20, padding: 14,
-    backgroundColor: Colors.primary + '10',
-    borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.primary + '25',
+    backgroundColor: themeColors.accent + '10',
+    borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: themeColors.accent + '25',
   },
   aiaCtaIconWrap: {
     width: 40, height: 40, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '20',
+    backgroundColor: themeColors.accent + '20',
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  aiaCtaTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  aiaCtaSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16 },
-  aiaCtaArrow: { fontSize: 24, color: Colors.primary, marginLeft: 4 },
-  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
-  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
-  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  recipientModalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
-  markPaidBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: Colors.success + '30' },
-  markPaidBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.success },
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
+  aiaCtaTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 2 },
+  aiaCtaSub: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
+  aiaCtaArrow: { fontSize: 24, color: themeColors.accent, marginLeft: 4 },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: themeColors.accent + '25' },
+  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '10' },
+  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  recipientModalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
+  markPaidBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: themeColors.success + '30' },
+  markPaidBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.success },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  modalInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
   methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  methodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary },
-  methodChipActive: { backgroundColor: Colors.primary },
-  methodChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  methodChipTextActive: { color: Colors.textOnPrimary },
-  modalSaveBtn: { backgroundColor: Colors.success, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
-  modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  retentionInput: { minWidth: 60, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.border, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, textAlign: 'right' as const },
-  retentionPct: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
-  releaseRetentionBtn: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.warning + '15', borderWidth: 1, borderColor: Colors.warning + '40' },
-  releaseRetentionBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.warning },
-  releaseRetentionBtnMeta: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.warning },
-  retentionModalMeta: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12 },
-  fullReleaseBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '20', borderWidth: 1, borderColor: Colors.warning + '40' },
-  fullReleaseBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.warning },
+  methodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.card, backgroundColor: themeColors.line },
+  methodChipActive: { backgroundColor: themeColors.accent },
+  methodChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  methodChipTextActive: { color: "#FFFFFF" },
+  modalSaveBtn: { backgroundColor: themeColors.success, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
+  modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  retentionInput: { minWidth: 60, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, textAlign: 'right' as const },
+  retentionPct: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
+  releaseRetentionBtn: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '15', borderWidth: 1, borderColor: themeColors.accent + '40' },
+  releaseRetentionBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  releaseRetentionBtnMeta: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  retentionModalMeta: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginBottom: 12 },
+  fullReleaseBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '20', borderWidth: 1, borderColor: themeColors.accent + '40' },
+  fullReleaseBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   payLinkCard: {
     marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '08',
-    borderWidth: 1, borderColor: Colors.primary + '25',
+    backgroundColor: themeColors.accent + '08',
+    borderWidth: 1, borderColor: themeColors.accent + '25',
     gap: 12,
   },
   payLinkHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
   payLinkIconWrap: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: themeColors.accent + '15',
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  payLinkTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  payLinkSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16 },
+  payLinkTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 2 },
+  payLinkSub: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16 },
   payLinkUrlBox: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
   },
-  payLinkUrlText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  payLinkUrlText: { flex: 1, fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const },
   payLinkActions: { flexDirection: 'row' as const, gap: 8 },
   payLinkActionBtn: {
     flex: 1, minHeight: 40, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: themeColors.accent + '15',
     alignItems: 'center' as const, justifyContent: 'center' as const,
     flexDirection: 'row' as const, gap: 6,
   },
-  payLinkActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  payLinkRegenBtn: { backgroundColor: Colors.fillTertiary },
-  payLinkRegenText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  payLinkActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  payLinkRegenBtn: { backgroundColor: themeColors.line },
+  payLinkRegenText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   payLinkGenerateBtn: {
     minHeight: 48, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     flexDirection: 'row' as const, gap: 8,
   },
-  payLinkGenerateText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  payLinkGenerateText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
 });

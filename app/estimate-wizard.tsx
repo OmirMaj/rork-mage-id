@@ -33,6 +33,8 @@ import {
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -127,6 +129,7 @@ function EstimateWizardScreenInner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { settings } = useProjects();
   const { tier } = useSubscription();
 
@@ -310,7 +313,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
           </View>
 
           <View style={styles.resultHero}>
-            <CheckCircle2 size={28} color={Colors.success} />
+            <CheckCircle2 size={28} color={themeColors.success} />
             <Text style={styles.resultHeroTitle}>Construction Estimate</Text>
             <TapeRollNumber
               value={result.total}
@@ -334,7 +337,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
             </View>
             <View style={styles.metaCol}>
               <Text style={styles.metaLabel}>Valid until</Text>
-              <Text style={[styles.metaValue, { color: Colors.primary }]}>{validUntilDate}</Text>
+              <Text style={[styles.metaValue, { color: themeColors.accent }]}>{validUntilDate}</Text>
             </View>
             <View style={styles.metaCol}>
               <Text style={styles.metaLabel}>Quality</Text>
@@ -554,7 +557,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
               disabled={sharingPdf}
               testID="wizard-reset"
             >
-              <RotateCcw size={16} color={Colors.text} />
+              <RotateCcw size={16} color={themeColors.text} />
               <Text style={styles.resultSecondaryText}>Start a new estimate</Text>
             </TouchableOpacity>
           </View>
@@ -581,7 +584,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
         >
           {step === 0 && (
             <StepCard
-              icon={<Building2 size={28} color={Colors.primary} />}
+              icon={<Building2 size={28} color={themeColors.accent} />}
               title="What kind of project?"
               subtitle="Pick the closest match — we'll refine in the next steps."
             >
@@ -606,7 +609,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
           {step === 1 && (
             <StepCard
-              icon={<Home size={28} color={Colors.primary} />}
+              icon={<Home size={28} color={themeColors.accent} />}
               title="How big is the project?"
               subtitle="Approximate square footage of the work area."
             >
@@ -614,7 +617,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
                 value={answers.sizeSqft}
                 onChangeText={(v) => set('sizeSqft', v.replace(/[^0-9.]/g, ''))}
                 placeholder="e.g. 1500"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
                 style={styles.input}
                 testID="wizard-size"
@@ -625,7 +628,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
           {step === 2 && (
             <StepCard
-              icon={<Building2 size={28} color={Colors.primary} />}
+              icon={<Building2 size={28} color={themeColors.accent} />}
               title="Where's the job?"
               subtitle="City and state — we use this for regional pricing."
             >
@@ -633,7 +636,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
                 value={answers.location}
                 onChangeText={(v) => set('location', v)}
                 placeholder="e.g. Austin, TX"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 style={styles.input}
                 testID="wizard-location"
               />
@@ -642,7 +645,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
           {step === 3 && (
             <StepCard
-              icon={<Sparkles size={28} color={Colors.primary} />}
+              icon={<Sparkles size={28} color={themeColors.accent} />}
               title="What quality tier?"
               subtitle="Drives material selection and labor assumptions."
             >
@@ -667,7 +670,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
           {step === 4 && (
             <StepCard
-              icon={<Wrench size={28} color={Colors.primary} />}
+              icon={<Wrench size={28} color={themeColors.accent} />}
               title="What's the scope?"
               subtitle="A few sentences on what you're actually building."
             >
@@ -675,7 +678,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
                 value={answers.scope}
                 onChangeText={(v) => set('scope', v)}
                 placeholder="e.g. Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 numberOfLines={5}
                 textAlignVertical="top"
@@ -687,7 +690,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
           {step === 5 && (
             <StepCard
-              icon={<Building2 size={28} color={Colors.primary} />}
+              icon={<Building2 size={28} color={themeColors.accent} />}
               title="What's the timeline?"
               subtitle="Expected duration in weeks."
             >
@@ -695,7 +698,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
                 value={answers.timelineWeeks}
                 onChangeText={(v) => set('timelineWeeks', v.replace(/[^0-9.]/g, ''))}
                 placeholder="e.g. 8"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
                 style={styles.input}
                 testID="wizard-timeline"
@@ -706,7 +709,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
           {step === 6 && (
             <StepCard
-              icon={<Sparkles size={28} color={Colors.primary} />}
+              icon={<Sparkles size={28} color={themeColors.accent} />}
               title="Any special requirements?"
               subtitle="Permits, LEED, historical, ADA, unusual access — optional."
             >
@@ -714,7 +717,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
                 value={answers.specialRequirements}
                 onChangeText={(v) => set('specialRequirements', v)}
                 placeholder="e.g. Historic district review, second-floor access, ADA compliant bathroom."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
@@ -726,7 +729,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
           {step === 7 && (
             <StepCard
-              icon={<DollarSign size={28} color={Colors.primary} />}
+              icon={<DollarSign size={28} color={themeColors.accent} />}
               title="Target budget?"
               subtitle="Optional. We'll flag if the estimate runs over."
             >
@@ -734,7 +737,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
                 value={answers.targetBudget}
                 onChangeText={(v) => set('targetBudget', v.replace(/[^0-9.]/g, ''))}
                 placeholder="e.g. 75000"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
                 style={styles.input}
                 testID="wizard-budget"
@@ -751,7 +754,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
             activeOpacity={0.8}
             testID="wizard-back"
           >
-            <ChevronLeft size={18} color={Colors.text} />
+            <ChevronLeft size={18} color={themeColors.text} />
             <Text style={styles.secondaryText}>{step === 0 ? 'Cancel' : 'Back'}</Text>
           </TouchableOpacity>
           {step < TOTAL_STEPS - 1 ? (
@@ -801,6 +804,7 @@ function StepCard({ icon, title, subtitle, children }: {
   subtitle: string;
   children: React.ReactNode;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View>
       <View style={styles.stepIconWrap}>{icon}</View>
@@ -811,113 +815,113 @@ function StepCard({ icon, title, subtitle, children }: {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   progressWrap: {
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4,
   },
   progressTrack: {
-    height: 4, backgroundColor: Colors.cardBorder, borderRadius: 2, overflow: 'hidden' as const,
+    height: 4, backgroundColor: themeColors.line, borderRadius: 2, overflow: 'hidden' as const,
   },
-  progressFill: { height: '100%' as const, backgroundColor: Colors.primary },
+  progressFill: { height: '100%' as const, backgroundColor: themeColors.accent },
   progressLabel: {
-    fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 6, textAlign: 'center' as const,
+    fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 6, textAlign: 'center' as const,
   },
   stepIconWrap: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: themeColors.accent + '14',
     alignItems: 'center' as const, justifyContent: 'center' as const,
     marginBottom: 12,
   },
-  stepTitle: { fontSize: 24, fontWeight: '700' as const, color: Colors.text, marginBottom: 6 },
-  stepSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textMuted, lineHeight: 21 },
+  stepTitle: { fontSize: 24, fontWeight: '700' as const, color: themeColors.text, marginBottom: 6 },
+  stepSubtitle: { fontSize: Type.subhead.fontSize, color: themeColors.textMuted, lineHeight: 21 },
   chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  chipActive: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
+  chipText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
   chipTextActive: { color: '#FFF' },
   input: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
     borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: Type.callout.fontSize, color: Colors.text,
+    fontSize: Type.callout.fontSize, color: themeColors.text,
   },
   textArea: {
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
     borderRadius: Tokens.radius.card, padding: 12, minHeight: 120,
-    fontSize: Type.subhead.fontSize, color: Colors.text,
+    fontSize: Type.subhead.fontSize, color: themeColors.text,
   },
-  hint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 6 },
+  hint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 6 },
   footer: {
     flexDirection: 'row' as const, gap: 12,
     paddingHorizontal: 20, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: Colors.cardBorder,
-    backgroundColor: Colors.background,
+    borderTopWidth: 1, borderTopColor: themeColors.line,
+    backgroundColor: themeColors.bg,
   },
   footerBtn: { flex: 1 },
   primaryBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 6, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14,
+    gap: 6, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14,
   },
   primaryBtnDisabled: { opacity: 0.5 },
   primaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF' },
   secondaryBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 6, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, paddingVertical: 14,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    gap: 6, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, paddingVertical: 14,
+    borderWidth: 1, borderColor: themeColors.line,
   },
-  secondaryText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  secondaryText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
   // Result view
   resultHero: {
     alignItems: 'center' as const, marginBottom: 24, gap: 4,
   },
   resultHeroTitle: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 8,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, marginTop: 8,
   },
   resultTotal: {
-    fontSize: 44, fontWeight: '800' as const, color: Colors.text, marginTop: 4,
+    fontSize: 44, fontWeight: '800' as const, color: themeColors.text, marginTop: 4,
   },
-  resultSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  resultSubtitle: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
   resultCostPerSqft: {
-    fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary,
+    fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent,
     marginTop: 4, letterSpacing: 0.3,
   },
-  resultBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21, marginBottom: 20 },
+  resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 21, marginBottom: 20 },
   // At-a-glance stat tiles below hero
   statGrid: {
     flexDirection: 'row' as const, gap: 8,
     marginBottom: 16,
   },
   statTile: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
+    flex: 1, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card,
     paddingVertical: 12, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: themeColors.line,
     alignItems: 'center' as const, gap: 4,
   },
   statLabel: {
-    fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '700' as const, color: themeColors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
   },
-  statValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
+  statValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: themeColors.text },
   // Scope summary card
   summaryCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 16, gap: 6,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line, marginBottom: 16, gap: 6,
   },
   summaryLabel: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: themeColors.textMuted,
     letterSpacing: 1, textTransform: 'uppercase' as const,
   },
-  summaryText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21 },
+  summaryText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 21 },
   // Where-the-budget-goes breakdown card
   breakdownCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16,
-    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 20,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16,
+    borderWidth: 1, borderColor: themeColors.line, marginBottom: 20,
   },
   breakdownTitle: {
-    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: themeColors.textMuted,
     letterSpacing: 1.4, textTransform: 'uppercase' as const, marginBottom: 12,
   },
   breakdownRow: { marginBottom: 10 },
@@ -925,54 +929,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     marginBottom: 4,
   },
-  breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  breakdownAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  breakdownPct: { fontWeight: '500' as const, color: Colors.textMuted },
+  breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  breakdownAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  breakdownPct: { fontWeight: '500' as const, color: themeColors.textMuted },
   breakdownBar: {
     height: 6, borderRadius: 3, overflow: 'hidden' as const,
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: themeColors.line,
   },
-  breakdownBarFill: { height: '100%' as const, backgroundColor: Colors.primary, borderRadius: 3 },
+  breakdownBarFill: { height: '100%' as const, backgroundColor: themeColors.accent, borderRadius: 3 },
   // Per-category detailed cards
   categoryCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg,
+    borderWidth: 1, borderColor: themeColors.line,
     marginBottom: 12, overflow: 'hidden' as const,
   },
   categoryHeader: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
     paddingHorizontal: 14, paddingVertical: 12,
-    backgroundColor: Colors.background,
-    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder,
+    backgroundColor: themeColors.bg,
+    borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
   categoryName: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.text,
     letterSpacing: 0.2,
   },
   categoryHeadRight: { alignItems: 'flex-end' as const, gap: 2 },
   categoryMeta: {
-    fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '700' as const, color: themeColors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
   },
-  categoryTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  categoryTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   lineItemNew: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingVertical: 10, paddingHorizontal: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: 12,
+    borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 12,
   },
   totalsBlockNew: {
     marginTop: 8, padding: 16, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
   grandSubLabel: {
-    fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.textMuted,
     marginTop: 2, letterSpacing: 0.2,
   },
   // "Client preview" banner at top of result screen
   previewBanner: {
-    backgroundColor: Colors.primary + '12',
-    borderColor: Colors.primary + '30',
+    backgroundColor: themeColors.accent + '12',
+    borderColor: themeColors.accent + '30',
     borderWidth: 1,
     borderRadius: Tokens.radius.md,
     paddingVertical: 10,
@@ -983,19 +987,19 @@ const styles = StyleSheet.create({
   previewBannerText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
     letterSpacing: 0.4,
     textTransform: 'uppercase' as const,
   },
   // Estimate metadata row (Prepared / Valid until / Quality)
   metaCard: {
     flexDirection: 'row' as const,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     marginBottom: 16,
     gap: 16,
   },
@@ -1003,7 +1007,7 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 9,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 1,
     textTransform: 'uppercase' as const,
     marginBottom: 4,
@@ -1011,25 +1015,25 @@ const styles = StyleSheet.create({
   metaValue: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   // Stat tile unit (e.g. "sqft", "weeks") below the value
   statUnit: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 1,
   },
   // Scope summary extras
   summaryNote: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     fontStyle: 'italic' as const,
     lineHeight: 20,
     marginTop: 8,
   },
   specialReq: {
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.sm,
     padding: 10,
     marginTop: 10,
@@ -1037,19 +1041,19 @@ const styles = StyleSheet.create({
   specialReqLabel: {
     fontSize: 10,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.8,
     textTransform: 'uppercase' as const,
     marginBottom: 4,
   },
-  specialReqText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  specialReqText: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
   // Inclusions card
   includedCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     marginTop: 8,
     marginBottom: 12,
   },
@@ -1061,34 +1065,34 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   includedChip: {
-    backgroundColor: Colors.successLight,
+    backgroundColor: themeColors.successSoft,
     borderRadius: Tokens.radius.full,
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
   includedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: '#1B5E20' },
-  includedFootnote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 18 },
+  includedFootnote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 18 },
   // Exclusions card
   excludedCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     marginBottom: 12,
   },
   excludedItem: {
-    fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 22, paddingLeft: 4,
+    fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 22, paddingLeft: 4,
   },
   // Payment terms card
   paymentCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     paddingTop: 4,
     paddingBottom: 4,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     marginBottom: 12,
   },
   paymentRow: {
@@ -1097,13 +1101,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: themeColors.line,
     gap: 12,
   },
   paymentRowLeft: { flex: 1 },
-  paymentRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  paymentRowDesc: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
-  paymentRowAmt: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  paymentRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  paymentRowDesc: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2, lineHeight: 16 },
+  paymentRowAmt: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   // Acceptance / next-steps card
   acceptanceCard: {
     backgroundColor: '#0F1216',
@@ -1115,7 +1119,7 @@ const styles = StyleSheet.create({
   acceptanceTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
     marginBottom: 8,
   },
   acceptanceBody: {
@@ -1124,34 +1128,34 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   sectionTitle: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text,
     letterSpacing: 0.3, marginTop: 16, marginBottom: 10,
   },
   lineItem: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: 12,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.line, gap: 12,
   },
-  lineCategory: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' as const, letterSpacing: 0.5 },
-  lineDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginTop: 2 },
-  lineMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  lineTotal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  lineCategory: { fontSize: Type.caption2.fontSize, color: themeColors.accent, fontWeight: '700' as const, letterSpacing: 0.5 },
+  lineDesc: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, marginTop: 2 },
+  lineMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  lineTotal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
   totalsBlock: { marginTop: 16 },
   totalRow: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     paddingVertical: 6,
   },
-  totalLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
-  totalValue: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '600' as const },
+  totalLabel: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted },
+  totalValue: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, fontWeight: '600' as const },
   totalRowGrand: {
-    borderTopWidth: 1, borderTopColor: Colors.cardBorder,
+    borderTopWidth: 1, borderTopColor: themeColors.line,
     paddingTop: 10, marginTop: 6,
   },
-  grandLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  grandLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   notesBlock: { marginTop: 8 },
-  noteRow: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 20, marginBottom: 4 },
+  noteRow: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 20, marginBottom: 4 },
   disclaimer: {
-    fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
+    fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'center' as const, marginTop: 16, paddingHorizontal: 12,
   },
   actionRow: {
@@ -1170,11 +1174,11 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 18,
     paddingHorizontal: 20,
-    shadowColor: Colors.primary,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
     shadowRadius: 14,
@@ -1191,15 +1195,15 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   resultSecondaryText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
 });
