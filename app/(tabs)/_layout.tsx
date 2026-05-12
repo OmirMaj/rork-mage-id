@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -136,6 +137,13 @@ export default function TabLayout() {
       // "Create a project from the Projects tab" forcing new users to
       // discover the tab switch on their own.
       initialRouteName="(home)"
+      screenListeners={{
+        tabPress: () => {
+          if (Platform.OS === 'ios') {
+            Haptics.selectionAsync().catch(() => {});
+          }
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: themeColors.accent,

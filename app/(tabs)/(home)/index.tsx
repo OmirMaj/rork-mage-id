@@ -29,6 +29,7 @@ import { parseProjectFromTranscript } from '@/utils/voiceFormParsers';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import UniversalMicButton from '@/components/UniversalMicButton';
 import EmptyState from '@/components/EmptyState';
+import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
 import Tutorial, { hasSeenTutorial } from '@/components/Tutorial';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
@@ -309,9 +310,10 @@ export default function HomeScreen() {
     setCreatedProjectId(null);
   }, [router]);
 
-  const renderProject = useCallback(({ item }: { item: Project }) => (
+  const renderProject = useCallback(({ item, index }: { item: Project; index: number }) => (
     <ProjectCard
       project={item}
+      index={index}
       onPress={() => handleProjectPress(item)}
       onLongPress={() => {
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -695,9 +697,7 @@ export default function HomeScreen() {
             <Text style={styles.nextStepDesc}>What would you like to do next?</Text>
 
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('estimate')} activeOpacity={0.7}>
-              <View style={[styles.nextStepIconWrap, { backgroundColor: Colors.primary + '15' }]}>
-                <Calculator size={20} color={Colors.primary} />
-              </View>
+              <IconWrapper icon={Calculator} tone="accent" size="md" />
               <View style={styles.nextStepTextWrap}>
                 <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
                 <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
@@ -706,9 +706,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
-              <View style={[styles.nextStepIconWrap, { backgroundColor: Colors.info + '15' }]}>
-                <CalendarDays size={20} color={Colors.info} />
-              </View>
+              <IconWrapper icon={CalendarDays} tone="info" size="md" />
               <View style={styles.nextStepTextWrap}>
                 <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
                 <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>

@@ -48,9 +48,12 @@ interface ProjectCardProps {
   project: Project;
   onPress: () => void;
   onLongPress?: () => void;
+  /** Index in the parent list — used to stagger the mount-fade so cards
+   *  cascade in (40ms apart) instead of all appearing at once. */
+  index?: number;
 }
 
-function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
+function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -83,9 +86,12 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
   const burnIsHigh = burnRatio >= 0.9;
 
   useEffect(() => {
+    // Stagger cap at index 8 so a 50-project list still feels snappy (max 320ms total cascade).
+    const stagger = Math.min(index, 8) * 40;
     Animated.timing(enterAnim, {
       toValue: 1,
       duration: 220,
+      delay: stagger,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
@@ -93,12 +99,12 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
       Animated.timing(burnAnim, {
         toValue: burnRatio,
         duration: 900,
-        delay: 120,
+        delay: 120 + stagger,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start();
     }
-  }, [enterAnim, burnAnim, burnRatio, showBurnBar]);
+  }, [enterAnim, burnAnim, burnRatio, showBurnBar, index]);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, { toValue: 0.975, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
