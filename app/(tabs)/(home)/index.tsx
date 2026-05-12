@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
-  Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell,
+  Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { generateUUID } from '@/utils/generateId';
@@ -693,6 +693,9 @@ export default function HomeScreen() {
       <Modal visible={showNextStepModal} transparent animationType="fade" onRequestClose={() => setShowNextStepModal(false)}>
         <Pressable style={styles.modalOverlayCenter} onPress={() => handleNextStep('later')}>
           <Pressable style={styles.nextStepCard} onPress={() => undefined}>
+            <View style={styles.nextStepSuccessIcon}>
+              <CheckCircle2 size={36} color={Colors.success} strokeWidth={2.4} />
+            </View>
             <Text style={styles.nextStepTitle}>Project Created!</Text>
             <Text style={styles.nextStepDesc}>What would you like to do next?</Text>
 
@@ -1068,6 +1071,15 @@ const styles = StyleSheet.create({
     // Match the other home-screen cards.
     borderWidth: 1,
     borderColor: Colors.cardBorder,
+  },
+  nextStepSuccessIcon: {
+    alignSelf: 'center' as const,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.success + '15',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   nextStepTitle: {
     fontSize: Type.title2.fontSize,

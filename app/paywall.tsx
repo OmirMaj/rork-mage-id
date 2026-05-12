@@ -13,6 +13,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
+import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -187,8 +188,8 @@ export default function PaywallScreen() {
             squeeze each card to ~78px when a 4th joined. */}
         <View style={styles.plansGrid}>
           <View style={[styles.planCard, tier === 'free' && styles.planCardActive]}>
-            <View style={[styles.planIconWrap, { backgroundColor: themeColors.surfaceAlt }]}>
-              <Zap size={20} color={themeColors.textSecondary} />
+            <View style={styles.planIconSlot}>
+              <IconWrapper icon={Zap} tone="neutral" size="md" />
             </View>
             <Text style={styles.planName}>Free</Text>
             <Text style={styles.planPrice}>$0</Text>
@@ -204,8 +205,8 @@ export default function PaywallScreen() {
             <View style={styles.popularTag}>
               <Text style={styles.popularTagText}>POPULAR</Text>
             </View>
-            <View style={[styles.planIconWrap, { backgroundColor: themeColors.accent + '20' }]}>
-              <Crown size={20} color={themeColors.accent} />
+            <View style={styles.planIconSlot}>
+              <IconWrapper icon={Crown} tone="accent" size="md" />
             </View>
             <Text style={styles.planName}>Pro</Text>
             {proPrice ? (
@@ -232,8 +233,8 @@ export default function PaywallScreen() {
           </View>
 
           <View style={[styles.planCard, tier === 'business' && styles.planCardActive]}>
-            <View style={[styles.planIconWrap, { backgroundColor: themeColors.accentSoft }]}>
-              <Building2 size={20} color={themeColors.accent} />
+            <View style={styles.planIconSlot}>
+              <IconWrapper icon={Building2} tone="accent" size="md" />
             </View>
             <Text style={styles.planName}>Business</Text>
             {businessPrice ? (
@@ -260,8 +261,8 @@ export default function PaywallScreen() {
           </View>
 
           <View style={[styles.planCard, tier === 'enterprise' && styles.planCardActive]}>
-            <View style={[styles.planIconWrap, { backgroundColor: themeColors.accentSoft }]}>
-              <Rocket size={20} color={themeColors.accent} />
+            <View style={styles.planIconSlot}>
+              <IconWrapper icon={Rocket} tone="accent" size="md" />
             </View>
             <Text style={styles.planName}>Enterprise</Text>
             {enterprisePrice ? (
@@ -334,11 +335,18 @@ export default function PaywallScreen() {
           ))}
         </View>
 
-        <View style={styles.trustRow}>
-          <Shield size={14} color={themeColors.textSecondary} />
-          <Text style={styles.trustText}>
-            Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
-          </Text>
+        <View style={styles.trustStack}>
+          <View style={styles.trustRow}>
+            <Shield size={14} color={themeColors.textSecondary} />
+            <Text style={styles.trustText}>
+              Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
+            </Text>
+          </View>
+          <View style={styles.trustRow}>
+            <Text style={styles.trustText}>
+              Built by contractors, for contractors.
+            </Text>
+          </View>
         </View>
 
         {isFallbackPricing && (
@@ -452,12 +460,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: '#fff',
     letterSpacing: 0.5,
   },
-  planIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Tokens.radius.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+  /** Wrapper for the IconWrapper primitive so vertical spacing matches the
+   *  rest of the plan-card stack. IconWrapper itself owns size + bg. */
+  planIconSlot: {
     marginBottom: 4,
     marginTop: 4,
   },
@@ -557,12 +562,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   aiValueTextEnt: {
     color: t.accentLabel,
   },
+  trustStack: {
+    gap: 4,
+    marginBottom: 12,
+  },
   trustRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginBottom: 12,
   },
   trustText: {
     fontSize: Type.caption1.fontSize,
