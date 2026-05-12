@@ -51,11 +51,27 @@ Generated 2026-05-11 after Phase 1 foundation shipped on the `phase1-foundation`
 - [x] `app/(tabs)/schedule/index.tsx` — outer containers theme-aware (both render paths); inner Gantt deferred
 - [x] `app/(tabs)/settings/index.tsx` body — outer KeyboardAvoidingView theme-aware; inner row groups deferred
 
-## Still in backlog (Phase 1.7+)
+## Phase 1.7 — Cash flow + AI cards
+
+- [x] `components/CashFlowAlerts.tsx` — full migration
+- [x] `components/CashFlowGlance.tsx` — full migration including Stat helper
+- [x] `components/CashFlowChart.tsx` — outer container theme-aware
+- [x] `components/CashFlowSetup.tsx` — outer container theme-aware
+- [x] `components/AIInvoicePredictor.tsx` — outer container theme-aware (both render paths)
+- [x] `components/AIEstimateValidator.tsx` — outer container theme-aware
+- [x] `components/AISubEvaluator.tsx` — outer container theme-aware
+- [x] `components/AIBidScorer.tsx` AIProfileSetup modal — bg theme-aware
+
+## Still in backlog (Phase 1.8+)
 
 - [ ] `components/Tutorial.tsx` demoStyles block — internal tutorial mockups
 - [ ] `app/(tabs)/schedule/index.tsx` Gantt chart inner surfaces, project chips, task rows
 - [ ] `app/(tabs)/settings/index.tsx` settings row groups, profile hero, signature pad, COMPANY BRANDING section
+- [ ] Remaining AI components: AIWeeklySummary, AIQuickEstimate (1290L), AIScheduleRisk, AIProjectReport, AIChangeOrderImpact, AIBidScorecard, AIAutoScheduleButton, AIDailyReportGen, AIDFRFromPhotos, AIEquipmentAdvice, AIHomeBriefing (inner)
+- [ ] Long-tail screens: estimate, daily-report, contract, plans, takeoff, change-order, etc.
+- [ ] Inner content of AI card lists (badges, detail rows) on the 7 Phase 1.7 cards
+- [ ] CashFlowChart inner bar styles
+- [ ] CashFlowSetup wizard step content
 
 ## Backlog — remaining 170 files
 
