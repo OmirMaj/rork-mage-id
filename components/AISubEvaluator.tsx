@@ -6,6 +6,8 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, HelpCircle, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
   evaluateSubcontractor, getCachedResult, setCachedResult,
@@ -29,6 +31,7 @@ const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
 export default React.memo(function AISubEvaluator({ sub, projectContext, subscriptionTier }: Props) {
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<SubEvaluationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -69,9 +72,9 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
     return (
       <TouchableOpacity style={styles.triggerBtn} onPress={handleEvaluate} activeOpacity={0.7} disabled={isLoading}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={"#FF6A1A"} />
         ) : (
-          <Sparkles size={16} color={Colors.primary} />
+          <Sparkles size={16} color={"#FF6A1A"} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Evaluate Sub'}</Text>
       </TouchableOpacity>
@@ -81,7 +84,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
   return (
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
-        <Sparkles size={12} color={Colors.primary} />
+        <Sparkles size={12} color={"#FF6A1A"} />
         <Text style={styles.headerTitle}>AI Sub Evaluation</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>
@@ -90,7 +93,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
 
       {result.trackRecord ? (
         <View style={styles.trackRow}>
-          <CheckCircle2 size={12} color={Colors.success} />
+          <CheckCircle2 size={12} color={"#2E7D44"} />
           <Text style={styles.trackText}>{result.trackRecord}</Text>
         </View>
       ) : null}
@@ -98,7 +101,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       <Text style={styles.sectionLabel}>Questions to Ask</Text>
       {(result.questionsToAsk ?? []).map((q, idx) => (
         <View key={idx} style={styles.questionRow}>
-          <HelpCircle size={12} color={Colors.info} />
+          <HelpCircle size={12} color={"#1565C0"} />
           <Text style={styles.questionText}>{q}</Text>
         </View>
       ))}
@@ -124,7 +127,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
           <Text style={styles.sectionLabel}>Red Flags to Watch</Text>
           {(result.redFlags ?? []).map((flag, idx) => (
             <View key={idx} style={styles.flagRow}>
-              <AlertTriangle size={12} color={Colors.error} />
+              <AlertTriangle size={12} color={"#C84038"} />
               <Text style={styles.flagText}>{flag}</Text>
             </View>
           ))}
@@ -134,31 +137,31 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   triggerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: Colors.primary + '25',
+    borderColor: t.accent + '25',
   },
   triggerText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   container: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   header: {
     flexDirection: 'row',
@@ -169,16 +172,16 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     flex: 1,
   },
   aiTag: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   recommendation: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 20,
     marginBottom: 12,
     fontWeight: '500' as const,
@@ -194,14 +197,14 @@ const styles = StyleSheet.create({
   },
   trackText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.success,
+    color: t.success,
     flex: 1,
     lineHeight: 18,
   },
   sectionLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.8,
     marginBottom: 6,
@@ -215,7 +218,7 @@ const styles = StyleSheet.create({
   },
   questionText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     flex: 1,
     lineHeight: 18,
   },
@@ -233,13 +236,13 @@ const styles = StyleSheet.create({
   },
   rateLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   rateValue: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   flagRow: {
     flexDirection: 'row',

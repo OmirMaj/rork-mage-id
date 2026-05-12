@@ -5,6 +5,8 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, AlertTriangle, CheckCircle2, Lightbulb, XCircle, Search } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { validateEstimate, type EstimateValidationResult } from '@/utils/aiService';
 import { Type } from '@/constants/typography';
@@ -23,13 +25,14 @@ interface Props {
 
 const ISSUE_ICONS = {
   warning: { Icon: AlertTriangle, color: Colors.warning, bg: Colors.warningLight },
-  error: { Icon: XCircle, color: Colors.error, bg: Colors.errorLight },
-  suggestion: { Icon: Lightbulb, color: Colors.info, bg: Colors.infoLight },
-  ok: { Icon: CheckCircle2, color: Colors.success, bg: Colors.successLight },
+  error: { Icon: XCircle, color: "#C84038", bg: Colors.errorLight },
+  suggestion: { Icon: Lightbulb, color: "#1565C0", bg: Colors.infoLight },
+  ok: { Icon: CheckCircle2, color: "#2E7D44", bg: Colors.successLight },
 } as const;
 
 export default React.memo(function AIEstimateValidator(props: Props) {
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<EstimateValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -63,26 +66,26 @@ export default React.memo(function AIEstimateValidator(props: Props) {
     return (
       <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={"#FF6A1A"} />
         ) : (
-          <Search size={16} color={Colors.primary} />
+          <Search size={16} color={"#FF6A1A"} />
         )}
         <Text style={styles.triggerText}>
           {isLoading ? 'Validating...' : 'AI Validate Estimate'}
         </Text>
-        <Sparkles size={14} color={Colors.primary} />
+        <Sparkles size={14} color={"#FF6A1A"} />
       </TouchableOpacity>
     );
   }
 
-  const scoreColor = result.overallScore >= 7 ? Colors.success :
-    result.overallScore >= 5 ? Colors.warning : Colors.error;
+  const scoreColor = result.overallScore >= 7 ? "#2E7D44" :
+    result.overallScore >= 5 ? Colors.warning : "#C84038";
 
   return (
     <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
-          <Sparkles size={16} color={Colors.primary} />
+          <Sparkles size={16} color={"#FF6A1A"} />
           <Text style={styles.headerTitle}>AI Estimate Review</Text>
         </View>
         <View style={[styles.scoreBadge, { backgroundColor: `${scoreColor}15` }]}>
@@ -120,7 +123,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
           <Text style={styles.summary}>{result.summary}</Text>
 
           <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
-            {isLoading ? <ActivityIndicator size="small" color={Colors.primary} /> : null}
+            {isLoading ? <ActivityIndicator size="small" color={"#FF6A1A"} /> : null}
             <Text style={styles.revalidateText}>{isLoading ? 'Re-validating...' : 'Re-validate'}</Text>
           </TouchableOpacity>
         </>
@@ -129,7 +132,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   triggerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -137,24 +140,24 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: `${Colors.primary}08`,
+    backgroundColor: `${t.accent}08`,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: `${Colors.primary}20`,
+    borderColor: `${t.accent}20`,
     marginVertical: 8,
   },
   triggerText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     marginVertical: 8,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
     gap: 10,
   },
   header: {
@@ -170,7 +173,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   scoreBadge: {
     paddingHorizontal: 10,
@@ -197,12 +200,12 @@ const styles = StyleSheet.create({
   },
   issueDetail: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 18,
   },
   issueImpact: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontStyle: 'italic' as const,
   },
   missingSection: {
@@ -214,15 +217,15 @@ const styles = StyleSheet.create({
   missingTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   missingItem: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   summary: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 19,
     fontStyle: 'italic' as const,
   },
@@ -235,7 +238,7 @@ const styles = StyleSheet.create({
   },
   revalidateText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
   },
 });

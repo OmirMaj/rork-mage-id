@@ -6,6 +6,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, RefreshCw, TrendingUp, ArrowRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   analyzeEquipmentRentVsBuy, getCachedResult, setCachedResult,
   type EquipmentAdviceResult,
@@ -26,12 +29,13 @@ interface Props {
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 const REC_STYLES = {
-  rent: { label: 'Keep Renting', icon: '🔄', color: Colors.info, bg: Colors.infoLight },
-  buy: { label: 'Buy It', icon: '🏷️', color: Colors.success, bg: Colors.successLight },
+  rent: { label: 'Keep Renting', icon: '🔄', color: "#1565C0", bg: Colors.infoLight },
+  buy: { label: 'Buy It', icon: '🏷️', color: "#2E7D44", bg: Colors.successLight },
   lease: { label: 'Consider Leasing', icon: '📋', color: Colors.warning, bg: Colors.warningLight },
 } as const;
 
 export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTier }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<EquipmentAdviceResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -77,9 +81,9 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
     return (
       <TouchableOpacity style={styles.triggerBtn} onPress={handleAnalyze} activeOpacity={0.7} disabled={isLoading}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={"#FF6A1A"} />
         ) : (
-          <Sparkles size={16} color={Colors.primary} />
+          <Sparkles size={16} color={"#FF6A1A"} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Rent vs Buy Advice'}</Text>
       </TouchableOpacity>
@@ -91,7 +95,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Sparkles size={12} color={Colors.primary} />
+        <Sparkles size={12} color={"#FF6A1A"} />
         <Text style={styles.headerTitle}>Rent vs Buy: {equipment.name}</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>
@@ -119,38 +123,38 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       <Text style={styles.reasoning}>{result.reasoning}</Text>
 
       <View style={styles.reconsiderRow}>
-        <ArrowRight size={12} color={Colors.textSecondary} />
+        <ArrowRight size={12} color={"#9AA3AD"} />
         <Text style={styles.reconsiderText}>{result.reconsiderWhen}</Text>
       </View>
     </View>
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   triggerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: Colors.primary + '25',
+    borderColor: t.accent + '25',
   },
   triggerText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   container: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginTop: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   header: {
     flexDirection: 'row',
@@ -161,12 +165,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     flex: 1,
   },
   aiTag: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   recBadge: {
     flexDirection: 'row',
@@ -199,18 +203,18 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   statValue: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     textAlign: 'center' as const,
   },
   reasoning: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 19,
     marginBottom: 8,
   },
@@ -224,7 +228,7 @@ const styles = StyleSheet.create({
   },
   reconsiderText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     flex: 1,
     lineHeight: 17,
     fontStyle: 'italic' as const,

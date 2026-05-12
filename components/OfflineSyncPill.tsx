@@ -20,6 +20,9 @@ import React, { useCallback } from 'react';
 import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CloudOff } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useOfflineQueueDepth } from '@/hooks/useOfflineQueueDepth';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -30,6 +33,8 @@ interface Props {
 }
 
 export default function OfflineSyncPill({ variant = 'compact' }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const depth = useOfflineQueueDepth();
 
   const onPress = useCallback(() => {
@@ -56,7 +61,7 @@ export default function OfflineSyncPill({ variant = 'compact' }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(255, 159, 27, 0.12)',

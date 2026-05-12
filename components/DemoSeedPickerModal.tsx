@@ -16,6 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { X, ChevronRight, HardHat, Building2, Sparkles } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { DEMO_FLAVORS, type DemoFlavor } from '@/utils/demoSeed';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -38,7 +41,7 @@ const FLAVOR_VISUAL: Record<DemoFlavor, {
 }> = {
   small: {
     Icon: HardHat,
-    accent: Colors.success,
+    accent: "#2E7D44",
     pitch: 'Bread-and-butter residential remodel. Solo operator or small crew.',
     bullets: [
       '2 invoices, 4 daily reports',
@@ -49,7 +52,7 @@ const FLAVOR_VISUAL: Record<DemoFlavor, {
   },
   medium: {
     Icon: Sparkles,
-    accent: Colors.primary,
+    accent: "#FF6A1A",
     pitch: 'Premium full-gut renovation. Architect-led, multi-trade.',
     bullets: [
       '3 invoices, 3 daily reports',
@@ -79,6 +82,8 @@ function formatMoney(n: number): string {
 }
 
 function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false }: DemoSeedPickerModalProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   const flavors: DemoFlavor[] = showMedium ? ['small', 'medium', 'large'] : ['small', 'large'];
@@ -100,7 +105,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
               Both load instantly. Wipe anytime from Settings → Reset, or tap Delete on the project tile.
             </Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} testID="demo-picker-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} testID="demo-picker-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
@@ -124,7 +129,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
                     <Text style={styles.cardName}>{meta.name.replace('Sample — ', '')}</Text>
                     <Text style={styles.cardScope}>{meta.scope}</Text>
                   </View>
-                  <ChevronRight size={16} color={Colors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} />
                 </View>
 
                 <View style={styles.cardStats}>
@@ -175,27 +180,27 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
 
 export const DemoSeedPickerModal = memo(DemoSeedPickerModalImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     maxHeight: '90%' as const,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingTop: 10,
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     alignSelf: 'center', marginBottom: 8,
   },
   head: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14,
   },
-  title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
+  title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4, lineHeight: 17 },
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -214,27 +219,27 @@ const styles = StyleSheet.create({
     width: 42, height: 42, borderRadius: Tokens.radius.card,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardName: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  cardScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  cardName: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  cardScope: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
 
   cardStats: {
     flexDirection: 'row', alignItems: 'stretch',
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     overflow: 'hidden',
   },
   cardStat: { flex: 1, alignItems: 'center', paddingVertical: 10 },
-  cardStatDiv: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border },
-  cardStatLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
-  cardStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, letterSpacing: -0.2 },
+  cardStatDiv: { width: 1, alignSelf: 'stretch', backgroundColor: t.line },
+  cardStatLabel: { fontSize: 9, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
+  cardStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4, letterSpacing: -0.2 },
 
-  cardPitch: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, fontStyle: 'italic' },
+  cardPitch: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18, fontStyle: 'italic' },
 
   bulletList: { gap: 4 },
   bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bulletDot: { width: 5, height: 5, borderRadius: 3 },
-  bulletText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
+  bulletText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 16 },
 
   cta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -243,7 +248,7 @@ const styles = StyleSheet.create({
   ctaText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '800', letterSpacing: 0.2 },
 
   disclaimer: {
-    fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic',
+    fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic',
     textAlign: 'center', lineHeight: 16, paddingHorizontal: 12, paddingVertical: 12,
   },
 });

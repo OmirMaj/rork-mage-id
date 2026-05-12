@@ -12,6 +12,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ShieldCheck, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { WarrantyWalkAlert } from '@/utils/warrantyWalks';
 import { describeWalkTiming } from '@/utils/warrantyWalks';
 import { Type } from '@/constants/typography';
@@ -22,6 +25,8 @@ interface Props {
 }
 
 export default function WarrantyWalkBanner({ alerts }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   if (!alerts || alerts.length === 0) return null;
 
@@ -35,7 +40,7 @@ export default function WarrantyWalkBanner({ alerts }: Props) {
       {visible.map(a => {
         const urgent = a.severity === 'urgent';
         const Icon = urgent ? AlertTriangle : ShieldCheck;
-        const accent = urgent ? Colors.error : Colors.primary;
+        const accent = urgent ? themeColors.danger : themeColors.accent;
         return (
           <TouchableOpacity
             key={a.project.id}
@@ -65,7 +70,7 @@ export default function WarrantyWalkBanner({ alerts }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   wrap: {
     paddingHorizontal: 16,
     paddingTop: 4,
@@ -90,11 +95,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
   },
   body: {
-    fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 2,
+    fontSize: Type.footnote.fontSize, color: t.text, marginTop: 2,
   },
   bodyStrong: { fontWeight: '700' as const },
   extra: {
-    fontSize: Type.caption2.fontSize, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, color: t.textMuted,
     textAlign: 'center' as const, fontStyle: 'italic' as const,
   },
 });

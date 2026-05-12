@@ -22,6 +22,8 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing,
 } from 'react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { CashFlowWeek } from '@/utils/cashFlowEngine';
 import { formatCurrencyShort } from '@/utils/cashFlowEngine';
 import { Type } from '@/constants/typography';
@@ -46,6 +48,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
   selectedWeek,
 }: CashFlowChartProps) {
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scrollRef = useRef<ScrollView>(null);
 
   // One Animated.Value per bar — grows from 0 to 1 on mount/data-change.
@@ -182,7 +185,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
                       top: prev.y,
                       width: length,
                       height: 2.5,
-                      backgroundColor: pt.balance < 0 || prev.balance < 0 ? Colors.error : Colors.info,
+                      backgroundColor: pt.balance < 0 || prev.balance < 0 ? themeColors.danger : themeColors.info,
                       transform: [{ rotate: `${angle}deg` }],
                       transformOrigin: 'left center',
                       opacity: segOpacity,
@@ -218,7 +221,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
                           width: 16,
                           height: 16,
                           borderRadius: Tokens.radius.sm,
-                          backgroundColor: pt.balance < 0 ? Colors.error : Colors.info,
+                          backgroundColor: pt.balance < 0 ? themeColors.danger : themeColors.info,
                           opacity: pulseOpacity,
                           transform: [{ scale: pulseScale }],
                         }}
@@ -232,9 +235,9 @@ const CashFlowChart = React.memo(function CashFlowChart({
                         width: 8,
                         height: 8,
                         borderRadius: 4,
-                        backgroundColor: pt.balance < 0 ? Colors.error : Colors.info,
+                        backgroundColor: pt.balance < 0 ? themeColors.danger : themeColors.info,
                         borderWidth: 2,
-                        borderColor: Colors.surface,
+                        borderColor: themeColors.surface,
                         opacity: dotOpacity,
                       }}
                     />
@@ -259,8 +262,8 @@ const CashFlowChart = React.memo(function CashFlowChart({
                 outputRange: [0, Math.max(barHeight, 2)],
               });
               const barColor = isDanger
-                ? (isPositive ? Colors.warning : Colors.error)
-                : (isPositive ? Colors.success : Colors.error);
+                ? (isPositive ? Colors.warning : themeColors.danger)
+                : (isPositive ? themeColors.success : themeColors.danger);
               const barColorTop = isDanger
                 ? (isPositive ? '#FFB74D' : '#FF6B6B')
                 : (isPositive ? '#34D77A' : '#FF6B6B');
@@ -309,7 +312,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
                     )}
                   </View>
                   <View style={styles.barLabel}>
-                    <Text style={[styles.barLabelText, isDanger && { color: Colors.error, fontWeight: '700' }]}>
+                    <Text style={[styles.barLabelText, isDanger && { color: themeColors.danger, fontWeight: '700' }]}>
                       W{i + 1}
                     </Text>
                   </View>
@@ -322,15 +325,15 @@ const CashFlowChart = React.memo(function CashFlowChart({
 
       <View style={styles.legend}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+          <View style={[styles.legendDot, { backgroundColor: themeColors.success }]} />
           <Text style={styles.legendText}>Positive</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
+          <View style={[styles.legendDot, { backgroundColor: themeColors.danger }]} />
           <Text style={styles.legendText}>Negative</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendLine, { backgroundColor: Colors.info }]} />
+          <View style={[styles.legendLine, { backgroundColor: themeColors.info }]} />
           <Text style={styles.legendText}>Running Balance</Text>
         </View>
       </View>
@@ -338,14 +341,14 @@ const CashFlowChart = React.memo(function CashFlowChart({
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.xl,
     padding: 16,
     paddingLeft: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     overflow: 'hidden' as const,
   },
   yAxisLabels: {
@@ -362,7 +365,7 @@ const styles = StyleSheet.create({
     right: 4,
     fontSize: 10,
     fontWeight: '700' as const,
-    color: Colors.success,
+    color: t.success,
   },
   yLabelMid: {
     position: 'absolute' as const,
@@ -370,7 +373,7 @@ const styles = StyleSheet.create({
     right: 4,
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   yLabelBot: {
     position: 'absolute' as const,
@@ -378,21 +381,21 @@ const styles = StyleSheet.create({
     right: 4,
     fontSize: 10,
     fontWeight: '700' as const,
-    color: Colors.error,
+    color: t.danger,
   },
   zeroLine: {
     position: 'absolute' as const,
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
   },
   gridLine: {
     position: 'absolute' as const,
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
     opacity: 0.5,
   },
   barsContainer: {
@@ -409,7 +412,7 @@ const styles = StyleSheet.create({
   barColumnSelected: {
     backgroundColor: Colors.fillSecondary,
     borderWidth: 1,
-    borderColor: Colors.primary + '55',
+    borderColor: t.accent + '55',
   },
   bar: {
     width: 30,
@@ -457,7 +460,7 @@ const styles = StyleSheet.create({
   barLabelText: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   legend: {
     flexDirection: 'row' as const,
@@ -466,7 +469,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   legendItem: {
     flexDirection: 'row' as const,
@@ -485,7 +488,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600' as const,
   },
 });

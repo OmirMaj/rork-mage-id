@@ -31,6 +31,9 @@ import {
   Wallet, MessageSquare, Ruler, Sparkles, type LucideIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -110,6 +113,8 @@ export interface CreateMenuProps {
 }
 
 function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -171,16 +176,16 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
         <View style={styles.handle} />
 
         <View style={styles.headerRow}>
-          <Text style={[Type.title2, { color: Colors.text }]}>Create new…</Text>
-          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+          <Text style={[Type.title2, { color: themeColors.text }]}>Create new…</Text>
+          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
         </View>
 
         <View style={styles.searchRow}>
-          <Search size={16} color={Colors.textMuted} />
+          <Search size={16} color={themeColors.textMuted} />
           <TextInput
             style={[styles.searchInput, Type.body]}
             placeholder="Search for anything you can create…"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             value={query}
             onChangeText={setQuery}
             autoFocus={false}
@@ -188,7 +193,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
           />
           {!!query && (
             <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={14} color={Colors.textMuted} />
+              <X size={14} color={themeColors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -196,14 +201,14 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
         <ScrollView style={{ maxHeight: '70%' as any }} showsVerticalScrollIndicator={false}>
           {grouped.length === 0 && (
             <View style={styles.emptyResult}>
-              <Text style={[Type.subhead, { color: Colors.textSecondary, textAlign: 'center' }]}>
+              <Text style={[Type.subhead, { color: themeColors.textSecondary, textAlign: 'center' }]}>
                 No matches. Try &ldquo;invoice&rdquo;, &ldquo;rfi&rdquo;, &ldquo;buyout&rdquo;…
               </Text>
             </View>
           )}
           {grouped.map(g => (
             <View key={g.key} style={styles.group}>
-              <Text style={[Type.eyebrow, { color: Colors.textMuted, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }]}>
+              <Text style={[Type.eyebrow, { color: themeColors.textMuted, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }]}>
                 {g.label}
               </Text>
               {g.items.map(opt => (
@@ -215,17 +220,17 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                   testID={`create-${opt.label.toLowerCase().replace(/\s+/g, '-')}`}
                 >
                   <View style={styles.iconSquare}>
-                    <opt.Icon size={18} color={Colors.textSecondary} strokeWidth={2} />
+                    <opt.Icon size={18} color={themeColors.textSecondary} strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[Type.headline, { color: Colors.text }]} numberOfLines={1}>
+                    <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>
                       {opt.label}
                     </Text>
-                    <Text style={[Type.footnote, { color: Colors.textSecondary }]} numberOfLines={1}>
+                    <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
                       {opt.subtitle}
                     </Text>
                   </View>
-                  <ChevronRight size={16} color={Colors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -238,12 +243,12 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
 
 export const CreateMenu = memo(CreateMenuImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 0,
@@ -254,7 +259,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 36, height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: t.line,
     marginBottom: 12,
   },
   headerRow: {
@@ -267,7 +272,7 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.panel,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   searchRow: {
     flexDirection: 'row',
@@ -278,11 +283,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   searchInput: {
     flex: 1,
-    color: Colors.text,
+    color: t.text,
     padding: 0,
   },
   group: { marginBottom: 8 },
@@ -295,7 +300,7 @@ const styles = StyleSheet.create({
   },
   iconSquare: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
   },
   emptyResult: {

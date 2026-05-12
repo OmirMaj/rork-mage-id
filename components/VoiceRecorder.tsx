@@ -19,6 +19,9 @@ import {
 } from 'react-native';
 import { Mic, MicOff, Lock } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import VoiceCaptureModal from './VoiceCaptureModal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -51,6 +54,8 @@ export default function VoiceRecorder({
   onTranscriptReady, isLoading, isLocked, onLockedPress,
   title, contextLine, suggestions, topicChecklist,
 }: VoiceRecorderProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [modalOpen, setModalOpen] = useState(false);
 
   const handlePress = useCallback(() => {
@@ -66,7 +71,7 @@ export default function VoiceRecorder({
     return (
       <View style={styles.container}>
         <View style={[styles.micBtn, styles.micBtnDisabled]}>
-          <MicOff size={20} color={Colors.textMuted} />
+          <MicOff size={20} color={themeColors.textMuted} />
         </View>
         <Text style={styles.webLabel}>Voice input not available on web</Text>
       </View>
@@ -77,7 +82,7 @@ export default function VoiceRecorder({
     return (
       <TouchableOpacity style={styles.container} onPress={onLockedPress} activeOpacity={0.7}>
         <View style={[styles.micBtn, styles.micBtnLocked]}>
-          <Lock size={18} color={Colors.textMuted} />
+          <Lock size={18} color={themeColors.textMuted} />
         </View>
         <Text style={styles.lockedLabel}>Pro feature — tap to upgrade</Text>
       </TouchableOpacity>
@@ -93,7 +98,7 @@ export default function VoiceRecorder({
         testID="voice-record-btn"
       >
         <View style={styles.micBtn}>
-          <Mic size={20} color={Colors.primary} />
+          <Mic size={20} color={themeColors.accent} />
         </View>
         <Text style={styles.label}>
           {isLoading ? 'Processing…' : 'Tap to dictate'}
@@ -112,44 +117,44 @@ export default function VoiceRecorder({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     marginBottom: 12,
   },
   micBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
   micBtnDisabled: {
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   micBtnLocked: {
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   label: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: t.text,
   },
   webLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   lockedLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontStyle: 'italic',
   },
 });

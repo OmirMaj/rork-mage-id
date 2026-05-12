@@ -22,6 +22,9 @@ import {
   Search,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -69,10 +72,10 @@ interface Props {
 }
 
 const ACTION_CHIPS: { key: ClarifierAction; label: string; Icon: typeof Percent; color: string }[] = [
-  { key: 'update_progress', label: 'Update %',     Icon: Percent,      color: Colors.primary },
-  { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: Colors.success },
-  { key: 'start_task',      label: 'Start',        Icon: Play,         color: Colors.info },
-  { key: 'add_note',        label: 'Note',         Icon: StickyNote,   color: Colors.textSecondary },
+  { key: 'update_progress', label: 'Update %',     Icon: Percent,      color: "#FF6A1A" },
+  { key: 'mark_complete',   label: 'Mark complete',Icon: CheckCircle2, color: "#2E7D44" },
+  { key: 'start_task',      label: 'Start',        Icon: Play,         color: "#1565C0" },
+  { key: 'add_note',        label: 'Note',         Icon: StickyNote,   color: "#9AA3AD" },
   { key: 'log_issue',       label: 'Issue',        Icon: AlertTriangle,color: Colors.warning },
 ];
 
@@ -88,6 +91,8 @@ export default function QuickUpdateClarifier({
   onClose,
   onSubmit,
 }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [action, setAction] = useState<ClarifierAction>(initialAction ?? 'update_progress');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [valueStr, setValueStr] = useState<string>(
@@ -186,7 +191,7 @@ export default function QuickUpdateClarifier({
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={onClose}
-              testID="clarifier-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
+              testID="clarifier-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} /></TouchableOpacity>
           </View>
 
           {/* Action chips */}
@@ -211,7 +216,7 @@ export default function QuickUpdateClarifier({
                   activeOpacity={0.8}
                   testID={`clarifier-action-${key}`}
                 >
-                  <Icon size={14} color={active ? color : Colors.textSecondary} />
+                  <Icon size={14} color={active ? color : "#9AA3AD"} />
                   <Text
                     style={[
                       styles.actionChipLabel,
@@ -236,7 +241,7 @@ export default function QuickUpdateClarifier({
                   onChangeText={(v) => setValueStr(v.replace(/[^0-9]/g, '').slice(0, 3))}
                   keyboardType="number-pad"
                   placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={"#9AA3AD"}
                   maxLength={3}
                   testID="clarifier-progress-input"
                 />
@@ -259,7 +264,7 @@ export default function QuickUpdateClarifier({
                     ? 'Short description of the issue'
                     : 'What do you want to note?'
                 }
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={"#9AA3AD"}
                 multiline
                 testID="clarifier-note-input"
               />
@@ -276,13 +281,13 @@ export default function QuickUpdateClarifier({
             )}
           </View>
           <View style={styles.searchRow}>
-            <Search size={14} color={Colors.textMuted} />
+            <Search size={14} color={"#9AA3AD"} />
             <TextInput
               style={styles.searchInput}
               value={query}
               onChangeText={setQuery}
               placeholder="Filter tasks"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={"#9AA3AD"}
               testID="clarifier-task-filter"
             />
           </View>
@@ -325,7 +330,7 @@ export default function QuickUpdateClarifier({
                     </View>
                     {active && (
                       <View style={styles.tick}>
-                        <CheckCircle2 size={16} color={Colors.primary} />
+                        <CheckCircle2 size={16} color={"#FF6A1A"} />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -349,7 +354,7 @@ export default function QuickUpdateClarifier({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -360,7 +365,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 18,
@@ -373,7 +378,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
     marginBottom: 8,
   },
   header: {
@@ -384,18 +389,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   subtitle: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 2,
   },
   closeBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -408,14 +413,14 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     flex: 1,
   },
   sectionHint: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
     marginLeft: 8,
     maxWidth: 180,
@@ -438,7 +443,7 @@ const styles = StyleSheet.create({
   },
   actionChipLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
   },
   valueRow: {
@@ -450,7 +455,7 @@ const styles = StyleSheet.create({
   valueLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   valueInputWrap: {
     flexDirection: 'row',
@@ -464,12 +469,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 40,
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '700' as const,
   },
   valueSuffix: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600' as const,
     marginLeft: 2,
   },
@@ -484,7 +489,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.md,
     padding: 10,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     textAlignVertical: 'top',
   },
   searchRow: {
@@ -500,7 +505,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 36,
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   taskList: {
     maxHeight: 240,
@@ -515,9 +520,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   taskRowActive: {
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     borderWidth: 1,
-    borderColor: Colors.primary + '55',
+    borderColor: t.accent + '55',
   },
   taskTitleRow: {
     flexDirection: 'row',
@@ -527,19 +532,19 @@ const styles = StyleSheet.create({
   taskTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     flexShrink: 1,
   },
   taskTitleActive: {
-    color: Colors.primary,
+    color: t.accent,
   },
   taskMeta: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
   didYouMeanBadge: {
-    backgroundColor: Colors.accent + '25',
+    backgroundColor: t.accent + '25',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -547,7 +552,7 @@ const styles = StyleSheet.create({
   didYouMeanText: {
     fontSize: 9,
     fontWeight: '700' as const,
-    color: Colors.accent,
+    color: t.accent,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
@@ -556,7 +561,7 @@ const styles = StyleSheet.create({
   },
   emptyTasks: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     paddingVertical: 14,
     textAlign: 'center',
   },
@@ -564,16 +569,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     height: 48,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   applyBtnDisabled: {
-    backgroundColor: Colors.textMuted + '60',
+    backgroundColor: t.textMuted + '60',
   },
   applyBtnLabel: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
   },
 });

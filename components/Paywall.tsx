@@ -14,6 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Crown, Building2, CheckCircle2, X, Sparkles, Shield, Smartphone, Apple } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -76,6 +79,8 @@ const ENTERPRISE_BENEFITS: string[] = [
 ];
 
 export default function Paywall({ visible, onClose, feature, requiredTier }: PaywallProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<BillingPeriod>('annual');
   const {
@@ -95,8 +100,8 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
     : requiredTier === 'business' ? 'Business'
     : 'Pro';
   const tierColor = requiredTier === 'enterprise' ? Colors.purple
-    : requiredTier === 'business' ? Colors.accent
-    : Colors.primary;
+    : requiredTier === 'business' ? themeColors.accent
+    : themeColors.accent;
   const TierIcon = requiredTier === 'enterprise' ? Crown
     : requiredTier === 'business' ? Building2
     : Crown;
@@ -164,7 +169,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
             <Text style={styles.headerTitle}>Continue on Mobile</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -221,7 +226,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             </TouchableOpacity>
 
             <View style={styles.trustRow}>
-              <Shield size={13} color={Colors.textSecondary} />
+              <Shield size={13} color={themeColors.textSecondary} />
               <Text style={styles.trustText}>
                 Sign in on the mobile app with the same email and your subscription
                 will sync to this account automatically.
@@ -239,7 +244,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
         <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8 }]}>
           <View style={{ width: 36 }} />
           <Text style={styles.headerTitle}>Upgrade Required</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -340,7 +345,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
           </TouchableOpacity>
 
           <View style={styles.trustRow}>
-            <Shield size={13} color={Colors.textSecondary} />
+            <Shield size={13} color={themeColors.textSecondary} />
             <Text style={styles.trustText}>
               Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
             </Text>
@@ -351,22 +356,22 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
   closeBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
   },
   scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 40, alignItems: 'center' },
@@ -375,26 +380,26 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
   featureName: {
-    fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text,
+    fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text,
     letterSpacing: -0.4, textAlign: 'center', marginBottom: 4,
   },
-  requiresLine: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginBottom: 22 },
+  requiresLine: { fontSize: Type.subhead.fontSize, color: t.textSecondary, marginBottom: 22 },
   requiresTierEm: { fontWeight: '700' as const },
   benefitsBox: {
     width: '100%',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     marginBottom: 20,
   },
   benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  benefitText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
+  benefitText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text, lineHeight: 20 },
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     padding: 4,
     borderRadius: Tokens.radius.card,
     marginBottom: 14,
@@ -411,28 +416,28 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   toggleBtnActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
-  toggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  toggleTextActive: { color: Colors.text },
+  toggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.textSecondary },
+  toggleTextActive: { color: t.text },
   saveBadge: {
-    backgroundColor: Colors.success + '20',
+    backgroundColor: t.success + '20',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: Tokens.radius.xs,
   },
-  saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
+  saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: t.success },
   priceBox: { alignItems: 'center', marginBottom: 20 },
-  priceBig: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.8 },
-  priceSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  priceBig: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.8 },
+  priceSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 2 },
   savingsRow: { marginTop: 10, backgroundColor: Colors.successLight, borderRadius: Tokens.radius.sm, paddingHorizontal: 12, paddingVertical: 5 },
-  savingsRowText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.success },
-  savingsRowAmount: { fontWeight: '800' as const, color: Colors.success },
+  savingsRowText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.success },
+  savingsRowAmount: { fontWeight: '800' as const, color: t.success },
   // Upgrade CTA — beefed shadow + bigger height + heavier weight so it
   // feels like THE primary action on the screen. Colored shadow uses the
   // tier color (set inline on the button) tinted to ~30% so the button
@@ -454,11 +459,11 @@ const styles = StyleSheet.create({
   },
   upgradeBtnText: { color: '#fff', fontSize: Type.body.fontSize, fontWeight: '800' as const, letterSpacing: 0.2 },
   notNowBtn: { paddingVertical: 12 },
-  notNowText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  notNowText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   trustRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
     paddingHorizontal: 16,
   },
-  trustText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center' },
-  webExplain: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20, marginHorizontal: 16, marginBottom: 18 },
+  trustText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, textAlign: 'center' },
+  webExplain: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, marginHorizontal: 16, marginBottom: 18 },
 });

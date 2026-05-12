@@ -1,6 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 
 /**
  * Stacking-bricks construction animation used across the app wherever a
@@ -60,6 +63,8 @@ export default function ConstructionLoader({
   colorMid,
   colorBase,
 }: ConstructionLoaderProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const dims = SIZE_MAP[size];
   const brick1 = useRef(new Animated.Value(0)).current; // base (bottom)
   const brick2 = useRef(new Animated.Value(0)).current; // middle
@@ -143,9 +148,9 @@ export default function ConstructionLoader({
     };
   };
 
-  const top = colorTop ?? Colors.primary;
-  const mid = colorMid ?? Colors.primary + 'CC';
-  const base = colorBase ?? Colors.primary + '99';
+  const top = colorTop ?? themeColors.accent;
+  const mid = colorMid ?? themeColors.accent + 'CC';
+  const base = colorBase ?? themeColors.accent + '99';
 
   return (
     <View
@@ -216,7 +221,7 @@ export default function ConstructionLoader({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -232,7 +237,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   label: {
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
     letterSpacing: 0.2,
   },

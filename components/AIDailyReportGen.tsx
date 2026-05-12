@@ -5,6 +5,9 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { generateDailyReport, type DailyReportGenResult } from '@/utils/aiService';
 import type { ScheduleTask } from '@/types';
 import { Tokens } from '@/constants/designTokens';
@@ -18,6 +21,7 @@ interface Props {
 }
 
 export default React.memo(function AIDailyReportGen({ projectName, tasks, weatherStr, onGenerated }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGenerate = useCallback(async () => {
@@ -38,9 +42,9 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
   return (
     <TouchableOpacity style={styles.btn} onPress={handleGenerate} disabled={isLoading}>
       {isLoading ? (
-        <ActivityIndicator size="small" color={Colors.surface} />
+        <ActivityIndicator size="small" color={"#FFFFFF"} />
       ) : (
-        <Sparkles size={16} color={Colors.surface} />
+        <Sparkles size={16} color={"#FFFFFF"} />
       )}
       <Text style={styles.btnText}>
         {isLoading ? 'Generating...' : 'Auto-Generate from Schedule'}
@@ -49,7 +53,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   btn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -57,13 +61,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.card,
     marginVertical: 8,
   },
   btnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
 });

@@ -18,6 +18,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Ruler, Square, DoorOpen, AppWindow, Paintbrush, Wrench, Boxes, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { TakeoffResult } from '@/types';
 import type { RenderedPlanPage } from '@/utils/pdfRenderClient';
 import { Type } from '@/constants/typography';
@@ -55,6 +58,8 @@ const CATEGORY_META: Record<RelatedRow['category'], { Icon: React.ComponentType<
 function TakeoffPageInspectorImpl({
   visible, onClose, initialPage, pages, takeoff,
 }: TakeoffPageInspectorProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [activePage, setActivePage] = useState(initialPage);
   const [zoom, setZoom] = useState(1);
@@ -140,7 +145,7 @@ function TakeoffPageInspectorImpl({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent={false}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               Page {activePage}{drawingMeta ? ` · ${drawingMeta.type}` : ''}
@@ -151,11 +156,11 @@ function TakeoffPageInspectorImpl({
           </View>
           <View style={styles.zoomGroup}>
             <TouchableOpacity onPress={() => setZoom(z => Math.max(0.5, z - 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom out">
-              <ZoomOut size={18} color={Colors.text} />
+              <ZoomOut size={18} color={themeColors.text} />
             </TouchableOpacity>
             <Text style={styles.zoomText}>{Math.round(zoom * 100)}%</Text>
             <TouchableOpacity onPress={() => setZoom(z => Math.min(3, z + 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom in">
-              <ZoomIn size={18} color={Colors.text} />
+              <ZoomIn size={18} color={themeColors.text} />
             </TouchableOpacity>
           </View>
         </View>
@@ -186,7 +191,7 @@ function TakeoffPageInspectorImpl({
                   />
                 ) : (
                   <View style={styles.imageLoading}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <ActivityIndicator size="small" color={themeColors.accent} />
                     <Text style={styles.imageLoadingText}>No render available for this page.</Text>
                   </View>
                 )}
@@ -234,11 +239,11 @@ function TakeoffPageInspectorImpl({
               {relatedRows.map((r, idx) => {
                 const meta = CATEGORY_META[r.category];
                 const Icon = meta.Icon;
-                const confColor = r.confidence === 'high' ? Colors.success : r.confidence === 'medium' ? Colors.warning : Colors.error;
+                const confColor = r.confidence === 'high' ? themeColors.success : r.confidence === 'medium' ? Colors.warning : themeColors.danger;
                 return (
                   <View key={idx} style={styles.sidebarRow}>
                     <View style={styles.sidebarRowIcon}>
-                      <Icon size={12} color={Colors.primary} />
+                      <Icon size={12} color={themeColors.accent} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.sidebarRowTitle} numberOfLines={2}>{r.title}</Text>
@@ -269,23 +274,23 @@ function formatNum(n: number): string {
 
 export const TakeoffPageInspector = memo(TakeoffPageInspectorImpl);
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
     backgroundColor: Colors.card,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
-  headerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  headerSubtitle: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  headerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  headerSubtitle: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   zoomGroup: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  zoomText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, minWidth: 38, textAlign: 'center' },
+  zoomText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, minWidth: 38, textAlign: 'center' },
 
   body: { flex: 1, flexDirection: 'column' },
   bodyWide: { flexDirection: 'row' },
@@ -314,27 +319,27 @@ const styles = StyleSheet.create({
 
   sidebar: {
     height: 240, padding: 12,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1, borderTopColor: t.line,
     backgroundColor: Colors.card,
   },
-  sidebarWide: { width: 320, height: '100%', borderTopWidth: 0, borderLeftWidth: 1, borderLeftColor: Colors.border },
-  sidebarTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  sidebarHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, marginBottom: 8, lineHeight: 15 },
+  sidebarWide: { width: 320, height: '100%', borderTopWidth: 0, borderLeftWidth: 1, borderLeftColor: t.line },
+  sidebarTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
+  sidebarHelper: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, marginBottom: 8, lineHeight: 15 },
   sidebarScroll: { flex: 1 },
-  sidebarEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 12, textAlign: 'center' },
+  sidebarEmpty: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic', paddingVertical: 12, textAlign: 'center' },
   sidebarRow: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
     paddingVertical: 8, paddingHorizontal: 4,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1, borderTopColor: t.line,
   },
   sidebarRowIcon: {
     width: 22, height: 22, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     alignItems: 'center', justifyContent: 'center',
   },
-  sidebarRowTitle: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 16 },
+  sidebarRowTitle: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.text, lineHeight: 16 },
   sidebarRowMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  sidebarRowQty: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
+  sidebarRowQty: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
   sidebarRowPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
   sidebarRowPillText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
 });

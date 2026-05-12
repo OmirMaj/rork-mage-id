@@ -4,6 +4,9 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Sparkles, CalendarDays, Link2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { generateScheduleFromEstimate } from '@/utils/autoScheduleFromEstimate';
 import type { Project, LinkedEstimate } from '@/types';
 import { Type } from '@/constants/typography';
@@ -17,6 +20,8 @@ interface AIAutoScheduleButtonProps {
 }
 
 export default function AIAutoScheduleButton({ project, estimate, onScheduleCreated, testID }: AIAutoScheduleButtonProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -65,7 +70,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
     <View style={styles.container} testID={testID}>
       <View style={styles.header}>
         <View style={styles.iconWrap}>
-          <Sparkles size={16} color={Colors.accent} />
+          <Sparkles size={16} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Auto-Schedule from Estimate</Text>
@@ -77,11 +82,11 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
 
       <View style={styles.benefitsRow}>
         <View style={styles.benefitChip}>
-          <CalendarDays size={11} color={Colors.primary} />
+          <CalendarDays size={11} color={themeColors.accent} />
           <Text style={styles.benefitText}>Realistic durations</Text>
         </View>
         <View style={styles.benefitChip}>
-          <Link2 size={11} color={Colors.primary} />
+          <Link2 size={11} color={themeColors.accent} />
           <Text style={styles.benefitText}>Linked to estimate items</Text>
         </View>
       </View>
@@ -109,22 +114,22 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.accent + '0C',
+    backgroundColor: t.accent + '0C',
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.accent + '30',
+    borderColor: t.accent + '30',
   },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
-  iconWrap: { width: 32, height: 32, borderRadius: Tokens.radius.md, backgroundColor: Colors.accent + '20', alignItems: 'center' as const, justifyContent: 'center' as const },
-  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  iconWrap: { width: 32, height: 32, borderRadius: Tokens.radius.md, backgroundColor: t.accent + '20', alignItems: 'center' as const, justifyContent: 'center' as const },
+  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2, lineHeight: 16 },
   benefitsRow: { flexDirection: 'row' as const, gap: 6, flexWrap: 'wrap' as const },
-  benefitChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary + '12' },
-  benefitText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '600' as const },
-  actionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.accent },
+  benefitChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: t.accent + '12' },
+  benefitText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '600' as const },
+  actionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
   actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

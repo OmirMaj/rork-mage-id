@@ -31,6 +31,9 @@ import {
 } from 'react-native';
 import { Mic, Sparkles, AlertCircle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import VoiceCaptureModal from './VoiceCaptureModal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -66,6 +69,8 @@ export default function InlineVoiceFill({
   onTranscript,
   onFilled,
 }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [filledMsg, setFilledMsg] = useState<string | null>(null);
@@ -102,24 +107,24 @@ export default function InlineVoiceFill({
         testID="inline-voice-fill-btn"
       >
         {busy ? (
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
         ) : (
-          <Mic size={16} color={Colors.primary} />
+          <Mic size={16} color={themeColors.accent} />
         )}
         <Text style={styles.btnText}>{busy ? 'Reading what you said…' : buttonLabel}</Text>
-        {!busy && <Sparkles size={12} color={Colors.primary} />}
+        {!busy && <Sparkles size={12} color={themeColors.accent} />}
       </TouchableOpacity>
 
       {!!filledMsg && !busy && (
         <View style={styles.successCard}>
-          <Sparkles size={13} color={Colors.success} />
+          <Sparkles size={13} color={themeColors.success} />
           <Text style={styles.successText}>{filledMsg}</Text>
         </View>
       )}
 
       {!!errorMsg && !busy && (
         <View style={styles.errorCard}>
-          <AlertCircle size={13} color={Colors.error} />
+          <AlertCircle size={13} color={themeColors.danger} />
           <Text style={styles.errorText}>{errorMsg}</Text>
         </View>
       )}
@@ -136,17 +141,17 @@ export default function InlineVoiceFill({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   btn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     borderRadius: Tokens.radius.card,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: t.accent + '30',
     alignSelf: 'flex-start',
     marginBottom: 8,
   },
@@ -156,38 +161,38 @@ const styles = StyleSheet.create({
   btnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   successCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.success + '12',
+    backgroundColor: t.success + '12',
     borderRadius: Tokens.radius.md,
     padding: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.success + '30',
+    borderColor: t.success + '30',
   },
   successText: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   errorCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.error + '12',
+    backgroundColor: t.danger + '12',
     borderRadius: Tokens.radius.md,
     padding: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: Colors.error + '30',
+    borderColor: t.danger + '30',
   },
   errorText: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
 });

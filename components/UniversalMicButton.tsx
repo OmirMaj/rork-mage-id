@@ -11,6 +11,9 @@ import {
   CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -39,6 +42,8 @@ interface Props {
 type Step = 'idle' | 'recording' | 'parsing' | 'reviewing' | 'creating';
 
 export default function UniversalMicButton({ projectId, variant = 'fab' }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // Hook order is fixed regardless of project availability, so the same
   // hooks run every render even before the user has a project. The FAB
   // visually no-ops when there's nothing to scope to.
@@ -428,7 +433,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           activeOpacity={0.85}
           testID="universal-mic-inline"
         >
-          <Mic size={16} color={Colors.primary} />
+          <Mic size={16} color={themeColors.accent} />
           <Text style={styles.inlineBtnText}>Voice action</Text>
         </TouchableOpacity>
       )}
@@ -441,7 +446,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                 <Text style={styles.modalEyebrow}>Speak it, we&apos;ll draft it</Text>
                 <Text style={styles.modalTitle}>Voice action</Text>
               </View>
-              <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+              <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
             </View>
 
             {/* Project picker — render any time the user hasn't pinned
@@ -505,7 +510,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
 
             {(step === 'parsing' || step === 'creating') && (
               <View style={styles.parsingWrap}>
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <ActivityIndicator size="small" color={themeColors.accent} />
                 <Text style={styles.parsingText}>{step === 'parsing' ? 'Reading what you said…' : 'Saving your draft…'}</Text>
               </View>
             )}
@@ -515,7 +520,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                 <View style={styles.previewCard}>
                   <View style={styles.previewHead}>
                     <View style={[styles.previewIconWrap, parsed.kind === 'unsure' && { backgroundColor: '#FFF4E0' }]}>
-                      <KindIcon size={18} color={parsed.kind === 'unsure' ? '#C26A00' : Colors.primary} />
+                      <KindIcon size={18} color={parsed.kind === 'unsure' ? '#C26A00' : themeColors.accent} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.previewKind}>{kindLabel}</Text>
@@ -663,6 +668,8 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
 }
 
 function PreviewField({ label, value, multi, small }: { label: string; value: string; multi?: boolean; small?: boolean }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.field, small && styles.fieldSmall]}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -674,12 +681,12 @@ function PreviewField({ label, value, multi, small }: { label: string; value: st
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fab: {
     position: 'absolute', right: 20,
     width: 46, height: 46, borderRadius: 23,
     // Ink/black to clearly differentiate from the amber AICopilot below.
-    backgroundColor: Colors.text,
+    backgroundColor: t.text,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -691,97 +698,97 @@ const styles = StyleSheet.create({
   inlineBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary + '40',
+    backgroundColor: t.accent + '15', borderWidth: 1, borderColor: t.accent + '40',
   },
-  inlineBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
+  inlineBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
 
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(11,13,16,0.55)',
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     padding: 22, paddingBottom: 36,
     minHeight: 360,
   },
   modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
-  modalEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, letterSpacing: -0.4 },
+  modalEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginTop: 4, letterSpacing: -0.4 },
   closeBtn: {
-    width: 32, height: 32, borderRadius: 9, borderWidth: 1, borderColor: Colors.border,
+    width: 32, height: 32, borderRadius: 9, borderWidth: 1, borderColor: t.line,
     backgroundColor: Colors.card, alignItems: 'center', justifyContent: 'center',
   },
 
   pickerWrap: { marginBottom: 12 },
-  pickerLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  pickerLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
   pickerRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   pickerChip: {
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     maxWidth: 220,
   },
-  pickerChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  pickerChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text },
+  pickerChipActive: { backgroundColor: t.text, borderColor: t.text },
+  pickerChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.text },
   pickerChipTextActive: { color: '#FFF' },
-  projectHint: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 12 },
-  projectHintEmph: { color: Colors.text, fontWeight: '700' },
+  projectHint: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginBottom: 12 },
+  projectHintEmph: { color: t.text, fontWeight: '700' },
   projectHintWarn: { fontSize: Type.footnote.fontSize, color: Colors.warning, marginBottom: 12, fontWeight: '600' },
 
   bodyWrap: { gap: 12 },
   tipsBox: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  tipsTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 },
-  tipsLine: { fontSize: 12.5, color: Colors.text, lineHeight: 18, marginBottom: 4, fontStyle: 'italic' },
+  tipsTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 },
+  tipsLine: { fontSize: 12.5, color: t.text, lineHeight: 18, marginBottom: 4, fontStyle: 'italic' },
 
   parsingWrap: { alignItems: 'center', justifyContent: 'center', padding: 30, gap: 12 },
-  parsingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  parsingText: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontWeight: '600' },
 
   previewCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, gap: 10,
+    borderWidth: 1, borderColor: t.line, gap: 10,
   },
   previewHead: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 4 },
   previewIconWrap: {
     width: 36, height: 36, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  previewKind: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.6 },
-  previewReason: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginTop: 2 },
-  previewBody: { gap: 8, paddingTop: 4, borderTopWidth: 1, borderTopColor: Colors.border },
+  previewKind: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, textTransform: 'uppercase', letterSpacing: 0.6 },
+  previewReason: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18, marginTop: 2 },
+  previewBody: { gap: 8, paddingTop: 4, borderTopWidth: 1, borderTopColor: t.line },
   previewMetaRow: { flexDirection: 'row', gap: 12 },
-  previewNote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' },
-  unsureText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  previewNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic' },
+  unsureText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
 
   field: { marginBottom: 4 },
   fieldSmall: { flex: 1 },
-  fieldLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
-  fieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  fieldLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
+  fieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
 
   lineItemRow: {
     flexDirection: 'row', justifyContent: 'space-between', gap: 8,
-    paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  lineItemName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
-  lineItemQty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  lineItemAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, fontVariant: ['tabular-nums'] },
+  lineItemName: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' },
+  lineItemQty: { fontSize: Type.caption1.fontSize, color: t.textMuted },
+  lineItemAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, fontVariant: ['tabular-nums'] },
 
   ctaRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   ctaSecondary: {
     flex: 1, paddingVertical: 13, borderRadius: 11,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center',
   },
-  ctaSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  ctaSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   ctaPrimary: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 13, borderRadius: 11,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   ctaPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
 
-  errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, marginTop: 6, fontWeight: '600' },
+  errorText: { fontSize: Type.caption1.fontSize, color: t.danger, marginTop: 6, fontWeight: '600' },
 });

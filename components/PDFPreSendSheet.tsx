@@ -9,6 +9,9 @@ import {
   X, FileText, Send, Mail, ChevronDown, ChevronUp, User, BookUser,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import type { Contact, PDFNamingSettings } from '@/types';
 import { Type } from '@/constants/typography';
@@ -162,6 +165,8 @@ export default function PDFPreSendSheet({
   pdfNaming,
   onPdfNumberUsed,
 }: PDFPreSendSheetProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   const [fileName, setFileName] = useState('');
@@ -227,7 +232,7 @@ export default function PDFPreSendSheet({
                 <Text style={styles.headerTitle}>Send {docLabel}</Text>
                 <Text style={styles.headerSubtitle}>{projectName}</Text>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} /></TouchableOpacity>
             </View>
 
             <ScrollView
@@ -237,13 +242,13 @@ export default function PDFPreSendSheet({
             >
               <Text style={styles.fieldLabel}>FILE NAME</Text>
               <View style={styles.fileNameRow}>
-                <FileText size={16} color={Colors.primary} />
+                <FileText size={16} color={themeColors.accent} />
                 <TextInput
                   style={styles.fileNameInput}
                   value={fileName}
                   onChangeText={setFileName}
                   placeholder="Document name"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   testID="pdf-filename-input"
                 />
                 <Text style={styles.pdfExt}>.pdf</Text>
@@ -259,8 +264,8 @@ export default function PDFPreSendSheet({
                   {sections.filter(s => s.enabled).length} of {sections.length} sections selected
                 </Text>
                 {showSections
-                  ? <ChevronUp size={16} color={Colors.textSecondary} />
-                  : <ChevronDown size={16} color={Colors.textSecondary} />
+                  ? <ChevronUp size={16} color={themeColors.textSecondary} />
+                  : <ChevronDown size={16} color={themeColors.textSecondary} />
                 }
               </TouchableOpacity>
               {showSections && (
@@ -271,8 +276,8 @@ export default function PDFPreSendSheet({
                       <Switch
                         value={section.enabled}
                         onValueChange={() => toggleSection(section.id)}
-                        trackColor={{ false: Colors.fillTertiary, true: Colors.primary + '50' }}
-                        thumbColor={section.enabled ? Colors.primary : Colors.textMuted}
+                        trackColor={{ false: themeColors.surfaceAlt, true: themeColors.accent + '50' }}
+                        thumbColor={section.enabled ? themeColors.accent : themeColors.textMuted}
                       />
                     </View>
                   ))}
@@ -282,7 +287,7 @@ export default function PDFPreSendSheet({
               <Text style={styles.fieldLabel}>RECIPIENT</Text>
               {recipientName ? (
                 <View style={styles.selectedRecipient}>
-                  <User size={14} color={Colors.primary} />
+                  <User size={14} color={themeColors.accent} />
                   <View style={styles.selectedRecipientInfo}>
                     <Text style={styles.selectedRecipientName}>{recipientName}</Text>
                     <Text style={styles.selectedRecipientEmail}>{recipient}</Text>
@@ -290,18 +295,18 @@ export default function PDFPreSendSheet({
                   <TouchableOpacity
                     onPress={() => { setRecipient(''); setRecipientName(''); }}
                     style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={Colors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.recipientRow}>
-                  <User size={16} color={Colors.textMuted} />
+                  <User size={16} color={themeColors.textMuted} />
                   <TextInput
                     style={styles.recipientInput}
                     value={recipient}
                     onChangeText={setRecipient}
                     placeholder="client@email.com"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     testID="pdf-recipient-input"
@@ -315,7 +320,7 @@ export default function PDFPreSendSheet({
                   activeOpacity={0.7}
                   testID="pdf-pick-contact-btn"
                 >
-                  <BookUser size={14} color={Colors.primary} />
+                  <BookUser size={14} color={themeColors.accent} />
                   <Text style={styles.pickContactText}>Pick from Contacts</Text>
                 </TouchableOpacity>
               ) : null}
@@ -326,7 +331,7 @@ export default function PDFPreSendSheet({
                 value={message}
                 onChangeText={setMessage}
                 placeholder="Add a note to the recipient..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 textAlignVertical="top"
                 testID="pdf-message-input"
@@ -343,7 +348,7 @@ export default function PDFPreSendSheet({
                   activeOpacity={0.85}
                   testID="pdf-send-email-btn"
                 >
-                  <Mail size={16} color={Colors.textOnPrimary} />
+                  <Mail size={16} color={'#FFFFFF'} />
                   <Text style={styles.emailBtnText}>Send via Email</Text>
                 </TouchableOpacity>
               ) : null}
@@ -353,7 +358,7 @@ export default function PDFPreSendSheet({
                 activeOpacity={0.85}
                 testID="pdf-share-btn"
               >
-                <Send size={16} color={recipient.trim() ? Colors.primary : Colors.textOnPrimary} />
+                <Send size={16} color={recipient.trim() ? themeColors.accent : '#FFFFFF'} />
                 <Text style={[styles.shareBtnText, !recipient.trim() && styles.shareBtnTextFull]}>
                   {recipient.trim() ? 'Share Sheet' : 'Generate & Share'}
                 </Text>
@@ -381,7 +386,7 @@ export default function PDFPreSendSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
@@ -391,7 +396,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     maxHeight: '85%',
@@ -400,7 +405,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignSelf: 'center',
     marginTop: 10,
     marginBottom: 6,
@@ -412,23 +417,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   headerTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   headerSubtitle: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginTop: 2,
   },
   closeBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -439,7 +444,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.8,
     marginBottom: 6,
     marginTop: 14,
@@ -452,18 +457,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   fileNameInput: {
     flex: 1,
     height: 48,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '500' as const,
   },
   pdfExt: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '600' as const,
   },
   sectionsToggle: {
@@ -475,11 +480,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   sectionsToggleText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '500' as const,
   },
   sectionsList: {
@@ -488,7 +493,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   sectionRow: {
     flexDirection: 'row',
@@ -496,11 +501,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   sectionLabel: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '500' as const,
   },
   recipientRow: {
@@ -511,24 +516,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   recipientInput: {
     flex: 1,
     height: 48,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   selectedRecipient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.primary + '25',
+    borderColor: t.accent + '25',
   },
   selectedRecipientInfo: {
     flex: 1,
@@ -537,17 +542,17 @@ const styles = StyleSheet.create({
   selectedRecipientName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   selectedRecipientEmail: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   clearRecipientBtn: {
     width: 24,
     height: 24,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -560,12 +565,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
   },
   pickContactText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   messageInput: {
     minHeight: 80,
@@ -574,9 +579,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 12,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   footer: {
     flexDirection: 'row',
@@ -584,7 +589,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 10,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   emailBtn: {
     flex: 2,
@@ -592,14 +597,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
   emailBtnText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
   },
   shareBtn: {
     flex: 1,
@@ -607,20 +612,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
   shareBtnFull: {
     flex: 1,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   shareBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   shareBtnTextFull: {
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
   },
 });

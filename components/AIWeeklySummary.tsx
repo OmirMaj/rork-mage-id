@@ -7,6 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Sparkles, X, TrendingUp, AlertTriangle, CheckCircle2, Share2, Wrench, Target, Zap } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { generateWeeklySummary, type WeeklySummaryResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -22,10 +25,10 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  on_track: { icon: CheckCircle2, color: Colors.success, label: 'ON TRACK', bg: Colors.successLight },
+  on_track: { icon: CheckCircle2, color: "#2E7D44", label: 'ON TRACK', bg: Colors.successLight },
   at_risk: { icon: AlertTriangle, color: Colors.warning, label: 'AT RISK', bg: Colors.warningLight },
-  behind: { icon: AlertTriangle, color: Colors.error, label: 'BEHIND', bg: Colors.errorLight },
-  ahead: { icon: TrendingUp, color: Colors.info, label: 'AHEAD', bg: Colors.infoLight },
+  behind: { icon: AlertTriangle, color: "#C84038", label: 'BEHIND', bg: Colors.errorLight },
+  ahead: { icon: TrendingUp, color: "#1565C0", label: 'AHEAD', bg: Colors.infoLight },
 } as const;
 
 const SEVERITY_CONFIG = {
@@ -46,6 +49,8 @@ function formatCurrency(n: number): string {
 }
 
 export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { tier: subscriptionTier } = useSubscription();
   const [result, setResult] = useState<WeeklySummaryResult | null>(null);
@@ -89,15 +94,15 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Sparkles size={18} color={Colors.primary} />
+            <Sparkles size={18} color={"#FF6A1A"} />
             <Text style={styles.headerTitle}>Full Project Analysis</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={"#9AA3AD"} /></TouchableOpacity>
         </View>
 
         {paywallReason ? (
           <View style={styles.loadingState}>
-            <Sparkles size={40} color={Colors.primary} />
+            <Sparkles size={40} color={"#FF6A1A"} />
             <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>Pro Feature</Text>
             <Text style={[styles.loadingSubtext, { marginTop: 8, textAlign: 'center', paddingHorizontal: 24 }]}>{paywallReason}</Text>
           </View>
@@ -120,7 +125,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                   <Text style={styles.overviewLabel}>Active</Text>
                 </View>
                 <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: Colors.success }]}>{result.portfolioSummary?.onTrack ?? 0}</Text>
+                  <Text style={[styles.overviewValue, { color: "#2E7D44" }]}>{result.portfolioSummary?.onTrack ?? 0}</Text>
                   <Text style={styles.overviewLabel}>On Track</Text>
                 </View>
                 <View style={styles.overviewItem}>
@@ -144,7 +149,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             {(result.criticalIssues ?? []).length > 0 ? (
               <View style={styles.issuesSection}>
                 <View style={styles.issuesHeader}>
-                  <AlertTriangle size={16} color={Colors.error} />
+                  <AlertTriangle size={16} color={"#C84038"} />
                   <Text style={styles.issuesTitle}>Issues breakdown</Text>
                   <View style={styles.issuesCountPill}>
                     <Text style={styles.issuesCountText}>{result.criticalIssues.length}</Text>
@@ -212,7 +217,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
               </View>
             ) : (
               <View style={styles.noIssuesCard}>
-                <CheckCircle2 size={20} color={Colors.success} />
+                <CheckCircle2 size={20} color={"#2E7D44"} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.noIssuesTitle}>Nothing critical to flag</Text>
                   <Text style={styles.noIssuesBody}>
@@ -239,7 +244,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                     <Text style={styles.progressLabel}>Progress:</Text>
                     <Text style={styles.progressValue}>
                       {proj.progressStart}% → {proj.progressEnd}%{' '}
-                      <Text style={{ color: Colors.success }}>
+                      <Text style={{ color: "#2E7D44" }}>
                         (+{proj.progressEnd - proj.progressStart}% this week)
                       </Text>
                     </Text>
@@ -262,7 +267,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
 
             {result.overallRecommendation ? (
               <View style={styles.overallRec}>
-                <Sparkles size={14} color={Colors.primary} />
+                <Sparkles size={14} color={"#FF6A1A"} />
                 <Text style={styles.overallRecText}>{result.overallRecommendation}</Text>
               </View>
             ) : null}
@@ -279,10 +284,10 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   header: {
     flexDirection: 'row',
@@ -291,8 +296,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderBottomColor: t.line,
+    backgroundColor: t.surface,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -302,7 +307,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   loadingState: {
     flex: 1,
@@ -313,11 +318,11 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   loadingSubtext: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   scroll: {
     flex: 1,
@@ -329,7 +334,7 @@ const styles = StyleSheet.create({
   },
   weekBadge: {
     alignSelf: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: Tokens.radius.card,
@@ -337,20 +342,20 @@ const styles = StyleSheet.create({
   weekText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   overviewCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
     gap: 12,
   },
   sectionLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 1,
   },
   overviewGrid: {
@@ -367,11 +372,11 @@ const styles = StyleSheet.create({
   overviewValue: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   overviewLabel: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   combinedValue: {
@@ -380,23 +385,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 8,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   combinedLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   combinedAmount: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   projectCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
     gap: 8,
   },
   projectHeader: {
@@ -407,7 +412,7 @@ const styles = StyleSheet.create({
   projectName: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     flex: 1,
   },
   statusBadge: {
@@ -428,26 +433,26 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   progressValue: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '600' as const,
   },
   progressBar: {
     height: 6,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: 3,
   },
   progressFill: {
     height: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: 3,
   },
   keyLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   riskLabel: {
     fontSize: Type.footnote.fontSize,
@@ -455,27 +460,27 @@ const styles = StyleSheet.create({
   },
   recLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
   },
   overallRec: {
     flexDirection: 'row',
     gap: 8,
     padding: 16,
-    backgroundColor: `${Colors.primary}08`,
+    backgroundColor: `${t.accent}08`,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: `${Colors.primary}15`,
+    borderColor: `${t.accent}15`,
   },
   overallRecText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 20,
     flex: 1,
   },
   aiDisclaimer: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center',
     marginTop: 8,
   },
@@ -495,34 +500,34 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.2,
   },
   issuesCountPill: {
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.error + '15',
+    backgroundColor: t.danger + '15',
   },
   issuesCountText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.error,
+    color: t.danger,
     letterSpacing: 0.4,
   },
   issuesHelper: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginBottom: 12,
     lineHeight: 17,
   },
   issueCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     borderLeftWidth: 4,
     gap: 10,
   },
@@ -545,12 +550,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   issueText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 20,
     letterSpacing: -0.1,
   },
@@ -560,7 +565,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingTop: 8,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   issueRowFix: {
     paddingTop: 10,
@@ -577,13 +582,13 @@ const styles = StyleSheet.create({
   issueRowLabel: {
     fontSize: 9,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.8,
     marginBottom: 3,
   },
   issueRowText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 18,
   },
   issueRowFixText: {
@@ -596,19 +601,19 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.success + '0D',
+    backgroundColor: t.success + '0D',
     borderWidth: 1,
-    borderColor: Colors.success + '30',
+    borderColor: t.success + '30',
     marginBottom: 16,
   },
   noIssuesTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '800' as const,
-    color: Colors.success,
+    color: t.success,
   },
   noIssuesBody: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 17,
     marginTop: 2,
   },

@@ -26,6 +26,9 @@ import {
   Users, Clock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -65,6 +68,8 @@ function SubDailyUpdateModalImpl({
   visible, onClose, task, subName, projectId, projectName,
   gcEmail, gcPhone, gcName, previousUpdate, onSubmit,
 }: SubDailyUpdateModalProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   const [progress, setProgress] = useState<string>(() => String(previousUpdate?.progressPercent ?? task?.progress ?? 0));
@@ -188,7 +193,7 @@ function SubDailyUpdateModalImpl({
               <Text style={styles.title}>Today&apos;s update</Text>
               <Text style={styles.sub}>{task.title}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView
@@ -225,7 +230,7 @@ function SubDailyUpdateModalImpl({
                 keyboardType="number-pad"
                 style={styles.numberInput}
                 placeholder="Or type exact %"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
             </View>
 
@@ -233,7 +238,7 @@ function SubDailyUpdateModalImpl({
             <View style={[styles.section, styles.row2]}>
               <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
-                  <Clock size={11} color={Colors.textMuted} />
+                  <Clock size={11} color={themeColors.textMuted} />
                   <Text style={styles.label}>Hours worked</Text>
                 </View>
                 <TextInput
@@ -242,12 +247,12 @@ function SubDailyUpdateModalImpl({
                   keyboardType="decimal-pad"
                   style={styles.numberInput}
                   placeholder="8"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
-                  <Users size={11} color={Colors.textMuted} />
+                  <Users size={11} color={themeColors.textMuted} />
                   <Text style={styles.label}>Crew on site</Text>
                 </View>
                 <TextInput
@@ -256,7 +261,7 @@ function SubDailyUpdateModalImpl({
                   keyboardType="number-pad"
                   style={styles.numberInput}
                   placeholder="3"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
               </View>
             </View>
@@ -269,7 +274,7 @@ function SubDailyUpdateModalImpl({
                 onChangeText={setNotes}
                 style={styles.textArea}
                 placeholder="Hung 22 sheets on 2F south wall. Started taping NE bedroom."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 numberOfLines={3}
               />
@@ -286,7 +291,7 @@ function SubDailyUpdateModalImpl({
                 onChangeText={setBlocker}
                 style={[styles.textArea, blocker.length > 0 && styles.textAreaWarn]}
                 placeholder="Need joint compound by tomorrow AM. Drywall finisher out sick rest of week."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 numberOfLines={2}
               />
@@ -317,7 +322,7 @@ function SubDailyUpdateModalImpl({
                   onPress={() => handleAddPhoto(Platform.OS === 'web' ? 'library' : 'camera')}
                   activeOpacity={0.85}
                 >
-                  <Camera size={18} color={Colors.primary} />
+                  <Camera size={18} color={themeColors.accent} />
                   <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
                 </TouchableOpacity>
                 {Platform.OS !== 'web' && (
@@ -326,7 +331,7 @@ function SubDailyUpdateModalImpl({
                     onPress={() => handleAddPhoto('library')}
                     activeOpacity={0.85}
                   >
-                    <Plus size={18} color={Colors.primary} />
+                    <Plus size={18} color={themeColors.accent} />
                     <Text style={styles.photoAddLabel}>Library</Text>
                   </TouchableOpacity>
                 )}
@@ -366,21 +371,21 @@ function SubDailyUpdateModalImpl({
 
 export const SubDailyUpdateModal = memo(SubDailyUpdateModalImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   card: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     paddingHorizontal: 16, paddingTop: 10,
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border,
+    backgroundColor: t.line,
     alignSelf: 'center', marginBottom: 8,
   },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
-  title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  sub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  sub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -389,41 +394,41 @@ const styles = StyleSheet.create({
 
   section: { marginBottom: 14 },
   row2: { flexDirection: 'row', gap: 10 },
-  label: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
+  label: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
 
   // Progress
   progressBar: {
     height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     overflow: 'hidden', justifyContent: 'center',
     position: 'relative',
   },
   progressFill: {
     position: 'absolute', left: 0, top: 0, bottom: 0,
-    backgroundColor: Colors.primary + '40',
+    backgroundColor: t.accent + '40',
   },
-  progressText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, textAlign: 'center', letterSpacing: -0.2 },
+  progressText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, textAlign: 'center', letterSpacing: -0.2 },
   progressBtnRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
   progressBtn: {
     flex: 1, paddingVertical: 8, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     alignItems: 'center',
   },
-  progressBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  progressBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  progressBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
+  progressBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
 
   numberInput: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginTop: 6,
+    borderWidth: 1, borderColor: t.line,
+    padding: 12, fontSize: Type.bodyCompact.fontSize, color: t.text, marginTop: 6,
   },
 
   textArea: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    borderWidth: 1, borderColor: t.line,
+    padding: 12, fontSize: Type.bodyCompact.fontSize, color: t.text,
     minHeight: 70, textAlignVertical: 'top' as const,
   },
   textAreaWarn: {
@@ -438,7 +443,7 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: Tokens.radius.md,
     overflow: 'hidden',
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     position: 'relative',
   },
   photoImg: { width: '100%', height: '100%' },
@@ -450,22 +455,22 @@ const styles = StyleSheet.create({
   },
   photoAdd: {
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary + '0D',
-    borderColor: Colors.primary + '30', borderStyle: 'dashed',
+    backgroundColor: t.accent + '0D',
+    borderColor: t.accent + '30', borderStyle: 'dashed',
     gap: 4,
   },
-  photoAddLabel: { fontSize: 10, fontWeight: '700', color: Colors.primary },
+  photoAddLabel: { fontSize: 10, fontWeight: '700', color: t.accent },
 
-  footer: { flexDirection: 'row', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+  footer: { flexDirection: 'row', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: t.line },
   secondaryBtn: {
     flex: 1, paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     alignItems: 'center',
   },
-  secondaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  secondaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   primaryBtn: {
     flex: 1.6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
   },
   primaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 });

@@ -18,6 +18,9 @@ import {
 } from 'react-native';
 import { Mic, X, Square, Lightbulb, AlertCircle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -51,6 +54,8 @@ export default function VoiceCaptureModal({
   suggestions = [],
   topicChecklist,
 }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const recordingRef = useRef<any>(null);
@@ -271,7 +276,7 @@ export default function VoiceCaptureModal({
             <Text style={styles.title}>{title}</Text>
             {!!contextLine && <Text style={styles.contextLine}>{contextLine}</Text>}
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -282,7 +287,7 @@ export default function VoiceCaptureModal({
           {suggestions.length > 0 && (
             <View style={styles.suggestionsCard}>
               <View style={styles.suggestionsHeaderRow}>
-                <Lightbulb size={16} color={Colors.primary} />
+                <Lightbulb size={16} color={themeColors.accent} />
                 <Text style={styles.suggestionsHeader}>Try saying</Text>
               </View>
               <Text style={styles.suggestionItemHero}>
@@ -368,7 +373,7 @@ export default function VoiceCaptureModal({
 
             {!!errorMsg && (
               <View style={styles.errorCard}>
-                <AlertCircle size={16} color={Colors.error} />
+                <AlertCircle size={16} color={themeColors.danger} />
                 <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
             )}
@@ -379,10 +384,10 @@ export default function VoiceCaptureModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   header: {
     flexDirection: 'row',
@@ -391,16 +396,16 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
   },
   title: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   contextLine: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
   closeBtn: {
@@ -409,18 +414,18 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.panel,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   body: {
     padding: 20,
     gap: 24,
   },
   suggestionsCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     gap: 8,
   },
   suggestionsHeaderRow: {
@@ -432,19 +437,19 @@ const styles = StyleSheet.create({
   suggestionsHeader: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   suggestionItem: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 20,
     fontStyle: 'italic',
   },
   suggestionItemHero: {
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 22,
     fontStyle: 'italic',
     fontWeight: '500' as const,
@@ -459,25 +464,25 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.primary + '30',
+    backgroundColor: t.accent + '30',
   },
   suggestionDotActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     width: 16,
   },
   checklistCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     marginTop: 10,
     gap: 10,
   },
   checklistHeader: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '800' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 1,
     textTransform: 'uppercase',
     marginBottom: 4,
@@ -491,23 +496,23 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checklistBulletText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   checklistLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   checklistHint: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
     lineHeight: 16,
   },
@@ -524,45 +529,45 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
     elevation: 6,
   },
   bigBtnRecording: {
-    backgroundColor: Colors.error,
-    shadowColor: Colors.error,
+    backgroundColor: t.danger,
+    shadowColor: t.danger,
   },
   bigBtnProcessing: {
-    backgroundColor: Colors.textMuted,
+    backgroundColor: t.textMuted,
     shadowOpacity: 0,
   },
   bigBtnLabel: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     textAlign: 'center',
   },
   errorCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: Colors.error + '15',
+    backgroundColor: t.danger + '15',
     borderRadius: Tokens.radius.card,
     padding: 12,
     marginTop: 4,
     borderWidth: 1,
-    borderColor: Colors.error + '40',
+    borderColor: t.danger + '40',
     width: '100%',
   },
   errorText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 18,
   },
 });

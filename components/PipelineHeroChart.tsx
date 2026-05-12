@@ -21,6 +21,9 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Line as SvgLine, Circle } from 'react-native-svg';
 import { TrendingUp, TrendingDown } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
@@ -44,6 +47,8 @@ function startOfMonth(d: Date): Date {
 }
 
 const PipelineHeroChart = React.memo(function PipelineHeroChart({ projects }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const data = useMemo(() => {
     const now = new Date();
     const months: { date: Date; label: string }[] = [];
@@ -139,10 +144,10 @@ const PipelineHeroChart = React.memo(function PipelineHeroChart({ projects }: Pr
                 styles.deltaPill,
                 { backgroundColor: deltaPositive ? Colors.successLight : Colors.errorLight },
               ]}>
-                <DeltaIcon size={11} color={deltaPositive ? Colors.success : Colors.error} strokeWidth={2.4} />
+                <DeltaIcon size={11} color={deltaPositive ? "#2E7D44" : "#C84038"} strokeWidth={2.4} />
                 <Text style={[
                   styles.deltaText,
-                  { color: deltaPositive ? Colors.success : Colors.error },
+                  { color: deltaPositive ? "#2E7D44" : "#C84038" },
                 ]}>
                   {deltaPositive ? '+' : '-'}{formatMoneyShort(Math.abs(data.delta))}
                 </Text>
@@ -159,8 +164,8 @@ const PipelineHeroChart = React.memo(function PipelineHeroChart({ projects }: Pr
         <Svg width={chartW} height={chartH}>
           <Defs>
             <LinearGradient id="pipeline-fill" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor={Colors.primary} stopOpacity="0.18" />
-              <Stop offset="100%" stopColor={Colors.primary} stopOpacity="0" />
+              <Stop offset="0%" stopColor={"#FF6A1A"} stopOpacity="0.18" />
+              <Stop offset="100%" stopColor={"#FF6A1A"} stopOpacity="0" />
             </LinearGradient>
           </Defs>
           {/* Subtle gridline at the bottom — gives the line something to sit on */}
@@ -176,7 +181,7 @@ const PipelineHeroChart = React.memo(function PipelineHeroChart({ projects }: Pr
           {path ? (
             <Path
               d={path}
-              stroke={Colors.primary}
+              stroke={"#FF6A1A"}
               strokeWidth={2.5}
               fill="none"
               strokeLinejoin="round"
@@ -185,8 +190,8 @@ const PipelineHeroChart = React.memo(function PipelineHeroChart({ projects }: Pr
           ) : null}
           {dotXY ? (
             <>
-              <Circle cx={dotXY.x} cy={dotXY.y} r={6} fill={Colors.surface} />
-              <Circle cx={dotXY.x} cy={dotXY.y} r={4} fill={Colors.primary} />
+              <Circle cx={dotXY.x} cy={dotXY.y} r={6} fill={themeColors.surface} />
+              <Circle cx={dotXY.x} cy={dotXY.y} r={4} fill={"#FF6A1A"} />
             </>
           ) : null}
         </Svg>
@@ -202,14 +207,14 @@ const PipelineHeroChart = React.memo(function PipelineHeroChart({ projects }: Pr
 
 export default PipelineHeroChart;
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: {
     marginHorizontal: 20,
     marginBottom: 24,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     paddingVertical: 18,
     paddingHorizontal: 20,
     gap: 12,
@@ -226,7 +231,7 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600' as const,
     letterSpacing: 0.2,
   },
@@ -238,7 +243,7 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: Type.title1.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.6,
   },
   deltaPill: {
@@ -256,7 +261,7 @@ const styles = StyleSheet.create({
   },
   subline: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
     marginTop: 2,
   },
@@ -271,7 +276,7 @@ const styles = StyleSheet.create({
   },
   xLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
     letterSpacing: 0.3,
   },

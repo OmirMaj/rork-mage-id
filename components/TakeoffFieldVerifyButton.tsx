@@ -16,6 +16,9 @@ import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { Camera, X, MapPin, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { TakeoffFieldVerification } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -41,6 +44,8 @@ function generateId(): string {
 function TakeoffFieldVerifyButtonImpl({
   rowKey, aiQuantity, unit, existing, onCapture, onDelete,
 }: TakeoffFieldVerifyButtonProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<{
     photoUri: string;
@@ -123,8 +128,8 @@ function TakeoffFieldVerifyButtonImpl({
   if (existing) {
     const delta = existing.measuredQuantity != null
       ? existing.measuredQuantity - aiQuantity : undefined;
-    const tone = delta == null ? Colors.textMuted
-      : Math.abs(delta) / Math.max(1, aiQuantity) < 0.05 ? Colors.success
+    const tone = delta == null ? themeColors.textMuted
+      : Math.abs(delta) / Math.max(1, aiQuantity) < 0.05 ? themeColors.success
       : Colors.warning;
     return (
       <>
@@ -133,7 +138,7 @@ function TakeoffFieldVerifyButtonImpl({
           onPress={() => setViewing(true)}
           activeOpacity={0.7}
         >
-          <Check size={11} color={Colors.success} />
+          <Check size={11} color={themeColors.success} />
           {/* "Field-stamped" honestly describes what we did — captured a
               photo + (best-effort) GPS at the row. "Verified" implied we
               had reconciled the field measurement against the AI takeoff,
@@ -151,7 +156,7 @@ function TakeoffFieldVerifyButtonImpl({
               <View style={styles.modalHead}>
                 <Text style={styles.modalTitle}>Field verification</Text>
                 <TouchableOpacity onPress={() => setViewing(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={18} color={Colors.text} />
+                  <X size={18} color={themeColors.text} />
                 </TouchableOpacity>
               </View>
               <Image source={{ uri: existing.photoUri }} style={styles.modalImage} contentFit="contain" />
@@ -172,7 +177,7 @@ function TakeoffFieldVerifyButtonImpl({
                 {existing.note && <Text style={styles.modalNote}>{existing.note}</Text>}
                 {existing.latitude != null && (
                   <View style={styles.gpsRow}>
-                    <MapPin size={11} color={Colors.textMuted} />
+                    <MapPin size={11} color={themeColors.textMuted} />
                     <Text style={styles.gpsText}>
                       {existing.latitude.toFixed(5)}, {existing.longitude?.toFixed(5)}
                     </Text>
@@ -208,7 +213,7 @@ function TakeoffFieldVerifyButtonImpl({
         disabled={busy}
         activeOpacity={0.7}
       >
-        <Camera size={11} color={Colors.primary} />
+        <Camera size={11} color={themeColors.accent} />
         <Text style={styles.btnText}>Verify on site</Text>
       </TouchableOpacity>
 
@@ -219,7 +224,7 @@ function TakeoffFieldVerifyButtonImpl({
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Verify quantity</Text>
               <TouchableOpacity onPress={() => setDraft(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             {draft?.photoUri && (
@@ -232,7 +237,7 @@ function TakeoffFieldVerifyButtonImpl({
                 onChangeText={t => setDraft(d => d ? { ...d, measured: t } : d)}
                 keyboardType="decimal-pad"
                 placeholder={`AI says ${Math.round(aiQuantity)}`}
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 style={styles.modalInput}
               />
               <Text style={styles.modalLabel}>Note (optional)</Text>
@@ -240,13 +245,13 @@ function TakeoffFieldVerifyButtonImpl({
                 value={draft?.note ?? ''}
                 onChangeText={t => setDraft(d => d ? { ...d, note: t } : d)}
                 placeholder="e.g. Bowed wall, used 25 ft tape"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 style={[styles.modalInput, { minHeight: 60 }]}
                 multiline
               />
               {draft?.lat != null && (
                 <View style={styles.gpsRow}>
-                  <MapPin size={11} color={Colors.success} />
+                  <MapPin size={11} color={themeColors.success} />
                   <Text style={styles.gpsText}>GPS attached</Text>
                 </View>
               )}
@@ -264,18 +269,18 @@ function TakeoffFieldVerifyButtonImpl({
 
 export const TakeoffFieldVerifyButton = memo(TakeoffFieldVerifyButtonImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   btn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '20',
   },
-  btnText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' },
+  btnText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '700' },
   btnVerified: {
-    backgroundColor: Colors.success + '0D', borderColor: Colors.success + '30',
+    backgroundColor: t.success + '0D', borderColor: t.success + '30',
   },
-  btnVerifiedText: { fontSize: Type.caption2.fontSize, color: Colors.success, fontWeight: '700' },
+  btnVerifiedText: { fontSize: Type.caption2.fontSize, color: t.success, fontWeight: '700' },
   btnDeltaText: { fontSize: 10, fontWeight: '800', marginLeft: 2 },
 
   modalBackdrop: {
@@ -285,45 +290,45 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '100%', maxWidth: 460,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.panel,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.panel,
+    borderWidth: 1, borderColor: t.line,
     overflow: 'hidden',
   },
   modalHead: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    padding: 14, borderBottomWidth: 1, borderBottomColor: t.line,
     backgroundColor: Colors.card,
   },
-  modalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  modalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
   modalImage: { width: '100%', height: 220, backgroundColor: '#1a1a1a' },
   modalBody: { padding: 14, gap: 8 },
-  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
   modalInput: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12,
-    borderWidth: 1, borderColor: Colors.border,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    borderWidth: 1, borderColor: t.line,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
-  modalNote: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16, fontStyle: 'italic' },
+  modalNote: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 16, fontStyle: 'italic' },
   gpsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  gpsText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
-  timestampText: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  gpsText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
+  timestampText: { fontSize: 10, color: t.textMuted, marginTop: 4 },
   commitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: 14, backgroundColor: Colors.primary,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    padding: 14, backgroundColor: t.accent,
+    borderTopWidth: 1, borderTopColor: t.line,
   },
   commitBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
-  deleteBtn: { padding: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border },
-  deleteBtnText: { color: Colors.error, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  deleteBtn: { padding: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: t.line },
+  deleteBtnText: { color: t.danger, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   compareRow: {
     flexDirection: 'row', alignItems: 'stretch', gap: 0,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     overflow: 'hidden',
   },
   compareItem: { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  compareLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  compareValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  compareDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border },
+  compareLabel: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  compareValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  compareDivider: { width: 1, alignSelf: 'stretch', backgroundColor: t.line },
 });

@@ -15,6 +15,9 @@ import {
 } from 'react-native';
 import { Sparkles, Hammer } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -50,6 +53,8 @@ const FUN_FACTS: string[] = [
 ];
 
 export default function EstimateLoadingOverlay({ visible, title, subtitle }: Props) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [factIdx, setFactIdx] = useState(0);
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
@@ -111,7 +116,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle }: Pro
         <View style={styles.card}>
           <View style={styles.iconStack}>
             <Animated.View style={[styles.iconRing, { transform: [{ rotate }] }]}>
-              <Hammer size={28} color={Colors.primary} />
+              <Hammer size={28} color={themeColors.accent} />
             </Animated.View>
             <View style={styles.iconBadge}>
               <Sparkles size={11} color="#FFF" />
@@ -142,6 +147,8 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle }: Pro
 }
 
 function Dot({ a }: { a: Animated.Value }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const translateY = a.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
   const opacity    = a.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
   return (
@@ -151,7 +158,7 @@ function Dot({ a }: { a: Animated.Value }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(11, 13, 16, 0.86)',
@@ -162,7 +169,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 22,
     paddingVertical: 28,
     paddingHorizontal: 24,
@@ -179,25 +186,25 @@ const styles = StyleSheet.create({
   },
   iconRing: {
     width: 72, height: 72, borderRadius: 22,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: Colors.primary + '30',
+    borderWidth: 1.5, borderColor: t.accent + '30',
   },
   iconBadge: {
     position: 'absolute',
     top: -4, right: -4,
     width: 22, height: 22, borderRadius: 11,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: Colors.surface,
+    borderWidth: 2, borderColor: t.surface,
   },
   title: {
     fontSize: 19, fontWeight: '800',
-    color: Colors.text, letterSpacing: -0.3,
+    color: t.text, letterSpacing: -0.3,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: Type.footnote.fontSize, color: Colors.textSecondary,
+    fontSize: Type.footnote.fontSize, color: t.textSecondary,
     textAlign: 'center', lineHeight: 19, maxWidth: 300,
   },
   dotsRow: {
@@ -206,22 +213,22 @@ const styles = StyleSheet.create({
   },
   dot: {
     width: 8, height: 8, borderRadius: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   factCard: {
     width: '100%',
     paddingHorizontal: 16, paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillSecondary,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
     gap: 8,
   },
   factLabel: {
     fontSize: 10, fontWeight: '800',
-    color: Colors.primary, letterSpacing: 1.4,
+    color: t.accent, letterSpacing: 1.4,
   },
   factText: {
-    fontSize: Type.footnote.fontSize, color: Colors.text,
+    fontSize: Type.footnote.fontSize, color: t.text,
     lineHeight: 19,
   },
 });

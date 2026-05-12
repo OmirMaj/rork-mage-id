@@ -10,6 +10,9 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { Trash2, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -28,6 +31,8 @@ export default function SignaturePad({
   width = 300,
   height = 150,
 }: SignaturePadProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [paths, setPaths] = useState<string[]>(initialPaths ?? []);
   const [currentPath, setCurrentPath] = useState<string>('');
   const containerRef = useRef<View>(null);
@@ -138,7 +143,7 @@ export default function SignaturePad({
           onPress={handleClear}
           activeOpacity={0.7}
         >
-          <Trash2 size={14} color={Colors.error} />
+          <Trash2 size={14} color={themeColors.danger} />
           <Text style={styles.clearBtnText}>Clear</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -147,7 +152,7 @@ export default function SignaturePad({
           activeOpacity={hasPaths ? 0.7 : 1}
           disabled={!hasPaths}
         >
-          <Check size={14} color={hasPaths ? Colors.textOnPrimary : Colors.textMuted} />
+          <Check size={14} color={hasPaths ? '#FFFFFF' : themeColors.textMuted} />
           <Text style={[styles.saveBtnText, !hasPaths && styles.saveBtnTextDisabled]}>
             Save Signature
           </Text>
@@ -157,7 +162,7 @@ export default function SignaturePad({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     gap: 10,
   },
@@ -165,7 +170,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
     borderRadius: Tokens.radius.card,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: t.line,
     borderStyle: 'dashed' as const,
     overflow: 'hidden' as const,
   },
@@ -176,7 +181,7 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: Type.callout.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontStyle: 'italic' as const,
   },
   signLine: {
@@ -203,7 +208,7 @@ const styles = StyleSheet.create({
   clearBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.error,
+    color: t.danger,
   },
   saveBtn: {
     flex: 1,
@@ -213,17 +218,17 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   saveBtnDisabled: {
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   saveBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
   },
   saveBtnTextDisabled: {
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 });

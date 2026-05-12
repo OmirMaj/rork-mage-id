@@ -21,6 +21,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, ExternalLink, PlayCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -53,6 +56,8 @@ function FeatureExplainerSheetImpl({
   tourStepKey,
   onOpenTour,
 }: FeatureExplainerSheetProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   const handleVideo = () => {
@@ -87,12 +92,12 @@ function FeatureExplainerSheetImpl({
         <View style={styles.handle} />
 
         <View style={styles.header}>
-          <Text style={[Type.eyebrow, { color: Colors.primary }]}>What is this?</Text>
+          <Text style={[Type.eyebrow, { color: themeColors.accent }]}>What is this?</Text>
           <TouchableOpacity
             onPress={onClose}
             style={styles.closeBtn}
             activeOpacity={0.7}
-            testID="feature-explainer-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+            testID="feature-explainer-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView
@@ -100,20 +105,20 @@ function FeatureExplainerSheetImpl({
           contentContainerStyle={styles.body}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[Type.title2, { color: Colors.text, marginBottom: 8 }]}>{term}</Text>
-          <Text style={[Type.body, { color: Colors.textSecondary, marginBottom: 16 }]}>
+          <Text style={[Type.title2, { color: themeColors.text, marginBottom: 8 }]}>{term}</Text>
+          <Text style={[Type.body, { color: themeColors.textSecondary, marginBottom: 16 }]}>
             {definition}
           </Text>
 
           {whenToUse && whenToUse.length > 0 && (
             <View style={styles.bullets}>
-              <Text style={[Type.subheadEmphasized, { color: Colors.text, marginBottom: 8 }]}>
+              <Text style={[Type.subheadEmphasized, { color: themeColors.text, marginBottom: 8 }]}>
                 When you&apos;d use this
               </Text>
               {whenToUse.map((b, i) => (
                 <View key={i} style={styles.bulletRow}>
                   <View style={styles.bulletDot} />
-                  <Text style={[Type.subhead, { color: Colors.textSecondary, flex: 1 }]}>
+                  <Text style={[Type.subhead, { color: themeColors.textSecondary, flex: 1 }]}>
                     {b}
                   </Text>
                 </View>
@@ -128,11 +133,11 @@ function FeatureExplainerSheetImpl({
               activeOpacity={0.7}
               testID="feature-explainer-video"
             >
-              <PlayCircle size={18} color={Colors.primary} />
-              <Text style={[Type.subheadEmphasized, { color: Colors.primary, flex: 1 }]}>
+              <PlayCircle size={18} color={themeColors.accent} />
+              <Text style={[Type.subheadEmphasized, { color: themeColors.accent, flex: 1 }]}>
                 Watch a 30-second example
               </Text>
-              <ExternalLink size={14} color={Colors.textMuted} />
+              <ExternalLink size={14} color={themeColors.textMuted} />
             </TouchableOpacity>
           )}
 
@@ -143,8 +148,8 @@ function FeatureExplainerSheetImpl({
               activeOpacity={0.7}
               testID="feature-explainer-tour"
             >
-              <PlayCircle size={18} color={Colors.primary} />
-              <Text style={[Type.subheadEmphasized, { color: Colors.primary, flex: 1 }]}>
+              <PlayCircle size={18} color={themeColors.accent} />
+              <Text style={[Type.subheadEmphasized, { color: themeColors.accent, flex: 1 }]}>
                 Walk me through it
               </Text>
             </TouchableOpacity>
@@ -157,7 +162,7 @@ function FeatureExplainerSheetImpl({
 
 export const FeatureExplainerSheet = memo(FeatureExplainerSheetImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -165,7 +170,7 @@ const styles = StyleSheet.create({
   sheet: {
     position: 'absolute',
     bottom: 0, left: 0, right: 0,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 20,
@@ -175,7 +180,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 36, height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: t.line,
     marginBottom: 14,
   },
   header: {
@@ -187,7 +192,7 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.panel,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   body: {
     paddingTop: 14,
@@ -202,7 +207,7 @@ const styles = StyleSheet.create({
   },
   bulletDot: {
     width: 5, height: 5, borderRadius: 3,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     marginTop: 9,
   },
   actionRow: {
@@ -212,7 +217,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '0E',
+    backgroundColor: t.accent + '0E',
     marginBottom: 8,
   },
 });

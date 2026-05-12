@@ -5,6 +5,8 @@ import {
 import * as Haptics from 'expo-haptics';
 import { Sparkles, Clock, Lightbulb } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
   predictInvoicePayment, getCachedResult, setCachedResult,
@@ -33,6 +35,7 @@ const CONFIDENCE_STYLES = {
 
 export default React.memo(function AIInvoicePredictor({ invoice, projectName, allInvoices, subscriptionTier }: Props) {
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<InvoicePredictionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const shimmerAnim = React.useRef(new Animated.Value(0)).current;
@@ -105,7 +108,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
     return (
       <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.header}>
-          <Sparkles size={12} color={Colors.primary} />
+          <Sparkles size={12} color={"#FF6A1A"} />
           <Text style={styles.headerTitle}>Payment Prediction</Text>
         </View>
         <Animated.View style={[styles.skeleton, { opacity }]} />
@@ -122,7 +125,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
   return (
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
-        <Sparkles size={12} color={Colors.primary} />
+        <Sparkles size={12} color={"#FF6A1A"} />
         <Text style={styles.headerTitle}>Payment Prediction</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>
@@ -134,7 +137,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
         </View>
         <View style={styles.predItem}>
           <Text style={styles.predLabel}>Predicted payment</Text>
-          <Text style={[styles.predValue, { color: Colors.primary }]}>{result.predictedPaymentDate}</Text>
+          <Text style={[styles.predValue, { color: "#FF6A1A" }]}>{result.predictedPaymentDate}</Text>
         </View>
         <View style={[styles.confBadge, { backgroundColor: conf.bg }]}>
           <Text style={[styles.confText, { color: conf.color }]}>{conf.label}</Text>
@@ -145,7 +148,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
 
       {result.tip ? (
         <View style={styles.tipRow}>
-          <Lightbulb size={12} color={Colors.info} />
+          <Lightbulb size={12} color={"#1565C0"} />
           <Text style={styles.tipText}>{result.tip}</Text>
         </View>
       ) : null}
@@ -153,14 +156,14 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   header: {
     flexDirection: 'row',
@@ -171,12 +174,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     flex: 1,
   },
   aiTag: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   predRow: {
     flexDirection: 'row',
@@ -189,13 +192,13 @@ const styles = StyleSheet.create({
   },
   predLabel: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   predValue: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   confBadge: {
     paddingHorizontal: 8,
@@ -208,7 +211,7 @@ const styles = StyleSheet.create({
   },
   reasoning: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 18,
     marginBottom: 8,
   },
@@ -222,14 +225,14 @@ const styles = StyleSheet.create({
   },
   tipText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.info,
+    color: t.info,
     flex: 1,
     lineHeight: 17,
     fontWeight: '500' as const,
   },
   skeleton: {
     height: 12,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.xs,
     marginBottom: 6,
   },

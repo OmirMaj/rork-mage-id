@@ -22,6 +22,9 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   parseVoiceCommand,
@@ -110,6 +113,8 @@ function rankTasksForQuery(tasks: ScheduleTask[], query: string): string[] {
 }
 
 export default function QuickFieldUpdate() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projects, updateProject } = useProjects();
   const [text, setText] = useState('');
   const [parsing, setParsing] = useState(false);
@@ -445,7 +450,7 @@ export default function QuickFieldUpdate() {
     <View style={styles.wrap}>
       <View style={styles.titleRow}>
         <View style={styles.titleIconWrap}>
-          <Zap size={14} color={Colors.primary} />
+          <Zap size={14} color={themeColors.accent} />
         </View>
         <Text style={styles.title}>Quick Field Update</Text>
       </View>
@@ -458,12 +463,12 @@ export default function QuickFieldUpdate() {
         activeOpacity={projectsWithSchedule.length > 1 ? 0.7 : 1}
         testID="qfu-project-chip"
       >
-        <HardHat size={12} color={Colors.textSecondary} />
+        <HardHat size={12} color={themeColors.textSecondary} />
         <Text style={styles.projectChipText} numberOfLines={1}>
           {selectedProject?.name ?? '—'}
         </Text>
         {projectsWithSchedule.length > 1 && (
-          <ChevronDown size={12} color={Colors.textMuted} />
+          <ChevronDown size={12} color={themeColors.textMuted} />
         )}
       </TouchableOpacity>
 
@@ -476,7 +481,7 @@ export default function QuickFieldUpdate() {
             if (feedback) setFeedback(null);
           }}
           placeholder='e.g. "drywall done floor 3" or "framing 80%"'
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
           editable={!parsing}
           returnKeyType="send"
           onSubmitEditing={handleSubmit}
@@ -493,9 +498,9 @@ export default function QuickFieldUpdate() {
           testID="qfu-send-btn"
         >
           {parsing ? (
-            <ActivityIndicator size="small" color={Colors.textOnPrimary} />
+            <ActivityIndicator size="small" color={'#FFFFFF'} />
           ) : (
-            <Send size={14} color={Colors.textOnPrimary} strokeWidth={2.5} />
+            <Send size={14} color={'#FFFFFF'} strokeWidth={2.5} />
           )}
         </TouchableOpacity>
       </View>
@@ -517,7 +522,7 @@ export default function QuickFieldUpdate() {
               activeOpacity={0.75}
               testID={`qfu-suggestion-${t.id}`}
             >
-              <Sparkles size={10} color={Colors.primary} />
+              <Sparkles size={10} color={themeColors.accent} />
               <Text style={styles.suggestLabel} numberOfLines={1}>
                 {t.title}
               </Text>
@@ -536,7 +541,7 @@ export default function QuickFieldUpdate() {
           ]}
         >
           {feedback.kind === 'success' ? (
-            <Check size={12} color={Colors.success} />
+            <Check size={12} color={themeColors.success} />
           ) : (
             <AlertCircle size={12} color={Colors.warning} />
           )}
@@ -545,7 +550,7 @@ export default function QuickFieldUpdate() {
               styles.feedbackText,
               {
                 color:
-                  feedback.kind === 'success' ? Colors.success : Colors.warning,
+                  feedback.kind === 'success' ? themeColors.success : Colors.warning,
               },
             ]}
           >
@@ -612,15 +617,15 @@ export default function QuickFieldUpdate() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   wrap: {
     marginHorizontal: 20,
     marginBottom: 20,
     padding: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     gap: 10,
   },
   titleRow: {
@@ -632,14 +637,14 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.1,
   },
   projectChip: {
@@ -647,7 +652,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     alignSelf: 'flex-start',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Tokens.radius.sm,
@@ -655,7 +660,7 @@ const styles = StyleSheet.create({
   projectChipText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     maxWidth: 220,
   },
   inputRow: {
@@ -670,18 +675,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 12,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   sendBtn: {
     width: 42,
     height: 42,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendBtnDisabled: {
-    backgroundColor: Colors.textMuted + '60',
+    backgroundColor: t.textMuted + '60',
   },
   suggestRow: {
     gap: 6,
@@ -695,14 +700,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accent + '10',
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: t.accent + '30',
     maxWidth: 220,
   },
   suggestLabel: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
     flexShrink: 1,
   },
@@ -715,7 +720,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.sm,
   },
   feedbackSuccess: {
-    backgroundColor: Colors.success + '15',
+    backgroundColor: t.success + '15',
   },
   feedbackError: {
     backgroundColor: Colors.warning + '15',
@@ -732,7 +737,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   pickerCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 6,
@@ -740,7 +745,7 @@ const styles = StyleSheet.create({
   pickerTitle: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 8,
   },
   pickerRow: {
@@ -754,20 +759,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pickerRowActive: {
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
   },
   pickerRowText: {
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: t.text,
   },
   pickerRowTextActive: {
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '700' as const,
   },
   pickerRowMeta: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 });

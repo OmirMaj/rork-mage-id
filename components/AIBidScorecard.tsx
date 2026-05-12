@@ -7,6 +7,9 @@ import {
   Sparkles, Zap, TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import {
   scoreBid, getCompanyProfile, getCachedResult, setCachedResult,
   type CompanyAIProfile, type BidScoreResult,
@@ -32,10 +35,10 @@ interface AIBidScorecardProps {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return Colors.success;
-  if (score >= 60) return Colors.primary;
+  if (score >= 80) return "#2E7D44";
+  if (score >= 60) return "#FF6A1A";
   if (score >= 40) return Colors.warning;
-  return Colors.error;
+  return "#C84038";
 }
 
 function scoreLabel(score: number): string {
@@ -54,6 +57,8 @@ function goNoGo(score: number): 'go' | 'review' | 'no_go' {
 const PROFILE_REQUIRED_THRESHOLD = 1;
 
 export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [profile, setProfile] = useState<CompanyAIProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
@@ -127,7 +132,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       <View style={styles.container} testID={testID}>
         <View style={styles.heroRow}>
           <View style={styles.iconWrap}>
-            <Sparkles size={18} color={Colors.primary} />
+            <Sparkles size={18} color={"#FF6A1A"} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>AI Go/No-Go Analysis</Text>
@@ -169,7 +174,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer]} testID={testID}>
-        <ActivityIndicator size="small" color={Colors.primary} />
+        <ActivityIndicator size="small" color={"#FF6A1A"} />
         <Text style={styles.loadingText}>Scoring bid against your profile…</Text>
       </View>
     );
@@ -177,10 +182,10 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
   if (error) {
     return (
-      <View style={[styles.container, { borderColor: Colors.error + '40' }]} testID={testID}>
+      <View style={[styles.container, { borderColor: "#C84038" + '40' }]} testID={testID}>
         <View style={styles.heroRow}>
-          <AlertTriangle size={18} color={Colors.error} />
-          <Text style={[styles.title, { color: Colors.error }]}>Scoring Failed</Text>
+          <AlertTriangle size={18} color={"#C84038"} />
+          <Text style={[styles.title, { color: "#C84038" }]}>Scoring Failed</Text>
         </View>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.runBtn} onPress={() => void runScore(true)} activeOpacity={0.85}>
@@ -201,17 +206,17 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
     <View style={styles.container} testID={testID}>
       <View style={styles.heroRow}>
         <View style={styles.iconWrap}>
-          <Sparkles size={18} color={Colors.primary} />
+          <Sparkles size={18} color={"#FF6A1A"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>AI Go/No-Go Analysis</Text>
           <Text style={styles.subtitle}>Cached · tap refresh to re-score</Text>
         </View>
         <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Refresh">
-          <RefreshCw size={14} color={Colors.textMuted} />
+          <RefreshCw size={14} color={"#9AA3AD"} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Settings">
-          <Settings size={14} color={Colors.textMuted} />
+          <Settings size={14} color={"#9AA3AD"} />
         </TouchableOpacity>
       </View>
 
@@ -227,7 +232,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <View style={[styles.barFill, { width: `${Math.min(100, score.matchScore)}%`, backgroundColor: color }]} />
           </View>
           <View style={styles.winRow}>
-            <Target size={12} color={Colors.textMuted} />
+            <Target size={12} color={"#9AA3AD"} />
             <Text style={styles.winText}>
               <Text style={styles.winPct}>{winPct}%</Text> est. win probability
             </Text>
@@ -237,10 +242,10 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
       {/* Recommendation pill */}
       <View style={[styles.decisionPill, {
-        backgroundColor: decision === 'go' ? Colors.success + '18' : decision === 'review' ? Colors.warning + '18' : Colors.error + '18',
+        backgroundColor: decision === 'go' ? "#2E7D44" + '18' : decision === 'review' ? Colors.warning + '18' : "#C84038" + '18',
       }]}>
         <Text style={[styles.decisionPillText, {
-          color: decision === 'go' ? Colors.success : decision === 'review' ? Colors.warning : Colors.error,
+          color: decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warning : "#C84038",
         }]}>
           {decision === 'go' ? '✓ Recommend pursuing' : decision === 'review' ? '⚠ Worth reviewing' : '✕ Recommend passing'}
         </Text>
@@ -250,12 +255,12 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       {score.matchReasons && score.matchReasons.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <CheckCircle2 size={14} color={Colors.success} />
+            <CheckCircle2 size={14} color={"#2E7D44"} />
             <Text style={styles.sectionTitle}>Why it fits</Text>
           </View>
           {score.matchReasons.map((reason, i) => (
             <View key={`reason-${i}`} style={styles.bulletRow}>
-              <View style={[styles.bulletDot, { backgroundColor: Colors.success }]} />
+              <View style={[styles.bulletDot, { backgroundColor: "#2E7D44" }]} />
               <Text style={styles.bulletText}>{reason}</Text>
             </View>
           ))}
@@ -280,10 +285,10 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
       {/* Strategy */}
       {score.bidStrategy ? (
-        <View style={[styles.section, { backgroundColor: Colors.primary + '0C', borderRadius: Tokens.radius.card, padding: 12 }]}>
+        <View style={[styles.section, { backgroundColor: "#FF6A1A" + '0C', borderRadius: Tokens.radius.card, padding: 12 }]}>
           <View style={styles.sectionHeader}>
-            <TrendingUp size={14} color={Colors.primary} />
-            <Text style={[styles.sectionTitle, { color: Colors.primary }]}>Bid Strategy</Text>
+            <TrendingUp size={14} color={"#FF6A1A"} />
+            <Text style={[styles.sectionTitle, { color: "#FF6A1A" }]}>Bid Strategy</Text>
           </View>
           <Text style={styles.strategyText}>{score.bidStrategy}</Text>
         </View>
@@ -299,27 +304,27 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     gap: 12,
   },
   loadingContainer: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, paddingVertical: 24 },
-  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  loadingText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   heroRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
-  iconWrap: { width: 34, height: 34, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center' as const, justifyContent: 'center' as const },
-  title: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  refreshBtn: { width: 30, height: 30, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary },
+  iconWrap: { width: 34, height: 34, borderRadius: Tokens.radius.md, backgroundColor: t.accent + '15', alignItems: 'center' as const, justifyContent: 'center' as const },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
+  refreshBtn: { width: 30, height: 30, borderRadius: Tokens.radius.sm, backgroundColor: t.surfaceAlt, alignItems: 'center' as const, justifyContent: 'center' as const },
+  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: t.accent },
   runBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
-  errorText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 6 },
+  errorText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 6 },
   gaugeCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 14 },
   scoreBubble: { width: 72, height: 72, borderRadius: 36, alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 2 },
   scoreNum: { fontSize: 24, fontWeight: '800' as const, letterSpacing: -0.5 },
@@ -328,15 +333,15 @@ const styles = StyleSheet.create({
   barTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   barFill: { height: '100%' as const, borderRadius: 3 },
   winRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 },
-  winText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  winPct: { fontWeight: '700' as const, color: Colors.text },
+  winText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '500' as const },
+  winPct: { fontWeight: '700' as const, color: t.text },
   decisionPill: { alignSelf: 'flex-start' as const, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm },
   decisionPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   section: { gap: 6 },
   sectionHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 4 },
-  sectionTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
+  sectionTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   bulletRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8, paddingLeft: 4, paddingVertical: 2 },
   bulletDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 7 },
-  bulletText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
-  strategyText: { fontSize: Type.footnote.fontSize, color: Colors.primary, lineHeight: 18, fontWeight: '500' as const },
+  bulletText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
+  strategyText: { fontSize: Type.footnote.fontSize, color: t.accent, lineHeight: 18, fontWeight: '500' as const },
 });

@@ -11,6 +11,9 @@ import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { TrendingUp, TrendingDown, Send } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { TakeoffResult } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -69,6 +72,8 @@ function getCategoryStats(takeoff: TakeoffResult, overrides: Record<string, numb
 }
 
 function TakeoffAccuracyPanelImpl({ takeoff, overrides }: TakeoffAccuracyPanelProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const stats = useMemo(() => getCategoryStats(takeoff, overrides), [takeoff, overrides]);
   const totalEdited = stats.reduce((s, x) => s + x.edited, 0);
 
@@ -84,8 +89,8 @@ function TakeoffAccuracyPanelImpl({ takeoff, overrides }: TakeoffAccuracyPanelPr
         {stats.map(s => {
           const pct = s.avgPctError * 100;
           const Icon = pct >= 0 ? TrendingUp : TrendingDown;
-          const tone = Math.abs(pct) < 5 ? Colors.success
-            : Math.abs(pct) < 15 ? Colors.warning : Colors.error;
+          const tone = Math.abs(pct) < 5 ? themeColors.success
+            : Math.abs(pct) < 15 ? Colors.warning : themeColors.danger;
           return (
             <View key={s.category} style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -116,34 +121,34 @@ function TakeoffAccuracyPanelImpl({ takeoff, overrides }: TakeoffAccuracyPanelPr
 
 export const TakeoffAccuracyPanel = memo(TakeoffAccuracyPanelImpl);
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
+    borderWidth: 1, borderColor: t.line, marginBottom: 14,
     gap: 10,
   },
   head: { gap: 2 },
-  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  sub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
+  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
+  sub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15 },
   list: { gap: 6 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 8, paddingHorizontal: 10, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
   },
-  rowLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  rowSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
+  rowLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  rowSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
   deltaPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   deltaText: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.2 },
-  legend: { padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background },
-  legendText: { fontSize: 10, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 14 },
+  legend: { padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: t.bg },
+  legendText: { fontSize: 10, color: t.textMuted, fontStyle: 'italic', lineHeight: 14 },
   helpBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
   },
   helpBtnDisabled: { opacity: 0.55 },
-  helpBtnText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '700' },
+  helpBtnText: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '700' },
 });
