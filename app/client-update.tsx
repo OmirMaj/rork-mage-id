@@ -11,6 +11,9 @@ import {
   Users,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   draftWeeklyUpdate, gatherWeeklyContext, renderDraftToPlainText, renderDraftToHtml,
@@ -21,6 +24,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function ClientUpdateScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ projectId?: string }>();
@@ -168,7 +173,7 @@ export default function ClientUpdateScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><Sparkles size={22} color={Colors.primary} /></View>
+          <View style={styles.heroIcon}><Sparkles size={22} color={themeColors.accent} /></View>
           <Text style={styles.heroTitle}>Weekly client update</Text>
           <Text style={styles.heroSub}>
             AI drafts a friendly email from the last 7 days of field data. Review, edit, then send from your mail app.
@@ -193,7 +198,7 @@ export default function ClientUpdateScreen() {
                     <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
                     <Text style={styles.projectRowMeta}>{p.type} · {p.location}</Text>
                   </View>
-                  {active && <CheckCircle2 size={18} color={Colors.primary} />}
+                  {active && <CheckCircle2 size={18} color={themeColors.accent} />}
                 </TouchableOpacity>
               );
             })
@@ -207,10 +212,10 @@ export default function ClientUpdateScreen() {
           )}
           {recipients.map(email => (
             <View key={email} style={styles.chip}>
-              <Mail size={12} color={Colors.primary} />
+              <Mail size={12} color={themeColors.accent} />
               <Text style={styles.chipTxt} numberOfLines={1}>{email}</Text>
               <TouchableOpacity onPress={() => removeRecipient(email)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={Colors.textSecondary} />
+                <X size={14} color={themeColors.textSecondary} />
               </TouchableOpacity>
             </View>
           ))}
@@ -218,7 +223,7 @@ export default function ClientUpdateScreen() {
             <TextInput
               style={styles.emailInput}
               placeholder="add@email.com"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -226,7 +231,7 @@ export default function ClientUpdateScreen() {
               onChangeText={setNewEmail}
               onSubmitEditing={addRecipient}
             />
-            <TouchableOpacity style={styles.addBtn} onPress={addRecipient} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color={Colors.textOnPrimary} /></TouchableOpacity>
+            <TouchableOpacity style={styles.addBtn} onPress={addRecipient} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color={'#FFFFFF'} /></TouchableOpacity>
           </View>
         </View>
 
@@ -238,10 +243,10 @@ export default function ClientUpdateScreen() {
             activeOpacity={0.85}
           >
             {drafting ? (
-              <ActivityIndicator color={Colors.textOnPrimary} />
+              <ActivityIndicator color={'#FFFFFF'} />
             ) : (
               <>
-                <Sparkles size={16} color={Colors.textOnPrimary} />
+                <Sparkles size={16} color={'#FFFFFF'} />
                 <Text style={styles.draftBtnTxt}>Draft update with AI</Text>
               </>
             )}
@@ -260,7 +265,7 @@ export default function ClientUpdateScreen() {
             <View style={styles.draftHeader}>
               <Text style={styles.sectionLabel}>DRAFT · Edit anything</Text>
               <TouchableOpacity onPress={handleDraft} style={styles.regenBtn} activeOpacity={0.7}>
-                <RefreshCw size={12} color={Colors.primary} />
+                <RefreshCw size={12} color={themeColors.accent} />
                 <Text style={styles.regenTxt}>Regenerate</Text>
               </TouchableOpacity>
             </View>
@@ -271,7 +276,7 @@ export default function ClientUpdateScreen() {
                 style={styles.fieldInput}
                 value={draft.subject}
                 onChangeText={(v) => setDraft({ ...draft, subject: v })}
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
             </View>
 
@@ -326,7 +331,7 @@ export default function ClientUpdateScreen() {
                 multiline
                 textAlignVertical="top"
                 placeholder="Change orders, invoices, contract impact..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
             </View>
 
@@ -350,7 +355,7 @@ export default function ClientUpdateScreen() {
 
             <View style={styles.previewCard}>
               <View style={styles.previewHeader}>
-                <FileText size={14} color={Colors.textSecondary} />
+                <FileText size={14} color={themeColors.textSecondary} />
                 <Text style={styles.previewHeaderTxt}>Plain-text preview</Text>
               </View>
               <Text style={styles.previewBody}>{renderDraftToPlainText(draft)}</Text>
@@ -368,10 +373,10 @@ export default function ClientUpdateScreen() {
             activeOpacity={0.85}
           >
             {sending ? (
-              <ActivityIndicator color={Colors.textOnPrimary} />
+              <ActivityIndicator color={'#FFFFFF'} />
             ) : (
               <>
-                <Users size={16} color={Colors.textOnPrimary} />
+                <Users size={16} color={'#FFFFFF'} />
                 <Text style={styles.sendBtnTxt}>
                   Send to {recipients.length} {recipients.length === 1 ? 'recipient' : 'recipients'}
                 </Text>
@@ -393,6 +398,8 @@ function BulletEditor({
   onAdd: () => void;
   onRemove: (idx: number) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{title}</Text>
@@ -406,86 +413,86 @@ function BulletEditor({
             multiline
             textAlignVertical="top"
             placeholder="Type a bullet…"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
           />
           <TouchableOpacity onPress={() => onRemove(i)} hitSlop={8} style={styles.bulletRemove} accessibilityRole="button" accessibilityLabel="Close">
-            <X size={14} color={Colors.textSecondary} />
+            <X size={14} color={themeColors.textSecondary} />
           </TouchableOpacity>
         </View>
       ))}
       <TouchableOpacity onPress={onAdd} style={styles.addBullet} activeOpacity={0.7}>
-        <Plus size={12} color={Colors.primary} />
+        <Plus size={12} color={themeColors.accent} />
         <Text style={styles.addBulletTxt}>Add</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { padding: 16 },
   hero: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 20,
-    borderWidth: 1, borderColor: Colors.cardBorder, gap: 10, marginBottom: 8,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.panel, padding: 20,
+    borderWidth: 1, borderColor: t.line, gap: 10, marginBottom: 8,
   },
   heroIcon: {
     width: 44, height: 44, borderRadius: Tokens.radius.card,
-    backgroundColor: `${Colors.primary}15`,
+    backgroundColor: `${t.accent}15`,
     alignItems: 'center', justifyContent: 'center',
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700', color: Colors.text },
-  heroSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700', color: t.text },
+  heroSub: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
 
   sectionLabel: {
-    fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
+    fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
     letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
   },
 
   projectList: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden',
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line, overflow: 'hidden',
   },
   projectRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
+    padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
   },
-  projectRowActive: { backgroundColor: `${Colors.primary}08` },
-  projectRowName: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
-  projectRowNameActive: { color: Colors.primary },
-  projectRowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  emptyTxt: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, padding: 14, textAlign: 'center' },
-  emptyInline: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, paddingBottom: 8 },
+  projectRowActive: { backgroundColor: `${t.accent}08` },
+  projectRowName: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
+  projectRowNameActive: { color: t.accent },
+  projectRowMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
+  emptyTxt: { fontSize: Type.footnote.fontSize, color: t.textSecondary, padding: 14, textAlign: 'center' },
+  emptyInline: { fontSize: Type.caption1.fontSize, color: t.textSecondary, paddingBottom: 8 },
 
   recipientCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line,
     padding: 12, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
   },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: `${Colors.primary}10`,
+    backgroundColor: `${t.accent}10`,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.lg,
     maxWidth: '100%',
   },
-  chipTxt: { fontSize: Type.caption1.fontSize, color: Colors.text, maxWidth: 180 },
+  chipTxt: { fontSize: Type.caption1.fontSize, color: t.text, maxWidth: 180 },
 
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%', marginTop: 4 },
   emailInput: {
-    flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.sm,
-    paddingHorizontal: 10, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: Colors.text,
-    backgroundColor: Colors.background,
+    flex: 1, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 10, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: t.text,
+    backgroundColor: t.bg,
   },
   addBtn: {
-    backgroundColor: Colors.primary, width: 32, height: 32, borderRadius: Tokens.radius.sm,
+    backgroundColor: t.accent, width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
   },
 
   draftBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 20,
+    backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 20,
   },
   draftBtnDisabled: { opacity: 0.6 },
-  draftBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
+  draftBtnTxt: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.subhead.fontSize },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
@@ -499,19 +506,19 @@ const styles = StyleSheet.create({
   regenBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: `${Colors.primary}10`, borderRadius: Tokens.radius.md, marginTop: 20,
+    backgroundColor: `${t.accent}10`, borderRadius: Tokens.radius.md, marginTop: 20,
   },
-  regenTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.primary },
+  regenTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.accent },
 
   field: { marginTop: 16 },
   fieldLabel: {
-    fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
+    fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
     marginBottom: 6, letterSpacing: 0.5,
   },
   fieldInput: {
-    borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text, backgroundColor: Colors.surface,
+    fontSize: Type.bodyCompact.fontSize, color: t.text, backgroundColor: t.surface,
   },
   multiline: { minHeight: 72 },
 
@@ -519,42 +526,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     marginBottom: 6,
   },
-  bulletDot: { fontSize: Type.callout.fontSize, color: Colors.primary, paddingTop: 10, width: 10 },
+  bulletDot: { fontSize: Type.callout.fontSize, color: t.accent, paddingTop: 10, width: 10 },
   bulletInput: {
-    flex: 1, borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: Tokens.radius.md,
+    flex: 1, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: Type.footnote.fontSize, color: Colors.text, backgroundColor: Colors.surface,
+    fontSize: Type.footnote.fontSize, color: t.text, backgroundColor: t.surface,
     minHeight: 40,
   },
   bulletRemove: { paddingTop: 10, paddingHorizontal: 4 },
   addBullet: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: `${Colors.primary}10`, borderRadius: Tokens.radius.sm, marginTop: 4,
+    backgroundColor: `${t.accent}10`, borderRadius: Tokens.radius.sm, marginTop: 4,
   },
-  addBulletTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.primary },
+  addBulletTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.accent },
 
   previewCard: {
-    marginTop: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.surface,
-    borderWidth: 1, borderColor: Colors.cardBorder, padding: 14,
+    marginTop: 24, borderRadius: Tokens.radius.card, backgroundColor: t.surface,
+    borderWidth: 1, borderColor: t.line, padding: 14,
   },
   previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  previewHeaderTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary, letterSpacing: 0.5 },
+  previewHeaderTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary, letterSpacing: 0.5 },
   previewBody: {
-    fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19,
+    fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19,
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
 
   bottomBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     paddingHorizontal: 16, paddingTop: 12,
-    backgroundColor: Colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+    backgroundColor: t.surface,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
   },
   sendBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   sendBtnDisabled: { opacity: 0.6 },
-  sendBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
+  sendBtnTxt: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.subhead.fontSize },
 });

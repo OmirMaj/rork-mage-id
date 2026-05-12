@@ -22,6 +22,9 @@ import {
   ChevronLeft, X, CheckCircle2, AlertTriangle, Copy,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -44,6 +47,8 @@ import {
 // ─────────────────────────────────────────────────────────────
 
 export default function PrequalManagerScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   if (!canAccess('prequal_coi')) {
@@ -53,6 +58,8 @@ export default function PrequalManagerScreen() {
 }
 
 function PrequalManagerInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { subcontractors, upsertPrequalPacket, getPrequalPacketForSub } = useProjects();
@@ -169,7 +176,7 @@ function PrequalManagerInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Prequal + COI · MAGE</Text>
@@ -181,14 +188,14 @@ function PrequalManagerInner() {
 
         {/* Counts */}
         <View style={styles.statsRow}>
-          <Stat label="Approved" value={counts.approved} color={Colors.success} />
-          <Stat label="Pending" value={counts.pending} color={Colors.info} />
+          <Stat label="Approved" value={counts.approved} color={themeColors.success} />
+          <Stat label="Pending" value={counts.pending} color={themeColors.info} />
           <Stat label="Issues" value={counts.issues} color={Colors.warning} />
-          <Stat label="No packet" value={counts.none} color={Colors.textSecondary} />
+          <Stat label="No packet" value={counts.none} color={themeColors.textSecondary} />
         </View>
 
         <View style={styles.banner}>
-          <ShieldCheck size={16} color={Colors.primary} />
+          <ShieldCheck size={16} color={themeColors.accent} />
           <Text style={styles.bannerText}>
             OSHA{"\u2019"}s Multi-Employer Citation Policy treats the GC as a controlling employer —
             expired COIs can cost $16,550 per instance.
@@ -213,7 +220,7 @@ function PrequalManagerInner() {
         {/* Sub list */}
         {rows.length === 0 ? (
           <View style={styles.emptyBox}>
-            <ShieldAlert size={24} color={Colors.textMuted} />
+            <ShieldAlert size={24} color={themeColors.textMuted} />
             <Text style={styles.emptyText}>No subcontractors on file. Add one from the Subs directory to invite a packet.</Text>
           </View>
         ) : (
@@ -243,7 +250,7 @@ function PrequalManagerInner() {
                     <Text style={styles.subMissing}>Missing: {review.missingFields.slice(0, 2).join(', ')}{review.missingFields.length > 2 ? ` +${review.missingFields.length - 2}` : ''}</Text>
                   )}
                 </View>
-                <ChevronRight size={16} color={Colors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             ))}
           </View>
@@ -282,6 +289,8 @@ function PrequalManagerInner() {
 // ─────────────────────────────────────────────────────────────
 
 function Stat({ label, value, color }: { label: string; value: number; color: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statCard}>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
@@ -291,24 +300,26 @@ function Stat({ label, value, color }: { label: string; value: number; color: st
 }
 
 function StatusBadge({ status, bucket }: { status?: PrequalStatus; bucket?: string | null }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   let Icon = ShieldAlert;
-  let color = Colors.textSecondary;
+  let color = themeColors.textSecondary;
   let label = 'No packet';
 
   if (!status) {
     // default
   } else if (status === 'approved' && bucket === 'expired') {
-    Icon = ShieldX; color = Colors.error; label = 'Expired';
+    Icon = ShieldX; color = themeColors.danger; label = 'Expired';
   } else if (status === 'approved') {
-    Icon = ShieldCheck; color = Colors.success; label = 'Approved';
+    Icon = ShieldCheck; color = themeColors.success; label = 'Approved';
   } else if (status === 'submitted' || status === 'in_progress') {
-    Icon = Clock; color = Colors.info; label = 'Review';
+    Icon = Clock; color = themeColors.info; label = 'Review';
   } else if (status === 'invited' || status === 'draft') {
-    Icon = Send; color = Colors.info; label = 'Invited';
+    Icon = Send; color = themeColors.info; label = 'Invited';
   } else if (status === 'needs_changes') {
     Icon = AlertTriangle; color = Colors.warning; label = 'Changes';
   } else if (status === 'rejected') {
-    Icon = ShieldX; color = Colors.error; label = 'Rejected';
+    Icon = ShieldX; color = themeColors.danger; label = 'Rejected';
   }
 
   return (
@@ -324,6 +335,8 @@ function StatusBadge({ status, bucket }: { status?: PrequalStatus; bucket?: stri
 function InviteModal({ sub, onClose, onSend }: {
   sub: Subcontractor | null; onClose: () => void; onSend: (email: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [email, setEmail] = useState<string>('');
   React.useEffect(() => { setEmail(sub?.email ?? ''); }, [sub]);
 
@@ -333,7 +346,7 @@ function InviteModal({ sub, onClose, onSend }: {
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Invite {sub?.companyName ?? 'sub'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
           </View>
           <View style={{ padding: 16 }}>
             <Text style={styles.fieldLabel}>Email</Text>
@@ -364,7 +377,7 @@ function InviteModal({ sub, onClose, onSend }: {
               }}
               style={styles.btnPrimary}
             >
-              <Send size={16} color={Colors.textOnPrimary} />
+              <Send size={16} color={'#FFFFFF'} />
               <Text style={styles.btnPrimaryText}>Send invite</Text>
             </TouchableOpacity>
           </View>
@@ -384,6 +397,8 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
   onNeedsChanges: (packet: PrequalPacket, note: string) => void;
   onReject: (packet: PrequalPacket, note: string) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [note, setNote] = useState<string>('');
   React.useEffect(() => { if (packet) setNote(packet.reviewerNotes ?? ''); }, [packet]);
 
@@ -399,7 +414,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
         <View style={[styles.modalCard, { maxHeight: '92%' }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{sub?.companyName ?? 'Packet'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView style={{ maxHeight: 560 }}>
@@ -408,7 +423,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               {review && (
                 <View style={[styles.reviewSummary, {
                   backgroundColor: review.overall === 'pass' ? Colors.successLight : review.overall === 'fail' ? Colors.errorLight : Colors.warningLight,
-                  borderLeftColor: review.overall === 'pass' ? Colors.success : review.overall === 'fail' ? Colors.error : Colors.warning,
+                  borderLeftColor: review.overall === 'pass' ? themeColors.success : review.overall === 'fail' ? themeColors.danger : Colors.warning,
                 }]}>
                   <Text style={styles.reviewSummaryText}>{review.summary}</Text>
                 </View>
@@ -428,7 +443,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                     Alert.alert('Copied', 'Magic link copied to clipboard.');
                   }}
                 >
-                  <Copy size={14} color={Colors.primary} />
+                  <Copy size={14} color={themeColors.accent} />
                   <Text style={styles.copyLinkText}>Copy magic link</Text>
                 </TouchableOpacity>
               )}
@@ -438,8 +453,8 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               {review?.findings.map(f => (
                 <View key={f.criterion} style={styles.findingRow}>
                   {f.passed
-                    ? <CheckCircle2 size={14} color={Colors.success} />
-                    : <AlertTriangle size={14} color={f.severity === 'blocker' ? Colors.error : Colors.warning} />}
+                    ? <CheckCircle2 size={14} color={themeColors.success} />
+                    : <AlertTriangle size={14} color={f.severity === 'blocker' ? themeColors.danger : Colors.warning} />}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.findingLabel}>{f.label}</Text>
                     {f.note ? <Text style={styles.findingNote}>{f.note}</Text> : null}
@@ -479,8 +494,8 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               style={[styles.btnGhost, { flex: 0.8 }]}
               onPress={() => onReject(packet, note || 'Rejected by reviewer')}
             >
-              <ShieldX size={14} color={Colors.error} />
-              <Text style={[styles.btnGhostText, { color: Colors.error }]}>Reject</Text>
+              <ShieldX size={14} color={themeColors.danger} />
+              <Text style={[styles.btnGhostText, { color: themeColors.danger }]}>Reject</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btnGhost, { flex: 1 }]}
@@ -490,7 +505,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               <Text style={[styles.btnGhostText, { color: Colors.warning }]}>Needs changes</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => onApprove(packet)}>
-              <CheckCircle2 size={14} color={Colors.textOnPrimary} />
+              <CheckCircle2 size={14} color={'#FFFFFF'} />
               <Text style={styles.btnPrimaryText}>Approve</Text>
             </TouchableOpacity>
           </View>
@@ -501,6 +516,8 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
 }
 
 function DetailLine({ label, value }: { label: string; value: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.detailLine}>
       <Text style={styles.detailLineLabel}>{label}</Text>
@@ -511,33 +528,33 @@ function DetailLine({ label, value }: { label: string; value: string }) {
 
 // ─── Styles ──────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
 
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 12, paddingTop: 6,
-    gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    gap: 8, borderBottomWidth: 1, borderBottomColor: t.line,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   headerText: { flex: 1 },
-  headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
+  headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
 
   statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   statCard: {
     flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center',
   },
   statValue: { fontSize: Type.title2.fontSize, fontWeight: '800' },
-  statLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  statLabel: { fontSize: 10, color: t.textSecondary, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   banner: {
-    backgroundColor: Colors.card, padding: 12, borderRadius: Tokens.radius.md, borderLeftWidth: 3, borderLeftColor: Colors.primary,
+    backgroundColor: Colors.card, padding: 12, borderRadius: Tokens.radius.md, borderLeftWidth: 3, borderLeftColor: t.accent,
     marginBottom: 12, flexDirection: 'row', gap: 8, alignItems: 'flex-start',
   },
-  bannerText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textSecondary, lineHeight: 16 },
+  bannerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
 
   renewCard: {
     backgroundColor: Colors.warningLight, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 14,
@@ -545,51 +562,51 @@ const styles = StyleSheet.create({
   },
   renewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   renewTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning, textTransform: 'uppercase', letterSpacing: 0.5 },
-  renewItem: { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: 2 },
+  renewItem: { fontSize: Type.caption1.fontSize, color: t.text, marginTop: 2 },
 
   listCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, overflow: 'hidden' },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
-  subRowBorder: { borderTopWidth: 1, borderTopColor: Colors.borderLight },
-  subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  subSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  subRowBorder: { borderTopWidth: 1, borderTopColor: t.line },
+  subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  subSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   subMissing: { fontSize: 10, color: Colors.warning, marginTop: 2, fontWeight: '600' },
 
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7, minWidth: 82 },
   statusBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
 
   emptyBox: { alignItems: 'center', padding: 40 },
-  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
-  footerNote: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 16, paddingHorizontal: 14, lineHeight: 14 },
+  emptyText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, textAlign: 'center', marginTop: 8 },
+  footerNote: { fontSize: 10, color: t.textMuted, textAlign: 'center', marginTop: 16, paddingHorizontal: 14, lineHeight: 14 },
 
   // Modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalCard: { backgroundColor: Colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92%' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  modalTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
-  modalFooter: { flexDirection: 'row', gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: t.line },
+  modalTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  modalFooter: { flexDirection: 'row', gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: t.line },
 
   btnGhost: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
-  btnGhostText: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '700' },
-  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
-  btnPrimaryText: { color: Colors.textOnPrimary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  btnGhostText: { color: t.text, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  btnPrimaryText: { color: '#FFFFFF', fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  input: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  inviteHelp: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, lineHeight: 15 },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  input: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: t.text },
+  inviteHelp: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 8, lineHeight: 15 },
 
   reviewSummary: { borderRadius: Tokens.radius.md, padding: 12, borderLeftWidth: 3, marginBottom: 14 },
-  reviewSummaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  reviewSummaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
 
-  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
 
   findingRow: { flexDirection: 'row', gap: 8, paddingVertical: 6, alignItems: 'flex-start' },
-  findingLabel: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
-  findingNote: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  findingLabel: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
+  findingNote: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 1 },
 
   copyLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, marginBottom: 6 },
-  copyLinkText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '600' },
+  copyLinkText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' },
 
   detailLine: { flexDirection: 'row', paddingVertical: 4 },
-  detailLineLabel: { flex: 0.4, fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  detailLineValue: { flex: 0.6, fontSize: Type.caption1.fontSize, color: Colors.text, textAlign: 'right' },
+  detailLineLabel: { flex: 0.4, fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  detailLineValue: { flex: 0.6, fontSize: Type.caption1.fontSize, color: t.text, textAlign: 'right' },
 });

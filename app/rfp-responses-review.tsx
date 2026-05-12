@@ -25,6 +25,9 @@ import {
   Phone, Mail, Inbox, ChevronRight, AlertTriangle, Building2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
@@ -59,6 +62,8 @@ interface RfpHeader {
 type SortMode = 'recent' | 'low' | 'high';
 
 export default function RfpResponsesReviewScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -186,7 +191,7 @@ export default function RfpResponsesReviewScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Bids received</Text>
@@ -221,17 +226,17 @@ export default function RfpResponsesReviewScreen() {
 
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={themeColors.accent} />}
       >
         {isLoading && (
           <View style={styles.loading}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColors.accent} />
           </View>
         )}
 
         {!isLoading && sortedResponses.length === 0 && (
           <View style={styles.emptyCard}>
-            <Inbox size={28} color={Colors.textMuted} />
+            <Inbox size={28} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No bids yet</Text>
             <Text style={styles.emptyBody}>
               Contractors near you will see your project and start submitting bids. New bids show up here automatically.
@@ -256,7 +261,7 @@ export default function RfpResponsesReviewScreen() {
               <View style={styles.cardHead}>
                 <View style={styles.identityWrap}>
                   <View style={styles.identityIcon}>
-                    <Building2 size={16} color={Colors.primary} />
+                    <Building2 size={16} color={themeColors.accent} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.identityName} numberOfLines={1}>{r.company_name ?? 'Anonymous contractor'}</Text>
@@ -267,7 +272,7 @@ export default function RfpResponsesReviewScreen() {
                 </View>
                 {isAwardedRow && (
                   <View style={styles.awardedPill}>
-                    <Trophy size={10} color={Colors.success} />
+                    <Trophy size={10} color={themeColors.success} />
                     <Text style={styles.awardedPillText}>AWARDED</Text>
                   </View>
                 )}
@@ -300,7 +305,7 @@ export default function RfpResponsesReviewScreen() {
 
               {r.scope_description && (
                 <View style={styles.messageBox}>
-                  <MessageSquare size={12} color={Colors.textMuted} />
+                  <MessageSquare size={12} color={themeColors.textMuted} />
                   <Text style={styles.messageText} numberOfLines={6}>{r.scope_description}</Text>
                 </View>
               )}
@@ -308,13 +313,13 @@ export default function RfpResponsesReviewScreen() {
               <View style={styles.contactRow}>
                 {r.proposer_email && (
                   <View style={styles.contactItem}>
-                    <Mail size={11} color={Colors.textMuted} />
+                    <Mail size={11} color={themeColors.textMuted} />
                     <Text style={styles.contactText}>{r.proposer_email}</Text>
                   </View>
                 )}
                 {r.proposer_phone && (
                   <View style={styles.contactItem}>
-                    <Phone size={11} color={Colors.textMuted} />
+                    <Phone size={11} color={themeColors.textMuted} />
                     <Text style={styles.contactText}>{r.proposer_phone}</Text>
                   </View>
                 )}
@@ -338,8 +343,8 @@ export default function RfpResponsesReviewScreen() {
                       onPress={() => updateStatus(r.id, 'submitted')}
                       disabled={isBusy}
                     >
-                      <Star size={13} color={Colors.textMuted} />
-                      <Text style={[styles.actionBtnText, { color: Colors.textMuted }]}>Remove from shortlist</Text>
+                      <Star size={13} color={themeColors.textMuted} />
+                      <Text style={[styles.actionBtnText, { color: themeColors.textMuted }]}>Remove from shortlist</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -347,7 +352,7 @@ export default function RfpResponsesReviewScreen() {
                     onPress={() => updateStatus(r.id, 'declined')}
                     disabled={isBusy}
                   >
-                    <Text style={[styles.actionBtnText, { color: Colors.error }]}>Decline</Text>
+                    <Text style={[styles.actionBtnText, { color: themeColors.danger }]}>Decline</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.actionBtn, styles.awardBtn]}
@@ -373,86 +378,86 @@ export default function RfpResponsesReviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   centered: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
 
   controls: {
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
     gap: 8,
   },
   tabRow: { flexDirection: 'row', gap: 8 },
-  tab: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
-  tabActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  tabText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  tab: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line },
+  tabActive: { backgroundColor: t.text, borderColor: t.text },
+  tabText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   tabTextActive: { color: '#FFF' },
   sortRow: { flexDirection: 'row', gap: 6 },
-  sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
-  sortChipActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
-  sortChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted },
-  sortChipTextActive: { color: Colors.primary },
+  sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line },
+  sortChipActive: { backgroundColor: t.accent + '15', borderColor: t.accent },
+  sortChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted },
+  sortChipTextActive: { color: t.accent },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 8, marginTop: 22,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, textAlign: 'center' },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4, textAlign: 'center' },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 8,
+    borderWidth: 1, borderColor: t.line, marginBottom: 12, gap: 8,
   },
-  cardAwarded:  { borderColor: Colors.success, borderWidth: 2, backgroundColor: Colors.success + '08' },
+  cardAwarded:  { borderColor: t.success, borderWidth: 2, backgroundColor: t.success + '08' },
   cardDeclined: { opacity: 0.65 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   identityWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  identityIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
-  identityName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  identityMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  identityIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: t.accent + '15', alignItems: 'center', justifyContent: 'center' },
+  identityName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  identityMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
 
-  awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.success + '20' },
-  awardedPillText:{ fontSize: 9, fontWeight: '800', color: Colors.success, letterSpacing: 0.6 },
+  awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: t.success + '20' },
+  awardedPillText:{ fontSize: 9, fontWeight: '800', color: t.success, letterSpacing: 0.6 },
   shortlistPill:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
   shortlistPillText:{ fontSize: 9, fontWeight: '800', color: Colors.warning, letterSpacing: 0.6 },
-  declinedPill:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.error + '15' },
-  declinedPillText:{ fontSize: 9, fontWeight: '800', color: Colors.error, letterSpacing: 0.6 },
+  declinedPill:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: t.danger + '15' },
+  declinedPillText:{ fontSize: 9, fontWeight: '800', color: t.danger, letterSpacing: 0.6 },
 
   siteVisitRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30' },
   siteVisitText: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '700' },
 
   amountWrap: { paddingVertical: 4 },
-  amountValue: { fontSize: 26, fontWeight: '800', color: Colors.text, letterSpacing: -0.6 },
-  amountSummary: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  amountValue: { fontSize: 26, fontWeight: '800', color: t.text, letterSpacing: -0.6 },
+  amountSummary: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 17 },
 
-  messageBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  messageText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
+  messageBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
+  messageText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17 },
 
   contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   contactItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  contactText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  contactText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
 
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
   shortlistBtn: { backgroundColor: Colors.warning + '08', borderColor: Colors.warning + '40' },
-  unshortBtn:   { backgroundColor: Colors.background, borderColor: Colors.border },
-  declineBtn:   { backgroundColor: Colors.background, borderColor: Colors.error + '40' },
-  awardBtn:     { backgroundColor: Colors.primary, borderColor: Colors.primary, marginLeft: 'auto' },
+  unshortBtn:   { backgroundColor: t.bg, borderColor: t.line },
+  declineBtn:   { backgroundColor: t.bg, borderColor: t.danger + '40' },
+  awardBtn:     { backgroundColor: t.accent, borderColor: t.accent, marginLeft: 'auto' },
   actionBtnText:{ fontSize: Type.caption1.fontSize, fontWeight: '700' },
 
   undeclineRow: { paddingTop: 6, alignSelf: 'flex-start' },
-  undeclineText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700' },
+  undeclineText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700' },
 
-  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary, marginTop: 12 },
+  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: t.accent, marginTop: 12 },
   backCtaText: { color: '#FFF', fontWeight: '700' },
 });

@@ -11,6 +11,9 @@ import {
   Package, CheckCircle2, Share2, Info,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -22,6 +25,8 @@ import {
 type Scope = 'all' | 'project';
 
 export default function DataExportScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ projectId?: string }>();
@@ -144,7 +149,7 @@ export default function DataExportScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><FolderDown size={24} color={Colors.primary} /></View>
+          <View style={styles.heroIcon}><FolderDown size={24} color={themeColors.accent} /></View>
           <Text style={styles.heroTitle}>Export my data</Text>
           <Text style={styles.heroSub}>
             Bundle every project, invoice, RFI, photo, and daily report into a portable file you own.
@@ -159,7 +164,7 @@ export default function DataExportScreen() {
             onPress={() => { setScope('all'); setProjectId(undefined); }}
             activeOpacity={0.8}
           >
-            <Package size={14} color={scope === 'all' ? Colors.textOnPrimary : Colors.text} />
+            <Package size={14} color={scope === 'all' ? '#FFFFFF' : themeColors.text} />
             <Text style={[styles.segmentTxt, scope === 'all' && styles.segmentTxtActive]}>All projects</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -167,7 +172,7 @@ export default function DataExportScreen() {
             onPress={() => setScope('project')}
             activeOpacity={0.8}
           >
-            <CheckCircle2 size={14} color={scope === 'project' ? Colors.textOnPrimary : Colors.text} />
+            <CheckCircle2 size={14} color={scope === 'project' ? '#FFFFFF' : themeColors.text} />
             <Text style={[styles.segmentTxt, scope === 'project' && styles.segmentTxtActive]}>Single project</Text>
           </TouchableOpacity>
         </View>
@@ -190,7 +195,7 @@ export default function DataExportScreen() {
                       <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
                       <Text style={styles.projectRowMeta}>{p.type} · {p.location}</Text>
                     </View>
-                    {active && <CheckCircle2 size={18} color={Colors.primary} />}
+                    {active && <CheckCircle2 size={18} color={themeColors.accent} />}
                   </TouchableOpacity>
                 );
               })
@@ -205,7 +210,7 @@ export default function DataExportScreen() {
             onPress={() => setFormat('json')}
             activeOpacity={0.8}
           >
-            <FileJson size={14} color={format === 'json' ? Colors.textOnPrimary : Colors.text} />
+            <FileJson size={14} color={format === 'json' ? '#FFFFFF' : themeColors.text} />
             <Text style={[styles.segmentTxt, format === 'json' && styles.segmentTxtActive]}>JSON</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -213,7 +218,7 @@ export default function DataExportScreen() {
             onPress={() => setFormat('csv')}
             activeOpacity={0.8}
           >
-            <FileSpreadsheet size={14} color={format === 'csv' ? Colors.textOnPrimary : Colors.text} />
+            <FileSpreadsheet size={14} color={format === 'csv' ? '#FFFFFF' : themeColors.text} />
             <Text style={[styles.segmentTxt, format === 'csv' && styles.segmentTxtActive]}>CSV</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -221,13 +226,13 @@ export default function DataExportScreen() {
             onPress={() => setFormat('both')}
             activeOpacity={0.8}
           >
-            <Download size={14} color={format === 'both' ? Colors.textOnPrimary : Colors.text} />
+            <Download size={14} color={format === 'both' ? '#FFFFFF' : themeColors.text} />
             <Text style={[styles.segmentTxt, format === 'both' && styles.segmentTxtActive]}>Both</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.hintCard}>
-          <Info size={14} color={Colors.textSecondary} />
+          <Info size={14} color={themeColors.textSecondary} />
           <Text style={styles.hintTxt}>
             JSON is a single complete bundle (lossless). CSV is one file per entity, great for Excel and Google Sheets.
           </Text>
@@ -235,7 +240,7 @@ export default function DataExportScreen() {
 
         <Text style={styles.sectionLabel}>OPTIONS</Text>
         <View style={styles.row}>
-          <View style={styles.rowIcon}><ImageIcon size={16} color={Colors.primary} /></View>
+          <View style={styles.rowIcon}><ImageIcon size={16} color={themeColors.accent} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>Include photo URLs</Text>
             <Text style={styles.rowSub}>Turn off if local file:// paths bloat the export.</Text>
@@ -243,8 +248,8 @@ export default function DataExportScreen() {
           <Switch
             value={includePhotoUrls}
             onValueChange={setIncludePhotoUrls}
-            trackColor={{ false: Colors.border, true: Colors.primary }}
-            thumbColor={Colors.surface}
+            trackColor={{ false: themeColors.line, true: themeColors.accent }}
+            thumbColor={themeColors.surface}
           />
         </View>
 
@@ -252,7 +257,7 @@ export default function DataExportScreen() {
             since the packet is per-project. We disable + dim if scope is
             "all" so the user understands why it's unavailable. */}
         <View style={[styles.row, scope !== 'project' && { opacity: 0.5 }]}>
-          <View style={styles.rowIcon}><FileJson size={16} color={Colors.primary} /></View>
+          <View style={styles.rowIcon}><FileJson size={16} color={themeColors.accent} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>Closeout PDF (handoff packet)</Text>
             <Text style={styles.rowSub}>
@@ -265,13 +270,13 @@ export default function DataExportScreen() {
             value={includeCloseoutPacket && scope === 'project'}
             onValueChange={setIncludeCloseoutPacket}
             disabled={scope !== 'project'}
-            trackColor={{ false: Colors.border, true: Colors.primary }}
-            thumbColor={Colors.surface}
+            trackColor={{ false: themeColors.line, true: themeColors.accent }}
+            thumbColor={themeColors.surface}
           />
         </View>
 
         <View style={styles.row}>
-          <View style={styles.rowIcon}><Info size={16} color={Colors.primary} /></View>
+          <View style={styles.rowIcon}><Info size={16} color={themeColors.accent} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>README.txt orientation file</Text>
             <Text style={styles.rowSub}>Plain-text file describing what each export piece is — useful for non-technical recipients.</Text>
@@ -279,8 +284,8 @@ export default function DataExportScreen() {
           <Switch
             value={includeReadme}
             onValueChange={setIncludeReadme}
-            trackColor={{ false: Colors.border, true: Colors.primary }}
-            thumbColor={Colors.surface}
+            trackColor={{ false: themeColors.line, true: themeColors.accent }}
+            thumbColor={themeColors.surface}
           />
         </View>
 
@@ -291,7 +296,7 @@ export default function DataExportScreen() {
           activeOpacity={0.85}
           style={styles.presetBtn}
         >
-          <Package size={14} color={Colors.primary} />
+          <Package size={14} color={themeColors.accent} />
           <Text style={styles.presetText}>Use &quot;Full project archive&quot; preset</Text>
         </TouchableOpacity>
 
@@ -323,10 +328,10 @@ export default function DataExportScreen() {
                     activeOpacity={0.7}
                   >
                     {uri.endsWith('.csv')
-                      ? <FileSpreadsheet size={16} color={Colors.primary} />
-                      : <FileJson size={16} color={Colors.primary} />}
+                      ? <FileSpreadsheet size={16} color={themeColors.accent} />
+                      : <FileJson size={16} color={themeColors.accent} />}
                     <Text style={styles.fileName} numberOfLines={1}>{name}</Text>
-                    <Share2 size={14} color={Colors.textSecondary} />
+                    <Share2 size={14} color={themeColors.textSecondary} />
                   </TouchableOpacity>
                 );
               })}
@@ -343,10 +348,10 @@ export default function DataExportScreen() {
           activeOpacity={0.85}
         >
           {generating ? (
-            <ActivityIndicator color={Colors.textOnPrimary} />
+            <ActivityIndicator color={'#FFFFFF'} />
           ) : (
             <>
-              <Download size={18} color={Colors.textOnPrimary} />
+              <Download size={18} color={'#FFFFFF'} />
               <Text style={styles.primaryBtnTxt}>Generate & share</Text>
             </>
           )}
@@ -357,6 +362,8 @@ export default function DataExportScreen() {
 }
 
 function SummaryLine({ label, value, last }: { label: string; value: number; last?: boolean }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={[styles.summaryRow, last && { borderBottomWidth: 0 }]}>
       <Text style={styles.summaryLabel}>{label}</Text>
@@ -365,125 +372,125 @@ function SummaryLine({ label, value, last }: { label: string; value: number; las
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { padding: 16, gap: 0 },
   hero: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 20,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     marginBottom: 20,
     gap: 10,
   },
   heroIcon: {
     width: 44, height: 44, borderRadius: Tokens.radius.card,
-    backgroundColor: `${Colors.primary}15`,
+    backgroundColor: `${t.accent}15`,
     alignItems: 'center', justifyContent: 'center',
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700', color: Colors.text },
-  heroSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700', color: t.text },
+  heroSub: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
 
   sectionLabel: {
-    fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
+    fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary,
     letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
   },
 
   segment: {
-    flexDirection: 'row', backgroundColor: Colors.surface,
-    borderRadius: Tokens.radius.card, padding: 4, borderWidth: 1, borderColor: Colors.cardBorder,
+    flexDirection: 'row', backgroundColor: t.surface,
+    borderRadius: Tokens.radius.card, padding: 4, borderWidth: 1, borderColor: t.line,
     gap: 4,
   },
   segmentBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 10, borderRadius: Tokens.radius.sm, gap: 6,
   },
-  segmentBtnActive: { backgroundColor: Colors.primary },
-  segmentTxt: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
-  segmentTxtActive: { color: Colors.textOnPrimary },
+  segmentBtnActive: { backgroundColor: t.accent },
+  segmentTxt: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  segmentTxtActive: { color: '#FFFFFF' },
 
   projectList: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line,
     marginTop: 8, overflow: 'hidden',
   },
   projectRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
+    padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
   },
-  projectRowActive: { backgroundColor: `${Colors.primary}08` },
-  projectRowName: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
-  projectRowNameActive: { color: Colors.primary },
-  projectRowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  emptyTxt: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, padding: 14, textAlign: 'center' },
+  projectRowActive: { backgroundColor: `${t.accent}08` },
+  projectRowName: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
+  projectRowNameActive: { color: t.accent },
+  projectRowMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
+  emptyTxt: { fontSize: Type.footnote.fontSize, color: t.textSecondary, padding: 14, textAlign: 'center' },
 
   hintCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: `${Colors.primary}08`, padding: 12,
+    backgroundColor: `${t.accent}08`, padding: 12,
     borderRadius: Tokens.radius.md, marginTop: 8,
   },
-  hintTxt: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
+  hintTxt: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    padding: 14, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    padding: 14, borderWidth: 1, borderColor: t.line,
   },
   rowIcon: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
-    backgroundColor: `${Colors.primary}12`,
+    backgroundColor: `${t.accent}12`,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  rowSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  rowLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  rowSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
 
   summaryCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden',
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line, overflow: 'hidden',
   },
   summaryRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
   },
-  summaryLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  summaryValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  summaryLabel: { fontSize: Type.bodyCompact.fontSize, color: t.text },
+  summaryValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
 
   resultCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line,
     padding: 14, gap: 10,
   },
-  resultHeader: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 4 },
+  resultHeader: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text, marginBottom: 4 },
   fileRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.sm,
   },
-  fileName: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }) },
+  fileName: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }) },
 
   bottomBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     paddingHorizontal: 16, paddingTop: 12,
-    backgroundColor: Colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+    backgroundColor: t.surface,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
   },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
+  primaryBtnTxt: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.subhead.fontSize },
 
   presetBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 11, paddingHorizontal: 12,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '12',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '12',
+    borderWidth: 1, borderColor: t.accent + '30',
     alignSelf: 'flex-start',
     marginVertical: 6,
   },
-  presetText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '700' },
+  presetText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '700' },
 });

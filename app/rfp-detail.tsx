@@ -21,6 +21,9 @@ import {
   HelpCircle, MessageSquare, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
@@ -50,6 +53,8 @@ interface RfpRow {
 }
 
 export default function RfpDetailScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -173,7 +178,7 @@ export default function RfpDetailScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="small" color={Colors.primary} />
+        <ActivityIndicator size="small" color={themeColors.accent} />
       </View>
     );
   }
@@ -184,7 +189,7 @@ export default function RfpDetailScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Homeowner RFP</Text>
@@ -211,21 +216,21 @@ export default function RfpDetailScreen() {
         <View style={styles.metaRow}>
           <View style={styles.metaPills}>
             {isAwarded && (
-              <View style={[styles.pill, { backgroundColor: Colors.success + '20' }]}>
-                <Trophy size={10} color={Colors.success} />
-                <Text style={[styles.pillText, { color: Colors.success }]}>AWARDED</Text>
+              <View style={[styles.pill, { backgroundColor: themeColors.success + '20' }]}>
+                <Trophy size={10} color={themeColors.success} />
+                <Text style={[styles.pillText, { color: themeColors.success }]}>AWARDED</Text>
               </View>
             )}
             {isOpen && (
-              <View style={[styles.pill, { backgroundColor: Colors.primary + '20' }]}>
-                <Clock size={10} color={Colors.primary} />
-                <Text style={[styles.pillText, { color: Colors.primary }]}>OPEN FOR BIDS</Text>
+              <View style={[styles.pill, { backgroundColor: themeColors.accent + '20' }]}>
+                <Clock size={10} color={themeColors.accent} />
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>OPEN FOR BIDS</Text>
               </View>
             )}
             {rfp.address_verified && (
-              <View style={[styles.pill, { backgroundColor: Colors.success + '15' }]}>
-                <ShieldCheck size={10} color={Colors.success} />
-                <Text style={[styles.pillText, { color: Colors.success }]}>ADDRESS VERIFIED</Text>
+              <View style={[styles.pill, { backgroundColor: themeColors.success + '15' }]}>
+                <ShieldCheck size={10} color={themeColors.success} />
+                <Text style={[styles.pillText, { color: themeColors.success }]}>ADDRESS VERIFIED</Text>
               </View>
             )}
             {!rfp.address_verified && (
@@ -240,7 +245,7 @@ export default function RfpDetailScreen() {
         {/* Location + budget */}
         <View style={styles.card}>
           <View style={styles.cardRow}>
-            <MapPin size={14} color={Colors.textMuted} />
+            <MapPin size={14} color={themeColors.textMuted} />
             <Text style={styles.cardRowText}>
               {[rfp.city, rfp.state].filter(Boolean).join(', ') || 'Location pending'}
               {' '}<Text style={styles.cardRowMuted}>(exact address shared after homeowner accepts a site visit)</Text>
@@ -248,7 +253,7 @@ export default function RfpDetailScreen() {
           </View>
           {(rfp.budget_min || rfp.budget_max) && (
             <View style={styles.cardRow}>
-              <FileText size={14} color={Colors.textMuted} />
+              <FileText size={14} color={themeColors.textMuted} />
               <Text style={styles.cardRowText}>
                 Budget {rfp.budget_min ? formatMoney(rfp.budget_min) : '—'} to {rfp.budget_max ? formatMoney(rfp.budget_max) : '—'}
               </Text>
@@ -256,12 +261,12 @@ export default function RfpDetailScreen() {
           )}
           {rfp.desired_start && (
             <View style={styles.cardRow}>
-              <Calendar size={14} color={Colors.textMuted} />
+              <Calendar size={14} color={themeColors.textMuted} />
               <Text style={styles.cardRowText}>Desired start: {rfp.desired_start}</Text>
             </View>
           )}
           <View style={styles.cardRow}>
-            <Calendar size={14} color={Colors.textMuted} />
+            <Calendar size={14} color={themeColors.textMuted} />
             <Text style={styles.cardRowText}>
               Bids due {new Date(rfp.deadline).toLocaleDateString()}
             </Text>
@@ -285,9 +290,9 @@ export default function RfpDetailScreen() {
                 const name = url.split('/').pop()?.replace(/^\d+_/, '') ?? 'attachment';
                 return (
                   <TouchableOpacity key={url} style={styles.drawingItem} onPress={() => openAttachment(url)}>
-                    <FileText size={16} color={Colors.primary} />
+                    <FileText size={16} color={themeColors.accent} />
                     <Text style={styles.drawingName} numberOfLines={1}>{decodeURIComponent(name)}</Text>
-                    <ChevronRight size={14} color={Colors.textMuted} />
+                    <ChevronRight size={14} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 );
               })}
@@ -298,7 +303,7 @@ export default function RfpDetailScreen() {
         {/* Pre-bid Q&A */}
         <View style={styles.qaCard}>
           <View style={styles.qaHead}>
-            <HelpCircle size={14} color={Colors.primary} />
+            <HelpCircle size={14} color={themeColors.accent} />
             <Text style={styles.qaTitle}>Questions & answers</Text>
             {(questions?.length ?? 0) > 0 && (
               <View style={styles.qaCount}>
@@ -320,7 +325,7 @@ export default function RfpDetailScreen() {
                 value={newQuestion}
                 onChangeText={setNewQuestion}
                 placeholder="What's the existing electrical panel size? Any HOA constraints?"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
@@ -358,7 +363,7 @@ export default function RfpDetailScreen() {
                   </View>
                   {q.answer ? (
                     <View style={styles.qaAnswer}>
-                      <CheckCircle2 size={11} color={Colors.success} />
+                      <CheckCircle2 size={11} color={themeColors.success} />
                       <Text style={styles.qaAnswerText}>{q.answer}</Text>
                     </View>
                   ) : isOwner ? (
@@ -393,7 +398,7 @@ export default function RfpDetailScreen() {
         {!isOwner && existingResponse && (
           <View style={styles.responseCard}>
             <View style={styles.responseHead}>
-              <ImageIcon size={14} color={Colors.success} />
+              <ImageIcon size={14} color={themeColors.success} />
               <Text style={styles.responseTitle}>You submitted an estimate</Text>
             </View>
             <Text style={styles.responseDetail}>
@@ -421,18 +426,18 @@ export default function RfpDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
 
   gallery: { marginBottom: 14, marginHorizontal: -2 },
-  galleryImage: { width: 220, height: 160, borderRadius: Tokens.radius.card, marginRight: 8, backgroundColor: Colors.background },
+  galleryImage: { width: 220, height: 160, borderRadius: Tokens.radius.card, marginRight: 8, backgroundColor: t.bg },
 
   metaRow: { marginBottom: 14 },
   metaPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -441,27 +446,27 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 8,
+    borderWidth: 1, borderColor: t.line, marginBottom: 12, gap: 8,
   },
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  cardRowText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  cardRowMuted: { color: Colors.textMuted, fontSize: Type.caption1.fontSize },
-  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-  scope: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21 },
+  cardRowText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
+  cardRowMuted: { color: t.textMuted, fontSize: Type.caption1.fontSize },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  scope: { fontSize: Type.bodyCompact.fontSize, color: t.text, lineHeight: 21 },
 
   drawingList: { gap: 6 },
   drawingItem: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
-    padding: 10, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.md,
+    padding: 10, borderWidth: 1, borderColor: t.line,
   },
-  drawingName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
+  drawingName: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' },
 
   primaryCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary, marginTop: 10,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: t.accent, marginTop: 10,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   primaryCtaText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
@@ -469,68 +474,68 @@ const styles = StyleSheet.create({
   secondaryCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 13, borderRadius: 11,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, marginTop: 10,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line, marginTop: 10,
   },
-  secondaryCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  secondaryCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   ownerActions: { flexDirection: 'row', gap: 10 },
 
   dimmedCta: {
     paddingVertical: 16, borderRadius: Tokens.radius.card, marginTop: 10,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line,
     alignItems: 'center',
   },
-  dimmedCtaText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' },
+  dimmedCtaText: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontStyle: 'italic' },
 
   responseCard: {
-    backgroundColor: Colors.success + '0D', borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.success + '30', marginTop: 10, gap: 6,
+    backgroundColor: t.success + '0D', borderRadius: Tokens.radius.card, padding: 14,
+    borderWidth: 1, borderColor: t.success + '30', marginTop: 10, gap: 6,
   },
   responseHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  responseTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text },
-  responseDetail: { fontSize: Type.footnote.fontSize, color: Colors.text },
-  responseStatus: { fontWeight: '700', color: Colors.success },
+  responseTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
+  responseDetail: { fontSize: Type.footnote.fontSize, color: t.text },
+  responseStatus: { fontWeight: '700', color: t.success },
 
   // ─── Q&A ───
   qaCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginTop: 4, marginBottom: 10, gap: 10,
   },
   qaHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qaTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  qaCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
-  qaCountText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: 0.4 },
-  qaHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
+  qaTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  qaCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: t.accent + '15' },
+  qaCountText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.accent, letterSpacing: 0.4 },
+  qaHelper: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
 
   qaCompose: { gap: 6 },
   qaInput: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: Type.footnote.fontSize, color: Colors.text, minHeight: 70,
+    fontSize: Type.footnote.fontSize, color: t.text, minHeight: 70,
   },
   qaAskBtn: {
     alignSelf: 'flex-end',
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   qaAskBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
-  qaEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 8 },
+  qaEmpty: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic', paddingVertical: 8 },
   qaList: { gap: 10 },
   qaRow: {
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md, padding: 11,
-    borderWidth: 1, borderColor: Colors.border, gap: 8,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.md, padding: 11,
+    borderWidth: 1, borderColor: t.line, gap: 8,
   },
   qaQuestion: { gap: 3 },
-  qaAuthor: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
-  qaText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  qaAuthor: { fontSize: 10, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
+  qaText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
   qaAnswer: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 6,
-    paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border,
+    paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line,
   },
-  qaAnswerText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600', lineHeight: 18 },
+  qaAnswerText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600', lineHeight: 18 },
   qaAnswerCta: { paddingTop: 6, alignSelf: 'flex-start' },
-  qaAnswerCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
-  qaPending: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingTop: 4 },
+  qaAnswerCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
+  qaPending: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic', paddingTop: 4 },
 });

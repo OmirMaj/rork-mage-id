@@ -29,6 +29,9 @@ import {
   Activity,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import InteractiveGantt from '@/components/schedule/InteractiveGantt';
 import { runCpm } from '@/utils/cpm';
 import {
@@ -44,6 +47,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function SharedScheduleScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t, asSub } = useLocalSearchParams<{ t?: string; asSub?: string }>();
@@ -181,7 +186,7 @@ export default function SharedScheduleScreen() {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ title: 'Schedule' }} />
-        <Lock size={28} color={Colors.textMuted} />
+        <Lock size={28} color={themeColors.textMuted} />
         <Text style={styles.title}>Invalid or expired link</Text>
         <Text style={styles.body}>
           This schedule link could not be opened. Ask the sender for a fresh link.
@@ -200,7 +205,7 @@ export default function SharedScheduleScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={6}>
-          <ChevronLeft size={18} color={Colors.primary} />
+          <ChevronLeft size={18} color={themeColors.accent} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         <View style={styles.titleWrap}>
@@ -212,7 +217,7 @@ export default function SharedScheduleScreen() {
           </Text>
         </View>
         <View style={styles.lockBadge}>
-          <Lock size={12} color={Colors.textSecondary} />
+          <Lock size={12} color={themeColors.textSecondary} />
           <Text style={styles.lockBadgeText}>{isSubMode ? 'Sub' : 'Shared'}</Text>
         </View>
       </View>
@@ -221,7 +226,7 @@ export default function SharedScheduleScreen() {
       {isSubMode && (
         <View style={styles.subBanner}>
           <View style={styles.subBannerIcon}>
-            <CheckCircle2 size={16} color={Colors.success} />
+            <CheckCircle2 size={16} color={themeColors.success} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.subBannerTitle}>Confirming as: {subName}</Text>
@@ -259,14 +264,14 @@ export default function SharedScheduleScreen() {
                     </View>
                   </View>
                   <View style={styles.subRowDates}>
-                    <CalendarClock size={14} color={Colors.primary} />
+                    <CalendarClock size={14} color={themeColors.accent} />
                     <Text style={styles.subRowDateText}>{range}</Text>
                   </View>
                   <View style={styles.subRowActions}>
                     {confirmed ? (
                       <View style={[styles.subBtn, styles.subBtnDone]}>
-                        <CheckCircle2 size={14} color={Colors.success} />
-                        <Text style={[styles.subBtnText, { color: Colors.success }]}>Confirmation sent</Text>
+                        <CheckCircle2 size={14} color={themeColors.success} />
+                        <Text style={[styles.subBtnText, { color: themeColors.success }]}>Confirmation sent</Text>
                       </View>
                     ) : (
                       <TouchableOpacity
@@ -299,7 +304,7 @@ export default function SharedScheduleScreen() {
                       <View style={styles.subUpdateRow}>
                         {last && (
                           <View style={styles.subUpdateChip}>
-                            <Activity size={11} color={Colors.success} />
+                            <Activity size={11} color={themeColors.success} />
                             <Text style={styles.subUpdateChipText}>
                               {last.progressPercent}% on {new Date(last.forDate).toLocaleDateString()}
                             </Text>
@@ -311,8 +316,8 @@ export default function SharedScheduleScreen() {
                           activeOpacity={0.85}
                           testID={`sub-log-${task.id}`}
                         >
-                          <Activity size={14} color={Colors.primary} />
-                          <Text style={[styles.subBtnText, { color: Colors.primary }]}>
+                          <Activity size={14} color={themeColors.accent} />
+                          <Text style={[styles.subBtnText, { color: themeColors.accent }]}>
                             {last ? 'Update today\'s progress' : 'Log today\'s update'}
                           </Text>
                         </TouchableOpacity>
@@ -395,14 +400,14 @@ export default function SharedScheduleScreen() {
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setRescheduleTask(null)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={Colors.text} />
+                <X size={18} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             <TextInput
               value={rescheduleReason}
               onChangeText={setRescheduleReason}
               placeholder="Optional — material delay, crew conflict, weather…"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               style={styles.modalInput}
               multiline
               autoFocus
@@ -434,97 +439,97 @@ export default function SharedScheduleScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder,
-    backgroundColor: Colors.surface,
+    borderBottomWidth: 1, borderBottomColor: t.line,
+    backgroundColor: t.surface,
   },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  backText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
+  backText: { color: t.accent, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
   titleWrap: { flex: 1, marginHorizontal: 8 },
-  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  sub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  sub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   lockBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillSecondary,
   },
-  lockBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.textSecondary },
+  lockBadgeText: { fontSize: 10, fontWeight: '700', color: t.textSecondary },
   body: { flex: 1, padding: 12 },
   primaryBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
-  narrowIntro: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 16, fontStyle: 'italic' },
-  narrowRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  narrowIdx: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, width: 24, paddingTop: 2 },
-  narrowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
-  narrowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  narrowIntro: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 16, fontStyle: 'italic' },
+  narrowRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line },
+  narrowIdx: { fontSize: Type.caption1.fontSize, color: t.textMuted, width: 24, paddingTop: 2 },
+  narrowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
+  narrowMeta: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
 
   // Sub-mode banner
   subBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     margin: 12, padding: 14, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.success + '14',
-    borderWidth: 1, borderColor: Colors.success + '30',
+    backgroundColor: t.success + '14',
+    borderWidth: 1, borderColor: t.success + '30',
   },
   subBannerIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.success + '20',
+    backgroundColor: t.success + '20',
     alignItems: 'center', justifyContent: 'center',
   },
-  subBannerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  subBannerBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  subBannerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
+  subBannerBody: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
 
   // Sub-mode task list
   subList: { padding: 12, gap: 10 },
   subRow: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
     gap: 10,
   },
   subRowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   subRowIdx: {
-    fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted,
     width: 22, textAlign: 'center', paddingTop: 2,
     backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.xs, height: 22,
     lineHeight: 22,
   },
-  subRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 19 },
-  subRowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, letterSpacing: 0.3, textTransform: 'uppercase' as const, fontWeight: '700' },
+  subRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, lineHeight: 19 },
+  subRowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, letterSpacing: 0.3, textTransform: 'uppercase' as const, fontWeight: '700' },
   subRowDates: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 8, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '0D',
+    backgroundColor: t.accent + '0D',
   },
-  subRowDateText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
+  subRowDateText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
   subRowActions: { flexDirection: 'row', gap: 8 },
   subBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
     paddingVertical: 11, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
   },
   subBtnConfirm: {
-    backgroundColor: Colors.success,
-    borderColor: Colors.success,
+    backgroundColor: t.success,
+    borderColor: t.success,
   },
   subBtnReschedule: {
     backgroundColor: Colors.warning + '14',
     borderColor: Colors.warning + '40',
   },
   subBtnDone: {
-    backgroundColor: Colors.success + '14',
-    borderColor: Colors.success + '40',
+    backgroundColor: t.success + '14',
+    borderColor: t.success + '40',
   },
   subBtnUpdate: {
-    backgroundColor: Colors.primary + '0D',
-    borderColor: Colors.primary + '40',
+    backgroundColor: t.accent + '0D',
+    borderColor: t.accent + '40',
   },
   subBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
@@ -534,13 +539,13 @@ const styles = StyleSheet.create({
   subUpdateChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 5, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.success + '14',
-    borderWidth: 1, borderColor: Colors.success + '30',
+    backgroundColor: t.success + '14',
+    borderWidth: 1, borderColor: t.success + '30',
   },
-  subUpdateChipText: { fontSize: Type.caption2.fontSize, color: Colors.success, fontWeight: '700' },
+  subUpdateChipText: { fontSize: Type.caption2.fontSize, color: t.success, fontWeight: '700' },
 
   subFooter: { padding: 14, alignItems: 'center' },
-  subFooterText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 16, fontStyle: 'italic' },
+  subFooterText: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 16, fontStyle: 'italic' },
 
   // Modal
   modalBackdrop: {
@@ -548,13 +553,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     padding: 16, gap: 12,
   },
   modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  modalTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  modalTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  modalSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -564,8 +569,8 @@ const styles = StyleSheet.create({
     minHeight: 80,
     padding: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
-    color: Colors.text, fontSize: Type.bodyCompact.fontSize, lineHeight: 20,
+    borderWidth: 1, borderColor: t.line,
+    color: t.text, fontSize: Type.bodyCompact.fontSize, lineHeight: 20,
     textAlignVertical: 'top' as const,
   },
   modalActions: { flexDirection: 'row', gap: 10 },
@@ -573,8 +578,8 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: Tokens.radius.md,
   },
-  modalBtnSecondary: { backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder },
-  modalBtnSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalBtnPrimary: { backgroundColor: Colors.primary },
+  modalBtnSecondary: { backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line },
+  modalBtnSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  modalBtnPrimary: { backgroundColor: t.accent },
   modalBtnPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
 });

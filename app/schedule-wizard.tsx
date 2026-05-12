@@ -27,6 +27,9 @@ import {
   Building2, Hammer, Trees, Home as HomeIcon, Plus, Trash2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate, TemplateTask } from '@/constants/scheduleTemplates';
@@ -61,6 +64,8 @@ function addDays(date: Date, days: number): Date {
 }
 
 export default function ScheduleWizardScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -222,7 +227,7 @@ export default function ScheduleWizardScreen() {
       {/* Top bar: back arrow, title, save shortcut. Mirrors the mockup. */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={handleBack} style={styles.topBarBackBtn} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Create Schedule</Text>
         {step === 3 ? (
@@ -344,6 +349,8 @@ function ProjectStep(props: {
   projectEndDate: Date;
   totalDays: number;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projects, pickedId, onPick, startDate, projectEndDate, totalDays } = props;
   const picked = projects.find(p => p.id === pickedId);
 
@@ -352,7 +359,7 @@ function ProjectStep(props: {
       {picked ? (
         <View style={styles.heroCard}>
           <View style={styles.heroIcon}>
-            <Building2 size={28} color={Colors.primary} strokeWidth={1.6} />
+            <Building2 size={28} color={themeColors.accent} strokeWidth={1.6} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.heroTitle}>{picked.name}</Text>
@@ -360,7 +367,7 @@ function ProjectStep(props: {
               <Text style={styles.heroMeta}>📍 {picked.location || 'No location set'}</Text>
             </View>
             <View style={styles.heroMetaRow}>
-              <CalendarIcon size={13} color={Colors.textMuted} />
+              <CalendarIcon size={13} color={themeColors.textMuted} />
               <Text style={styles.heroMeta}>
                 {fmtShort(startDate)} – {fmtShort(projectEndDate)}
                 {totalDays > 0 ? ` · ${totalDays} days` : ''}
@@ -383,14 +390,14 @@ function ProjectStep(props: {
               onPress={() => onPick(p.id)}
               activeOpacity={0.85}
             >
-              <View style={[styles.projectDot, active && { backgroundColor: Colors.primary }]} />
+              <View style={[styles.projectDot, active && { backgroundColor: themeColors.accent }]} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.projectName} numberOfLines={1}>{p.name}</Text>
                 <Text style={styles.projectSub} numberOfLines={1}>
                   {p.location || 'No location'} · {p.type}
                 </Text>
               </View>
-              {active && <Check size={18} color={Colors.primary} strokeWidth={2.5} />}
+              {active && <Check size={18} color={themeColors.accent} strokeWidth={2.5} />}
             </TouchableOpacity>
           );
         })}
@@ -410,6 +417,8 @@ function TasksStep(props: {
   tasks: TemplateTask[];
   setTasks: (next: TemplateTask[] | ((prev: TemplateTask[]) => TemplateTask[])) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { template, templates, onPickTemplate, tasks, setTasks } = props;
 
   return (
@@ -430,10 +439,10 @@ function TasksStep(props: {
               style={[styles.templateCard, active && styles.templateCardActive]}
               activeOpacity={0.85}
             >
-              <View style={[styles.templateIcon, active && { backgroundColor: Colors.primary + '15' }]}>
-                <Icon size={22} color={active ? Colors.primary : Colors.textSecondary} />
+              <View style={[styles.templateIcon, active && { backgroundColor: themeColors.accent + '15' }]}>
+                <Icon size={22} color={active ? themeColors.accent : themeColors.textSecondary} />
               </View>
-              <Text style={[styles.templateName, active && { color: Colors.primary }]} numberOfLines={2}>
+              <Text style={[styles.templateName, active && { color: themeColors.accent }]} numberOfLines={2}>
                 {t.name}
               </Text>
               <Text style={styles.templateSub}>{t.taskCount} tasks · {t.typicalDuration}</Text>
@@ -457,7 +466,7 @@ function TasksStep(props: {
                   }}
                   style={styles.taskName}
                   placeholder="Task name"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
                 <Text style={styles.taskMeta}>
                   {t.phase} · {t.duration === 0 ? 'milestone' : `${t.duration}d`}
@@ -469,7 +478,7 @@ function TasksStep(props: {
                 accessibilityRole="button"
                 accessibilityLabel="Remove task"
               >
-                <Trash2 size={16} color={Colors.textMuted} />
+                <Trash2 size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             </View>
           );
@@ -491,7 +500,7 @@ function TasksStep(props: {
           }}
           activeOpacity={0.85}
         >
-          <Plus size={16} color={Colors.primary} />
+          <Plus size={16} color={themeColors.accent} />
           <Text style={styles.addTaskBtnText}>Add task</Text>
         </TouchableOpacity>
       </View>
@@ -505,6 +514,8 @@ function ScheduleStep(props: {
   startDate: Date;
   totalDays: number;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { scheduledTasks, startDate, totalDays } = props;
   const PX_PER_DAY = 16;
   const timelineWidth = Math.max(320, totalDays * PX_PER_DAY);
@@ -564,6 +575,8 @@ function ReviewStep(props: {
   endDate: Date;
   totalDays: number;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { project, template, tasksCount, startDate, endDate, totalDays } = props;
   return (
     <View style={styles.stepContent}>
@@ -592,8 +605,8 @@ function ReviewStep(props: {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
 
   topBar: {
     flexDirection: 'row' as const,
@@ -604,17 +617,17 @@ const styles = StyleSheet.create({
   },
   topBarBackBtn: {
     width: 40, height: 40, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   topBarTitle: {
     flex: 1,
     textAlign: 'center' as const,
     fontSize: Type.headline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   topBarPlaceholder: { width: 40 },
   topBarSaveBtn: {
@@ -623,7 +636,7 @@ const styles = StyleSheet.create({
   topBarSaveText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
 
   stepIndicatorRow: {
@@ -642,34 +655,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    borderWidth: 1.5, borderColor: Colors.borderLight,
+    borderWidth: 1.5, borderColor: t.line,
   },
   stepCircleActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: t.accent,
+    borderColor: t.accent,
   },
   stepCircleDone: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: t.accent,
+    borderColor: t.accent,
   },
   stepCircleText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
   stepCircleTextActive: { color: '#fff' },
   stepLabel: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '600' as const,
   },
-  stepLabelActive: { color: Colors.text },
+  stepLabelActive: { color: t.text },
   stepConnector: {
     flex: 1, height: 2,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
     marginBottom: 18,
   },
-  stepConnectorDone: { backgroundColor: Colors.primary },
+  stepConnectorDone: { backgroundColor: t.accent },
 
   stepContent: {
     paddingHorizontal: 16,
@@ -679,14 +692,14 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.7,
     textTransform: 'uppercase' as const,
     marginTop: 4,
   },
   helper: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     lineHeight: 19,
   },
 
@@ -694,20 +707,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     gap: 14,
     padding: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   heroIcon: {
     width: 56, height: 56, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   heroTitle: {
     fontSize: Type.headline.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.3,
   },
   heroMetaRow: {
@@ -718,7 +731,7 @@ const styles = StyleSheet.create({
   },
   heroMeta: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 
   projectRow: {
@@ -726,26 +739,26 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 12,
     padding: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   projectRowActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
+    borderColor: t.accent,
+    backgroundColor: t.accent + '08',
   },
   projectDot: {
     width: 10, height: 10, borderRadius: 5,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
   },
   projectName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   projectSub: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
 
@@ -756,14 +769,14 @@ const styles = StyleSheet.create({
   templateCard: {
     width: 130,
     padding: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
     gap: 8,
   },
   templateCardActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
+    borderColor: t.accent,
+    backgroundColor: t.accent + '08',
   },
   templateIcon: {
     width: 38, height: 38, borderRadius: Tokens.radius.sm,
@@ -774,11 +787,11 @@ const styles = StyleSheet.create({
   templateName: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   templateSub: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 
   taskRow: {
@@ -786,9 +799,9 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 10,
     padding: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   taskDot: {
     width: 8, height: 8, borderRadius: 4,
@@ -796,12 +809,12 @@ const styles = StyleSheet.create({
   taskName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     paddingVertical: 0,
   },
   taskMeta: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
   addTaskBtn: {
@@ -811,13 +824,13 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 12,
     borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderStyle: 'dashed' as const, borderColor: Colors.primary + '50',
-    backgroundColor: Colors.primary + '08',
+    borderWidth: 1, borderStyle: 'dashed' as const, borderColor: t.accent + '50',
+    backgroundColor: t.accent + '08',
   },
   addTaskBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
 
   timelineWrap: {
@@ -828,7 +841,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     height: 24,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
     marginBottom: 4,
   },
   timelineHeaderCell: {
@@ -837,7 +850,7 @@ const styles = StyleSheet.create({
   },
   timelineHeaderText: {
     fontSize: 9,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '600' as const,
   },
   timelineRow: {
@@ -860,27 +873,27 @@ const styles = StyleSheet.create({
 
   reviewCard: {
     padding: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
     gap: 4,
   },
   reviewLabel: {
     fontSize: 11,
     fontWeight: '800' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.7,
     textTransform: 'uppercase' as const,
   },
   reviewValue: {
     fontSize: Type.headline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.3,
   },
   reviewSub: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 
   bottomCta: {
@@ -888,9 +901,9 @@ const styles = StyleSheet.create({
     left: 0, right: 0, bottom: 0,
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   ctaBtn: {
     flexDirection: 'row' as const,
@@ -899,7 +912,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   ctaBtnDisabled: {
     opacity: 0.4,

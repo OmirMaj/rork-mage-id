@@ -10,6 +10,9 @@ import {
   TrendingUp, Receipt, ArrowLeft,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Invoice, Project } from '@/types';
 import { Type } from '@/constants/typography';
@@ -33,6 +36,8 @@ interface ProjectRetention {
 }
 
 export default function RetentionScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId: scopeProjectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -92,9 +97,9 @@ export default function RetentionScreen() {
       <Stack.Screen
         options={{
           title: scopedProject ? `${scopedProject.name} · Retention` : 'Retention',
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+          headerStyle: { backgroundColor: themeColors.bg },
+          headerTintColor: themeColors.accent,
+          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         }}
       />
 
@@ -124,13 +129,13 @@ export default function RetentionScreen() {
             <Text style={styles.metricValue}>{formatCurrency(totals.totalHeld)}</Text>
             <Text style={styles.metricLabel}>Total Held</Text>
           </View>
-          <View style={[styles.metricCard, { borderColor: Colors.success + '40' }]}>
-            <Unlock size={14} color={Colors.success} />
+          <View style={[styles.metricCard, { borderColor: themeColors.success + '40' }]}>
+            <Unlock size={14} color={themeColors.success} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalReleased)}</Text>
             <Text style={styles.metricLabel}>Released</Text>
           </View>
-          <View style={[styles.metricCard, { borderColor: Colors.error + '40' }]}>
-            <AlertCircle size={14} color={Colors.error} />
+          <View style={[styles.metricCard, { borderColor: themeColors.danger + '40' }]}>
+            <AlertCircle size={14} color={themeColors.danger} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalPending)}</Text>
             <Text style={styles.metricLabel}>Pending</Text>
           </View>
@@ -139,13 +144,13 @@ export default function RetentionScreen() {
         {/* Explainer */}
         {projectRetention.length === 0 && (
           <View style={styles.emptyState}>
-            <Lock size={36} color={Colors.textMuted} />
+            <Lock size={36} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No Retention Held Yet</Text>
             <Text style={styles.emptyBody}>
               When you set a Retention % on an invoice (e.g. 10%), that amount is held back by the client until punch list is cleared or substantial completion. It will appear here so you can track and release it.
             </Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => router.back()} activeOpacity={0.8}>
-              <ArrowLeft size={14} color={Colors.primary} />
+              <ArrowLeft size={14} color={themeColors.accent} />
               <Text style={styles.emptyBtnText}>Back</Text>
             </TouchableOpacity>
           </View>
@@ -165,9 +170,9 @@ export default function RetentionScreen() {
               >
                 <View style={styles.projectIconWrap}>
                   {isComplete ? (
-                    <CheckCircle2 size={18} color={Colors.success} />
+                    <CheckCircle2 size={18} color={themeColors.success} />
                   ) : (
-                    <FolderOpen size={18} color={Colors.primary} />
+                    <FolderOpen size={18} color={themeColors.accent} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -178,14 +183,14 @@ export default function RetentionScreen() {
                   </Text>
                 </View>
                 <View style={styles.projectAmountWrap}>
-                  <Text style={[styles.projectAmount, isComplete && { color: Colors.success }]}>
+                  <Text style={[styles.projectAmount, isComplete && { color: themeColors.success }]}>
                     {formatCurrency(pr.retentionPending)}
                   </Text>
                   <Text style={styles.projectAmountLabel}>{isComplete ? 'complete' : 'pending'}</Text>
                 </View>
                 <ChevronRight
                   size={18}
-                  color={Colors.textMuted}
+                  color={themeColors.textMuted}
                   style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}
                 />
               </TouchableOpacity>
@@ -193,7 +198,7 @@ export default function RetentionScreen() {
               {/* Progress bar */}
               <View style={styles.progressBarWrap}>
                 <View style={styles.progressBarTrack}>
-                  <View style={[styles.progressBarFill, { width: `${Math.min(releasePct, 100)}%`, backgroundColor: isComplete ? Colors.success : Colors.warning }]} />
+                  <View style={[styles.progressBarFill, { width: `${Math.min(releasePct, 100)}%`, backgroundColor: isComplete ? themeColors.success : Colors.warning }]} />
                 </View>
                 <Text style={styles.progressBarText}>{releasePct}% released</Text>
               </View>
@@ -209,12 +214,12 @@ export default function RetentionScreen() {
                     <Text style={[styles.detailValue, { color: Colors.warning }]}>{formatCurrencyPrecise(pr.retentionHeld)}</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={[styles.detailLabel, { color: Colors.success }]}>Released</Text>
-                    <Text style={[styles.detailValue, { color: Colors.success }]}>{formatCurrencyPrecise(pr.retentionReleased)}</Text>
+                    <Text style={[styles.detailLabel, { color: themeColors.success }]}>Released</Text>
+                    <Text style={[styles.detailValue, { color: themeColors.success }]}>{formatCurrencyPrecise(pr.retentionReleased)}</Text>
                   </View>
-                  <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: 8, marginTop: 4 }]}>
+                  <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: themeColors.line, paddingTop: 8, marginTop: 4 }]}>
                     <Text style={styles.detailLabelBold}>Pending Release</Text>
-                    <Text style={[styles.detailValueBold, { color: isComplete ? Colors.success : Colors.error }]}>
+                    <Text style={[styles.detailValueBold, { color: isComplete ? themeColors.success : themeColors.danger }]}>
                       {formatCurrencyPrecise(pr.retentionPending)}
                     </Text>
                   </View>
@@ -231,7 +236,7 @@ export default function RetentionScreen() {
                         activeOpacity={0.7}
                       >
                         <View style={styles.invoiceIconWrap}>
-                          <Receipt size={14} color={Colors.primary} />
+                          <Receipt size={14} color={themeColors.accent} />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.invoiceTitle}>
@@ -244,14 +249,14 @@ export default function RetentionScreen() {
                           </Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' as const, gap: 2 }}>
-                          <Text style={[styles.invoiceRetention, { color: invDone ? Colors.success : Colors.warning }]}>
+                          <Text style={[styles.invoiceRetention, { color: invDone ? themeColors.success : Colors.warning }]}>
                             {formatCurrency(invPending)}
                           </Text>
                           <Text style={styles.invoiceRetentionLabel}>
                             {invDone ? 'released' : 'pending'}
                           </Text>
                         </View>
-                        <ChevronRight size={14} color={Colors.textMuted} />
+                        <ChevronRight size={14} color={themeColors.textMuted} />
                       </TouchableOpacity>
                     );
                   })}
@@ -263,7 +268,7 @@ export default function RetentionScreen() {
 
         {projectRetention.length > 0 && !scopeProjectId && (
           <View style={styles.tipCard}>
-            <TrendingUp size={16} color={Colors.primary} />
+            <TrendingUp size={16} color={themeColors.accent} />
             <Text style={styles.tipText}>
               Release retention from inside each invoice. Common triggers: substantial completion, punch list clearance, final inspection sign-off.
             </Text>
@@ -274,54 +279,54 @@ export default function RetentionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   hero: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
   heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.warning + '15', alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 8 },
-  heroAmount: { fontSize: 36, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.2 },
-  heroLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
-  heroMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4 },
+  heroAmount: { fontSize: 36, fontWeight: '800' as const, color: t.text, letterSpacing: -1.2 },
+  heroLabel: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, fontWeight: '600' as const },
+  heroMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4 },
 
   metricsRow: { flexDirection: 'row' as const, gap: 10, paddingHorizontal: 16, marginBottom: 20 },
-  metricCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 12, borderWidth: 1, gap: 4, alignItems: 'flex-start' as const },
-  metricValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 4 },
-  metricLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
+  metricCard: { flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 12, borderWidth: 1, gap: 4, alignItems: 'flex-start' as const },
+  metricValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 4 },
+  metricLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const },
 
-  emptyState: { margin: 16, padding: 28, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, alignItems: 'center' as const, gap: 10 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 19 },
-  emptyBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', marginTop: 6 },
-  emptyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  emptyState: { margin: 16, padding: 28, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line, alignItems: 'center' as const, gap: 10 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 6 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 19 },
+  emptyBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: t.accent + '15', marginTop: 6 },
+  emptyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
 
-  projectCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
+  projectCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line, overflow: 'hidden' as const },
   projectHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, padding: 14 },
-  projectIconWrap: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  projectName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  projectMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  projectIconWrap: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: t.surfaceAlt, alignItems: 'center' as const, justifyContent: 'center' as const },
+  projectName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  projectMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   projectAmountWrap: { alignItems: 'flex-end' as const },
   projectAmount: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.warning },
-  projectAmountLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
+  projectAmountLabel: { fontSize: 10, color: t.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
 
   progressBarWrap: { paddingHorizontal: 14, paddingBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   progressBarTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   progressBarFill: { height: '100%' as const, borderRadius: 3 },
-  progressBarText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, minWidth: 70, textAlign: 'right' as const },
+  progressBarText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, minWidth: 70, textAlign: 'right' as const },
 
-  expandedSection: { borderTopWidth: 1, borderTopColor: Colors.borderLight, padding: 14, gap: 6 },
+  expandedSection: { borderTopWidth: 1, borderTopColor: t.line, padding: 14, gap: 6 },
   detailRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, paddingVertical: 3 },
-  detailLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  detailValue: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
-  detailLabelBold: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '700' as const },
+  detailLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  detailValue: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' as const },
+  detailLabelBold: { fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '700' as const },
   detailValueBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const },
 
-  invoicesSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 10, marginBottom: 4 },
+  invoicesSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 10, marginBottom: 4 },
   invoiceRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 8 },
-  invoiceIconWrap: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12', alignItems: 'center' as const, justifyContent: 'center' as const },
-  invoiceTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  invoiceMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  invoiceIconWrap: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: t.accent + '12', alignItems: 'center' as const, justifyContent: 'center' as const },
+  invoiceTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
+  invoiceMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   invoiceRetention: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
-  invoiceRetentionLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' as const },
+  invoiceRetentionLabel: { fontSize: 10, color: t.textMuted, fontWeight: '600' as const },
 
-  tipCard: { marginHorizontal: 16, marginTop: 8, padding: 14, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
-  tipText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.primary, lineHeight: 17, fontWeight: '500' as const },
+  tipCard: { marginHorizontal: 16, marginTop: 8, padding: 14, backgroundColor: t.accent + '10', borderRadius: Tokens.radius.card, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
+  tipText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.accent, lineHeight: 17, fontWeight: '500' as const },
 });
