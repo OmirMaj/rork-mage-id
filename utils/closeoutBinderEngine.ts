@@ -13,8 +13,9 @@ import {
 } from './pdfDesign';
 import type {
   CompanyBranding, Project, Commitment, ProjectPhoto, RFI,
-  Submittal, Warranty as ProjectWarranty, SelectionCategory,
+  Submittal, Warranty as ProjectWarranty, SelectionCategory, LienWaiver,
 } from '@/types';
+import { WAIVER_LABELS } from './lienWaiverEngine';
 
 export interface MaintenanceItem {
   id: string;
@@ -139,10 +140,14 @@ export interface BuildBinderInput {
   warranties: ProjectWarranty[];
   rfis: RFI[];
   submittals: Submittal[];
+  /** Signed lien waivers — legal artifact for the binder. Residential
+   *  needs unconditional finals from majors; commercial needs the full
+   *  per-period conditional + unconditional set. AUD-008. */
+  lienWaivers: LienWaiver[];
 }
 
 function buildBinderHtml(input: BuildBinderInput): string {
-  const { project, branding, binder, commitments, photos, selections, warranties } = input;
+  const { project, branding, binder, commitments, photos, selections, warranties, lienWaivers } = input;
   const completionDate = project.closedAt ?? project.updatedAt;
 
   // Hero photo — most recent project photo if available.
@@ -173,6 +178,21 @@ function buildBinderHtml(input: BuildBinderInput): string {
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;font-weight:800;color:${PDF_PALETTE.textMuted};text-transform:uppercase;letter-spacing:0.4px;width:25%">${escHtml(s.category)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;color:${PDF_PALETTE.text}"><strong>${escHtml(s.chosen!.productName)}</strong>${s.chosen!.brand ? ` · ${escHtml(s.chosen!.brand)}` : ''}${s.chosen!.sku ? ` · SKU ${escHtml(s.chosen!.sku)}` : ''}</td>
       <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.textMuted}">${s.chosen!.supplier ? escHtml(s.chosen!.supplier) : ''}</td>
+    </tr>
+  `).join('');
+
+  // Lien waivers section: filter to this project, prefer "signed"/"received"
+  // (the legally useful states; "requested" still has no signature on file).
+  // Sort newest first by throughDate so the final waivers float to the top.
+  const projectLienWaivers = (lienWaivers ?? [])
+    .filter(w => w.projectId === project.id && (w.status === 'signed' || w.status === 'received'))
+    .sort((a, b) => (b.throughDate ?? '').localeCompare(a.throughDate ?? ''));
+  const lienWaiverRows = projectLienWaivers.map(w => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:12px;font-weight:700">${escHtml(w.subName)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${escHtml(WAIVER_LABELS[w.waiverType]?.short ?? w.waiverType)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtDate(w.throughDate)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-size:11px;color:${PDF_PALETTE.text2}">${fmtMoney(w.paidAmount)}</td>
     </tr>
   `).join('');
 
@@ -244,6 +264,11 @@ function buildBinderHtml(input: BuildBinderInput): string {
       ['Item', 'Provider', 'Duration', 'Expires'],
       warrantyRows,
       'No warranties on file.')}
+
+    ${sectionTable('Lien waivers received',
+      ['Subcontractor', 'Waiver type', 'Through date', 'Paid amount'],
+      lienWaiverRows,
+      'No lien waivers on file.')}
 
     ${sectionTable('Maintenance schedule',
       ['Task', 'Frequency', 'Next due', 'Notes'],

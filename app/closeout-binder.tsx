@@ -40,6 +40,7 @@ import {
 } from '@/utils/closeoutBinderEngine';
 import { statusPillStyle } from '@/utils/statusPill';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { generateUUID } from '@/utils/generateId';
 import { notifyEvent } from '@/utils/notifyClient';
 import { Type } from '@/constants/typography';
@@ -49,7 +50,7 @@ import {
   type G704Data, type G706Data, type G706AData, type G707Data,
 } from '@/utils/aiaForms';
 import type {
-  CompanyBranding, SelectionCategory,
+  CompanyBranding, SelectionCategory, LienWaiver,
 } from '@/types';
 
 type BinderStatus = CloseoutBinder['status'];
@@ -70,6 +71,7 @@ export default function CloseoutBinderScreen() {
   const [finalizedAt, setFinalizedAt] = useState<string | undefined>();
   const [sentAt, setSentAt] = useState<string | undefined>();
   const [selections, setSelections] = useState<SelectionCategory[]>([]);
+  const [lienWaivers, setLienWaivers] = useState<LienWaiver[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -95,9 +97,10 @@ export default function CloseoutBinderScreen() {
     let cancelled = false;
     void (async () => {
       if (!projectId) { setLoading(false); return; }
-      const [existing, sels] = await Promise.all([
+      const [existing, sels, waivers] = await Promise.all([
         fetchCloseoutBinder(projectId),
         fetchSelectionsForProject(projectId),
+        fetchLienWaiversForProject(projectId),
       ]);
       if (cancelled) return;
       if (existing) {
@@ -109,6 +112,7 @@ export default function CloseoutBinderScreen() {
         setSentAt(existing.sentAt);
       }
       setSelections(sels);
+      setLienWaivers(waivers);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -268,6 +272,7 @@ export default function CloseoutBinderScreen() {
         warranties: warranties ?? [],
         rfis: projectRfis,
         submittals: projectSubmittals,
+        lienWaivers,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
@@ -275,7 +280,7 @@ export default function CloseoutBinderScreen() {
     } finally {
       setExporting(false);
     }
-  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties]);
+  }, [project, branding, binderId, maintenance, notes, status, commitments, projectPhotos, rfis, submittals, selections, warranties, lienWaivers]);
 
   const addMaintenance = useCallback(() => {
     setMaintenance(prev => [...prev, { id: generateUUID(), task: '', frequency: 'Annual', notes: '' }]);

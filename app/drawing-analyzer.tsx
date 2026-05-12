@@ -22,6 +22,8 @@ import Paywall from '@/components/Paywall';
 import { uploadAndRenderPdf, type RenderedPlanPage } from '@/utils/pdfRenderClient';
 import { analyzeDrawings, type DrawingAnalysisResult, type AnalyzerModel, MODEL_DISPLAY } from '@/utils/drawingAnalyzer';
 import { formatMoney } from '@/utils/formatters';
+import { generateUUID } from '@/utils/generateId';
+import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
@@ -53,7 +55,7 @@ function DrawingAnalyzerInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, getProject } = useProjects();
+  const { projects, getProject, updateProject } = useProjects();
   const { isBusinessTier, tier } = useSubscription();
 
   const [step, setStep] = useState<Step>('idle');
@@ -146,27 +148,55 @@ function DrawingAnalyzerInner() {
 
   const handleUseAsEstimate = useCallback(() => {
     if (!result) return;
+    if (!pickedProjectId) {
+      Alert.alert('Pick a project', 'Choose which project to drop these line items into first.');
+      return;
+    }
     Alert.alert(
       'Use as starting point?',
-      'This drops the AI estimate into a new project (or the selected one) so you can edit before sending. You\'ll review every line item before it\'s final.',
+      'This hydrates the project\'s estimate with the AI-found line items so you can edit before sending. You\'ll review every line item before it\'s final.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Continue',
           onPress: () => {
-            // For now we just navigate to the estimate screen with the
-            // analyzed data passed as params. Extending this to fully
-            // hydrate an estimate is a follow-up — the AI output isn't a
-            // 1:1 match for the EstimateBreakdown shape.
+            // AUD-002 fix: actually hydrate the project's linkedEstimate
+            // from the AI line items. Previous behavior dropped the user
+            // on /estimate with no data; now they land with the analyzer
+            // output already populated.
+            const items: LinkedEstimateItem[] = (result.lineItems ?? []).map(li => ({
+              materialId: generateUUID(),
+              name: li.name,
+              category: li.category,
+              unit: li.unit,
+              quantity: li.quantity,
+              unitPrice: li.unitPrice,
+              bulkPrice: li.unitPrice,
+              markup: 0,
+              usesBulk: false,
+              lineTotal: li.total,
+              supplier: '',
+            }));
+            const baseTotal = items.reduce((s, i) => s + i.lineTotal, 0);
+            const linked: LinkedEstimate = {
+              id: generateUUID(),
+              items,
+              globalMarkup: 0,
+              baseTotal,
+              markupTotal: 0,
+              grandTotal: baseTotal,
+              createdAt: new Date().toISOString(),
+            };
+            updateProject(pickedProjectId, { linkedEstimate: linked });
             router.push({
               pathname: '/estimate' as never,
-              params: { fromAnalyzer: '1', projectId: pickedProjectId } as never,
+              params: { projectId: pickedProjectId, hydratedFromAnalyzer: '1' } as never,
             });
           },
         },
       ],
     );
-  }, [result, router, pickedProjectId]);
+  }, [result, router, pickedProjectId, updateProject]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

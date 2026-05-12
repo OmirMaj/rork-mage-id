@@ -62,10 +62,20 @@ function BudgetDashboardScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, invoices } = useProjects();
+  const { getProject, invoices, getChangeOrdersForProject } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const projectInvoices = useMemo(() => invoices.filter(inv => inv.projectId === (projectId ?? '')), [invoices, projectId]);
+  // AUD-007: surface revised contract value. Sum approved COs against the
+  // original BAC so the user sees Original / Approved CO total / Revised.
+  const projectChangeOrders = useMemo(
+    () => (projectId ? getChangeOrdersForProject(projectId) : []),
+    [projectId, getChangeOrdersForProject],
+  );
+  const approvedCOTotal = useMemo(
+    () => projectChangeOrders.filter(co => co.status === 'approved').reduce((s, co) => s + (co.changeAmount ?? 0), 0),
+    [projectChangeOrders],
+  );
 
   const metrics = useMemo(() => {
     if (!project) return null;
@@ -184,6 +194,16 @@ Be specific and actionable. Use construction industry terminology.`;
         <View style={styles.projectHeader}>
           <Text style={styles.projectName}>{project.name}</Text>
           <Text style={styles.projectBudget}>Budget: {formatCurrency(metrics.budgetAtCompletion)}</Text>
+          {approvedCOTotal !== 0 && (
+            <View style={styles.revisedContractRow}>
+              <Text style={styles.revisedContractLabel}>
+                Approved COs <Text style={[styles.revisedContractAccent, { color: approvedCOTotal > 0 ? themeColors.accent : themeColors.success }]}>{approvedCOTotal > 0 ? '+' : ''}{formatCurrency(approvedCOTotal)}</Text>
+              </Text>
+              <Text style={styles.revisedContractValue}>
+                Revised <Text style={{ fontWeight: '800', color: themeColors.text }}>{formatCurrency(metrics.budgetAtCompletion + approvedCOTotal)}</Text>
+              </Text>
+            </View>
+          )}
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBar, { width: `${Math.min(metrics.percentComplete, 100)}%` as any, backgroundColor: getMetricColor(metrics.costPerformanceIndex, themeColors) }]} />
           </View>
@@ -292,6 +312,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   projectBudget: {
     fontSize: Type.bodyCompact.fontSize,
+    color: t.textSecondary,
+  },
+  revisedContractRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: t.line,
+  },
+  revisedContractLabel: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textSecondary,
+  },
+  revisedContractAccent: {
+    fontWeight: '700' as const,
+  },
+  revisedContractValue: {
+    fontSize: Type.footnote.fontSize,
     color: t.textSecondary,
   },
   progressBarContainer: {

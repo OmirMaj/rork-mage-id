@@ -116,7 +116,11 @@ function ChangeOrderInner() {
     existingCO?.description ?? (prefillDescription ?? '')
   );
   const [reason, setReason] = useState(
-    existingCO?.reason ?? (prefillReason === 'allowance_overage' ? 'Allowance overage' : '')
+    existingCO?.reason ?? (
+      prefillReason === 'allowance_overage' ? 'Allowance overage'
+      : prefillReason === 'client_request' ? 'Client request'
+      : ''
+    )
   );
   const [scheduleImpactDays, setScheduleImpactDays] = useState<string>(
     existingCO?.scheduleImpactDays ? String(existingCO.scheduleImpactDays) : ''

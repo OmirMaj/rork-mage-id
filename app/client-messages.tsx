@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform,
-  KeyboardAvoidingView,
+  KeyboardAvoidingView, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -74,6 +74,33 @@ export default function ClientMessagesScreen() {
     }
   }, [project, portal, composeBody, settings, addPortalMessage]);
 
+  // AUD-006: long-press a client message to draft a change order from it.
+  // Mirrors the selections.tsx:138-153 pattern — router-prefill the
+  // /change-order route so the GC gets a 1-tap draft instead of re-keying.
+  const handleConvertToCO = useCallback((messageBody: string) => {
+    if (!project) return;
+    router.push({
+      pathname: '/change-order' as any,
+      params: {
+        projectId: project.id,
+        prefillReason: 'client_request',
+        prefillDescription: `Client request from portal message:\n\n"${messageBody}"`,
+      },
+    });
+  }, [project, router]);
+
+  const showMessageActions = useCallback((messageBody: string) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+    Alert.alert(
+      'Message actions',
+      undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Convert to change order', onPress: () => handleConvertToCO(messageBody) },
+      ],
+    );
+  }, [handleConvertToCO]);
+
   if (!project) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 40, alignItems: 'center' }]}>
@@ -130,23 +157,36 @@ export default function ClientMessagesScreen() {
         ) : (
           messages.map((m) => {
             const mine = m.authorType === 'gc';
+            const bubble = (
+              <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+                <Text style={[styles.author, mine && styles.authorMine]}>
+                  {mine ? 'You' : m.authorName}
+                </Text>
+                <Text style={[styles.body, mine && styles.bodyMine]}>{m.body}</Text>
+                <Text style={[styles.time, mine && styles.timeMine]}>
+                  {new Date(m.createdAt).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric',
+                    hour: 'numeric', minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            );
             return (
               <View
                 key={m.id}
                 style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}
               >
-                <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                  <Text style={[styles.author, mine && styles.authorMine]}>
-                    {mine ? 'You' : m.authorName}
-                  </Text>
-                  <Text style={[styles.body, mine && styles.bodyMine]}>{m.body}</Text>
-                  <Text style={[styles.time, mine && styles.timeMine]}>
-                    {new Date(m.createdAt).toLocaleString('en-US', {
-                      month: 'short', day: 'numeric',
-                      hour: 'numeric', minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
+                {mine ? bubble : (
+                  <TouchableOpacity
+                    onLongPress={() => showMessageActions(m.body)}
+                    delayLongPress={350}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Message from ${m.authorName}. Long-press for actions.`}
+                  >
+                    {bubble}
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })
