@@ -52,6 +52,7 @@ import TaskInspector from '@/components/schedule/TaskInspector';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
 import VoiceCommandModal from '@/components/VoiceCommandModal';
 import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
+import { ExportSheet } from '@/components/schedule/ExportSheet';
 import { computeScheduleHealthScore } from '@/utils/scheduleHealthScore';
 import { EarnedValuePanel } from '@/components/schedule/EarnedValuePanel';
 import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
@@ -153,6 +154,7 @@ function ScheduleProScreenInner() {
   // theirs only creates, doesn't mutate.
   const [showVoice, setShowVoice] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
+  const [exportSheetOpen, setExportSheetOpen] = useState(false);
 
   // Named baselines captured over the life of the schedule. Persisted into
   // `project.schedule.baselines` so variance comparisons survive reloads;
@@ -751,6 +753,62 @@ function ScheduleProScreenInner() {
   }, [project, projectStartDate, workingTasks]);
 
   // -------------------------------------------------------------------------
+  // AirPrint — Task 17. Renders a minimal HTML task-list via expo-print.
+  // A follow-up can route through the existing PDF generator for a
+  // fully-styled Gantt print; this version works end-to-end today.
+  // -------------------------------------------------------------------------
+
+  const handleAirPrint = useCallback(async () => {
+    try {
+      const Print = await import('expo-print');
+      const pName = project?.name ?? 'Schedule';
+      const safeTasks = workingTasks;
+      const html = `
+        <html><head><meta charset="utf-8"><title>${escapeHtml(pName)} schedule</title>
+        <style>
+          body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; }
+          h1 { font-size: 18px; margin-bottom: 4px; }
+          p.sub { color: #666; font-size: 11px; margin-bottom: 16px; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th { text-align: left; padding: 6px 8px; background: #f3f3f3; border-bottom: 2px solid #ddd; }
+          th.r { text-align: right; }
+          td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+          td.r { text-align: right; }
+        </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(pName)}</h1>
+          <p class="sub">Schedule print from MAGE ID &nbsp;·&nbsp; ${new Date().toLocaleDateString()}</p>
+          <table>
+            <thead><tr>
+              <th>#</th>
+              <th>Task</th>
+              <th>Phase</th>
+              <th class="r">Duration</th>
+              <th class="r">% Done</th>
+              <th>Crew</th>
+            </tr></thead>
+            <tbody>
+              ${safeTasks.map((t, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${escapeHtml(t.title ?? '')}${t.isMilestone ? ' ⚑' : ''}${t.isCriticalPath ? ' ⚡' : ''}</td>
+                  <td>${escapeHtml(t.phase ?? '—')}</td>
+                  <td class="r">${t.durationDays ?? 0}d</td>
+                  <td class="r">${Math.round(t.progress ?? 0)}%</td>
+                  <td>${escapeHtml(t.crew ?? '—')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body></html>`;
+      await Print.printAsync({ html });
+    } catch (e) {
+      console.error('AirPrint failed', e);
+    }
+  }, [project?.name, workingTasks]);
+
+  // -------------------------------------------------------------------------
   // Undo / Redo (Phase 4 preview — works today for grid edits)
   // -------------------------------------------------------------------------
 
@@ -1006,7 +1064,7 @@ function ScheduleProScreenInner() {
             } as import('@/types').ProjectSchedule)}
             contextCpm={contextCpm}
             projectName={project?.name ?? 'Schedule'}
-            onExportPress={() => { void handleExportPdf(); }}
+            onExportPress={() => setExportSheetOpen(true)}
             onBaselinePress={() => setShowBaselineManager(true)}
             projectStartDate={projectStartDate}
             workingDaysPerWeek={workingDaysPerWeek}
@@ -1159,8 +1217,38 @@ function ScheduleProScreenInner() {
         }}
         onReplaceAll={handleReplaceAll}
       />
+
+      {/* Export sheet — five-option bottom sheet (PDF / CSV / Share / iCal / Print).
+          PDF/CSV/Share reuse existing handlers; iCal + AirPrint wired in tasks 16-17. */}
+      <ExportSheet
+        visible={exportSheetOpen}
+        onClose={() => setExportSheetOpen(false)}
+        onExportPdf={() => { void handleExportPdf(); }}
+        onExportCsv={handleExportCsv}
+        onShareLink={handleShare}
+        onExportIcal={() => {
+          if (project) {
+            void import('@/utils/scheduleExportIcal').then(m =>
+              m.exportScheduleIcal({ scheduleId: project.id, projectName: project.name ?? 'Schedule' }),
+            );
+          }
+        }}
+        onAirPrint={() => { void handleAirPrint(); }}
+      />
     </View>
   );
+}
+
+// ---------------------------------------------------------------------------
+// HTML escape helper — used by handleAirPrint above.
+// ---------------------------------------------------------------------------
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ---------------------------------------------------------------------------
