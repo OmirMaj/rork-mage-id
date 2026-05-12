@@ -29,6 +29,9 @@ import {
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 
 // Bumped to v2 so existing users see the post-Wave-5 walkthrough
 // (contracts, AI selections, closeout binder, photo markup, AI daily
@@ -583,6 +586,8 @@ interface TutorialProps {
 export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [index, setIndex] = useState(0);
   // Track which steps have had their demo completed so we can show a
   // green check on the progress indicator and enable Next.
@@ -651,7 +656,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={finish}>
       <View style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={finish} style={styles.closeBtn} testID="tutorial-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={finish} style={styles.closeBtn} testID="tutorial-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textMuted} /></TouchableOpacity>
           <View style={styles.progressDots}>
             {STEPS.map((_, i) => (
               <View
@@ -676,7 +681,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.iconWrap}>
-            <StepIcon size={28} color={Colors.primary} />
+            <StepIcon size={28} color={colors.accent} />
           </View>
           <Text style={styles.title}>{step.title}</Text>
           <Text style={styles.body}>{step.body}</Text>
@@ -684,12 +689,12 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
           <View style={styles.instructionRow}>
             {currentDone ? (
               <>
-                <CheckCircle2 size={16} color={Colors.success} />
+                <CheckCircle2 size={16} color={colors.success} />
                 <Text style={[styles.instructionText, { color: Colors.success }]}>Nice work — tap Next to continue</Text>
               </>
             ) : (
               <>
-                <Target size={16} color={Colors.primary} />
+                <Target size={16} color={colors.accent} />
                 <Text style={styles.instructionText}>{step.instruction}</Text>
               </>
             )}
@@ -705,7 +710,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
               testID="tutorial-deep-link"
             >
               <Text style={styles.deepLinkText}>Try it live in the app</Text>
-              <ArrowRight size={14} color={Colors.primary} />
+              <ArrowRight size={14} color={colors.accent} />
             </TouchableOpacity>
           ) : null}
         </ScrollView>
@@ -755,10 +760,10 @@ export async function hasSeenTutorial(): Promise<boolean> {
 
 // ── Styles ────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     paddingHorizontal: 20,
   },
   topBar: {
@@ -774,7 +779,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.xl,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   progressDots: {
     flex: 1,
@@ -786,32 +791,32 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: t.line,
   },
   progressDotActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     width: 14,
   },
   progressDotDone: {
-    backgroundColor: Colors.success,
+    backgroundColor: t.success,
   },
   progressLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     minWidth: 36,
     textAlign: 'right' as const,
   },
   progressTrack: {
     height: 3,
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: t.line,
     borderRadius: 2,
     overflow: 'hidden' as const,
     marginBottom: 16,
   },
   progressFill: {
     height: '100%' as const,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   scroll: {
     flexGrow: 1,
@@ -821,22 +826,21 @@ const styles = StyleSheet.create({
   iconWrap: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary + '14',
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.accentSoft,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginBottom: 12,
   },
   title: {
-    fontSize: Type.title2.fontSize,
-    fontWeight: '700' as const,
-    color: Colors.text,
+    ...Type.serifTitle,
+    color: t.text,
     textAlign: 'center' as const,
     marginBottom: 8,
   },
   body: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center' as const,
     lineHeight: 20,
     paddingHorizontal: 12,
@@ -846,7 +850,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    backgroundColor: Colors.primary + '10',
+    backgroundColor: t.accentSoft,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Tokens.radius.md,
@@ -856,7 +860,7 @@ const styles = StyleSheet.create({
   instructionText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accentLabel,
   },
   deepLinkBtn: {
     flexDirection: 'row' as const,
@@ -867,12 +871,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
-    backgroundColor: Colors.surface,
+    borderColor: t.accent + '66',
+    backgroundColor: t.surface,
   },
   deepLinkText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.primary,
+    color: t.accentLabel,
     fontWeight: '600' as const,
   },
   actions: {
@@ -886,17 +890,17 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    backgroundColor: Colors.surface,
-    borderRadius: Tokens.radius.lg,
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.full,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   secondaryBtnDisabled: { opacity: 0.5 },
   secondaryText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   primaryBtn: {
     flex: 2,
@@ -904,8 +908,8 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    backgroundColor: Colors.primary,
-    borderRadius: Tokens.radius.lg,
+    backgroundColor: t.accent,
+    borderRadius: Tokens.radius.full,
     paddingVertical: 14,
   },
   primaryBtnDisabled: {
@@ -914,7 +918,7 @@ const styles = StyleSheet.create({
   primaryText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: '#FFF',
+    color: '#FFFFFF',
   },
   skipRow: {
     alignItems: 'center' as const,
@@ -922,7 +926,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
 });
