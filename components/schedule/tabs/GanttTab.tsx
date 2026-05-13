@@ -26,6 +26,8 @@ import { useResponsive } from '@/utils/useResponsive';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 
+export type GanttPaneMode = 'grid' | 'split' | 'gantt';
+
 export interface GanttTabProps {
   /** Propagated from schedule-pro — feeds GridPane + InteractiveGantt. */
   projectStartDate: Date;
@@ -33,6 +35,14 @@ export interface GanttTabProps {
   nonWorkingDates?: string[];
   /** CPM result from utils/cpm (not SchedulerContext.CpmResult). */
   cpm: CpmResult;
+  /**
+   * Which sub-view to show in the Gantt tab.
+   *   - 'grid'  → full-width GridPane only (table view)
+   *   - 'split' → GridPane + InteractiveGantt side-by-side (default)
+   *   - 'gantt' → full-width InteractiveGantt only (timeline view)
+   * Driven by the top-toolbar paneMode buttons in schedule-pro.
+   */
+  paneMode?: GanttPaneMode;
   /** Callback wired to schedule-pro's undo-aware commit. */
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
@@ -55,6 +65,7 @@ export function GanttTab({
   workingDaysPerWeek,
   nonWorkingDates,
   cpm,
+  paneMode = 'split',
   onEdit,
   onAddTask,
   onDeleteTask,
@@ -101,6 +112,49 @@ export function GanttTab({
     );
   }
 
+  if (paneMode === 'grid') {
+    return (
+      <View style={styles.full}>
+        <GridPaneDefault
+          tasks={tasks as ScheduleTask[]}
+          projectStartDate={projectStartDate}
+          workingDaysPerWeek={workingDaysPerWeek}
+          nonWorkingDates={nonWorkingDates}
+          focusedTaskId={focusedTaskId}
+          onEdit={onEdit}
+          onAddTask={onAddTask}
+          onDeleteTask={onDeleteTask}
+          selectedIds={selectedIds}
+          onSelectionChange={onSelectionChange}
+          onBulkDelete={onBulkDelete}
+          onBulkDuplicate={onBulkDuplicate}
+          onBulkShiftDays={onBulkShiftDays}
+          onBulkSetPhase={onBulkSetPhase}
+          onBulkSetCrew={onBulkSetCrew}
+          onBulkAskAI={onBulkAskAI}
+          showExtendedColumns
+        />
+      </View>
+    );
+  }
+
+  if (paneMode === 'gantt') {
+    return (
+      <View style={styles.full}>
+        <InteractiveGanttDefault
+          tasks={tasks as ScheduleTask[]}
+          cpm={cpm}
+          projectStartDate={projectStartDate}
+          onEdit={onEdit}
+          onDependencyCreate={onDependencyCreate}
+          focusedTaskId={focusedTaskId}
+          onFocusTask={onFocusTask}
+        />
+      </View>
+    );
+  }
+
+  // 'split' — the default. Grid on the left, Gantt on the right.
   return (
     <View style={styles.row}>
       <View style={styles.grid}>
@@ -142,6 +196,8 @@ export function GanttTab({
 
 const styles = StyleSheet.create({
   row: { flex: 1, flexDirection: 'row' },
+  // Used for paneMode 'grid' and 'gantt' (single full-width child).
+  full: { flex: 1 },
   grid: {
     width: '38%',
     borderRightWidth: StyleSheet.hairlineWidth,

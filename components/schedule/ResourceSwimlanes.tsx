@@ -34,10 +34,48 @@ interface ResourceSwimlanesProps {
   projectStartDate: Date;
 }
 
-const ROW_HEIGHT = 40;
+// Per-track height when we stagger overlapping pills vertically (see
+// computeTracks below). Lane row height grows with track count so pills
+// never visually collide.
+const TRACK_HEIGHT = 22;
+const TRACK_GAP = 2;
+const ROW_PADDING = 8;
+const ROW_HEIGHT_MIN = 40;
 const HEADER_HEIGHT = 52;
 const LANE_LABEL_WIDTH = 160;
 const DEFAULT_COLORS = ['#FF9500', '#007AFF', '#34C759', '#AF52DE', '#FF3B30', '#5856D6', '#00C7BE'];
+
+/**
+ * Greedy bin-pack: assign each task to the lowest-numbered track where it
+ * doesn't overlap a prior task in that track. Returns one entry per task
+ * (in input order) with the assigned `track` plus the total `trackCount`
+ * the caller needs to size the lane row.
+ */
+function computeTracks(tasks: ReadonlyArray<{ startDay?: number; durationDays?: number }>): {
+  trackByIndex: number[];
+  trackCount: number;
+} {
+  const ends: number[] = []; // ends[i] = day after the last task in track i finishes
+  const trackByIndex: number[] = [];
+  for (const t of tasks) {
+    const start = Math.max(1, t.startDay ?? 1);
+    const end = start + Math.max(1, t.durationDays ?? 1);
+    let placed = -1;
+    for (let i = 0; i < ends.length; i++) {
+      if (ends[i] <= start) {
+        ends[i] = end;
+        placed = i;
+        break;
+      }
+    }
+    if (placed < 0) {
+      ends.push(end);
+      placed = ends.length - 1;
+    }
+    trackByIndex.push(placed);
+  }
+  return { trackByIndex, trackCount: Math.max(1, ends.length) };
+}
 
 function addDays(date: Date, d: number): Date {
   const x = new Date(date);
@@ -199,8 +237,15 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
               const laneTasks = tasksByLane.get(lane.id) ?? [];
               const load = laneLoad.get(lane.id) ?? [];
               const overloaded = load.some(v => v > lane.cap);
+              // Stagger overlapping pills onto separate vertical tracks so
+              // two crew-A tasks on the same week don't visually collide.
+              const { trackByIndex, trackCount } = computeTracks(laneTasks);
+              const rowHeight = Math.max(
+                ROW_HEIGHT_MIN,
+                ROW_PADDING * 2 + trackCount * TRACK_HEIGHT + Math.max(0, trackCount - 1) * TRACK_GAP,
+              );
               return (
-                <View key={lane.id} style={styles.laneRow}>
+                <View key={lane.id} style={[styles.laneRow, { height: rowHeight }]}>
                   <View style={[styles.laneLabel, { borderLeftColor: lane.color }]}>
                     <Text style={styles.laneName} numberOfLines={1}>{lane.name}</Text>
                     <Text style={styles.laneCap}>cap {lane.cap}</Text>
@@ -210,7 +255,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                       </View>
                     )}
                   </View>
-                  <View style={{ width: timelineWidth, height: ROW_HEIGHT, position: 'relative' }}>
+                  <View style={{ width: timelineWidth, height: rowHeight, position: 'relative' }}>
                     {/* Overload tint bands: for each day where load > cap, draw a red column. */}
                     {load.map((v, day) => {
                       if (v <= lane.cap) return null;
@@ -228,21 +273,23 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                         />
                       );
                     })}
-                    {/* Task pills */}
-                    {laneTasks.map(t => {
+                    {/* Task pills, staggered by track */}
+                    {laneTasks.map((t, i) => {
                       const s = Math.max(1, t.startDay ?? 1);
                       const d = Math.max(1, t.durationDays ?? 1);
                       const x = (s - 1) * pxPerDay;
                       const w = Math.max(8, d * pxPerDay);
+                      const track = trackByIndex[i] ?? 0;
+                      const top = ROW_PADDING + track * (TRACK_HEIGHT + TRACK_GAP);
                       return (
                         <View
                           key={t.id}
                           style={{
                             position: 'absolute',
                             left: x,
-                            top: 8,
+                            top,
                             width: w,
-                            height: ROW_HEIGHT - 16,
+                            height: TRACK_HEIGHT,
                             backgroundColor: lane.color + '33',
                             borderLeftWidth: 3,
                             borderLeftColor: lane.color,
@@ -305,8 +352,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   laneRow: {
     flexDirection: 'row',
-    height: ROW_HEIGHT,
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: t.line,
   },

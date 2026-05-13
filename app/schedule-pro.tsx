@@ -142,6 +142,15 @@ function ScheduleProScreenInner() {
   const [paneMode, setPaneMode] = useState<PaneMode>(() =>
     width >= SPLIT_BREAKPOINT ? 'split' : 'grid',
   );
+  // Bumped on every paneMode-button press. SchedulerTabShell uses this to
+  // force the active tab back to 'gantt' whenever the user clicks Grid /
+  // Split / Gantt in the top toolbar — so the user sees the sub-mode change
+  // even if they were on Board / List / Dashboard.
+  const [paneModeNonce, setPaneModeNonce] = useState(0);
+  const setPaneModeAndForceGantt = useCallback((mode: PaneMode) => {
+    setPaneMode(mode);
+    if (mode !== 'resources') setPaneModeNonce(n => n + 1);
+  }, []);
 
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
@@ -976,9 +985,9 @@ function ScheduleProScreenInner() {
         <View style={styles.headerActions}>
           {/* Pane mode segmented control */}
           <View style={styles.paneToggle}>
-            <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneMode('grid')} />
-            <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneMode('split')} />
-            <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneMode('gantt')} />
+            <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneModeAndForceGantt('grid')} />
+            <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneModeAndForceGantt('split')} />
+            <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneModeAndForceGantt('gantt')} />
             <PaneBtn icon={Users} label="Lanes" active={paneMode === 'resources'} onPress={() => setPaneMode('resources')} />
           </View>
 
@@ -1067,10 +1076,13 @@ function ScheduleProScreenInner() {
             projectName={project?.name ?? 'Schedule'}
             onExportPress={() => setExportSheetOpen(true)}
             onBaselinePress={() => setShowBaselineManager(true)}
+            ganttPaneMode={paneMode}
+            paneModeNonce={paneModeNonce}
             projectStartDate={projectStartDate}
             workingDaysPerWeek={workingDaysPerWeek}
             nonWorkingDates={project?.schedule?.nonWorkingDates}
             utilsCpm={cpm}
+            resources={project?.schedule?.resources}
             onEdit={handleEdit}
             onAddTask={handleAddTask}
             onDeleteTask={handleDeleteTask}

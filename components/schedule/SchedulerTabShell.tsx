@@ -13,7 +13,7 @@
 // visible tabs (Gantt · Board · Dash · More). "More" opens a sheet for the
 // remaining tabs (List, Calendar, Workload, Timeline). iOS convention.
 
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
@@ -21,13 +21,15 @@ import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SchedulerProvider, type CpmResult as ContextCpmResult } from './SchedulerContext';
 import { SchedulerHeader } from './SchedulerHeader';
-import { GanttTab } from './tabs/GanttTab';
+import { GanttTab, type GanttPaneMode } from './tabs/GanttTab';
 import { BoardTab } from './tabs/BoardTab';
 import { DashboardTab } from './tabs/DashboardTab';
 import { TabComingSoon } from './tabs/TabComingSoon';
 import { ListTab } from './tabs/ListTab';
+import { WorkloadTab } from './tabs/WorkloadTab';
+import { TimelineTab } from './tabs/TimelineTab';
 import { useResponsive } from '@/utils/useResponsive';
-import type { ProjectSchedule, ScheduleTask } from '@/types';
+import type { ProjectSchedule, ScheduleTask, ProjectResource } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
 
 export type SchedulerTabKey =
@@ -44,9 +46,9 @@ const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
   { key: 'board',     label: 'Board' },
   { key: 'list',      label: 'List' },
   { key: 'calendar',  label: 'Calendar',  soon: true },
-  { key: 'workload',  label: 'Workload',  soon: true },
+  { key: 'workload',  label: 'Workload' },
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'timeline',  label: 'Timeline',  soon: true },
+  { key: 'timeline',  label: 'Timeline' },
 ];
 
 export interface SchedulerTabShellProps {
@@ -60,12 +62,27 @@ export interface SchedulerTabShellProps {
   onExportPress: () => void;
   onBaselinePress: () => void;
 
+  // ---- Externally-controlled sub-mode for the Gantt tab ----
+  /**
+   * Driven by the top-toolbar Grid/Split/Gantt buttons in schedule-pro.
+   * When set, the shell forces the active tab to 'gantt' and passes this
+   * sub-mode down so the GanttTab swaps between full-grid / split /
+   * full-gantt rendering. Other tabs (Board, List, Dashboard, etc.)
+   * ignore this prop.
+   */
+  ganttPaneMode?: GanttPaneMode;
+  /** Bumped by the parent whenever a paneMode button is pressed, so we can
+   *  re-force the active tab to 'gantt' even if the user navigated away. */
+  paneModeNonce?: number;
+
   // ---- GanttTab pass-through props (owned by schedule-pro) ----
   projectStartDate: Date;
   workingDaysPerWeek: number;
   nonWorkingDates?: string[];
   /** Full CpmResult from utils/cpm — needed by GridPane/InteractiveGantt. */
   utilsCpm: UtilsCpmResult;
+  /** Resource pool — feeds WorkloadTab (and ResourceSwimlanes when wired). */
+  resources?: ProjectResource[];
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
   onDeleteTask: (taskId: string) => void;
@@ -86,6 +103,17 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
   useTheme();
   const { bp } = useResponsive();
   const [active, setActive] = useState<SchedulerTabKey>('gantt');
+
+  // When the parent toggles a paneMode button (Grid/Split/Gantt in the top
+  // toolbar), bump the nonce — that forces the Gantt tab to be active so
+  // the user sees the sub-mode change even if they were on Board / List /
+  // Dashboard at the time. We don't want to keep forcing it on every render,
+  // so the effect keys on the nonce, not the paneMode value itself.
+  useEffect(() => {
+    if (props.paneModeNonce !== undefined) {
+      setActive('gantt');
+    }
+  }, [props.paneModeNonce]);
 
   if (bp === 'phone') {
     return (
@@ -231,6 +259,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         workingDaysPerWeek={props.workingDaysPerWeek}
         nonWorkingDates={props.nonWorkingDates}
         cpm={props.utilsCpm}
+        paneMode={props.ganttPaneMode ?? 'split'}
         onEdit={props.onEdit}
         onAddTask={props.onAddTask}
         onDeleteTask={props.onDeleteTask}
@@ -287,23 +316,17 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
   }
 
   if (key === 'workload') {
-    return (
-      <TabComingSoon
-        tabName="Workload"
-        eventKey="scheduler_workload_tab"
-        tagline="Resource-by-day heatmap. Overallocations flagged. Click a cell to see the stack."
-        previewMock={<WorkloadPreviewMock />}
-      />
-    );
+    return <WorkloadTab resources={props.resources} />;
   }
 
   if (key === 'timeline') {
     return (
-      <TabComingSoon
-        tabName="Timeline"
-        eventKey="scheduler_timeline_tab"
-        tagline="Slim Gantt without the grid. One-page view for owner / stakeholder sharing."
-        previewMock={<TimelinePreviewMock />}
+      <TimelineTab
+        projectStartDate={props.projectStartDate}
+        cpm={props.utilsCpm}
+        onEdit={props.onEdit}
+        focusedTaskId={props.focusedTaskId}
+        onFocusTask={props.onFocusTask}
       />
     );
   }
@@ -333,34 +356,6 @@ function CalendarPreviewMock() {
           )}
         </View>
       ))}
-    </View>
-  );
-}
-
-function WorkloadPreviewMock() {
-  return (
-    <View style={{ gap: 4 }}>
-      {[0.3, 0.7, 0.9, 0.4].map((density, row) => (
-        <View key={row} style={{ flexDirection: 'row', gap: 2 }}>
-          {Array.from({ length: 10 }).map((_, c) => (
-            <View key={c} style={{
-              flex: 1, height: 10, borderRadius: 2,
-              backgroundColor: (row * 10 + c) % 3 < density * 3 ? Colors.tradeColors.general + '99' : Colors.surface,
-            }} />
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function TimelinePreviewMock() {
-  return (
-    <View style={{ gap: 6, justifyContent: 'center', flex: 1 }}>
-      <View style={{ height: 8, width: '40%', backgroundColor: Colors.tradeColors.general, borderRadius: 2 }} />
-      <View style={{ height: 8, width: '75%', backgroundColor: Colors.tradeColors.framing, borderRadius: 2 }} />
-      <View style={{ height: 8, width: '55%', marginLeft: '20%', backgroundColor: Colors.tradeColors.electrical, borderRadius: 2 }} />
-      <View style={{ height: 8, width: '30%', marginLeft: '60%', backgroundColor: Colors.tradeColors.closeout, borderRadius: 2 }} />
     </View>
   );
 }
