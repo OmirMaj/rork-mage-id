@@ -192,12 +192,13 @@ export default function GridPane({
   // Extended column widths — Float (72), Resources (140), Phase (100).
   // These are rendered outside the COLUMNS array so they don't interfere with
   // the existing compact / non-compact filter logic.
-  const EXT_COL_FLOAT_W = 72;
-  const EXT_COL_RES_W = 140;
   const EXT_COL_PHASE_W = 100;
-  const extColumnsWidth = showExtendedColumns
-    ? EXT_COL_FLOAT_W + EXT_COL_RES_W + EXT_COL_PHASE_W
-    : 0;
+  // The extended-column band only adds info the base grid doesn't already
+  // surface. Float lives in the base FLOAT column (Critical / Xd slack) and
+  // resource is already the Crew column — re-rendering them as raw "Xd" /
+  // a duplicate string is just noise. Phase is genuinely missing from the
+  // base set so it stays.
+  const extColumnsWidth = showExtendedColumns ? EXT_COL_PHASE_W : 0;
   const visibleTotalWidth = useMemo(
     () => visibleColumns.reduce((s, c) => s + c.width, 0),
     [visibleColumns],
@@ -274,20 +275,40 @@ export default function GridPane({
 
   const selectedArray = useMemo(() => Array.from(selected), [selected]);
 
-  // Map of task.id → wbsCode, used to let users type "1.2" as a predecessor
-  // instead of the machine id. Falls back to the id if no WBS.
+  // Map of task.id → wbsCode, used to let users type "1.2" or "T5" as a
+  // predecessor instead of the machine id. Falls back to the id itself
+  // so power users can paste task uuids directly if they need to.
   const wbsToIdMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of tasks) {
+    tasks.forEach((t, i) => {
       if (t.wbsCode) m.set(t.wbsCode.trim(), t.id);
+      // Row-number shorthand. Matches the Gantt bar labels and the new
+      // predecessor display, so what you read in the cell is what you can
+      // type back into it.
+      m.set(`T${i + 1}`, t.id);
+      m.set(`t${i + 1}`, t.id);
       m.set(t.id, t.id);
-    }
+    });
     return m;
   }, [tasks]);
 
   const idToWbsMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of tasks) m.set(t.id, t.wbsCode || t.id);
+    // Only register real wbsCodes — fall through to idToRowLabel below
+    // so predecessors with no WBS render as "T1, T5" instead of the raw
+    // task UUID.
+    for (const t of tasks) {
+      if (t.wbsCode) m.set(t.id, t.wbsCode);
+    }
+    return m;
+  }, [tasks]);
+
+  // Positional fallback for predecessors when no WBS is available.
+  // Matches the Gantt bar labels (T1, T2 …) so the user sees the same
+  // shorthand across views.
+  const idToRowLabel = useMemo(() => {
+    const m = new Map<string, string>();
+    tasks.forEach((t, i) => m.set(t.id, `T${i + 1}`));
     return m;
   }, [tasks]);
 
@@ -311,7 +332,7 @@ export default function GridPane({
       case 'predecessors':
         seed = (task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
           .map(l => {
-            const wbs = idToWbsMap.get(l.taskId) ?? l.taskId;
+            const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
             const type = l.type && l.type !== 'FS' ? l.type : '';
             const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
             return `${wbs}${type}${lag}`;
@@ -816,7 +837,7 @@ export default function GridPane({
         const links = task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
         if (links.length === 0) { display = <Text style={styles.cellTextMuted}>—</Text>; break; }
         const labels = links.map(l => {
-          const wbs = idToWbsMap.get(l.taskId) ?? l.taskId;
+          const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
           const type = l.type && l.type !== 'FS' ? l.type : '';
           const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
           return `${wbs}${type}${lag}`;
@@ -1157,17 +1178,9 @@ export default function GridPane({
               );
             })}
             {showExtendedColumns && (
-              <>
-                <View style={[styles.headerCell, { width: EXT_COL_FLOAT_W, alignItems: 'flex-end' }]}>
-                  <Text style={styles.headerText}>FLOAT</Text>
-                </View>
-                <View style={[styles.headerCell, { width: EXT_COL_RES_W, alignItems: 'flex-start' }]}>
-                  <Text style={styles.headerText}>RES</Text>
-                </View>
-                <View style={[styles.headerCell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
-                  <Text style={styles.headerText}>PHASE</Text>
-                </View>
-              </>
+              <View style={[styles.headerCell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
+                <Text style={styles.headerText}>PHASE</Text>
+              </View>
             )}
           </View>
 
@@ -1212,16 +1225,6 @@ export default function GridPane({
                   {visibleColumns.map(col => renderCell(task, rowIndex, col, cpmRow, rowBgColor))}
                   {showExtendedColumns && (
                     <>
-                      <View style={[styles.cell, { width: EXT_COL_FLOAT_W, alignItems: 'flex-end' }]}>
-                        <Text style={[styles.cellText, styles.cellTextMono]}>
-                          {cpmRow != null ? `${cpmRow.totalFloat}d` : '—'}
-                        </Text>
-                      </View>
-                      <View style={[styles.cell, { width: EXT_COL_RES_W, alignItems: 'flex-start' }]}>
-                        <Text style={styles.cellText} numberOfLines={1}>
-                          {task.crew ?? '—'}
-                        </Text>
-                      </View>
                       <View style={[styles.cell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
                         <Text style={styles.cellText} numberOfLines={1}>
                           {tradeLabel(tradeKeyForTask(task))}
