@@ -32,7 +32,7 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, Plus } from 'lucide-react-native';
+import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -991,12 +991,10 @@ function ScheduleProScreenInner() {
             <PaneBtn icon={Users} label="Lanes" active={paneMode === 'resources'} onPress={() => setPaneMode('resources')} />
           </View>
 
-          {/* Add Task — kept FIRST so it's the most discoverable action.
-              Highlighted so it visually anchors the toolbar. Phase 27 hid
-              the only Add-Task affordance inside GridPane's bottom bar,
-              which made the primary action hard to find. */}
-          <HeaderBtn icon={Plus} label="Add Task" onPress={handleAddTask} highlighted />
-          {/* AI second — the headline value-prop. Highlighted so it stands out. */}
+          {/* AI first — the headline value-prop. Highlighted so it stands out.
+              The "+ Add Task" affordance now lives inline in the SchedulerHeader
+              between VIEW and Export (Phase 27 audit feedback), so it's removed
+              from this toolbar to avoid two Add-Task buttons on the same row. */}
           <HeaderBtn icon={Sparkles} label="AI" onPress={() => setShowAI(true)} highlighted />
           <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
