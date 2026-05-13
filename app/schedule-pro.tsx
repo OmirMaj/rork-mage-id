@@ -1057,6 +1057,7 @@ function ScheduleProScreenInner() {
               tasks={rolledTasks}
               resources={project?.schedule?.resources}
               projectStartDate={projectStartDate}
+              projectName={project?.name}
             />
           </View>
         </View>

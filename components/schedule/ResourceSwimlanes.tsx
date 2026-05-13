@@ -27,23 +27,32 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, ProjectResource } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { colorForTask } from '@/utils/scheduleColors';
 
 interface ResourceSwimlanesProps {
   tasks: ScheduleTask[];
   resources?: ProjectResource[];
   projectStartDate: Date;
+  /** Optional — shown in the toolbar so the user has project context.
+   *  When omitted, the toolbar just says "Resources". */
+  projectName?: string;
 }
 
 // Per-track height when we stagger overlapping pills vertically (see
 // computeTracks below). Lane row height grows with track count so pills
-// never visually collide.
-const TRACK_HEIGHT = 22;
-const TRACK_GAP = 2;
-const ROW_PADDING = 8;
-const ROW_HEIGHT_MIN = 40;
-const HEADER_HEIGHT = 52;
-const LANE_LABEL_WIDTH = 160;
+// never visually collide. Bumped from 22→30 so the trade-colored pills
+// have real presence instead of looking like 1px hairlines.
+const TRACK_HEIGHT = 30;
+const TRACK_GAP = 4;
+const ROW_PADDING = 14;
+const ROW_HEIGHT_MIN = 76;
+const HEADER_HEIGHT = 44;
+const LANE_LABEL_WIDTH = 180;
 const DEFAULT_COLORS = ['#FF9500', '#007AFF', '#34C759', '#AF52DE', '#FF3B30', '#5856D6', '#00C7BE'];
+// Minimum gap between adjacent month-tick labels, in pixels. When two
+// labels would land closer than this, we skip the later one — keeps the
+// month axis from collapsing into "MAR 2026R 2026" visual sludge.
+const MIN_MONTH_TICK_GAP = 56;
 
 /**
  * Greedy bin-pack: assign each task to the lowest-numbered track where it
@@ -87,7 +96,7 @@ function fmtMonth(d: Date) {
   return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
-export default function ResourceSwimlanes({ tasks, resources, projectStartDate }: ResourceSwimlanesProps) {
+export default function ResourceSwimlanes({ tasks, resources, projectStartDate, projectName }: ResourceSwimlanesProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [pxPerDay, setPxPerDay] = useState(12);
@@ -174,16 +183,32 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
     return result;
   }, [lanes, tasksByLane, totalDays]);
 
-  // Month-tick header, plain and cheap.
+  // Month-tick header. Anchored to the first-of-the-month so the labels
+  // line up with the natural calendar boundary instead of the
+  // project-start offset. We also enforce a minimum pixel gap between
+  // adjacent labels so they never visually overlap at low zoom levels —
+  // the previous version printed labels at every monthly stride
+  // regardless of column width, which produced the "MAR 2026R 2026"
+  // overlap the user reported.
   const monthTicks = useMemo(() => {
     const ticks: { x: number; label: string }[] = [];
-    let d = 1;
-    while (d <= totalDays) {
-      const date = addDays(projectStartDate, d - 1);
-      ticks.push({ x: (d - 1) * pxPerDay, label: fmtMonth(date) });
-      const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
-      const step = Math.max(1, Math.floor((next.getTime() - date.getTime()) / 86400000));
-      d += step;
+    // First tick at the project start itself so the very left edge has a
+    // month context, then subsequent ticks at each calendar month boundary.
+    ticks.push({ x: 0, label: fmtMonth(projectStartDate) });
+    const startY = projectStartDate.getFullYear();
+    const startM = projectStartDate.getMonth();
+    // Walk forward one month at a time. Convert each "first of month" back
+    // to a day offset within the project axis.
+    for (let i = 1; i <= 24; i++) {
+      const tickDate = new Date(startY, startM + i, 1);
+      const dayOffset = Math.floor((tickDate.getTime() - projectStartDate.getTime()) / 86400000);
+      if (dayOffset > totalDays) break;
+      const x = dayOffset * pxPerDay;
+      const prevX = ticks[ticks.length - 1]?.x ?? -Infinity;
+      // Skip this label if it would crowd the previous one — better to
+      // show fewer labels than to print sludge.
+      if (x - prevX < MIN_MONTH_TICK_GAP) continue;
+      ticks.push({ x, label: fmtMonth(tickDate) });
     }
     return ticks;
   }, [totalDays, projectStartDate, pxPerDay]);
@@ -200,11 +225,27 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
     );
   }
 
+  // Quick summary stats for the toolbar — gives the page a sense of
+  // weight even when there's only one lane to render.
+  const totalTasks = tasks.length;
+  const overloadedCount = lanes.filter(lane => {
+    const load = laneLoad.get(lane.id) ?? [];
+    return load.some(v => v > lane.cap);
+  }).length;
+
   return (
     <View style={styles.container}>
       <View style={styles.toolbar}>
-        <Users size={14} color={themeColors.accent} />
-        <Text style={styles.toolbarTitle}>Resources</Text>
+        <Users size={16} color={themeColors.accent} />
+        <View style={styles.toolbarTitleBlock}>
+          <Text style={styles.toolbarTitle} numberOfLines={1}>
+            {projectName ? `${projectName} · Resources` : 'Resources'}
+          </Text>
+          <Text style={styles.toolbarSub}>
+            {lanes.length} {lanes.length === 1 ? 'crew' : 'crews'} · {totalTasks} tasks
+            {overloadedCount > 0 ? ` · ${overloadedCount} overloaded` : ''}
+          </Text>
+        </View>
         <View style={styles.spacer} />
         <Text style={styles.zoomValue}>{Math.round(pxPerDay)}px/d</Text>
         {Platform.OS === 'web' ? (
@@ -273,7 +314,11 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                         />
                       );
                     })}
-                    {/* Task pills, staggered by track */}
+                    {/* Task pills, staggered by track + trade-colored.
+                        We use the per-task trade color (Colors.tradeColors)
+                        instead of the lane color so the user can scan a
+                        single lane and pick out concrete vs framing vs
+                        electrical at a glance. */}
                     {laneTasks.map((t, i) => {
                       const s = Math.max(1, t.startDay ?? 1);
                       const d = Math.max(1, t.durationDays ?? 1);
@@ -281,6 +326,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                       const w = Math.max(8, d * pxPerDay);
                       const track = trackByIndex[i] ?? 0;
                       const top = ROW_PADDING + track * (TRACK_HEIGHT + TRACK_GAP);
+                      const tradeColor = colorForTask(t);
                       return (
                         <View
                           key={t.id}
@@ -290,11 +336,11 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                             top,
                             width: w,
                             height: TRACK_HEIGHT,
-                            backgroundColor: lane.color + '33',
+                            backgroundColor: tradeColor + '2a',
                             borderLeftWidth: 3,
-                            borderLeftColor: lane.color,
-                            borderRadius: 4,
-                            paddingHorizontal: 6,
+                            borderLeftColor: tradeColor,
+                            borderRadius: 6,
+                            paddingHorizontal: 8,
                             justifyContent: 'center',
                           }}
                         >
@@ -325,14 +371,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: t.line,
   },
+  toolbarTitleBlock: { flex: 1, minWidth: 0 },
   toolbarTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  toolbarSub: { fontSize: 11, color: t.textSecondary, fontWeight: '500', marginTop: 2 },
   spacer: { flex: 1 },
   zoomValue: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary, minWidth: 48, textAlign: 'right' },
   scrollH: { flex: 1 },
