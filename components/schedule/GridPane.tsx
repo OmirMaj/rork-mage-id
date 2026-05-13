@@ -34,8 +34,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, Alert, Modal,
+  Platform, Alert, Modal, PanResponder,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle as SvgCircle, G as SvgG } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -89,6 +90,92 @@ const COLUMNS: ColumnDef[] = [
   { key: 'progress',     label: '% Done',         width: 72,  align: 'right',  kind: 'number' },
   { key: 'actions',      label: '',               width: 44,  align: 'center', kind: 'custom' },
 ];
+
+// Excel-style column resize. Bounds are forgiving: 44 px is the smallest a
+// 1-2 digit numeric column can still read; 800 px is wider than any
+// reasonable task title (and stops a runaway drag from breaking layout).
+const COL_MIN_WIDTH = 44;
+const COL_MAX_WIDTH = 800;
+const COL_WIDTHS_STORAGE_KEY = 'tertiary_grid_col_widths_v1';
+
+// ---------------------------------------------------------------------------
+// ColumnResizeHandle — Excel-style drag-to-resize.
+// ---------------------------------------------------------------------------
+// Hangs off the right edge of a header cell. PanResponder works on both web
+// (mouse) and native (touch). On web we also set `cursor: col-resize` and a
+// visual hover hint via inline web styles. The handle steals the gesture
+// from the parent horizontal ScrollView so a drag NEVER scrolls — it only
+// resizes.
+//
+// We capture the column's width at gesture start (`grant`) and then add the
+// gesture's `dx` to it on every move. That makes the drag feel rock-solid
+// even if the parent re-renders mid-drag (the start anchor is locked).
+
+interface ColumnResizeHandleProps {
+  colKey: ColumnKey;
+  currentWidth: number;
+  onResize: (key: ColumnKey, width: number) => void;
+}
+
+function ColumnResizeHandle({ colKey, currentWidth, onResize }: ColumnResizeHandleProps) {
+  const startWidthRef = useRef(currentWidth);
+  // Keep the ref in sync with the latest width so a fresh drag uses the
+  // current value (not whatever was passed when the handle first mounted).
+  useEffect(() => { startWidthRef.current = currentWidth; }, [currentWidth]);
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: () => true,
+    onPanResponderGrant: () => {
+      startWidthRef.current = currentWidth;
+    },
+    onPanResponderMove: (_evt, gesture) => {
+      onResize(colKey, startWidthRef.current + gesture.dx);
+    },
+    onPanResponderTerminationRequest: () => false,
+  }), [colKey, currentWidth, onResize]);
+
+  return (
+    <View
+      // eslint-disable-next-line react/jsx-props-no-spreading
+      {...panResponder.panHandlers}
+      style={[
+        gridResizeHandleStyle.base,
+        // RN-web honors `cursor` — gives the user the native col-resize
+        // cursor over the right edge of the header cell.
+        Platform.OS === 'web' ? ({ cursor: 'col-resize' } as any) : null,
+      ]}
+      testID={`grid-col-resize-${colKey}`}
+    >
+      <View style={gridResizeHandleStyle.bar} />
+    </View>
+  );
+}
+
+const gridResizeHandleStyle = StyleSheet.create({
+  // Outer hit area — sits at the right edge of the header cell. INSIDE the
+  // cell at `right: 0` (not hanging off) because the cell uses overflow:
+  // hidden to clip long labels. 10 px wide for an easy touch target.
+  base: {
+    position: 'absolute',
+    top: 0, bottom: 0,
+    right: 0,
+    width: 10,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  // Inner visible bar — 2 px wide, faint by default. Sits flush with the
+  // right edge so it visually anchors to the column boundary.
+  bar: {
+    width: 2,
+    height: '60%',
+    borderRadius: 1,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+});
 
 // ROW_HEIGHT and the headerRow height MUST match InteractiveGantt's
 // ROW_HEIGHT / HEADER_HEIGHT (currently 56 each) so bars line up with
@@ -172,11 +259,52 @@ export default function GridPane({
 }: GridPaneProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+
+  // Excel-style column widths. Stored as a key→px override map. We seed
+  // from the COLUMNS defaults, hydrate from AsyncStorage on mount, and
+  // persist (debounced) whenever the user drags a resize handle.
+  const [colWidthOverrides, setColWidthOverrides] = useState<Partial<Record<ColumnKey, number>>>({});
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(COL_WIDTHS_STORAGE_KEY).then(raw => {
+      if (cancelled || !raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          setColWidthOverrides(parsed);
+        }
+      } catch { /* ignore — bad data, fall back to defaults */ }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  // Debounced persist — coalesces a long drag into a single write.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void AsyncStorage.setItem(COL_WIDTHS_STORAGE_KEY, JSON.stringify(colWidthOverrides));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [colWidthOverrides]);
+
+  const setColWidth = useCallback((key: ColumnKey, width: number) => {
+    const clamped = Math.max(COL_MIN_WIDTH, Math.min(COL_MAX_WIDTH, Math.round(width)));
+    setColWidthOverrides(prev => ({ ...prev, [key]: clamped }));
+  }, []);
+
   // Column list — filtered for split view so the grid doesn't duplicate the
-  // date axis rendered by the gantt. Order preserved.
+  // date axis rendered by the gantt. Order preserved. Widths fold in any
+  // user-saved overrides so the rest of the layout math (frozen offsets,
+  // total width, header / row cell widths) just reads from `col.width`.
   const visibleColumns = useMemo(
-    () => (compact ? COLUMNS.filter(c => c.key !== 'start' && c.key !== 'finish' && c.key !== 'float') : COLUMNS),
-    [compact],
+    () => {
+      const base = compact
+        ? COLUMNS.filter(c => c.key !== 'start' && c.key !== 'finish' && c.key !== 'float')
+        : COLUMNS;
+      return base.map(c => {
+        const override = colWidthOverrides[c.key];
+        return override != null ? { ...c, width: override } : c;
+      });
+    },
+    [compact, colWidthOverrides],
   );
   // Freeze the first few columns (select, wbs, name) so long horizontal
   // scrolling doesn't push the task name off-screen. On web we use the
@@ -1189,7 +1317,20 @@ export default function GridPane({
                     frozenStyle,
                   ]}
                 >
-                  <Text style={styles.headerText}>{col.label}</Text>
+                  <Text style={styles.headerText} numberOfLines={1}>{col.label}</Text>
+                  {/* Excel-style resize handle — drag the right edge of any
+                      column header to widen / narrow that column. Drops the
+                      "task name overlaps Due By" complaint. The handle is
+                      not rendered on the last/actions column (no column
+                      follows it) or on the row-number column (too narrow
+                      to be useful). */}
+                  {col.key !== 'rowNum' && col.key !== 'actions' && (
+                    <ColumnResizeHandle
+                      colKey={col.key}
+                      currentWidth={col.width}
+                      onResize={setColWidth}
+                    />
+                  )}
                 </View>
               );
             })}
@@ -1589,6 +1730,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: t.line,
+    // Clip long header labels so the resize-handle position stays anchored
+    // to the column edge and labels never bleed into the next column.
+    overflow: 'hidden',
+    position: 'relative',
   },
   headerText: {
     fontSize: Type.caption2.fontSize,
@@ -1621,6 +1766,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: t.line,
+    // Cells clip their content. Without this, a long task title bleeds
+    // visually into the next column even when the Text has numberOfLines=1
+    // (RN-web's flex children can ignore numberOfLines if no parent
+    // constrains them). Clipping at the cell level is the safety net.
+    overflow: 'hidden',
   },
   cellEditing: {
     backgroundColor: t.accent + '10',
