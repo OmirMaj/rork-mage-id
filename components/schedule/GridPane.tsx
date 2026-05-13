@@ -313,15 +313,61 @@ export default function GridPane({
   }, [tasks]);
 
   // -------------------------------------------------------------------------
+  // Date helpers — declared BEFORE beginEdit/commitEdit so the date cell
+  // edit path can convert CPM day numbers ↔ ISO yyyy-mm-dd strings without
+  // crashing on the TDZ. (Tried inlining the conversion inside the edit
+  // callbacks first; React still ran the dep array at render time which
+  // hit the TDZ on `dateToDayNumber`.)
+  // -------------------------------------------------------------------------
+
+  const renderDate = useCallback((dayNumber: number): string => {
+    if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
+    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek);
+    return formatShortDate(d);
+  }, [projectStartDate, workingDaysPerWeek]);
+
+  const renderIso = useCallback((dayNumber: number): string => {
+    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [projectStartDate, workingDaysPerWeek]);
+
+  const dateToDayNumber = useCallback((target: Date): number => {
+    const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
+    const tgt = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+    if (tgt <= base) return 1;
+    if (workingDaysPerWeek >= 7) {
+      return Math.floor((tgt.getTime() - base.getTime()) / 86400000) + 1;
+    }
+    let count = 1;
+    const cur = new Date(base);
+    while (cur < tgt) {
+      cur.setDate(cur.getDate() + 1);
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) count++;
+    }
+    return count;
+  }, [projectStartDate, workingDaysPerWeek]);
+
+  // -------------------------------------------------------------------------
   // Begin / commit / cancel edit helpers
   // -------------------------------------------------------------------------
 
   const beginEdit = useCallback((row: number, col: ColumnKey) => {
     const colDef = COLUMNS.find(c => c.key === col);
-    if (!colDef || colDef.kind === 'readonly' || colDef.kind === 'custom') return;
+    if (!colDef) return;
+    // Date cells (start/finish/deadline) are declared 'readonly'/'custom'
+    // because the underlying values are CPM-derived, but the inline date
+    // input lets users edit them by typing or picking — so they're
+    // explicitly allowed past the readonly/custom guard.
+    const isInlineDateEditable = col === 'start' || col === 'finish' || col === 'deadline';
+    if (!isInlineDateEditable && (colDef.kind === 'readonly' || colDef.kind === 'custom')) return;
 
     const task = tasks[row];
     if (!task) return;
+
+    // Pull CPM at edit-begin so we can seed Finish from the CPM EF rather
+    // than raw startDay+duration arithmetic. Falls back gracefully.
+    const cpmAtBegin = cpm.perTask.get(task.id);
 
     let seed = '';
     switch (col) {
@@ -329,6 +375,11 @@ export default function GridPane({
       case 'duration': seed = String(task.durationDays ?? 0); break;
       case 'progress': seed = String(task.progress ?? 0); break;
       case 'crew':     seed = task.crew ?? ''; break;
+      case 'start':    seed = renderIso(task.startDay); break;
+      case 'finish':   seed = renderIso(
+        cpmAtBegin?.ef ?? (task.startDay + Math.max(1, task.durationDays ?? 1) - 1),
+      ); break;
+      case 'deadline': seed = task.deadline ?? renderIso(cpmAtBegin?.ef ?? task.startDay); break;
       case 'predecessors':
         seed = (task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
           .map(l => {
@@ -343,7 +394,7 @@ export default function GridPane({
     setDraft(seed);
     setCellError(null);
     setEditing({ row, col });
-  }, [tasks, idToWbsMap]);
+  }, [tasks, renderIso, cpm, idToWbsMap, idToRowLabel]);
 
   const cancelEdit = useCallback(() => {
     setEditing(null);
@@ -387,6 +438,44 @@ export default function GridPane({
         patch.crew = draft.trim();
         break;
       }
+      case 'start': {
+        // Accept yyyy-mm-dd (native <input type="date"> format).
+        const m = draft.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (!m) { setCellError('Enter date as YYYY-MM-DD'); return false; }
+        const [, ys, ms, ds] = m;
+        const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
+        if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
+        const newStartDay = dateToDayNumber(picked);
+        if (newStartDay === task.startDay) break;
+        patch.startDay = newStartDay;
+        break;
+      }
+      case 'finish': {
+        const m = draft.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (!m) { setCellError('Enter date as YYYY-MM-DD'); return false; }
+        const [, ys, ms, ds] = m;
+        const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
+        if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
+        const newFinishDay = dateToDayNumber(picked);
+        const newDuration = newFinishDay - task.startDay + 1;
+        if (newDuration < 1) {
+          setCellError('Finish date must be on or after Start');
+          return false;
+        }
+        if (newDuration === task.durationDays) break;
+        patch.durationDays = newDuration;
+        break;
+      }
+      case 'deadline': {
+        const raw = draft.trim();
+        if (!raw) { patch.deadline = undefined; break; }
+        const m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (!m) { setCellError('Enter date as YYYY-MM-DD'); return false; }
+        // Normalize back to yyyy-mm-dd with zero-padded month/day.
+        const [, ys, ms, ds] = m;
+        patch.deadline = `${ys}-${ms.padStart(2, '0')}-${ds.padStart(2, '0')}`;
+        break;
+      }
       case 'predecessors': {
         // Parse "1.2, 2.1SS+2, 3.4FF-1" → DependencyLink[]
         // Reject early if any token is malformed or would create a cycle.
@@ -425,7 +514,7 @@ export default function GridPane({
     setDraft('');
     setCellError(null);
     return true;
-  }, [editing, draft, tasks, wbsToIdMap, onEdit, cancelEdit]);
+  }, [editing, draft, tasks, wbsToIdMap, onEdit, cancelEdit, dateToDayNumber]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation (web). iPad/mobile rely on tap-to-edit + blur.
@@ -454,111 +543,6 @@ export default function GridPane({
     if (!commitEdit()) return; // don't move if current cell is invalid
     setTimeout(() => beginEdit(nextRow, nextCol), 0);
   }, [editing, tasks.length, commitEdit, beginEdit]);
-
-  // -------------------------------------------------------------------------
-  // Date display helpers — all dates derived from CPM, never raw startDay
-  // -------------------------------------------------------------------------
-
-  const renderDate = useCallback((dayNumber: number): string => {
-    if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
-    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek);
-    return formatShortDate(d);
-  }, [projectStartDate, workingDaysPerWeek]);
-
-  // ISO yyyy-mm-dd for a given 1-indexed day number. Used to seed the native
-  // web date picker with the cell's current value. Native is left as display
-  // only for dates — the phone flow uses the classic schedule screen.
-  const renderIso = useCallback((dayNumber: number): string => {
-    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, [projectStartDate, workingDaysPerWeek]);
-
-  // Reverse of addWorkingDays: given a target calendar date, return the
-  // 1-indexed day number it represents on the project calendar. Matches the
-  // forward helper so click-to-edit round-trips cleanly.
-  const dateToDayNumber = useCallback((target: Date): number => {
-    const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
-    const tgt = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-    if (tgt <= base) return 1;
-    if (workingDaysPerWeek >= 7) {
-      return Math.floor((tgt.getTime() - base.getTime()) / 86400000) + 1;
-    }
-    let count = 1;
-    const cur = new Date(base);
-    while (cur < tgt) {
-      cur.setDate(cur.getDate() + 1);
-      const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) count++;
-    }
-    return count;
-  }, [projectStartDate, workingDaysPerWeek]);
-
-  // Native-web date picker. We mount a throwaway <input type="date"> off
-  // screen, fire showPicker(), read the value, and tear it down. This is
-  // cheaper than pulling in a date-picker library and matches the UX users
-  // already know from every browser form on earth.
-  const openDatePicker = useCallback((iso: string, onPick: (picked: Date) => void) => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const input = document.createElement('input');
-    input.type = 'date';
-    input.value = iso;
-    input.style.position = 'fixed';
-    input.style.opacity = '0';
-    input.style.pointerEvents = 'none';
-    input.style.left = '0';
-    input.style.top = '0';
-    document.body.appendChild(input);
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      try { document.body.removeChild(input); } catch { /* already gone */ }
-    };
-    input.addEventListener('change', () => {
-      const v = input.value;
-      if (v) {
-        const [y, m, d] = v.split('-').map(n => parseInt(n, 10));
-        if (y && m && d) onPick(new Date(y, m - 1, d));
-      }
-      cleanup();
-    });
-    input.addEventListener('blur', () => setTimeout(cleanup, 0));
-    const anyInput = input as unknown as { showPicker?: () => void };
-    if (typeof anyInput.showPicker === 'function') {
-      try { anyInput.showPicker(); } catch { input.focus(); input.click(); }
-    } else {
-      input.focus();
-      input.click();
-    }
-  }, []);
-
-  // Start / Finish click handlers. Start rewrites `startDay`; Finish rewrites
-  // `durationDays` so the bar's right edge lands on the picked date. Both
-  // flow through `onEdit`, so they're undoable like any other grid edit.
-  const handlePickStart = useCallback((task: ScheduleTask) => {
-    if (Platform.OS !== 'web') return;
-    openDatePicker(renderIso(task.startDay), (picked) => {
-      const newStartDay = dateToDayNumber(picked);
-      if (newStartDay === task.startDay) return;
-      onEdit(task.id, { startDay: newStartDay });
-    });
-  }, [openDatePicker, renderIso, dateToDayNumber, onEdit]);
-
-  const handlePickFinish = useCallback((task: ScheduleTask, cpmRow: CpmTaskResult | undefined) => {
-    if (Platform.OS !== 'web') return;
-    const currentFinishDay = cpmRow?.ef ?? (task.startDay + Math.max(1, task.durationDays) - 1);
-    openDatePicker(renderIso(currentFinishDay), (picked) => {
-      const newFinishDay = dateToDayNumber(picked);
-      const newDuration = newFinishDay - task.startDay + 1;
-      if (newDuration < 1) {
-        setCellError('Finish date must be on or after Start');
-        setTimeout(() => setCellError(null), 1800);
-        return;
-      }
-      if (newDuration === task.durationDays) return;
-      onEdit(task.id, { durationDays: newDuration });
-    });
-  }, [openDatePicker, renderIso, dateToDayNumber, onEdit]);
 
   // -------------------------------------------------------------------------
   // Row render
@@ -594,8 +578,46 @@ export default function GridPane({
       frozenStyle,
     ];
 
-    // Active edit state: TextInput
+    // Active edit state: TextInput — or a raw <input type="date"> for the
+    // three date cells on web. The native date input lets the user type
+    // YYYY-MM-DD into the year/month/day fields directly AND exposes the
+    // browser's calendar dropdown via the small icon at the right edge —
+    // strictly better UX than the off-screen picker we used previously.
     if (isEditingThis) {
+      const isDateCol = col.key === 'start' || col.key === 'finish' || col.key === 'deadline';
+      if (isDateCol && Platform.OS === 'web') {
+        return (
+          <View key={col.key} style={cellStyle}>
+            {React.createElement('input' as any, {
+              type: 'date',
+              autoFocus: true,
+              value: draft,
+              onChange: (e: any) => setDraft(e.target.value),
+              onBlur: () => { commitEdit(); },
+              onKeyDown: (e: any) => {
+                if (e.key === 'Enter') { e.preventDefault?.(); commitEdit(); }
+                else if (e.key === 'Escape') { e.preventDefault?.(); cancelEdit(); }
+              },
+              style: {
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                font: 'inherit',
+                color: 'inherit',
+                padding: 0,
+              },
+              'data-testid': `grid-edit-${rowIndex}-${col.key}`,
+            })}
+            {cellError && (
+              <View style={styles.cellErrorTip}>
+                <Text style={styles.cellErrorText}>{cellError}</Text>
+              </View>
+            )}
+          </View>
+        );
+      }
       return (
         <View key={col.key} style={cellStyle}>
           <TextInput
@@ -719,7 +741,7 @@ export default function GridPane({
           return (
             <View key={col.key} style={[...cellStyle, styles.cellDate, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
               <TouchableOpacity
-                onPress={() => handlePickStart(task)}
+                onPress={() => beginEdit(rowIndex, 'start')}
                 activeOpacity={0.6}
                 style={{ flex: 1 }}
                 testID={`grid-cell-${rowIndex}-${col.key}`}
@@ -756,7 +778,7 @@ export default function GridPane({
             <TouchableOpacity
               key={col.key}
               style={[...cellStyle, styles.cellDate]}
-              onPress={() => handlePickFinish(task, cpmRow)}
+              onPress={() => beginEdit(rowIndex, 'finish')}
               activeOpacity={0.6}
               testID={`grid-cell-${rowIndex}-${col.key}`}
             >
@@ -783,12 +805,7 @@ export default function GridPane({
               <TouchableOpacity
                 key={col.key}
                 style={[...cellStyle, styles.cellDate]}
-                onPress={() => {
-                  openDatePicker(renderIso(cpmRow?.ef ?? task.startDay), (picked) => {
-                    const iso = `${picked.getFullYear()}-${String(picked.getMonth() + 1).padStart(2, '0')}-${String(picked.getDate()).padStart(2, '0')}`;
-                    onEdit(task.id, { deadline: iso });
-                  });
-                }}
+                onPress={() => beginEdit(rowIndex, 'deadline')}
                 activeOpacity={0.6}
                 testID={`grid-cell-${rowIndex}-${col.key}`}
               >
@@ -817,12 +834,7 @@ export default function GridPane({
             <TouchableOpacity
               key={col.key}
               style={[...cellStyle, styles.cellDate]}
-              onPress={() => {
-                openDatePicker(task.deadline!, (picked) => {
-                  const iso = `${picked.getFullYear()}-${String(picked.getMonth() + 1).padStart(2, '0')}-${String(picked.getDate()).padStart(2, '0')}`;
-                  onEdit(task.id, { deadline: iso });
-                });
-              }}
+              onPress={() => beginEdit(rowIndex, 'deadline')}
               activeOpacity={0.6}
               testID={`grid-cell-${rowIndex}-${col.key}`}
             >
