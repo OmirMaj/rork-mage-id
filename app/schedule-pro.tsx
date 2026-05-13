@@ -49,6 +49,7 @@ import ClosuresModal from '@/components/schedule/ClosuresModal';
 import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
 import BaselineManagerModal from '@/components/schedule/BaselineManagerModal';
 import TaskInspector from '@/components/schedule/TaskInspector';
+import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
 import VoiceCommandModal from '@/components/VoiceCommandModal';
 import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
@@ -164,6 +165,10 @@ function ScheduleProScreenInner() {
   const [showVoice, setShowVoice] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
+  // Add Task modal — replaces the silent "create a task called 'New task'
+  // with defaults" flow. Opens from the SchedulerHeader's "+ Add Task"
+  // button (and any other onAddTask caller).
+  const [showAddTask, setShowAddTask] = useState(false);
 
   // Named baselines captured over the life of the schedule. Persisted into
   // `project.schedule.baselines` so variance comparisons survive reloads;
@@ -440,24 +445,36 @@ function ScheduleProScreenInner() {
     },
   }), [handleEdit]);
 
+  // Opens the Add Task modal. The actual commit happens in
+  // handleCommitAddTask once the user submits the form.
   const handleAddTask = useCallback(() => {
+    setShowAddTask(true);
+  }, []);
+
+  // Called by AddTaskModal when the user clicks "Create task". Builds
+  // the new task with whatever the user supplied + the same
+  // "append-after-last-task" start-day heuristic the old handleAddTask
+  // used. Closes the modal on success.
+  const handleCommitAddTask = useCallback((values: NewTaskValues) => {
     commit(prev => {
       const newTask: ScheduleTask = {
         id: createId('task'),
-        title: 'New task',
+        title: values.title,
         phase: 'General',
-        durationDays: 1,
+        tradeKey: values.tradeKey,
+        durationDays: values.durationDays,
         startDay: prev.length === 0
           ? 1
           : Math.max(...prev.map(t => t.startDay + t.durationDays)),
         progress: 0,
-        crew: '',
+        crew: values.crew ?? '',
         dependencies: [],
-        notes: '',
+        notes: values.notes ?? '',
         status: 'not_started',
       };
       return generateWbsCodes([...prev, newTask]);
     });
+    setShowAddTask(false);
   }, [commit]);
 
   // Phase 4: create a dependency edge between two tasks via drag in the Gantt.
@@ -1252,6 +1269,14 @@ function ScheduleProScreenInner() {
           }
         }}
         onAirPrint={() => { void handleAirPrint(); }}
+      />
+
+      {/* Add Task modal — opens from any onAddTask caller (toolbar
+          button, GridPane footer, phone FAB). */}
+      <AddTaskModal
+        visible={showAddTask}
+        onCancel={() => setShowAddTask(false)}
+        onCreate={handleCommitAddTask}
       />
     </View>
   );
