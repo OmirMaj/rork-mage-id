@@ -26,9 +26,13 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
+import { scheduleLocalNotificationAt, cancelScheduledNotification } from '@/utils/notifications';
 import type { TimeEntry, TimeEntryStatus } from '@/types';
 
 const STORAGE_KEY = 'tertiary_time_entries';
+const SHIFT_ALERT_HOURS_KEY = 'tertiary_shift_alert_hours';
+const DEFAULT_SHIFT_ALERT_HOURS = 8;
+const SHIFT_ALERT_NOTIF_PREFIX = 'shift-alert:';
 
 interface DBRow {
   id: string;
@@ -119,6 +123,53 @@ export function useTimeEntries() {
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [hydrated, setHydrated] = useState<boolean>(false);
 
+  // Shift-end alert threshold (default 8h, user-configurable). When a
+  // crew member crosses this on a single shift, a push notification
+  // fires on the device that clocked them in. Persisted so it survives
+  // app restarts.
+  const [shiftAlertHours, setShiftAlertHoursState] = useState<number>(DEFAULT_SHIFT_ALERT_HOURS);
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(SHIFT_ALERT_HOURS_KEY).then(raw => {
+      if (cancelled || !raw) return;
+      const n = parseFloat(raw);
+      if (Number.isFinite(n) && n > 0 && n <= 24) setShiftAlertHoursState(n);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const setShiftAlertHours = useCallback((hours: number) => {
+    const clamped = Math.max(1, Math.min(24, hours));
+    setShiftAlertHoursState(clamped);
+    void AsyncStorage.setItem(SHIFT_ALERT_HOURS_KEY, String(clamped));
+  }, []);
+
+  // Map of entryId → OS notification id, so we can cancel a pending
+  // alert when a crew member clocks out / goes on break before the
+  // threshold fires. Kept in a ref because it's purely side-effect
+  // bookkeeping and shouldn't trigger renders.
+  const scheduledAlertIdsRef = useRef<Record<string, string | null>>({});
+  const scheduleShiftAlert = useCallback(async (entry: TimeEntry, fireAtMs: number) => {
+    // Don't schedule a notification for a moment in the past or for a
+    // shift that's already over the threshold — the OS rejects past
+    // triggers and a 0-second notification is just noise.
+    const msUntil = fireAtMs - Date.now();
+    if (msUntil < 30_000) return; // < 30s: skip; the user will see the in-app banner instead
+    const id = await scheduleLocalNotificationAt({
+      title: `${entry.workerName} reached ${shiftAlertHours}h`,
+      body: `Time to clock ${entry.workerName.split(' ')[0]} out for the day.`,
+      fireAt: new Date(fireAtMs),
+      data: { kind: 'shift_alert', entryId: entry.id },
+    });
+    scheduledAlertIdsRef.current[entry.id] = id;
+  }, [shiftAlertHours]);
+  const cancelShiftAlert = useCallback(async (entryId: string) => {
+    const id = scheduledAlertIdsRef.current[entryId];
+    if (id) {
+      await cancelScheduledNotification(id);
+      scheduledAlertIdsRef.current[entryId] = null;
+    }
+  }, []);
+
   // ── Hydrate from AsyncStorage on mount ─────────────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -202,6 +253,27 @@ export function useTimeEntries() {
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   }, [entries, hydrated]);
 
+  // ── Restore pending shift alerts after app restart ──────────────────
+  // OS notification queues survive a reload, but our ref-based id map
+  // doesn't. On hydrate, walk every still-clocked-in entry and (re)post
+  // its alert. Older expo-notifications scheduled before the reload will
+  // also fire if they were never canceled — the OS dedupes by content
+  // sometimes, but worst case the user sees the same alert twice for a
+  // forgotten-to-clock-out shift. Acceptable; better than missing it.
+  const reschedRanRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated || reschedRanRef.current) return;
+    reschedRanRef.current = true;
+    const live = entries.filter(e => e.status === 'clocked_in' || e.status === 'break');
+    for (const e of live) {
+      if (e.status === 'break') continue; // alert resumes when they come back
+      const fireAtMs = new Date(e.clockIn).getTime()
+        + shiftAlertHours * 3_600_000
+        + e.breakMinutes * 60_000;
+      void scheduleShiftAlert(e, fireAtMs);
+    }
+  }, [hydrated, entries, shiftAlertHours, scheduleShiftAlert]);
+
   // ── Mutators ──────────────────────────────────────────────────────
   const clockIn = useCallback((args: {
     projectId: string;
@@ -235,8 +307,11 @@ export function useTimeEntries() {
     if (userId && isSupabaseConfigured) {
       void supabaseWrite('time_entries', 'insert', toDB(entry, userId));
     }
+    // Schedule the shift-end alert. Fire at clockIn + threshold hours;
+    // we re-schedule on resume-from-break to account for break time.
+    void scheduleShiftAlert(entry, now.getTime() + shiftAlertHours * 3_600_000);
     return entry;
-  }, [userId]);
+  }, [userId, scheduleShiftAlert, shiftAlertHours]);
 
   const startBreak = useCallback((entryId: string) => {
     // Persist breakStartedAt on the row so cold-restart recovery works.
@@ -251,7 +326,11 @@ export function useTimeEntries() {
         id: entryId, status: 'break', break_started_at: now,
       });
     }
-  }, [userId]);
+    // Cancel the pending shift-alert. resumeFromBreak will re-schedule
+    // it with an adjusted target time so the worker isn't penalized for
+    // their break minutes.
+    void cancelShiftAlert(entryId);
+  }, [userId, cancelShiftAlert]);
 
   /**
    * Resume from break. The hook computes the elapsed break minutes from
@@ -282,9 +361,16 @@ export function useTimeEntries() {
           id: e.id, status: 'clocked_in', break_minutes: newBreakTotal, break_started_at: null,
         });
       }
+      // Re-schedule the shift-end alert. Fire time = clockIn + threshold +
+      // accumulated break — so the worker effectively gets their break
+      // minutes back. Off-by-a-minute is fine.
+      const fireAtMs = new Date(updated.clockIn).getTime()
+        + shiftAlertHours * 3_600_000
+        + newBreakTotal * 60_000;
+      void scheduleShiftAlert(updated, fireAtMs);
       return updated;
     }));
-  }, [userId]);
+  }, [userId, scheduleShiftAlert, shiftAlertHours]);
 
   const clockOut = useCallback((entryId: string) => {
     const now = new Date();
@@ -309,7 +395,9 @@ export function useTimeEntries() {
       }
       return updated;
     }));
-  }, [userId]);
+    // Already clocked out — cancel any pending shift-end alert.
+    void cancelShiftAlert(entryId);
+  }, [userId, cancelShiftAlert]);
 
   const updateEntry = useCallback((entryId: string, patch: Partial<TimeEntry>) => {
     setEntries(prev => prev.map(e => e.id === entryId ? { ...e, ...patch } : e));
@@ -351,6 +439,8 @@ export function useTimeEntries() {
     clockOut,
     updateEntry,
     deleteEntry,
+    shiftAlertHours,
+    setShiftAlertHours,
   };
 }
 

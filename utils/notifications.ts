@@ -94,6 +94,52 @@ export async function sendLocalNotification(
   }
 }
 
+/**
+ * Schedule a local notification to fire at a future date. Used by the
+ * Time Tracking screen to alert the GC when a crew member hits their
+ * shift threshold (default 8h). Returns the OS identifier so the caller
+ * can cancel it later (e.g. on clock-out / break).
+ *
+ * Web: expo-notifications is a no-op on web, so we return null and let
+ * the screen fall back to its in-app banner.
+ */
+export async function scheduleLocalNotificationAt(opts: {
+  title: string;
+  body: string;
+  fireAt: Date;
+  data?: Record<string, unknown>;
+}): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  const seconds = Math.max(1, Math.round((opts.fireAt.getTime() - Date.now()) / 1000));
+  try {
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title: opts.title, body: opts.body, data: opts.data, sound: 'default' },
+      // The DATE trigger type is the cleanest fit but we use the seconds
+      // form because expo's DateTriggerInput has been finicky across SDKs.
+      // Seconds-from-now is rock solid and lets the OS keep the alarm
+      // queued even if the app is killed.
+      trigger: { seconds, channelId: Platform.OS === 'android' ? 'default' : undefined } as any,
+    });
+    return id;
+  } catch (err) {
+    console.log('[Notifications] Failed to schedule notification:', err);
+    return null;
+  }
+}
+
+/**
+ * Cancel a previously-scheduled notification. Safe to call with a null
+ * id (no-op) so the caller doesn't have to null-check.
+ */
+export async function cancelScheduledNotification(id: string | null | undefined): Promise<void> {
+  if (!id || Platform.OS === 'web') return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(id);
+  } catch (err) {
+    console.log('[Notifications] Failed to cancel notification:', err);
+  }
+}
+
 export function addNotificationReceivedListener(
   callback: (notification: Notifications.Notification) => void,
 ) {

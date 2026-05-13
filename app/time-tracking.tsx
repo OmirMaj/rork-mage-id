@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Clock, Play, Square, Users, ChevronDown,
   Coffee, X, TrendingUp, AlertTriangle, FileDown,
-  Briefcase, Check,
+  Briefcase, Check, Bell,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -32,13 +32,42 @@ function getElapsedHours(clockIn: string): string {
   return `${hours}h ${mins}m`;
 }
 
-function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry: TimeEntry, action: string) => void }) {
+/** Numeric elapsed hours (incl. fractional minutes) for threshold checks. */
+function getElapsedHoursNum(clockIn: string, breakMinutes: number): number {
+  const diffMs = Date.now() - new Date(clockIn).getTime() - breakMinutes * 60_000;
+  return Math.max(0, diffMs / 3_600_000);
+}
+
+function LiveTimeCard({
+  entry,
+  onAction,
+  alertThresholdHours,
+}: {
+  entry: TimeEntry;
+  onAction: (entry: TimeEntry, action: string) => void;
+  alertThresholdHours: number;
+}) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const statusColor = entry.status === 'clocked_in' ? '#2E7D32' : entry.status === 'break' ? '#E65100' : themeColors.textMuted;
   const statusBg = entry.status === 'clocked_in' ? '#E8F5E9' : entry.status === 'break' ? '#FFF3E0' : '#F5F5F5';
   const statusLabel = entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On Break' : 'Clocked Out';
+  // Tick every 30s so the threshold pill flips at most ~30s after the
+  // worker actually crosses the line. Faster ticks just burn battery
+  // without changing what the user sees.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (entry.status !== 'clocked_in') return;
+    const t = setInterval(() => forceTick(n => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, [entry.status]);
+  const elapsedHrs = entry.status !== 'clocked_out'
+    ? getElapsedHoursNum(entry.clockIn, entry.breakMinutes)
+    : entry.totalHours;
+  const overThreshold = elapsedHrs >= alertThresholdHours;
+  // Yellow band 30 min before, red band once they hit / pass it.
+  const approachingThreshold = !overThreshold && elapsedHrs >= alertThresholdHours - 0.5;
 
   return (
     <Animated.View style={[styles.liveCard, { transform: [{ scale: scaleAnim }] }]}>
@@ -66,14 +95,34 @@ function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry:
 
         {entry.status !== 'clocked_out' && (
           <View style={styles.liveCardTimer}>
-            <Clock size={14} color={themeColors.accent} />
-            <Text style={styles.liveCardTimerText}>{getElapsedHours(entry.clockIn)}</Text>
+            <Clock size={14} color={overThreshold ? '#C62828' : approachingThreshold ? '#E65100' : themeColors.accent} />
+            <Text style={[
+              styles.liveCardTimerText,
+              overThreshold && { color: '#C62828' },
+              approachingThreshold && { color: '#E65100' },
+            ]}>
+              {getElapsedHours(entry.clockIn)}
+            </Text>
             {entry.notes ? (
               <>
                 <Text style={styles.liveCardDot}>·</Text>
                 <Text style={styles.liveCardNote} numberOfLines={1}>{entry.notes}</Text>
               </>
             ) : null}
+          </View>
+        )}
+
+        {entry.status !== 'clocked_out' && (overThreshold || approachingThreshold) && (
+          <View style={[
+            styles.thresholdBanner,
+            { backgroundColor: overThreshold ? '#FDECEA' : '#FFF7EC', borderColor: overThreshold ? '#F5C2BE' : '#F5D4A8' },
+          ]}>
+            <AlertTriangle size={13} color={overThreshold ? '#C62828' : '#E65100'} />
+            <Text style={[styles.thresholdBannerText, { color: overThreshold ? '#C62828' : '#7A3E00' }]}>
+              {overThreshold
+                ? `Past ${alertThresholdHours}h shift — consider clocking out`
+                : `${(alertThresholdHours - elapsedHrs).toFixed(1)}h to ${alertThresholdHours}h shift`}
+            </Text>
           </View>
         )}
 
@@ -150,7 +199,9 @@ function TimeTrackingScreenInner() {
   const {
     entries, liveEntries, historyEntries,
     clockIn: doClockIn, startBreak, resumeFromBreak, clockOut: doClockOut,
+    shiftAlertHours, setShiftAlertHours,
   } = useTimeEntries();
+  const [showAlertPicker, setShowAlertPicker] = useState(false);
   const { projects } = useProjects();
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'live' | 'history'>('live');
@@ -315,6 +366,26 @@ function TimeTrackingScreenInner() {
           </TouchableOpacity>
         </View>
 
+        {/* Shift-end alert setting. A local push notification fires on the
+            device that clocked the crew member in once they cross this
+            threshold. Default 8h; user-configurable. Active workers also
+            get an inline yellow/red banner on their card as they approach
+            and then pass it (see LiveTimeCard). */}
+        <TouchableOpacity
+          style={styles.alertSettingRow}
+          onPress={() => setShowAlertPicker(true)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Shift alert at ${shiftAlertHours} hours, tap to change`}
+          testID="time-tracking-alert-setting"
+        >
+          <Bell size={14} color={themeColors.accent} />
+          <Text style={styles.alertSettingText}>
+            Alert at <Text style={styles.alertSettingHours}>{shiftAlertHours}h</Text>
+          </Text>
+          <Text style={styles.alertSettingMeta}>· tap to change</Text>
+        </TouchableOpacity>
+
         <View style={styles.tabRow}>
           <TouchableOpacity
             style={[styles.tab, selectedTab === 'live' && styles.tabActive]}
@@ -357,7 +428,7 @@ function TimeTrackingScreenInner() {
           ) : (
             <View style={styles.listSection}>
               {liveEntries.map(entry => (
-                <LiveTimeCard key={entry.id} entry={entry} onAction={handleAction} />
+                <LiveTimeCard key={entry.id} entry={entry} onAction={handleAction} alertThresholdHours={shiftAlertHours} />
               ))}
             </View>
           )
@@ -481,6 +552,49 @@ function TimeTrackingScreenInner() {
           </View>
         </View>
       </Modal>
+
+      {/* Shift-alert threshold picker. Bottom-sheet style, same chrome as
+          the other modals on this screen. Preset chips cover the common
+          shift lengths; we deliberately don't expose minute-level granularity
+          (a 7h-15m alert is overkill — the daily decision is whole hours). */}
+      <Modal visible={showAlertPicker} transparent animationType="slide" onRequestClose={() => setShowAlertPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Shift alert</Text>
+              <TouchableOpacity onPress={() => setShowAlertPicker(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ paddingTop: 6, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 }}>
+              Push a notification to this device when an active crew member's elapsed time crosses this threshold. Break minutes are excluded.
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 16 }}>
+              {[4, 6, 8, 10, 12].map(h => {
+                const isActive = h === shiftAlertHours;
+                return (
+                  <TouchableOpacity
+                    key={h}
+                    onPress={() => {
+                      setShiftAlertHours(h);
+                      if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+                      setShowAlertPicker(false);
+                    }}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.alertPickerChip,
+                      isActive && styles.alertPickerChipActive,
+                    ]}
+                    testID={`alert-hours-${h}`}
+                  >
+                    <Text style={[styles.alertPickerChipText, isActive && styles.alertPickerChipTextActive]}>{h}h</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -569,6 +683,53 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   liveCardTimerText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.accent },
   liveCardNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, flex: 1 },
   liveCardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  // Inline yellow/red banner inside an active LiveTimeCard when the worker
+  // is approaching or past the shift-alert threshold.
+  thresholdBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Tokens.radius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 2,
+  },
+  thresholdBannerText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+  },
+  // "Alert at Xh · tap to change" pill sitting between the Clock-In row
+  // and the Live/History tabs.
+  alertSettingRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: t.accent + '0E',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.accent + '24',
+    borderRadius: Tokens.radius.md,
+    alignSelf: 'flex-start' as const,
+  },
+  alertSettingText: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '500' as const },
+  alertSettingHours: { color: t.accent, fontWeight: '800' as const, letterSpacing: 0.1 },
+  alertSettingMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginLeft: 2 },
+  // Threshold-picker chips inside the alert-picker modal.
+  alertPickerChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.line,
+  },
+  alertPickerChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  alertPickerChipText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  alertPickerChipTextActive: { color: '#FFFFFF' },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
