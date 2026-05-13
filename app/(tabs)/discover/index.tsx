@@ -107,7 +107,10 @@ const TABS: TabDef[] = [
   { id: 'hire', label: 'Direct Hire', icon: Briefcase },
   { id: 'estimate', label: 'Estimator', icon: Sparkles },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
-  { id: 'materials', label: 'Materials', icon: DollarSign },
+  // 'materials' tile removed — the standalone Materials browser is
+  // redundant now that the Estimator surfaces the same category filter
+  // + cart + AI quick-estimate flow. The /materials route still exists
+  // for any deep links that still reference it.
 ];
 
 function NavigationCard({
@@ -337,14 +340,11 @@ export default function DiscoverScreen() {
           onPress={() => navigateTo('/(tabs)/discover/schedule')}
         />
 
-        <NavigationCard
-          icon={DollarSign}
-          iconColor={Colors.primary}
-          iconBg={Colors.primary + '15'}
-          title="Materials Pricing"
-          subtitle="Live prices, regional rates & cost tracking"
-          onPress={() => navigateTo('/(tabs)/discover/materials')}
-        />
+        {/* Materials Pricing tile removed — redundant with the Estimator's
+            built-in material browse + cart. The Estimator surfaces the
+            same category filter and live prices, plus AI-suggested
+            quantity/markup directly into a cart. Route still works for
+            deep links: /(tabs)/discover/materials */}
 
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />

@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown,
+  ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown, ShoppingCart,
   // Category icons (rendered via CATEGORY_ICONS map below) — replaces
   // emoji-as-icon for visual consistency with the rest of the app
   TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
@@ -21,6 +21,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { REGIONS, CITY_ADJUSTMENTS, getRegionForState } from '@/constants/regions';
 import type { PricingRegion } from '@/types';
 import { Type } from '@/constants/typography';
@@ -52,6 +53,10 @@ export default function MaterialsScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { priceAlerts, updatePriceAlert, deletePriceAlert } = useProjects();
+  // Shared cart — count comes from MaterialCartContext so the badge stays
+  // live as the user adds items from a category screen.
+  const { cart } = useMaterialCart();
+  const cartCount = cart.reduce((s, item) => s + item.quantity, 0);
   const [searchQuery, setSearchQuery] = useState('');
   const [materials, setMaterials] = useState<MaterialItem[]>(() => getLivePrices(Date.now() / 10000));
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -220,6 +225,25 @@ export default function MaterialsScreen() {
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
+          {/* Cart pill — visible whenever there are items. Taps over to the
+              Estimate tab where the user can finalize markup, name the
+              estimate, and attach it to a project. */}
+          {cartCount > 0 && (
+            <TouchableOpacity
+              style={styles.cartPill}
+              onPress={() => {
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                router.push('/(tabs)/estimate');
+              }}
+              activeOpacity={0.7}
+              testID="materials-cart-pill"
+              accessibilityRole="button"
+              accessibilityLabel={`Open cart with ${cartCount} item${cartCount === 1 ? '' : 's'}`}
+            >
+              <ShoppingCart size={14} color="#fff" />
+              <Text style={styles.cartPillText}>Cart ({cartCount})</Text>
+            </TouchableOpacity>
+          )}
           {priceAlerts.length > 0 && (
             <TouchableOpacity
               style={[styles.refreshBtn, showAlerts && { backgroundColor: themeColors.accent + '20' }]}
@@ -426,7 +450,7 @@ export default function MaterialsScreen() {
         </Text>
       )}
     </View>
-  ), [insets.top, pulseAnim, searchQuery, lastUpdated, showAlerts, priceAlerts, triggeredAlerts.length, filteredCategories.length, totalCount, refreshPrices, updatePriceAlert, deletePriceAlert, selectedRegion, selectedCity, regionInfo, locationMultiplier, showLocationPicker]);
+  ), [insets.top, pulseAnim, searchQuery, lastUpdated, showAlerts, priceAlerts, triggeredAlerts.length, filteredCategories.length, totalCount, refreshPrices, updatePriceAlert, deletePriceAlert, selectedRegion, selectedCity, regionInfo, locationMultiplier, showLocationPicker, cartCount, router]);
 
   return (
     <View style={styles.container}>
@@ -464,6 +488,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   liveLabel: { fontSize: 10, fontWeight: '700' as const, color: t.success, letterSpacing: 0.8 },
   refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: t.accent + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   refreshBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
+  // Cart pill — solid-accent button shown only when the cart has items, so
+  // it carries weight when present. Taps to the Estimate tab.
+  cartPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: t.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  cartPillText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#fff' },
   alertBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: Tokens.radius.sm, backgroundColor: t.danger, alignItems: 'center', justifyContent: 'center' },
   alertBadgeText: { fontSize: 9, fontWeight: '700' as const, color: '#fff' },
   updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 20, marginBottom: 12 },

@@ -5,6 +5,17 @@ import type { PortalMessage, ClientCOApproval } from '@/types';
 
 // Fetches the GC↔client message thread for a project AND any pending CO
 // approvals. RLS scopes both tables to projects the GC owns.
+//
+// HISTORY — the messages query used to filter by `.eq('project_id', ...)`.
+// That returned an empty list in production because the actual inserts on
+// `portal_messages` (from both the web portal page and the GC's sendMessage
+// mutation) only populate `portal_id`, never `project_id`. The bidirectional
+// thread was effectively broken. Filtering by `portal_id` (which BOTH sides
+// always set) fixed it; we now also write `project_id` on new GC sends so
+// future rows are properly tagged for analytics.
+//
+// CO approvals continue to filter by `project_id` — the approval insert in
+// the web portal sets it explicitly (see marketing/portal/index.html).
 
 interface MessageRow {
   id: string;
@@ -62,19 +73,27 @@ function rowToApproval(r: ApprovalRow): ClientCOApproval {
   };
 }
 
-export function usePortalThread(projectId: string | undefined) {
+interface UsePortalThreadOpts {
+  projectId: string | undefined;
+  /** REQUIRED for the message thread — the messages table is keyed off
+   *  portal_id. If absent we return empty (so the hook still mounts
+   *  cleanly on screens that don't yet know the portal). */
+  portalId: string | undefined;
+}
+
+export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
   const queryClient = useQueryClient();
-  const enabled = !!projectId && isSupabaseConfigured;
+  const enabled = !!portalId && isSupabaseConfigured;
 
   const messagesQ = useQuery({
-    queryKey: ['portalMessages', projectId],
+    queryKey: ['portalMessages', portalId],
     enabled,
     queryFn: async (): Promise<PortalMessage[]> => {
-      if (!projectId) return [];
+      if (!portalId) return [];
       const { data, error } = await supabase
         .from('portal_messages')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('portal_id', portalId)
         .order('created_at', { ascending: true });
       if (error) {
         console.log('[usePortalThread] msg fetch failed:', error.message);
@@ -82,13 +101,13 @@ export function usePortalThread(projectId: string | undefined) {
       }
       return ((data ?? []) as MessageRow[]).map(rowToMessage);
     },
-    refetchInterval: 45_000,
+    refetchInterval: 15_000,
     refetchOnWindowFocus: true,
   });
 
   const approvalsQ = useQuery({
     queryKey: ['portalCoApprovals', projectId],
-    enabled,
+    enabled: !!projectId && isSupabaseConfigured,
     queryFn: async (): Promise<ClientCOApproval[]> => {
       if (!projectId) return [];
       const { data, error } = await supabase
@@ -107,9 +126,13 @@ export function usePortalThread(projectId: string | undefined) {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (args: { portalId: string; body: string; authorName?: string }) => {
+    mutationFn: async (args: { portalId: string; projectId?: string; body: string; authorName?: string }) => {
       const { error } = await supabase.from('portal_messages').insert({
         portal_id: args.portalId,
+        // Set project_id so future rows are properly tagged. Old rows
+        // (incl. messages from the web portal) may still be null — fine,
+        // we filter by portal_id which is always set.
+        project_id: args.projectId ?? null,
         author_type: 'gc',
         author_name: args.authorName ?? null,
         body: args.body,
@@ -118,7 +141,7 @@ export function usePortalThread(projectId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['portalMessages', projectId] });
+      void queryClient.invalidateQueries({ queryKey: ['portalMessages', portalId] });
     },
   });
 
@@ -131,40 +154,41 @@ export function usePortalThread(projectId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['portalMessages', projectId] });
+      void queryClient.invalidateQueries({ queryKey: ['portalMessages', portalId] });
     },
   });
 
   const sendMessage = useCallback(
-    (args: { portalId: string; body: string; authorName?: string }) =>
+    (args: { portalId: string; projectId?: string; body: string; authorName?: string }) =>
       sendMessageMutation.mutate(args),
     [sendMessageMutation],
   );
 
   // Realtime subscription — invalidates the cached queries the moment
-  // a portal message or CO approval lands. Listeners registered BEFORE
-  // .subscribe(); existing-channel guard prevents the strict-mode
-  // double-subscribe warning.
+  // a portal message or CO approval lands. Filtered by portal_id so we
+  // pick up rows from the web portal (which doesn't set project_id).
   useEffect(() => {
-    if (!enabled || !projectId) return;
-    const channelName = `portal-thread-${projectId}`;
+    if (!enabled || !portalId) return;
+    const channelName = `portal-thread-${portalId}`;
     const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
     if (existing) return;
 
     const channel = supabase.channel(channelName);
     channel.on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'portal_messages', filter: `project_id=eq.${projectId}` },
-      () => { void queryClient.invalidateQueries({ queryKey: ['portalMessages', projectId] }); },
+      { event: '*', schema: 'public', table: 'portal_messages', filter: `portal_id=eq.${portalId}` },
+      () => { void queryClient.invalidateQueries({ queryKey: ['portalMessages', portalId] }); },
     );
-    channel.on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'change_order_approvals', filter: `project_id=eq.${projectId}` },
-      () => { void queryClient.invalidateQueries({ queryKey: ['portalCoApprovals', projectId] }); },
-    );
+    if (projectId) {
+      channel.on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'change_order_approvals', filter: `project_id=eq.${projectId}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ['portalCoApprovals', projectId] }); },
+      );
+    }
     channel.subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [enabled, projectId, queryClient]);
+  }, [enabled, portalId, projectId, queryClient]);
 
   return {
     messages: messagesQ.data ?? [],

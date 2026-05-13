@@ -2669,13 +2669,24 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   }, [portalMessages, persistPortalMessages]);
 
   const markPortalMessagesRead = useCallback((projectId: string, side: 'gc' | 'client') => {
+    // Only persist if at least one message actually flipped — otherwise we'd
+    // produce a new array reference on every call, change this callback's
+    // identity, and refire any useEffect that depends on it. That was a
+    // genuine infinite-loop crash on the Messages screen.
+    let changed = false;
     const next = portalMessages.map(m => {
       if (m.projectId !== projectId) return m;
-      if (side === 'gc' && m.authorType === 'client' && !m.readByGc) return { ...m, readByGc: true };
-      if (side === 'client' && m.authorType === 'gc' && !m.readByClient) return { ...m, readByClient: true };
+      if (side === 'gc' && m.authorType === 'client' && !m.readByGc) {
+        changed = true;
+        return { ...m, readByGc: true };
+      }
+      if (side === 'client' && m.authorType === 'gc' && !m.readByClient) {
+        changed = true;
+        return { ...m, readByClient: true };
+      }
       return m;
     });
-    persistPortalMessages(next);
+    if (changed) persistPortalMessages(next);
   }, [portalMessages, persistPortalMessages]);
 
   const getPortalMessagesForProject = useCallback((projectId: string) =>

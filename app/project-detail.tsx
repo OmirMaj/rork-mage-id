@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
-  TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager,
+  TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager, Switch,
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,6 +75,55 @@ type EditModalType = boolean;
 
 function createId(_prefix: string): string {
   return generateUUID();
+}
+
+// Inline portal-permission toggle list — shown directly under "Share Project
+// with Client" so the GC doesn't have to dig into a sub-screen for the
+// common cases. Mirrors the PERMISSION_TOGGLES list on client-portal-setup;
+// the dedicated screen still exists for passcode / language / welcome msg.
+const PORTAL_INLINE_TOGGLES: { key: 'showSchedule' | 'showBudgetSummary' | 'showInvoices' | 'showChangeOrders' | 'showPhotos' | 'showDailyReports' | 'showPunchList' | 'showRFIs' | 'showDocuments'; label: string }[] = [
+  { key: 'showSchedule',      label: 'Project schedule' },
+  { key: 'showInvoices',      label: 'Invoices' },
+  { key: 'showChangeOrders',  label: 'Change orders' },
+  { key: 'showPhotos',        label: 'Site photos' },
+  { key: 'showBudgetSummary', label: 'Budget summary' },
+  { key: 'showDailyReports',  label: 'Daily reports' },
+  { key: 'showPunchList',     label: 'Punch list' },
+  { key: 'showRFIs',          label: 'RFIs' },
+  { key: 'showDocuments',     label: 'Documents' },
+];
+
+// ─── Lifecycle stages (Pre-Con / Construction / Post-Con / Closeout) ──
+// The 4-stage construction lifecycle, mapped onto the 5 underlying
+// Project.status values. Tapping a chip advances the project to that
+// stage (with a confirm). Read on every render — no extra state.
+type LifecycleStage = 'precon' | 'construction' | 'postcon' | 'closeout';
+
+const LIFECYCLE_STAGES: { key: LifecycleStage; label: string; short: string }[] = [
+  { key: 'precon',       label: 'Pre-Con',      short: 'Pre' },
+  { key: 'construction', label: 'Construction', short: 'Con' },
+  { key: 'postcon',      label: 'Post-Con',     short: 'Post' },
+  { key: 'closeout',     label: 'Closeout',     short: 'Done' },
+];
+
+// Stage → underlying status. We pick the most "settled" status in each
+// stage so manual advancement lands on a non-ambiguous bucket.
+const STAGE_TO_STATUS: Record<LifecycleStage, 'estimated' | 'in_progress' | 'completed' | 'closed'> = {
+  precon: 'estimated',
+  construction: 'in_progress',
+  postcon: 'completed',
+  closeout: 'closed',
+};
+
+function statusToStage(s: string | undefined): LifecycleStage {
+  switch (s) {
+    case 'in_progress': return 'construction';
+    case 'completed':   return 'postcon';
+    case 'closed':      return 'closeout';
+    case 'draft':
+    case 'estimated':
+    default:            return 'precon';
+  }
 }
 
 export default function ProjectDetailScreen() {
@@ -370,6 +419,32 @@ export default function ProjectDetailScreen() {
     setEditSquareFootage(project.squareFootage > 0 ? project.squareFootage.toString() : '');
     setShowEditModal(true);
   }, [project]);
+
+  const currentStage: LifecycleStage = useMemo(
+    () => statusToStage(project?.status),
+    [project?.status],
+  );
+
+  const handleStageTap = useCallback((stage: LifecycleStage) => {
+    if (!project || !id) return;
+    if (stage === currentStage) return;
+    const label = LIFECYCLE_STAGES.find(s => s.key === stage)?.label ?? stage;
+    if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+    Alert.alert(
+      'Move project stage?',
+      `Mark "${project.name}" as ${label}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Move',
+          onPress: () => {
+            updateProject(id, { status: STAGE_TO_STATUS[stage] });
+            if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          },
+        },
+      ],
+    );
+  }, [project, id, currentStage, updateProject]);
 
   const handleSaveEdit = useCallback(() => {
     if (!id) return;
@@ -1031,6 +1106,62 @@ export default function ProjectDetailScreen() {
           )}
         </View>
         </BlueprintReveal>
+
+        {/* Lifecycle stage strip — Pre-Con → Construction → Post-Con → Closeout.
+            Tapping a stage prompts to advance project.status.
+            The 4 stages map onto the 5 underlying status values (draft+estimated
+            collapse into Pre-Con). */}
+        <View style={styles.stageStrip}>
+          <View style={styles.stageHeaderRow}>
+            <Text style={styles.stageHeaderLabel}>Project Stage</Text>
+            <Text style={styles.stageHeaderCount}>
+              {LIFECYCLE_STAGES.findIndex(s => s.key === currentStage) + 1} of {LIFECYCLE_STAGES.length}
+            </Text>
+          </View>
+          <View style={styles.stageChipsRow}>
+            {LIFECYCLE_STAGES.map((stage, idx) => {
+              const isActive = stage.key === currentStage;
+              const stageIdx = LIFECYCLE_STAGES.findIndex(s => s.key === currentStage);
+              const isPast = idx < stageIdx;
+              return (
+                <TouchableOpacity
+                  key={stage.key}
+                  onPress={() => handleStageTap(stage.key)}
+                  activeOpacity={0.75}
+                  style={[
+                    styles.stageChip,
+                    isActive && styles.stageChipActive,
+                    !isActive && isPast && styles.stageChipPast,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Stage: ${stage.label}${isActive ? ' (current)' : ''}`}
+                  testID={`stage-chip-${stage.key}`}
+                >
+                  <Text
+                    style={[
+                      styles.stageChipText,
+                      isActive && styles.stageChipTextActive,
+                      !isActive && isPast && styles.stageChipTextPast,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {stage.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.stageProgressTrack}>
+            <View
+              style={[
+                styles.stageProgressFill,
+                {
+                  width: `${((LIFECYCLE_STAGES.findIndex(s => s.key === currentStage) + 1) / LIFECYCLE_STAGES.length) * 100}%`,
+                },
+              ]}
+            />
+          </View>
+        </View>
 
         <View style={styles.quickActions}>
           <TouchableOpacity
@@ -2638,7 +2769,7 @@ export default function ProjectDetailScreen() {
                 <Globe size={24} color={themeColors.info} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.portalTitle}>Share Project with Client</Text>
-                  <Text style={styles.portalDesc}>Give clients a read-only link to view schedule, invoices, photos & more. Control exactly what they see.</Text>
+                  <Text style={styles.portalDesc}>Read-only link with progress, invoices, photos and more. Toggle exactly what your client sees.</Text>
                 </View>
               </View>
               {project.clientPortal?.enabled ? (
@@ -2658,13 +2789,69 @@ export default function ProjectDetailScreen() {
                       {project.clientPortal.invites?.length ?? 0} client{(project.clientPortal.invites?.length ?? 0) !== 1 ? 's' : ''} invited
                     </Text>
                   </View>
+
+                  {/* Inline permission toggles. Tapping a switch flips the
+                      single key on project.clientPortal — same call shape
+                      as on the dedicated setup screen. */}
+                  <View style={styles.portalTogglesLabelRow}>
+                    <Text style={styles.portalTogglesLabel}>What clients can see</Text>
+                  </View>
+                  <View style={styles.portalTogglesCard}>
+                    {PORTAL_INLINE_TOGGLES.map((row, idx) => {
+                      const current = (project.clientPortal as any)?.[row.key] as boolean | undefined;
+                      return (
+                        <View
+                          key={row.key}
+                          style={[
+                            styles.portalToggleRow,
+                            idx < PORTAL_INLINE_TOGGLES.length - 1 && styles.portalToggleRowBorder,
+                          ]}
+                        >
+                          <Text style={styles.portalToggleLabel}>{row.label}</Text>
+                          <Switch
+                            value={!!current}
+                            onValueChange={val => {
+                              if (!id) return;
+                              const cp = project.clientPortal!;
+                              updateProject(id, { clientPortal: { ...cp, [row.key]: val } });
+                            }}
+                            trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                            thumbColor="#FFF"
+                            testID={`portal-inline-${row.key}`}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Quick entry into the messaging thread. MUST go through
+                      navigateFromTile, not router.push — this section
+                      renders inside the iOS pageSheet tile-modal, and a
+                      naked push would mount the messages screen BEHIND
+                      the sheet (only visible after Back). */}
                   <TouchableOpacity
-                    style={styles.portalEnableBtn}
+                    style={styles.portalMessagesRow}
+                    onPress={() => navigateFromTile({ pathname: '/client-messages', params: { id } })}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open messages"
+                  >
+                    <MessageSquare size={14} color={themeColors.accent} />
+                    <Text style={styles.portalMessagesText}>Messages</Text>
+                    <Text style={styles.portalMessagesOpen}>Open ›</Text>
+                  </TouchableOpacity>
+
+                  {/* Less-common options (passcode, welcome msg, homeowner
+                      language, weekly update) still live on the dedicated
+                      screen. Renamed from "Manage Portal Settings" to a
+                      lighter "Advanced settings" link. */}
+                  <TouchableOpacity
+                    style={styles.portalAdvancedLink}
                     onPress={() => navigateFromTile({ pathname: '/client-portal-setup', params: { id } })}
                     activeOpacity={0.7}
+                    testID="portal-advanced-link"
                   >
-                    <Globe size={16} color={themeColors.info} />
-                    <Text style={styles.portalEnableBtnText}>Manage Portal Settings</Text>
+                    <Text style={styles.portalAdvancedLinkText}>Advanced settings (passcode, language, welcome) ›</Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -3469,6 +3656,45 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   portalEnableBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.info },
   portalInviteCount: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginBottom: 10 },
   portalInviteCountText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  portalTogglesLabelRow: { marginTop: 4, marginBottom: 6 },
+  portalTogglesLabel: {
+    fontSize: 11, fontWeight: '800' as const,
+    color: themeColors.textMuted,
+    letterSpacing: 1.2,
+  },
+  portalTogglesCard: {
+    backgroundColor: themeColors.surfaceAlt,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  portalToggleRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingVertical: 8,
+  },
+  portalToggleRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: themeColors.line },
+  portalToggleLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text, fontWeight: '500' as const },
+  portalMessagesRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingVertical: 12, paddingHorizontal: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accent + '10',
+    borderWidth: 1, borderColor: themeColors.accent + '24',
+    marginBottom: 8,
+  },
+  portalMessagesText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text, fontWeight: '600' as const },
+  portalMessagesOpen: { fontSize: Type.caption1.fontSize, color: themeColors.accent, fontWeight: '700' as const, letterSpacing: 0.4 },
+  portalAdvancedLink: {
+    paddingVertical: 10, alignItems: 'center' as const,
+  },
+  portalAdvancedLinkText: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.accent,
+    fontWeight: '600' as const,
+    letterSpacing: 0.2,
+  },
   commEmpty: { alignItems: 'center' as const, paddingVertical: 20, gap: 8 },
   commEmptyText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
   commEventRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.line },
@@ -3479,6 +3705,59 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.info, marginTop: 8 },
   commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.info },
   quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
+  stageStrip: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    borderRadius: Tokens.radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  stageHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stageHeaderLabel: { fontSize: 11, fontWeight: '800' as const, color: themeColors.textMuted, letterSpacing: 1.2 },
+  stageHeaderCount: { fontSize: 11, fontWeight: '700' as const, color: themeColors.accent, letterSpacing: 0.6 },
+  stageChipsRow: { flexDirection: 'row', gap: 6 },
+  stageChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stageChipActive: {
+    backgroundColor: themeColors.accent,
+    borderColor: themeColors.accent,
+  },
+  stageChipPast: {
+    backgroundColor: themeColors.accentSoft,
+    borderColor: themeColors.accent + '40',
+  },
+  stageChipText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: themeColors.textSecondary,
+    letterSpacing: -0.1,
+  },
+  stageChipTextActive: { color: '#FFFFFF' },
+  stageChipTextPast: { color: themeColors.accent },
+  stageProgressTrack: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: themeColors.line,
+    overflow: 'hidden',
+  },
+  stageProgressFill: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: themeColors.accent,
+  },
   quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
   quickActionBtnFull: { flexBasis: '100%' as const },
   quickActionIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },

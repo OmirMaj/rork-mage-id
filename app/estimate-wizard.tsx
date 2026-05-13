@@ -218,10 +218,12 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
         Alert.alert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
       } else {
         setResult(res.data as EstimateResult);
-        // Only record usage on success — failed calls (timeout, MAX_TOKENS,
-        // SAFETY) shouldn't count against the user's quota. Mirrors the
-        // pattern in app/buyout-package.tsx and app/extract-submittals.tsx.
-        await recordAIUsage('smart', 'quickEstimate');
+        // Fire-and-forget usage write — was previously awaited, which left
+        // the loading spinner up while AsyncStorage finished on slow disks.
+        // recordAIUsage failure shouldn't gate the user seeing their estimate.
+        // Only records on success — failed calls (timeout, MAX_TOKENS,
+        // SAFETY) still shouldn't count against the quota.
+        void recordAIUsage('smart', 'quickEstimate');
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
@@ -230,6 +232,15 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
       setLoading(false);
     }
   }, [answers, loading, tier, router]);
+
+  // Escape hatch for the loading screen. We don't actually abort the
+  // in-flight fetch (the AbortController is internal to mageAI), but
+  // flipping loading off lets the user retype / retry — orphaned response
+  // is just dropped via the stale-state check below.
+  const cancelGenerate = useCallback(() => {
+    setLoading(false);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
 
   const share = useCallback(async () => {
     if (!result) return;
@@ -792,7 +803,8 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
       <EstimateLoadingOverlay
         visible={loading}
         title="Generating estimate…"
-        subtitle="Pulling materials, labor, and 2025 pricing for your project."
+        subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
+        onCancel={cancelGenerate}
       />
     </View>
   );

@@ -4213,6 +4213,42 @@
     }
   }
 
+  // Live message fetch — pulls the full thread for this portal from
+  // Supabase. The cached snapshot only carries the messages the GC had
+  // when they last saved the portal settings, so without this the client
+  // would never see a GC reply until the next snapshot rebuild. Filter
+  // is `portal_id` (the column both sides always set; project_id is
+  // null on rows posted from this page).
+  async function fetchLiveMessages(api) {
+    if (!api || !api.supabaseUrl || !api.supabaseAnonKey || !api.portalId) return null;
+    var url = api.supabaseUrl.replace(/\/+$/, '')
+      + '/rest/v1/portal_messages'
+      + '?portal_id=eq.' + encodeURIComponent(api.portalId)
+      + '&order=created_at.asc'
+      + '&select=id,portal_id,author_type,author_name,body,created_at';
+    try {
+      var resp = await fetch(url, {
+        headers: {
+          'apikey': api.supabaseAnonKey,
+          'Authorization': 'Bearer ' + api.supabaseAnonKey,
+          'Accept': 'application/json',
+        },
+      });
+      if (!resp.ok) return null;
+      var rows = await resp.json();
+      if (!Array.isArray(rows)) return null;
+      return rows.map(function (r) {
+        return {
+          id: r.id,
+          authorType: r.author_type,
+          authorName: r.author_name || '',
+          body: r.body || '',
+          createdAt: r.created_at,
+        };
+      });
+    } catch (e) { return null; }
+  }
+
   async function postCOApproval(api, payload) {
     if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
     var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/change_order_approvals';
@@ -4821,8 +4857,68 @@
             appendLocalMessage(body);
             msgInput.value = '';
             autoGrow();
+            // Server now has the authoritative copy. Refresh from
+            // Supabase so the local-only optimistic bubble is replaced
+            // by the canonical row (and any GC replies come along).
+            refreshLiveThread();
           } else {
             alert("Couldn't reach the server. Try again in a moment, or email " + (data.portalApi.contactEmail || 'your contractor') + ' directly.');
+          }
+        });
+
+        // Repaint the message thread from a freshly-fetched row set.
+        // Replaces the children of #msg-thread in place so we don't
+        // disturb the compose box or anything else on the page.
+        function paintThread(rows) {
+          if (!rows) return;
+          // De-dupe local-only optimistic bubbles that now exist server-side.
+          var seenBodies = {};
+          rows.forEach(function (m) {
+            var key = (m.authorType || '') + '|' + (m.body || '');
+            seenBodies[key] = true;
+          });
+          var localOnly = loadLocalMessages(data).filter(function (m) {
+            return !seenBodies[(m.authorType || '') + '|' + (m.body || '')];
+          });
+          saveLocalMessages(data.portalApi.portalId, localOnly);
+
+          var combined = rows.concat(localOnly);
+          if (!combined.length) {
+            msgThread.innerHTML = '<div class="empty-section">No messages yet — say hi to your contractor.</div>';
+            return;
+          }
+          msgThread.innerHTML = combined.map(function (m) {
+            var who = m.authorType === 'client' ? 'You' : (m.authorName || 'Contractor');
+            var localCls = m.local ? ' local' : '';
+            return (
+              '<div class="msg from-' + m.authorType + localCls + '">' +
+                '<div class="msg-author">' + esc(who) + '</div>' +
+                '<div class="msg-body">' + esc(m.body).replace(/\n/g, '<br/>') + '</div>' +
+                '<div class="msg-time">' + esc(timeAgo(m.createdAt)) + '</div>' +
+              '</div>'
+            );
+          }).join('');
+          msgThread.scrollTop = msgThread.scrollHeight;
+        }
+
+        function refreshLiveThread() {
+          fetchLiveMessages(data.portalApi).then(paintThread).catch(function () {});
+        }
+
+        // Initial live fetch ~250ms after render so we replace the
+        // snapshot's frozen thread with the latest Supabase rows. Then
+        // poll every 15s to pick up GC replies while the page is open.
+        setTimeout(refreshLiveThread, 250);
+        var liveTimer = setInterval(refreshLiveThread, 15000);
+
+        // Pause polling when the tab is hidden, resume when it's back.
+        // Saves API quota + battery on mobile.
+        document.addEventListener('visibilitychange', function () {
+          if (document.hidden) {
+            clearInterval(liveTimer);
+          } else {
+            refreshLiveThread();
+            liveTimer = setInterval(refreshLiveThread, 15000);
           }
         });
       }

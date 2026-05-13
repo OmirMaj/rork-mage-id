@@ -168,9 +168,14 @@ export default React.memo(function AIQuickEstimate({
         quality,
         location,
       );
-      await recordAIUsage('smart', 'quickEstimate');
+      // Set the result FIRST so the UI transitions out of the loading
+      // screen immediately. recordAIUsage is best-effort AsyncStorage
+      // bookkeeping and shouldn't gate the user seeing their estimate —
+      // previously awaited, which extended perceived loading on slow
+      // disk writes.
       setResult(data);
       setStep('result');
+      void recordAIUsage('smart', 'quickEstimate');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       console.log('[AI Quick Estimate] Success:', data.materials.length, 'materials');
     } catch (err) {
@@ -434,7 +439,7 @@ export default React.memo(function AIQuickEstimate({
       </Animated.View>
       <Text style={s.loadingTitle}>Building Your Estimate</Text>
       <Text style={s.loadingDesc}>
-        Analyzing project scope, calculating materials, matching labor rates, and optimizing costs...
+        Usually takes 20–40 seconds. We'll fall back to a placeholder if the AI hits its timeout.
       </Text>
       <View style={s.progressBar}>
         <Animated.View style={[s.progressFill, { width: progressWidth }]} />
@@ -453,6 +458,23 @@ export default React.memo(function AIQuickEstimate({
           </View>
         ))}
       </View>
+      {/* Escape hatch — previously the loading screen had no way out, so a
+          slow 30-60s AI call read as "forever loading." We don't actually
+          abort the in-flight fetch (the AbortController is internal to
+          mageAI), but flipping back to 'input' lets the user retype + retry
+          and the orphaned response just gets dropped. */}
+      <TouchableOpacity
+        style={s.cancelLoadingBtn}
+        onPress={() => {
+          setStep('input');
+          setError('Cancelled. Tap Generate again to retry.');
+          if (Platform.OS !== 'web') void Haptics.selectionAsync();
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Cancel AI generation"
+      >
+        <Text style={s.cancelLoadingText}>Cancel</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -686,7 +708,12 @@ export default React.memo(function AIQuickEstimate({
       <EstimateLoadingOverlay
         visible={step === 'loading'}
         title="Generating estimate…"
-        subtitle="Pulling materials, labor, and 2025 pricing for your project."
+        subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
+        onCancel={() => {
+          setStep('input');
+          setError('Cancelled. Tap Generate again to retry.');
+          if (Platform.OS !== 'web') void Haptics.selectionAsync();
+        }}
       />
     </Modal>
   );
@@ -1019,6 +1046,20 @@ const s = StyleSheet.create({
   loadingStepText: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
+  },
+  cancelLoadingBtn: {
+    marginTop: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  cancelLoadingText: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.text,
+    fontWeight: '600',
   },
   resultContainer: {
     flex: 1,

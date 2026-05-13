@@ -11,7 +11,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Modal, View, Text, StyleSheet, Animated, Easing, Platform,
+  Modal, View, Text, StyleSheet, Animated, Easing, Platform, TouchableOpacity,
 } from 'react-native';
 import { Sparkles, Hammer } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -27,6 +27,10 @@ interface Props {
   title?: string;
   /** Optional override of the subtitle below the title. */
   subtitle?: string;
+  /** When provided, a Cancel button renders below the fun fact and calls
+   *  this on tap. The in-flight AI request is dropped (the AbortController
+   *  is internal to mageAI, so we just stop waiting for it). */
+  onCancel?: () => void;
 }
 
 const FUN_FACTS: string[] = [
@@ -52,7 +56,7 @@ const FUN_FACTS: string[] = [
   "Drywall screws are slightly different from wood screws — coarser thread, sharper tip. Mixing them shows.",
 ];
 
-export default function EstimateLoadingOverlay({ visible, title, subtitle }: Props) {
+export default function EstimateLoadingOverlay({ visible, title, subtitle, onCancel }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [factIdx, setFactIdx] = useState(0);
@@ -140,6 +144,17 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle }: Pro
               {FUN_FACTS[factIdx]}
             </Animated.Text>
           </View>
+
+          {onCancel ? (
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={onCancel}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel AI generation"
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -230,5 +245,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   factText: {
     fontSize: Type.footnote.fontSize, color: t.text,
     lineHeight: 19,
+  },
+  cancelBtn: {
+    marginTop: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.line,
+    backgroundColor: Colors.fillSecondary,
+  },
+  cancelText: {
+    fontSize: Type.footnote.fontSize,
+    color: t.text,
+    fontWeight: '600',
   },
 });

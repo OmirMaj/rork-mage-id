@@ -6,7 +6,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, Tag, Truck, Search, X, Bell,
+  ArrowLeft, Tag, Truck, Search, X, Bell, Plus, CheckCircle,
   // Category icons (rendered via lookup map below) — replaces emoji-as-icon
   TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
   Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
@@ -24,6 +24,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import type { PriceAlert, AlertDirection } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -42,11 +43,41 @@ export default function CategoryDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { priceAlerts, addPriceAlert } = useProjects();
+  // Shared materials cart — same instance used by the Estimate tab. Adding
+  // from this screen pushes into that cart so the user can browse here and
+  // finalize/attach to a project from the Estimate tab.
+  const { cart, addToCart } = useMaterialCart();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [alertModal, setAlertModal] = useState<MaterialItem | null>(null);
   const [alertPrice, setAlertPrice] = useState('');
   const [alertDirection, setAlertDirection] = useState<AlertDirection>('below');
+  // Per-item "Added · N in cart" confirmation. Map material.id → timer
+  // expiry timestamp; we re-render after the timeout so the chip reverts.
+  const [recentlyAddedId, setRecentlyAddedId] = useState<string | null>(null);
+  const recentlyAddedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Look up how many of a given material are currently in the cart (used to
+  // show "N in cart" badge in the confirmation chip).
+  const cartQtyById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cart) map.set(item.material.id, item.quantity);
+    return map;
+  }, [cart]);
+
+  const handleAddToCart = useCallback((item: MaterialItem) => {
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    addToCart(item, 1);
+    setRecentlyAddedId(item.id);
+    if (recentlyAddedTimer.current) clearTimeout(recentlyAddedTimer.current);
+    recentlyAddedTimer.current = setTimeout(() => {
+      setRecentlyAddedId(curr => (curr === item.id ? null : curr));
+    }, 1500);
+  }, [addToCart]);
+
+  React.useEffect(() => () => {
+    if (recentlyAddedTimer.current) clearTimeout(recentlyAddedTimer.current);
+  }, []);
 
   const allMaterials = useMemo(() => {
     const prices = getLivePrices(Date.now() / 10000);
@@ -99,6 +130,8 @@ export default function CategoryDetailScreen() {
   const renderItem = useCallback(({ item }: { item: MaterialItem }) => {
     const discount = calcDiscount(item.baseRetailPrice, item.baseBulkPrice);
     const hasAlert = priceAlerts.some(a => a.materialId === item.id);
+    const inCartQty = cartQtyById.get(item.id) ?? 0;
+    const justAdded = recentlyAddedId === item.id;
 
     return (
       <View style={styles.itemCard}>
@@ -152,10 +185,36 @@ export default function CategoryDetailScreen() {
               {hasAlert ? 'Alert Set' : 'Set Alert'}
             </Text>
           </TouchableOpacity>
+          {/* + Add — pushes into the shared MaterialCart. Repeat taps bump
+              quantity; we show a 1.5s inline confirmation each time. */}
+          <TouchableOpacity
+            style={[styles.addBtn, (inCartQty > 0 || justAdded) && styles.addBtnActive]}
+            onPress={() => handleAddToCart(item)}
+            activeOpacity={0.7}
+            testID={`add-to-cart-${item.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Add ${item.name} to cart`}
+          >
+            {justAdded ? (
+              <>
+                <CheckCircle size={13} color={themeColors.success} />
+                <Text style={[styles.addBtnText, { color: themeColors.success }]}>
+                  Added · {inCartQty} in cart
+                </Text>
+              </>
+            ) : (
+              <>
+                <Plus size={13} color={inCartQty > 0 ? themeColors.accent : themeColors.accent} />
+                <Text style={[styles.addBtnText, { color: themeColors.accent }]}>
+                  {inCartQty > 0 ? `Add (${inCartQty})` : 'Add'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
     );
-  }, [priceAlerts]);
+  }, [priceAlerts, cartQtyById, recentlyAddedId, handleAddToCart, themeColors]);
 
   const keyExtractor = useCallback((item: MaterialItem) => item.id, []);
 
@@ -395,6 +454,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   itemActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 8,
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 0.5,
@@ -411,6 +471,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   alertBtnActive: { backgroundColor: t.accent + '15' },
   alertBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.textMuted },
+  // + Add button — visually mirrors alertBtn so the row reads as two parallel
+  // actions. Uses accent tint when the item is already in the cart so the
+  // user sees the "this is on my estimate" signal at a glance.
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: t.accent + '12',
+  },
+  addBtnActive: { backgroundColor: t.accent + '22' },
+  addBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.accent },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: t.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted },

@@ -25,7 +25,7 @@
 // the recipient flow + dispatch + error toast.
 
 import { useState, useEffect, useMemo } from 'react';
-import { View, Text, Modal, Pressable, TextInput, Platform, Linking, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Modal, Pressable, TextInput, Platform, Linking, StyleSheet, ActivityIndicator, KeyboardAvoidingView, ScrollView, Keyboard } from 'react-native';
 import { Mail, MessageSquare } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -148,65 +148,86 @@ export function SendPortalLinkModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <Text style={styles.title}>Send the portal link</Text>
-          <Text style={styles.sub}>Add one or more recipients, separated by commas or new lines.</Text>
-
-          <View style={styles.modeRow}>
-            <Pressable
-              onPress={() => { setMode('email'); setError(null); }}
-              style={[styles.modeBtn, mode === 'email' && styles.modeBtnActive]}
+      {/* KeyboardAvoidingView lifts the modal above the soft keyboard so the
+          Send button stays tappable. ScrollView lets the user manually push
+          the sheet up if the keyboard still overlaps (or to access the Done
+          button quickly). */}
+      <KeyboardAvoidingView
+        style={styles.kavRoot}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              bounces={false}
             >
-              <Mail size={14} color={mode === 'email' ? '#0B0D10' : Colors.text} />
-              <Text style={[styles.modeBtnText, mode === 'email' && styles.modeBtnTextActive]}>Email</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => { setMode('text'); setError(null); }}
-              style={[styles.modeBtn, mode === 'text' && styles.modeBtnActive]}
-            >
-              <MessageSquare size={14} color={mode === 'text' ? '#0B0D10' : Colors.text} />
-              <Text style={[styles.modeBtnText, mode === 'text' && styles.modeBtnTextActive]}>Text</Text>
-            </Pressable>
-          </View>
+              <Text style={styles.title}>Send the portal link</Text>
+              <Text style={styles.sub}>Add one or more recipients, separated by commas or new lines.</Text>
 
-          <Text style={styles.label}>{mode === 'email' ? 'Email addresses' : 'Phone numbers'}</Text>
-          <TextInput
-            value={recipientsText}
-            onChangeText={(t) => { setRecipientsText(t); if (error) setError(null); }}
-            placeholder={mode === 'email'
-              ? 'client@example.com\nspouse@example.com'
-              : '(555) 123-4567\n(555) 987-6543'}
-            placeholderTextColor={Colors.textMuted}
-            style={styles.input}
-            multiline
-            autoCapitalize="none"
-            keyboardType={mode === 'email' ? 'email-address' : 'phone-pad'}
-            testID="send-portal-recipients"
-          />
+              <View style={styles.modeRow}>
+                <Pressable
+                  onPress={() => { setMode('email'); setError(null); }}
+                  style={[styles.modeBtn, mode === 'email' && styles.modeBtnActive]}
+                >
+                  <Mail size={14} color={mode === 'email' ? '#0B0D10' : Colors.text} />
+                  <Text style={[styles.modeBtnText, mode === 'email' && styles.modeBtnTextActive]}>Email</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setMode('text'); setError(null); }}
+                  style={[styles.modeBtn, mode === 'text' && styles.modeBtnActive]}
+                >
+                  <MessageSquare size={14} color={mode === 'text' ? '#0B0D10' : Colors.text} />
+                  <Text style={[styles.modeBtnText, mode === 'text' && styles.modeBtnTextActive]}>Text</Text>
+                </Pressable>
+              </View>
 
-          <Text style={styles.previewLabel}>Message preview</Text>
-          <View style={styles.preview}>
-            <Text style={styles.previewText} numberOfLines={6}>{message}</Text>
-          </View>
+              <View style={styles.labelRow}>
+                <Text style={styles.label}>{mode === 'email' ? 'Email addresses' : 'Phone numbers'}</Text>
+                <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8} style={styles.doneInline}>
+                  <Text style={styles.doneInlineText}>Done</Text>
+                </Pressable>
+              </View>
+              <TextInput
+                value={recipientsText}
+                onChangeText={(t) => { setRecipientsText(t); if (error) setError(null); }}
+                placeholder={mode === 'email'
+                  ? 'client@example.com\nspouse@example.com'
+                  : '(555) 123-4567\n(555) 987-6543'}
+                placeholderTextColor={Colors.textMuted}
+                style={styles.input}
+                multiline
+                autoCapitalize="none"
+                keyboardType={mode === 'email' ? 'email-address' : 'phone-pad'}
+                testID="send-portal-recipients"
+              />
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {success ? <Text style={styles.success}>{success}</Text> : null}
+              <Text style={styles.previewLabel}>Message preview</Text>
+              <View style={styles.preview}>
+                <Text style={styles.previewText} numberOfLines={6}>{message}</Text>
+              </View>
 
-          <View style={styles.actions}>
-            <Pressable onPress={onClose} style={styles.cancelBtn} disabled={busy}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-            <Pressable onPress={submit} style={styles.sendBtn} disabled={busy}>
-              {busy
-                ? <ActivityIndicator size="small" color="#0B0D10" />
-                : <Text style={styles.sendText}>
-                    Send{recipients.length > 0 ? ` (${recipients.length})` : ''}
-                  </Text>}
-            </Pressable>
-          </View>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {success ? <Text style={styles.success}>{success}</Text> : null}
+
+              <View style={styles.actions}>
+                <Pressable onPress={onClose} style={styles.cancelBtn} disabled={busy}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={submit} style={styles.sendBtn} disabled={busy}>
+                  {busy
+                    ? <ActivityIndicator size="small" color="#0B0D10" />
+                    : <Text style={styles.sendText}>
+                        Send{recipients.length > 0 ? ` (${recipients.length})` : ''}
+                      </Text>}
+                </Pressable>
+              </View>
+            </ScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -232,6 +253,7 @@ function wrapPlainAsHtml(message: string, link: string): string {
 }
 
 const styles = StyleSheet.create({
+  kavRoot: { flex: 1 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -242,9 +264,28 @@ const styles = StyleSheet.create({
   sheet: {
     width: '100%',
     maxWidth: 460,
+    maxHeight: '90%',
     backgroundColor: Colors.surface,
     borderRadius: 14,
+    overflow: 'hidden',
+  },
+  scrollContent: {
     padding: 22,
+  },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  doneInline: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: Colors.surfaceAlt,
+    marginBottom: 4,
+  },
+  doneInlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.tradeColors.general,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   title: { fontSize: 18, fontWeight: '700', color: Colors.text },
   sub: { fontSize: 12, color: Colors.textSecondary, marginTop: 4, marginBottom: 16 },

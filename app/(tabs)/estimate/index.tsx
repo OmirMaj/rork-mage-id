@@ -21,6 +21,8 @@ import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialCart, type MaterialCartItem } from '@/contexts/MaterialCartContext';
+import MaterialAIEstimateModal from '@/components/MaterialAIEstimateModal';
 import { generateUUID } from '@/utils/generateId';
 import { findMaterials, type AIMaterialResult } from '@/utils/materialFinder';
 import {
@@ -49,6 +51,10 @@ import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+// CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
+// component (which carries an optional priceSource) keeps compiling. The
+// materials cart in context uses MaterialCartItem (without priceSource); the
+// extra optional field is structurally compatible going either direction.
 interface CartItem {
   material: MaterialItem;
   quantity: number;
@@ -120,6 +126,21 @@ export default function EstimateScreen() {
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { projects, updateProject, settings, updateSettings, contacts } = useProjects();
+  // Shared materials cart (used by the Materials browser too). All cart
+  // mutations now flow through the context — local setCart() calls were
+  // removed in favor of these helpers.
+  const {
+    cart,
+    globalMarkup,
+    addToCart: ctxAddToCart,
+    addManyToCart: ctxAddManyToCart,
+    removeFromCart: ctxRemoveFromCart,
+    updateQuantity: ctxUpdateQuantity,
+    updateMarkup: ctxUpdateMarkup,
+    clearCart: ctxClearCart,
+    setGlobalMarkup: ctxSetGlobalMarkup,
+    replaceCart: ctxReplaceCart,
+  } = useMaterialCart();
 
   const locationMultiplier = useMemo(() => getRegionMultiplier(settings.location), [settings.location]);
   const regionLabel = useMemo(() => {
@@ -136,9 +157,11 @@ export default function EstimateScreen() {
   const [_lastUpdated, setLastUpdated] = useState(new Date());
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [globalMarkup, setGlobalMarkup] = useState(15);
+  // cart + globalMarkup come from MaterialCartContext (above). The input
+  // string for the custom-markup textbox stays local — context only stores
+  // the numeric value.
   const [globalMarkupInput, setGlobalMarkupInput] = useState('15');
+  const [showAIModal, setShowAIModal] = useState(false);
   const [showCart, setShowCart] = useState(false);
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -200,6 +223,14 @@ export default function EstimateScreen() {
     ).start();
   }, [pulseAnim]);
 
+  // Keep the local markup-input string in sync with the context value. The
+  // context can be mutated from elsewhere (e.g. the AI suggestions modal
+  // applying a per-item markup pulled from globalMarkup baseline), so we
+  // reflect those changes back into the textbox.
+  useEffect(() => {
+    setGlobalMarkupInput(String(globalMarkup));
+  }, [globalMarkup]);
+
   useEffect(() => {
     getRecentMaterials().then(setRecentMaterials).catch(() => {});
     getPopularCustomMaterials(10).then(setPopularMaterials).catch(() => {});
@@ -243,12 +274,7 @@ export default function EstimateScreen() {
       region: 'National Avg',
       specTier: 'base',
     };
-    setCart(prev => [...prev, {
-      material: materialItem,
-      quantity: 1,
-      markup: globalMarkup,
-      usesBulk: false,
-    }]);
+    ctxAddToCart(materialItem, 1);
     const savedMat = aiResultToSavedMaterial(aiMat);
     saveToLocalDatabase(savedMat).then(() => {
       getCustomMaterials().then(m => setCustomMaterialCount(m.length)).catch(() => {});
@@ -267,7 +293,7 @@ export default function EstimateScreen() {
       Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
       Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
     ]).start();
-  }, [globalMarkup, cartAnim]);
+  }, [cartAnim, ctxAddToCart]);
 
   const handleAddCustomMaterial = useCallback(() => {
     const price = parseFloat(customPrice);
@@ -288,12 +314,7 @@ export default function EstimateScreen() {
       pricingModel: 'market',
       sourceLabel: 'Custom Entry',
     };
-    setCart(prev => [...prev, {
-      material: materialItem,
-      quantity: 1,
-      markup: globalMarkup,
-      usesBulk: false,
-    }]);
+    ctxAddToCart(materialItem, 1);
     saveToLocalDatabase({
       id: materialItem.id,
       name: materialItem.name,
@@ -327,7 +348,7 @@ export default function EstimateScreen() {
       Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
       Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
     ]).start();
-  }, [customName, customPrice, customUnit, customCategory, customNotes, globalMarkup, cartAnim]);
+  }, [customName, customPrice, customUnit, customCategory, customNotes, cartAnim, ctxAddToCart]);
 
   const handleAddRecentToCart = useCallback((recent: RecentMaterial) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -354,12 +375,16 @@ export default function EstimateScreen() {
     const newPrices = getLivePrices(PRICE_SEED, locationMultiplier);
     setMaterials(newPrices);
     setLastUpdated(new Date());
-    setCart(prev => prev.map(cartItem => {
+    // Re-price existing cart items against the new location multiplier. We
+    // do this through replaceCart (context's bulk-set) rather than per-item
+    // updates so it's a single atomic write.
+    const repriced: MaterialCartItem[] = cart.map(cartItem => {
       const updated = newPrices.find(m => m.id === cartItem.material.id);
       if (updated) return { ...cartItem, material: updated };
       return cartItem;
-    }));
-  }, [locationMultiplier]);
+    });
+    ctxReplaceCart(repriced);
+  }, [locationMultiplier, cart, ctxReplaceCart]);
 
   // Only re-price when location changes. Removed the 5-minute interval and the
   // AppState resume refresh — those were causing estimates to drift by a cent
@@ -516,20 +541,9 @@ export default function EstimateScreen() {
   ) => {
     console.log('[Estimate] Applying AI estimate:', aiMaterials.length, 'materials,', aiLabor.length, 'labor,', aiAssemblies.length, 'assemblies');
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setCart(prev => {
-      const map = new Map<string, CartItem>();
-      for (const item of prev) map.set(item.material.id, item);
-      for (const item of aiMaterials) {
-        const existing = map.get(item.material.id);
-        if (existing) {
-          const newQty = existing.quantity + item.quantity;
-          map.set(item.material.id, { ...existing, quantity: newQty, usesBulk: newQty >= existing.material.bulkMinQty });
-        } else {
-          map.set(item.material.id, item);
-        }
-      }
-      return Array.from(map.values());
-    });
+    // Materials go through the shared cart context so the Materials browser
+    // sees the same state. addManyToCart dedups by material id and bumps qty.
+    ctxAddManyToCart(aiMaterials.map(m => ({ material: m.material, quantity: m.quantity })));
     setLaborCart(prev => {
       const map = new Map<string, LaborCartItem>();
       for (const item of prev) map.set(item.labor.id, item);
@@ -561,7 +575,7 @@ export default function EstimateScreen() {
       Animated.spring(cartAnim, { toValue: 1.4, useNativeDriver: true, speed: 30, bounciness: 12 }),
       Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
     ]).start();
-  }, [cartAnim]);
+  }, [cartAnim, ctxAddManyToCart]);
 
   const handleLoadTemplate = useCallback((template: EstimateTemplate) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -661,22 +675,14 @@ export default function EstimateScreen() {
       return;
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setCart(prev => {
-      const existing = prev.find(i => i.material.id === selectedMaterial.id);
-      if (existing) {
-        return prev.map(i =>
-          i.material.id === selectedMaterial.id
-            ? { ...i, quantity: qty, usesBulk: qty >= i.material.bulkMinQty }
-            : i
-        );
-      }
-      return [...prev, {
-        material: selectedMaterial,
-        quantity: qty,
-        markup: globalMarkup,
-        usesBulk: qty >= selectedMaterial.bulkMinQty,
-      }];
-    });
+    // Popup is set-absolute (typed-in quantity). If already in cart, set the
+    // quantity exactly; otherwise add fresh.
+    const existing = cart.find(i => i.material.id === selectedMaterial.id);
+    if (existing) {
+      ctxUpdateQuantity(selectedMaterial.id, qty);
+    } else {
+      ctxAddToCart(selectedMaterial, qty);
+    }
     Animated.sequence([
       Animated.spring(cartAnim, { toValue: 1.3, useNativeDriver: true, speed: 30, bounciness: 10 }),
       Animated.spring(cartAnim, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 0 }),
@@ -692,7 +698,7 @@ export default function EstimateScreen() {
     }).then(() => getRecentMaterials().then(setRecentMaterials)).catch(() => {});
     setShowItemPopup(false);
     setSelectedMaterial(null);
-  }, [selectedMaterial, itemQty, globalMarkup, cartAnim]);
+  }, [selectedMaterial, itemQty, cart, cartAnim, ctxAddToCart, ctxUpdateQuantity]);
 
   const popupLineTotal = useMemo(() => {
     if (!selectedMaterial) return 0;
@@ -702,27 +708,29 @@ export default function EstimateScreen() {
     return base * (1 + globalMarkup / 100) * qty;
   }, [selectedMaterial, itemQty, globalMarkup]);
 
+  // Delta-style qty update used by the +/- buttons inside the cart row.
+  // The context's updateQuantity is absolute; we combine it with a lookup
+  // so the +/- behavior stays. Zero/negative results auto-remove the row.
   const updateQuantity = useCallback((id: string, delta: number) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    setCart(prev =>
-      prev
-        .map(i => {
-          if (i.material.id !== id) return i;
-          const newQty = Math.max(0, i.quantity + delta);
-          return { ...i, quantity: newQty, usesBulk: newQty >= i.material.bulkMinQty };
-        })
-        .filter(i => i.quantity > 0)
-    );
-  }, []);
+    const existing = cart.find(i => i.material.id === id);
+    if (!existing) return;
+    const newQty = Math.max(0, existing.quantity + delta);
+    if (newQty <= 0) {
+      ctxRemoveFromCart(id);
+    } else {
+      ctxUpdateQuantity(id, newQty);
+    }
+  }, [cart, ctxRemoveFromCart, ctxUpdateQuantity]);
 
   const updateItemMarkup = useCallback((id: string, markup: number) => {
-    setCart(prev => prev.map(i => i.material.id === id ? { ...i, markup } : i));
-  }, []);
+    ctxUpdateMarkup(id, markup);
+  }, [ctxUpdateMarkup]);
 
   const removeFromCart = useCallback((id: string) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setCart(prev => prev.filter(i => i.material.id !== id));
-  }, []);
+    ctxRemoveFromCart(id);
+  }, [ctxRemoveFromCart]);
 
   const buildLinkedEstimate = useCallback((): LinkedEstimate => {
     const items: LinkedEstimateItem[] = cart.map(item => {
@@ -958,11 +966,11 @@ export default function EstimateScreen() {
   }, [cart, cartTotal, settings]);
 
   const applyGlobalMarkup = useCallback((val: number) => {
-    setGlobalMarkup(val);
+    // Context cascades to all cart items in a single write.
+    ctxSetGlobalMarkup(val);
     setGlobalMarkupInput(String(val));
-    setCart(prev => prev.map(i => ({ ...i, markup: val })));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, []);
+  }, [ctxSetGlobalMarkup]);
 
   const cartItemInList = useCallback((id: string) => cart.find(i => i.material.id === id), [cart]);
 
@@ -1375,8 +1383,8 @@ export default function EstimateScreen() {
                   setGlobalMarkupInput(v);
                   const n = parseFloat(v);
                   if (!isNaN(n) && n >= 0 && n <= 200) {
-                    setGlobalMarkup(n);
-                    setCart(prev => prev.map(i => ({ ...i, markup: n })));
+                    // setGlobalMarkup cascades to all cart items in one write.
+                    ctxSetGlobalMarkup(n);
                   }
                 }}
                 keyboardType="numeric"
@@ -1585,7 +1593,7 @@ export default function EstimateScreen() {
         </View>
       )}
     </View>
-  ), [materials.length, totalMaterialCount, pulseAnim, refreshPrices, cart.length, totalItemCount, cartAnim, isSearchFocused, query, globalMarkup, globalMarkupInput, applyGlobalMarkup, activeCategory, activeTab, filteredMaterials.length, regionalVisibleCount, opportunities, laborCart.length, assemblyCart.length, recentMaterials, popularMaterials, showAiResults, isAiSearching, aiSearchError, aiSearchResults, handleAiSearch, handleAddAiMaterial, handleAddRecentToCart, router]);
+  ), [materials.length, totalMaterialCount, pulseAnim, refreshPrices, cart.length, totalItemCount, cartAnim, isSearchFocused, query, globalMarkup, globalMarkupInput, applyGlobalMarkup, activeCategory, activeTab, filteredMaterials.length, regionalVisibleCount, opportunities, laborCart.length, assemblyCart.length, recentMaterials, popularMaterials, showAiResults, isAiSearching, aiSearchError, aiSearchResults, handleAiSearch, handleAddAiMaterial, handleAddRecentToCart, router, ctxSetGlobalMarkup, materials, openItemPopup]);
 
   const renderLaborCard = useCallback(({ item }: { item: LaborRate }) => {
     const inCart = laborCart.find(i => i.labor.id === item.id);
@@ -2673,6 +2681,31 @@ export default function EstimateScreen() {
                     </View>
                   </View>
 
+                  {/* Ask AI — tune the materials cart for a project description.
+                      Only relevant when there are materials in the cart; we hide
+                      the button otherwise to avoid teasing a feature that has
+                      nothing to operate on. */}
+                  {cart.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.askAIBtn}
+                      onPress={() => {
+                        setShowCart(false);
+                        setTimeout(() => setShowAIModal(true), 320);
+                      }}
+                      activeOpacity={0.85}
+                      testID="ask-ai-btn"
+                    >
+                      <View style={styles.askAIBtnIcon}>
+                        <Sparkles size={16} color={Colors.surface} />
+                      </View>
+                      <View style={styles.askAIBtnText}>
+                        <Text style={styles.askAIBtnTitle}>Ask AI</Text>
+                        <Text style={styles.askAIBtnSub}>Tune quantities and markup for your project</Text>
+                      </View>
+                      <ChevronRight size={16} color={Colors.surface} />
+                    </TouchableOpacity>
+                  )}
+
                   {cart.length > 0 && (
                     <>
                       <Text style={styles.cartSectionTitle}>Materials ({cart.length})</Text>
@@ -2827,7 +2860,7 @@ export default function EstimateScreen() {
                       style={styles.clearBtn}
                       onPress={() => {
                         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        setCart([]);
+                        ctxClearCart();
                         setLaborCart([]);
                         setAssemblyCart([]);
                       }} accessibilityRole="button" accessibilityLabel="Delete">
@@ -3253,6 +3286,14 @@ export default function EstimateScreen() {
         location={settings.location}
         calculateAssemblyCost={calculateAssemblyCost}
       />
+
+      {/* Cart-level AI suggestions modal — opens from the "Ask AI" button at
+          the top of the cart view. Reads the shared cart, returns per-item
+          quantity + markup suggestions plus a labor estimate range. */}
+      <MaterialAIEstimateModal
+        visible={showAIModal}
+        onClose={() => setShowAIModal(false)}
+      />
     </View>
   );
 }
@@ -3409,6 +3450,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
     gap: 8,
+  },
+  // Ask AI CTA — pops out of the cart top using the violet treatment that
+  // mirrors the Quick Estimate Wizard hero so users recognize it as an
+  // AI-powered action. Uses #5E5CE6 (the consistent in-app AI accent).
+  askAIBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: '#5E5CE6',
+  },
+  askAIBtnIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  askAIBtnText: { flex: 1 },
+  askAIBtnTitle: {
+    fontSize: Type.callout.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.surface,
+  },
+  askAIBtnSub: {
+    fontSize: Type.caption1.fontSize,
+    color: 'rgba(255,255,255,0.82)',
+    marginTop: 1,
   },
   summaryMiniCard: {
     flex: 1,

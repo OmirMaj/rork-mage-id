@@ -10,6 +10,7 @@ import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
+import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { BidsProvider } from "@/contexts/BidsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
@@ -914,23 +915,25 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
-                  <BidsProvider>
-                    <CompaniesProvider>
-                      <HireProvider>
-                        <NotificationProvider>
-                          <SearchProvider>
-                            <MagicLinkHandler />
-                            <OfflineSyncManager />
-                            <RootLayoutNav />
-                            <UniversalSearch />
-                            <SearchHotkeyListener />
-                            <NailItToastHost />
-                            <ConfettiHost />
-                          </SearchProvider>
-                        </NotificationProvider>
-                      </HireProvider>
-                    </CompaniesProvider>
-                  </BidsProvider>
+                  <MaterialCartProvider>
+                    <BidsProvider>
+                      <CompaniesProvider>
+                        <HireProvider>
+                          <NotificationProvider>
+                            <SearchProvider>
+                              <MagicLinkHandler />
+                              <OfflineSyncManager />
+                              <RootLayoutNav />
+                              <UniversalSearch />
+                              <SearchHotkeyListener />
+                              <NailItToastHost />
+                              <ConfettiHost />
+                            </SearchProvider>
+                          </NotificationProvider>
+                        </HireProvider>
+                      </CompaniesProvider>
+                    </BidsProvider>
+                  </MaterialCartProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>

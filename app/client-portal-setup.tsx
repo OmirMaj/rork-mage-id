@@ -168,7 +168,7 @@ function ClientPortalSetupScreenInner() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
-    getProject, updateProject, getUnreadPortalMessageCount,
+    getProject, updateProject,
     settings,
     getInvoicesForProject, getChangeOrdersForProject,
     getDailyReportsForProject, getPunchItemsForProject,
@@ -176,11 +176,21 @@ function ClientPortalSetupScreenInner() {
     getAIAPayAppsForProject,
     getCommitmentsForProject, getWarrantiesForProject,
   } = useProjects();
-  const unreadFromClient = id ? getUnreadPortalMessageCount(id, 'gc') : 0;
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
   const proposalQ = usePortalBudgetProposals(id);
-  const threadQ = usePortalThread(id);
+  // Pass BOTH projectId + portalId so the messages query can filter by
+  // portal_id (the only column both sides actually populate) while
+  // approvals still filter by project_id.
+  const threadQ = usePortalThread({ projectId: id, portalId: project?.clientPortal?.portalId });
+  const unreadFromClient = threadQ.unreadFromClient.length;
+  // Recent messages preview — both directions, sourced from Supabase via
+  // usePortalThread (the same source the dedicated thread screen uses).
+  // Take the last 3 from the time-sorted list.
+  const recentMessages = useMemo(
+    () => threadQ.messages.slice(-3),
+    [threadQ.messages],
+  );
 
   // Pull contract / selections / closeout binder for the snapshot.
   // These are async fetches against Supabase so we wrap them in
@@ -914,22 +924,73 @@ function ClientPortalSetupScreenInner() {
               </View>
             ))}
           </View>
-          {threadQ.unreadFromClient.length > 0 && (
-            <View style={styles.messagesPreview}>
-              <View style={styles.messagesPreviewHeader}>
-                <MessageSquare size={14} color={themeColors.accent} />
-                <Text style={styles.messagesPreviewLabel}>
-                  {threadQ.unreadFromClient.length} new message{threadQ.unreadFromClient.length === 1 ? '' : 's'} from your client
-                </Text>
-              </View>
-              {threadQ.unreadFromClient.slice(-3).map(m => (
-                <View key={m.id} style={styles.messageBubble}>
-                  <Text style={styles.messageAuthor}>{m.authorName || 'Client'}</Text>
-                  <Text style={styles.messageBody}>{m.body}</Text>
+          {/* Unified messages preview — both directions (your sent messages
+              AND incoming client messages). Always rendered so this is the
+              single entry point for the thread, replacing the older
+              "Messages" CTA that was duplicated below. */}
+          <TouchableOpacity
+            style={styles.messagesPreview}
+            onPress={() => router.push(`/client-messages?id=${id}` as any)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Open messages thread"
+            testID="portal-recent-messages"
+          >
+            <View style={styles.messagesPreviewHeader}>
+              <MessageSquare size={14} color={themeColors.accent} />
+              <Text style={styles.messagesPreviewLabel}>
+                {recentMessages.length === 0 ? 'Messages' : 'Recent messages'}
+              </Text>
+              {unreadFromClient > 0 && (
+                <View style={styles.unreadPill}>
+                  <Text style={styles.unreadPillTxt}>{unreadFromClient}</Text>
                 </View>
-              ))}
+              )}
+              <Text style={styles.messagesPreviewOpen}>
+                {recentMessages.length === 0 ? 'Start ›' : 'Open ›'}
+              </Text>
             </View>
-          )}
+            {recentMessages.length === 0 ? (
+              <Text style={styles.messagesEmptyHint}>
+                Two-way Q&A with everyone invited to the portal. Tap to send the first message.
+              </Text>
+            ) : (
+              // Mini iMessage-style thread preview — left/right bubbles
+              // matching the dedicated /client-messages screen so the two
+              // views feel like the same conversation.
+              recentMessages.map((m, idx) => {
+                const mine = m.authorType === 'gc';
+                const isUnread = !mine && !m.readByGc;
+                const prev = idx > 0 ? recentMessages[idx - 1] : null;
+                const senderChanged = !prev || prev.authorType !== m.authorType;
+                return (
+                  <View
+                    key={m.id}
+                    style={[
+                      styles.miniRow,
+                      mine ? styles.miniRowMine : styles.miniRowTheirs,
+                      senderChanged ? styles.miniRowGap : styles.miniRowTight,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.miniBubble,
+                        mine ? styles.miniBubbleMine : styles.miniBubbleTheirs,
+                      ]}
+                    >
+                      <Text
+                        style={[styles.miniBubbleText, mine && styles.miniBubbleTextMine]}
+                        numberOfLines={2}
+                      >
+                        {m.body}
+                      </Text>
+                    </View>
+                    {isUnread && <View style={styles.unreadDot} />}
+                  </View>
+                );
+              })
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Permissions */}
@@ -1019,31 +1080,10 @@ function ClientPortalSetupScreenInner() {
           )}
         </View>
 
-        {/* Messages inbox CTA */}
-        <TouchableOpacity
-          style={styles.weeklyUpdateBtn}
-          onPress={() => router.push(`/client-messages?id=${id}` as any)}
-          activeOpacity={0.85}
-          testID="portal-messages-btn"
-        >
-          <View style={styles.weeklyUpdateIcon}>
-            <MessageSquare size={16} color={themeColors.accent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.weeklyUpdateTitle}>Messages</Text>
-            <Text style={styles.weeklyUpdateSub}>
-              {unreadFromClient > 0
-                ? `${unreadFromClient} new ${unreadFromClient === 1 ? 'message' : 'messages'} from your client`
-                : 'Two-way Q&A with everyone invited to the portal.'}
-            </Text>
-          </View>
-          {unreadFromClient > 0 && (
-            <View style={styles.unreadPill}>
-              <Text style={styles.unreadPillTxt}>{unreadFromClient}</Text>
-            </View>
-          )}
-          <Text style={styles.weeklyUpdateArrow}>›</Text>
-        </TouchableOpacity>
+        {/* The standalone Messages CTA that used to live here was removed —
+            the unified preview at the top of this section is now the single
+            entry point to the thread, so the GC's sent messages and the
+            client's unread messages live in one place. */}
 
         {/* Weekly Update CTA */}
         <TouchableOpacity
@@ -1195,15 +1235,30 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accent + '08',
     borderWidth: 1, borderColor: t.accent + '20',
   },
-  messagesPreviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  messagesPreviewLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
-  messageBubble: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 10,
-    borderWidth: 1, borderColor: t.line,
-    marginBottom: 6,
+  messagesPreviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  messagesPreviewLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent, flex: 1 },
+  messagesPreviewOpen: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 0.4 },
+  messagesEmptyHint: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
+  // Mini iMessage-style bubbles — borderless, left/right aligned. Matches
+  // the dedicated thread screen so the preview reads as the same chat.
+  miniRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  miniRowMine:   { justifyContent: 'flex-end' },
+  miniRowTheirs: { justifyContent: 'flex-start' },
+  miniRowGap:   { marginTop: 6 },
+  miniRowTight: { marginTop: 2 },
+  miniBubble: {
+    maxWidth: '78%',
+    paddingHorizontal: 11, paddingVertical: 6,
+    borderRadius: 14,
   },
-  messageAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-  messageBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
+  miniBubbleMine: { backgroundColor: t.accent },
+  miniBubbleTheirs: { backgroundColor: t.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line },
+  miniBubbleText: { fontSize: 13, color: t.text, lineHeight: 17 },
+  miniBubbleTextMine: { color: '#FFFFFF' },
+  unreadDot: {
+    width: 7, height: 7, borderRadius: 4,
+    backgroundColor: t.accent,
+  },
 
   inviteForm: { gap: 8 },
   input: {
