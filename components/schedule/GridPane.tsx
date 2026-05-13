@@ -36,6 +36,7 @@ import {
   View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
   Platform, Alert, Modal,
 } from 'react-native';
+import Svg, { Circle as SvgCircle, G as SvgG } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -46,6 +47,7 @@ import {
   type CpmResult, type CpmTaskResult,
 } from '@/utils/cpm';
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
+import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, Sparkles, X, Anchor } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
@@ -88,7 +90,11 @@ const COLUMNS: ColumnDef[] = [
   { key: 'actions',      label: '',               width: 44,  align: 'center', kind: 'custom' },
 ];
 
-const ROW_HEIGHT = 40;
+// ROW_HEIGHT and the headerRow height MUST match InteractiveGantt's
+// ROW_HEIGHT / HEADER_HEIGHT (currently 56 each) so bars line up with
+// their table rows in the Split paneMode. Previously these were 40 and
+// 36, which offset every bar by ~20px from its task row.
+const ROW_HEIGHT = 56;
 
 // ---------------------------------------------------------------------------
 // Props
@@ -101,6 +107,12 @@ export interface GridPaneProps {
   projectStartDate: Date;
   /** 5 = workdays only, 7 = calendar days. */
   workingDaysPerWeek: number;
+  /**
+   * Phase 27 carryover — passed through from GanttTab/ListTab so the grid can
+   * shade non-working dates if/when the calendar-grid mode adds visual support.
+   * Currently accepted but unused on this branch.
+   */
+  nonWorkingDates?: string[];
   /**
    * Split-view mode. The gantt on the right already shows Start / Finish /
    * Float visually, so repeating them as text columns makes the layout feel
@@ -137,6 +149,12 @@ export interface GridPaneProps {
   onBulkSetCrew?: (ids: string[], crew: string) => void;
   /** Open the AI drawer pre-scoped to selection. */
   onBulkAskAI?: (ids: string[]) => void;
+  /**
+   * Full-width list mode. Adds Float, Resources, and Phase columns that
+   * are hidden in compact (split-Gantt) mode because the Gantt already
+   * visualises them. Use this when GridPane is rendered alone (ListTab).
+   */
+  showExtendedColumns?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +168,7 @@ export default function GridPane({
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
   onBulkSetPhase, onBulkSetCrew, onBulkAskAI,
   compact = false,
+  showExtendedColumns = false,
 }: GridPaneProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -174,6 +193,16 @@ export default function GridPane({
     }
     return map;
   }, [visibleColumns]);
+  // Extended column widths — Float (72), Resources (140), Phase (100).
+  // These are rendered outside the COLUMNS array so they don't interfere with
+  // the existing compact / non-compact filter logic.
+  const EXT_COL_PHASE_W = 100;
+  // The extended-column band only adds info the base grid doesn't already
+  // surface. Float lives in the base FLOAT column (Critical / Xd slack) and
+  // resource is already the Crew column — re-rendering them as raw "Xd" /
+  // a duplicate string is just noise. Phase is genuinely missing from the
+  // base set so it stays.
+  const extColumnsWidth = showExtendedColumns ? EXT_COL_PHASE_W : 0;
   const visibleTotalWidth = useMemo(
     () => visibleColumns.reduce((s, c) => s + c.width, 0),
     [visibleColumns],
@@ -250,22 +279,78 @@ export default function GridPane({
 
   const selectedArray = useMemo(() => Array.from(selected), [selected]);
 
-  // Map of task.id → wbsCode, used to let users type "1.2" as a predecessor
-  // instead of the machine id. Falls back to the id if no WBS.
+  // Map of task.id → wbsCode, used to let users type "1.2" or "T5" as a
+  // predecessor instead of the machine id. Falls back to the id itself
+  // so power users can paste task uuids directly if they need to.
   const wbsToIdMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of tasks) {
+    tasks.forEach((t, i) => {
       if (t.wbsCode) m.set(t.wbsCode.trim(), t.id);
+      // Row-number shorthand. Matches the Gantt bar labels and the new
+      // predecessor display, so what you read in the cell is what you can
+      // type back into it.
+      m.set(`T${i + 1}`, t.id);
+      m.set(`t${i + 1}`, t.id);
       m.set(t.id, t.id);
-    }
+    });
     return m;
   }, [tasks]);
 
   const idToWbsMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of tasks) m.set(t.id, t.wbsCode || t.id);
+    // Only register real wbsCodes — fall through to idToRowLabel below
+    // so predecessors with no WBS render as "T1, T5" instead of the raw
+    // task UUID.
+    for (const t of tasks) {
+      if (t.wbsCode) m.set(t.id, t.wbsCode);
+    }
     return m;
   }, [tasks]);
+
+  // Positional fallback for predecessors when no WBS is available.
+  // Matches the Gantt bar labels (T1, T2 …) so the user sees the same
+  // shorthand across views.
+  const idToRowLabel = useMemo(() => {
+    const m = new Map<string, string>();
+    tasks.forEach((t, i) => m.set(t.id, `T${i + 1}`));
+    return m;
+  }, [tasks]);
+
+  // -------------------------------------------------------------------------
+  // Date helpers — declared BEFORE beginEdit/commitEdit so the date cell
+  // edit path can convert CPM day numbers ↔ ISO yyyy-mm-dd strings without
+  // crashing on the TDZ. (Tried inlining the conversion inside the edit
+  // callbacks first; React still ran the dep array at render time which
+  // hit the TDZ on `dateToDayNumber`.)
+  // -------------------------------------------------------------------------
+
+  const renderDate = useCallback((dayNumber: number): string => {
+    if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
+    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek);
+    return formatShortDate(d);
+  }, [projectStartDate, workingDaysPerWeek]);
+
+  const renderIso = useCallback((dayNumber: number): string => {
+    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [projectStartDate, workingDaysPerWeek]);
+
+  const dateToDayNumber = useCallback((target: Date): number => {
+    const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
+    const tgt = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+    if (tgt <= base) return 1;
+    if (workingDaysPerWeek >= 7) {
+      return Math.floor((tgt.getTime() - base.getTime()) / 86400000) + 1;
+    }
+    let count = 1;
+    const cur = new Date(base);
+    while (cur < tgt) {
+      cur.setDate(cur.getDate() + 1);
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) count++;
+    }
+    return count;
+  }, [projectStartDate, workingDaysPerWeek]);
 
   // -------------------------------------------------------------------------
   // Begin / commit / cancel edit helpers
@@ -273,10 +358,20 @@ export default function GridPane({
 
   const beginEdit = useCallback((row: number, col: ColumnKey) => {
     const colDef = COLUMNS.find(c => c.key === col);
-    if (!colDef || colDef.kind === 'readonly' || colDef.kind === 'custom') return;
+    if (!colDef) return;
+    // Date cells (start/finish/deadline) are declared 'readonly'/'custom'
+    // because the underlying values are CPM-derived, but the inline date
+    // input lets users edit them by typing or picking — so they're
+    // explicitly allowed past the readonly/custom guard.
+    const isInlineDateEditable = col === 'start' || col === 'finish' || col === 'deadline';
+    if (!isInlineDateEditable && (colDef.kind === 'readonly' || colDef.kind === 'custom')) return;
 
     const task = tasks[row];
     if (!task) return;
+
+    // Pull CPM at edit-begin so we can seed Finish from the CPM EF rather
+    // than raw startDay+duration arithmetic. Falls back gracefully.
+    const cpmAtBegin = cpm.perTask.get(task.id);
 
     let seed = '';
     switch (col) {
@@ -284,10 +379,15 @@ export default function GridPane({
       case 'duration': seed = String(task.durationDays ?? 0); break;
       case 'progress': seed = String(task.progress ?? 0); break;
       case 'crew':     seed = task.crew ?? ''; break;
+      case 'start':    seed = renderIso(task.startDay); break;
+      case 'finish':   seed = renderIso(
+        cpmAtBegin?.ef ?? (task.startDay + Math.max(1, task.durationDays ?? 1) - 1),
+      ); break;
+      case 'deadline': seed = task.deadline ?? renderIso(cpmAtBegin?.ef ?? task.startDay); break;
       case 'predecessors':
         seed = (task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 })))
           .map(l => {
-            const wbs = idToWbsMap.get(l.taskId) ?? l.taskId;
+            const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
             const type = l.type && l.type !== 'FS' ? l.type : '';
             const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
             return `${wbs}${type}${lag}`;
@@ -298,7 +398,7 @@ export default function GridPane({
     setDraft(seed);
     setCellError(null);
     setEditing({ row, col });
-  }, [tasks, idToWbsMap]);
+  }, [tasks, renderIso, cpm, idToWbsMap, idToRowLabel]);
 
   const cancelEdit = useCallback(() => {
     setEditing(null);
@@ -342,6 +442,44 @@ export default function GridPane({
         patch.crew = draft.trim();
         break;
       }
+      case 'start': {
+        // Accept yyyy-mm-dd (native <input type="date"> format).
+        const m = draft.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (!m) { setCellError('Enter date as YYYY-MM-DD'); return false; }
+        const [, ys, ms, ds] = m;
+        const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
+        if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
+        const newStartDay = dateToDayNumber(picked);
+        if (newStartDay === task.startDay) break;
+        patch.startDay = newStartDay;
+        break;
+      }
+      case 'finish': {
+        const m = draft.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (!m) { setCellError('Enter date as YYYY-MM-DD'); return false; }
+        const [, ys, ms, ds] = m;
+        const picked = new Date(Number(ys), Number(ms) - 1, Number(ds));
+        if (Number.isNaN(picked.getTime())) { setCellError('Invalid date'); return false; }
+        const newFinishDay = dateToDayNumber(picked);
+        const newDuration = newFinishDay - task.startDay + 1;
+        if (newDuration < 1) {
+          setCellError('Finish date must be on or after Start');
+          return false;
+        }
+        if (newDuration === task.durationDays) break;
+        patch.durationDays = newDuration;
+        break;
+      }
+      case 'deadline': {
+        const raw = draft.trim();
+        if (!raw) { patch.deadline = undefined; break; }
+        const m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (!m) { setCellError('Enter date as YYYY-MM-DD'); return false; }
+        // Normalize back to yyyy-mm-dd with zero-padded month/day.
+        const [, ys, ms, ds] = m;
+        patch.deadline = `${ys}-${ms.padStart(2, '0')}-${ds.padStart(2, '0')}`;
+        break;
+      }
       case 'predecessors': {
         // Parse "1.2, 2.1SS+2, 3.4FF-1" → DependencyLink[]
         // Reject early if any token is malformed or would create a cycle.
@@ -380,7 +518,7 @@ export default function GridPane({
     setDraft('');
     setCellError(null);
     return true;
-  }, [editing, draft, tasks, wbsToIdMap, onEdit, cancelEdit]);
+  }, [editing, draft, tasks, wbsToIdMap, onEdit, cancelEdit, dateToDayNumber]);
 
   // -------------------------------------------------------------------------
   // Keyboard navigation (web). iPad/mobile rely on tap-to-edit + blur.
@@ -409,111 +547,6 @@ export default function GridPane({
     if (!commitEdit()) return; // don't move if current cell is invalid
     setTimeout(() => beginEdit(nextRow, nextCol), 0);
   }, [editing, tasks.length, commitEdit, beginEdit]);
-
-  // -------------------------------------------------------------------------
-  // Date display helpers — all dates derived from CPM, never raw startDay
-  // -------------------------------------------------------------------------
-
-  const renderDate = useCallback((dayNumber: number): string => {
-    if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
-    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek);
-    return formatShortDate(d);
-  }, [projectStartDate, workingDaysPerWeek]);
-
-  // ISO yyyy-mm-dd for a given 1-indexed day number. Used to seed the native
-  // web date picker with the cell's current value. Native is left as display
-  // only for dates — the phone flow uses the classic schedule screen.
-  const renderIso = useCallback((dayNumber: number): string => {
-    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, [projectStartDate, workingDaysPerWeek]);
-
-  // Reverse of addWorkingDays: given a target calendar date, return the
-  // 1-indexed day number it represents on the project calendar. Matches the
-  // forward helper so click-to-edit round-trips cleanly.
-  const dateToDayNumber = useCallback((target: Date): number => {
-    const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
-    const tgt = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-    if (tgt <= base) return 1;
-    if (workingDaysPerWeek >= 7) {
-      return Math.floor((tgt.getTime() - base.getTime()) / 86400000) + 1;
-    }
-    let count = 1;
-    const cur = new Date(base);
-    while (cur < tgt) {
-      cur.setDate(cur.getDate() + 1);
-      const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) count++;
-    }
-    return count;
-  }, [projectStartDate, workingDaysPerWeek]);
-
-  // Native-web date picker. We mount a throwaway <input type="date"> off
-  // screen, fire showPicker(), read the value, and tear it down. This is
-  // cheaper than pulling in a date-picker library and matches the UX users
-  // already know from every browser form on earth.
-  const openDatePicker = useCallback((iso: string, onPick: (picked: Date) => void) => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const input = document.createElement('input');
-    input.type = 'date';
-    input.value = iso;
-    input.style.position = 'fixed';
-    input.style.opacity = '0';
-    input.style.pointerEvents = 'none';
-    input.style.left = '0';
-    input.style.top = '0';
-    document.body.appendChild(input);
-    let cleaned = false;
-    const cleanup = () => {
-      if (cleaned) return;
-      cleaned = true;
-      try { document.body.removeChild(input); } catch { /* already gone */ }
-    };
-    input.addEventListener('change', () => {
-      const v = input.value;
-      if (v) {
-        const [y, m, d] = v.split('-').map(n => parseInt(n, 10));
-        if (y && m && d) onPick(new Date(y, m - 1, d));
-      }
-      cleanup();
-    });
-    input.addEventListener('blur', () => setTimeout(cleanup, 0));
-    const anyInput = input as unknown as { showPicker?: () => void };
-    if (typeof anyInput.showPicker === 'function') {
-      try { anyInput.showPicker(); } catch { input.focus(); input.click(); }
-    } else {
-      input.focus();
-      input.click();
-    }
-  }, []);
-
-  // Start / Finish click handlers. Start rewrites `startDay`; Finish rewrites
-  // `durationDays` so the bar's right edge lands on the picked date. Both
-  // flow through `onEdit`, so they're undoable like any other grid edit.
-  const handlePickStart = useCallback((task: ScheduleTask) => {
-    if (Platform.OS !== 'web') return;
-    openDatePicker(renderIso(task.startDay), (picked) => {
-      const newStartDay = dateToDayNumber(picked);
-      if (newStartDay === task.startDay) return;
-      onEdit(task.id, { startDay: newStartDay });
-    });
-  }, [openDatePicker, renderIso, dateToDayNumber, onEdit]);
-
-  const handlePickFinish = useCallback((task: ScheduleTask, cpmRow: CpmTaskResult | undefined) => {
-    if (Platform.OS !== 'web') return;
-    const currentFinishDay = cpmRow?.ef ?? (task.startDay + Math.max(1, task.durationDays) - 1);
-    openDatePicker(renderIso(currentFinishDay), (picked) => {
-      const newFinishDay = dateToDayNumber(picked);
-      const newDuration = newFinishDay - task.startDay + 1;
-      if (newDuration < 1) {
-        setCellError('Finish date must be on or after Start');
-        setTimeout(() => setCellError(null), 1800);
-        return;
-      }
-      if (newDuration === task.durationDays) return;
-      onEdit(task.id, { durationDays: newDuration });
-    });
-  }, [openDatePicker, renderIso, dateToDayNumber, onEdit]);
 
   // -------------------------------------------------------------------------
   // Row render
@@ -549,8 +582,46 @@ export default function GridPane({
       frozenStyle,
     ];
 
-    // Active edit state: TextInput
+    // Active edit state: TextInput — or a raw <input type="date"> for the
+    // three date cells on web. The native date input lets the user type
+    // YYYY-MM-DD into the year/month/day fields directly AND exposes the
+    // browser's calendar dropdown via the small icon at the right edge —
+    // strictly better UX than the off-screen picker we used previously.
     if (isEditingThis) {
+      const isDateCol = col.key === 'start' || col.key === 'finish' || col.key === 'deadline';
+      if (isDateCol && Platform.OS === 'web') {
+        return (
+          <View key={col.key} style={cellStyle}>
+            {React.createElement('input' as any, {
+              type: 'date',
+              autoFocus: true,
+              value: draft,
+              onChange: (e: any) => setDraft(e.target.value),
+              onBlur: () => { commitEdit(); },
+              onKeyDown: (e: any) => {
+                if (e.key === 'Enter') { e.preventDefault?.(); commitEdit(); }
+                else if (e.key === 'Escape') { e.preventDefault?.(); cancelEdit(); }
+              },
+              style: {
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                font: 'inherit',
+                color: 'inherit',
+                padding: 0,
+              },
+              'data-testid': `grid-edit-${rowIndex}-${col.key}`,
+            })}
+            {cellError && (
+              <View style={styles.cellErrorTip}>
+                <Text style={styles.cellErrorText}>{cellError}</Text>
+              </View>
+            )}
+          </View>
+        );
+      }
       return (
         <View key={col.key} style={cellStyle}>
           <TextInput
@@ -635,7 +706,7 @@ export default function GridPane({
         const level = task.outlineLevel ?? 0;
         const isSummary = !!task.isSummary;
         display = (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: level * 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingLeft: level * 14 }}>
             {isSummary ? (
               <TouchableOpacity
                 onPress={() => onEdit(task.id, { collapsed: !task.collapsed })}
@@ -665,7 +736,7 @@ export default function GridPane({
         break;
       }
       case 'duration':
-        display = <Text style={styles.cellText}>{task.durationDays}d</Text>;
+        display = <Text style={[styles.cellText, styles.cellTextMono]}>{task.durationDays}d</Text>;
         break;
       case 'start': {
         const label = cpmRow ? renderDate(cpmRow.es) : '—';
@@ -674,7 +745,7 @@ export default function GridPane({
           return (
             <View key={col.key} style={[...cellStyle, styles.cellDate, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
               <TouchableOpacity
-                onPress={() => handlePickStart(task)}
+                onPress={() => beginEdit(rowIndex, 'start')}
                 activeOpacity={0.6}
                 style={{ flex: 1 }}
                 testID={`grid-cell-${rowIndex}-${col.key}`}
@@ -711,7 +782,7 @@ export default function GridPane({
             <TouchableOpacity
               key={col.key}
               style={[...cellStyle, styles.cellDate]}
-              onPress={() => handlePickFinish(task, cpmRow)}
+              onPress={() => beginEdit(rowIndex, 'finish')}
               activeOpacity={0.6}
               testID={`grid-cell-${rowIndex}-${col.key}`}
             >
@@ -738,12 +809,7 @@ export default function GridPane({
               <TouchableOpacity
                 key={col.key}
                 style={[...cellStyle, styles.cellDate]}
-                onPress={() => {
-                  openDatePicker(renderIso(cpmRow?.ef ?? task.startDay), (picked) => {
-                    const iso = `${picked.getFullYear()}-${String(picked.getMonth() + 1).padStart(2, '0')}-${String(picked.getDate()).padStart(2, '0')}`;
-                    onEdit(task.id, { deadline: iso });
-                  });
-                }}
+                onPress={() => beginEdit(rowIndex, 'deadline')}
                 activeOpacity={0.6}
                 testID={`grid-cell-${rowIndex}-${col.key}`}
               >
@@ -772,12 +838,7 @@ export default function GridPane({
             <TouchableOpacity
               key={col.key}
               style={[...cellStyle, styles.cellDate]}
-              onPress={() => {
-                openDatePicker(task.deadline!, (picked) => {
-                  const iso = `${picked.getFullYear()}-${String(picked.getMonth() + 1).padStart(2, '0')}-${String(picked.getDate()).padStart(2, '0')}`;
-                  onEdit(task.id, { deadline: iso });
-                });
-              }}
+              onPress={() => beginEdit(rowIndex, 'deadline')}
               activeOpacity={0.6}
               testID={`grid-cell-${rowIndex}-${col.key}`}
             >
@@ -792,7 +853,7 @@ export default function GridPane({
         const links = task.dependencyLinks ?? task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
         if (links.length === 0) { display = <Text style={styles.cellTextMuted}>—</Text>; break; }
         const labels = links.map(l => {
-          const wbs = idToWbsMap.get(l.taskId) ?? l.taskId;
+          const wbs = idToWbsMap.get(l.taskId) ?? idToRowLabel.get(l.taskId) ?? l.taskId.slice(0, 6);
           const type = l.type && l.type !== 'FS' ? l.type : '';
           const lag = l.lagDays ? (l.lagDays > 0 ? `+${l.lagDays}` : `${l.lagDays}`) : '';
           return `${wbs}${type}${lag}`;
@@ -818,7 +879,7 @@ export default function GridPane({
         break;
       }
       case 'progress':
-        display = <Text style={styles.cellText}>{task.progress}%</Text>;
+        display = <MiniDonut progress={task.progress ?? 0} status={task.status} />;
         break;
       case 'actions':
         display = (
@@ -1106,7 +1167,7 @@ export default function GridPane({
       {renderConflictBanner()}
 
       <ScrollView horizontal showsHorizontalScrollIndicator>
-        <View style={{ width: visibleTotalWidth }}>
+        <View style={{ width: visibleTotalWidth + extColumnsWidth }}>
           {/* Sticky header row */}
           <View style={styles.headerRow}>
             {visibleColumns.map(col => {
@@ -1132,6 +1193,11 @@ export default function GridPane({
                 </View>
               );
             })}
+            {showExtendedColumns && (
+              <View style={[styles.headerCell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
+                <Text style={styles.headerText}>PHASE</Text>
+              </View>
+            )}
           </View>
 
           {/* Body rows — children of collapsed summaries are hidden. We keep
@@ -1173,6 +1239,15 @@ export default function GridPane({
                   testID={`grid-row-${rowIndex}`}
                 >
                   {visibleColumns.map(col => renderCell(task, rowIndex, col, cpmRow, rowBgColor))}
+                  {showExtendedColumns && (
+                    <>
+                      <View style={[styles.cell, { width: EXT_COL_PHASE_W, alignItems: 'flex-start' }]}>
+                        <Text style={styles.cellText} numberOfLines={1}>
+                          {tradeLabel(tradeKeyForTask(task))}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                 </View>
               );
             })}
@@ -1201,6 +1276,40 @@ export default function GridPane({
         }}
       />
     </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MiniDonut — SVG ring showing % complete in the progress column.
+// ---------------------------------------------------------------------------
+
+function MiniDonut({ progress, status }: { progress: number; status?: 'not_started' | 'in_progress' | 'done' | 'on_hold' }) {
+  const size = 18;
+  const stroke = 3;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = status === 'done' ? 100 : Math.max(0, Math.min(100, progress ?? 0));
+  const color = pct === 100 ? Colors.pillOnTrack : Colors.tradeColors.general;
+  const offset = circ - (pct / 100) * circ;
+  return (
+    <Svg width={size} height={size}>
+      <SvgG rotation="-90" origin={`${size / 2}, ${size / 2}`}>
+        <SvgCircle cx={size / 2} cy={size / 2} r={r} stroke={Colors.fillTertiary} strokeWidth={stroke} fill="none" />
+        {pct > 0 && (
+          <SvgCircle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            stroke={color}
+            strokeWidth={stroke}
+            fill="none"
+            strokeDasharray={`${circ} ${circ}`}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+          />
+        )}
+      </SvgG>
+    </Svg>
   );
 }
 
@@ -1469,7 +1578,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: t.line,
-    height: 36,
+    // Matches InteractiveGantt.HEADER_HEIGHT so the first table row and
+    // the first Gantt bar share a vertical origin in Split paneMode.
+    height: 56,
     alignItems: 'center',
   },
   headerCell: {
@@ -1528,6 +1639,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cellTextMuted: {
     fontSize: Type.footnote.fontSize,
     color: t.textMuted,
+  },
+  cellTextMono: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace' }),
   },
   cellDate: {
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),

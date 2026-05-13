@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
-  TextInput, Alert, Platform, Share, Clipboard,
+  TextInput, Alert, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { sendEmailNative, sendEmail } from '@/utils/emailService';
+import { copyToClipboard } from '@/utils/clipboard';
+import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import { wrapEmailHtml, emailQuote } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
@@ -393,29 +395,41 @@ function ClientPortalSetupScreenInner() {
     }
   }, [id, portal, updateProject]);
 
-  const handleCopyLink = useCallback(() => {
-    if (Platform.OS === 'web') {
-      navigator.clipboard?.writeText(portalLink);
-    } else {
-      Clipboard.setString(portalLink);
-    }
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert('Copied', 'Portal link copied to clipboard.');
-  }, [portalLink]);
+  // Send modal state — replaces the old web "Share" Alert that just
+  // showed the message text and couldn't actually dispatch anything.
+  const [showSendModal, setShowSendModal] = useState(false);
 
-  const handleShare = useCallback(async () => {
+  const shareMessage = useMemo(() => {
     const passcodeLine = portal.requirePasscode && portal.passcode
       ? `\n\nPasscode: ${portal.passcode}`
       : '';
-    const message = portal.welcomeMessage
+    return portal.welcomeMessage
       ? `${portal.welcomeMessage}\n\nView your project here:\n${portalLink}${passcodeLine}`
       : `You're invited to view live updates for "${project?.name}".\n\nLink: ${portalLink}${passcodeLine}`;
-    if (Platform.OS === 'web') {
-      Alert.alert('Share', message);
-      return;
-    }
-    await Share.share({ message, title: 'Client Portal Invite' });
   }, [portal.welcomeMessage, portal.requirePasscode, portal.passcode, portalLink, project?.name]);
+
+  const handleCopyLink = useCallback(async () => {
+    // Use the shared clipboard util — previously this called
+    // navigator.clipboard?.writeText without awaiting the Promise, so on
+    // web the Alert fired before the write actually happened (or
+    // silently failed in non-secure contexts) and the user saw "Copied"
+    // over an empty clipboard.
+    const ok = await copyToClipboard(portalLink);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      ok ? 'Copied' : 'Copy failed',
+      ok
+        ? 'Portal link copied to clipboard.'
+        : 'Could not copy the link. Long-press to select the URL above and copy manually.',
+    );
+  }, [portalLink]);
+
+  const handleShare = useCallback(() => {
+    // Open the Send-by-Email/Text modal on every platform. We no longer
+    // route through the native share sheet because the user explicitly
+    // asked for a modal where they can add recipients directly.
+    setShowSendModal(true);
+  }, []);
 
   // Auto-send a branded portal invite email through Resend (via the
   // send-email edge function). The homeowner gets a polished email with
@@ -1054,6 +1068,13 @@ function ClientPortalSetupScreenInner() {
           <Text style={styles.disableBtnText}>Disable Client Portal</Text>
         </TouchableOpacity>
       </ScrollView>
+      <SendPortalLinkModal
+        visible={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        subject={`${project?.name ?? 'Project'} — Client Portal`}
+        message={shareMessage}
+        link={portalLink}
+      />
     </>
   );
 }

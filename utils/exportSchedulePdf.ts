@@ -20,6 +20,7 @@
 // Long schedules page-break naturally via CSS `page-break-inside: avoid`
 // on each row; we don't do explicit pagination.
 
+import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
@@ -350,9 +351,39 @@ function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline, paperS
 
 export async function exportSchedulePdf(opts: ExportOpts): Promise<void> {
   const html = buildHtml(opts);
-  // expo-print handles web (opens print dialog) and native (returns a file
-  // URI we hand to Share / save). We let the caller decide what to do with
-  // the URI; here we just trigger the save/print dialog via Print.printAsync
-  // which is the one call that does the right thing on both platforms.
+  if (Platform.OS === 'web') {
+    // expo-print's web shim calls `window.print()` on the current document
+    // and ignores the `html` prop entirely, which means users got a print
+    // of whatever was on screen (a "screenshot" of the scheduler page)
+    // instead of the rendered schedule HTML. Open the HTML in a new tab
+    // and trigger print there — the new tab can also be saved as PDF.
+    if (typeof window === 'undefined') return;
+    const w = window.open('', '_blank', 'noopener,noreferrer');
+    if (!w) {
+      // Popup blocked. Fall back: navigate via a Blob URL so at least the
+      // user can save the page.
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    // The browser needs a tick to lay out before printing. Without this
+    // delay, Chrome will print a blank page on slower machines.
+    setTimeout(() => {
+      try {
+        w.focus();
+        w.print();
+      } catch {
+        // If print is blocked, the tab still shows the rendered schedule
+        // and the user can Cmd-P / save manually.
+      }
+    }, 350);
+    return;
+  }
+  // Native: expo-print does the right thing — renders the HTML to a PDF
+  // and presents the system share / save dialog.
   await Print.printAsync({ html });
 }

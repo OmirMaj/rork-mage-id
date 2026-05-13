@@ -13,7 +13,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
-  Modal, TextInput, Linking, Clipboard,
+  Modal, TextInput, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -29,6 +29,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
+import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import {
@@ -433,14 +434,13 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               {canCopyLink && (
                 <TouchableOpacity
                   style={styles.copyLinkRow}
-                  onPress={() => {
+                  onPress={async () => {
                     const link = `rork-app://prequal-form?token=${packet.inviteToken}`;
-                    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-                      void navigator.clipboard.writeText(link);
-                    } else {
-                      Clipboard.setString(link);
-                    }
-                    Alert.alert('Copied', 'Magic link copied to clipboard.');
+                    const ok = await copyToClipboard(link);
+                    Alert.alert(
+                      ok ? 'Copied' : 'Copy failed',
+                      ok ? 'Magic link copied to clipboard.' : 'Could not copy the link.',
+                    );
                   }}
                 >
                   <Copy size={14} color={themeColors.accent} />

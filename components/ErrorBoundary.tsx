@@ -2,12 +2,6 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { AlertTriangle, RefreshCw } from 'lucide-react-native';
 import * as Sentry from '@sentry/react-native';
-import { Colors } from '@/constants/colors';
-import type { ThemeColors } from '@/constants/colors';
-import { useThemedStyles } from '@/hooks/useThemedStyles';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   children: ReactNode;
@@ -63,6 +57,15 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+// ErrorFallback must NEVER depend on ThemeProvider / useThemedStyles /
+// Tokens because this component is the last line of defense — if a child
+// crash takes out the theme stack, the fallback still has to render. The
+// previous version called useTheme() inside ErrorFallback which threw
+// "Cannot destructure 'colors' of useTheme(...) as it is undefined" and
+// the user saw a blank white screen instead of the recover UI.
+//
+// All colors / radii / font sizes here are hardcoded to safe light-mode
+// values that work in both themes against a neutral background.
 function ErrorFallback({
   error, message, onReset,
 }: {
@@ -70,38 +73,36 @@ function ErrorFallback({
   message?: string;
   onReset: () => void;
 }) {
-  const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <View style={styles.iconWrap}>
-          <AlertTriangle size={32} color={themeColors.danger} strokeWidth={1.8} />
+    <View style={fallbackStyles.container}>
+      <View style={fallbackStyles.card}>
+        <View style={fallbackStyles.iconWrap}>
+          <AlertTriangle size={32} color="#FF3B30" strokeWidth={1.8} />
         </View>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.message}>
+        <Text style={fallbackStyles.title}>Something went wrong</Text>
+        <Text style={fallbackStyles.message}>
           {message || 'The app encountered an unexpected error. Please try again.'}
         </Text>
         {error && (
-          <ScrollView style={styles.errorBox} horizontal={false}>
-            <Text style={styles.errorText}>{error.message}</Text>
+          <ScrollView style={fallbackStyles.errorBox} horizontal={false}>
+            <Text style={fallbackStyles.errorText}>{error.message}</Text>
           </ScrollView>
         )}
         <TouchableOpacity
-          style={styles.retryButton}
+          style={fallbackStyles.retryButton}
           onPress={onReset}
           activeOpacity={0.8}
           testID="error-boundary-retry"
         >
-          <RefreshCw size={16} color={'#FFFFFF'} strokeWidth={2} />
-          <Text style={styles.retryText}>Try Again</Text>
+          <RefreshCw size={16} color="#FFFFFF" strokeWidth={2} />
+          <Text style={fallbackStyles.retryText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const makeStyles = (t: ThemeColors) => StyleSheet.create({
+const fallbackStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -126,20 +127,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: '#FFE5E5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   title: {
-    fontSize: Type.title3.fontSize,
-    fontWeight: '700' as const,
-    color: t.text,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
     marginBottom: 8,
     textAlign: 'center',
   },
   message: {
-    fontSize: Type.subhead.fontSize,
+    fontSize: 15,
     color: 'rgba(60,60,67,0.6)',
     textAlign: 'center',
     lineHeight: 22,
@@ -147,15 +148,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   errorBox: {
     backgroundColor: '#F2F2F7',
-    borderRadius: Tokens.radius.md,
+    borderRadius: 8,
     padding: 12,
     width: '100%',
     maxHeight: 80,
     marginBottom: 20,
   },
   errorText: {
-    fontSize: Type.caption1.fontSize,
-    color: t.danger,
+    fontSize: 12,
+    color: '#FF3B30',
     fontFamily: 'monospace',
   },
   retryButton: {
@@ -164,14 +165,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#1A6B3C',
-    borderRadius: Tokens.radius.lg,
+    borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 32,
     width: '100%',
   },
   retryText: {
-    fontSize: Type.callout.fontSize,
-    fontWeight: '600' as const,
-    color: t.surface,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

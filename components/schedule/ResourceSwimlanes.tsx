@@ -27,17 +27,68 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask, ProjectResource } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { colorForTask } from '@/utils/scheduleColors';
 
 interface ResourceSwimlanesProps {
   tasks: ScheduleTask[];
   resources?: ProjectResource[];
   projectStartDate: Date;
+  /** Optional — shown in the toolbar so the user has project context.
+   *  When omitted, the toolbar just says "Resources". */
+  projectName?: string;
 }
 
-const ROW_HEIGHT = 40;
-const HEADER_HEIGHT = 52;
-const LANE_LABEL_WIDTH = 160;
+// Per-track height when we stagger overlapping pills vertically (see
+// computeTracks below). Lane row height grows with track count so pills
+// never visually collide. Bumped from 22→30 so the trade-colored pills
+// have real presence instead of looking like 1px hairlines.
+const TRACK_HEIGHT = 30;
+const TRACK_GAP = 4;
+const ROW_PADDING = 14;
+const ROW_HEIGHT_MIN = 76;
+const HEADER_HEIGHT = 44;
+const LANE_LABEL_WIDTH = 180;
+// Daily-load microchart at the bottom of each lane row. Tells the user
+// "when is this crew at / above capacity" without needing extra UI.
+const CHART_HEIGHT = 64;
+const CHART_GAP = 10;
 const DEFAULT_COLORS = ['#FF9500', '#007AFF', '#34C759', '#AF52DE', '#FF3B30', '#5856D6', '#00C7BE'];
+// Minimum gap between adjacent month-tick labels, in pixels. When two
+// labels would land closer than this, we skip the later one — keeps the
+// month axis from collapsing into "MAR 2026R 2026" visual sludge.
+const MIN_MONTH_TICK_GAP = 56;
+
+/**
+ * Greedy bin-pack: assign each task to the lowest-numbered track where it
+ * doesn't overlap a prior task in that track. Returns one entry per task
+ * (in input order) with the assigned `track` plus the total `trackCount`
+ * the caller needs to size the lane row.
+ */
+function computeTracks(tasks: ReadonlyArray<{ startDay?: number; durationDays?: number }>): {
+  trackByIndex: number[];
+  trackCount: number;
+} {
+  const ends: number[] = []; // ends[i] = day after the last task in track i finishes
+  const trackByIndex: number[] = [];
+  for (const t of tasks) {
+    const start = Math.max(1, t.startDay ?? 1);
+    const end = start + Math.max(1, t.durationDays ?? 1);
+    let placed = -1;
+    for (let i = 0; i < ends.length; i++) {
+      if (ends[i] <= start) {
+        ends[i] = end;
+        placed = i;
+        break;
+      }
+    }
+    if (placed < 0) {
+      ends.push(end);
+      placed = ends.length - 1;
+    }
+    trackByIndex.push(placed);
+  }
+  return { trackByIndex, trackCount: Math.max(1, ends.length) };
+}
 
 function addDays(date: Date, d: number): Date {
   const x = new Date(date);
@@ -49,7 +100,7 @@ function fmtMonth(d: Date) {
   return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
-export default function ResourceSwimlanes({ tasks, resources, projectStartDate }: ResourceSwimlanesProps) {
+export default function ResourceSwimlanes({ tasks, resources, projectStartDate, projectName }: ResourceSwimlanesProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [pxPerDay, setPxPerDay] = useState(12);
@@ -136,16 +187,32 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
     return result;
   }, [lanes, tasksByLane, totalDays]);
 
-  // Month-tick header, plain and cheap.
+  // Month-tick header. Anchored to the first-of-the-month so the labels
+  // line up with the natural calendar boundary instead of the
+  // project-start offset. We also enforce a minimum pixel gap between
+  // adjacent labels so they never visually overlap at low zoom levels —
+  // the previous version printed labels at every monthly stride
+  // regardless of column width, which produced the "MAR 2026R 2026"
+  // overlap the user reported.
   const monthTicks = useMemo(() => {
     const ticks: { x: number; label: string }[] = [];
-    let d = 1;
-    while (d <= totalDays) {
-      const date = addDays(projectStartDate, d - 1);
-      ticks.push({ x: (d - 1) * pxPerDay, label: fmtMonth(date) });
-      const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
-      const step = Math.max(1, Math.floor((next.getTime() - date.getTime()) / 86400000));
-      d += step;
+    // First tick at the project start itself so the very left edge has a
+    // month context, then subsequent ticks at each calendar month boundary.
+    ticks.push({ x: 0, label: fmtMonth(projectStartDate) });
+    const startY = projectStartDate.getFullYear();
+    const startM = projectStartDate.getMonth();
+    // Walk forward one month at a time. Convert each "first of month" back
+    // to a day offset within the project axis.
+    for (let i = 1; i <= 24; i++) {
+      const tickDate = new Date(startY, startM + i, 1);
+      const dayOffset = Math.floor((tickDate.getTime() - projectStartDate.getTime()) / 86400000);
+      if (dayOffset > totalDays) break;
+      const x = dayOffset * pxPerDay;
+      const prevX = ticks[ticks.length - 1]?.x ?? -Infinity;
+      // Skip this label if it would crowd the previous one — better to
+      // show fewer labels than to print sludge.
+      if (x - prevX < MIN_MONTH_TICK_GAP) continue;
+      ticks.push({ x, label: fmtMonth(tickDate) });
     }
     return ticks;
   }, [totalDays, projectStartDate, pxPerDay]);
@@ -162,11 +229,27 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
     );
   }
 
+  // Quick summary stats for the toolbar — gives the page a sense of
+  // weight even when there's only one lane to render.
+  const totalTasks = tasks.length;
+  const overloadedCount = lanes.filter(lane => {
+    const load = laneLoad.get(lane.id) ?? [];
+    return load.some(v => v > lane.cap);
+  }).length;
+
   return (
     <View style={styles.container}>
       <View style={styles.toolbar}>
-        <Users size={14} color={themeColors.accent} />
-        <Text style={styles.toolbarTitle}>Resources</Text>
+        <Users size={16} color={themeColors.accent} />
+        <View style={styles.toolbarTitleBlock}>
+          <Text style={styles.toolbarTitle} numberOfLines={1}>
+            {projectName ? `${projectName} · Resources` : 'Resources'}
+          </Text>
+          <Text style={styles.toolbarSub}>
+            {lanes.length} {lanes.length === 1 ? 'crew' : 'crews'} · {totalTasks} tasks
+            {overloadedCount > 0 ? ` · ${overloadedCount} overloaded` : ''}
+          </Text>
+        </View>
         <View style={styles.spacer} />
         <Text style={styles.zoomValue}>{Math.round(pxPerDay)}px/d</Text>
         {Platform.OS === 'web' ? (
@@ -199,18 +282,38 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
               const laneTasks = tasksByLane.get(lane.id) ?? [];
               const load = laneLoad.get(lane.id) ?? [];
               const overloaded = load.some(v => v > lane.cap);
+              // Stagger overlapping pills onto separate vertical tracks so
+              // two crew-A tasks on the same week don't visually collide.
+              const { trackByIndex, trackCount } = computeTracks(laneTasks);
+              // Daily-load chart constants for this lane.
+              const peakLoad = Math.max(1, ...load);
+              const chartScale = CHART_HEIGHT / peakLoad;
+              const capPx = Math.min(CHART_HEIGHT, lane.cap * chartScale);
+              const pillsHeight = ROW_PADDING * 2 + trackCount * TRACK_HEIGHT + Math.max(0, trackCount - 1) * TRACK_GAP;
+              const rowHeight = Math.max(
+                ROW_HEIGHT_MIN,
+                pillsHeight + CHART_GAP + CHART_HEIGHT + ROW_PADDING,
+              );
+              const totalTaskCount = laneTasks.length;
+              const overloadedDays = load.filter(v => v > lane.cap).length;
               return (
-                <View key={lane.id} style={styles.laneRow}>
+                <View key={lane.id} style={[styles.laneRow, { height: rowHeight }]}>
                   <View style={[styles.laneLabel, { borderLeftColor: lane.color }]}>
-                    <Text style={styles.laneName} numberOfLines={1}>{lane.name}</Text>
-                    <Text style={styles.laneCap}>cap {lane.cap}</Text>
-                    {overloaded && (
-                      <View style={styles.overloadBadge}>
-                        <AlertTriangle size={10} color={themeColors.danger} />
-                      </View>
-                    )}
+                    <View style={styles.laneLabelTop}>
+                      <Text style={styles.laneName} numberOfLines={1}>{lane.name}</Text>
+                      {overloaded && (
+                        <View style={styles.overloadBadge}>
+                          <AlertTriangle size={10} color={themeColors.danger} />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.laneCap}>cap {lane.cap} · peak {peakLoad}</Text>
+                    <Text style={styles.laneStat} numberOfLines={1}>
+                      {totalTaskCount} {totalTaskCount === 1 ? 'task' : 'tasks'}
+                      {overloadedDays > 0 ? ` · ${overloadedDays}d over` : ''}
+                    </Text>
                   </View>
-                  <View style={{ width: timelineWidth, height: ROW_HEIGHT, position: 'relative' }}>
+                  <View style={{ width: timelineWidth, height: rowHeight, position: 'relative' }}>
                     {/* Overload tint bands: for each day where load > cap, draw a red column. */}
                     {load.map((v, day) => {
                       if (v <= lane.cap) return null;
@@ -228,26 +331,33 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                         />
                       );
                     })}
-                    {/* Task pills */}
-                    {laneTasks.map(t => {
+                    {/* Task pills, staggered by track + trade-colored.
+                        We use the per-task trade color (Colors.tradeColors)
+                        instead of the lane color so the user can scan a
+                        single lane and pick out concrete vs framing vs
+                        electrical at a glance. */}
+                    {laneTasks.map((t, i) => {
                       const s = Math.max(1, t.startDay ?? 1);
                       const d = Math.max(1, t.durationDays ?? 1);
                       const x = (s - 1) * pxPerDay;
                       const w = Math.max(8, d * pxPerDay);
+                      const track = trackByIndex[i] ?? 0;
+                      const top = ROW_PADDING + track * (TRACK_HEIGHT + TRACK_GAP);
+                      const tradeColor = colorForTask(t);
                       return (
                         <View
                           key={t.id}
                           style={{
                             position: 'absolute',
                             left: x,
-                            top: 8,
+                            top,
                             width: w,
-                            height: ROW_HEIGHT - 16,
-                            backgroundColor: lane.color + '33',
+                            height: TRACK_HEIGHT,
+                            backgroundColor: tradeColor + '2a',
                             borderLeftWidth: 3,
-                            borderLeftColor: lane.color,
-                            borderRadius: 4,
-                            paddingHorizontal: 6,
+                            borderLeftColor: tradeColor,
+                            borderRadius: 6,
+                            paddingHorizontal: 8,
                             justifyContent: 'center',
                           }}
                         >
@@ -255,6 +365,55 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
                         </View>
                       );
                     })}
+                    {/* Daily-load microchart at the bottom of the lane.
+                        Each day = one column. Height proportional to load /
+                        peakLoad. Bars over capacity tint red so you can scan
+                        the timeline and immediately spot overloaded weeks
+                        without reading the pills. Capacity line draws across
+                        as a dashed reference. */}
+                    <View
+                      style={[
+                        styles.chartTrack,
+                        { top: pillsHeight + CHART_GAP, width: timelineWidth, height: CHART_HEIGHT },
+                      ]}
+                    >
+                      {load.map((v, day) => {
+                        if (v <= 0 || day < 1) return null;
+                        const barH = Math.max(2, v * chartScale);
+                        const isOver = v > lane.cap;
+                        return (
+                          <View
+                            key={`bar-${day}`}
+                            style={{
+                              position: 'absolute',
+                              left: (day - 1) * pxPerDay,
+                              bottom: 0,
+                              width: Math.max(1, pxPerDay - 1),
+                              height: barH,
+                              backgroundColor: isOver ? themeColors.danger : lane.color,
+                              opacity: isOver ? 0.85 : 0.55,
+                              borderTopLeftRadius: 2,
+                              borderTopRightRadius: 2,
+                            }}
+                          />
+                        );
+                      })}
+                      {/* Capacity reference line — dashed underline so the
+                          "is this day over cap" question reads at a glance. */}
+                      <View
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: capPx,
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: themeColors.textMuted,
+                          borderStyle: 'dashed',
+                          opacity: 0.6,
+                        }}
+                      />
+                      <Text style={styles.chartCapLabel}>cap {lane.cap}</Text>
+                    </View>
                   </View>
                 </View>
               );
@@ -278,14 +437,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: t.line,
   },
+  toolbarTitleBlock: { flex: 1, minWidth: 0 },
   toolbarTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  toolbarSub: { fontSize: 11, color: t.textSecondary, fontWeight: '500', marginTop: 2 },
   spacer: { flex: 1 },
   zoomValue: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.textSecondary, minWidth: 48, textAlign: 'right' },
   scrollH: { flex: 1 },
@@ -305,30 +466,45 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   laneRow: {
     flexDirection: 'row',
-    height: ROW_HEIGHT,
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: t.line,
   },
   laneLabel: {
     width: LANE_LABEL_WIDTH,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 4,
     borderLeftWidth: 3,
     height: '100%',
     backgroundColor: t.surface,
   },
+  laneLabelTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   laneName: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text, flex: 1 },
   laneCap: { fontSize: 10, color: t.textSecondary, fontWeight: '600' },
+  laneStat: { fontSize: 10, color: t.textMuted, fontWeight: '500' },
   overloadBadge: {
-    marginLeft: 4,
     padding: 2,
     borderRadius: Tokens.radius.md,
     backgroundColor: t.danger + '22',
   },
   pillText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.text },
+  chartTrack: {
+    position: 'absolute',
+    left: 0,
+  },
+  chartCapLabel: {
+    position: 'absolute',
+    left: 4,
+    top: 0,
+    fontSize: 9,
+    fontWeight: '600',
+    color: t.textMuted,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
   empty: {
     flex: 1,
     alignItems: 'center',

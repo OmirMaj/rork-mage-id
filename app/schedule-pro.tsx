@@ -43,14 +43,17 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import GridPane from '@/components/schedule/GridPane';
 import InteractiveGantt from '@/components/schedule/InteractiveGantt';
+import { SchedulerTabShell } from '@/components/schedule/SchedulerTabShell';
 import AIAssistantPanel from '@/components/schedule/AIAssistantPanel';
 import ClosuresModal from '@/components/schedule/ClosuresModal';
 import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
 import BaselineManagerModal from '@/components/schedule/BaselineManagerModal';
 import TaskInspector from '@/components/schedule/TaskInspector';
+import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
 import VoiceCommandModal from '@/components/VoiceCommandModal';
 import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
+import { ExportSheet } from '@/components/schedule/ExportSheet';
 import { computeScheduleHealthScore } from '@/utils/scheduleHealthScore';
 import { EarnedValuePanel } from '@/components/schedule/EarnedValuePanel';
 import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
@@ -59,6 +62,7 @@ import { getSimulatedForecast } from '@/utils/weatherService';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
+import type { CpmResult as ContextCpmResult } from '@/components/schedule/SchedulerContext';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { applyLevelOfEffortSpans, hasAnyLevelOfEffort } from '@/utils/scheduleLoeEngine';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
@@ -139,6 +143,15 @@ function ScheduleProScreenInner() {
   const [paneMode, setPaneMode] = useState<PaneMode>(() =>
     width >= SPLIT_BREAKPOINT ? 'split' : 'grid',
   );
+  // Bumped on every paneMode-button press. SchedulerTabShell uses this to
+  // force the active tab back to 'gantt' whenever the user clicks Grid /
+  // Split / Gantt in the top toolbar — so the user sees the sub-mode change
+  // even if they were on Board / List / Dashboard.
+  const [paneModeNonce, setPaneModeNonce] = useState(0);
+  const setPaneModeAndForceGantt = useCallback((mode: PaneMode) => {
+    setPaneMode(mode);
+    if (mode !== 'resources') setPaneModeNonce(n => n + 1);
+  }, []);
 
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
@@ -151,6 +164,11 @@ function ScheduleProScreenInner() {
   // theirs only creates, doesn't mutate.
   const [showVoice, setShowVoice] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
+  const [exportSheetOpen, setExportSheetOpen] = useState(false);
+  // Add Task modal — replaces the silent "create a task called 'New task'
+  // with defaults" flow. Opens from the SchedulerHeader's "+ Add Task"
+  // button (and any other onAddTask caller).
+  const [showAddTask, setShowAddTask] = useState(false);
 
   // Named baselines captured over the life of the schedule. Persisted into
   // `project.schedule.baselines` so variance comparisons survive reloads;
@@ -194,6 +212,16 @@ function ScheduleProScreenInner() {
     }),
     [rolledTasks, scheduleStartIso, criticalFloatThresholdDays],
   );
+
+  // SchedulerContext-shaped CPM summary for the tab shell's SchedulerProvider.
+  // Maps from the richer utils/cpm CpmResult to the leaner context shape.
+  // TODO Phase 27: wire slipDaysVsBaseline from baseline comparison once
+  // BaselineManagerModal exposes a "active baseline delta" helper.
+  const contextCpm = useMemo<ContextCpmResult>(() => ({
+    criticalPathDays: cpm.projectFinish,
+    slipDaysVsBaseline: 0, // TODO Phase 27: wire from baseline delta
+    criticalTaskIds: cpm.criticalPath,
+  }), [cpm.projectFinish, cpm.criticalPath]);
 
   // Level-of-Effort post-process: stretch LOE tasks to span their linked
   // work. Cheap when no LOE tasks exist (early-return). The result feeds
@@ -417,25 +445,75 @@ function ScheduleProScreenInner() {
     },
   }), [handleEdit]);
 
+  // Opens the Add Task modal. The actual commit happens in
+  // handleCommitAddTask once the user submits the form.
   const handleAddTask = useCallback(() => {
+    setShowAddTask(true);
+  }, []);
+
+  // Called by AddTaskModal when the user clicks "Create task". Builds
+  // the new task using whatever the user supplied + sensible defaults
+  // for anything omitted. Also patches any successor tasks named in the
+  // form to depend on the new task. Closes the modal on success.
+  const handleCommitAddTask = useCallback((values: NewTaskValues) => {
     commit(prev => {
-      const newTask: ScheduleTask = {
-        id: createId('task'),
-        title: 'New task',
-        phase: 'General',
-        durationDays: 1,
-        startDay: prev.length === 0
+      // Convert optional ISO start date → day number on the project
+      // calendar. Mirrors GridPane.dateToDayNumber so add-task and inline
+      // edit both round-trip to the same day.
+      let startDay: number;
+      if (values.startIso) {
+        const [y, m, d] = values.startIso.split('-').map(n => parseInt(n, 10));
+        const target = new Date(y, m - 1, d);
+        const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
+        if (target <= base) {
+          startDay = 1;
+        } else if (workingDaysPerWeek >= 7) {
+          startDay = Math.floor((target.getTime() - base.getTime()) / 86400000) + 1;
+        } else {
+          let count = 1;
+          const cur = new Date(base);
+          while (cur < target) {
+            cur.setDate(cur.getDate() + 1);
+            const dow = cur.getDay();
+            if (dow !== 0 && dow !== 6) count++;
+          }
+          startDay = count;
+        }
+      } else {
+        startDay = prev.length === 0
           ? 1
-          : Math.max(...prev.map(t => t.startDay + t.durationDays)),
+          : Math.max(...prev.map(t => t.startDay + t.durationDays));
+      }
+
+      const newId = createId('task');
+      const newTask: ScheduleTask = {
+        id: newId,
+        title: values.title,
+        phase: 'General',
+        tradeKey: values.tradeKey,
+        durationDays: values.durationDays,
+        startDay,
         progress: 0,
-        crew: '',
-        dependencies: [],
-        notes: '',
+        crew: values.crew ?? '',
+        dependencies: values.predecessorIds ?? [],
+        notes: values.notes ?? '',
         status: 'not_started',
       };
-      return generateWbsCodes([...prev, newTask]);
+
+      // Successor wiring: patch the named successor tasks so they list
+      // the new task as one of their predecessors. We do this in the same
+      // commit() pass so undo treats it as a single step.
+      const succSet = new Set(values.successorIds ?? []);
+      const patched = prev.map(t => {
+        if (!succSet.has(t.id)) return t;
+        if (t.dependencies.includes(newId)) return t;
+        return { ...t, dependencies: [...t.dependencies, newId] };
+      });
+
+      return generateWbsCodes([...patched, newTask]);
     });
-  }, [commit]);
+    setShowAddTask(false);
+  }, [commit, projectStartDate, workingDaysPerWeek]);
 
   // Phase 4: create a dependency edge between two tasks via drag in the Gantt.
   // Guards against self-link + cycles are handled in the Gantt before we get
@@ -739,6 +817,62 @@ function ScheduleProScreenInner() {
   }, [project, projectStartDate, workingTasks]);
 
   // -------------------------------------------------------------------------
+  // AirPrint — Task 17. Renders a minimal HTML task-list via expo-print.
+  // A follow-up can route through the existing PDF generator for a
+  // fully-styled Gantt print; this version works end-to-end today.
+  // -------------------------------------------------------------------------
+
+  const handleAirPrint = useCallback(async () => {
+    try {
+      const Print = await import('expo-print');
+      const pName = project?.name ?? 'Schedule';
+      const safeTasks = workingTasks;
+      const html = `
+        <html><head><meta charset="utf-8"><title>${escapeHtml(pName)} schedule</title>
+        <style>
+          body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; }
+          h1 { font-size: 18px; margin-bottom: 4px; }
+          p.sub { color: #666; font-size: 11px; margin-bottom: 16px; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th { text-align: left; padding: 6px 8px; background: #f3f3f3; border-bottom: 2px solid #ddd; }
+          th.r { text-align: right; }
+          td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+          td.r { text-align: right; }
+        </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(pName)}</h1>
+          <p class="sub">Schedule print from MAGE ID &nbsp;·&nbsp; ${new Date().toLocaleDateString()}</p>
+          <table>
+            <thead><tr>
+              <th>#</th>
+              <th>Task</th>
+              <th>Phase</th>
+              <th class="r">Duration</th>
+              <th class="r">% Done</th>
+              <th>Crew</th>
+            </tr></thead>
+            <tbody>
+              ${safeTasks.map((t, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${escapeHtml(t.title ?? '')}${t.isMilestone ? ' ⚑' : ''}${t.isCriticalPath ? ' ⚡' : ''}</td>
+                  <td>${escapeHtml(t.phase ?? '—')}</td>
+                  <td class="r">${t.durationDays ?? 0}d</td>
+                  <td class="r">${Math.round(t.progress ?? 0)}%</td>
+                  <td>${escapeHtml(t.crew ?? '—')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body></html>`;
+      await Print.printAsync({ html });
+    } catch (e) {
+      console.error('AirPrint failed', e);
+    }
+  }, [project?.name, workingTasks]);
+
+  // -------------------------------------------------------------------------
   // Undo / Redo (Phase 4 preview — works today for grid edits)
   // -------------------------------------------------------------------------
 
@@ -897,7 +1031,7 @@ function ScheduleProScreenInner() {
 
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
-          <Text style={styles.headerSub}>
+          <Text style={styles.headerSub} numberOfLines={1}>
             {stats.total} tasks · {stats.critical} on critical path · finish day {stats.finish}
             {stats.conflicts > 0 && ` · ${stats.conflicts} conflict${stats.conflicts === 1 ? '' : 's'}`}
           </Text>
@@ -906,13 +1040,25 @@ function ScheduleProScreenInner() {
         <View style={styles.headerActions}>
           {/* Pane mode segmented control */}
           <View style={styles.paneToggle}>
-            <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneMode('grid')} />
-            <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneMode('split')} />
-            <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneMode('gantt')} />
-            <PaneBtn icon={Users} label="Lanes" active={paneMode === 'resources'} onPress={() => setPaneMode('resources')} />
+            <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneModeAndForceGantt('grid')} />
+            <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneModeAndForceGantt('split')} />
+            <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneModeAndForceGantt('gantt')} />
+            <PaneBtn
+              icon={Users}
+              label="Lanes"
+              active={paneMode === 'resources'}
+              // Toggle: clicking Lanes again returns to the regular tab shell
+              // (defaulting to the Gantt sub-mode) so the user has a one-tap
+              // escape from the Lanes view instead of having to find one of
+              // the Grid/Split/Gantt buttons.
+              onPress={() => setPaneMode(paneMode === 'resources' ? 'gantt' : 'resources')}
+            />
           </View>
 
-          {/* AI first — the headline feature. Highlighted style so it stands out. */}
+          {/* AI first — the headline value-prop. Highlighted so it stands out.
+              The "+ Add Task" affordance now lives inline in the SchedulerHeader
+              between VIEW and Export (Phase 27 audit feedback), so it's removed
+              from this toolbar to avoid two Add-Task buttons on the same row. */}
           <HeaderBtn icon={Sparkles} label="AI" onPress={() => setShowAI(true)} highlighted />
           <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
@@ -967,80 +1113,83 @@ function ScheduleProScreenInner() {
         onPushTasks={handleWeatherPush}
       />
 
-      {/* Body — renders grid, gantt, both, or the resource swim-lanes
-          depending on pane mode. Resource mode replaces the grid+gantt
-          split entirely since it's a different axis (resources, not tasks). */}
-      <View style={styles.body}>
-        {paneMode === 'resources' && (
+      {/* Body — Phase 27: the new SchedulerTabShell (7-tab nav + SchedulerHeader +
+          active tab content) replaces the old manual paneMode grid/gantt/split
+          rendering. Resource swimlanes are a separate mode that lives outside
+          the tab shell since they are a different axis entirely. */}
+      {paneMode === 'resources' ? (
+        <View style={styles.body}>
           <View style={styles.paneFull}>
             <ResourceSwimlanes
               tasks={rolledTasks}
               resources={project?.schedule?.resources}
               projectStartDate={projectStartDate}
+              projectName={project?.name}
             />
           </View>
-        )}
-        {paneMode !== 'gantt' && paneMode !== 'resources' && (
-          <View style={paneMode === 'split' ? styles.paneHalf : styles.paneFull}>
-            <GridPane
-              tasks={rolledTasks}
-              projectStartDate={projectStartDate}
-              workingDaysPerWeek={workingDaysPerWeek}
-              focusedTaskId={focusedTaskId}
-              onEdit={handleEdit}
-              onAddTask={handleAddTask}
-              onDeleteTask={handleDeleteTask}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-              onBulkDelete={handleBulkDelete}
-              onBulkDuplicate={handleBulkDuplicate}
-              onBulkShiftDays={handleBulkShiftDays}
-              onBulkSetPhase={handleBulkSetPhase}
-              onBulkSetCrew={handleBulkSetCrew}
-              onBulkAskAI={handleBulkAskAI}
-              // In split mode the gantt on the right already shows Start /
-              // Finish / Float visually. Hiding those three columns on the
-              // grid leaves the table as a focused "edit the fields" pane and
-              // lets the timeline breathe.
-              compact={paneMode === 'split'}
-            />
-          </View>
-        )}
-        {paneMode !== 'grid' && paneMode !== 'resources' && (
-          <View style={paneMode === 'split' ? styles.paneHalfRight : styles.paneFull}>
-            <InteractiveGantt
-              tasks={rolledTasks}
-              cpm={cpm}
-              projectStartDate={projectStartDate}
-              onEdit={handleEdit}
-              onDependencyCreate={handleDependencyCreate}
-              focusedTaskId={focusedTaskId}
-              onFocusTask={setFocusedTaskId}
-              // Hide the gantt's own task-name gutter in split view — it
-              // would repeat the task column already shown in the grid.
-              compact={paneMode === 'split'}
-            />
-          </View>
-        )}
-        {/* Task inspector — right-docked. Appears when a task has focus
-            (click a bar, or add a row-click handler to the grid). Lets
-            users view CPM numbers, flip status, and tweak progress with
-            the timeline still visible. Escape clears focus (handled in
-            the keyboard effect above). */}
-        {focusedTaskId && (() => {
-          const focusedTask = rolledTasks.find(t => t.id === focusedTaskId) ?? null;
-          return (
-            <TaskInspector
-              task={focusedTask}
-              allTasks={rolledTasks}
-              cpm={cpm}
-              projectStartDate={projectStartDate}
-              onClose={() => setFocusedTaskId(null)}
-              onEdit={handleEdit}
-            />
-          );
-        })()}
-      </View>
+        </View>
+      ) : (
+        <View style={styles.tabShellBody}>
+          <SchedulerTabShell
+            schedule={{
+              ...(project?.schedule ?? {} as import('@/types').ProjectSchedule),
+              id: project?.schedule?.id ?? project?.id ?? '',
+              projectId: project?.id ?? '',
+              name: project?.schedule?.name ?? project?.name ?? 'Schedule',
+              tasks: rolledTasks,
+              // Fall back to the project's createdAt-derived start so the
+              // SchedulerHeader's START / FINISH KPIs don't show "—" when
+              // a schedule exists but has no explicit startDate set.
+              startDate: project?.schedule?.startDate
+                ?? projectStartDate.toISOString().slice(0, 10),
+              totalDurationDays: cpm.projectFinish,
+              healthScore: healthScore.score,
+            }}
+            contextCpm={contextCpm}
+            projectName={project?.name ?? 'Schedule'}
+            onExportPress={() => setExportSheetOpen(true)}
+            onBaselinePress={() => setShowBaselineManager(true)}
+            ganttPaneMode={paneMode}
+            paneModeNonce={paneModeNonce}
+            projectStartDate={projectStartDate}
+            workingDaysPerWeek={workingDaysPerWeek}
+            nonWorkingDates={project?.schedule?.nonWorkingDates}
+            utilsCpm={cpm}
+            resources={project?.schedule?.resources}
+            onEdit={handleEdit}
+            onAddTask={handleAddTask}
+            onDeleteTask={handleDeleteTask}
+            onDependencyCreate={handleDependencyCreate}
+            focusedTaskId={focusedTaskId}
+            onFocusTask={setFocusedTaskId}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            onBulkDelete={handleBulkDelete}
+            onBulkDuplicate={handleBulkDuplicate}
+            onBulkShiftDays={handleBulkShiftDays}
+            onBulkSetPhase={handleBulkSetPhase}
+            onBulkSetCrew={handleBulkSetCrew}
+            onBulkAskAI={handleBulkAskAI}
+          />
+          {/* Task inspector — right-docked sibling to the tab shell. Appears
+              when a task has focus (click a bar). Escape clears focus (handled
+              in the keyboard effect above). Modals stay at screen level so they
+              are unaffected by tab switching. */}
+          {focusedTaskId && (() => {
+            const focusedTask = rolledTasks.find(t => t.id === focusedTaskId) ?? null;
+            return (
+              <TaskInspector
+                task={focusedTask}
+                allTasks={rolledTasks}
+                cpm={cpm}
+                projectStartDate={projectStartDate}
+                onClose={() => setFocusedTaskId(null)}
+                onEdit={handleEdit}
+              />
+            );
+          })()}
+        </View>
+      )}
 
       {/* Closures (non-working dates) editor. */}
       <ClosuresModal
@@ -1154,8 +1303,48 @@ function ScheduleProScreenInner() {
         }}
         onReplaceAll={handleReplaceAll}
       />
+
+      {/* Export sheet — five-option bottom sheet (PDF / CSV / Share / iCal / Print).
+          PDF/CSV/Share reuse existing handlers; iCal + AirPrint wired in tasks 16-17. */}
+      <ExportSheet
+        visible={exportSheetOpen}
+        onClose={() => setExportSheetOpen(false)}
+        onExportPdf={() => { void handleExportPdf(); }}
+        onExportCsv={handleExportCsv}
+        onShareLink={handleShare}
+        onExportIcal={() => {
+          if (project) {
+            // Inline import keeps the iCal generator out of the initial bundle.
+            void import('@/utils/scheduleExportIcal').then(m =>
+              m.exportScheduleIcal({ project }),
+            );
+          }
+        }}
+        onAirPrint={() => { void handleAirPrint(); }}
+      />
+
+      {/* Add Task modal — opens from any onAddTask caller (toolbar
+          button, GridPane footer, phone FAB). */}
+      <AddTaskModal
+        visible={showAddTask}
+        onCancel={() => setShowAddTask(false)}
+        onCreate={handleCommitAddTask}
+        tasks={workingTasks}
+      />
     </View>
   );
+}
+
+// ---------------------------------------------------------------------------
+// HTML escape helper — used by handleAirPrint above.
+// ---------------------------------------------------------------------------
+
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ---------------------------------------------------------------------------
@@ -1262,6 +1451,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 12,
     flexDirection: 'row',
     gap: 12,
+  },
+  // Phase 27: tab shell + inspector side-by-side. No padding here — the
+  // shell renders its own internal padding. Inspector floats to the right.
+  tabShellBody: {
+    flex: 1,
+    flexDirection: 'row',
   },
   paneFull: { flex: 1 },
   // Split-view ratios. The grid's compact column set is ~900px wide at its

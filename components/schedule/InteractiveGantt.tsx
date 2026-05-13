@@ -50,16 +50,15 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
-import { PHASE_COLORS } from '@/utils/scheduleEngine';
-
-// Bar fill is driven by phase, NOT critical-path. Red-only fills made every
-// dense schedule look like an emergency. We pick by phase and let the critical
-// path show through as a red outline + a red dot in the gutter, so the GC
-// keeps the at-a-glance critical-path read without losing phase scannability.
-function colorForTask(task: ScheduleTask): string {
-  return PHASE_COLORS[task.phase ?? 'General'] ?? PHASE_COLORS.General;
-}
+import { colorForTask as canonicalColorForTask } from '@/utils/scheduleColors';
+import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
+
+// Bar fill is trade-driven via the canonical colorForTask() from scheduleColors.
+// This delegates so existing internal call sites keep working unchanged.
+function colorForTask(task: ScheduleTask): string {
+  return canonicalColorForTask(task);
+}
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -87,6 +86,14 @@ export interface InteractiveGanttProps {
    */
   compact?: boolean;
   /**
+   * Layout mode. `'desktop'` (default) is the full toolbar + 240px gutter.
+   * `'phone'` is the Task 18 single-pane fallback: no toolbar, a narrow 90px
+   * sticky task-name gutter on the left, and the same horizontal-scroll
+   * timeline body on the right. Bars and dependencies render identically;
+   * we only compress the chrome.
+   */
+  mode?: 'desktop' | 'phone';
+  /**
    * The "pathed" task. When set, the gantt dims every bar that is NOT part of
    * the focused task's driving-predecessor chain (ancestors walked through
    * dependencyLinks/legacy dependencies). Empty/null = no highlight, all bars
@@ -109,10 +116,8 @@ const HEADER_HEIGHT = 56;          // month row (24) + day-number row (32)
 const LEFT_GUTTER = 240;           // task-name column baked into the scroller
 const RESIZE_HANDLE_WIDTH = 10;    // px on the right edge that triggers resize vs move
 const MIN_BAR_PX_WIDTH = 14;       // don't let bars collapse below this during drag
-// Today line moved off stark red onto a desaturated indigo. Stark red on a
-// gridded view reads as "alarm" — it's just a position marker. Indigo reads
-// as neutral and lets the actual late/critical reds in the bars carry weight.
-const TODAY_COLOR = '#5E6AD2';
+// TODAY_COLOR removed — today line now uses Colors.pillLate (#FF5A51) with a
+// labeled pill (Task 7 restyle). The old indigo SVG halo is gone.
 // Soft weekend column tint — Apple-app convention is to whisper, not shout.
 // Slate at ~3% over the surface gives a barely-perceptible Sat/Sun band.
 const WEEKEND_TINT = 'rgba(60,60,67,0.025)';
@@ -157,17 +162,25 @@ function daysBetween(a: Date, b: Date): number {
 export default function InteractiveGantt(props: InteractiveGanttProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, focusedTaskId, onFocusTask } = props;
+  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask } = props;
+  const isPhone = mode === 'phone';
   // Filter rows belonging to collapsed summaries. CPM still honored them (we
   // received the pre-rolled set); we only hide them visually so the gantt
   // stays uncluttered while the user is focused on top-level phases.
   const tasks = useMemo(() => {
-    const hidden = getHiddenTaskIds(tasksRaw);
-    return tasksRaw.filter(t => !hidden.has(t.id));
+    // Defensive: filter out any null/undefined entries that may have slipped
+    // in via a malformed Supabase row or an in-flight optimistic update.
+    // Without this, downstream `task.startDay` access in bars.map crashes
+    // the whole Gantt the moment a single bad row is in the array.
+    const cleaned = tasksRaw.filter((t): t is ScheduleTask => !!t && typeof t.id === 'string');
+    const hidden = getHiddenTaskIds(cleaned);
+    return cleaned.filter(t => !hidden.has(t.id));
   }, [tasksRaw]);
-  // In compact (split-view) mode the left task-name column is suppressed. We
-  // branch on a local constant so the rest of the layout math stays the same.
-  const leftGutter = compact ? 0 : LEFT_GUTTER;
+  // Left gutter width: phones get a compressed 90px sticky col (single-line
+  // names), split-view (compact) hides the gutter entirely (the GridPane to
+  // the left already shows names), desktop standalone uses the full 240px
+  // two-line gutter.
+  const leftGutter = isPhone ? 90 : compact ? 0 : LEFT_GUTTER;
 
   // --- Zoom -----------------------------------------------------------------
   // Continuous zoom: pxPerDay is the single source of truth. The `zoom`
@@ -269,8 +282,13 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   const bars = useMemo(() => {
     return tasks.map((task, index) => {
       const isDragging = dragState?.taskId === task.id;
-      const startDay = isDragging ? dragState.currentStart : task.startDay;
-      const duration = isDragging ? dragState.currentDuration : task.durationDays;
+      // Defaults for tasks missing startDay / durationDays (legacy rows, in-
+      // flight optimistic updates). Without these `task.startDay` may be
+      // undefined and `undefined * pxPerDay` produces NaN bar geometry.
+      const taskStartDay = task.startDay ?? 1;
+      const taskDuration = task.durationDays ?? 1;
+      const startDay = isDragging ? dragState.currentStart : taskStartDay;
+      const duration = isDragging ? dragState.currentDuration : taskDuration;
       const isMilestone = task.isMilestone || duration === 0;
       const cpmRow = cpm.perTask.get(task.id);
       const isCritical = !!cpmRow?.isCritical;
@@ -556,6 +574,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     }),
   ).current;
 
+  // --- Last milestone ID (project completion = red diamond) ----------------
+  const lastMilestoneId = useMemo(() => {
+    return tasks
+      .filter(t => t.isMilestone || t.durationDays === 0)
+      .reduce<{ id: string; day: number } | null>((latest, t) => {
+        const day = t.startDay ?? 0;
+        if (!latest || day > latest.day) return { id: t.id, day };
+        return latest;
+      }, null)?.id ?? null;
+  }, [tasks]);
+
   // --- Dependency paths ----------------------------------------------------
   // Draws a right-angle elbow from predecessor's right edge to successor's
   // left edge (FS). For SS we'd go left-to-left; FF right-to-right; SF
@@ -801,10 +830,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // --- Render ---------------------------------------------------------------
   return (
     <View
-      style={styles.container}
+      style={[styles.container, isPhone && styles.containerPhone]}
       {...(Platform.OS === 'web' ? ({ onWheel: handleWheelZoom } as any) : {})}
     >
-      {/* Toolbar */}
+      {/* Toolbar — hidden on phone; zoom/Fit/Today live in the parent shell
+          on small screens to reclaim vertical space for the bars. */}
+      {!isPhone && (
       <View style={styles.toolbar}>
         <Text style={styles.toolbarTitle}>Gantt</Text>
         {/* iOS-style segmented control with a sliding pill behind the active
@@ -933,6 +964,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           </View>
         </View>
       </View>
+      )}
 
       {/* Body: left task column + scrollable timeline */}
       <View style={styles.body}>
@@ -942,14 +974,38 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             and the timeline side-by-side. The gutter stays fixed horizontally
             because the outer container clips. */}
         {leftGutter > 0 && (
-        <View style={[styles.gutter, { width: leftGutter }]}>
+        <View style={[styles.gutter, { width: leftGutter }, isPhone && styles.gutterPhone]}>
           <View style={[styles.gutterHeader, { height: HEADER_HEIGHT }]}>
-            <Text style={styles.gutterHeaderText}>Task</Text>
+            <Text style={styles.gutterHeaderText}>{isPhone ? 'TASK' : 'Task'}</Text>
           </View>
           {tasks.map((t, i) => {
             const isCritical = cpm.perTask.get(t.id)?.isCritical;
             const isHovered = hoverTaskId === t.id;
             const phaseColor = colorForTask(t);
+            if (isPhone) {
+              // Phone: single-line compressed row. "T1 Pour foundation" so the
+              // 90px column still resolves the visual mapping bar → name even
+              // when titles are long. The bars to the right carry the date /
+              // duration context, so we drop the subtitle here.
+              return (
+                <View
+                  key={t.id}
+                  style={[
+                    styles.gutterRow,
+                    styles.gutterRowPhone,
+                    { height: ROW_HEIGHT },
+                  ]}
+                >
+                  <View style={[styles.phaseDot, { backgroundColor: phaseColor }]} />
+                  <Text
+                    style={[styles.gutterName, styles.gutterNamePhone, isCritical && styles.gutterNameCritical]}
+                    numberOfLines={1}
+                  >
+                    T{i + 1} {t.title || 'Untitled'}
+                  </Text>
+                </View>
+              );
+            }
             // Compact date label — "Mar 20 → Mar 24" style. startDay is a
             // 1-indexed offset from projectStartDate (Day 1), durationDays is
             // the count, so end is start + duration - 1.
@@ -1093,29 +1149,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     strokeWidth={1}
                   />
                 ))}
-                {todayVisible && (
-                  <>
-                    {/* Soft halo behind the today line — gives it depth on a
-                        flat grid without resorting to a stark dashed pattern. */}
-                    <SvgLine
-                      x1={todayX}
-                      y1={HEADER_HEIGHT}
-                      x2={todayX}
-                      y2={gridHeight}
-                      stroke={TODAY_COLOR}
-                      strokeOpacity={0.18}
-                      strokeWidth={5}
-                    />
-                    <SvgLine
-                      x1={todayX}
-                      y1={HEADER_HEIGHT}
-                      x2={todayX}
-                      y2={gridHeight}
-                      stroke={TODAY_COLOR}
-                      strokeWidth={1.5}
-                    />
-                  </>
-                )}
+                {/* Today line is rendered as a positioned View below (with label pill),
+                    so no SVG lines needed here. */}
               </Svg>
 
               {/* --- Dependency arrows with marching ants --- */}
@@ -1142,7 +1177,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill={themeColors.danger} />
+                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.pillLate} />
                   </Marker>
                   <Marker
                     id="arrowBlue"
@@ -1152,12 +1187,16 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill={themeColors.accent} />
+                    <Polygon points="0,0 7,3.5 0,7" fill="#4A5159" />
                   </Marker>
                 </Defs>
 
                 {dependencyPaths.map(dep => {
-                  const color = dep.critical ? themeColors.danger : themeColors.accent;
+                  // CP→CP links use pillLate (#FF5A51) at 1.5px base width so
+                  // they read as a distinct red chain distinct from the error red.
+                  // Normal links stay on primary blue at the existing 1.9px.
+                  const color = dep.critical ? Colors.pillLate : '#4A5159';
+                  const baseStrokeWidth = dep.critical ? 1.5 : 1.9;
                   // Lines render solid by default — calmer than constant
                   // marching ants on every dependency. The "alive" feel
                   // appears only when a connected bar is hovered or being
@@ -1170,7 +1209,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       key={dep.id}
                       d={dep.d}
                       stroke={color}
-                      strokeWidth={dep.highlighted ? 2.5 : 1.9}
+                      strokeWidth={dep.highlighted ? baseStrokeWidth + 1 : baseStrokeWidth}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       fill="none"
@@ -1182,18 +1221,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   );
                 })}
 
-                {/* Today label pill (rendered in SVG so it scrolls with the timeline) */}
-                {todayVisible && (
-                  <>
-                    <SvgLine
-                      x1={todayX}
-                      y1={HEADER_HEIGHT - 14}
-                      x2={todayX}
-                      y2={HEADER_HEIGHT - 14}
-                      stroke={TODAY_COLOR}
-                    />
-                  </>
-                )}
+                {/* Today line/label rendered as positioned Views below, not in SVG. */}
               </Svg>
 
               {/* --- Baseline ghost bars (Phase 5) --- */}
@@ -1285,6 +1313,18 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 })}
               </Svg>
 
+              {/* --- Today line + label pill --- */}
+              {todayVisible && (
+                <>
+                  <View style={[styles.todayLine, { left: todayX }]} />
+                  <View style={[styles.todayLabel, { left: todayX }]}>
+                    <Text style={styles.todayLabelText}>
+                      {`TODAY · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()}`}
+                    </Text>
+                  </View>
+                </>
+              )}
+
               {/* --- Bars --- */}
               {bars.map(bar => {
                 // When a task-path focus is active, dim everything not in the
@@ -1304,6 +1344,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     todayDayNumber={todayDayNumber}
                     dimmed={!inPath}
                     isFocusTarget={isFocusedBar}
+                    isLastMilestone={bar.isMilestone && bar.task.id === lastMilestoneId}
                     onHoverIn={() => setHoverTaskId(bar.task.id)}
                     onHoverOut={() => setHoverTaskId(null)}
                     onBeginDrag={(mode, evt) => beginDrag(bar.task, mode, evt)}
@@ -1590,6 +1631,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 interface BarViewProps {
   bar: {
     task: ScheduleTask;
+    index: number;
     startDay: number;
     duration: number;
     isMilestone: boolean;
@@ -1608,6 +1650,8 @@ interface BarViewProps {
   dimmed?: boolean;
   /** When true, this bar is the focused task head (MAGE accent outline). */
   isFocusTarget?: boolean;
+  /** When true, this milestone is the latest-dated one (project completion = red). */
+  isLastMilestone?: boolean;
   onHoverIn: () => void;
   onHoverOut: () => void;
   onBeginDrag: (mode: 'move' | 'resize', evt: any) => void;
@@ -1623,7 +1667,7 @@ interface BarViewProps {
 
 function BarView({
   bar, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
-  dimmed, isFocusTarget,
+  dimmed, isFocusTarget, isLastMilestone,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
@@ -1695,14 +1739,21 @@ function BarView({
     else varianceLabel = 'started on time';
   }
 
-  // Phase-driven fill (bright Apple palette in PHASE_COLORS). Critical-path
-  // is conveyed via the red gutter dot + red arrow lines — putting an outline
-  // on the bar itself made dense schedules where every task is critical (a
-  // common case) read as rectangular "loops" enclosing each bar.
+  // Trade-driven fill via colorForTask() (canonical scheduleColors palette).
+  // Critical-path is conveyed via the red gutter dot + red arrow lines —
+  // putting an outline on the bar itself made dense schedules where every task
+  // is critical (a common case) read as rectangular "loops" enclosing each bar.
   const barColor = colorForTask(bar.task);
-  const barBg = barColor + '1A';
-  const progressColor = barColor;
   const progressPct = Math.max(0, Math.min(1, (bar.task.progress ?? 0) / 100));
+
+  // Width-aware label — full title+id when wide, abbreviated when narrow.
+  // useBarLabel is a plain function (not a React hook), so calling it here is safe.
+  const barLabelResult = useBarLabel(bar.w, {
+    id: bar.task.id,
+    title: bar.task.title ?? '',
+    progress: bar.task.progress ?? 0,
+    displayId: `T${bar.index + 1}`,
+  });
 
   // Summary bars: rendered as a dark span with inverted "fangs" at each end
   // — visually distinct from normal bars so WBS parents read differently.
@@ -1773,9 +1824,12 @@ function BarView({
 
   if (bar.isMilestone) {
     // Diamond, centered at bar.x, fills its row vertically.
+    // Project-completion milestone (the last-dated one) renders in red (#FF5A51)
+    // to signal "end of project". All other milestones use the task's trade color.
     const size = BAR_HEIGHT;
     const cx = bar.x;
     const cy = bar.y + BAR_HEIGHT / 2;
+    const milestoneColor = isLastMilestone ? Colors.pillLate : barColor;
     return (
       <View
         {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => { if (isDragging) return; e?.stopPropagation?.(); onFocus(); } } as any) : {})}
@@ -1788,14 +1842,14 @@ function BarView({
           alignItems: 'center',
           justifyContent: 'center',
           transform: [{ rotate: '45deg' }],
-          backgroundColor: barColor,
+          backgroundColor: milestoneColor,
           borderRadius: 4,
           borderWidth: isFocusTarget ? 2 : 0,
           borderColor: themeColors.accent,
           opacity: dimmed ? 0.25 : 1,
-          shadowColor: isFocusTarget ? themeColors.accent : barColor,
-          shadowOpacity: isFocusTarget ? 0.6 : (isHovered || isDragging ? 0.4 : 0.15),
-          shadowRadius: isFocusTarget ? 8 : (isHovered || isDragging ? 6 : 2),
+          shadowColor: isLastMilestone ? Colors.pillLate : (isFocusTarget ? Colors.accent : milestoneColor),
+          shadowOpacity: isLastMilestone ? 0.5 : (isFocusTarget ? 0.6 : (isHovered || isDragging ? 0.4 : 0.15)),
+          shadowRadius: isLastMilestone ? 6 : (isFocusTarget ? 8 : (isHovered || isDragging ? 6 : 2)),
           shadowOffset: { width: 0, height: 1 },
           zIndex: isDragging ? 20 : (isFocusTarget ? 10 : 2),
         }}
@@ -1829,32 +1883,53 @@ function BarView({
           }}
         />
       )}
+      {/* Critical-path red shell — a slightly larger halo behind the bar.
+          3px padding above/below/at-ends makes the red border visible around
+          the 20px inner bar without touching it. Shadow glow reinforces CP
+          urgency without relying on color alone (WCAG intent). */}
+      {bar.isCritical && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: bar.x - 3,
+            top: bar.y + (BAR_HEIGHT - 20) / 2 - 3,
+            width: bar.w + 6,
+            height: 26,
+            borderRadius: 7,
+            backgroundColor: Colors.pillLate,
+            opacity: dimmed ? 0.1 : 0.28,
+            shadowColor: Colors.pillLate,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.4,
+            shadowRadius: 8,
+            zIndex: 1,
+          }}
+        />
+      )}
     <View
       {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => {
         if (isDragging) return;
         e?.stopPropagation?.();
         onFocus();
       } } as any) : {})}
-      // Bar redesign: drop the heavy 1.5-2.5px solid border (read as
-      // "Microsoft Project bar"), keep the tinted fill, and put a 3px solid
-      // accent stripe on the left to carry category color. Soft drop shadow
-      // appears on hover/drag instead of a colored outline. Reads as an
-      // Apple-app component rather than a spreadsheet cell.
+      // Bar redesign Pt.1: solid trade color fill, white progress overlay at
+      // 22% opacity, width-aware labels via useBarLabel(). Height 20px, radius 5.
       style={{
         position: 'absolute',
         left: bar.x,
-        top: bar.y,
+        top: bar.y + (BAR_HEIGHT - 20) / 2,
         width: bar.w,
-        height: BAR_HEIGHT,
-        borderRadius: BAR_RADIUS,
-        backgroundColor: barBg,
+        height: 20,
+        borderRadius: 5,
+        backgroundColor: barColor,
         borderWidth: 0,
         overflow: 'hidden',
         opacity: dimmed ? 0.28 : 1,
         shadowColor: '#000',
-        shadowOpacity: isFocusTarget ? 0.18 : (isHovered || isDragging ? 0.14 : 0),
-        shadowRadius: isFocusTarget ? 10 : (isHovered || isDragging ? 8 : 0),
-        shadowOffset: { width: 0, height: isHovered || isDragging ? 4 : 1 },
+        shadowOpacity: isFocusTarget ? 0.35 : (isHovered || isDragging ? 0.30 : 0.30),
+        shadowRadius: isFocusTarget ? 6 : 3,
+        shadowOffset: { width: 0, height: 1 },
         zIndex: isDragging ? 20 : (isFocusTarget ? 10 : 2),
         cursor: Platform.OS === 'web' ? 'grab' : undefined,
       } as any}
@@ -1892,30 +1967,32 @@ function BarView({
           pointerEvents="none"
         />
       )}
-      {/* Progress overlay — MSP-style inner band. A thin solid bar centered
-          vertically whose width tracks % complete. Reads cleanly against the
-          tinted bar background even when the task title overflows, and the
-          solid-vs-translucent contrast makes "done so far" vs "remaining"
-          instantly scannable. Zero-progress tasks skip rendering. */}
+      {/* Progress fill — white at 22% opacity, full height, left-anchored.
+          Clips cleanly to rounded corners via overflow:'hidden' on the parent.
+          Zero-progress tasks skip rendering to avoid a stray 0-width View. */}
       {progressPct > 0 && (
         <View
           style={{
             position: 'absolute',
-            left: BAR_ACCENT_WIDTH + 2,
-            top: (BAR_HEIGHT - 6) / 2,
-            height: 6,
+            left: 0,
+            top: 0,
+            bottom: 0,
             width: `${progressPct * 100}%`,
-            backgroundColor: progressColor,
-            borderRadius: 3,
-            opacity: 0.9,
+            backgroundColor: 'rgba(255,255,255,0.22)',
+            borderTopLeftRadius: 5,
+            borderBottomLeftRadius: 5,
           }}
+          pointerEvents="none"
         />
       )}
-      {/* Title */}
-      <View style={[styles.barLabel, { paddingLeft: BAR_ACCENT_WIDTH + 8 }]}>
-        <Text style={[styles.barLabelText, { color: barColor }]} numberOfLines={1}>
-          {bar.task.title || 'Task'}
-        </Text>
+      {/* Width-aware label via useBarLabel() */}
+      <View style={[styles.barLabel, { paddingLeft: BAR_ACCENT_WIDTH + 4 }]}>
+        {barLabelResult.insideText !== '' && (
+          <Text style={styles.barLabelText} numberOfLines={1}>
+            {barLabelResult.insideText}
+            {barLabelResult.showPercent ? ` ${bar.task.progress ?? 0}%` : ''}
+          </Text>
+        )}
       </View>
       {/* Resize handle visual — subtle indicator on hover, no colored bar. */}
       <View
@@ -1939,6 +2016,45 @@ function BarView({
         }} />
       </View>
     </View>
+
+    {/* Outside label — narrow bars: name floats right in muted color */}
+    {barLabelResult.outsideText !== '' && (
+      <View
+        style={{
+          position: 'absolute',
+          left: bar.x + bar.w,
+          top: bar.y + (BAR_HEIGHT - 20) / 2,
+          height: 20,
+          justifyContent: 'center',
+          paddingLeft: 4,
+          zIndex: 2,
+        }}
+        pointerEvents="none"
+      >
+        <Text style={styles.barOutsideName} numberOfLines={1}>
+          {barLabelResult.outsideText}
+        </Text>
+      </View>
+    )}
+
+    {/* --- Resource avatar: 18px circle with crew's first initial.
+        Floats at the right end of each bar when the task has a crew assigned.
+        Skip on hover state — the link handle and chips take that slot. --- */}
+    {!isHovered && (() => {
+      const crewInitial = (bar.task.crew ?? '').trim().charAt(0).toUpperCase();
+      if (!crewInitial) return null;
+      return (
+        <View
+          pointerEvents="none"
+          style={[styles.avatar, {
+            left: bar.x + bar.w + 4,
+            top: bar.y + (BAR_HEIGHT - 18) / 2,
+          }]}
+        >
+          <Text style={styles.avatarText}>{crewInitial}</Text>
+        </View>
+      );
+    })()}
 
     {/* --- Link handle (Phase 4): floats just off the right edge on hover.
         Drag it onto another bar to create a dependency. --- */}
@@ -2253,6 +2369,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '500' as const,
   },
 
+  // ---- Phone overrides (Task 18) ----
+  containerPhone: {
+    borderWidth: 0,
+    borderRadius: 0,
+  },
+  gutterPhone: {
+    backgroundColor: Colors.background,
+  },
+  gutterRowPhone: {
+    paddingHorizontal: 6,
+    gap: 5,
+  },
+  gutterNamePhone: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+  },
+
   timelineScroll: {
     flex: 1,
   },
@@ -2299,15 +2432,52 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     left: 0,
   },
 
+  // Labeled TODAY line — replaces the old SVG halo stripe. The pill label
+  // floats in the header zone above the bars and the line extends through
+  // the full grid body. Colors.pillLate (#FF5A51) carries enough urgency to
+  // read as "now" without feeling like an error state.
+  todayLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1.5,
+    backgroundColor: Colors.pillLate,
+    zIndex: 5,
+    pointerEvents: 'none',
+  } as any,
+  todayLabel: {
+    position: 'absolute',
+    top: -1,
+    backgroundColor: Colors.pillLate,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    zIndex: 6,
+    transform: [{ translateX: -30 }],
+    pointerEvents: 'none',
+  } as any,
+  todayLabelText: {
+    fontSize: 8,
+    color: '#0B0D10',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+
   barLabel: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
   barLabelText: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '600',
-    color: t.text,
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(11,13,16,0.85)',
+    zIndex: 1,
+  },
+  barOutsideName: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginLeft: 6,
   },
 
   tooltip: {
@@ -2534,6 +2704,29 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     fontWeight: '500',
     fontStyle: 'italic',
+  },
+
+  // Resource avatar — 18px circle with crew initial (Overlay 4)
+  avatar: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    zIndex: 3,
+  },
+  avatarText: {
+    fontSize: 8,
+    color: Colors.text,
+    fontWeight: '700',
   },
 
   // As-built hover chips (Phase 5)

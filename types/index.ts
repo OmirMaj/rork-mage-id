@@ -1,4 +1,12 @@
-export type ProjectType = 
+// Trade taxonomy — used by Gantt bar color + Board phase-dot.
+// Canonical list lives here so the ScheduleTask interface can reference it
+// without a circular import from utils/.
+export type TradeKey =
+  | 'general' | 'concrete' | 'framing' | 'electrical' | 'plumbing'
+  | 'hvac'    | 'roofing'  | 'steel'   | 'demo'       | 'landscaping'
+  | 'finish'  | 'closeout';
+
+export type ProjectType =
   | 'new_build'
   | 'renovation'
   | 'addition'
@@ -477,6 +485,9 @@ export interface ScheduleTask {
    * without forcing them to register.
    */
   subscribers?: string[];
+  /** Trade taxonomy override. When unset, scheduleColors.inferTradeFromName(task.title)
+   *  resolves the trade. Set via TaskInspector trade picker (Task 19). */
+  tradeKey?: TradeKey;
 }
 
 export interface ScheduleRiskItem {

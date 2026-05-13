@@ -10,7 +10,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Platform, Clipboard,
+  ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +32,7 @@ import {
 } from '@/utils/financialReports';
 import { shareWIPReport, shareProfitReport, shareARAgingReport } from '@/utils/financialReportPdf';
 import { formatMoney } from '@/utils/formatters';
+import { copyToClipboard } from '@/utils/clipboard';
 import type { CompanyBranding } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -82,17 +83,16 @@ export default function ReportsScreen() {
   }, [tab, wip, profit, aging, branding]);
 
   const handleCopyCsv = useCallback(async () => {
-    try {
-      const csv = tab === 'wip' ? wipReportToCSV(wip)
-                : tab === 'aging' ? arAgingReportToCSV(aging)
-                : ''; // profit doesn't ship a CSV — it's tiny + the PDF is the deliverable
-      if (!csv) return;
-      Clipboard.setString(csv);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Copied', 'CSV is on your clipboard. Paste into Excel/QuickBooks/Sage.');
-    } catch (err) {
-      Alert.alert('Copy failed', err instanceof Error ? err.message : 'Could not copy CSV.');
-    }
+    const csv = tab === 'wip' ? wipReportToCSV(wip)
+              : tab === 'aging' ? arAgingReportToCSV(aging)
+              : ''; // profit doesn't ship a CSV — it's tiny + the PDF is the deliverable
+    if (!csv) return;
+    const ok = await copyToClipboard(csv);
+    if (ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      ok ? 'Copied' : 'Copy failed',
+      ok ? 'CSV is on your clipboard. Paste into Excel/QuickBooks/Sage.' : 'Could not copy CSV.',
+    );
   }, [tab, wip, aging]);
 
   return (

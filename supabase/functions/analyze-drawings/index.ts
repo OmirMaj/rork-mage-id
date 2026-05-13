@@ -263,10 +263,12 @@ serve(async (req) => {
     if (!body || !Array.isArray(body.pageUrls)) {
       return jsonResponse({ success: false, error: 'Missing pageUrls' }, 400);
     }
-    // gemini-2.5-pro is Business only — the model field is client-supplied
-    // and the UI sets it from the user's tier, but a forged client could
-    // pick pro on a Pro tier subscription. Force-downgrade on the server.
-    if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business') {
+    // gemini-2.5-pro is Business AND Enterprise only — the model field is
+    // client-supplied and the UI sets it from the user's tier, but a forged
+    // client could pick pro on a Pro tier subscription. Force-downgrade on
+    // the server. Previously this used `tier !== 'business'` which silently
+    // demoted Enterprise users to flash.
+    if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
       body.model = 'gemini-2.5-flash';
     }
 

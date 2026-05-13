@@ -246,9 +246,18 @@ export async function aiExplainCriticalPath(tasks: ScheduleTask[], cpm: CpmResul
     return t && alias ? `${alias} (${t.title}, ${t.durationDays}d)` : alias;
   }).filter(Boolean).join(' → ');
 
-  const prompt = `Explain why this is the critical path, in plain English, for
-a construction site foreman who is not a scheduling expert. Be concrete about
-what a delay on each step would cost. Keep it under 150 words.
+  const prompt = `You are explaining a construction project's critical path to a
+site foreman who is not a scheduling expert. Write 4–6 plain-English sentences
+(80–140 words total). Cover, in order:
+  1. What "critical path" means in one sentence (in concrete construction
+     terms — "the chain of tasks where any delay slips the whole project").
+  2. The specific tasks on this project's critical path and how they hand off.
+  3. Concrete impact: a 2-day delay on which task would push the finish how
+     much, and why.
+  4. One practical mitigation the PM can take this week.
+
+Do NOT use bullet points, asterisks, headings, or markdown — just plain
+sentences. Do NOT cut off mid-sentence. End with a period.
 
 Critical path: ${critical}
 Project finish: day ${cpm.projectFinish}`;
@@ -256,17 +265,24 @@ Project finish: day ${cpm.projectFinish}`;
   const res = await mageAI({
     prompt,
     tier: 'fast',
-    maxTokens: 400,
-    cacheKey: `explain-cp-${cpm.criticalPath.join('-')}-${cpm.projectFinish}`,
+    maxTokens: 600,
+    cacheKey: `explain-cp-v2-${cpm.criticalPath.join('-')}-${cpm.projectFinish}`,
     cacheHours: 6,
   });
 
   if (!res.success) {
     return { explanation: 'AI explainer unavailable right now.', cached: res.cached };
   }
-  // This path doesn't use JSON mode — we want narrative prose.
-  const text = typeof res.data === 'string' ? res.data : (res.raw ?? '');
-  return { explanation: text.trim(), cached: res.cached };
+  const raw = typeof res.data === 'string' ? res.data : (res.raw ?? '');
+  // Defensive: even though the prompt asks for plain prose, strip any stray
+  // markdown so users don't see literal "*must*" or "**bold**" rendered as
+  // raw asterisks (we render with <Text>, not a markdown component).
+  const explanation = raw
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .trim();
+  return { explanation, cached: res.cached };
 }
 
 // ---------------------------------------------------------------------------

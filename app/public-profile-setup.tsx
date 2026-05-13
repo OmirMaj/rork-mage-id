@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, Switch,
-  TouchableOpacity, Alert, Platform, Share, Clipboard,
+  TouchableOpacity, Alert, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import {
   buildPublicProfileSnapshot, buildPublicProfileUrl, slugify,
 } from '@/utils/publicProfileSnapshot';
 import { formatMoney } from '@/utils/formatters';
+import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -67,11 +68,14 @@ export default function PublicProfileSetupScreen() {
     return buildPublicProfileUrl(PUBLIC_BASE, companySlug, snapshot.project.slug, snapshot);
   }, [snapshot, settings?.branding?.companyName]);
 
-  const handleCopy = useCallback(() => {
+  const handleCopy = useCallback(async () => {
     if (!publicUrl) return;
-    Clipboard.setString(publicUrl);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Copied', 'The public profile link has been copied.');
+    const ok = await copyToClipboard(publicUrl);
+    if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      ok ? 'Copied' : 'Copy failed',
+      ok ? 'The public profile link has been copied.' : 'Could not copy the link.',
+    );
   }, [publicUrl]);
 
   const handleShare = useCallback(async () => {
