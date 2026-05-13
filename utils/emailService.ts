@@ -8,6 +8,7 @@ import {
   emailStatCard,
   emailQuote,
   emailDivider,
+  escapeHtml,
   fmtMoney,
   type UnsubscribeOpts,
 } from '@/utils/emailLayout';
@@ -383,6 +384,96 @@ export function buildChangeOrderEmailHtml(opts: {
     companyName,
     project: { name: projectName },
     contactName, contactEmail,
+  });
+}
+
+/**
+ * Premium portal-invite email. The previous portal-invite template was
+ * the generic wrapPlainAsHtml in SendPortalLinkModal — a bare welcome
+ * line + a single orange button + "Sent via MAGE ID" footer that did
+ * not match any other transactional email the GC sends. This rebuilds
+ * the invite on the unified wrapEmailHtml scaffolding so it sits next
+ * to the invoice + estimate + daily-report templates.
+ */
+export function buildPortalInviteEmailHtml(opts: {
+  companyName: string;
+  recipientName?: string;
+  projectName: string;
+  /** Free-text greeting from the GC (the portal welcomeMessage). */
+  welcomeMessage?: string;
+  /** Full portal URL — used as the primary CTA. */
+  portalUrl: string;
+  /** Passcode shown in a separate callout when the portal requires one. */
+  passcode?: string | null;
+  /** Names of sections the client will see — derived from the GC's
+   *  portal toggles. Empty array → render a generic "live progress"
+   *  line instead of the explicit list. */
+  visibleSections?: string[];
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}): string {
+  const {
+    companyName, recipientName, projectName,
+    welcomeMessage, portalUrl, passcode,
+    visibleSections = [],
+    contactName, contactEmail, contactPhone,
+  } = opts;
+
+  // Render the section list as a 2-column grid of tags. If the GC has
+  // nothing on, fall back to a single descriptive line in the stat card.
+  const sectionsHtml = visibleSections.length > 0
+    ? `
+      ${emailStatRow('Project', projectName)}
+      ${emailStatRow('You can see', visibleSections.join(' · '))}
+    `
+    : `
+      ${emailStatRow('Project', projectName)}
+      ${emailStatRow('Live updates for', 'Progress, photos, invoices & messages')}
+    `;
+
+  const bodyHtml = `
+    ${recipientName ? `<p style="margin:0 0 14px;font-size:15px;color:#0B0D10;">Hi ${recipientName},</p>` : ''}
+    ${welcomeMessage
+      ? emailQuote(welcomeMessage)
+      : `<p style="margin:0 0 14px;font-size:15px;color:#4A5159;line-height:1.6;">
+           You've been invited to your private project portal for <strong style="color:#0B0D10;">${projectName}</strong>.
+           One link, always up to date — open it from any phone, tablet, or browser.
+         </p>`}
+    ${emailStatCard(sectionsHtml)}
+    ${passcode ? `
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:18px 0 0;">
+        <tr>
+          <td style="background:#FFF7EE;border:1.5px dashed #FF6A1A;border-radius:12px;padding:16px 18px;">
+            <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.4px;color:#C2410C;text-transform:uppercase;">Passcode required</p>
+            <p style="margin:0 0 4px;font-family:-apple-system,BlinkMacSystemFont,'SF Mono',Menlo,Consolas,monospace;font-size:22px;font-weight:800;color:#0B0D10;letter-spacing:4px;">${escapeHtml(passcode)}</p>
+            <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:12px;color:#4A5159;line-height:1.5;">
+              Enter this passcode when prompted. Keep it private — it unlocks every detail your contractor has shared.
+            </p>
+          </td>
+        </tr>
+      </table>
+    ` : ''}
+    ${emailDivider()}
+    <p style="margin:0 0 6px;font-size:14px;color:#4A5159;line-height:1.55;">
+      Everything updates in real time — when ${companyName} adds a photo, sends an invoice, or replies to a message, you'll see it here within seconds. Two-way messaging is built in.
+    </p>
+    <p style="margin:14px 0 0;font-size:12px;color:#9AA3AD;line-height:1.55;">
+      Trouble opening the link? Copy this URL into any browser:<br/>
+      <span style="word-break:break-all;color:#4A5159;">${escapeHtml(portalUrl)}</span>
+    </p>
+  `;
+
+  return wrapEmailHtml({
+    preheader: `Live progress, photos, invoices & messages for ${projectName} — open anytime from any device.`,
+    eyebrow: 'Project Portal',
+    title: projectName,
+    subtitle: `Live updates from ${companyName} — anytime, from any device.`,
+    bodyHtml,
+    cta: { label: 'Open my portal', href: portalUrl },
+    companyName,
+    project: { name: projectName },
+    contactName, contactEmail, contactPhone,
   });
 }
 

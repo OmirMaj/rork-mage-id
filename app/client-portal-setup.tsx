@@ -20,7 +20,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
 import { generateUUID } from '@/utils/generateId';
-import { sendEmailNative, sendEmail } from '@/utils/emailService';
+import { sendEmailNative, sendEmail, buildPortalInviteEmailHtml } from '@/utils/emailService';
 import { copyToClipboard } from '@/utils/clipboard';
 import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import { wrapEmailHtml, emailQuote } from '@/utils/emailLayout';
@@ -417,6 +417,30 @@ function ClientPortalSetupScreenInner() {
       ? `${portal.welcomeMessage}\n\nView your project here:\n${portalLink}${passcodeLine}`
       : `You're invited to view live updates for "${project?.name}".\n\nLink: ${portalLink}${passcodeLine}`;
   }, [portal.welcomeMessage, portal.requirePasscode, portal.passcode, portalLink, project?.name]);
+
+  // Premium HTML for the Share → Email path. Built once + passed to
+  // SendPortalLinkModal so every email looks identical to the
+  // individual-invite path (which already used wrapEmailHtml).
+  const shareEmailHtml = useMemo(() => {
+    if (!project?.name) return undefined;
+    const companyName = settings?.branding?.companyName ?? 'MAGE ID';
+    // The PERMISSION_TOGGLES list ↔ enabled portal flag mapping — used
+    // to give the recipient a concrete "you can see X" preview.
+    const visibleSections: string[] = PERMISSION_TOGGLES
+      .filter(t => !!(portal as any)[t.key])
+      .map(t => t.label);
+    return buildPortalInviteEmailHtml({
+      companyName,
+      projectName: project.name,
+      welcomeMessage: portal.welcomeMessage || undefined,
+      portalUrl: portalLink,
+      passcode: portal.requirePasscode ? (portal.passcode || null) : null,
+      visibleSections,
+      contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
+      contactEmail: settings?.branding?.email,
+      contactPhone: settings?.branding?.phone,
+    });
+  }, [project?.name, settings, portal, portalLink]);
 
   const handleCopyLink = useCallback(async () => {
     // Use the shared clipboard util — previously this called
@@ -1111,8 +1135,9 @@ function ClientPortalSetupScreenInner() {
       <SendPortalLinkModal
         visible={showSendModal}
         onClose={() => setShowSendModal(false)}
-        subject={`${project?.name ?? 'Project'} — Client Portal`}
+        subject={`Your project portal — ${project?.name ?? 'Project'}`}
         message={shareMessage}
+        emailHtml={shareEmailHtml}
         link={portalLink}
       />
     </>
