@@ -168,8 +168,13 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // received the pre-rolled set); we only hide them visually so the gantt
   // stays uncluttered while the user is focused on top-level phases.
   const tasks = useMemo(() => {
-    const hidden = getHiddenTaskIds(tasksRaw);
-    return tasksRaw.filter(t => !hidden.has(t.id));
+    // Defensive: filter out any null/undefined entries that may have slipped
+    // in via a malformed Supabase row or an in-flight optimistic update.
+    // Without this, downstream `task.startDay` access in bars.map crashes
+    // the whole Gantt the moment a single bad row is in the array.
+    const cleaned = tasksRaw.filter((t): t is ScheduleTask => !!t && typeof t.id === 'string');
+    const hidden = getHiddenTaskIds(cleaned);
+    return cleaned.filter(t => !hidden.has(t.id));
   }, [tasksRaw]);
   // Left gutter width: phones get a compressed 90px sticky col (single-line
   // names), split-view (compact) hides the gutter entirely (the GridPane to
@@ -277,8 +282,13 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   const bars = useMemo(() => {
     return tasks.map((task, index) => {
       const isDragging = dragState?.taskId === task.id;
-      const startDay = isDragging ? dragState.currentStart : task.startDay;
-      const duration = isDragging ? dragState.currentDuration : task.durationDays;
+      // Defaults for tasks missing startDay / durationDays (legacy rows, in-
+      // flight optimistic updates). Without these `task.startDay` may be
+      // undefined and `undefined * pxPerDay` produces NaN bar geometry.
+      const taskStartDay = task.startDay ?? 1;
+      const taskDuration = task.durationDays ?? 1;
+      const startDay = isDragging ? dragState.currentStart : taskStartDay;
+      const duration = isDragging ? dragState.currentDuration : taskDuration;
       const isMilestone = task.isMilestone || duration === 0;
       const cpmRow = cpm.perTask.get(task.id);
       const isCritical = !!cpmRow?.isCritical;

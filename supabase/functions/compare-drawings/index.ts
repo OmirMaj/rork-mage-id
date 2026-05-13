@@ -230,7 +230,7 @@ serve(async (req) => {
     if (!body || typeof body.oldPageUrl !== 'string' || typeof body.newPageUrl !== 'string') {
       return jsonResponse({ success: false, error: 'oldPageUrl + newPageUrl required' }, 400);
     }
-    if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business') {
+    if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
       body.model = 'gemini-2.5-flash';
     }
     const used = await aiUsageIncrement(auth.userId, 'analyze_drawings');

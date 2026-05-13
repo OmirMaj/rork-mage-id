@@ -67,7 +67,7 @@ export function DashboardTab() {
         <StatCard
           label="COST PERF. (CPI)"
           value="—"
-          delta="Wire EV in follow-up"
+          delta="Linked-budget feature coming soon"
           phone={isPhone}
         />
         <StatCard
@@ -98,7 +98,7 @@ export function DashboardTab() {
               <Polyline points="0,90 12,72 28,58 44,46 62,32 78,20 100,12" fill="none" stroke={Colors.tradeColors.general} strokeWidth={2} />
               <Polyline points="0,90 12,78 28,68 44,57 62,45 78,38 100,30" fill="none" stroke={Colors.pillLate} strokeWidth={1.5} />
             </Svg>
-            <Text style={styles.chartHint}>(Placeholder data — real EV wiring deferred)</Text>
+            <Text style={styles.chartHint}>Sample shape · link a budget to populate</Text>
           </View>
         </View>
 

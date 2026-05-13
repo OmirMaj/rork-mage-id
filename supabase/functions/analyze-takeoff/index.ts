@@ -747,8 +747,9 @@ serve(async (req) => {
     if (!body || !Array.isArray(body.pageUrls)) {
       return jsonResponse({ success: false, error: 'Missing pageUrls' }, 400);
     }
-    // gemini-2.5-pro is Business only.
-    if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business') {
+    // gemini-2.5-pro is Business AND Enterprise (was silently demoting
+    // Enterprise via strict equality).
+    if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
       body.model = 'gemini-2.5-flash';
     }
 

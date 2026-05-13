@@ -90,7 +90,11 @@ const COLUMNS: ColumnDef[] = [
   { key: 'actions',      label: '',               width: 44,  align: 'center', kind: 'custom' },
 ];
 
-const ROW_HEIGHT = 40;
+// ROW_HEIGHT and the headerRow height MUST match InteractiveGantt's
+// ROW_HEIGHT / HEADER_HEIGHT (currently 56 each) so bars line up with
+// their table rows in the Split paneMode. Previously these were 40 and
+// 36, which offset every bar by ~20px from its task row.
+const ROW_HEIGHT = 56;
 
 // ---------------------------------------------------------------------------
 // Props
@@ -1574,7 +1578,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: t.line,
-    height: 36,
+    // Matches InteractiveGantt.HEADER_HEIGHT so the first table row and
+    // the first Gantt bar share a vertical origin in Split paneMode.
+    height: 56,
     alignItems: 'center',
   },
   headerCell: {

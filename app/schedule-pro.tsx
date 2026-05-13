@@ -1031,7 +1031,7 @@ function ScheduleProScreenInner() {
 
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
-          <Text style={styles.headerSub}>
+          <Text style={styles.headerSub} numberOfLines={1}>
             {stats.total} tasks · {stats.critical} on critical path · finish day {stats.finish}
             {stats.conflicts > 0 && ` · ${stats.conflicts} conflict${stats.conflicts === 1 ? '' : 's'}`}
           </Text>
@@ -1043,7 +1043,16 @@ function ScheduleProScreenInner() {
             <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneModeAndForceGantt('grid')} />
             <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneModeAndForceGantt('split')} />
             <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneModeAndForceGantt('gantt')} />
-            <PaneBtn icon={Users} label="Lanes" active={paneMode === 'resources'} onPress={() => setPaneMode('resources')} />
+            <PaneBtn
+              icon={Users}
+              label="Lanes"
+              active={paneMode === 'resources'}
+              // Toggle: clicking Lanes again returns to the regular tab shell
+              // (defaulting to the Gantt sub-mode) so the user has a one-tap
+              // escape from the Lanes view instead of having to find one of
+              // the Grid/Split/Gantt buttons.
+              onPress={() => setPaneMode(paneMode === 'resources' ? 'gantt' : 'resources')}
+            />
           </View>
 
           {/* AI first — the headline value-prop. Highlighted so it stands out.
@@ -1122,15 +1131,20 @@ function ScheduleProScreenInner() {
       ) : (
         <View style={styles.tabShellBody}>
           <SchedulerTabShell
-            schedule={project?.schedule ?? ({
-              id: project?.id ?? '',
+            schedule={{
+              ...(project?.schedule ?? {} as import('@/types').ProjectSchedule),
+              id: project?.schedule?.id ?? project?.id ?? '',
               projectId: project?.id ?? '',
-              name: project?.name ?? 'Schedule',
+              name: project?.schedule?.name ?? project?.name ?? 'Schedule',
               tasks: rolledTasks,
-              startDate: project?.schedule?.startDate,
+              // Fall back to the project's createdAt-derived start so the
+              // SchedulerHeader's START / FINISH KPIs don't show "—" when
+              // a schedule exists but has no explicit startDate set.
+              startDate: project?.schedule?.startDate
+                ?? projectStartDate.toISOString().slice(0, 10),
               totalDurationDays: cpm.projectFinish,
               healthScore: healthScore.score,
-            } as import('@/types').ProjectSchedule)}
+            }}
             contextCpm={contextCpm}
             projectName={project?.name ?? 'Schedule'}
             onExportPress={() => setExportSheetOpen(true)}

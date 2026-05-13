@@ -135,9 +135,13 @@ export function WorkloadTab({ resources }: WorkloadTabProps) {
                       style={[
                         styles.cell,
                         { width: CELL_W },
+                        // Threshold tiers, evaluated against this lane's
+                        // actual cap (not a hardcoded "≥ 2" which broke
+                        // when cap=1: a load of 1 was "below" cap but
+                        // still tinted warn-amber alongside cells of 2+).
                         v > lane.cap && styles.cellOver,
-                        v > 0 && v <= lane.cap && v >= 2 && styles.cellWarn,
-                        v === 1 && styles.cellLight,
+                        v > 0 && v === lane.cap && styles.cellWarn,
+                        v > 0 && v < lane.cap && styles.cellLight,
                       ]}
                     >
                       <Text style={[styles.cellText, v > lane.cap && styles.cellTextOver]}>

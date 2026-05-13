@@ -361,6 +361,54 @@ export default function HomeScreen() {
     );
   }, [useDenseRows, filteredProjects, statusFilter, handleProjectPress]);
 
+  // Secondary widgets that used to live above the project list. Moved
+  // BELOW the project list so the user's first scroll-target is the
+  // project itself — the most common thing they came here to do.
+  // QuickFieldUpdate / AI summary toggle stay one short scroll away.
+  const projectsFooterExtras = useMemo(() => {
+    if (projects.length === 0) return null;
+    return (
+      <View style={styles.footerExtras}>
+        <View style={styles.aiBriefingWrap}>
+          <TouchableOpacity
+            style={styles.aiBriefingToggle}
+            onPress={() => setShowAIBriefing(prev => !prev)}
+            activeOpacity={0.7}
+            testID="ai-briefing-toggle"
+          >
+            <View style={styles.aiBriefingToggleLeft}>
+              <Sparkles size={14} color={themeColors.accent} strokeWidth={2.2} />
+              <Text style={styles.aiBriefingToggleText}>
+                {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
+              </Text>
+            </View>
+            {showAIBriefing
+              ? <ChevronUp size={14} color={themeColors.textSecondary} strokeWidth={2} />
+              : <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={2} />}
+          </TouchableOpacity>
+          {showAIBriefing && (
+            <AIHomeBriefing
+              projects={projects}
+              invoices={invoices}
+              subscriptionTier={tier as any}
+              onViewFull={() => setShowWeeklySummary(true)}
+            />
+          )}
+        </View>
+        <QuickFieldUpdate />
+      </View>
+    );
+  }, [projects, invoices, tier, showAIBriefing, themeColors.accent, themeColors.textSecondary]);
+
+  // Compose the footer: project list first (denseProjectList renders nothing
+  // on phone widths since they use FlatList items), then secondary widgets.
+  const listFooter = useMemo(() => (
+    <View>
+      {denseProjectList}
+      {projectsFooterExtras}
+    </View>
+  ), [denseProjectList, projectsFooterExtras]);
+
   const keyExtractor = useCallback((item: Project) => item.id, []);
 
   if (isLoading) {
@@ -388,7 +436,7 @@ export default function HomeScreen() {
         data={useDenseRows ? [] : filteredProjects}
         renderItem={renderProject}
         keyExtractor={keyExtractor}
-        ListFooterComponent={denseProjectList}
+        ListFooterComponent={listFooter}
         // FlatList perf knobs: render only the first 6 cards initially, keep
         // off-screen cards in 11 windows (~5 above + 5 below current), and
         // clip subviews on Android (no-op on iOS). Tuned for the common case
@@ -572,43 +620,10 @@ export default function HomeScreen() {
               voiceUsed={milestones.voiceUsed}
             />
 
-            {projects.length > 0 && (
-              <View style={styles.aiBriefingWrap}>
-                <TouchableOpacity
-                  style={styles.aiBriefingToggle}
-                  onPress={() => setShowAIBriefing(prev => !prev)}
-                  activeOpacity={0.7}
-                  testID="ai-briefing-toggle"
-                >
-                  <View style={styles.aiBriefingToggleLeft}>
-                    <Sparkles size={14} color={themeColors.accent} strokeWidth={2.2} />
-                    <Text style={styles.aiBriefingToggleText}>
-                      {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
-                    </Text>
-                  </View>
-                  {showAIBriefing
-                    ? <ChevronUp size={14} color={themeColors.textSecondary} strokeWidth={2} />
-                    : <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={2} />}
-                </TouchableOpacity>
-                {showAIBriefing && (
-                  <AIHomeBriefing
-                    projects={projects}
-                    invoices={invoices}
-                    subscriptionTier={tier as any}
-                    onViewFull={() => setShowWeeklySummary(true)}
-                  />
-                )}
-              </View>
-            )}
-
-            {/* CashFlowGlance + CashFlowAlerts moved to the Summary tab.
-                Your Projects is for the project list itself. */}
-
-            {projects.length > 0 && <QuickFieldUpdate />}
-
-            {projects.length > 0 && (
-              <Text style={styles.sectionHeader}>RECENT</Text>
-            )}
+            {/* AI summary + Quick Field Update moved below the project
+                list — the user's first scroll target is now the project
+                itself. (Onboarding checklist stays here because it auto-
+                hides at 4/5 milestones done — veteran users never see it.) */}
           </View>
         }
         ListEmptyComponent={
@@ -990,6 +1005,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     letterSpacing: 0.6,
     paddingHorizontal: 20,
     marginBottom: 10,
+  },
+  footerExtras: {
+    marginTop: 8,
   },
   aiBriefingWrap: {
     marginHorizontal: 16,

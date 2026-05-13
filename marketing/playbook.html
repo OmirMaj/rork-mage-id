@@ -485,12 +485,12 @@
         <div class="pb-card">
           <h3>Working with the schedule</h3>
           <ul style="line-height: 1.8; color: var(--text-muted);">
-            <li><strong>Today view</strong> — what should happen today + who's on it</li>
-            <li><strong>Lookahead</strong> — the next 7 / 14 / 30 days, vendor calls in advance</li>
-            <li><strong>Board</strong> — Kanban-style by status (To do → Doing → Done)</li>
             <li><strong>Gantt</strong> — pinch-to-zoom timeline with critical path highlighted</li>
-            <li><strong>Crew</strong> — workload by sub: who's overbooked this week</li>
-            <li><strong>Summary</strong> — health score, milestones, baseline variance</li>
+            <li><strong>Board</strong> — Kanban-style by status (Not Started → In Progress → Done)</li>
+            <li><strong>List</strong> — full grid with predecessors, float, due-by; inline-editable</li>
+            <li><strong>Workload</strong> — resource-by-week heatmap, overallocations flagged red</li>
+            <li><strong>Dashboard</strong> — health score, KPIs, earned-value, critical-path list</li>
+            <li><strong>Calendar</strong> — month view with tasks plotted on dates (coming soon)</li>
           </ul>
         </div>
 
@@ -884,5 +884,6 @@
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
   </script>
+  <script src="/nav-mobile.js" defer></script>
 </body>
 </html>
