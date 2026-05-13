@@ -452,30 +452,68 @@ function ScheduleProScreenInner() {
   }, []);
 
   // Called by AddTaskModal when the user clicks "Create task". Builds
-  // the new task with whatever the user supplied + the same
-  // "append-after-last-task" start-day heuristic the old handleAddTask
-  // used. Closes the modal on success.
+  // the new task using whatever the user supplied + sensible defaults
+  // for anything omitted. Also patches any successor tasks named in the
+  // form to depend on the new task. Closes the modal on success.
   const handleCommitAddTask = useCallback((values: NewTaskValues) => {
     commit(prev => {
+      // Convert optional ISO start date → day number on the project
+      // calendar. Mirrors GridPane.dateToDayNumber so add-task and inline
+      // edit both round-trip to the same day.
+      let startDay: number;
+      if (values.startIso) {
+        const [y, m, d] = values.startIso.split('-').map(n => parseInt(n, 10));
+        const target = new Date(y, m - 1, d);
+        const base = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate());
+        if (target <= base) {
+          startDay = 1;
+        } else if (workingDaysPerWeek >= 7) {
+          startDay = Math.floor((target.getTime() - base.getTime()) / 86400000) + 1;
+        } else {
+          let count = 1;
+          const cur = new Date(base);
+          while (cur < target) {
+            cur.setDate(cur.getDate() + 1);
+            const dow = cur.getDay();
+            if (dow !== 0 && dow !== 6) count++;
+          }
+          startDay = count;
+        }
+      } else {
+        startDay = prev.length === 0
+          ? 1
+          : Math.max(...prev.map(t => t.startDay + t.durationDays));
+      }
+
+      const newId = createId('task');
       const newTask: ScheduleTask = {
-        id: createId('task'),
+        id: newId,
         title: values.title,
         phase: 'General',
         tradeKey: values.tradeKey,
         durationDays: values.durationDays,
-        startDay: prev.length === 0
-          ? 1
-          : Math.max(...prev.map(t => t.startDay + t.durationDays)),
+        startDay,
         progress: 0,
         crew: values.crew ?? '',
-        dependencies: [],
+        dependencies: values.predecessorIds ?? [],
         notes: values.notes ?? '',
         status: 'not_started',
       };
-      return generateWbsCodes([...prev, newTask]);
+
+      // Successor wiring: patch the named successor tasks so they list
+      // the new task as one of their predecessors. We do this in the same
+      // commit() pass so undo treats it as a single step.
+      const succSet = new Set(values.successorIds ?? []);
+      const patched = prev.map(t => {
+        if (!succSet.has(t.id)) return t;
+        if (t.dependencies.includes(newId)) return t;
+        return { ...t, dependencies: [...t.dependencies, newId] };
+      });
+
+      return generateWbsCodes([...patched, newTask]);
     });
     setShowAddTask(false);
-  }, [commit]);
+  }, [commit, projectStartDate, workingDaysPerWeek]);
 
   // Phase 4: create a dependency edge between two tasks via drag in the Gantt.
   // Guards against self-link + cycles are handled in the Gantt before we get
@@ -1277,6 +1315,7 @@ function ScheduleProScreenInner() {
         visible={showAddTask}
         onCancel={() => setShowAddTask(false)}
         onCreate={handleCommitAddTask}
+        tasks={workingTasks}
       />
     </View>
   );
