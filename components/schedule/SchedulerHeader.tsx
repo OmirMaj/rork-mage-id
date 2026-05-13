@@ -21,13 +21,34 @@ import { useScheduler, type ViewScale } from './SchedulerContext';
 import { computePillStatus } from '@/utils/scheduleHealth';
 import { useResponsive } from '@/utils/useResponsive';
 
+export interface InlineTab {
+  key: string;
+  label: string;
+  soon?: boolean;
+}
+
 export interface SchedulerHeaderProps {
   projectName: string;
   onExportPress: () => void;
   onBaselinePress: () => void;
+  /**
+   * Inline tab strip rendered in the header's right side (between the KPI
+   * stats and the BASELINE/VIEW/Export controls). When omitted, no tabs
+   * render — used by the phone branch which has its own bottom tab bar.
+   */
+  tabs?: ReadonlyArray<InlineTab>;
+  activeTab?: string;
+  onTabChange?: (key: string) => void;
 }
 
-export function SchedulerHeader({ projectName, onExportPress, onBaselinePress }: SchedulerHeaderProps) {
+export function SchedulerHeader({
+  projectName,
+  onExportPress,
+  onBaselinePress,
+  tabs,
+  activeTab,
+  onTabChange,
+}: SchedulerHeaderProps) {
   useTheme();
   const { bp } = useResponsive();
   const { tasks, cpm, schedule, viewScale, setViewScale } = useScheduler();
@@ -121,6 +142,33 @@ export function SchedulerHeader({ projectName, onExportPress, onBaselinePress }:
         <Kpi label="COMPLETED" value={String(completed)} />
 
         <View style={styles.spacer} />
+
+        {/* Inline tab strip — sits in the empty space between the project
+            KPIs and the right-side BASELINE/VIEW/Export controls. Replaces
+            the standalone tab row that used to live below this header. */}
+        {tabs && tabs.length > 0 && onTabChange ? (
+          <View style={styles.tabStrip}>
+            {tabs.map(t => {
+              const isActive = activeTab === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  onPress={() => onTabChange(t.key)}
+                  style={styles.tabBtn}
+                  hitSlop={4}
+                  accessibilityRole="tab"
+                  accessibilityLabel={t.label}
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <Text style={[styles.tabBtnLabel, isActive && styles.tabBtnLabelActive]}>
+                    {t.label}{t.soon ? ' · soon' : ''}
+                  </Text>
+                  {isActive && <View style={styles.tabBtnIndicator} />}
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
 
         <View style={styles.pickerGroup}>
           <Text style={styles.kpiLabel}>BASELINE</Text>
@@ -219,6 +267,37 @@ const styles = StyleSheet.create({
   pickerText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
   exportBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.tradeColors.general, borderRadius: 8, alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center' },
   exportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
+
+  // Inline tab strip (desktop only — phone uses the bottom bar in
+  // SchedulerTabShell). Sits in the empty space between the KPIs and the
+  // BASELINE/VIEW/Export controls so the toolbar doesn't waste a whole row.
+  tabStrip: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 16,
+    paddingBottom: 2,
+  },
+  tabBtn: {
+    paddingVertical: 6,
+    position: 'relative',
+  },
+  tabBtnLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  tabBtnLabelActive: {
+    color: Colors.tradeColors.general,
+    fontWeight: '700',
+  },
+  tabBtnIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: Colors.tradeColors.general,
+  },
 
   // ---- Phone layout ----
   phoneRoot: {

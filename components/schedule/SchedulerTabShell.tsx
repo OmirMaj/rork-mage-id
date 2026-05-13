@@ -14,7 +14,7 @@
 // remaining tabs (List, Calendar, Workload, Timeline). iOS convention.
 
 import { useState, useEffect, type ReactNode } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -136,32 +136,17 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
   return (
     <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
       <View style={styles.shellRoot}>
-        {/* Tab bar — horizontal scroll so it never wraps on narrow screens. */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabBar}
-          style={styles.tabBarOuter}
-        >
-          {TABS.map(t => (
-            <Pressable
-              key={t.key}
-              onPress={() => setActive(t.key)}
-              style={styles.tab}
-              hitSlop={4}
-            >
-              <Text style={[styles.tabLabel, active === t.key && styles.tabLabelActive]}>
-                {t.label}{t.soon ? ' · soon' : ''}
-              </Text>
-              {active === t.key && <View style={styles.tabIndicator} />}
-            </Pressable>
-          ))}
-        </ScrollView>
-
+        {/* Desktop: no standalone tab strip — the tabs render inline in the
+            SchedulerHeader's right side, between KPIs and BASELINE/VIEW/
+            Export. Phone keeps the bottom bar (see the bp === 'phone' branch
+            above). */}
         <SchedulerHeader
           projectName={props.projectName}
           onExportPress={props.onExportPress}
           onBaselinePress={props.onBaselinePress}
+          tabs={TABS}
+          activeTab={active}
+          onTabChange={(k) => setActive(k as SchedulerTabKey)}
         />
 
         <View style={styles.body}>
@@ -355,35 +340,6 @@ const styles = StyleSheet.create({
   // container the shell is mounted into — they compete for horizontal space
   // and the body collapses to whatever the tab bar + header didn't claim.
   shellRoot: { flex: 1 },
-  tabBarOuter: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
-    flexGrow: 0,
-  },
-  tabBar: {
-    paddingHorizontal: 16,
-    gap: 18,
-    flexDirection: 'row',
-  },
-  tab: { paddingVertical: 12, position: 'relative' },
-  tabLabel: {
-    fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  tabLabelActive: {
-    color: Colors.tradeColors.general,
-    fontWeight: '700',
-  },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: Colors.tradeColors.general,
-  },
   body: { flex: 1 },
   comingSoon: {
     flex: 1,
