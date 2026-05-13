@@ -48,6 +48,10 @@ const ROW_PADDING = 14;
 const ROW_HEIGHT_MIN = 76;
 const HEADER_HEIGHT = 44;
 const LANE_LABEL_WIDTH = 180;
+// Daily-load microchart at the bottom of each lane row. Tells the user
+// "when is this crew at / above capacity" without needing extra UI.
+const CHART_HEIGHT = 64;
+const CHART_GAP = 10;
 const DEFAULT_COLORS = ['#FF9500', '#007AFF', '#34C759', '#AF52DE', '#FF3B30', '#5856D6', '#00C7BE'];
 // Minimum gap between adjacent month-tick labels, in pixels. When two
 // labels would land closer than this, we skip the later one — keeps the
@@ -281,20 +285,33 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate, 
               // Stagger overlapping pills onto separate vertical tracks so
               // two crew-A tasks on the same week don't visually collide.
               const { trackByIndex, trackCount } = computeTracks(laneTasks);
+              // Daily-load chart constants for this lane.
+              const peakLoad = Math.max(1, ...load);
+              const chartScale = CHART_HEIGHT / peakLoad;
+              const capPx = Math.min(CHART_HEIGHT, lane.cap * chartScale);
+              const pillsHeight = ROW_PADDING * 2 + trackCount * TRACK_HEIGHT + Math.max(0, trackCount - 1) * TRACK_GAP;
               const rowHeight = Math.max(
                 ROW_HEIGHT_MIN,
-                ROW_PADDING * 2 + trackCount * TRACK_HEIGHT + Math.max(0, trackCount - 1) * TRACK_GAP,
+                pillsHeight + CHART_GAP + CHART_HEIGHT + ROW_PADDING,
               );
+              const totalTaskCount = laneTasks.length;
+              const overloadedDays = load.filter(v => v > lane.cap).length;
               return (
                 <View key={lane.id} style={[styles.laneRow, { height: rowHeight }]}>
                   <View style={[styles.laneLabel, { borderLeftColor: lane.color }]}>
-                    <Text style={styles.laneName} numberOfLines={1}>{lane.name}</Text>
-                    <Text style={styles.laneCap}>cap {lane.cap}</Text>
-                    {overloaded && (
-                      <View style={styles.overloadBadge}>
-                        <AlertTriangle size={10} color={themeColors.danger} />
-                      </View>
-                    )}
+                    <View style={styles.laneLabelTop}>
+                      <Text style={styles.laneName} numberOfLines={1}>{lane.name}</Text>
+                      {overloaded && (
+                        <View style={styles.overloadBadge}>
+                          <AlertTriangle size={10} color={themeColors.danger} />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.laneCap}>cap {lane.cap} · peak {peakLoad}</Text>
+                    <Text style={styles.laneStat} numberOfLines={1}>
+                      {totalTaskCount} {totalTaskCount === 1 ? 'task' : 'tasks'}
+                      {overloadedDays > 0 ? ` · ${overloadedDays}d over` : ''}
+                    </Text>
                   </View>
                   <View style={{ width: timelineWidth, height: rowHeight, position: 'relative' }}>
                     {/* Overload tint bands: for each day where load > cap, draw a red column. */}
@@ -348,6 +365,55 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate, 
                         </View>
                       );
                     })}
+                    {/* Daily-load microchart at the bottom of the lane.
+                        Each day = one column. Height proportional to load /
+                        peakLoad. Bars over capacity tint red so you can scan
+                        the timeline and immediately spot overloaded weeks
+                        without reading the pills. Capacity line draws across
+                        as a dashed reference. */}
+                    <View
+                      style={[
+                        styles.chartTrack,
+                        { top: pillsHeight + CHART_GAP, width: timelineWidth, height: CHART_HEIGHT },
+                      ]}
+                    >
+                      {load.map((v, day) => {
+                        if (v <= 0 || day < 1) return null;
+                        const barH = Math.max(2, v * chartScale);
+                        const isOver = v > lane.cap;
+                        return (
+                          <View
+                            key={`bar-${day}`}
+                            style={{
+                              position: 'absolute',
+                              left: (day - 1) * pxPerDay,
+                              bottom: 0,
+                              width: Math.max(1, pxPerDay - 1),
+                              height: barH,
+                              backgroundColor: isOver ? themeColors.danger : lane.color,
+                              opacity: isOver ? 0.85 : 0.55,
+                              borderTopLeftRadius: 2,
+                              borderTopRightRadius: 2,
+                            }}
+                          />
+                        );
+                      })}
+                      {/* Capacity reference line — dashed underline so the
+                          "is this day over cap" question reads at a glance. */}
+                      <View
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: capPx,
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: themeColors.textMuted,
+                          borderStyle: 'dashed',
+                          opacity: 0.6,
+                        }}
+                      />
+                      <Text style={styles.chartCapLabel}>cap {lane.cap}</Text>
+                    </View>
                   </View>
                 </View>
               );
@@ -406,23 +472,39 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   laneLabel: {
     width: LANE_LABEL_WIDTH,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    gap: 4,
     borderLeftWidth: 3,
     height: '100%',
     backgroundColor: t.surface,
   },
+  laneLabelTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   laneName: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text, flex: 1 },
   laneCap: { fontSize: 10, color: t.textSecondary, fontWeight: '600' },
+  laneStat: { fontSize: 10, color: t.textMuted, fontWeight: '500' },
   overloadBadge: {
-    marginLeft: 4,
     padding: 2,
     borderRadius: Tokens.radius.md,
     backgroundColor: t.danger + '22',
   },
   pillText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: t.text },
+  chartTrack: {
+    position: 'absolute',
+    left: 0,
+  },
+  chartCapLabel: {
+    position: 'absolute',
+    left: 4,
+    top: 0,
+    fontSize: 9,
+    fontWeight: '600',
+    color: t.textMuted,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
   empty: {
     flex: 1,
     alignItems: 'center',
