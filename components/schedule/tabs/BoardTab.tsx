@@ -59,6 +59,9 @@ export function BoardTab() {
                 key={c.key}
                 onPress={() => setPhoneCol(c.key)}
                 style={[styles.phoneSwitcherTab, isActive && styles.phoneSwitcherTabActive]}
+                accessibilityRole="tab"
+                accessibilityLabel={c.title}
+                accessibilityState={{ selected: isActive }}
               >
                 <Text style={[styles.phoneSwitcherLabel, isActive && styles.phoneSwitcherLabelActive]}>
                   {c.title}

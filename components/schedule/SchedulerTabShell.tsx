@@ -15,6 +15,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -145,6 +146,7 @@ interface PhoneTabBarProps {
 }
 
 function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
+  const insets = useSafeAreaInsets();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const VISIBLE: { key: SchedulerTabKey; icon: string; label: string }[] = [
     { key: 'gantt',     icon: '⬚', label: 'Gantt' },
@@ -155,17 +157,32 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
   const isOverflowActive = OVERFLOW.includes(active);
 
   return (
-    <View style={styles.bottomTabBar}>
+    <View style={[styles.bottomTabBar, { paddingBottom: insets.bottom + 6 }]}>
       {VISIBLE.map(t => {
         const isActive = active === t.key;
         return (
-          <Pressable key={t.key} onPress={() => onChange(t.key)} style={styles.bottomTab} hitSlop={4}>
+          <Pressable
+            key={t.key}
+            onPress={() => onChange(t.key)}
+            style={styles.bottomTab}
+            hitSlop={4}
+            accessibilityRole="tab"
+            accessibilityLabel={t.label}
+            accessibilityState={{ selected: isActive }}
+          >
             <Text style={[styles.bottomTabIcon, isActive && styles.bottomTabActive]}>{t.icon}</Text>
             <Text style={[styles.bottomTabLabel, isActive && styles.bottomTabActive]}>{t.label}</Text>
           </Pressable>
         );
       })}
-      <Pressable onPress={() => setOverflowOpen(true)} style={styles.bottomTab} hitSlop={4}>
+      <Pressable
+        onPress={() => setOverflowOpen(true)}
+        style={styles.bottomTab}
+        hitSlop={4}
+        accessibilityRole="button"
+        accessibilityLabel="More tabs"
+        accessibilityState={{ selected: isOverflowActive }}
+      >
         <Text style={[styles.bottomTabIcon, isOverflowActive && styles.bottomTabActive]}>⋯</Text>
         <Text style={[styles.bottomTabLabel, isOverflowActive && styles.bottomTabActive]}>More</Text>
       </Pressable>
@@ -176,7 +193,7 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
         onRequestClose={() => setOverflowOpen(false)}
       >
         <Pressable style={styles.overflowBackdrop} onPress={() => setOverflowOpen(false)} />
-        <View style={styles.overflowSheet}>
+        <View style={[styles.overflowSheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.overflowHandle} />
           {OVERFLOW.map(k => {
             const tabMeta = TABS.find(t => t.key === k);
@@ -186,6 +203,9 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
                 key={k}
                 onPress={() => { onChange(k); setOverflowOpen(false); }}
                 style={styles.overflowItem}
+                accessibilityRole="button"
+                accessibilityLabel={tabMeta.label}
+                accessibilityState={{ selected: active === k }}
               >
                 <Text style={[styles.overflowText, active === k && styles.bottomTabActive]}>
                   {tabMeta.label}{tabMeta.soon ? ' · soon' : ''}
@@ -392,12 +412,13 @@ const styles = StyleSheet.create({
   },
 
   // ---- Phone bottom tab bar ----
+  // paddingBottom is set inline via useSafeAreaInsets() in PhoneTabBar so the
+  // home indicator on iPhone X+ doesn't overlap tab labels.
   bottomTabBar: {
     flexDirection: 'row',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
     paddingVertical: 6,
-    paddingBottom: 12,
     backgroundColor: Colors.surface,
   },
   bottomTab: { flex: 1, alignItems: 'center', paddingVertical: 4, gap: 2 },
@@ -405,12 +426,12 @@ const styles = StyleSheet.create({
   bottomTabLabel: { fontSize: 8, color: Colors.textSecondary, fontWeight: '600' },
   bottomTabActive: { color: Colors.tradeColors.general },
   overflowBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  // paddingBottom is set inline via useSafeAreaInsets() in PhoneTabBar.
   overflowSheet: {
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     padding: 16,
-    paddingBottom: 28,
   },
   overflowHandle: {
     alignSelf: 'center',

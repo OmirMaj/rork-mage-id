@@ -17,6 +17,7 @@
 // to its sticky-task-column / horizontal-scroll layout.
 
 import { View, StyleSheet, Pressable, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GridPaneDefault from '../GridPane';
 import InteractiveGanttDefault from '../InteractiveGantt';
 import { useScheduler } from '../SchedulerContext';
@@ -71,6 +72,7 @@ export function GanttTab({
 }: GanttTabProps) {
   const { tasks } = useScheduler();
   const { bp } = useResponsive();
+  const insets = useSafeAreaInsets();
 
   if (bp === 'phone') {
     return (
@@ -88,7 +90,7 @@ export function GanttTab({
         />
         <Pressable
           onPress={onAddTask}
-          style={styles.fab}
+          style={[styles.fab, { bottom: insets.bottom + 70 }]}
           testID="gantt-phone-fab"
           accessibilityLabel="Add task"
           accessibilityRole="button"
@@ -147,10 +149,11 @@ const styles = StyleSheet.create({
   },
   gantt: { flex: 1 },
   phoneRoot: { flex: 1 },
+  // `bottom` is set inline via useSafeAreaInsets() so the FAB clears both
+  // the home indicator and the safe-area-aware PhoneTabBar above it.
   fab: {
     position: 'absolute',
     right: 16,
-    bottom: 80,
     width: 44,
     height: 44,
     borderRadius: 22,
