@@ -351,11 +351,21 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const signup = useCallback(async (email: string, password: string, name: string) => {
     console.log('[Auth] Signing up');
+    // emailRedirectTo controls where Supabase sends the user AFTER they click
+    // the email-confirmation link. Without this, Supabase uses the project's
+    // Site URL (currently mageid.app — the marketing site), which dumps
+    // freshly-confirmed users on the wrong domain. Platform-aware:
+    //   - web  → https://app.mageid.app (the actual app)
+    //   - native → rork-app:// (deep-link back into the installed app)
+    const emailRedirectTo = Platform.OS === 'web'
+      ? 'https://app.mageid.app/'
+      : 'rork-app://';
     const { data, error } = await supabase.auth.signUp({
       email: email.toLowerCase().trim(),
       password,
       options: {
         data: { name },
+        emailRedirectTo,
       },
     });
 
