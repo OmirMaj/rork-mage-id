@@ -17,7 +17,7 @@
 import React, { useMemo } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, Pressable,
-  ActionSheetIOS, Platform, Share, Clipboard, Alert,
+  ActionSheetIOS, Platform, Share, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -36,6 +36,7 @@ import { formatEntityLabel } from '@/utils/entityResolver';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { EntityRef } from '@/types';
 import type { EntityStore } from '@/utils/entityResolver';
+import { copyToClipboard } from '@/utils/clipboard';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -99,19 +100,11 @@ export default function EntityActionSheet({
           Alert.alert('No link', 'This item doesn\u2019t have a shareable link yet.');
           return;
         }
-        try {
-          if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
-            await navigator.clipboard?.writeText(link);
-          } else {
-            // React Native Clipboard is deprecated but still bundled; matches
-            // the existing pattern in app/invoice.tsx and app/client-portal-setup.tsx.
-            Clipboard.setString(link);
-          }
-          if (Platform.OS !== 'web') {
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
-        } catch (err) {
-          console.log('[EntityActionSheet] copyLink failed:', err);
+        const ok = await copyToClipboard(link);
+        if (ok && Platform.OS !== 'web') {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        if (!ok) {
           Alert.alert('Copy failed', 'Could not copy link to clipboard.');
         }
         return;
@@ -123,9 +116,12 @@ export default function EntityActionSheet({
           if (Platform.OS === 'web') {
             if (typeof navigator !== 'undefined' && (navigator as any).share) {
               await (navigator as any).share({ title, text: body });
-            } else if (typeof navigator !== 'undefined') {
-              await navigator.clipboard?.writeText(body);
-              Alert.alert('Copied', 'Share text copied to clipboard.');
+            } else {
+              const ok = await copyToClipboard(body);
+              Alert.alert(
+                ok ? 'Copied' : 'Copy failed',
+                ok ? 'Share text copied to clipboard.' : 'Could not copy share text.',
+              );
             }
           } else {
             await Share.share({ message: body, title });

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, Share, Clipboard,
+  Alert, Platform, KeyboardAvoidingView, Modal, Share,
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,6 +57,7 @@ function mapInvoiceStatus(s: InvoiceStatus): InvoiceStatus {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { copyToClipboard } from '@/utils/clipboard';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -677,19 +678,14 @@ function InvoiceInner() {
     }
   }, [existingInvoice, project, balanceDue, contacts, settings, updateInvoice]);
 
-  const handleCopyPayLink = useCallback(() => {
+  const handleCopyPayLink = useCallback(async () => {
     if (!existingInvoice?.payLinkUrl) return;
-    try {
-      // RN's legacy Clipboard API is deprecated but still ships in Expo Go and
-      // avoids pulling in @react-native-clipboard/clipboard. Matches the
-      // pattern already used in client-portal-setup.tsx.
-      Clipboard.setString(existingInvoice.payLinkUrl);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Copied', 'Payment link copied to clipboard.');
-    } catch (err) {
-      console.error('[Invoice] Copy pay link failed:', err);
-      Alert.alert('Copy Failed', 'Could not copy to clipboard.');
-    }
+    const ok = await copyToClipboard(existingInvoice.payLinkUrl);
+    if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      ok ? 'Copied' : 'Copy Failed',
+      ok ? 'Payment link copied to clipboard.' : 'Could not copy to clipboard.',
+    );
   }, [existingInvoice]);
 
   const handleSharePayLink = useCallback(async () => {

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput,
-  Alert, Platform, Share, Clipboard,
+  Alert, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import type { SubPortalLink } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
+import { copyToClipboard } from '@/utils/clipboard';
+import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
 import {
   buildSubPortalSnapshot, buildSubPortalUrl,
 } from '@/utils/subPortalSnapshot';
@@ -154,28 +156,28 @@ function SubPortalSetupScreenInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [link, upsertSubPortalLink]);
 
+  // Send modal state — replaces the native-only Share.share() path so
+  // web users can actually dispatch the link instead of seeing nothing.
+  const [showSendModal, setShowSendModal] = useState(false);
+
+  const shareMessage = useMemo(
+    () => `Hi ${sub?.contactName || sub?.companyName || ''}, here's your sub portal for ${project?.name ?? 'the project'}:\n\n${portalUrl}\n\nYou can review your scope and submit invoices from this page — no login needed.`,
+    [sub?.contactName, sub?.companyName, project?.name, portalUrl],
+  );
+
   const handleCopy = useCallback(async () => {
-    try {
-      Clipboard.setString(portalUrl);
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Copied', 'The sub portal link has been copied.');
-    } catch {
-      Alert.alert('Copy failed', 'Could not copy the link.');
-    }
+    const ok = await copyToClipboard(portalUrl);
+    if (Platform.OS !== 'web' && ok) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      ok ? 'Copied' : 'Copy failed',
+      ok ? 'The sub portal link has been copied.' : 'Could not copy the link.',
+    );
   }, [portalUrl]);
 
-  const handleShare = useCallback(async () => {
-    try {
-      await Share.share({
-        message: `Hi ${sub?.contactName || sub?.companyName || ''}, here's your sub portal for ${project?.name ?? 'the project'}:\n\n${portalUrl}\n\nYou can review your scope and submit invoices from this page — no login needed.`,
-        url: portalUrl,
-        title: `Sub portal — ${project?.name ?? 'Project'}`,
-      });
-      persist({ lastSharedAt: new Date().toISOString() });
-    } catch {
-      // user cancelled — ignore
-    }
-  }, [portalUrl, sub, project, persist]);
+  const handleShare = useCallback(() => {
+    setShowSendModal(true);
+    persist({ lastSharedAt: new Date().toISOString() });
+  }, [persist]);
 
   // Email-the-link path. Routes through the send-email edge function
   // (Resend) so the invite arrives from noreply@mageid.app with the
@@ -610,6 +612,13 @@ function SubPortalSetupScreenInner() {
           )}
         </View>
       </ScrollView>
+      <SendPortalLinkModal
+        visible={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        subject={`Sub portal — ${project?.name ?? 'Project'}`}
+        message={shareMessage}
+        link={portalUrl}
+      />
     </>
   );
 }
