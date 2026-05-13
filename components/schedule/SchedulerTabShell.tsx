@@ -27,7 +27,6 @@ import { DashboardTab } from './tabs/DashboardTab';
 import { TabComingSoon } from './tabs/TabComingSoon';
 import { ListTab } from './tabs/ListTab';
 import { WorkloadTab } from './tabs/WorkloadTab';
-import { TimelineTab } from './tabs/TimelineTab';
 import { useResponsive } from '@/utils/useResponsive';
 import type { ProjectSchedule, ScheduleTask, ProjectResource } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
@@ -38,9 +37,11 @@ export type SchedulerTabKey =
   | 'list'
   | 'calendar'
   | 'workload'
-  | 'dashboard'
-  | 'timeline';
+  | 'dashboard';
 
+// Timeline tab was retired — it duplicated the Gantt tab's slim-mode
+// rendering and didn't earn its slot in the tab strip. If a one-page
+// stakeholder view is needed later, surface it through Export instead.
 const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
   { key: 'gantt',     label: 'Gantt' },
   { key: 'board',     label: 'Board' },
@@ -48,7 +49,6 @@ const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
   { key: 'calendar',  label: 'Calendar',  soon: true },
   { key: 'workload',  label: 'Workload' },
   { key: 'dashboard', label: 'Dashboard' },
-  { key: 'timeline',  label: 'Timeline' },
 ];
 
 export interface SchedulerTabShellProps {
@@ -185,7 +185,7 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
     { key: 'board',     icon: '⊞', label: 'Board' },
     { key: 'dashboard', icon: '◐', label: 'Dash' },
   ];
-  const OVERFLOW: SchedulerTabKey[] = ['list', 'calendar', 'workload', 'timeline'];
+  const OVERFLOW: SchedulerTabKey[] = ['list', 'calendar', 'workload'];
   const isOverflowActive = OVERFLOW.includes(active);
 
   return (
@@ -317,18 +317,6 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
 
   if (key === 'workload') {
     return <WorkloadTab resources={props.resources} />;
-  }
-
-  if (key === 'timeline') {
-    return (
-      <TimelineTab
-        projectStartDate={props.projectStartDate}
-        cpm={props.utilsCpm}
-        onEdit={props.onEdit}
-        focusedTaskId={props.focusedTaskId}
-        onFocusTask={props.onFocusTask}
-      />
-    );
   }
 
   if (key === 'dashboard') {

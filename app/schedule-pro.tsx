@@ -32,7 +32,7 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic } from 'lucide-react-native';
+import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, Plus } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -991,7 +991,12 @@ function ScheduleProScreenInner() {
             <PaneBtn icon={Users} label="Lanes" active={paneMode === 'resources'} onPress={() => setPaneMode('resources')} />
           </View>
 
-          {/* AI first — the headline feature. Highlighted style so it stands out. */}
+          {/* Add Task — kept FIRST so it's the most discoverable action.
+              Highlighted so it visually anchors the toolbar. Phase 27 hid
+              the only Add-Task affordance inside GridPane's bottom bar,
+              which made the primary action hard to find. */}
+          <HeaderBtn icon={Plus} label="Add Task" onPress={handleAddTask} highlighted />
+          {/* AI second — the headline value-prop. Highlighted so it stands out. */}
           <HeaderBtn icon={Sparkles} label="AI" onPress={() => setShowAI(true)} highlighted />
           <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
