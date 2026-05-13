@@ -104,6 +104,12 @@ export interface GridPaneProps {
   /** 5 = workdays only, 7 = calendar days. */
   workingDaysPerWeek: number;
   /**
+   * Phase 27 carryover — passed through from GanttTab/ListTab so the grid can
+   * shade non-working dates if/when the calendar-grid mode adds visual support.
+   * Currently accepted but unused on this branch.
+   */
+  nonWorkingDates?: string[];
+  /**
    * Split-view mode. The gantt on the right already shows Start / Finish /
    * Float visually, so repeating them as text columns makes the layout feel
    * cramped and forces users to hunt for the same data twice. When

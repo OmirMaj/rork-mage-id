@@ -1049,6 +1049,7 @@ function ScheduleProScreenInner() {
               resources={project?.schedule?.resources}
               projectStartDate={projectStartDate}
             />
+          </View>
         </View>
       ) : (
         <View style={styles.tabShellBody}>
