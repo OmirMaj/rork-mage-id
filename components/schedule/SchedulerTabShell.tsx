@@ -90,51 +90,55 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
   if (bp === 'phone') {
     return (
       <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
-        <SchedulerHeader
-          projectName={props.projectName}
-          onExportPress={props.onExportPress}
-          onBaselinePress={props.onBaselinePress}
-        />
-        <View style={styles.body}>
-          {renderTab(active, props)}
+        <View style={styles.shellRoot}>
+          <SchedulerHeader
+            projectName={props.projectName}
+            onExportPress={props.onExportPress}
+            onBaselinePress={props.onBaselinePress}
+          />
+          <View style={styles.body}>
+            {renderTab(active, props)}
+          </View>
+          <PhoneTabBar active={active} onChange={setActive} />
         </View>
-        <PhoneTabBar active={active} onChange={setActive} />
       </SchedulerProvider>
     );
   }
 
   return (
     <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
-      {/* Tab bar — horizontal scroll so it never wraps on narrow screens. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabBar}
-        style={styles.tabBarOuter}
-      >
-        {TABS.map(t => (
-          <Pressable
-            key={t.key}
-            onPress={() => setActive(t.key)}
-            style={styles.tab}
-            hitSlop={4}
-          >
-            <Text style={[styles.tabLabel, active === t.key && styles.tabLabelActive]}>
-              {t.label}{t.soon ? ' · soon' : ''}
-            </Text>
-            {active === t.key && <View style={styles.tabIndicator} />}
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.shellRoot}>
+        {/* Tab bar — horizontal scroll so it never wraps on narrow screens. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabBar}
+          style={styles.tabBarOuter}
+        >
+          {TABS.map(t => (
+            <Pressable
+              key={t.key}
+              onPress={() => setActive(t.key)}
+              style={styles.tab}
+              hitSlop={4}
+            >
+              <Text style={[styles.tabLabel, active === t.key && styles.tabLabelActive]}>
+                {t.label}{t.soon ? ' · soon' : ''}
+              </Text>
+              {active === t.key && <View style={styles.tabIndicator} />}
+            </Pressable>
+          ))}
+        </ScrollView>
 
-      <SchedulerHeader
-        projectName={props.projectName}
-        onExportPress={props.onExportPress}
-        onBaselinePress={props.onBaselinePress}
-      />
+        <SchedulerHeader
+          projectName={props.projectName}
+          onExportPress={props.onExportPress}
+          onBaselinePress={props.onBaselinePress}
+        />
 
-      <View style={styles.body}>
-        {renderTab(active, props)}
+        <View style={styles.body}>
+          {renderTab(active, props)}
+        </View>
       </View>
     </SchedulerProvider>
   );
@@ -362,6 +366,12 @@ function TimelinePreviewMock() {
 }
 
 const styles = StyleSheet.create({
+  // The single flex:1 column wrapper around the tab-bar + header + body.
+  // Without this, SchedulerProvider (a pure Context.Provider with no View
+  // of its own) leaks its 3 children as direct siblings of whatever flex-row
+  // container the shell is mounted into — they compete for horizontal space
+  // and the body collapses to whatever the tab bar + header didn't claim.
+  shellRoot: { flex: 1 },
   tabBarOuter: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
