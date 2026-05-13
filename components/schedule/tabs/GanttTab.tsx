@@ -16,7 +16,7 @@
 // InteractiveGantt is rendered, with `mode="phone"` so it knows to swap
 // to its sticky-task-column / horizontal-scroll layout.
 
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Pressable, Text } from 'react-native';
 import GridPaneDefault from '../GridPane';
 import InteractiveGanttDefault from '../InteractiveGantt';
 import { useScheduler } from '../SchedulerContext';
@@ -86,6 +86,15 @@ export function GanttTab({
           compact={false}
           mode="phone"
         />
+        <Pressable
+          onPress={onAddTask}
+          style={styles.fab}
+          testID="gantt-phone-fab"
+          accessibilityLabel="Add task"
+          accessibilityRole="button"
+        >
+          <Text style={styles.fabIcon}>＋</Text>
+        </Pressable>
       </View>
     );
   }
@@ -138,4 +147,27 @@ const styles = StyleSheet.create({
   },
   gantt: { flex: 1 },
   phoneRoot: { flex: 1 },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 80,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.tradeColors.general,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 10,
+  },
+  fabIcon: {
+    fontSize: 26,
+    lineHeight: 28,
+    fontWeight: '300',
+    color: '#0B0D10',
+  },
 });
