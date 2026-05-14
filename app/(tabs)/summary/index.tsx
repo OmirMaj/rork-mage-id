@@ -15,6 +15,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
+import { SkeletonCard, Skeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { NavRow } from '@/components/NavRow';
 import CashFlowGlance from '@/components/CashFlowGlance';
@@ -202,9 +203,24 @@ export default function SummaryScreen() {
   }, [router]);
 
   if (isLoading) {
+    // Skeleton placeholders rendered in the same shape the populated
+    // Summary will take — large title, 4 stat tiles, 3 card rows. Feels
+    // like the screen is loading rather than the app has paused.
     return (
-      <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]}>
-        <ConstructionLoader size="lg" />
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 12 }]}>
+        <Skeleton width={180} height={32} radius={8} style={{ marginHorizontal: 20, marginTop: 4, marginBottom: 6 }} />
+        <Skeleton width={240} height={14} radius={6} style={{ marginHorizontal: 20, marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, paddingHorizontal: 12, marginBottom: 16 }}>
+          {[0, 1, 2, 3].map(i => (
+            <View key={i} style={{ flex: 1, minWidth: '46%' as any, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: themeColors.line, paddingVertical: 12, paddingHorizontal: 14, gap: 6 }}>
+              <Skeleton width={64} height={20} radius={6} />
+              <Skeleton width={88} height={11} radius={4} />
+            </View>
+          ))}
+        </View>
+        <SkeletonCard style={{ marginHorizontal: 16, marginBottom: 12 }} />
+        <SkeletonCard style={{ marginHorizontal: 16, marginBottom: 12 }} />
+        <SkeletonCard style={{ marginHorizontal: 16 }} />
       </View>
     );
   }

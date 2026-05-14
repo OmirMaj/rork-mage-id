@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
   Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
+  Wallet,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -38,7 +39,13 @@ import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
 import { HelpFab } from '@/components/HelpFab';
 import MageRefreshControl from '@/components/MageRefreshControl';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
+
+// Sticky-dismiss key for the proactive Stripe Connect home banner.
+// Versioned so we can re-show after a future revamp if needed.
+const STRIPE_BANNER_DISMISSED_KEY = 'mageid_home_stripe_banner_dismissed_v1';
 import { DemoSeedPickerModal } from '@/components/DemoSeedPickerModal';
 import type { DemoFlavor } from '@/utils/demoSeed';
 import { CreateMenu } from '@/components/CreateMenu';
@@ -71,7 +78,7 @@ export default function HomeScreen() {
   const { navigateTo } = useEntityNavigation();
   const { openSearch } = useSearch();
   const projectCtx = useProjects();
-  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices } = projectCtx;
+  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices, settings } = projectCtx;
   const { user } = useAuth();
   // "Try a sample project" — un-gated as of the explainability refresh.
   // Original design had this owner-only because we worried users would
@@ -113,9 +120,62 @@ export default function HomeScreen() {
     [projects],
   );
 
+  // Company info checklist signal — "done" when the GC has at least
+  // a company name + one contact channel. Pre-fix branding info wasn't
+  // on the checklist; sending an invoice with empty branding was the
+  // single most embarrassing first-impression bug we shipped.
+  const companyInfoDone = useMemo(() => {
+    const b = settings?.branding;
+    if (!b) return false;
+    const hasName = !!b.companyName?.trim();
+    const hasContact = !!(b.email?.trim() || b.phone?.trim());
+    return hasName && hasContact;
+  }, [settings?.branding]);
+
+  // Stripe Connect status — feeds the checklist + the proactive home
+  // banner. Polled lazily (10 min stale time) since the value rarely
+  // changes; we don't need to hammer the connect-status edge function.
+  const stripeStatusQ = useQuery({
+    queryKey: ['stripeConnectStatus', user?.id],
+    enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      if (!user?.id) return { status: 'none' as const };
+      const r = await fetchStripeConnectStatus(user.id);
+      return { status: (r.success && r.status) ? r.status : 'none' as const };
+    },
+  });
+  const stripeConnected = stripeStatusQ.data?.status === 'connected';
+
   // The picker visibility — empty-state CTA toggles it open; user picks
   // small or large; we call the actual seed.
   const [showDemoPicker, setShowDemoPicker] = useState(false);
+
+  // Stripe Connect banner dismissed state. Loaded once on mount; null
+  // means "still loading," false means "show," true means "hide forever."
+  const [stripeBannerDismissed, setStripeBannerDismissed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(STRIPE_BANNER_DISMISSED_KEY).then(v => {
+      if (!cancelled) setStripeBannerDismissed(v === '1');
+    }).catch(() => { if (!cancelled) setStripeBannerDismissed(false); });
+    return () => { cancelled = true; };
+  }, []);
+  const handleDismissStripeBanner = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setStripeBannerDismissed(true);
+    void AsyncStorage.setItem(STRIPE_BANNER_DISMISSED_KEY, '1');
+  }, []);
+  // Show the proactive Stripe Connect banner when: (a) the user has at
+  // least one project (so the nudge isn't premature), (b) they're not
+  // already connected, (c) they haven't dismissed the banner. The OK-
+  // -checklist also surfaces Stripe as a step, but the checklist can be
+  // dismissed or auto-hidden; the banner is the durable "you missed
+  // this" nudge per the strategic audit.
+  const showStripeBanner =
+    stripeBannerDismissed === false
+    && projects.length >= 1
+    && stripeStatusQ.data?.status === 'none';
 
   const handleSeedFlavor = useCallback(async (flavor: DemoFlavor) => {
     setShowDemoPicker(false);
@@ -609,15 +669,52 @@ export default function HomeScreen() {
             {/* (SmartInbox moved above the stats — see line ~346 — so
                 "what needs you right now" reads first.) */}
 
+            {/* Proactive Stripe Connect banner. Shows when the GC has a
+                project but hasn't connected Stripe — the audit's #1
+                friction point ("first time you hit Send invoice, you
+                get blocked"). Houzz Pro / Buildertrend both surface
+                this in onboarding; we surface it on Home until they
+                act on it. Dismissable per the audit doc. */}
+            {showStripeBanner && (
+              <TouchableOpacity
+                style={styles.stripeBanner}
+                onPress={() => router.push('/payments-setup' as never)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Connect Stripe to get paid"
+                testID="stripe-connect-home-banner"
+              >
+                <View style={styles.stripeBannerIcon}>
+                  <Wallet size={20} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.stripeBannerTitle}>Get paid in one tap</Text>
+                  <Text style={styles.stripeBannerSub}>
+                    Connect Stripe so clients can pay invoices from their phone. Takes 2 minutes.
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#FFFFFF" style={{ opacity: 0.85 }} />
+                <TouchableOpacity
+                  onPress={handleDismissStripeBanner}
+                  hitSlop={8}
+                  style={styles.stripeBannerClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss"
+                >
+                  <X size={14} color="#FFFFFF" />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            )}
+
             {/* 5-step onboarding checklist — auto-hides at 4/5 done OR
                 when explicitly dismissed. New users always see it; veteran
                 users never do. */}
             <OnboardingChecklist
+              companyInfoDone={companyInfoDone}
               projectCount={projects.length}
               estimateCount={estimateCount}
+              stripeConnected={stripeConnected}
               invoiceCount={invoices.length}
-              takeoffRun={milestones.takeoffRun}
-              voiceUsed={milestones.voiceUsed}
             />
 
             {/* AI summary + Quick Field Update moved below the project
@@ -913,6 +1010,53 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '700' as const,
     color: t.text,
     letterSpacing: -0.5,
+  },
+  // Proactive Stripe Connect banner. Filled accent for unmissability —
+  // this is the highest-leverage Day-1 nudge in the app.
+  stripeBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingRight: 32, // room for the absolute-positioned close button
+    backgroundColor: t.accent,
+    borderRadius: Tokens.radius.lg,
+    shadowColor: t.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 4,
+    position: 'relative' as const,
+  },
+  stripeBannerIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  stripeBannerTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: -0.1,
+  },
+  stripeBannerSub: {
+    fontSize: Type.caption1.fontSize,
+    color: 'rgba(255,255,255,0.88)',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  stripeBannerClose: {
+    position: 'absolute' as const,
+    top: 8, right: 8,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   statsSection: {
     paddingHorizontal: 20,

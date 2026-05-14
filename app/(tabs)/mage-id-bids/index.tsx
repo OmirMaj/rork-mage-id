@@ -11,8 +11,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, RefreshControl,
+  RefreshControl,
 } from 'react-native';
+import { SkeletonCard } from '@/components/Skeleton';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -267,8 +268,13 @@ export default function MageIdBidsTabScreen() {
         }
       >
         {isLoading && (
-          <View style={styles.loading}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+          // Skeleton RFP cards shaped like the real cards — image strip
+          // up top + 2 text lines + footer. Premium-feel during fetch
+          // instead of a spinner on empty space.
+          <View style={{ gap: 12, marginTop: 4 }}>
+            {[0, 1, 2, 3].map(i => (
+              <SkeletonCard key={i} style={{ height: 220 }} />
+            ))}
           </View>
         )}
 

@@ -1,19 +1,34 @@
-// OnboardingChecklist — 5-step "do this next" panel on the home screen.
+// OnboardingChecklist — "do this next" panel on the home screen.
 //
-// Sits between the auto-opened Tutorial modal (deep dive) and the empty
-// state (zero context). The user has just signed up; they need a clear
-// list of concrete next actions, not a 19-step modal.
+// V2 (May 2026): items rebuilt around the canonical first-week activation
+// journey from the strategic audit: company info → first project → first
+// estimate → Stripe Connect → first invoice. Pre-V2 the items mixed user
+// workflows ("create project", "send invoice") with feature trials ("try
+// voice", "run takeoff") which the audit identified as a dilution of the
+// activation funnel. Houzz Pro / Buildertrend / JobTread all use a 5-6
+// step "core revenue workflow" checklist; this matches that pattern.
+//
+// Dismissed-key version bumped to v2 so any users who dismissed v1 see
+// the new list — by the time they need v2 (Stripe Connect proactive
+// nudge), the user-facing reason has shifted.
+//
+// Why these five and not others:
+//   1. Company info  — required for any PDF / email to look legit
+//   2. First project — universal activation event across construction SaaS
+//   3. First estimate — first piece of value the AI delivers
+//   4. Stripe Connect — Houzz Pro, Buildertrend bundle this in onboarding;
+//                      we previously deferred it until the GC hit an
+//                      invoice "send" wall, which was the #1 friction
+//                      point in the audit
+//   5. First invoice — the actual business outcome
 //
 // Items reflect competitor research — Linear, Notion, Stripe all use
 // progress-tracked checklists for new users because they convert ~3x
 // better than a single "Get started" CTA. We track completion via real
-// state (project count, has-an-estimate, has-an-invoice, has-an-AI-run)
-// — not flags — so the user can't accidentally check things off without
-// doing them, and the checklist auto-clears when 4 of 5 are real.
-//
-// Dismissable: tapping the X persists `mageid_onboarding_checklist_dismissed`
-// so the panel never returns. We never re-show even if the user creates
-// 5 more projects — once they've earned the right to dismiss, respect it.
+// state (settings.branding filled? project count? stripe connected?
+// estimate count? invoice count?) — not flags — so the user can't
+// accidentally check things off, and the checklist auto-clears when
+// 4 of 5 are real.
 
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform } from 'react-native';
@@ -21,7 +36,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
   CheckCircle2, Circle, ArrowRight, X, Sparkles, FolderPlus, Calculator,
-  Receipt, Mic, Ruler,
+  Receipt, Building2, Wallet,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -30,7 +45,7 @@ import { useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-const DISMISSED_KEY = 'mageid_onboarding_checklist_dismissed_v1';
+const DISMISSED_KEY = 'mageid_onboarding_checklist_dismissed_v2';
 /** Hide the panel automatically when at least this many items are done.
  *  4/5 means a user who's run a takeoff + sent an invoice + created a
  *  project + done one of {estimate / voice} stops seeing it without
@@ -38,16 +53,18 @@ const DISMISSED_KEY = 'mageid_onboarding_checklist_dismissed_v1';
 const AUTO_HIDE_AT_DONE = 4;
 
 export interface OnboardingChecklistProps {
-  /** Live counts from ProjectContext / state — drives "done" detection. */
+  /** Live state from ProjectContext + settings + Stripe status — drives
+   *  "done" detection. Each prop maps to one of the 5 canonical activation
+   *  events: see file header for the rationale. */
+  companyInfoDone: boolean;
   projectCount: number;
   estimateCount: number;
+  stripeConnected: boolean;
   invoiceCount: number;
-  takeoffRun: boolean;
-  voiceUsed: boolean;
 }
 
 interface ChecklistItem {
-  key: 'project' | 'estimate' | 'takeoff' | 'invoice' | 'voice';
+  key: 'companyInfo' | 'project' | 'estimate' | 'stripe' | 'invoice';
   title: string;
   done: boolean;
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -56,7 +73,7 @@ interface ChecklistItem {
 }
 
 function OnboardingChecklistImpl({
-  projectCount, estimateCount, invoiceCount, takeoffRun, voiceUsed,
+  companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount,
 }: OnboardingChecklistProps) {
   const router = useRouter();
   const { colors } = useTheme();
@@ -92,6 +109,14 @@ function OnboardingChecklistImpl({
 
   const items: ChecklistItem[] = useMemo(() => [
     {
+      key: 'companyInfo',
+      title: 'Add your company info',
+      done: companyInfoDone,
+      Icon: Building2,
+      href: '/company-profile',
+      cta: 'Add info',
+    },
+    {
       key: 'project',
       title: 'Create your first project',
       done: projectCount > 0,
@@ -101,37 +126,29 @@ function OnboardingChecklistImpl({
     },
     {
       key: 'estimate',
-      title: 'Build an estimate',
+      title: 'Build your first estimate',
       done: estimateCount > 0,
       Icon: Calculator,
-      href: '/(tabs)/estimate',
-      cta: 'Open estimator',
+      href: '/estimate-wizard',
+      cta: 'Quick estimate',
     },
     {
-      key: 'takeoff',
-      title: 'Run an AI takeoff on a PDF',
-      done: takeoffRun,
-      Icon: Ruler,
-      href: '/takeoff',
-      cta: 'Try takeoff',
+      key: 'stripe',
+      title: 'Connect Stripe to get paid',
+      done: stripeConnected,
+      Icon: Wallet,
+      href: '/payments-setup',
+      cta: 'Connect',
     },
     {
       key: 'invoice',
-      title: 'Send an invoice',
+      title: 'Send your first invoice',
       done: invoiceCount > 0,
       Icon: Receipt,
       href: '/invoice',
       cta: 'New invoice',
     },
-    {
-      key: 'voice',
-      title: 'Try voice — tap any mic icon and talk',
-      done: voiceUsed,
-      Icon: Mic,
-      href: '/(tabs)/(home)',
-      cta: 'Got it',
-    },
-  ], [projectCount, estimateCount, takeoffRun, invoiceCount, voiceUsed]);
+  ], [companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount]);
 
   const doneCount = items.filter(i => i.done).length;
   const total = items.length;
@@ -152,13 +169,6 @@ function OnboardingChecklistImpl({
 
   const handleTap = useCallback((item: ChecklistItem) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    if (item.key === 'voice') {
-      // No actual destination for "try voice" — the mic is everywhere,
-      // they'll find it. Mark it visually-completed by treating the tap
-      // as good faith. We don't persist a "voiceUsed" flag from this
-      // tap; that comes from the actual VoiceCaptureModal usage signal.
-      return;
-    }
     router.push(item.href as never);
   }, [router]);
 
