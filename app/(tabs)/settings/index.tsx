@@ -121,9 +121,12 @@ export default function SettingsScreen() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
     const saved = settings.themeColors;
-    if (!saved) return 'forest';
+    // Default to MAGE Orange (brand) instead of the legacy forest green.
+    // Users who picked Forest still keep it via the match-by-primary
+    // lookup below. Falls back to 'mage' for any unrecognized primary.
+    if (!saved) return 'mage';
     const match = THEME_PRESETS.find(t => t.primary === saved.primary);
-    return match?.id ?? 'forest';
+    return match?.id ?? 'mage';
   });
   const [biometricsEnabled, setBiometricsEnabled] = useState(settings.biometricsEnabled ?? false);
 

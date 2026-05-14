@@ -811,6 +811,11 @@ export interface ThemeColors {
 }
 
 export const THEME_PRESETS: { id: string; label: string; primary: string; accent: string }[] = [
+  // MAGE Orange — the brand default. Listed first so the Settings theme
+  // picker shows it as option #1; matches the icon-circle / accent
+  // treatment on Construction AI, AI Punch, and every CTA. Forest is
+  // still available for anyone who specifically wants green.
+  { id: 'mage', label: 'MAGE Orange', primary: '#FF6A1A', accent: '#FF8533' },
   { id: 'forest', label: 'Forest Green', primary: '#1A6B3C', accent: '#FF9500' },
   { id: 'ocean', label: 'Ocean Blue', primary: '#0A5EB0', accent: '#FF6B35' },
   { id: 'slate', label: 'Slate', primary: '#3D4F5F', accent: '#E8A838' },

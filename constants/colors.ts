@@ -88,10 +88,17 @@ export function getColorTheme(): 'light' | 'dark' {
 }
 
 export const Colors = {
-  get primary() { return _customPrimary || '#1A6B3C'; },
-  get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#2A9055'; },
-  get primaryDark() { return _customPrimary ? derivePrimaryDark(_customPrimary) : '#0F4526'; },
-  get accent() { return _customAccent || '#FF9500'; },
+  // Default brand is MAGE Orange. The forest-green that used to be the
+  // default is still available as a THEME_PRESETS option for users who
+  // explicitly want it. Anywhere downstream using `Colors.primary` now
+  // gets the brand orange unless the user has selected a theme that
+  // calls setCustomColors() with a different primary.
+  get primary() { return _customPrimary || '#FF6A1A'; },
+  get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#FF8533'; },
+  get primaryDark() { return _customPrimary ? derivePrimaryDark(_customPrimary) : '#C44A0F'; },
+  // Accent paired with the brand-orange primary. Same hex as the orange
+  // ThemeColors.accent so the two color systems stay aligned.
+  get accent() { return _customAccent || '#FF6A1A'; },
   accentLight: '#FFCC00',
   accentMuted: '#FFE0A0',
 
