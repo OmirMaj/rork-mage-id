@@ -1178,6 +1178,55 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Manage Subscription deep-link — opens the native iOS/Android
+            subscription management UI directly. The voice-of-customer
+            audit (2026-05-14) flagged the "couldn't cancel" trap as the
+            single most exploitable competitor weakness (Houzz Pro,
+            Contractor Foreman). One-tap cancellation is how we advertise
+            the safety, not just describe it in an FAQ. */}
+        {tier !== 'free' && (
+          <View style={styles.group}>
+            <TouchableOpacity
+              style={styles.row}
+              onPress={() => {
+                // Apple's documented universal link to the user's subscription
+                // management screen. itms-apps:// opens straight into Settings →
+                // Apple ID → Subscriptions on iOS; Play handles the equivalent
+                // via the play.google.com URL.
+                const url = Platform.OS === 'ios'
+                  ? 'itms-apps://apps.apple.com/account/subscriptions'
+                  : Platform.OS === 'android'
+                    ? 'https://play.google.com/store/account/subscriptions'
+                    : 'https://apps.apple.com/account/subscriptions';
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                Linking.openURL(url).catch(() => {
+                  Alert.alert(
+                    'Manage Subscription',
+                    Platform.OS === 'ios'
+                      ? 'Open Settings → Apple ID → Subscriptions to manage your MAGE ID plan.'
+                      : 'Open Play Store → Subscriptions to manage your MAGE ID plan.',
+                  );
+                });
+              }}
+              activeOpacity={0.6}
+              testID="manage-subscription-link"
+              accessibilityRole="button"
+              accessibilityLabel="Manage subscription in app store"
+            >
+              <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
+                <Wallet size={14} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>Manage Subscription</Text>
+                <Text style={[styles.rowLabel, { fontSize: 11, color: themeColors.textMuted, fontWeight: '400' as const, marginTop: 2 }]}>
+                  Cancel anytime in the {Platform.OS === 'android' ? 'Play Store' : 'App Store'} — no support call needed
+                </Text>
+              </View>
+              <ChevronRight size={16} color={themeColors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <Text style={styles.sectionHeader}>HELP & SUPPORT</Text>
         <View style={styles.group}>
           <TouchableOpacity
