@@ -241,17 +241,17 @@ export default function DocumentsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
-        {/* Header note — explains this is a unified read-only view. The
-            actual write paths for each doc type live elsewhere
-            (coi-vault, permits, submittal, aia-pay-app); tapping a card
-            routes there. */}
-        <View style={{
-          marginHorizontal: 16, marginTop: 12, padding: 12,
-          backgroundColor: Colors.fillSecondary, borderRadius: 12,
-          borderWidth: 1, borderColor: themeColors.line,
-        }}>
-          <Text style={{ fontSize: 13, color: themeColors.textSecondary, lineHeight: 18 }}>
-            All documents across your projects in one view. Tap any card to open it in its home screen for editing.
+        {/* Centered icon-circle hero — same look as Construction AI,
+            AI Punch, Reports. Replaces the small explainer note that
+            used to live at the top so the screen has the same visual
+            anchor as the rest of the app. */}
+        <View style={styles.docsHero}>
+          <View style={styles.docsHeroIcon}>
+            <FileText size={26} color={themeColors.accent} />
+          </View>
+          <Text style={styles.docsHeroTitle}>Documents</Text>
+          <Text style={styles.docsHeroSub}>
+            Every contract, COI, permit, submittal, and pay-app across your projects — in one feed. Tap any card to open it where it lives.
           </Text>
         </View>
         <View style={styles.alertsRow}>
@@ -339,6 +339,15 @@ export default function DocumentsScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  docsHero: { alignItems: 'center' as const, gap: 6, marginTop: 12, marginBottom: 18, paddingHorizontal: 16 },
+  docsHeroIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: t.accent + '14',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    marginBottom: 6,
+  },
+  docsHeroTitle: { fontSize: 24, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  docsHeroSub: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' as const, lineHeight: 20, paddingHorizontal: 8 },
   alertsRow: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
   alertCard: {
     flexDirection: 'row',

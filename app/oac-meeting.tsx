@@ -408,11 +408,17 @@ function OACMeetingInner() {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
-          {/* Title row */}
-          <View style={styles.titleBlock}>
+          {/* Centered icon-circle hero — matches the new design language so
+              the OAC meeting screen reads as a sibling of the AI screens.
+              Keeps the existing eyebrow / project / date structure but
+              promotes it to the premium centered-hero treatment. */}
+          <View style={styles.oacHero}>
+            <View style={styles.oacHeroIcon}>
+              <Users size={26} color={themeColors.accent} />
+            </View>
             <Text style={styles.eyebrow}>OAC Meeting #{active.number}</Text>
-            <Text style={styles.title}>{project.name}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={styles.oacHeroTitle}>{project.name}</Text>
+            <Text style={styles.oacHeroSub}>
               {new Date(active.scheduledAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </Text>
           </View>
@@ -883,6 +889,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent, letterSpacing: 0.4 },
   titleBlock: { marginBottom: 16 },
+  oacHero: { alignItems: 'center' as const, gap: 4, marginBottom: 20, paddingHorizontal: 8 },
+  oacHeroIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: t.accent + '14',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    marginBottom: 8,
+  },
+  oacHeroTitle: { fontSize: 24, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3, textAlign: 'center' as const },
+  oacHeroSub: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' as const },
 
   card: {
     backgroundColor: t.surface,

@@ -388,6 +388,19 @@ export default function ContractScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+        {/* Centered icon-circle hero — matches the AI-feature screens
+            (Construction AI, AI Punch, Payment Predictions) so the
+            contract screen reads as part of the same design language. */}
+        <View style={styles.contractHero}>
+          <View style={styles.contractHeroIcon}>
+            <FileSignature size={26} color={themeColors.accent} />
+          </View>
+          <Text style={styles.contractHeroTitle}>Construction Agreement</Text>
+          <Text style={styles.contractHeroSub}>
+            The signed contract between you and the homeowner. Lock the scope, payment milestones, and warranty terms before work starts.
+          </Text>
+        </View>
+
         {contract.status !== 'void' && (
           <View style={{ marginBottom: 12 }}>
             <StatusPipeline
@@ -848,6 +861,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
   title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.4, marginTop: 4 },
+  // Centered icon-circle hero — mirrors construction-ai.
+  contractHero: { alignItems: 'center' as const, gap: 6, marginBottom: 18, paddingHorizontal: 8 },
+  contractHeroIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: themeColors.accent + '14',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    marginBottom: 6,
+  },
+  contractHeroTitle: { fontSize: 24, fontWeight: '700' as const, color: themeColors.text, letterSpacing: -0.3 },
+  contractHeroSub: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted, textAlign: 'center' as const, lineHeight: 20, paddingHorizontal: 8 },
 
   pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
   pillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },

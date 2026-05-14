@@ -117,6 +117,18 @@ export default function ReportsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+        {/* Centered icon-circle hero — matches the new design language so
+            Reports reads as a sibling of the AI-feature screens. */}
+        <View style={styles.reportsHero}>
+          <View style={styles.reportsHeroIcon}>
+            <TrendingUp size={26} color={themeColors.accent} />
+          </View>
+          <Text style={styles.reportsHeroTitle}>Bank-Ready Reports</Text>
+          <Text style={styles.reportsHeroSub}>
+            WIP, profit margin, and A/R aging — auto-compiled across every project. Export to CSV or PDF in one tap.
+          </Text>
+        </View>
+
         {tab === 'wip'    && <WIPView    report={wip} />}
         {tab === 'profit' && <ProfitView profit={profit} />}
         {tab === 'aging'  && <AgingView  report={aging} />}
@@ -425,6 +437,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   eyebrow: { fontSize: 10, fontWeight: '800', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
   title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 2 },
+  reportsHero: { alignItems: 'center' as const, gap: 6, marginBottom: 18, paddingHorizontal: 8 },
+  reportsHeroIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: t.accent + '14',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    marginBottom: 6,
+  },
+  reportsHeroTitle: { fontSize: 24, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  reportsHeroSub: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' as const, lineHeight: 20, paddingHorizontal: 8 },
 
   tabRow: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
