@@ -373,17 +373,20 @@ export default function AiPunchScreen() {
           double-counted and produced a tall blank gap above the header. */}
       <View style={[styles.root, { paddingTop: 8 }]}>
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
-          {/* Hero / project context */}
+          {/* Hero — mirrors Construction AI's centered icon-circle pattern
+              (round 56px primary-tint circle + 24pt title + muted centered
+              subtitle). All AI feature screens share this look so the user
+              feels the same surface across the app. */}
           <View style={styles.hero}>
-            <Sparkles size={20} color={"#FF6A1A"} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>AI Punch from Photos</Text>
-              <Text style={styles.heroSub}>
-                {reviewMode
-                  ? `Review what AI found. Edit, save, or discard each item.`
-                  : `Pick up to 12 photos from this project. AI will turn them into a punch list — review, edit, save.`}
-              </Text>
+            <View style={styles.heroIconWrap}>
+              <Sparkles size={28} color={"#FF6A1A"} />
             </View>
+            <Text style={styles.heroTitle}>AI Punch from Photos</Text>
+            <Text style={styles.heroSub}>
+              {reviewMode
+                ? `Review what AI found. Edit, save, or discard each item.`
+                : `Pick up to 12 photos from this project. AI will turn them into a punch list — review, edit, save.`}
+            </Text>
           </View>
 
           {!reviewMode && (
@@ -616,9 +619,24 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: t.textMuted },
 
-  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 16, marginHorizontal: 16, marginTop: 8, backgroundColor: t.accent + '0F', borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.accent + '30' },
-  heroTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
-  heroSub: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 4, lineHeight: 18 },
+  hero: {
+    alignItems: 'center' as const,
+    marginTop: 8, marginBottom: 16,
+    paddingHorizontal: 20,
+    gap: 6,
+  },
+  heroIconWrap: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: t.accent + '14',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 6,
+  },
+  heroTitle: { fontSize: 24, fontWeight: '700' as const, color: t.text, letterSpacing: -0.3 },
+  heroSub: {
+    fontSize: Type.bodyCompact.fontSize, color: t.textMuted,
+    textAlign: 'center' as const, paddingHorizontal: 4, lineHeight: 20,
+  },
 
   section: { padding: 16, paddingBottom: 8 },
   sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 8 },

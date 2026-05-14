@@ -119,9 +119,21 @@ export default function WeeklySnapshotScreen() {
     const temps: number[] = [];
     const conditions = new Map<string, number>();
     for (const d of weekDfrs) {
-      const tStr = d.weather?.temperature?.toString().replace(/[^0-9.\-]/g, '');
-      const t = tStr ? parseFloat(tStr) : NaN;
-      if (Number.isFinite(t)) temps.push(t);
+      // The DFR's temperature field is a free-text string ("72°F",
+      // "72°F / 22°F", "high 72, low 22"). The old implementation
+      // stripped EVERY non-digit, which concatenated "72" and "22"
+      // into "7222" — that's the bug behind "7222°/5312°" in
+      // production. Now we pull each numeric substring individually
+      // and drop any value outside a sane ambient range so a typo
+      // or garbage string can't dominate the high/low.
+      const raw = d.weather?.temperature?.toString() ?? '';
+      const matches = raw.match(/-?\d+(?:\.\d+)?/g) ?? [];
+      for (const m of matches) {
+        const n = parseFloat(m);
+        if (Number.isFinite(n) && n >= -40 && n <= 130) {
+          temps.push(n);
+        }
+      }
       const c = (d.weather?.conditions || '').trim();
       if (c) conditions.set(c, (conditions.get(c) ?? 0) + 1);
     }
