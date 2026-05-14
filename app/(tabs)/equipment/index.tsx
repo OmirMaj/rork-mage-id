@@ -10,10 +10,14 @@ import {
   Truck, Plus, AlertTriangle, X, ChevronDown, Crown,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import EmptyState from '@/components/EmptyState';
 import type { EquipmentCategory } from '@/types';
 import { EQUIPMENT_CATEGORIES } from '@/types';
 import { formatMoney } from '@/utils/formatters';
@@ -32,6 +36,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 export default function EquipmentScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { equipment, addEquipment, getProject } = useProjects();
   const { isProOrAbove } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -130,21 +136,18 @@ export default function EquipmentScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
         {filteredEquipment.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Truck size={48} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>No equipment yet</Text>
-            <Text style={styles.emptyDesc}>
-              Track owned and rented gear so you can see daily rates, maintenance dates, and which job each piece is on.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyCtaBtn}
-              onPress={() => setShowAddModal(true)}
-              activeOpacity={0.85}
-            >
-              <Plus size={16} color={Colors.textOnPrimary} />
-              <Text style={styles.emptyCtaText}>Add equipment</Text>
-            </TouchableOpacity>
-          </View>
+          // Empty state promoted from the hand-rolled icon-and-text block
+          // to the shared premium EmptyState primitive (grid backdrop +
+          // halo pulse + secondary action). Same component the Home tab
+          // uses, so Equipment now reads as part of the same design
+          // language instead of an orphan.
+          <EmptyState
+            icon={<Truck size={40} color={themeColors.accent} strokeWidth={1.6} />}
+            title="Track your fleet"
+            message="Owned + rented gear in one list. See daily rates, maintenance schedule, and which job each piece is on."
+            actionLabel="Add equipment"
+            onAction={() => setShowAddModal(true)}
+          />
         ) : (
           filteredEquipment.map(equip => {
             const statusConfig = STATUS_CONFIG[equip.status] ?? STATUS_CONFIG.available;
@@ -284,46 +287,49 @@ export default function EquipmentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+// Theme-aware. Pre-fix this was a module-level StyleSheet.create that
+// baked Colors at load time → broken contrast in dark mode. Migrated
+// to useThemedStyles + ThemeColors parameter.
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.5,
     paddingHorizontal: 20,
     paddingTop: 4,
     marginBottom: 16,
   },
   statsRow: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     gap: 10,
     paddingHorizontal: 16,
     marginBottom: 16,
   },
   statCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    alignItems: 'center',
+    alignItems: 'center' as const,
     gap: 4,
   },
   statValue: {
     fontSize: 24,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
   },
   statLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   filterRow: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     gap: 8,
     paddingHorizontal: 16,
     marginBottom: 16,
@@ -335,69 +341,35 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   filterChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   filterChipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   filterChipTextActive: {
     color: '#fff',
   },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 32,
-    gap: 10,
-  },
-  emptyTitle: {
-    fontSize: Type.subheadline.fontSize,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  emptyDesc: {
-    fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: 320,
-  },
-  emptyCtaBtn: {
-    marginTop: 12,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
-  },
-  emptyCtaText: {
-    color: Colors.textOnPrimary,
-    fontWeight: '700' as const,
-    fontSize: Type.bodyCompact.fontSize,
-  },
   equipCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     marginBottom: 10,
     gap: 10,
   },
   equipCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 12,
   },
   equipIconWrap: {
     width: 40,
     height: 40,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '12',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: t.accent + '12',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   equipCardInfo: {
     flex: 1,
@@ -406,11 +378,11 @@ const styles = StyleSheet.create({
   equipName: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   equipMeta: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -422,24 +394,24 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
   },
   equipCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 10,
     paddingLeft: 52,
   },
   equipProject: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   equipRate: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   overdueBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -449,18 +421,18 @@ const styles = StyleSheet.create({
   overdueText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.error,
+    color: t.danger,
   },
   fab: {
-    position: 'absolute',
+    position: 'absolute' as const,
     right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.primary,
+    backgroundColor: t.accent,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -469,43 +441,43 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-end' as const,
   },
   modalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
-    maxHeight: '85%',
+    maxHeight: '85%' as const,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
     marginBottom: 16,
   },
   modalTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   fieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginBottom: 6,
     marginTop: 10,
   },
   input: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   typeRow: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     gap: 10,
     marginTop: 10,
   },
@@ -514,35 +486,35 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
-    alignItems: 'center',
+    alignItems: 'center' as const,
   },
   typeChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   typeChipText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   typeChipTextActive: {
     color: '#fff',
   },
   pickerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.surfaceAlt,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   pickerBtnText: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
     gap: 6,
     marginTop: 8,
   },
@@ -553,27 +525,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   catChipActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   catChipText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   catChipTextActive: {
     color: '#fff',
   },
   rowFields: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     gap: 10,
   },
   saveBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: 'center' as const,
     marginTop: 20,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -586,33 +558,33 @@ const styles = StyleSheet.create({
   },
   lockedContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
     paddingHorizontal: 40,
     gap: 16,
   },
   lockedIconWrap: {
     width: 80,
     height: 80,
-    borderRadius: Tokens.radius["2xl"],
-    backgroundColor: Colors.accent + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: Tokens.radius['2xl'],
+    backgroundColor: t.accent + '15',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     marginBottom: 8,
   },
   lockedTitle: {
     fontSize: 24,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   lockedDesc: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
-    textAlign: 'center',
+    color: t.textSecondary,
+    textAlign: 'center' as const,
     lineHeight: 22,
   },
   upgradeBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: t.accent,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,

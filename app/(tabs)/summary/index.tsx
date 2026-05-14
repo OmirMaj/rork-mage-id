@@ -241,8 +241,13 @@ export default function SummaryScreen() {
         </Text>
 
         <View style={styles.portfolioRow}>
-          <PortfolioStat styles={styles} label="Total Budget" value={formatMoneyShort(portfolio.budget)} tint={themeColors.accent} />
-          <PortfolioStat styles={styles} label="Outstanding" value={formatMoneyShort(portfolio.outstanding)} tint={themeColors.accent} />
+          {/* Semantic tints. Total Budget = neutral (it's just context).
+              Outstanding turns danger-red when > 0 so the eye actually
+              lands on the number that needs the GC's attention. Pre-fix
+              both stats were the same orange — competed for the same
+              attention with no signal of which one needed action. */}
+          <PortfolioStat styles={styles} label="Total Budget" value={formatMoneyShort(portfolio.budget)} tint={themeColors.text} />
+          <PortfolioStat styles={styles} label="Outstanding" value={formatMoneyShort(portfolio.outstanding)} tint={portfolio.outstanding > 0 ? themeColors.danger : themeColors.textMuted} />
           <PortfolioStat styles={styles} label="Open Punch" value={`${portfolio.punch}`} tint={themeColors.info} />
           <PortfolioStat styles={styles} label="At Risk" value={`${portfolio.risks}`} tint={portfolio.risks > 0 ? themeColors.danger : themeColors.success} />
         </View>
@@ -450,7 +455,9 @@ function Stat({ icon: Icon, label, value, tint, styles }: { icon: typeof DollarS
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   center: { alignItems: 'center' as const, justifyContent: 'center' as const },
-  heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
+  // Tab-header recipe: largeTitle / 700 / -0.5 letterSpacing. Same across
+  // every bottom tab so the eye doesn't relearn the hierarchy each tab.
+  heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
   subheading: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
   portfolioRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, paddingHorizontal: 12, gap: 8, marginBottom: 16 },
   portfolioStat: { flex: 1, minWidth: '46%' as any, backgroundColor: t.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },

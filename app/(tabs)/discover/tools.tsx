@@ -29,6 +29,7 @@ import {
   Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
   Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
   PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
+  Ruler, ScanLine, HardHat,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -74,16 +75,56 @@ export default function DiscoverToolsScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* AI Hub — marquee feature. Construction AI is the home for
-            DOB code check + AI assistance across the app. */}
+        {/* AI Hub — marquee features. Pre-fix this only surfaced
+            Construction AI; the audit found 4 other AI features that
+            were buried in project-detail (28 tiles) or unreachable
+            from the bottom nav entirely. Surfacing them here turns
+            them from "hidden gems" into discoverable wedge features
+            against competitors that don't have them. */}
         <Section title="AI HUB" styles={styles}>
           <NavRow
             Icon={Sparkles}
             title="Construction AI"
-            subtitle="Building code check, scope assistant, AI takeoffs"
+            subtitle="Building code check, scope assistant"
             tone="accent"
             onPress={() => router.push('/(tabs)/construction-ai' as never)}
             testID="tools-construction-ai"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={Ruler}
+            title="AI Takeoff"
+            subtitle="Upload a PDF, get a quantity takeoff with linear / area / count"
+            tone="accent"
+            onPress={() => router.push('/takeoff' as never)}
+            testID="tools-takeoff"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={ListChecks}
+            title="AI Punch from Photos"
+            subtitle="Walk a site with the camera, get a punch list back"
+            tone="accent"
+            onPress={() => router.push('/ai-punch' as never)}
+            testID="tools-ai-punch"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={Layers}
+            title="Compare Drawings"
+            subtitle="Diff two plan revisions, see exactly what changed"
+            tone="accent"
+            onPress={() => router.push('/compare-drawings' as never)}
+            testID="tools-compare-drawings"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={ScanLine}
+            title="Spec Book Extract"
+            subtitle="Pull submittal requirements out of a 200-page spec book in one tap"
+            tone="accent"
+            onPress={() => router.push('/extract-submittals' as never)}
+            testID="tools-spec-extract"
           />
         </Section>
 
@@ -352,6 +393,30 @@ export default function DiscoverToolsScreen() {
             />
           </Section>
         )}
+
+        {/* Network — subs + companies + crew. Pre-fix the Subs tab was
+            hidden on mobile (`href: null` in app/(tabs)/_layout.tsx),
+            orphaning Sub Prequal entirely from mobile users. Now reachable
+            from Tools alongside the rest of the cross-project workflows. */}
+        <Section title="NETWORK" styles={styles}>
+          <NavRow
+            Icon={HardHat}
+            title="Subcontractors"
+            subtitle="Prequal packets, COIs, ratings — every sub you've worked with"
+            tone="primary"
+            onPress={() => router.push('/(tabs)/subs' as never)}
+            testID="tools-subs"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={Users}
+            title="Contacts"
+            subtitle="Architects, engineers, suppliers — your project directory"
+            tone="info"
+            onPress={() => router.push('/contacts' as never)}
+            testID="tools-contacts"
+          />
+        </Section>
 
         {!hasProjects && (
           <View style={styles.emptyWrap}>

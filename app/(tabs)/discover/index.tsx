@@ -237,14 +237,19 @@ export default function DiscoverScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* All three quick-action tints unified on the brand accent.
+            Pre-fix Post Bid was cobalt blue (#1565C0) and Post Job was
+            forest green (Colors.primary, since reassigned to orange) —
+            the row had three different oranges/blues fighting for
+            attention. They're all CREATION actions; tone them the same. */}
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickAction}
             onPress={() => navigateTo('/post-bid')}
             activeOpacity={0.7}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#1565C015' }]}>
-              <Plus size={16} color={Colors.infoDark} />
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
+              <Plus size={16} color={Colors.accent} />
             </View>
             <Text style={styles.quickActionLabel}>Post Bid</Text>
           </TouchableOpacity>
@@ -253,8 +258,8 @@ export default function DiscoverScreen() {
             onPress={() => navigateTo('/post-job')}
             activeOpacity={0.7}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
-              <Plus size={16} color={Colors.primary} />
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
+              <Plus size={16} color={Colors.accent} />
             </View>
             <Text style={styles.quickActionLabel}>Post Job</Text>
           </TouchableOpacity>
@@ -270,13 +275,12 @@ export default function DiscoverScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Tools — the cross-project workflow hub (Approvals, OAC
-            actions, sub change requests, deliveries, draws, cash flow,
-            pipeline, 1099-NEC, compliance, permits, expeditors, reports
-            inbox). Lifted out of a bottom-tab; surfaced here as the
-            first NavigationCard so the user lands on it quickly. */}
+        {/* Tools — the cross-project workflow hub. Section bar + card
+            tint moved off amber #D97706 onto the brand accent. The
+            amber was a relic of the forest-green era when accent was
+            yellow-orange; now we have one orange that covers it. */}
         <View style={styles.sectionHeaderRow}>
-          <View style={[styles.sectionAccent, { backgroundColor: '#D97706' }]} />
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
             <Text style={styles.sectionLabel}>MANAGE WORK</Text>
             <Text style={styles.sectionHint}>Approvals, cash flow, permits, compliance & 14 more</Text>
@@ -285,8 +289,8 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={Wrench}
-          iconColor="#D97706"
-          iconBg={'#D97706' + '15'}
+          iconColor={Colors.accent}
+          iconBg={Colors.accent + '15'}
           title="Tools"
           subtitle="Every cross-project workflow in one place"
           onPress={() => navigateTo('/(tabs)/discover/tools')}

@@ -498,7 +498,11 @@ export default function SettingsScreen() {
               user where they stand each month so an upload-time
               surprise doesn't happen. */}
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#7C3AED' }]}>
+            {/* Takeoff quota uses Colors.purple so a custom-theme override
+                can re-tint it via the existing color system. Pre-fix
+                this and the bar fill were hardcoded #7C3AED, drifting
+                silently when the user picked a theme. */}
+            <View style={[styles.iconWrap, { backgroundColor: Colors.purple }]}>
               <FileText size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
@@ -508,7 +512,7 @@ export default function SettingsScreen() {
               <View style={{ height: 6, backgroundColor: themeColors.line, borderRadius: 3, marginTop: 6 }}>
                 <View style={{
                   height: 6,
-                  backgroundColor: takeoffQuota.cap > 0 && takeoffQuota.used / takeoffQuota.cap > 0.8 ? themeColors.accentLabel : '#7C3AED',
+                  backgroundColor: takeoffQuota.cap > 0 && takeoffQuota.used / takeoffQuota.cap > 0.8 ? themeColors.accentLabel : Colors.purple,
                   borderRadius: 3,
                   width: `${takeoffQuota.cap > 0 ? Math.min((takeoffQuota.used / takeoffQuota.cap) * 100, 100) : 0}%`,
                 }} />
@@ -574,7 +578,7 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="settings-appearance"
           >
-            <View style={[styles.iconWrap, { backgroundColor: '#FF6A1A' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Palette size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Appearance</Text>
@@ -888,7 +892,7 @@ export default function SettingsScreen() {
             onPress={() => router.push('/notifications-settings' as any)}
             activeOpacity={0.6}
           >
-            <View style={[styles.iconWrap, { backgroundColor: '#FF6A1A' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Bell size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
