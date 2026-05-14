@@ -247,21 +247,15 @@ export default function SettingsScreen() {
       return;
     }
     const themePreset = THEME_PRESETS.find(t => t.id === selectedTheme);
+    // Branding (company name, logo, signature, etc.) lives on
+    // /company-profile now and is saved there. We deliberately do NOT
+    // include `branding` in this call — the local state vars on this
+    // screen would otherwise overwrite anything the user just edited
+    // in the dedicated screen with stale values.
     updateSettings({
       location: location.trim() || 'United States',
       taxRate: tax,
       contingencyRate: cont,
-      branding: {
-        companyName: companyName.trim(),
-        contactName: contactName.trim(),
-        email: brandingEmail.trim(),
-        phone: brandingPhone.trim(),
-        address: brandingAddress.trim(),
-        licenseNumber: licenseNumber.trim(),
-        tagline: tagline.trim(),
-        logoUri,
-        signatureData,
-      },
       themeColors: themePreset ? { primary: themePreset.primary, accent: themePreset.accent } : undefined,
       biometricsEnabled,
       pdfNaming: pdfNaming.enabled ? pdfNaming : undefined,
@@ -382,7 +376,14 @@ export default function SettingsScreen() {
             user's initials in a primary-tinted circle (no photo upload yet,
             so initials are the canonical fallback in every premium app). */}
         {isAuthenticated && user ? (
-          <View style={styles.profileHero}>
+          <TouchableOpacity
+            style={styles.profileHero}
+            onPress={() => router.push('/company-profile' as any)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Edit company profile"
+            testID="profile-hero-tap"
+          >
             <View style={styles.profileAvatar}>
               <Text style={styles.profileAvatarText}>
                 {(user.name || user.email || '?')
@@ -435,26 +436,29 @@ export default function SettingsScreen() {
                 </View>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.profileSignOutBtn}
-              onPress={() => {
-                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => {
-                      await logout(true);
-                      router.replace('/login');
+            <View style={{ flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <ChevronRight size={18} color={themeColors.textMuted} />
+              <TouchableOpacity
+                style={styles.profileSignOutBtn}
+                onPress={() => {
+                  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Sign Out',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await logout(true);
+                        router.replace('/login');
+                      },
                     },
-                  },
-                ]);
-              }}
-              activeOpacity={0.7}
-              testID="logout-button" accessibilityRole="button" accessibilityLabel="Sign out">
-              <LogOut size={16} color={themeColors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+                  ]);
+                }}
+                activeOpacity={0.7}
+                testID="logout-button" accessibilityRole="button" accessibilityLabel="Sign out">
+                <LogOut size={16} color={themeColors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
         ) : (
           <Text style={styles.largeTitle}>Settings</Text>
         )}
@@ -620,219 +624,10 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionHeader}>COMPANY BRANDING</Text>
-        <Text style={styles.sectionSubtext}>
-          This info appears on PDF estimates you share with clients.
-        </Text>
-        <View style={styles.group}>
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#1A6B3C' }]}>
-              <Building2 size={14} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Company Name</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={companyName}
-              onChangeText={setCompanyName}
-              placeholder="Your Company LLC"
-              placeholderTextColor={themeColors.textMuted}
-              textAlign="right"
-              testID="branding-company"
-            />
-          </View>
-          <View style={styles.rowSeparator} />
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
-              <TypeIcon size={14} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Tagline</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={tagline}
-              onChangeText={setTagline}
-              placeholder="Quality you can trust"
-              placeholderTextColor={themeColors.textMuted}
-              textAlign="right"
-              testID="branding-tagline"
-            />
-          </View>
-          <View style={styles.rowSeparator} />
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-              <User size={14} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Contact Name</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={contactName}
-              onChangeText={setContactName}
-              placeholder="John Smith"
-              placeholderTextColor={themeColors.textMuted}
-              textAlign="right"
-              testID="branding-contact"
-            />
-          </View>
-          <View style={styles.rowSeparator} />
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <Phone size={14} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Phone</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={brandingPhone}
-              onChangeText={setBrandingPhone}
-              placeholder="(555) 123-4567"
-              placeholderTextColor={themeColors.textMuted}
-              keyboardType="phone-pad"
-              textAlign="right"
-              testID="branding-phone"
-            />
-          </View>
-          <View style={styles.rowSeparator} />
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Mail size={14} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Email</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={brandingEmail}
-              onChangeText={setBrandingEmail}
-              placeholder="info@company.com"
-              placeholderTextColor={themeColors.textMuted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              textAlign="right"
-              testID="branding-email"
-            />
-          </View>
-          <View style={styles.rowSeparator} />
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <MapPin size={14} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>Address</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={brandingAddress}
-              onChangeText={setBrandingAddress}
-              placeholder="123 Main St, City"
-              placeholderTextColor={themeColors.textMuted}
-              textAlign="right"
-              testID="branding-address"
-            />
-          </View>
-          <View style={styles.rowSeparator} />
-          <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#AF52DE' }]}>
-              <Award size={14} color="#fff" />
-            </View>
-            <Text style={styles.rowLabel}>License #</Text>
-            <TextInput
-              style={styles.inlineInput}
-              value={licenseNumber}
-              onChangeText={setLicenseNumber}
-              placeholder="GC-12345"
-              placeholderTextColor={themeColors.textMuted}
-              textAlign="right"
-              testID="branding-license"
-            />
-          </View>
-        </View>
-
-        <Text style={styles.sectionHeader}>COMPANY LOGO</Text>
-        <Text style={styles.sectionSubtext}>
-          Upload your company logo to include on PDF documents.
-        </Text>
-        <View style={styles.group}>
-          {logoUri ? (
-            <View style={styles.logoPreviewContainer}>
-              <Image
-                source={{ uri: logoUri }}
-                style={styles.logoPreview}
-                contentFit="contain"
-              />
-              <View style={styles.logoActions}>
-                <TouchableOpacity style={styles.logoChangeBtn} onPress={handlePickLogo} activeOpacity={0.7}>
-                  <Camera size={14} color={themeColors.accent} />
-                  <Text style={styles.logoChangeBtnText}>Change</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.logoRemoveBtn} onPress={handleRemoveLogo} activeOpacity={0.7}>
-                  <Trash2 size={14} color={themeColors.danger} />
-                  <Text style={styles.logoRemoveBtnText}>Remove</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.logoUploadRow} onPress={handlePickLogo} activeOpacity={0.7} testID="upload-logo">
-              <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
-                <ImageIcon size={14} color="#fff" />
-              </View>
-              <Text style={styles.rowLabel}>Upload Logo</Text>
-              <ChevronRight size={16} color={themeColors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <Text style={styles.sectionHeader}>SIGNATURE</Text>
-        <Text style={styles.sectionSubtext}>
-          Draw your signature to auto-sign documents and estimates.
-        </Text>
-        <View style={styles.group}>
-          {signatureData && signatureData.length > 0 ? (
-            <View style={styles.signaturePreviewContainer}>
-              <View style={styles.signaturePreviewBox}>
-                <Text style={styles.signaturePreviewLabel}>Your saved signature</Text>
-                <View style={styles.signatureMiniPreview}>
-                  <PenTool size={16} color={themeColors.accent} />
-                  <Text style={styles.signatureSavedText}>Signature saved ({signatureData.length} strokes)</Text>
-                </View>
-              </View>
-              <View style={styles.signatureActions}>
-                <TouchableOpacity
-                  style={styles.signatureRedrawBtn}
-                  onPress={() => setShowSignatureModal(true)}
-                  activeOpacity={0.7}
-                >
-                  <PenTool size={14} color={themeColors.accent} />
-                  <Text style={styles.signatureRedrawBtnText}>Redraw</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.signatureRemoveBtn}
-                  onPress={() => {
-                    setSignatureData(undefined);
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Trash2 size={14} color={themeColors.danger} />
-                  <Text style={styles.signatureRemoveBtnText}>Remove</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.signatureDrawRow}
-              onPress={() => setShowSignatureModal(true)}
-              activeOpacity={0.7}
-              testID="draw-signature"
-            >
-              <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                <PenTool size={14} color="#fff" />
-              </View>
-              <Text style={styles.rowLabel}>Draw Signature</Text>
-              <ChevronRight size={16} color={themeColors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.pdfPreviewNote}>
-          <FileText size={14} color={themeColors.info} />
-          <Text style={styles.pdfPreviewNoteText}>
-            Your company info, logo, and signature will appear on generated PDF estimates when sharing via email or text.
-          </Text>
-        </View>
+        {/* COMPANY BRANDING / LOGO / SIGNATURE moved to /company-profile.
+            Settings now points at it via the tappable profile hero at
+            the top of this screen. Shorter Settings + a focused place
+            to manage everything that lands on the GC's PDFs. */}
 
         <Text style={styles.sectionHeader}>PDF NAMING</Text>
         <Text style={styles.sectionSubtext}>
@@ -1577,33 +1372,8 @@ export default function SettingsScreen() {
         onClose={() => setPaywallTier(null)}
       />
 
-      <Modal
-        visible={showSignatureModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSignatureModal(false)}
-      >
-        <View style={styles.sigModalOverlay}>
-          <View style={styles.sigModalCard}>
-            <View style={styles.sigModalHeader}>
-              <Text style={styles.sigModalTitle}>Draw Your Signature</Text>
-              <TouchableOpacity onPress={() => setShowSignatureModal(false)}>
-                <X size={20} color={themeColors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.sigModalDesc}>
-              Use your finger to sign below. This will be used on all PDF documents.
-            </Text>
-            <SignaturePad
-              initialPaths={signatureData}
-              onSave={handleSaveSignature}
-              onClear={handleClearSignature}
-              width={sigPadWidth}
-              height={160}
-            />
-          </View>
-        </View>
-      </Modal>
+      {/* Signature draw modal moved to /company-profile along with the
+          rest of the branding/logo/signature sections. */}
       {/*
         Supplier Profile modal — responsive across iPhone + Web.
 

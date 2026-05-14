@@ -669,6 +669,15 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="company-profile"
+        options={{
+          title: "Company Profile",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
         name="job-detail"
         options={{
           title: "Job Details",
