@@ -8,8 +8,9 @@ import * as Haptics from 'expo-haptics';
 import {
   Gavel, Building2, Briefcase, ExternalLink,
   Plus, Search, Award, Sparkles, CalendarDays, ChevronRight, DollarSign,
-  Wrench,
+  Wrench, Share2, CreditCard, FileSignature, Truck,
 } from 'lucide-react-native';
+import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -454,6 +455,57 @@ export default function DiscoverScreen() {
             Register your company certifications (MWBE, DBE, etc.) in the Companies section to get matched with bids that require your qualifications.
           </Text>
         </View>
+
+        {/* ── EARN MORE ──────────────────────────────────────────────
+            Fintech revenue products surfaced as a discover section.
+            Each card writes to feature_interest on tap → demand-side
+            evidence for the partner pitches (Wisetack, altLINE,
+            Coterie, Track1099, etc.). See docs/audits/2026-05-14-
+            billion-dollar-strategy.md for the full thesis. */}
+        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.success }]} />
+          <View>
+            <Text style={styles.sectionLabel}>EARN MORE WITH MAGE</Text>
+            <Text style={styles.sectionHint}>Embedded fintech & network products — coming soon, on the waitlist now</Text>
+          </View>
+        </View>
+
+        <RevenueEarlyAccessCard
+          eventKey="revenue.inter_gc_referral"
+          icon={Share2}
+          headline="Refer a lead, earn 5% if it closes"
+          body="Got an inbound lead outside your scope or schedule? Refer it to the nearest qualified MAGE GC. Cash payout via Stripe Connect when they sign."
+          footer="GC-to-GC referral exchange · ships when 50+ GCs are active in your metro"
+          testID="discover-refer-cta"
+        />
+
+        <RevenueEarlyAccessCard
+          eventKey="revenue.sub_mass_payout"
+          icon={CreditCard}
+          headline="One-tap Friday payouts to all your subs"
+          body="Pay 15 subs at once via Stripe Connect, auto-file their 1099-NEC at year-end. The $20K threshold reverted under OBBBA — you need 1099s anyway."
+          footer="Payouts via Stripe + Track1099 integration · partner work in progress"
+          testID="discover-payouts-cta"
+        />
+
+        <RevenueEarlyAccessCard
+          eventKey="revenue.lien_waiver.escrow"
+          icon={FileSignature}
+          headline="Lien waivers at point-of-payment"
+          body="E-sign conditional & unconditional waivers tied to every paid invoice. Bank-held escrow optional for big jobs — Levelset replacement for SMB GCs."
+          footer="Built on existing lien-waiver tool · escrow needs partner bank"
+          testID="discover-lienwaiver-cta"
+        />
+
+        <RevenueEarlyAccessCard
+          eventKey="revenue.equipment_financing"
+          icon={Truck}
+          headline="Finance a truck or new equipment"
+          body="When you outgrow rentals: $25K-$80K loans for trucks, lifts, scaffold, tools. 24-hour decisions via partner lenders. Rev-share, no application fee."
+          footer="Lower priority per the strategy doc — added for completeness"
+          testID="discover-equipment-cta"
+        />
+
       </ScrollView>
     </View>
   );

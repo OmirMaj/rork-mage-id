@@ -77,6 +77,20 @@ function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardPr
     ? linkedEstimate.grandTotal
     : legacyEstimate?.grandTotal ?? 0;
 
+  // Gross-margin pill — markupTotal / grandTotal as a percent. Only shows
+  // when we have a LinkedEstimate with items (legacy `estimate` doesn't
+  // carry a cost/profit split). Color-coded so a glance at the home tab
+  // surfaces the at-risk jobs: red < 10 %, amber 10-20 %, green ≥ 20 %.
+  // Pre-fix the project list had no profit-margin surface anywhere —
+  // the data was computed but never shown. Audit's #1 "quick win."
+  const showMarginPill = !!(linkedEstimate && linkedEstimate.items.length > 0 && linkedEstimate.grandTotal > 0);
+  const marginPct = showMarginPill
+    ? Math.round((linkedEstimate!.markupTotal / linkedEstimate!.grandTotal) * 100)
+    : 0;
+  const marginTone: BadgeTone = marginPct >= 20 ? 'success'
+    : marginPct >= 10 ? 'warn'
+    : 'danger';
+
   // Budget burn — invoiced ÷ estimate.
   const invoicedTotal = (project as { invoicedTotal?: number }).invoicedTotal ?? 0;
   const burnRatio = hasEstimate && estimateTotal > 0
@@ -163,7 +177,14 @@ function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardPr
                 </View>
               ) : null}
             </View>
-            <Badge tone={statusTone} dot>{statusLabel}</Badge>
+            <View style={styles.statusCol}>
+              <Badge tone={statusTone} dot>{statusLabel}</Badge>
+              {showMarginPill && (
+                <Badge tone={marginTone}>
+                  {`GP ${marginPct}%`}
+                </Badge>
+              )}
+            </View>
           </View>
 
           <View style={styles.separator} />
@@ -240,6 +261,12 @@ const makeStyles = (t: ThemeColors) =>
       alignItems: 'center',
       padding: 16,
       gap: 12,
+    },
+    // Stacks status badge over the gross-margin pill. Both right-aligned
+    // so the eye lands on the workflow state first, then the money state.
+    statusCol: {
+      alignItems: 'flex-end' as const,
+      gap: 6,
     },
     iconWrap: {
       width: 42,

@@ -19,8 +19,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import {
   ShieldCheck, ShieldAlert, ShieldX, Clock, Send, ChevronRight,
-  ChevronLeft, X, CheckCircle2, AlertTriangle, Copy,
+  ChevronLeft, X, CheckCircle2, AlertTriangle, Copy, Scale,
 } from 'lucide-react-native';
+import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -216,6 +217,20 @@ function PrequalManagerInner() {
               </Text>
             ))}
           </View>
+        )}
+
+        {/* Insurance marketplace CTA — surfaces only when renewals are
+            needed, since that's the moment the GC actually cares about
+            shopping the policy. See RevenueEarlyAccessCard for context. */}
+        {rows.filter(r => r.bucket === '7d' || r.bucket === '30d' || r.bucket === 'expired').length > 0 && (
+          <RevenueEarlyAccessCard
+            eventKey="revenue.insurance.coi_requote"
+            icon={Scale}
+            headline="Compare renewal quotes from 3 brokers"
+            body="Coterie + Next Insurance + Hiscox quote your sub in 60 seconds. We pre-fill from the existing COI on file."
+            footer="Insurance partner LOI in progress · early access shipping Q3 2026"
+            testID="coi-requote-cta"
+          />
         )}
 
         {/* Sub list */}

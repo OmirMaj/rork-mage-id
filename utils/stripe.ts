@@ -31,10 +31,17 @@ export interface CreatePaymentLinkParams {
    * Connected Express account id (acct_xxx) for the contractor receiving
    * the money. When present, the Payment Link is created on that account
    * and money flows to their bank — not the platform's. Required for
-   * production. The 1% platform fee is also applied automatically when
-   * this is set.
+   * production. The tier-aware platform fee is also applied automatically
+   * when this is set.
    */
   stripeAccountId?: string;
+  /**
+   * GC's current MAGE subscription tier. Drives the platform-fee schedule
+   * server-side (Pro: 0 bps, Business: 50 bps, Enterprise: 40 bps). Pass
+   * this from the calling screen via useTierAccess(); the edge function
+   * falls back to 50 bps if it's missing.
+   */
+  userTier?: 'free' | 'pro' | 'business' | 'enterprise';
 }
 
 export interface CreatePaymentLinkResult {
@@ -86,6 +93,7 @@ export async function createPaymentLink(
         customerEmail: params.customerEmail,
         companyName: params.companyName,
         stripeAccountId: params.stripeAccountId,
+        userTier: params.userTier,
       },
     });
 

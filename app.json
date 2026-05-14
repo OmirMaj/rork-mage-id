@@ -24,7 +24,27 @@
         "NSPhotoLibraryUsageDescription": "MAGE ID needs access to your photo library so you can attach existing photos to daily reports, punch-list items, RFIs, and project documents.",
         "NSPhotoLibraryAddUsageDescription": "MAGE ID saves project photos and rendered PDFs to your photo library when you tap Save / Share.",
         "NSLocationWhenInUseUsageDescription": "MAGE ID stamps jobsite photos with GPS coordinates so daily-report photos and field-stamped takeoff verifications carry location proof. Location is only read when you take a photo or stamp a row — never in the background.",
-        "NSFaceIDUsageDescription": "MAGE ID uses Face ID to sign you back in without re-typing your password."
+        "NSFaceIDUsageDescription": "MAGE ID uses Face ID to sign you back in without re-typing your password.",
+        "UIApplicationShortcutItems": [
+          {
+            "UIApplicationShortcutItemType": "com.mageid.app.shortcut.new-photo",
+            "UIApplicationShortcutItemTitle": "New jobsite photo",
+            "UIApplicationShortcutItemSubtitle": "Capture and save to your active project",
+            "UIApplicationShortcutItemIconType": "UIApplicationShortcutIconTypeCapturePhoto"
+          },
+          {
+            "UIApplicationShortcutItemType": "com.mageid.app.shortcut.daily-report",
+            "UIApplicationShortcutItemTitle": "New daily report",
+            "UIApplicationShortcutItemSubtitle": "Voice-dictate today's DFR",
+            "UIApplicationShortcutItemIconType": "UIApplicationShortcutIconTypeCompose"
+          },
+          {
+            "UIApplicationShortcutItemType": "com.mageid.app.shortcut.quick-estimate",
+            "UIApplicationShortcutItemTitle": "Quick estimate",
+            "UIApplicationShortcutItemSubtitle": "AI estimate from a sentence",
+            "UIApplicationShortcutItemIconType": "UIApplicationShortcutIconTypeAdd"
+          }
+        ]
       }
     },
     "android": {

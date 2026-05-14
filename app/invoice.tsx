@@ -33,6 +33,8 @@ import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline'
 import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { createPaymentLink } from '@/utils/stripe';
+import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
+import { Banknote, HandCoins } from 'lucide-react-native';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { useAuth } from '@/contexts/AuthContext';
 import { nailIt } from '@/components/animations/NailItToast';
@@ -379,6 +381,7 @@ function InvoiceInner() {
               customerEmail: sendRecipientEmail.trim(),
               companyName: branding.companyName,
               stripeAccountId,
+              userTier: tier,
             });
             if (res.success && res.url && res.id) {
               payLinkUrl = res.url;
@@ -485,6 +488,7 @@ function InvoiceInner() {
               customerEmail: options.recipient.trim(),
               companyName: branding.companyName,
               stripeAccountId,
+              userTier: tier,
             });
             if (res.success && res.url && res.id) {
               payLinkUrl = res.url;
@@ -653,6 +657,7 @@ function InvoiceInner() {
         customerEmail: clientContact?.email,
         companyName: settings.branding?.companyName,
         stripeAccountId,
+        userTier: tier,
       });
 
       if (!res.success || !res.url || !res.id) {
@@ -1117,6 +1122,30 @@ function InvoiceInner() {
                       )}
                     </TouchableOpacity>
                   </View>
+                  {/* Revenue-product CTAs. Surface only when an unpaid
+                      balance exists — otherwise these are noise on the
+                      "fully paid" view. See RevenueEarlyAccessCard for
+                      the strategy doc context. */}
+                  {(existingInvoice.totalDue - (existingInvoice.amountPaid ?? 0)) > 0 && (
+                    <>
+                      <RevenueEarlyAccessCard
+                        eventKey="revenue.factoring.altline"
+                        icon={Banknote}
+                        headline="Get paid today, not in 60 days"
+                        body="Advance up to 95% of this unpaid invoice from a factoring partner. 2-4% per 30 days. Funds your bank in 24 hours."
+                        footer="Partner LOI in progress · early access shipping Q3 2026"
+                        testID="invoice-factoring-cta"
+                      />
+                      <RevenueEarlyAccessCard
+                        eventKey="revenue.financing.wisetack"
+                        icon={HandCoins}
+                        headline="Offer your client monthly payments"
+                        body="Industry data: contractors who offer financing close 20% more deals at 5-7x larger ticket. We pre-fill the app from this invoice."
+                        footer="Wisetack-style partnership · early access shipping Q3 2026"
+                        testID="invoice-financing-cta"
+                      />
+                    </>
+                  )}
                 </>
               ) : (
                 <TouchableOpacity

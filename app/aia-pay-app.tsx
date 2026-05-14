@@ -27,6 +27,9 @@ import {
   generateAIAPayAppPDF,
 } from '@/utils/aiaBilling';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
+import { Banknote, FileSignature } from 'lucide-react-native';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +42,7 @@ import { Tokens } from '@/constants/designTokens';
 export default function AIAPayAppScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { tier } = useSubscription();
   const { colors: themeColors } = useTheme();
   if (!canAccess('aia_pay_app')) {
     return (
@@ -58,6 +62,7 @@ function AIAPayAppScreenInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
   const { invoiceId } = useLocalSearchParams<{ invoiceId: string }>();
   const {
     invoices, getProject, getChangeOrdersForProject, settings,
@@ -267,6 +272,7 @@ function AIAPayAppScreenInner() {
             customerEmail: '',
             companyName: rec.contractorName ?? settings?.branding?.companyName ?? 'Contractor',
             stripeAccountId: status.accountId,
+            userTier: tier,
           });
           if (res.success && res.url && res.id) {
             payLinkUrl = res.url;
@@ -602,6 +608,30 @@ function AIAPayAppScreenInner() {
             <Row label="Current Payment Due" value={formatMoney(totals.currentPaymentDue)} highlight />
             <Row label="Balance to Finish" value={formatMoney(totals.balanceToFinish)} dim />
           </View>
+
+          {/* Fintech revenue CTAs — surfaced contextually next to the
+              dollar figures. Pay-app moments are the highest-value moment
+              for both factoring and lien-waiver products. */}
+          {totals.currentPaymentDue > 0 && (
+            <>
+              <RevenueEarlyAccessCard
+                eventKey="revenue.factoring.altline"
+                icon={Banknote}
+                headline={`Advance ${formatMoney(totals.currentPaymentDue * 0.9)} on this pay app today`}
+                body="Owners average 60-83 days to release pay-app funds. Factoring partner fronts up to 90% in 24 hours for 2-4% per 30 days."
+                footer="Partner LOI in progress · early access shipping Q3 2026"
+                testID="aia-factoring-cta"
+              />
+              <RevenueEarlyAccessCard
+                eventKey="revenue.lien_waiver.escrow"
+                icon={FileSignature}
+                headline="Auto-generate lien waivers at payment"
+                body="When this pay app is funded, MAGE drafts conditional & unconditional waivers for every sub paid out of it. E-sign in one tap. Optional bank-held escrow for big jobs."
+                footer="Built on existing lien-waiver tool · escrow needs partner bank"
+                testID="aia-lienwaiver-cta"
+              />
+            </>
+          )}
         </View>
       </ScrollView>
 

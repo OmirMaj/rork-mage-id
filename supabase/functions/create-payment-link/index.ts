@@ -81,14 +81,49 @@ interface CreatePaymentLinkBody {
    * legacy mode (only useful during local Stripe testing).
    */
   stripeAccountId?: string;
+  /**
+   * GC's MAGE subscription tier. Drives the platform-fee schedule. We
+   * deliberately scale the fee inversely to subscription price:
+   *   - free / pro    →   0 bps (no markup — top-of-funnel + Pro perk)
+   *   - business      →  50 bps (durable take-rate; Toast lives at 48)
+   *   - enterprise    →  40 bps (volume discount, also a sales lever)
+   *
+   * Trusting the client tier is a 5-minute fraud-win at most ($10 saved
+   * on a $100k invoice by spoofing enterprise). Not worth the latency
+   * of an auth round-trip on the hot path.
+   */
+  userTier?: "free" | "pro" | "business" | "enterprise";
 }
 
 /**
- * Platform application fee, in basis points. 100 bps = 1%.
- * Pulled from env so we can flip it without redeploying for promos
- * or per-region adjustments. Default 100 (1%).
+ * Default fee in basis points when the client doesn't send a tier (e.g.
+ * older app version still on the road). Set to the Business-tier rate so
+ * we don't accidentally undercollect from heavy users; a Business user
+ * on an old build pays the same as one on a new build.
  */
-const PLATFORM_FEE_BPS = parseInt(Deno.env.get("PLATFORM_FEE_BPS") ?? "100", 10);
+const PLATFORM_FEE_BPS_DEFAULT = parseInt(
+  Deno.env.get("PLATFORM_FEE_BPS") ?? "50",
+  10,
+);
+
+/**
+ * Tier → bps lookup. Easily flippable via env if we want to run a
+ * promotional period (free payments for Business through Q1, etc.) by
+ * just setting the env var.
+ */
+function feeBpsForTier(tier?: string): number {
+  switch (tier) {
+    case "free":
+    case "pro":
+      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_PRO") ?? "0", 10);
+    case "business":
+      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_BUSINESS") ?? "50", 10);
+    case "enterprise":
+      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_ENTERPRISE") ?? "40", 10);
+    default:
+      return PLATFORM_FEE_BPS_DEFAULT;
+  }
+}
 
 // Stripe's REST API takes application/x-www-form-urlencoded with bracketed keys
 // for nested objects. This helper walks any JS object into that form.
@@ -241,11 +276,19 @@ serve(async (req) => {
   // account on each successful charge automatically.
   console.log("[create-payment-link] Creating payment link for price", priceId);
 
-  // Compute the platform fee in cents from PLATFORM_FEE_BPS. 1% of $1,000
-  // is $10 = 1000 cents. We round half-up so the fee never undercollects.
+  // Compute the tier-aware platform fee in cents. 50 bps of $1,000 is $5
+  // = 500 cents. We round half-up so the fee never undercollects. Pro tier
+  // gets 0 bps so their first dollar through our rails is friction-free —
+  // that's the top-of-funnel perk and the Pro→Business upgrade lever.
+  const feeBps = feeBpsForTier(body.userTier);
   const applicationFeeAmount = body.stripeAccountId
-    ? Math.max(0, Math.round((body.amountCents * PLATFORM_FEE_BPS) / 10000))
+    ? Math.max(0, Math.round((body.amountCents * feeBps) / 10000))
     : 0;
+  console.log(
+    "[create-payment-link] tier=", body.userTier ?? "(unknown)",
+    "feeBps=", feeBps,
+    "applicationFeeAmount=", applicationFeeAmount,
+  );
 
   const linkParams: Record<string, unknown> = {
     line_items: [{ price: priceId, quantity: 1 }],

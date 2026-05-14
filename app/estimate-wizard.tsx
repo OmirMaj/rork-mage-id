@@ -28,8 +28,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Sparkles, Building2, Home, Wrench,
-  DollarSign, CheckCircle2, FileDown, RotateCcw,
+  DollarSign, CheckCircle2, FileDown, RotateCcw, Users,
 } from 'lucide-react-native';
+import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -541,6 +542,20 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
           <Text style={styles.disclaimer}>
             This is a project estimate, not a fixed-price quote, unless explicitly stated in a signed agreement. Quantities, unit prices, and materials are subject to change based on field conditions, market pricing, and design revisions.
           </Text>
+
+          {/* Network-effect CTA: post this scope to the MAGE sub-bid
+              network. Per billion-dollar-strategy.md §3 Bet E — this is
+              the Levelset pattern, the moat slide for the $1B exit. We
+              capture demand now via feature_interest; real broadcast
+              ships once we hit local-sub density. */}
+          <RevenueEarlyAccessCard
+            eventKey="revenue.sub_bid_network"
+            icon={Users}
+            headline="Post this scope to 3 vetted subs"
+            body="Push the trades-by-line-item to qualified subs in your area. Receive 3 bids in 48h. Industry data: real-time bid network closes 35% faster than email."
+            footer="Sub-bid network launches when your metro hits 50 active subs per trade"
+            testID="estimate-subbid-cta"
+          />
 
           <View style={styles.resultActions}>
             <TouchableOpacity

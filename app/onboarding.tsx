@@ -221,8 +221,29 @@ export default function OnboardingScreen() {
 
   const handleSkip = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // Even on Skip, seed a medium-sized sample project so the user
+    // lands on a populated home tab instead of an empty state. The
+    // strategic audit's "real onboarding seed" recommendation —
+    // tester sees in 10 seconds what the app does at month 3, not
+    // what an empty database looks like.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { seedDemoProject } = require('@/utils/demoSeed');
+      await seedDemoProject({
+        addProject: projectCtx.addProject,
+        addInvoice: projectCtx.addInvoice,
+        addDailyReport: projectCtx.addDailyReport,
+        addPunchItem: projectCtx.addPunchItem,
+        addProjectPhoto: projectCtx.addProjectPhoto,
+        addRFI: projectCtx.addRFI,
+        addChangeOrder: projectCtx.addChangeOrder,
+        flavor: 'medium' as const,
+      });
+    } catch (e) {
+      console.log('[onboarding] skip-path auto-seed failed:', e);
+    }
     void finishToHome();
-  }, [finishToHome]);
+  }, [finishToHome, projectCtx]);
 
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>

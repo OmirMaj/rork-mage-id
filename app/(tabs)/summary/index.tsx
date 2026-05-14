@@ -23,6 +23,7 @@ import CashFlowAlerts from '@/components/CashFlowAlerts';
 import { generateForecast, type CashFlowWeek } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
+import { computeARAgingReport } from '@/utils/financialReports';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -169,6 +170,13 @@ export default function SummaryScreen() {
     );
   }, [stats]);
 
+  // A/R aging bucket totals. Surfaced as a compact strip on the Summary
+  // tab so bookkeepers see the 0-30 / 31-60 / 61-90 / 90+ breakdown
+  // without diving into Reports → A/R Aging. The audit's #1 missing
+  // bookkeeper view. Pure derive — uses the existing computeARAgingReport.
+  const aging = useMemo(() => computeARAgingReport(invoices, projects), [invoices, projects]);
+  const showAgingStrip = aging.rows.length > 0;
+
   // Cash flow forecast — moved here from the home tab so Your Projects
   // stays focused on the project list, and Summary becomes the financial
   // bird's-eye view it was always meant to be.
@@ -268,6 +276,35 @@ export default function SummaryScreen() {
           <PortfolioStat styles={styles} label="At Risk" value={`${portfolio.risks}`} tint={portfolio.risks > 0 ? themeColors.danger : themeColors.success} />
         </View>
 
+        {showAgingStrip && (
+          // A/R aging bucket strip — tap any pill to jump to the full
+          // Reports → A/R Aging view filtered to that bucket. Colors
+          // escalate: current = textMuted, 0-30 = textSecondary,
+          // 31-60 = warning, 61-90 = danger soft, 90+ = danger.
+          <TouchableOpacity
+            style={styles.agingStrip}
+            onPress={() => router.push('/reports' as never)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Open A/R aging report"
+            testID="summary-ar-aging-strip"
+          >
+            <View style={styles.agingHeaderRow}>
+              <Text style={styles.agingHeader}>A/R AGING</Text>
+              <Text style={styles.agingHeaderMeta}>
+                {aging.rows.length} open · tap to open
+              </Text>
+            </View>
+            <View style={styles.agingBucketRow}>
+              <AgingBucket styles={styles} label="Current" value={aging.totals.current}     tone={themeColors.textMuted} />
+              <AgingBucket styles={styles} label="0-30"    value={aging.totals['0-30']}     tone={themeColors.textSecondary} />
+              <AgingBucket styles={styles} label="31-60"   value={aging.totals['31-60']}    tone="#E65100" />
+              <AgingBucket styles={styles} label="61-90"   value={aging.totals['61-90']}    tone={themeColors.danger} />
+              <AgingBucket styles={styles} label="90+"     value={aging.totals['90+']}      tone={themeColors.danger} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {projects.length > 0 && (
           <CashFlowGlance forecast={cashFlowForecast} weeks={4} />
         )}
@@ -364,6 +401,22 @@ export default function SummaryScreen() {
           stats.map(s => <SummaryCard key={s.project.id} stats={s} onPress={() => openProject(s.project.id)} styles={styles} colors={themeColors} />)
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+// One column inside the A/R aging strip. Shows the bucket label,
+// the dollar total in that bucket (or em-dash when zero), tinted by
+// severity so the eye lands on the 61-90 / 90+ buckets first.
+function AgingBucket({
+  label, value, tone, styles,
+}: { label: string; value: number; tone: string; styles: ReturnType<typeof makeStyles> }) {
+  return (
+    <View style={styles.agingBucket}>
+      <Text style={[styles.agingBucketValue, { color: tone }]} numberOfLines={1}>
+        {value > 0 ? formatMoneyShort(value) : '—'}
+      </Text>
+      <Text style={styles.agingBucketLabel}>{label}</Text>
     </View>
   );
 }
@@ -476,6 +529,23 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
   subheading: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
   portfolioRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, paddingHorizontal: 12, gap: 8, marginBottom: 16 },
+  agingStrip: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: t.line,
+    padding: 14,
+    gap: 10,
+  },
+  agingHeaderRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const },
+  agingHeader: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 1.2 },
+  agingHeaderMeta: { fontSize: 11, fontWeight: '600' as const, color: t.accent, letterSpacing: 0.4 },
+  agingBucketRow: { flexDirection: 'row' as const, gap: 6 },
+  agingBucket: { flex: 1, alignItems: 'center' as const, paddingVertical: 6, paddingHorizontal: 4, gap: 2 },
+  agingBucketValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, letterSpacing: -0.2 },
+  agingBucketLabel: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.4 },
   portfolioStat: { flex: 1, minWidth: '46%' as any, backgroundColor: t.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
   portfolioValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, letterSpacing: -0.3 },
   portfolioLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },

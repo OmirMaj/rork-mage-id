@@ -32,6 +32,11 @@ import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
+import {
+  buildPhotoSharePayload,
+  encodePhotoShareToken,
+  PHOTO_SHARE_MAX,
+} from '@/utils/photoShareToken';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import { prefetchProjectPlans } from '@/utils/planPrefetch';
 import HardHatTap from '@/components/animations/HardHatTap';
@@ -640,6 +645,44 @@ export default function ProjectDetailScreen() {
       Alert.alert('Calendar Feed', 'Could not generate the calendar feed. Please try again.');
     }
   }, [project, projectInvoices, projectWarranties]);
+
+  const handleSharePhotoTimeline = useCallback(async () => {
+    if (!project) return;
+    if (projectPhotos.length === 0) {
+      Alert.alert('Photo timeline', 'No photos to share yet. Take some jobsite photos first.');
+      return;
+    }
+    const { payload, droppedLocal, droppedExcess } = buildPhotoSharePayload(
+      project.name ?? 'Project',
+      projectPhotos,
+      { gcName: settings?.branding?.companyName },
+    );
+    if (payload.photos.length === 0) {
+      Alert.alert(
+        'Photo timeline',
+        droppedLocal > 0
+          ? 'These photos haven’t synced yet. Wait until the offline-sync pill shows "Synced," then try again.'
+          : 'No shareable photos found.',
+      );
+      return;
+    }
+    const token = encodePhotoShareToken(payload);
+    const base = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://mageid.app';
+    const url = `${base}/shared-photos?t=${token}`;
+    const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
+    const extras: string[] = [];
+    if (droppedLocal > 0) extras.push(`${droppedLocal} photo${droppedLocal === 1 ? '' : 's'} skipped (not yet synced)`);
+    if (droppedExcess > 0) extras.push(`oldest ${droppedExcess} trimmed (cap ${PHOTO_SHARE_MAX})`);
+    const detail = extras.length > 0 ? `\n\n${extras.join(' · ')}` : '';
+    if (ok) {
+      Alert.alert('Photo timeline copied', `Link copied to clipboard. Paste it into a text, email, or client portal.${detail}`);
+    } else {
+      Alert.alert('Photo timeline link', `${url}${detail}`);
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [project, projectPhotos, settings?.branding?.companyName]);
 
   const handleInvite = useCallback(() => {
     if (!project || !id) return;
@@ -2677,6 +2720,20 @@ export default function ProjectDetailScreen() {
               {projectPhotos.length === 0 && (
                 <Text style={styles.coEmptyText}>No photos yet. Photos from daily reports will appear here.</Text>
               )}
+              {projectPhotos.length > 0 && (
+                <TouchableOpacity
+                  style={styles.photoShareBtn}
+                  onPress={() => { void handleSharePhotoTimeline(); }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share photo timeline link"
+                  testID="photos-share-timeline"
+                >
+                  <Share2 size={14} color={themeColors.accent} />
+                  <Text style={styles.photoShareBtnText}>Share read-only timeline</Text>
+                  <Text style={styles.photoShareBtnHint}>{projectPhotos.length > PHOTO_SHARE_MAX ? `${PHOTO_SHARE_MAX} most recent` : 'No login needed'}</Text>
+                </TouchableOpacity>
+              )}
               {projectPhotos.length > 0 && (() => {
                 // Build tag filter chips from the actual data — every distinct
                 // tag becomes a chip, plus an "All" at the front. New tags
@@ -3619,6 +3676,29 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   dfrWeekBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.sm, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
   dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: themeColors.textSecondary },
+  photoShareBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.accentSoft,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    marginBottom: 12,
+  },
+  photoShareBtnText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: themeColors.accent,
+  },
+  photoShareBtnHint: {
+    fontSize: 11,
+    color: themeColors.textMuted,
+    fontWeight: '600' as const,
+  },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
   photoThumbImage: { width: '100%', height: '100%' },

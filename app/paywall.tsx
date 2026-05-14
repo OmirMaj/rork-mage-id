@@ -59,6 +59,27 @@ const FEATURES: FeatureRow[] = [
   { label: 'Plan Viewer · Sheet Pinning (Android: beta)', free: false, pro: false, business: true },
 ];
 
+// Fintech & revenue products. Surfaced separately from the feature
+// matrix because they're not yes/no — they're priced + early-access
+// gated. Keep the rate numbers in sync with the tier-aware fee logic
+// in supabase/functions/create-payment-link/index.ts.
+interface FintechRow {
+  label: string;
+  free: string;
+  pro: string;
+  business: string;
+  enterprise: string;
+}
+const FINTECH_PERKS: FintechRow[] = [
+  { label: 'Stripe payment processing markup', free: '1.0%', pro: '0%',  business: '0.5%', enterprise: '0.4%' },
+  { label: 'Client financing (Wisetack)',      free: '—',    pro: '—',   business: 'Early access', enterprise: 'Early access' },
+  { label: 'Same-day invoice factoring',       free: '—',    pro: '—',   business: 'Early access', enterprise: 'Early access' },
+  { label: 'COI / insurance marketplace',      free: '—',    pro: 'Watcher only', business: 'Early access',  enterprise: 'Early access' },
+  { label: 'Mass sub-payouts + auto-1099',     free: '—',    pro: '—',   business: 'Early access',  enterprise: 'Early access' },
+  { label: 'Sub-bid network',                  free: '—',    pro: '—',   business: 'Early access',  enterprise: 'Early access' },
+  { label: 'Inter-GC referral exchange (5%)',  free: '—',    pro: '—',   business: 'Early access',  enterprise: 'Early access' },
+];
+
 // AI quota table — Enterprise's actual value prop. Numbers must stay in
 // sync with utils/aiRateLimiter.ts (LIMITS) and supabase/functions/_shared/
 // auth.ts (MONTHLY_CAPS). Strings, not numbers, so we can show "Unlimited"
@@ -325,6 +346,30 @@ export default function PaywallScreen() {
             <Text style={[styles.aiCell, styles.compareHeaderCell]}>Ent</Text>
           </View>
           {AI_LIMITS.map((row) => (
+            <View key={row.label} style={styles.compareRow}>
+              <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{row.label}</Text>
+              <Text style={[styles.aiCell, styles.aiValueText]}>{row.free}</Text>
+              <Text style={[styles.aiCell, styles.aiValueText]}>{row.pro}</Text>
+              <Text style={[styles.aiCell, styles.aiValueText]}>{row.business}</Text>
+              <Text style={[styles.aiCell, styles.aiValueText, styles.aiValueTextEnt]}>{row.enterprise}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Fintech & revenue perks. Surfaces the embedded-fintech bundle
+            as part of the Business+ value prop. Numbers must stay in sync
+            with feeBpsForTier() in create-payment-link/index.ts and
+            FINTECH_PERKS above. */}
+        <Text style={styles.compareTitle}>Fintech &amp; Revenue Perks</Text>
+        <View style={styles.compareTable}>
+          <View style={styles.compareHeaderRow}>
+            <Text style={[styles.compareCell, styles.compareLabelCell]}>Perk</Text>
+            <Text style={[styles.aiCell, styles.compareHeaderCell]}>Free</Text>
+            <Text style={[styles.aiCell, styles.compareHeaderCell]}>Pro</Text>
+            <Text style={[styles.aiCell, styles.compareHeaderCell]}>Biz</Text>
+            <Text style={[styles.aiCell, styles.compareHeaderCell]}>Ent</Text>
+          </View>
+          {FINTECH_PERKS.map((row) => (
             <View key={row.label} style={styles.compareRow}>
               <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{row.label}</Text>
               <Text style={[styles.aiCell, styles.aiValueText]}>{row.free}</Text>
