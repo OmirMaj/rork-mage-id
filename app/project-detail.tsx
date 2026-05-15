@@ -37,6 +37,7 @@ import {
   encodePhotoShareToken,
   PHOTO_SHARE_MAX,
 } from '@/utils/photoShareToken';
+import { NextStepHero } from '@/components/NextStepHero';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import { prefetchProjectPlans } from '@/utils/planPrefetch';
 import HardHatTap from '@/components/animations/HardHatTap';
@@ -1149,6 +1150,19 @@ export default function ProjectDetailScreen() {
           )}
         </View>
         </BlueprintReveal>
+
+        {/* NextStepHero — scoped to this project. Tells the user the
+            single most-important action for this project alone: add
+            scope, build estimate, send invoice, chase stale RFIs, etc.
+            Hidden when nothing is pending — keep the project page calm
+            once the GC is in the rhythm of the work. */}
+        <NextStepHero
+          projects={project ? [project] : []}
+          invoices={projectInvoices}
+          rfis={projectRFIs}
+          scopeToProjectId={project?.id}
+          testID="project-next-step"
+        />
 
         {/* Lifecycle stage strip — Pre-Con → Construction → Post-Con → Closeout.
             Tapping a stage prompts to advance project.status.

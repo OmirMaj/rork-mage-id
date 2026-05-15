@@ -313,261 +313,85 @@ const TAB_ITEMS = [
   { label: 'Settings', Icon: Wrench },
 ];
 
+// "Got it" — universal step demo for the trimmed tour. Replaces the
+// previous quiz/mock-UI pattern that felt slideshow-y.
+const GotItDemo = ({ onComplete, completed }: { onComplete: () => void; completed: boolean }) => (
+  <View style={demoStyles.mockScreen}>
+    <TouchableOpacity
+      onPress={() => {
+        if (!completed) {
+          if (Platform.OS !== 'web') void Haptics.selectionAsync();
+          onComplete();
+        }
+      }}
+      activeOpacity={0.85}
+      style={[demoStyles.finishBtn, completed && demoStyles.finishBtnDone]}
+      testID="tutorial-got-it"
+      accessibilityRole="button"
+      accessibilityLabel={completed ? 'Step done' : 'Got it — continue to next step'}
+    >
+      {completed
+        ? <CheckCircle2 size={28} color="#FFF" />
+        : <Sparkles size={22} color="#FFF" />}
+      <Text style={demoStyles.finishBtnText}>{completed ? 'Got it' : 'Got it — next'}</Text>
+    </TouchableOpacity>
+  </View>
+);
+
 const STEPS: TutorialStep[] = [
+  // Tutorial v3 (May 2026): trimmed from 19 quiz-and-mock-UI steps down
+  // to 5 lean orientation cards. Previous version was a feature catalog
+  // disguised as a tutorial — every step had a quiz testing trivia. The
+  // new version explains the happy-path lifecycle in plain English; each
+  // step ends with a "Take me there now" deep-link that closes the modal
+  // and drops the user into the real screen. Less reading, more doing.
+  //
+  // Three-layer guidance system shipped May 2026:
+  //   1. OnboardingChecklist (home tab) — 5-step activation funnel,
+  //      drives the user through their first project end-to-end.
+  //   2. NextStepHero (home + summary + project-detail) — perpetual
+  //      "what should I do next?" card based on live state.
+  //   3. This Tutorial — one-time orientation, 5 steps, ~60 seconds.
+  //
+  // The buildQuizDemo/buildTapTarget/Gantt/TapPlus/TapToFinish mock
+  // helpers above are retained as dead code for now; we may need their
+  // patterns back if user testing shows the GotItDemo is too sparse.
   {
-    title: 'Welcome to MAGE ID',
-    body: 'This interactive tour takes about a minute. Tap things as you go — we\u2019ll teach you by doing, not by reading.',
+    title: 'The 60-second tour',
+    body: 'MAGE ID handles the full lifecycle of a construction job from one screen: estimate the work, schedule the crew, log daily reports + photos, send invoices, collect closeout. This tour explains the shape. The home tab\u2019s checklist walks you through your first project step-by-step.',
     Icon: Home,
-    instruction: 'Tap the pulsing button below to begin',
-    Demo: ({ onComplete, completed }) => (
-      <View style={demoStyles.mockScreen}>
-        <TouchableOpacity
-          onPress={() => {
-            if (!completed) {
-              if (Platform.OS !== 'web') void Haptics.selectionAsync();
-              onComplete();
-            }
-          }}
-          style={[demoStyles.startBtn, completed && demoStyles.startBtnDone]}
-          activeOpacity={0.85}
-          testID="tutorial-start"
-        >
-          {completed ? <CheckCircle2 size={22} color="#FFF" /> : <Sparkles size={22} color="#FFF" />}
-          <Text style={demoStyles.startBtnText}>{completed ? 'Let\u2019s go' : 'Start the tour'}</Text>
-        </TouchableOpacity>
-      </View>
-    ),
+    instruction: 'Tap to start',
+    Demo: GotItDemo,
   },
   {
-    title: 'Tabs are your home base',
-    body: 'The bottom tab bar holds every top-level destination: Summary, your Projects, Discover (for finding work) and Settings.',
-    Icon: LayoutDashboard,
-    instruction: 'Tap the Summary tab in the mock below',
-    Demo: buildTapTarget(0, TAB_ITEMS),
-  },
-  {
-    title: 'Create a Project',
-    body: 'Every build starts with a project. Tap the + to open the new-project sheet and add scope, location and budget.',
-    Icon: FileText,
-    instruction: 'Tap the + button to spin up a project',
-    Demo: TapPlusDemo,
+    title: '1. Start with a project',
+    body: 'Every job in MAGE is a project. Add the address, square footage, and one paragraph describing the scope. That paragraph is what AI uses to draft your estimate, schedule, and the homeowner portal copy.',
+    Icon: Home,
+    instruction: 'Got it? Let\u2019s look at the home tab',
+    Demo: GotItDemo,
     deepLink: '/(tabs)/(home)',
   },
   {
-    title: 'Build the Estimate',
-    body: 'The Estimate tab tallies materials and labor. Pro tip: tap the Sparkles icon and describe your job — MAGE AI drafts the line items for you.',
+    title: '2. AI does the estimating',
+    body: 'Open your project and tap Estimator. Describe the job and the AI returns line items: materials with quantities + unit costs, labor, subs, permits, contingency. You review, edit, and add markup. A typical kitchen takes 3 minutes instead of 3 hours.',
     Icon: Sparkles,
-    instruction: 'Pick the fastest way to build an estimate',
-    Demo: buildQuizDemo(
-      'You just scoped a kitchen remodel. What\u2019s the quickest way to estimate materials?',
-      ['Type every SKU by hand', 'Tap the Sparkles icon and describe the job', 'Phone every supplier for quotes'],
-      1,
-    ),
+    instruction: 'Take me to the AI estimator',
+    Demo: GotItDemo,
     deepLink: '/(tabs)/discover/estimate',
   },
   {
-    title: 'Schedule the Work',
-    body: 'Drag tasks onto a Gantt timeline and the CPM engine finds the critical path — the chain of tasks that, if delayed, pushes your end date.',
-    Icon: Calendar,
-    instruction: 'Drag across the bar to schedule all four phases',
-    Demo: GanttDragDemo,
-    deepLink: '/(tabs)/discover/schedule',
-  },
-  {
-    title: 'Track Cash Flow',
-    body: 'Cash Flow Forecaster projects weekly balances so you can see crunches before they happen. Mix-in pending invoices and change orders for a real picture.',
-    Icon: DollarSign,
-    instruction: 'Which month will your cash position be tightest?',
-    Demo: buildQuizDemo(
-      'Your forecast shows: Jun +$12k, Jul -$3k, Aug +$8k. When should you chase invoices hardest?',
-      ['June', 'July', 'August', 'It doesn\u2019t matter'],
-      1,
-    ),
-    deepLink: '/cash-flow',
-  },
-  {
-    title: 'Log a Daily Report',
-    body: 'From the job site, log crew, weather, photos and progress in seconds. Share a snapshot link with the client or GC in one tap.',
+    title: '3. Run the job in the field',
+    body: 'On the jobsite: voice-dictate daily reports, snap photos with GPS + AI tagging, fire off RFIs to the architect, log change orders, track punch items. Everything syncs offline-first \u2014 works in a foundation pit with no signal, uploads when you get bars.',
     Icon: Camera,
-    instruction: 'What belongs in a Daily Report?',
-    Demo: buildQuizDemo(
-      'What should you capture in a daily field report?',
-      ['Only what went wrong', 'Crew, weather, progress + photos', 'Nothing — it\u2019s paperwork'],
-      1,
-    ),
+    instruction: 'I\u2019m on it',
+    Demo: GotItDemo,
   },
   {
-    title: 'AI Code Check',
-    body: 'Describe your project and Construction AI flags the likely codes, permits and common violations. A starting point, not legal advice — always confirm with your AHJ.',
-    Icon: Gavel,
-    instruction: 'Tap Construction AI in the mock nav',
-    Demo: buildTapTarget(3, [
-      { label: 'Projects', Icon: Home },
-      { label: 'Estimate', Icon: Sparkles },
-      { label: 'Hire', Icon: Users },
-      { label: 'AI', Icon: Gavel },
-    ]),
-    deepLink: '/(tabs)/construction-ai',
-  },
-  {
-    title: 'Closeout & Punch List',
-    body: 'When a project wraps, generate a closeout packet, knock out punch items and send warranties + lien waivers straight from the project screen.',
-    Icon: ClipboardCheck,
-    instruction: 'Which item belongs on a punch list?',
-    Demo: buildQuizDemo(
-      'Which of these is a typical punch-list item?',
-      ['Scratched countertop edge', 'Whole-house rewire', 'New foundation pour'],
-      0,
-    ),
-  },
-  {
-    title: 'Send a Contract',
-    body: 'Build the construction agreement in-app — scope, payment milestones, allowances, warranty. Sign on your phone, send the portal link, the homeowner counter-signs from the same portal. Your phone pings the second they sign. No DocuSign subscription.',
-    Icon: PenTool,
-    instruction: 'How does the homeowner sign?',
-    Demo: buildQuizDemo(
-      'You sent the contract. How does the homeowner counter-sign?',
-      [
-        'Print, sign, scan, email back',
-        'Open the portal link, type their name, tap Sign',
-        'They install your app and log in',
-      ],
-      1,
-    ),
-    deepLink: '/(tabs)/projects',
-  },
-  {
-    title: 'AI Selections & Allowances',
-    body: 'Set an allowance per category — kitchen tile, bath fixtures, lighting. AI curates three options at three price points: budget, on-target, premium. Brand, SKU, supplier, lead time on each. Homeowner taps one in the portal. You get pinged with their pick — and a flag if it\u2019s over allowance.',
-    Icon: ShoppingCart,
-    instruction: 'How many AI-curated tiers do you get per allowance?',
-    Demo: buildQuizDemo(
-      'You set a $5,000 tile allowance. AI returns…',
-      [
-        'One option in your budget',
-        'Three options: under-budget, on-target, premium',
-        'A list of every tile in the catalog',
-      ],
-      1,
-    ),
-    deepLink: '/(tabs)/projects',
-  },
-  {
-    title: 'Photo Markup',
-    body: 'Tap any site photo to drop arrows, circles, freehand lines, or text labels. Sub sees exactly which window, which gap, which color. Homeowner sees the same markup in their portal. No more "third floor north window" texts.',
-    Icon: Pencil,
-    instruction: 'What can you draw on a photo?',
-    Demo: buildQuizDemo(
-      'Photo markup tools include…',
-      [
-        'Arrows + circles + text labels',
-        'Filters and stickers',
-        'AI auto-detection only',
-      ],
-      0,
-    ),
-  },
-  {
-    title: 'Lien Waivers',
-    body: 'Generate all four types — conditional / unconditional × partial / final — straight from the project. PDF on tap. State-specific disclaimer baked in. Mark signed when the sub hands you the paper.',
-    Icon: ScrollText,
-    instruction: 'Which lien waiver types does MAGE ID generate?',
-    Demo: buildQuizDemo(
-      'How many lien waiver types are built in?',
-      [
-        'Just one (final)',
-        'Four (conditional / unconditional × partial / final)',
-        'Zero — bring your own',
-      ],
-      1,
-    ),
-    deepLink: '/(tabs)/projects',
-  },
-  {
-    title: 'AI Homeowner Daily Digest',
-    body: 'Your daily field report has crew counts and trade jargon — homeowners don\u2019t care about "rough-in." Tap Generate on the daily report; AI rewrites the technical log into a friendly 2\u20134 sentence update in the homeowner\u2019s language. You review, you publish. Lands at the top of their portal.',
-    Icon: Sparkles,
-    instruction: 'Where does the homeowner see the AI daily summary?',
-    Demo: buildQuizDemo(
-      'The "Latest update" panel shows up where?',
-      [
-        'In a separate email digest',
-        'At the top of the homeowner\u2019s portal',
-        'In your phone\u2019s notifications',
-      ],
-      1,
-    ),
-  },
-  {
-    title: 'Six Languages',
-    body: 'English, Spanish, Brazilian Portuguese, Mandarin, Vietnamese, French — picked for actual US construction demographics. The AI summary is generated in the homeowner\u2019s language directly. Section labels are translated. Pick the language once when you set up the portal. Done.',
-    Icon: Globe,
-    instruction: 'Where do you set the homeowner\u2019s language?',
-    Demo: buildQuizDemo(
-      'You set the homeowner\u2019s portal language…',
-      [
-        'In Settings (one global setting for all clients)',
-        'In Client Portal Setup, per project',
-        'You can\u2019t — only English',
-      ],
-      1,
-    ),
-    deepLink: '/(tabs)/projects',
-  },
-  {
-    title: 'Closeout Binder',
-    body: 'At handover, auto-compile a binder with every paint color, fixture brand and SKU, sub contact, warranty, and a maintenance schedule. One tap to deliver to the homeowner — lands in their portal forever, plus an email with the link. Year three, when the dishwasher fails, they open the binder instead of calling you.',
-    Icon: BookOpen,
-    instruction: 'When the homeowner opens the binder in year 3, where does it live?',
-    Demo: buildQuizDemo(
-      'The closeout binder is delivered as…',
-      [
-        'A PDF email attachment that gets lost',
-        'A link in the homeowner\u2019s portal that never expires',
-        'A printed booklet you mail',
-      ],
-      1,
-    ),
-    deepLink: '/(tabs)/projects',
-  },
-  {
-    title: 'Handover Checklist',
-    body: 'The closeout-day flow most GCs improvise. Computes status live: selections confirmed, punch list cleared, warranties on file, binder delivered, final invoice paid, lien waivers collected. Plus walk-through + keys as manual checks. Tap any open item to jump straight to the screen that fixes it.',
-    Icon: Footprints,
-    instruction: 'How is each item\u2019s status determined?',
-    Demo: buildQuizDemo(
-      'The handover checklist computes status from…',
-      [
-        'You manually check each box',
-        'Live project data: selections, punch, invoices, etc.',
-        'Random sampling',
-      ],
-      1,
-    ),
-    deepLink: '/(tabs)/projects',
-  },
-  {
-    title: 'Real-time Client Signals',
-    body: 'Homeowner counter-signs the contract → your phone pings. Picks a tile → ping. Asks a pre-bid question on an RFP → ping. Push + email, per-event toggle. Open Settings → Notifications to dial in exactly which events you want.',
-    Icon: Bell,
-    instruction: 'Which homeowner action does NOT trigger a real-time notification?',
-    Demo: buildQuizDemo(
-      'Which of these does NOT ping you in real-time?',
-      [
-        'Homeowner signs the contract',
-        'Homeowner picks a selection option',
-        'Homeowner browses your portfolio',
-      ],
-      2,
-    ),
-    deepLink: '/notifications-settings',
-  },
-  {
-    title: 'You\u2019re Ready',
-    body: 'That\u2019s the full lifecycle — from posting an RFP to handing over the keys. Replay this tour anytime from Settings → Show Tutorial. The Client Experience features (contracts, selections, daily digest, closeout binder, six languages) are how MAGE ID feels different from generic PM tools.',
-    Icon: Wrench,
-    instruction: 'Tap below to finish the tour',
-    Demo: TapToFinishDemo,
+    title: '4. Get paid + close out',
+    body: 'Generate AIA G702/G703 pay applications or simple invoices, send the homeowner a Stripe payment link, track who has and hasn\u2019t paid. At closeout: punch list, lien waivers, warranty packet, and a homeowner binder with every paint color and appliance \u2014 auto-compiled and delivered to their portal forever.',
+    Icon: DollarSign,
+    instruction: 'You\u2019re ready \u2014 replay this tour anytime from Settings.',
+    Demo: GotItDemo,
   },
 ];
 

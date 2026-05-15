@@ -36,6 +36,7 @@ import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
 import Tutorial, { hasSeenTutorial } from '@/components/Tutorial';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
+import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
 import { HelpFab } from '@/components/HelpFab';
 import MageRefreshControl from '@/components/MageRefreshControl';
@@ -598,8 +599,10 @@ export default function HomeScreen() {
                 project list below — a Linear-style segmented control
                 with a count next to each label. The financial numbers
                 live on the Summary tab; this screen is for finding the
-                right project quickly. */}
-            {projects.length > 0 && (
+                right project quickly. Threshold raised from > 0 to >= 5
+                (May 2026 UX rollup): filtering 1-3 projects is noise that
+                competes with the NextStepHero card for attention. */}
+            {projects.length >= 5 && (
               <View style={styles.filterChipsWrap}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
                   {([
@@ -716,6 +719,19 @@ export default function HomeScreen() {
               stripeConnected={stripeConnected}
               invoiceCount={invoices.length}
             />
+
+            {/* NextStepHero — the answer to "where do I start?" for users
+                who've completed onboarding. Picks one action from current
+                state (overdue invoices, expiring COIs, stale RFIs, fresh
+                projects without scope/estimate/invoice) and renders it
+                as a single CTA. Hidden when there's nothing to suggest —
+                a calm view is the reward for being caught up. */}
+            {projects.length > 0 && (
+              <NextStepHero
+                projects={projects}
+                invoices={invoices}
+              />
+            )}
 
             {/* AI summary + Quick Field Update moved below the project
                 list — the user's first scroll target is now the project

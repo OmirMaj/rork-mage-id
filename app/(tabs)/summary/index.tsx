@@ -19,6 +19,7 @@ import { SkeletonCard, Skeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import { NavRow } from '@/components/NavRow';
 import CashFlowGlance from '@/components/CashFlowGlance';
+import { NextStepHero } from '@/components/NextStepHero';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
 import { generateForecast, type CashFlowWeek } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
@@ -263,6 +264,17 @@ export default function SummaryScreen() {
         <Text style={styles.subheading}>
           {active.length} active project{active.length === 1 ? '' : 's'}
         </Text>
+
+        {/* NextStepHero — one dynamic action card, the same UI surface
+            that lives on the home tab. Picks from money + compliance
+            + scheduling pain. Hidden when nothing's pressing. */}
+        {projects.length > 0 && (
+          <NextStepHero
+            projects={projects}
+            invoices={invoices}
+            testID="summary-next-step"
+          />
+        )}
 
         <View style={styles.portfolioRow}>
           {/* Semantic tints. Total Budget = neutral (it's just context).
