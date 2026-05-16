@@ -353,6 +353,11 @@ export default function ProjectDetailScreen() {
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
   const [showEditModal, setShowEditModal] = useState<EditModalType>(false);
+  // When opened via NextStepHero "Add scope now" (?edit=scope) the editor
+  // retitles to "Add Project Scope" and auto-focuses the Description
+  // field so the destination matches the CTA instead of dumping the user
+  // on a generic 6-field "Edit Project" form.
+  const [scopeFocusMode, setScopeFocusMode] = useState(false);
   const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
   // Tile group collapse state — Field & Money expanded by default, Docs & People collapsed.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<TileGroupKey>>(new Set(['docs', 'people']));
@@ -440,8 +445,18 @@ export default function ProjectDetailScreen() {
   useEffect(() => {
     if (deepLinkConsumed.current) return;
     if (!project) return;
+    // edit=scope → NextStepHero "Add scope now": open the editor in
+    // focused scope-mode (retitled + Description auto-focused) so the
+    // destination matches the CTA promise. edit=1/true → generic editor.
+    if (editParam === 'scope') {
+      deepLinkConsumed.current = true;
+      setScopeFocusMode(true);
+      openEditModal();
+      return;
+    }
     if (editParam === '1' || editParam === 'true') {
       deepLinkConsumed.current = true;
+      setScopeFocusMode(false);
       openEditModal();
       return;
     }
@@ -450,6 +465,13 @@ export default function ProjectDetailScreen() {
       setActiveTile(tileParam as SectionKey);
     }
   }, [project, editParam, tileParam, openEditModal]);
+
+  // Scope-mode is a one-shot deep-link affordance. Once the editor
+  // closes (save, X, or back), drop it so a later header-pencil open
+  // is the normal "Edit Project" form, not "Add Project Scope".
+  useEffect(() => {
+    if (!showEditModal && scopeFocusMode) setScopeFocusMode(false);
+  }, [showEditModal, scopeFocusMode]);
 
   const currentStage: LifecycleStage = useMemo(
     () => statusToStage(project?.status),
@@ -3222,7 +3244,7 @@ export default function ProjectDetailScreen() {
             >
               <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.inviteModalHeader}>
-                  <Text style={styles.inviteModalTitle}>Edit Project</Text>
+                  <Text style={styles.inviteModalTitle}>{scopeFocusMode ? 'Add Project Scope' : 'Edit Project'}</Text>
                   <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} />
                   </TouchableOpacity>
@@ -3238,14 +3260,22 @@ export default function ProjectDetailScreen() {
                   testID="edit-name-input"
                 />
 
-                <Text style={styles.inviteFieldLabel}>Description</Text>
+                <Text style={styles.inviteFieldLabel}>
+                  {scopeFocusMode ? 'Scope of work' : 'Description'}
+                </Text>
+                {scopeFocusMode && (
+                  <Text style={[styles.inviteFieldLabel, { fontWeight: '400' as const, color: themeColors.textMuted, marginTop: -2, marginBottom: 8 }]}>
+                    A sentence or two on what this job covers. The AI uses this to draft your estimate, schedule, and client-portal copy.
+                  </Text>
+                )}
                 <TextInput
                   style={[styles.inviteInput, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
                   value={editDescription}
                   onChangeText={setEditDescription}
-                  placeholder="Brief description..."
+                  placeholder={scopeFocusMode ? 'e.g. Full gut renovation of a 2-bed condo: demo, framing, MEP rough-in, drywall, finishes.' : 'Brief description...'}
                   placeholderTextColor={themeColors.textMuted}
                   multiline
+                  autoFocus={scopeFocusMode}
                   testID="edit-desc-input"
                 />
 
