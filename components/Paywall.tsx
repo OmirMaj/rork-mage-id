@@ -113,6 +113,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
     enterprisePackage,
     enterpriseAnnualPackage,
     isPurchasing,
+    isLoading,
   } = useSubscription();
 
   const tierLabel = requiredTier === 'enterprise' ? 'Enterprise'
@@ -152,6 +153,20 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
     return { monthlyPrice, annualPrice, monthlyEquivalent };
   }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage, fallback]);
 
+  // Whether RevenueCat actually resolved a purchasable package for this
+  // tier. When false (most common cause: the IAP product isn't set up /
+  // approved in App Store Connect yet), tapping Upgrade is guaranteed to
+  // fail — so we tell the user honestly instead of "try again" forever.
+  const tierPackageAvailable = useMemo(() => {
+    const monthlyPkg = requiredTier === 'enterprise' ? enterprisePackage
+      : requiredTier === 'business' ? businessPackage
+      : proPackage;
+    const annualPkg = requiredTier === 'enterprise' ? enterpriseAnnualPackage
+      : requiredTier === 'business' ? businessAnnualPackage
+      : proAnnualPackage;
+    return !!monthlyPkg || !!annualPkg;
+  }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage]);
+
   const handleUpgrade = useCallback(async () => {
     // Funnel: intent event the moment the user taps Upgrade — fires
     // BEFORE Apple's native confirm sheet. Captures pricing curiosity
@@ -181,9 +196,26 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
       const errorKind = err instanceof Error ? err.name : 'unknown';
       track(AnalyticsEvents.SUBSCRIPTION_PURCHASE_FAILED, { tier: requiredTier, error_kind: errorKind });
       console.log('[Paywall modal] Purchase failed:', err);
-      Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+      // Distinguish "this plan isn't purchasable yet" (config / store-
+      // availability — retrying never helps) from a genuine payment
+      // failure. The generic "try again" on an unconfigured product was
+      // the bug: TestFlight surfaced Enterprise before its IAP product
+      // was approved in App Store Connect, and the user got stuck in a
+      // retry loop with no idea why.
+      const rawMsg = err instanceof Error ? err.message : '';
+      const isUnavailable =
+        !tierPackageAvailable ||
+        /not configured|not available|no packages|unavailable/i.test(rawMsg);
+      if (isUnavailable) {
+        Alert.alert(
+          `${tierLabel} isn’t available yet`,
+          `The ${tierLabel} plan isn’t purchasable on your device right now. This usually means the plan is still being set up in the App Store. Try a lower tier, or email support@mageid.app and we’ll sort it out.`,
+        );
+      } else {
+        Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+      }
     }
-  }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, feature, onClose]);
+  }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, feature, onClose, tierPackageAvailable]);
 
   // On web, we don't take subscription payments — we redirect users to the
   // mobile app where Apple/Google handle billing. The user's account tier
@@ -354,10 +386,23 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             )}
           </View>
 
+          {/* When RC has loaded but this tier has no purchasable package
+              (IAP not yet approved in App Store Connect), say so plainly
+              instead of letting the user tap into a guaranteed failure. */}
+          {!isLoading && !tierPackageAvailable && (
+            <Text style={styles.unavailableNote}>
+              {tierLabel} isn’t available for purchase on your device yet — it’s still being set up in the App Store.
+            </Text>
+          )}
+
           <TouchableOpacity
-            style={[styles.upgradeBtn, { backgroundColor: tierColor }]}
+            style={[
+              styles.upgradeBtn,
+              { backgroundColor: tierColor },
+              !isLoading && !tierPackageAvailable && { opacity: 0.5 },
+            ]}
             onPress={handleUpgrade}
-            disabled={isPurchasing}
+            disabled={isPurchasing || (!isLoading && !tierPackageAvailable)}
             activeOpacity={0.85}
             testID="paywall-upgrade-btn"
           >
@@ -366,7 +411,9 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             ) : (
               <>
                 <Sparkles size={18} color="#fff" />
-                <Text style={styles.upgradeBtnText}>Upgrade to {tierLabel}</Text>
+                <Text style={styles.upgradeBtnText}>
+                  {!isLoading && !tierPackageAvailable ? `${tierLabel} unavailable` : `Upgrade to ${tierLabel}`}
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -491,6 +538,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   upgradeBtnText: { color: '#fff', fontSize: Type.body.fontSize, fontWeight: '800' as const, letterSpacing: 0.2 },
   notNowBtn: { paddingVertical: 12 },
   notNowText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  unavailableNote: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textSecondary,
+    textAlign: 'center' as const,
+    lineHeight: 18,
+    marginBottom: 10,
+    paddingHorizontal: 8,
+  },
   trustRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
     paddingHorizontal: 16,

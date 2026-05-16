@@ -859,21 +859,29 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
       onPress={onPress}
       activeOpacity={0.85}
     >
-      <View style={styles.modelOptionHead}>
+      {/* Icon + tier tag on their own row so the label gets the full
+          card width below. Inline (icon · label · tag) char-wrapped
+          "Pro Takeoff" → "Pr o Ta ke off" in the 3-column grid because
+          the label was squeezed to ~20px. */}
+      <View style={styles.modelOptionTopRow}>
         <Icon size={14} color={active ? themeColors.accent : disabled ? themeColors.textMuted : themeColors.text} />
-        <Text style={[
-          styles.modelOptionLabel,
-          active && { color: themeColors.accent },
-          disabled && { color: themeColors.textMuted },
-        ]}>
-          {meta.label}
-        </Text>
+        <View style={{ flex: 1 }} />
         {modelKey === 'gemini-2.5-pro' && (
           <View style={[styles.tierTag, disabled ? styles.tierTagLocked : styles.tierTagBusiness]}>
             <Text style={styles.tierTagText}>{disabled ? 'Business' : 'Active'}</Text>
           </View>
         )}
       </View>
+      <Text
+        style={[
+          styles.modelOptionLabel,
+          active && { color: themeColors.accent },
+          disabled && { color: themeColors.textMuted },
+        ]}
+        numberOfLines={2}
+      >
+        {meta.label}
+      </Text>
       <Text style={[styles.modelOptionTagline, disabled && { color: themeColors.textMuted }]}>
         {meta.tagline}
       </Text>
@@ -1942,8 +1950,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   modelOptionActive: { borderColor: themeColors.accent, backgroundColor: themeColors.accent + '08' },
   modelOptionDisabled: { opacity: 0.6 },
-  modelOptionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modelOptionLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
+  modelOptionTopRow: { flexDirection: 'row', alignItems: 'center', minHeight: 20 },
+  modelOptionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text, marginTop: 4 },
   modelOptionTagline: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 15 },
   tierTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
   tierTagBusiness: { backgroundColor: themeColors.accent + '20' },

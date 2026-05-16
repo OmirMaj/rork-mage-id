@@ -174,6 +174,16 @@ export default function EstimateScreen() {
   const [showItemPopup, setShowItemPopup] = useState(false);
 
   const [showAddToProject, setShowAddToProject] = useState(false);
+  // iOS cannot present a Modal while another is still dismissing — UIKit
+  // silently drops the present call. The cart is a fullScreen+slide modal
+  // whose dismiss animation routinely exceeds the old fixed ~350ms timeout
+  // every cart-footer button used, so they appeared to do nothing. We
+  // record which modal to open next and let the cart modal's onDismiss
+  // (fires AFTER the dismiss transition completes on iOS) open it
+  // deterministically. One mechanism fixes all four cart-exit buttons:
+  // Add to Project, Compare, Ask AI, and PDF/Email/Text.
+  type PendingCartModal = 'addToProject' | 'comparison' | 'ai' | 'pdf';
+  const [pendingCartModal, setPendingCartModal] = useState<PendingCartModal | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showConfirmLink, setShowConfirmLink] = useState(false);
   const [estimateName, setEstimateName] = useState('');
@@ -820,8 +830,13 @@ export default function EstimateScreen() {
 
   const handleOpenPDFPreSend = useCallback(() => {
     if (cart.length === 0) return;
-    setShowCart(false);
-    setTimeout(() => setShowPDFPreSend(true), 350);
+    if (Platform.OS === 'ios') {
+      setPendingCartModal('pdf');
+      setShowCart(false);
+    } else {
+      setShowCart(false);
+      setShowPDFPreSend(true);
+    }
   }, [cart.length]);
 
   const handlePDFSend = useCallback(async (options: PDFSendOptions) => {
@@ -2640,6 +2655,19 @@ export default function EstimateScreen() {
         animationType="slide"
         presentationStyle={Platform.OS === 'ios' ? 'fullScreen' : undefined}
         onRequestClose={() => setShowCart(false)}
+        onDismiss={() => {
+          // iOS-only: fires after the dismiss transition fully completes.
+          // This is the deterministic hook for "open the next modal once
+          // this one is truly gone" — replaces the fragile setTimeout
+          // every cart-footer button used.
+          if (!pendingCartModal) return;
+          const target = pendingCartModal;
+          setPendingCartModal(null);
+          if (target === 'addToProject') setShowAddToProject(true);
+          else if (target === 'comparison') setShowComparison(true);
+          else if (target === 'ai') setShowAIModal(true);
+          else if (target === 'pdf') setShowPDFPreSend(true);
+        }}
       >
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modalContainer, { paddingTop: insets.top + 8 }]}>
@@ -2689,8 +2717,13 @@ export default function EstimateScreen() {
                     <TouchableOpacity
                       style={styles.askAIBtn}
                       onPress={() => {
-                        setShowCart(false);
-                        setTimeout(() => setShowAIModal(true), 320);
+                        if (Platform.OS === 'ios') {
+                          setPendingCartModal('ai');
+                          setShowCart(false);
+                        } else {
+                          setShowCart(false);
+                          setShowAIModal(true);
+                        }
                       }}
                       activeOpacity={0.85}
                       testID="ask-ai-btn"
@@ -2819,10 +2852,13 @@ export default function EstimateScreen() {
                       style={[styles.addToProjectBtn, { flex: 1 }]}
                       onPress={() => {
                         setSelectedProjectId(projects[0]?.id ?? null);
-                        setShowCart(false);
-                        setTimeout(() => {
+                        if (Platform.OS === 'ios') {
+                          setPendingCartModal('addToProject');
+                          setShowCart(false);
+                        } else {
+                          setShowCart(false);
                           setShowAddToProject(true);
-                        }, 350);
+                        }
                       }}
                       activeOpacity={0.85}
                       testID="add-to-project-btn"
@@ -2833,8 +2869,13 @@ export default function EstimateScreen() {
                     <TouchableOpacity
                       style={styles.compareBtn}
                       onPress={() => {
-                        setShowCart(false);
-                        setTimeout(() => setShowComparison(true), 350);
+                        if (Platform.OS === 'ios') {
+                          setPendingCartModal('comparison');
+                          setShowCart(false);
+                        } else {
+                          setShowCart(false);
+                          setShowComparison(true);
+                        }
                       }}
                       activeOpacity={0.85}
                       testID="compare-btn"

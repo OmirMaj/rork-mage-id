@@ -110,8 +110,10 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       tone: 'danger',
       title: `${usd} past due across ${overdueInvoices.length} invoice${overdueInvoices.length === 1 ? '' : 's'}`,
       body: 'Send a friendly reminder — most owners pay within 48 hours of a nudge.',
-      cta: 'Open invoices',
-      href: { pathname: '/invoice', params: { invoiceId: first.id } },
+      cta: 'Open the invoice',
+      // invoice.tsx resolves the project via projectId (getProject), so
+      // both params are required — invoiceId alone left the screen blank.
+      href: { pathname: '/invoice', params: { projectId: first.projectId, invoiceId: first.id } },
     };
   }
 
@@ -154,8 +156,11 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       title: `${staleRfis.length} RFI${staleRfis.length === 1 ? '' : 's'} waiting for an answer`,
       body: 'Stale RFIs delay the schedule. Auto-escalate to the architect with one tap.',
       cta: 'Review RFIs',
+      // Deep-link straight to the project's RFI section via the new
+      // ?tile= param — not the tile grid. Portfolio-wide falls back to
+      // the cross-project RFI log.
       href: scopeToProjectId
-        ? { pathname: '/project-detail', params: { id: scopeToProjectId } }
+        ? { pathname: '/project-detail', params: { id: scopeToProjectId, tile: 'rfis' } }
         : '/rfi-log',
     };
   }
@@ -171,8 +176,10 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       tone: 'accent',
       title: `Add scope to ${projectNoScope.name}`,
       body: 'A short scope unlocks AI estimates + client-portal copy. 2 minutes of typing saves an hour later.',
-      cta: 'Open project',
-      href: { pathname: '/project-detail', params: { id: projectNoScope.id } },
+      cta: 'Add scope now',
+      // edit=1 auto-opens the edit-project modal where the description
+      // (the "scope" surface) is entered — lands the user on the action.
+      href: { pathname: '/project-detail', params: { id: projectNoScope.id, edit: '1' } },
     };
   }
 
@@ -189,7 +196,9 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       title: `Build an estimate for ${projectNoEstimate.name}`,
       body: 'AI drafts a full line-item estimate from your scope. You edit, you send. Done in minutes.',
       cta: 'Open estimator',
-      href: { pathname: '/project-detail', params: { id: projectNoEstimate.id } },
+      // tile=linkedEstimate auto-opens the estimate section modal so the
+      // user lands on the estimator, not the tile grid.
+      href: { pathname: '/project-detail', params: { id: projectNoEstimate.id, tile: 'linkedEstimate' } },
     };
   }
 
@@ -205,8 +214,10 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       tone: 'success',
       title: `Send your first invoice for ${projectNoInvoice.name}`,
       body: 'Drop a deposit invoice or a progress bill. Pay button is auto-attached via Stripe.',
-      cta: 'Open project',
-      href: { pathname: '/project-detail', params: { id: projectNoInvoice.id } },
+      cta: 'Create invoice',
+      // invoice.tsx with just projectId opens the new-invoice screen for
+      // this project directly — the actual next action.
+      href: { pathname: '/invoice', params: { projectId: projectNoInvoice.id } },
     };
   }
 

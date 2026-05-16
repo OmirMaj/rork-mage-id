@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager, Switch,
@@ -140,7 +140,12 @@ export default function ProjectDetailScreen() {
   const styles = useThemedStyles(makeStyles);
   const detailStyles = useThemedStyles(makeDetailStyles);
   const { navigateTo } = useEntityNavigation();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `tile` deep-links straight to a section modal (e.g. NextStepHero's
+  // "Open estimator" → ?tile=linkedEstimate). `edit=1` auto-opens the
+  // edit-project modal (NextStepHero's "Add scope"). Both are consumed
+  // once on mount so the user lands ON the action, not on the tile grid.
+  const { id, tile: tileParam, edit: editParam } =
+    useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
   const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
@@ -425,6 +430,26 @@ export default function ProjectDetailScreen() {
     setEditSquareFootage(project.squareFootage > 0 ? project.squareFootage.toString() : '');
     setShowEditModal(true);
   }, [project]);
+
+  // Consume the tile/edit deep-link params exactly once, after the
+  // project has loaded. NextStepHero (and any future caller) can drop
+  // the user directly into the relevant section or the edit modal
+  // instead of the tile grid. Guarded by a ref so navigating around
+  // inside the screen doesn't re-trigger it.
+  const deepLinkConsumed = useRef(false);
+  useEffect(() => {
+    if (deepLinkConsumed.current) return;
+    if (!project) return;
+    if (editParam === '1' || editParam === 'true') {
+      deepLinkConsumed.current = true;
+      openEditModal();
+      return;
+    }
+    if (tileParam) {
+      deepLinkConsumed.current = true;
+      setActiveTile(tileParam as SectionKey);
+    }
+  }, [project, editParam, tileParam, openEditModal]);
 
   const currentStage: LifecycleStage = useMemo(
     () => statusToStage(project?.status),
