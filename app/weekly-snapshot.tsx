@@ -29,6 +29,7 @@ import BlueprintReveal from '@/components/animations/BlueprintReveal';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { formatMoney } from '@/utils/formatters';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -213,7 +214,7 @@ export default function WeeklySnapshotScreen() {
   // Burn % for the concrete-pour visual: how much of the budget has been
   // billed-out so far, capped at 1.0 for display purposes.
   const totalBilled = invoices.reduce((s, i) => s + (i.totalDue ?? 0), 0);
-  const budgetCap = project.estimate?.grandTotal ?? totalBilled;
+  const budgetCap = effectiveEstimateTotal(project) || totalBilled;
   const burnPct = budgetCap > 0 ? Math.min(1, totalBilled / budgetCap) : 0;
 
   return (

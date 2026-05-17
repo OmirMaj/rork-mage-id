@@ -22,6 +22,7 @@ import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
 import type { Project, RFI, ChangeOrder } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -197,7 +198,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                 }]
               : []);
         const totalChange = lineItems.reduce((s, li) => s + (li.total ?? 0), 0);
-        const baseValue = proj.estimate?.grandTotal ?? 0;
+        const baseValue = effectiveEstimateTotal(proj);
         const projectCOs = ctx.getChangeOrdersForProject(proj.id);
         const nextNumber = projectCOs.length > 0 ? Math.max(...projectCOs.map(c => c.number)) + 1 : 1;
         const newId = generateUUID();

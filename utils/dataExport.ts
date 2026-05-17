@@ -7,6 +7,7 @@ import type {
   CompanyBranding,
 } from '@/types';
 import { generateCloseoutPacketUri } from '@/utils/closeoutPacketGenerator';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // One-click data export — the "kill lock-in" feature
@@ -124,7 +125,7 @@ export function payloadToCsvs(p: DataExportPayload): Record<string, string> {
     ['id', 'name', 'type', 'location', 'squareFootage', 'quality', 'status', 'grandTotal', 'createdAt', 'updatedAt'],
     p.projects.map(pr => [
       pr.id, pr.name, pr.type, pr.location, pr.squareFootage, pr.quality,
-      pr.status, pr.estimate?.grandTotal ?? '', pr.createdAt, pr.updatedAt,
+      pr.status, (effectiveEstimateTotal(pr) || ''), pr.createdAt, pr.updatedAt,
     ]),
   );
 

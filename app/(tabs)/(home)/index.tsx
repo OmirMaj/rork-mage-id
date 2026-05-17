@@ -43,6 +43,7 @@ import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 // Sticky-dismiss key for the proactive Stripe Connect home banner.
 // Versioned so we can re-show after a future revamp if needed.
@@ -109,7 +110,7 @@ export default function HomeScreen() {
     () => projects.filter(p =>
       (p.linkedEstimate?.items?.length ?? 0) > 0
       || (p.estimate?.materials?.length ?? 0) > 0
-      || (p.estimate?.grandTotal ?? 0) > 0,
+      || effectiveEstimateTotal(p) > 0,
     ).length,
     [projects],
   );

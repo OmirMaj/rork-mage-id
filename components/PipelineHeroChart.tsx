@@ -27,6 +27,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import type { Project } from '@/types';
 
 interface Props {
@@ -37,8 +38,8 @@ const MONTHS_BACK = 9;
 const CHART_HEIGHT = 160;
 
 function projectValue(p: Project): number {
-  if (p.linkedEstimate?.grandTotal) return p.linkedEstimate.grandTotal;
-  if (p.estimate?.grandTotal) return p.estimate.grandTotal;
+  const ev = effectiveEstimateTotal(p);
+  if (ev > 0) return ev;
   return 0;
 }
 
