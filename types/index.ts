@@ -856,6 +856,33 @@ export interface PDFNamingSettings {
   nextNumber: number;
 }
 
+export interface FinancingConfig {
+  enabled: boolean;
+  partnerName: string;          // e.g. "Wisetack"
+  prequalBaseUrl: string;       // partner's hosted prequalification page
+  gcRefCode?: string;           // GC's partner/affiliate code, if any
+  exampleApr?: number;          // optional — illustrative estimate only (e.g. 9.99)
+  exampleTermMonths?: number;   // optional — illustrative estimate only (e.g. 60)
+  updatedAt: string;            // ISO
+}
+
+export type FinancingReferralStatus =
+  | 'created' | 'clicked' | 'prequalified' | 'funded' | 'declined';
+
+export type FinancingReferralSource = 'estimate' | 'invoice' | 'portal';
+
+export interface FinancingReferral {
+  id: string;                   // = refToken; opaque, the only id in the URL
+  projectId: string;
+  gcUserId: string;
+  partnerName: string;
+  amountCents: number;          // amount the offer was for; 0 if unknown
+  status: FinancingReferralStatus;
+  source: FinancingReferralSource;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppSettings {
   location: string;
   units: 'imperial' | 'metric';
@@ -878,6 +905,8 @@ export interface AppSettings {
     timezone: string;
     channels: { email: boolean; in_app: boolean };
   };
+  /** Client-financing referral config. Absent ⇒ feature off. */
+  financing?: FinancingConfig;
 }
 
 export interface LinkedEstimate {
