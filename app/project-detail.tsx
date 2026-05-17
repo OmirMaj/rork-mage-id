@@ -82,7 +82,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const PROJECT_DETAIL_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
 const PROJECT_DETAIL_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking' | 'projectFiles' | 'scope';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -256,6 +256,17 @@ export default function ProjectDetailScreen() {
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
 
+  // Scope tile badge — shows "Not set" when the project has no scope data.
+  // Runs synchronously off project (no async fetch needed).
+  useEffect(() => {
+    const isSet = !!project?.scope && (project.scope.scope ?? '').trim().length > 0;
+    if (!isSet) {
+      setTileBadges(prev => ({ ...prev, scope: { label: 'Not set', tone: 'neutral' } }));
+    } else {
+      setTileBadges(prev => { const { scope: _s, ...rest } = prev; return rest; });
+    }
+  }, [project?.scope]);
+
   // ── Portal snapshot background sync ──────────────────────────────────
   // Pushes the homeowner-portal snapshot to Supabase any time a project
   // with the portal enabled is viewed. Without this, the cache only
@@ -368,6 +379,7 @@ export default function ProjectDetailScreen() {
     handover: false,
     timeTracking: false,
     projectFiles: false,
+    scope: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -1419,6 +1431,7 @@ export default function ProjectDetailScreen() {
             // docs
             rfis: DOCS_COLOR, submittals: DOCS_COLOR, permits: DOCS_COLOR,
             projectFiles: DOCS_COLOR, activity: DOCS_COLOR, calendar: DOCS_COLOR,
+            scope: DOCS_COLOR,
             // people
             collaborators: PEOPLE_COLOR, clientPortal: PEOPLE_COLOR,
             oacMeetings: PEOPLE_COLOR, communications: PEOPLE_COLOR,
@@ -1443,6 +1456,7 @@ export default function ProjectDetailScreen() {
             { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
             { key: 'permits', label: 'Permits', icon: Shield, color: colorFor('permits'), count: projectPermits.length },
             { key: 'projectFiles', label: 'Project Files', icon: FolderOpen, color: colorFor('projectFiles'), count: null as number | null },
+            { key: 'scope', label: 'Scope', icon: ClipboardList, color: colorFor('scope'), count: null as number | null },
             ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: colorFor('budget'), count: null as number | null }] : []),
             { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
             { key: 'plans', label: 'Plans', icon: Layers, color: colorFor('plans'), count: projectPlans.length },
@@ -1455,7 +1469,7 @@ export default function ProjectDetailScreen() {
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
             { key: 'field', label: 'Field Ops', icon: HardHat, color: themeColors.accent, tileKeys: ['dailyReports', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
             { key: 'money', label: 'Money', icon: DollarSign, color: themeColors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
-            { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'activity', 'calendar'] },
+            { key: 'docs', label: 'Documentation', icon: FolderOpen, color: themeColors.info, tileKeys: ['rfis', 'submittals', 'permits', 'projectFiles', 'scope', 'activity', 'calendar'] },
             { key: 'people', label: 'People & Communication', icon: Users, color: themeColors.info, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
           ];
 
@@ -1481,6 +1495,7 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'projectFiles') { router.push({ pathname: '/project-files' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'scope') { router.push({ pathname: '/project-scope', params: { id } } as never); return; }
                   setActiveTile(tile.key);
                 }}
                 testID={`section-tile-${tile.key}`}
