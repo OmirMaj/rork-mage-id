@@ -17,6 +17,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
+import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { uploadAndRenderPdf, type RenderedPlanPage } from '@/utils/pdfRenderClient';
@@ -187,7 +188,7 @@ function DrawingAnalyzerInner() {
               grandTotal: baseTotal,
               createdAt: new Date().toISOString(),
             };
-            updateProject(pickedProjectId, { linkedEstimate: linked });
+            updateProject(pickedProjectId, commitEstimatePatch(getProject(pickedProjectId), linked, { reason: 'pre_overwrite' }));
             router.push({
               pathname: '/estimate' as never,
               params: { projectId: pickedProjectId, hydratedFromAnalyzer: '1' } as never,

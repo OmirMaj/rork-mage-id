@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
 import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
+import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useMaterialCart, type MaterialCartItem } from '@/contexts/MaterialCartContext';
 import MaterialAIEstimateModal from '@/components/MaterialAIEstimateModal';
 import { generateUUID } from '@/utils/generateId';
@@ -799,21 +800,10 @@ export default function EstimateScreen() {
       const mergedBase = existing.baseTotal + linkedEst.baseTotal;
       const mergedMarkup = existing.markupTotal + linkedEst.markupTotal;
       const mergedGrand = existing.grandTotal + linkedEst.grandTotal;
-      updateProject(pendingLinkProject.id, {
-        linkedEstimate: {
-          ...linkedEst,
-          items: mergedItems,
-          baseTotal: mergedBase,
-          markupTotal: mergedMarkup,
-          grandTotal: mergedGrand,
-        },
-        status: 'estimated',
-      });
+      const mergedEstimate = { ...linkedEst, items: mergedItems, baseTotal: mergedBase, markupTotal: mergedMarkup, grandTotal: mergedGrand };
+      updateProject(pendingLinkProject.id, { ...commitEstimatePatch(pendingLinkProject, mergedEstimate, { reason: 'pre_overwrite' }), status: 'estimated' });
     } else {
-      updateProject(pendingLinkProject.id, {
-        linkedEstimate: linkedEst,
-        status: 'estimated',
-      });
+      updateProject(pendingLinkProject.id, { ...commitEstimatePatch(pendingLinkProject, linkedEst, { reason: 'pre_overwrite' }), status: 'estimated' });
     }
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

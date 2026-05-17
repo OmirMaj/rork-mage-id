@@ -41,6 +41,7 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import { useProjects } from '@/contexts/ProjectContext';
+import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -185,7 +186,7 @@ function EstimateWizardScreenInner() {
             grandTotal: data.total,
             createdAt: new Date().toISOString(),
           };
-          updateProject(projectId, { linkedEstimate });
+          updateProject(projectId, commitEstimatePatch(getProject(projectId), linkedEstimate, { reason: 'pre_overwrite' }));
         }
 
         // Fire-and-forget usage write — was previously awaited, which left

@@ -51,6 +51,7 @@ import { Tokens } from '@/constants/designTokens';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
+import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { loadTakeoff, type PersistedTakeoff } from '@/utils/takeoffStorage';
 import { mageAI } from '@/utils/mageAI';
 import { formatMoney } from '@/utils/formatters';
@@ -302,7 +303,7 @@ function TakeoffEstimateInner() {
         createdAt: new Date().toISOString(),
       };
 
-      updateProject(project.id, { linkedEstimate });
+      updateProject(project.id, commitEstimatePatch(project, linkedEstimate, { reason: 'pre_overwrite' }));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Estimate saved',
