@@ -78,6 +78,14 @@ export default function PaymentsSetupScreen() {
       Alert.alert('Invalid URL', "The partner's prequalification link must start with https://.");
       return;
     }
+    if (finApr.trim() && !Number.isFinite(Number(finApr))) {
+      Alert.alert('Invalid number', 'Example APR must be a number (e.g. 9.99).');
+      return;
+    }
+    if (finTerm.trim() && !Number.isFinite(Number(finTerm))) {
+      Alert.alert('Invalid number', 'Example term must be a whole number of months (e.g. 60).');
+      return;
+    }
     const cfg: FinancingConfig = {
       enabled,
       partnerName: finPartner.trim(),
@@ -232,8 +240,8 @@ export default function PaymentsSetupScreen() {
             Let homeowners pay monthly through a third-party partner — you're paid in full upfront.
           </Text>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-            <Text style={styles.heroSub}>Offer financing on estimates &amp; invoices</Text>
+          <View style={styles.finRow}>
+            <Text style={styles.heroSub}>Offer financing on estimates & invoices</Text>
             <Switch value={finEnabled} onValueChange={(v) => saveFinancing(v)} testID="financing-enable" />
           </View>
 
@@ -243,7 +251,7 @@ export default function PaymentsSetupScreen() {
             placeholder="https://partner.com/prequalify" autoCapitalize="none" keyboardType="url" placeholderTextColor="#9AA3AD" />
           <TextInput style={styles.finInput} value={finRefCode} onChangeText={setFinRefCode}
             placeholder="Your partner referral code (optional)" autoCapitalize="none" placeholderTextColor="#9AA3AD" />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={styles.finAprRow}>
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finApr} onChangeText={setFinApr}
               placeholder="Example APR % (optional)" keyboardType="decimal-pad" placeholderTextColor="#9AA3AD" />
             <TextInput style={[styles.finInput, { flex: 1 }]} value={finTerm} onChangeText={setFinTerm}
@@ -254,13 +262,13 @@ export default function PaymentsSetupScreen() {
             <Text style={styles.ctaText}>Save financing settings</Text>
           </TouchableOpacity>
 
-          <Text style={{ fontSize: 11, color: '#9AA3AD', marginTop: 10 }}>
+          <Text style={styles.finDisclosure}>
             {finPartner.trim() ? financingDisclosure({
               enabled: finEnabled, partnerName: finPartner.trim(), prequalBaseUrl: finUrl, updatedAt: '',
             }) : 'Configure a partner to see the client disclosure that will appear on every offer.'}
           </Text>
           {finEnabled && (
-            <Text style={{ fontSize: 12, color: '#4A5159', marginTop: 8 }}>
+            <Text style={styles.finStats}>
               Referrals: {referralStats.created} created · {referralStats.clicked} clicked · {referralStats.funded} funded
             </Text>
           )}
@@ -504,4 +512,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     color: t.text,
   },
+  finRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginTop: Tokens.spacing.sm,
+  },
+  finAprRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs },
+  finDisclosure: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 10 },
+  finStats: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 8 },
 });
