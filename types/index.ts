@@ -108,6 +108,24 @@ export interface ProjectScope {
   updatedAt: string;
 }
 
+export type EstimateChangeReason =
+  | 'manual'
+  | 'sent_to_client'
+  | 'converted_to_contract'
+  | 'pre_overwrite'
+  | 'restore';
+
+export interface EstimateRevision {
+  id: string;
+  revNumber: number;          // 1-based, monotonic per project
+  snapshot: LinkedEstimate;   // full immutable estimate at that point
+  grandTotal: number;         // denormalized from snapshot for list render
+  reason: EstimateChangeReason;
+  note?: string;
+  createdAt: string;          // ISO
+  createdBy?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -162,6 +180,8 @@ export interface Project {
   estimate: EstimateBreakdown | null;
   schedule?: ProjectSchedule | null;
   linkedEstimate?: LinkedEstimate | null;
+  /** Immutable estimate revision history (milestone-driven). Absent ⇒ none yet. */
+  estimateVersions?: EstimateRevision[];
   status: 'draft' | 'estimated' | 'in_progress' | 'completed' | 'closed';
   collaborators?: ProjectCollaborator[];
   clientPortal?: ClientPortalSettings;
