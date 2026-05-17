@@ -430,16 +430,20 @@ function InvoiceInner() {
     }
 
     let financingHtml = '';
-    if (isFinancingAvailable(settings) && projectId) {
-      const refToken = await ensureReferral({
-        projectId,
-        source: 'invoice',
-        amountCents: Math.round(totalDue * 100),
-        partnerName: settings.financing!.partnerName,
-      });
-      if (refToken) {
-        financingHtml = financingEmailBlockHtml({ settings, amountCents: Math.round(totalDue * 100), refToken });
+    try {
+      if (isFinancingAvailable(settings) && projectId) {
+        const refToken = await ensureReferral({
+          projectId,
+          source: 'invoice',
+          amountCents: Math.round(totalDue * 100),
+          partnerName: settings.financing!.partnerName,
+        });
+        if (refToken) {
+          financingHtml = financingEmailBlockHtml({ settings, amountCents: Math.round(totalDue * 100), refToken });
+        }
       }
+    } catch (e) {
+      console.log('[invoice] financing block skipped:', e);
     }
 
     const html = buildInvoiceEmailHtml({
