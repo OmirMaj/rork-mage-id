@@ -5,6 +5,7 @@
 // portal viewers when status >= sent).
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { generateUUID } from './generateId';
 import type {
   ProjectContract, PaymentMilestone, ContractAllowance,
@@ -126,10 +127,7 @@ export interface DraftContractInput {
   sourceResponseId?: string;
 }
 export function buildDraftContract(input: DraftContractInput): Omit<ProjectContract, 'id' | 'createdAt' | 'updatedAt' | 'userId'> {
-  const value = input.contractValue
-    ?? input.project.linkedEstimate?.grandTotal
-    ?? input.project.estimate?.grandTotal
-    ?? 0;
+  const value = input.contractValue ?? effectiveEstimateTotal(input.project);
   return {
     projectId: input.project.id,
     sourceBidId: input.sourceBidId,

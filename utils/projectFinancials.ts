@@ -8,6 +8,7 @@
 // + Invoices.
 
 import type { Project, ChangeOrder, Invoice, InvoiceStatus } from '@/types';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 /**
  * Total contract value = base estimate + approved change orders.
@@ -17,7 +18,7 @@ export function getContractValue(
   project: Project | null | undefined,
   changeOrders: ChangeOrder[] | null | undefined,
 ): number {
-  const base = project?.estimate?.grandTotal ?? 0;
+  const base = effectiveEstimateTotal(project);
   const coSum = (changeOrders ?? [])
     .filter(co => co.status === 'approved')
     .reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
@@ -29,7 +30,7 @@ export function getContractValue(
  * contract total next to the "current" one for transparency).
  */
 export function getBaseContractValue(project: Project | null | undefined): number {
-  return project?.estimate?.grandTotal ?? 0;
+  return effectiveEstimateTotal(project);
 }
 
 /**
