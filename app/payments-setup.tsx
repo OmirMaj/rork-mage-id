@@ -23,6 +23,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, Linking, ActivityIndicator,
+  TextInput, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -38,6 +39,9 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
+import { financingDisclosure } from '@/utils/financing';
+import type { FinancingConfig } from '@/types';
 import {
   startStripeConnectOnboarding, fetchStripeConnectStatus, type ConnectStatus,
 } from '@/utils/stripeConnect';
@@ -51,13 +55,41 @@ export default function PaymentsSetupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { settings } = useProjects();
+  const { settings, updateSettings } = useProjects();
 
   const [status, setStatus] = useState<ConnectStatus>('none');
   const [loading, setLoading] = useState<boolean>(true);
   const [starting, setStarting] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [accountId, setAccountId] = useState<string | undefined>(undefined);
+
+  const fin = settings?.financing;
+  const referralStats = useFinancingReferrals(user?.id).counts;
+  const [finEnabled, setFinEnabled] = useState<boolean>(!!fin?.enabled);
+  const [finPartner, setFinPartner] = useState<string>(fin?.partnerName ?? '');
+  const [finUrl, setFinUrl] = useState<string>(fin?.prequalBaseUrl ?? '');
+  const [finRefCode, setFinRefCode] = useState<string>(fin?.gcRefCode ?? '');
+  const [finApr, setFinApr] = useState<string>(fin?.exampleApr != null ? String(fin.exampleApr) : '');
+  const [finTerm, setFinTerm] = useState<string>(fin?.exampleTermMonths != null ? String(fin.exampleTermMonths) : '');
+
+  const saveFinancing = useCallback((enabled: boolean) => {
+    const url = finUrl.trim();
+    if (enabled && !/^https:\/\//i.test(url)) {
+      Alert.alert('Invalid URL', "The partner's prequalification link must start with https://.");
+      return;
+    }
+    const cfg: FinancingConfig = {
+      enabled,
+      partnerName: finPartner.trim(),
+      prequalBaseUrl: url,
+      gcRefCode: finRefCode.trim() || undefined,
+      exampleApr: finApr.trim() ? Number(finApr) : undefined,
+      exampleTermMonths: finTerm.trim() ? Number(finTerm) : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    updateSettings({ financing: cfg });
+    setFinEnabled(enabled);
+  }, [finUrl, finPartner, finRefCode, finApr, finTerm, updateSettings]);
 
   const refresh = useCallback(async (silent = false) => {
     if (!user?.id) {
@@ -193,6 +225,46 @@ export default function PaymentsSetupScreen() {
             companyName={settings?.branding?.companyName}
           />
         )}
+
+        <View style={styles.card}>
+          <Text style={styles.heroTitle}>Client financing</Text>
+          <Text style={styles.heroSub}>
+            Let homeowners pay monthly through a third-party partner — you're paid in full upfront.
+          </Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+            <Text style={styles.heroSub}>Offer financing on estimates &amp; invoices</Text>
+            <Switch value={finEnabled} onValueChange={(v) => saveFinancing(v)} testID="financing-enable" />
+          </View>
+
+          <TextInput style={styles.finInput} value={finPartner} onChangeText={setFinPartner}
+            placeholder="Partner name (e.g. Wisetack)" placeholderTextColor="#9AA3AD" />
+          <TextInput style={styles.finInput} value={finUrl} onChangeText={setFinUrl}
+            placeholder="https://partner.com/prequalify" autoCapitalize="none" keyboardType="url" placeholderTextColor="#9AA3AD" />
+          <TextInput style={styles.finInput} value={finRefCode} onChangeText={setFinRefCode}
+            placeholder="Your partner referral code (optional)" autoCapitalize="none" placeholderTextColor="#9AA3AD" />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput style={[styles.finInput, { flex: 1 }]} value={finApr} onChangeText={setFinApr}
+              placeholder="Example APR % (optional)" keyboardType="decimal-pad" placeholderTextColor="#9AA3AD" />
+            <TextInput style={[styles.finInput, { flex: 1 }]} value={finTerm} onChangeText={setFinTerm}
+              placeholder="Example term (months)" keyboardType="number-pad" placeholderTextColor="#9AA3AD" />
+          </View>
+
+          <TouchableOpacity style={styles.cta} onPress={() => saveFinancing(finEnabled)} testID="financing-save">
+            <Text style={styles.ctaText}>Save financing settings</Text>
+          </TouchableOpacity>
+
+          <Text style={{ fontSize: 11, color: '#9AA3AD', marginTop: 10 }}>
+            {finPartner.trim() ? financingDisclosure({
+              enabled: finEnabled, partnerName: finPartner.trim(), prequalBaseUrl: finUrl, updatedAt: '',
+            }) : 'Configure a partner to see the client disclosure that will appear on every offer.'}
+          </Text>
+          {finEnabled && (
+            <Text style={{ fontSize: 12, color: '#4A5159', marginTop: 8 }}>
+              Referrals: {referralStats.created} created · {referralStats.clicked} clicked · {referralStats.funded} funded
+            </Text>
+          )}
+        </View>
 
         <View style={styles.fineprint}>
           <Lock size={11} color={themeColors.textMuted} />
@@ -422,4 +494,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     marginTop: 8,
   },
   fineprintText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16 },
+  finInput: {
+    backgroundColor: t.bg,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.card,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: Type.bodyCompact.fontSize,
+    color: t.text,
+  },
 });
