@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding, Project, Invoice, ChangeOrder } from '@/types';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // AIA G702/G703 progress pay application generator
@@ -122,7 +123,7 @@ export function seedAIAPayApplicationFromInvoice(
   },
 ): AIAPayApplication {
   const retainagePercent = opts?.retainagePercent ?? invoice.retentionPercent ?? 10;
-  const originalContractSum = project.estimate?.grandTotal ?? 0;
+  const originalContractSum = effectiveEstimateTotal(project);
   const netChangeByCO = approvedCOs.reduce((s, co) => s + co.changeAmount, 0);
   const contractSumToDate = originalContractSum + netChangeByCO;
 

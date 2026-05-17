@@ -6,6 +6,7 @@
 import type {
   Project, AppSettings, ProjectPhoto, PublicProfileSettings,
 } from '@/types';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 export const PUBLIC_PROFILE_SNAPSHOT_VERSION = 1;
 
@@ -89,9 +90,8 @@ export function buildPublicProfileSnapshot(opts: BuildOpts): PublicProfileSnapsh
     });
   }
 
-  const contractValue = project.estimate?.grandTotal
-    ?? project.targetBudget?.amount
-    ?? undefined;
+  const _ev = effectiveEstimateTotal(project);
+  const contractValue = (_ev > 0 ? _ev : project.targetBudget?.amount) ?? undefined;
 
   const durationDays = project.schedule?.totalDurationDays;
 

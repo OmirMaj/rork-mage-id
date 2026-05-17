@@ -13,6 +13,7 @@ import type {
   SavedAIAPayApp,
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 // v7 adds (Wave 5):
 // - language: the homeowner's chosen language code ('en' / 'es' / 'pt' /
@@ -423,9 +424,9 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // the portal still has a number to display.
   if (portal.showBudgetSummary) {
     const baseContract =
-      project.estimate?.grandTotal
-      ?? project.targetBudget?.amount
-      ?? 0;
+      effectiveEstimateTotal(project)
+      || project.targetBudget?.amount
+      || 0;
     const coTotal = changeOrders
       .filter(c => c.status === 'approved')
       .reduce((sum, c) => sum + (c.changeAmount ?? 0), 0);
@@ -641,7 +642,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // accepted target budget). If a targetBudget is already set the client
   // sees that number in the stats — they don't need to propose another.
   const noContractYet =
-    !project.estimate?.grandTotal && !project.targetBudget?.amount;
+    effectiveEstimateTotal(project) <= 0 && !project.targetBudget?.amount;
   const clientCanSetBudget = !!portal.clientCanSetBudget && noContractYet;
 
   // Snapshot the targetBudget so the portal can show the number even when

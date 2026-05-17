@@ -31,6 +31,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -408,7 +409,7 @@ export default function ClientViewScreen() {
   const financingEnabledForPortal = isFinancingAvailable(settings);
 
   // Budget metrics
-  const contractValue = project?.estimate?.grandTotal ?? 0;
+  const contractValue = effectiveEstimateTotal(project);
   const invoicedTotal = invoices.reduce((s, i) => s + i.totalDue, 0);
   const paidTotal = invoices.reduce((s, i) => s + i.amountPaid, 0);
   const coTotal = changeOrders.filter(c => c.status === 'approved').reduce((s, c) => s + c.changeAmount, 0);
