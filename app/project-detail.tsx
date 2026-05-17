@@ -15,7 +15,7 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
-  Clock,
+  Clock, Lock,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
@@ -25,6 +25,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import UniversalMicButton from '@/components/UniversalMicButton';
@@ -152,6 +153,17 @@ export default function ProjectDetailScreen() {
   const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
+  const { canAccess } = useTierAccess();
+  // Tiles whose screens hard-gate behind a paywall. Pre-fix a free user
+  // tapped Punch List / RFIs / Change Orders and hit a full-screen wall
+  // with no warning; a small lock on the tile sets the expectation.
+  const lockedTileKeys = useMemo(() => {
+    const s = new Set<SectionKey>();
+    if (!canAccess('punch_list_closeout')) s.add('punchList');
+    if (!canAccess('rfis_submittals')) { s.add('rfis'); s.add('submittals'); }
+    if (!canAccess('change_orders_invoicing')) s.add('changeOrders');
+    return s;
+  }, [canAccess]);
 
   const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
   const projectInvoices = useMemo(() => getInvoicesForProject(id ?? ''), [id, getInvoicesForProject]);
@@ -1478,6 +1490,9 @@ export default function ProjectDetailScreen() {
                   <View style={styles.sectionTileBadge}>
                     <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
                   </View>
+                )}
+                {lockedTileKeys.has(tile.key) && (
+                  <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 4 }} />
                 )}
                 <ChevronRight size={16} color={themeColors.textMuted} />
               </HardHatTap>

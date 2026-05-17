@@ -146,7 +146,10 @@ function InvoiceInner() {
 
   const nextInvoiceNumber = useMemo(() => {
     if (existingInvoice) return existingInvoice.number;
-    return existingInvoices.length + 1;
+    // Max+1, not length+1: a deleted invoice (or a just-added one from
+    // the synchronous create-then-edit send) would otherwise reuse a
+    // number that's already on a client-facing invoice.
+    return existingInvoices.reduce((max, i) => Math.max(max, i.number ?? 0), 0) + 1;
   }, [existingInvoices, existingInvoice]);
 
   const isProgressType = (invoiceType === 'progress') || (existingInvoice?.type === 'progress');

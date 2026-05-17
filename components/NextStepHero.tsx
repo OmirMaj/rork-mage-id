@@ -88,9 +88,18 @@ interface NextStep {
 function chooseNextStep(input: NextStepHeroProps): NextStep | null {
   const { projects, invoices, rfis = [], subs = [], prequalPackets = [], scopeToProjectId } = input;
 
-  const projScope = scopeToProjectId ? projects.filter(p => p.id === scopeToProjectId) : projects;
-  const invScope = scopeToProjectId ? invoices.filter(i => i.projectId === scopeToProjectId) : invoices;
-  const rfiScope = scopeToProjectId ? rfis.filter(r => r.projectId === scopeToProjectId) : rfis;
+  // Exclude the auto-seeded "Sample — …" demo projects from portfolio-wide
+  // guidance. Pre-fix the very first thing a new user saw was "Add scope to
+  // Sample — Sarah's Place" — the most-guided action aimed at throwaway
+  // data. When scoped to one project (project-detail) we don't filter:
+  // if you're on a sample's detail, its next step is legitimately useful.
+  const sampleIds = new Set(
+    projects.filter(p => p.name.startsWith('Sample — ')).map(p => p.id),
+  );
+  const realProjects = projects.filter(p => !sampleIds.has(p.id));
+  const projScope = scopeToProjectId ? projects.filter(p => p.id === scopeToProjectId) : realProjects;
+  const invScope = scopeToProjectId ? invoices.filter(i => i.projectId === scopeToProjectId) : invoices.filter(i => !sampleIds.has(i.projectId));
+  const rfiScope = scopeToProjectId ? rfis.filter(r => r.projectId === scopeToProjectId) : rfis.filter(r => !sampleIds.has(r.projectId));
 
   // 1. Past-due invoices (>30 days). Highest urgency — actual revenue
   //    waiting for a tap on "send reminder".
@@ -158,10 +167,12 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       cta: 'Review RFIs',
       // Deep-link straight to the project's RFI section via the new
       // ?tile= param — not the tile grid. Portfolio-wide falls back to
-      // the cross-project RFI log.
+      // the RFI screen (its no-param state is the cross-project list).
+      // Pre-fix this was '/rfi-log' — a route with no file, so the most
+      // visible "where do I start" card dead-ended on not-found.
       href: scopeToProjectId
         ? { pathname: '/project-detail', params: { id: scopeToProjectId, tile: 'rfis' } }
-        : '/rfi-log',
+        : '/rfi',
     };
   }
 

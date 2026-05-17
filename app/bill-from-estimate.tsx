@@ -80,7 +80,9 @@ export default function BillFromEstimateScreen() {
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
-  const nextInvoiceNumber = existingInvoices.length + 1;
+  // Max+1, not length+1 — a deleted invoice would otherwise reuse a
+  // number that's already on a client-facing invoice.
+  const nextInvoiceNumber = existingInvoices.reduce((max, i) => Math.max(max, i.number ?? 0), 0) + 1;
   const isProgressDefault = type === 'progress';
 
   // Build source rows from the linked (new-style) estimate first, then fall

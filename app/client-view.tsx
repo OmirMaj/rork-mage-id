@@ -20,6 +20,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
@@ -87,7 +88,6 @@ export default function ClientViewScreen() {
   const {
     projects, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject,
     getPunchItemsForProject, getPhotosForProject, getRFIsForProject, updateProject, updateChangeOrder,
-    getPortalMessagesForProject, addPortalMessage, markPortalMessagesRead, getUnreadPortalMessageCount,
   } = useProjects();
 
   // Find project by portalId
@@ -97,6 +97,12 @@ export default function ClientViewScreen() {
   );
 
   const portal = project?.clientPortal;
+
+  // GC↔client thread lives in Supabase (portal_messages, keyed by
+  // portal_id). Pre-fix this screen wrote/read a LOCAL store while the
+  // GC's client-messages screen read Supabase — client replies were
+  // silently lost. Same hook + table as the GC side now.
+  const thread = usePortalThread({ projectId: project?.id, portalId: portal?.portalId });
 
   const changeOrders = useMemo(() => project ? getChangeOrdersForProject(project.id) : [], [project, getChangeOrdersForProject]);
   const invoices = useMemo(() => project ? getInvoicesForProject(project.id) : [], [project, getInvoicesForProject]);
@@ -242,51 +248,32 @@ export default function ClientViewScreen() {
 
   const toggleSection = (key: SectionKey) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
-  // Portal messages (Q&A thread) — client side
-  const messages = useMemo(
-    () => project ? getPortalMessagesForProject(project.id) : [],
-    [project, getPortalMessagesForProject],
-  );
-  const unreadFromGc = useMemo(
-    () => project ? getUnreadPortalMessageCount(project.id, 'client') : 0,
-    [project, getUnreadPortalMessageCount],
-  );
+  // Portal messages (Q&A thread) — Supabase, the SAME source the GC's
+  // client-messages screen reads. usePortalThread polls + realtime-subs
+  // on portal_id, so the client sees GC replies and their own sent
+  // message after it round-trips.
+  const messages = thread.messages;
   const [composeBody, setComposeBody] = useState('');
-  const [sendingMsg, setSendingMsg] = useState(false);
-
-  // Mark all messages from GC as read once the client has opened the portal.
-  useEffect(() => {
-    if (!canRecordAccess || !project) return;
-    if (unreadFromGc === 0) return;
-    markPortalMessagesRead(project.id, 'client');
-  }, [canRecordAccess, project?.id, unreadFromGc, markPortalMessagesRead]);
+  const sendingMsg = thread.isSendingClient;
 
   const handleSendMessage = useCallback(() => {
-    if (!project || !portal) return;
+    if (!project || !portal?.portalId) return;
     const body = composeBody.trim();
     if (!body) return;
     const authorName =
       (typeof clientNameParam === 'string' && clientNameParam.trim()) ||
       portal.invites?.find(i => i.id === inviteId)?.name ||
       'Client';
-    setSendingMsg(true);
-    try {
-      addPortalMessage({
-        projectId: project.id,
-        portalId: portal.portalId,
-        authorType: 'client',
-        authorName,
-        inviteId: typeof inviteId === 'string' ? inviteId : undefined,
-        body,
-        readByGc: false,
-        readByClient: true,
-      });
-      setComposeBody('');
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } finally {
-      setSendingMsg(false);
-    }
-  }, [project, portal, composeBody, inviteId, clientNameParam, addPortalMessage]);
+    thread.sendClientMessage({
+      portalId: portal.portalId,
+      projectId: project.id,
+      authorName,
+      inviteId: typeof inviteId === 'string' ? inviteId : undefined,
+      body,
+    });
+    setComposeBody('');
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [project, portal, composeBody, inviteId, clientNameParam, thread]);
 
   const openApprovalFlow = useCallback((co: ChangeOrder, mode: 'approve' | 'reject') => {
     setApprovalCO(co);

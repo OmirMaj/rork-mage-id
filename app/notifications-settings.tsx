@@ -534,7 +534,7 @@ export default function NotificationsSettingsScreen() {
                   </Text>
                   {locationCoverage.total > 0 && locationCoverage.geocoded < locationCoverage.total && (
                     <TouchableOpacity
-                      onPress={() => router.push('/projects' as any)}
+                      onPress={() => router.push('/(tabs)/(home)' as never)}
                       activeOpacity={0.85}
                       style={styles.locationCta}
                     >

@@ -28,11 +28,12 @@ import {
   Search, X, ChevronRight, ChevronLeft, FolderPlus, Calculator, CalendarDays, FileText,
   Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
-  Wallet, MessageSquare, Ruler, Sparkles, type LucideIcon,
+  Wallet, MessageSquare, Ruler, Sparkles, Lock, type LucideIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -57,6 +58,12 @@ interface CreateOption {
    *  these routed bare and dead-ended on a "pick a project" empty state;
    *  now we interpose an in-sheet project picker and pass `projectId`. */
   scoped?: boolean;
+  /** Name of the route param the destination reads the project id from.
+   *  Defaults to `projectId`; a few screens read `id` instead — passing
+   *  the wrong name re-creates the dead-end the picker is meant to fix. */
+  param?: string;
+  /** Static extra params merged into the route (e.g. `{ type:'progress' }`). */
+  extraParams?: Record<string, string>;
 }
 
 const OPTIONS: CreateOption[] = [
@@ -68,25 +75,25 @@ const OPTIONS: CreateOption[] = [
 
   // Money
   { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: Receipt, href: '/invoice', category: 'money', scoped: true },
-  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', category: 'money', keywords: ['co'], scoped: true },
-  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/aia-pay-app', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true },
+  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', category: 'money', keywords: ['co'], scoped: true, tier: 'pro' },
+  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true, extraParams: { type: 'progress' } },
   { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
   { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
 
   // Documentation
   { label: 'Daily Report', subtitle: 'What got done today on site', Icon: ClipboardList, href: '/daily-report', category: 'docs', keywords: ['dfr', 'log'], scoped: true },
-  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', category: 'docs', keywords: ['punch list'], scoped: true },
-  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', category: 'docs', keywords: ['request for information'], scoped: true },
+  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', category: 'docs', keywords: ['punch list'], scoped: true, tier: 'business' },
+  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', category: 'docs', keywords: ['request for information'], scoped: true, tier: 'business' },
   { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: FileText, href: '/submittal', category: 'docs', scoped: true },
   { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: ShoppingCart, href: '/selections', category: 'docs', scoped: true },
-  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-annotator', category: 'docs', keywords: ['picture'], scoped: true },
+  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-triage', category: 'docs', keywords: ['picture'], scoped: true },
   { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: Layers, href: '/plans', category: 'docs', keywords: ['blueprint'], scoped: true },
   { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', category: 'docs', scoped: true },
   { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: Shield, href: '/coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
 
   // People & meetings
   { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
-  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', category: 'people', scoped: true },
+  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', category: 'people', scoped: true, param: 'id' },
   { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true },
 
   // Closeout
@@ -123,6 +130,15 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects } = useProjects();
+  const { isProOrAbove, isBusinessOrAbove } = useTierAccess();
+  // A locked row keeps working (tapping still routes → the screen's own
+  // Paywall is the real gate) — the chip just sets expectations so a free
+  // tester sees "Business" before tapping instead of hitting a full wall.
+  const lockedTier = useCallback((opt: CreateOption): 'pro' | 'business' | null => {
+    if (opt.tier === 'business' && !isBusinessOrAbove) return 'business';
+    if (opt.tier === 'pro' && !isProOrAbove) return 'pro';
+    return null;
+  }, [isProOrAbove, isBusinessOrAbove]);
   const [query, setQuery] = useState('');
   // When set, the sheet swaps from the create list to an in-sheet project
   // picker for this scoped option. Swapping content (vs. opening a nested
@@ -163,7 +179,12 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
   const routeScoped = useCallback((opt: CreateOption, projectId: string) => {
     handleClose();
     setTimeout(() => {
-      router.push({ pathname: opt.href as never, params: { projectId } } as never);
+      router.push({
+        pathname: opt.href as never,
+        // Most screens read `projectId`; a few read `id`. Passing the
+        // wrong name re-creates the exact dead-end the picker fixes.
+        params: { [opt.param ?? 'projectId']: projectId, ...(opt.extraParams ?? {}) },
+      } as never);
     }, 280);
   }, [handleClose, router]);
 
@@ -324,6 +345,15 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                           {opt.subtitle}
                         </Text>
                       </View>
+                      {(() => {
+                        const lt = lockedTier(opt);
+                        return lt ? (
+                          <View style={styles.tierChip}>
+                            <Lock size={10} color={themeColors.textSecondary} strokeWidth={2.5} />
+                            <Text style={styles.tierChipText}>{lt === 'pro' ? 'Pro' : 'Business'}</Text>
+                          </View>
+                        ) : null;
+                      })()}
                       <ChevronRight size={16} color={themeColors.textMuted} />
                     </TouchableOpacity>
                   ))}
@@ -402,5 +432,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyResult: {
     paddingVertical: 32,
     paddingHorizontal: 24,
+  },
+  tierChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: t.surfaceAlt,
+  },
+  tierChipText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: t.textSecondary,
+    letterSpacing: 0.3,
   },
 });

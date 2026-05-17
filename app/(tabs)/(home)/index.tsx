@@ -723,12 +723,39 @@ export default function HomeScreen() {
                 projects without scope/estimate/invoice) and renders it
                 as a single CTA. Hidden when there's nothing to suggest —
                 a calm view is the reward for being caught up. */}
-            {projects.length > 0 && (
+            {projects.length > 0 && projects.every(p => p.name.startsWith('Sample — ')) ? (
+              // Only the auto-seeded demo projects exist. NextStepHero is
+              // sample-filtered (renders nothing here), so without this the
+              // brand-new user has no spine. Tell them plainly these are
+              // samples and point at project creation.
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setShowCreateModal(true)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 14,
+                  backgroundColor: themeColors.surfaceAlt,
+                  borderWidth: StyleSheet.hairlineWidth, borderColor: themeColors.line,
+                }}
+                testID="samples-banner"
+              >
+                <Sparkles size={20} color={themeColors.accent} strokeWidth={2} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: themeColors.text }}>
+                    These are sample projects
+                  </Text>
+                  <Text style={{ fontSize: 13, color: themeColors.textSecondary, marginTop: 2 }}>
+                    Tap to create your own and start for real.
+                  </Text>
+                </View>
+                <ChevronRight size={18} color={themeColors.textMuted} />
+              </TouchableOpacity>
+            ) : projects.length > 0 ? (
               <NextStepHero
                 projects={projects}
                 invoices={invoices}
               />
-            )}
+            ) : null}
 
             {/* AI summary + Quick Field Update moved below the project
                 list — the user's first scroll target is now the project

@@ -158,10 +158,39 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
     },
   });
 
+  // Client-authored send. client-view.tsx (the in-app portal preview the
+  // client actually types into) pre-fix wrote to a LOCAL AsyncStorage
+  // store while the GC read Supabase here — so client→GC replies were
+  // silently lost. This inserts the row the GC's portal_id query sees.
+  const sendClientMessageMutation = useMutation({
+    mutationFn: async (args: { portalId: string; projectId?: string; body: string; authorName?: string; inviteId?: string }) => {
+      const { error } = await supabase.from('portal_messages').insert({
+        portal_id: args.portalId,
+        project_id: args.projectId ?? null,
+        invite_id: args.inviteId ?? null,
+        author_type: 'client',
+        author_name: args.authorName ?? null,
+        body: args.body,
+        read_by_client: true,
+        read_by_gc: false,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['portalMessages', portalId] });
+    },
+  });
+
   const sendMessage = useCallback(
     (args: { portalId: string; projectId?: string; body: string; authorName?: string }) =>
       sendMessageMutation.mutate(args),
     [sendMessageMutation],
+  );
+
+  const sendClientMessage = useCallback(
+    (args: { portalId: string; projectId?: string; body: string; authorName?: string; inviteId?: string }) =>
+      sendClientMessageMutation.mutate(args),
+    [sendClientMessageMutation],
   );
 
   // Realtime subscription — invalidates the cached queries the moment
@@ -195,8 +224,10 @@ export function usePortalThread({ projectId, portalId }: UsePortalThreadOpts) {
     unreadFromClient: (messagesQ.data ?? []).filter(m => m.authorType === 'client' && !m.readByGc),
     coApprovals: approvalsQ.data ?? [],
     sendMessage,
+    sendClientMessage,
     markRead: (id: string) => markReadMutation.mutate(id),
     isSending: sendMessageMutation.isPending,
+    isSendingClient: sendClientMessageMutation.isPending,
     refetchMessages: messagesQ.refetch,
     refetchApprovals: approvalsQ.refetch,
   };

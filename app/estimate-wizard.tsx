@@ -536,19 +536,33 @@ function EstimateWizardScreenInner() {
           />
 
           <View style={styles.resultActions}>
+            {projectId && scopedProject && (
+              <TouchableOpacity
+                style={styles.resultPrimaryBtn}
+                onPress={() => router.replace({ pathname: '/project-detail', params: { id: projectId } } as never)}
+                activeOpacity={0.85}
+                disabled={sharingPdf}
+                testID="wizard-view-project"
+              >
+                <CheckCircle2 size={18} color="#FFF" />
+                <Text style={styles.resultPrimaryText} numberOfLines={1}>
+                  Saved to {scopedProject.name} — open project
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={styles.resultPrimaryBtn}
+              style={projectId && scopedProject ? styles.resultSecondaryBtn : styles.resultPrimaryBtn}
               onPress={share}
               activeOpacity={0.85}
               disabled={sharingPdf}
               testID="wizard-share"
             >
               {sharingPdf ? (
-                <ActivityIndicator size="small" color="#FFF" />
+                <ActivityIndicator size="small" color={projectId && scopedProject ? themeColors.text : '#FFF'} />
               ) : (
                 <>
-                  <FileDown size={18} color="#FFF" />
-                  <Text style={styles.resultPrimaryText}>
+                  <FileDown size={18} color={projectId && scopedProject ? themeColors.text : '#FFF'} />
+                  <Text style={projectId && scopedProject ? styles.resultSecondaryText : styles.resultPrimaryText}>
                     {Platform.OS === 'web' ? 'Open PDF preview' : 'Download & share PDF'}
                   </Text>
                 </>

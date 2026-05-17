@@ -6,8 +6,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, ChevronDown, Link2, X, CheckCircle2, Send, FileText } from 'lucide-react-native';
+import { Save, ChevronDown, Link2, X, CheckCircle2, Send, FileText, CalendarDays } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
+import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -121,6 +122,7 @@ function RFIScreenInner() {
   );
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   // Send-to-Architect modal state
   const [showSendModal, setShowSendModal] = useState(false);
@@ -488,12 +490,29 @@ function RFIScreenInner() {
         </View>
 
         <Text style={styles.fieldLabel}>Response Required By</Text>
-        <TextInput
-          style={styles.input}
+        <TouchableOpacity
+          style={styles.pickerBtn}
+          onPress={() => setShowDatePicker(true)}
+          activeOpacity={0.7}
+          testID="rfi-date-required"
+        >
+          <CalendarDays size={16} color={themeColors.textMuted} />
+          <Text
+            style={[styles.pickerBtnText, !dateRequired && { color: themeColors.textMuted }]}
+            numberOfLines={1}
+          >
+            {dateRequired
+              ? new Date(dateRequired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : 'Select a date'}
+          </Text>
+        </TouchableOpacity>
+        <DatePickerModal
+          visible={showDatePicker}
           value={dateRequired}
-          onChangeText={setDateRequired}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={themeColors.textMuted}
+          allowFuture
+          title="Response required by"
+          onClose={() => setShowDatePicker(false)}
+          onChange={(iso) => setDateRequired(iso)}
         />
 
         <Text style={styles.fieldLabel}>Priority</Text>
