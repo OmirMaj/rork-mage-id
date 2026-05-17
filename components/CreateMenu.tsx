@@ -19,19 +19,20 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Platform,
+  TextInput, Platform, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Search, X, ChevronRight, FolderPlus, Calculator, CalendarDays, FileText,
+  Search, X, ChevronRight, ChevronLeft, FolderPlus, Calculator, CalendarDays, FileText,
   Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
   Wallet, MessageSquare, Ruler, Sparkles, type LucideIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -52,44 +53,48 @@ interface CreateOption {
   tier?: 'pro' | 'business';
   /** Search keywords beyond the label. */
   keywords?: string[];
+  /** True when the destination screen needs a `projectId`. Pre-audit
+   *  these routed bare and dead-ended on a "pick a project" empty state;
+   *  now we interpose an in-sheet project picker and pass `projectId`. */
+  scoped?: boolean;
 }
 
 const OPTIONS: CreateOption[] = [
   // Project-level
   { label: 'Project', subtitle: 'Start a new job from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
-  { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: Calculator, href: '/(tabs)/estimate', category: 'project' },
-  { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: CalendarDays, href: '/(tabs)/schedule', category: 'project' },
+  { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: Calculator, href: '/estimate-wizard', category: 'project', scoped: true },
+  { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: CalendarDays, href: '/schedule-wizard', category: 'project', scoped: true },
   { label: 'Lead', subtitle: 'Capture a homeowner inquiry — voice or form', Icon: UserPlus, href: '/leads', category: 'project', keywords: ['pipeline', 'sales'] },
 
   // Money
-  { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: Receipt, href: '/invoice', category: 'money' },
-  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', category: 'money', keywords: ['co'] },
-  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/aia-pay-app', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'] },
-  { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'] },
-  { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', category: 'money', keywords: ['waiver', 'release'] },
+  { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: Receipt, href: '/invoice', category: 'money', scoped: true },
+  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', category: 'money', keywords: ['co'], scoped: true },
+  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/aia-pay-app', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true },
+  { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
+  { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
 
   // Documentation
-  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: ClipboardList, href: '/daily-report', category: 'docs', keywords: ['dfr', 'log'] },
-  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', category: 'docs', keywords: ['punch list'] },
-  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', category: 'docs', keywords: ['request for information'] },
-  { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: FileText, href: '/submittal', category: 'docs' },
-  { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: ShoppingCart, href: '/selections', category: 'docs' },
-  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-annotator', category: 'docs', keywords: ['picture'] },
-  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: Layers, href: '/plans', category: 'docs', keywords: ['blueprint'] },
-  { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', category: 'docs' },
+  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: ClipboardList, href: '/daily-report', category: 'docs', keywords: ['dfr', 'log'], scoped: true },
+  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', category: 'docs', keywords: ['punch list'], scoped: true },
+  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', category: 'docs', keywords: ['request for information'], scoped: true },
+  { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: FileText, href: '/submittal', category: 'docs', scoped: true },
+  { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: ShoppingCart, href: '/selections', category: 'docs', scoped: true },
+  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-annotator', category: 'docs', keywords: ['picture'], scoped: true },
+  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: Layers, href: '/plans', category: 'docs', keywords: ['blueprint'], scoped: true },
+  { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', category: 'docs', scoped: true },
   { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: Shield, href: '/coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
 
   // People & meetings
-  { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', category: 'people', keywords: ['meeting'] },
-  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', category: 'people' },
-  { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people' },
+  { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', category: 'people', keywords: ['meeting'], scoped: true },
+  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', category: 'people', scoped: true },
+  { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people', scoped: true },
 
   // Closeout
-  { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', category: 'docs' },
-  { label: 'Closeout Binder', subtitle: 'The PDF packet you give the homeowner', Icon: BookOpen, href: '/closeout-binder', category: 'docs' },
+  { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', category: 'docs', scoped: true },
+  { label: 'Closeout Binder', subtitle: 'The PDF packet you give the homeowner', Icon: BookOpen, href: '/closeout-binder', category: 'docs', scoped: true },
 
   // Tools
-  { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', category: 'tools' },
+  { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', category: 'tools', scoped: true },
   { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', category: 'tools', tier: 'pro', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
   { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: Sparkles, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
 ];
@@ -117,7 +122,12 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { projects } = useProjects();
   const [query, setQuery] = useState('');
+  // When set, the sheet swaps from the create list to an in-sheet project
+  // picker for this scoped option. Swapping content (vs. opening a nested
+  // Modal) sidesteps the iOS "can't present two modals back-to-back" bug.
+  const [pickFor, setPickFor] = useState<CreateOption | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -144,11 +154,54 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
 
   const handleClose = useCallback(() => {
     setQuery('');
+    setPickFor(null);
     onClose();
   }, [onClose]);
 
+  // Route to a scoped screen with the chosen project. Close the sheet
+  // first, then navigate after the 280ms iOS modal-gap.
+  const routeScoped = useCallback((opt: CreateOption, projectId: string) => {
+    handleClose();
+    setTimeout(() => {
+      router.push({ pathname: opt.href as never, params: { projectId } } as never);
+    }, 280);
+  }, [handleClose, router]);
+
   const handleSelect = useCallback((opt: CreateOption) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+
+    // Scoped destinations need a projectId or they dead-end on a "pick a
+    // project" empty state (the audit's #1 discovery failure). Interpose
+    // a picker — but skip it when the choice is trivial/forced.
+    if (opt.scoped) {
+      if (projects.length === 0) {
+        handleClose();
+        setTimeout(() => {
+          Alert.alert(
+            'Create a project first',
+            `Add a project, then you can attach a ${opt.label.toLowerCase()} to it.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'New project',
+                onPress: () => {
+                  if (onCreateProject) onCreateProject();
+                  else router.push('/?openCreate=1' as never);
+                },
+              },
+            ],
+          );
+        }, 280);
+        return;
+      }
+      if (projects.length === 1) {
+        routeScoped(opt, projects[0].id);
+        return;
+      }
+      setPickFor(opt);
+      return;
+    }
+
     handleClose();
     // "Project" routes via callback when a host provides one (typically
     // the home tab passing its own setShowCreateModal). Everything else
@@ -161,7 +214,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
         router.push(opt.href as never);
       }
     }, 280);
-  }, [handleClose, router, onCreateProject]);
+  }, [handleClose, router, onCreateProject, projects, routeScoped]);
 
   return (
     <Modal
@@ -175,67 +228,110 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.handle} />
 
-        <View style={styles.headerRow}>
-          <Text style={[Type.title2, { color: themeColors.text }]}>Create new…</Text>
-          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
-        </View>
-
-        <View style={styles.searchRow}>
-          <Search size={16} color={themeColors.textMuted} />
-          <TextInput
-            style={[styles.searchInput, Type.body]}
-            placeholder="Search for anything you can create…"
-            placeholderTextColor={themeColors.textMuted}
-            value={query}
-            onChangeText={setQuery}
-            autoFocus={false}
-            returnKeyType="search"
-          />
-          {!!query && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={14} color={themeColors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <ScrollView style={{ maxHeight: '70%' as any }} showsVerticalScrollIndicator={false}>
-          {grouped.length === 0 && (
-            <View style={styles.emptyResult}>
-              <Text style={[Type.subhead, { color: themeColors.textSecondary, textAlign: 'center' }]}>
-                No matches. Try &ldquo;invoice&rdquo;, &ldquo;rfi&rdquo;, &ldquo;buyout&rdquo;…
+        {pickFor ? (
+          <>
+            <View style={styles.headerRow}>
+              <TouchableOpacity onPress={() => setPickFor(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
+                <ChevronLeft size={18} color={themeColors.text} />
+              </TouchableOpacity>
+              <Text style={[Type.title2, { color: themeColors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
+                {pickFor.label} → which project?
               </Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={18} color={themeColors.text} />
+              </TouchableOpacity>
             </View>
-          )}
-          {grouped.map(g => (
-            <View key={g.key} style={styles.group}>
-              <Text style={[Type.eyebrow, { color: themeColors.textMuted, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }]}>
-                {g.label}
-              </Text>
-              {g.items.map(opt => (
+
+            <ScrollView style={{ maxHeight: '70%' as any }} showsVerticalScrollIndicator={false}>
+              {projects.map(p => (
                 <TouchableOpacity
-                  key={opt.label}
+                  key={p.id}
                   style={styles.row}
-                  onPress={() => handleSelect(opt)}
+                  onPress={() => { if (pickFor) routeScoped(pickFor, p.id); }}
                   activeOpacity={0.55}
-                  testID={`create-${opt.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  testID={`createmenu-pick-project-${p.id}`}
                 >
                   <View style={styles.iconSquare}>
-                    <opt.Icon size={18} color={themeColors.textSecondary} strokeWidth={2} />
+                    <FolderPlus size={18} color={themeColors.textSecondary} strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>
-                      {opt.label}
+                      {p.name}
                     </Text>
                     <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
-                      {opt.subtitle}
+                      {p.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
                   <ChevronRight size={16} color={themeColors.textMuted} />
                 </TouchableOpacity>
               ))}
+            </ScrollView>
+          </>
+        ) : (
+          <>
+            <View style={styles.headerRow}>
+              <Text style={[Type.title2, { color: themeColors.text }]}>Create new…</Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
             </View>
-          ))}
-        </ScrollView>
+
+            <View style={styles.searchRow}>
+              <Search size={16} color={themeColors.textMuted} />
+              <TextInput
+                style={[styles.searchInput, Type.body]}
+                placeholder="Search for anything you can create…"
+                placeholderTextColor={themeColors.textMuted}
+                value={query}
+                onChangeText={setQuery}
+                autoFocus={false}
+                returnKeyType="search"
+              />
+              {!!query && (
+                <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                  <X size={14} color={themeColors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView style={{ maxHeight: '70%' as any }} showsVerticalScrollIndicator={false}>
+              {grouped.length === 0 && (
+                <View style={styles.emptyResult}>
+                  <Text style={[Type.subhead, { color: themeColors.textSecondary, textAlign: 'center' }]}>
+                    No matches. Try &ldquo;invoice&rdquo;, &ldquo;rfi&rdquo;, &ldquo;buyout&rdquo;…
+                  </Text>
+                </View>
+              )}
+              {grouped.map(g => (
+                <View key={g.key} style={styles.group}>
+                  <Text style={[Type.eyebrow, { color: themeColors.textMuted, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }]}>
+                    {g.label}
+                  </Text>
+                  {g.items.map(opt => (
+                    <TouchableOpacity
+                      key={opt.label}
+                      style={styles.row}
+                      onPress={() => handleSelect(opt)}
+                      activeOpacity={0.55}
+                      testID={`create-${opt.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <View style={styles.iconSquare}>
+                        <opt.Icon size={18} color={themeColors.textSecondary} strokeWidth={2} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[Type.headline, { color: themeColors.text }]} numberOfLines={1}>
+                          {opt.label}
+                        </Text>
+                        <Text style={[Type.footnote, { color: themeColors.textSecondary }]} numberOfLines={1}>
+                          {opt.subtitle}
+                        </Text>
+                      </View>
+                      <ChevronRight size={16} color={themeColors.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          </>
+        )}
       </View>
     </Modal>
   );

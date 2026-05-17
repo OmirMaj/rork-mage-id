@@ -215,7 +215,7 @@ function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { hasSeenOnboarding, isLoading: projectLoading } = useProjects();
+  const { hasSeenOnboarding, isLoading: projectLoading, projects } = useProjects();
   const { tier } = useSubscription();
   const paywallGateRanRef = useRef(false);
 
@@ -256,10 +256,19 @@ function RootLayoutNav() {
     // mount — if the user dismisses we don't re-queue it mid-session,
     // only on the next cold boot. Gate only fires when we've resolved
     // a concrete tier; while tier is still hydrating from RC, skip.
+    //
+    // Launch-readiness audit (2026-05-16): also require the user to have
+    // created at least one REAL (non-sample) project. Pre-fix, a brand-new
+    // user who finished onboarding but hadn't built anything got the
+    // gesture-locked paywall re-shoved at them every cold boot for 3 days
+    // before ever seeing value — a documented abandonment driver. The
+    // auto-seeded "Sample — …" projects don't count as engagement.
+    const hasRealProject = projects.some(p => !p.name.startsWith('Sample — '));
     if (
       isAuthenticated &&
       hasSeenOnboarding &&
       tier === 'free' &&
+      hasRealProject &&
       !inOnboardingPaywall &&
       !inOnboarding &&
       !paywallGateRanRef.current
@@ -285,7 +294,7 @@ function RootLayoutNav() {
         }
       })();
     }
-  }, [isAuthenticated, hasSeenOnboarding, authLoading, projectLoading, segments, router, tier]);
+  }, [isAuthenticated, hasSeenOnboarding, authLoading, projectLoading, segments, router, tier, projects]);
 
   // Cold-start gate: while the auth + project contexts are hydrating from
   // AsyncStorage/Supabase, render the branded construction loader instead

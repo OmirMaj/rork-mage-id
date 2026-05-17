@@ -273,6 +273,36 @@ function InvoiceInner() {
     setLineItems(prev => prev.filter(item => item.id !== id));
   }, []);
 
+  const buildNewInvoice = useCallback((status: 'draft' | 'sent'): Invoice => {
+    const now = new Date().toISOString();
+    const dueDate = getDueDate(now, paymentTerms);
+    return {
+      id: createId('inv'),
+      number: nextInvoiceNumber,
+      projectId: projectId as string,
+      type: isProgressType ? 'progress' : 'full',
+      progressPercent: isProgressType ? pctValue : undefined,
+      issueDate: now,
+      dueDate,
+      paymentTerms,
+      notes: notes.trim(),
+      lineItems,
+      subtotal,
+      taxRate,
+      taxAmount,
+      totalDue,
+      amountPaid: 0,
+      status,
+      payments: [],
+      retentionPercent: retentionPctValue || undefined,
+      retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
+      retentionReleased: 0,
+      retentionReleases: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+  }, [projectId, nextInvoiceNumber, isProgressType, pctValue, paymentTerms, notes, lineItems, subtotal, taxRate, taxAmount, totalDue, retentionPctValue, retentionAmount]);
+
   const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string) => {
     if (!projectId) return;
     if (lineItems.length === 0) {
@@ -302,38 +332,14 @@ function InvoiceInner() {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
     } else {
-      const inv: Invoice = {
-        id: createId('inv'),
-        number: nextInvoiceNumber,
-        projectId: projectId,
-        type: isProgressType ? 'progress' : 'full',
-        progressPercent: isProgressType ? pctValue : undefined,
-        issueDate: now,
-        dueDate,
-        paymentTerms,
-        notes: notes.trim(),
-        lineItems,
-        subtotal,
-        taxRate,
-        taxAmount,
-        totalDue,
-        amountPaid: 0,
-        status,
-        payments: [],
-        retentionPercent: retentionPctValue || undefined,
-        retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
-        retentionReleased: 0,
-        retentionReleases: [],
-        createdAt: now,
-        updatedAt: now,
-      };
+      const inv = buildNewInvoice(status);
       addInvoice(inv);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Hammer-strike toast — non-blocking, lets the back nav fire immediately.
       nailIt(status === 'sent' ? `Invoice #${nextInvoiceNumber} sent${recipientInfo}` : `Invoice #${nextInvoiceNumber} saved`);
     }
     router.back();
-  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router]);
+  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router, buildNewInvoice]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -344,119 +350,154 @@ function InvoiceInner() {
       Alert.alert('Email Required', 'Please enter a recipient email address.');
       return;
     }
+    if (!projectId) return;
+    if (lineItems.length === 0) {
+      Alert.alert('No Items', 'Please add at least one line item.');
+      return;
+    }
     setShowSendRecipient(false);
 
-    if (sendRecipientEmail.trim()) {
-      const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
-      const now = new Date().toISOString();
-      const dueDate = getDueDate(now, paymentTerms);
+    const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+    const now = new Date().toISOString();
+    const dueDate = getDueDate(now, paymentTerms);
+    const recipientInfo = sendRecipientName
+      ? ` to ${sendRecipientName} (${sendRecipientEmail.trim()})`
+      : ` to ${sendRecipientEmail.trim()}`;
 
-      // Auto-generate a Stripe payment link if the invoice doesn't have one
-      // yet. Without this, the email goes out with no Pay button — clients
-      // get an invoice they can read but not pay, and we lose the whole
-      // value prop of the integration. This runs silently in the background;
-      // if Stripe is unreachable, we just send the email without the button
-      // (graceful degradation rather than blocking the send).
-      let payLinkUrl: string | undefined = existingInvoice?.payLinkUrl;
-      let stripeNotConnected = false;
-      if (!payLinkUrl && existingInvoice && totalDue > 0) {
-        try {
-          // Look up the GC's Stripe Connect account so the payment lands
-          // in their bank, not the platform's. If they're not connected,
-          // we skip generating a link entirely — sending an email with a
-          // platform-owned link would route money to the wrong account.
-          let stripeAccountId: string | undefined;
-          if (user?.id) {
-            const status = await fetchStripeConnectStatus(user.id);
-            if (status.success && status.chargesEnabled && status.accountId) {
-              stripeAccountId = status.accountId;
-            }
+    // Create-then-edit. Pre-audit the pay-link block below was gated on
+    // `existingInvoice`, so a brand-new "Quick Invoice" went out with NO
+    // Pay button and no Stripe nudge — the exact "I made an invoice but
+    // can't get paid" trap. Persist the invoice first so it has a stable
+    // id (mirrors bill-from-estimate), then generate the link against it.
+    let workingInvoice: Invoice;
+    const createdNew = !existingInvoice;
+    if (existingInvoice) {
+      workingInvoice = existingInvoice;
+    } else {
+      workingInvoice = buildNewInvoice('sent');
+      addInvoice(workingInvoice);
+    }
+
+    // Auto-generate a Stripe payment link if the invoice doesn't have one
+    // yet. Without this, the email goes out with no Pay button — clients
+    // get an invoice they can read but not pay, and we lose the whole
+    // value prop of the integration. Graceful degradation: if Stripe is
+    // unreachable we still send, just without the button.
+    let payLinkUrl: string | undefined = workingInvoice.payLinkUrl;
+    let stripeNotConnected = false;
+    if (!payLinkUrl && totalDue > 0) {
+      try {
+        // Look up the GC's Stripe Connect account so the payment lands in
+        // their bank, not the platform's. If they're not connected we skip
+        // the link entirely — a platform-owned link would misroute money.
+        let stripeAccountId: string | undefined;
+        if (user?.id) {
+          const status = await fetchStripeConnectStatus(user.id);
+          if (status.success && status.chargesEnabled && status.accountId) {
+            stripeAccountId = status.accountId;
           }
-          if (stripeAccountId) {
-            const res = await createPaymentLink({
-              invoiceId: existingInvoice.id,
-              invoiceNumber: existingInvoice.number,
-              projectName: project?.name ?? 'Project',
-              amountCents: Math.round(totalDue * 100),
-              customerEmail: sendRecipientEmail.trim(),
-              companyName: branding.companyName,
-              stripeAccountId,
-              userTier: tier,
-            });
-            if (res.success && res.url && res.id) {
-              payLinkUrl = res.url;
-              updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
-            } else {
-              console.warn('[Invoice] Auto-generate payment link failed:', res.error);
-            }
+        }
+        if (stripeAccountId) {
+          const res = await createPaymentLink({
+            invoiceId: workingInvoice.id,
+            invoiceNumber: workingInvoice.number,
+            projectName: project?.name ?? 'Project',
+            amountCents: Math.round(totalDue * 100),
+            customerEmail: sendRecipientEmail.trim(),
+            companyName: branding.companyName,
+            stripeAccountId,
+            userTier: tier,
+          });
+          if (res.success && res.url && res.id) {
+            payLinkUrl = res.url;
+            updateInvoice(workingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
           } else {
-            // Surfaced to the user post-send via a one-time toast/alert below,
-            // pre-audit this was a silent console.log only. The user emails an
-            // invoice, sees no Pay button, blames the app. Now they get a
-            // friendly "want to add a Pay button?" nudge with a deep link to
-            // payments-setup.
-            console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
-            stripeNotConnected = true;
+            console.warn('[Invoice] Auto-generate payment link failed:', res.error);
           }
-        } catch (err) {
-          console.warn('[Invoice] Auto-generate payment link threw:', err);
+        } else {
+          console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
+          stripeNotConnected = true;
         }
-      }
-
-      const html = buildInvoiceEmailHtml({
-        companyName: branding.companyName,
-        recipientName: sendRecipientName,
-        projectName: project?.name ?? 'Project',
-        invoiceNumber: existingInvoice?.number ?? nextInvoiceNumber,
-        totalDue,
-        dueDate,
-        paymentTerms,
-        contactName: branding.contactName,
-        contactEmail: branding.email,
-        contactPhone: branding.phone,
-        // One-tap pay button in the email body. Closes the friction loop:
-        // client gets invoice → taps "Pay Securely" → on Stripe in 1s.
-        payLinkUrl,
-      });
-
-      const result = await sendEmail({
-        to: sendRecipientEmail.trim(),
-        subject: `Invoice #${existingInvoice?.number ?? nextInvoiceNumber}: ${(() => { const v = totalDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
-        html,
-        replyTo: branding.email || undefined,
-        fromCompanyName: branding.companyName || undefined,
-        unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'invoice', enabled: true },
-      });
-
-      if (!result.success) {
-        if (result.error === 'cancelled') {
-          return;
-        }
-        console.warn('[Invoice] Email send failed:', result.error);
-        Alert.alert('Email Notice', `Invoice saved but email could not be sent: ${result.error}`);
-        return;
-      } else {
-        console.log('[Invoice] Email sent successfully');
-      }
-
-      // Stripe-not-connected nudge. Pre-audit (May 2026), this state was
-      // a silent console.log; the user shipped an invoice with no Pay
-      // button and never knew why. Now we surface a one-time alert so
-      // they can decide whether to set up Connect for the next invoice.
-      if (stripeNotConnected && totalDue > 0) {
-        Alert.alert(
-          'Invoice sent — no Pay button included',
-          'You haven\'t connected Stripe yet, so this invoice was emailed without a one-tap Pay button. Set up Stripe in Payments to add Pay buttons to future invoices.',
-          [
-            { text: 'Later', style: 'cancel' },
-            { text: 'Set up Stripe', onPress: () => router.push('/payments-setup' as never) },
-          ],
-        );
+      } catch (err) {
+        console.warn('[Invoice] Auto-generate payment link threw:', err);
       }
     }
 
-    handleSave('sent', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingInvoice, nextInvoiceNumber, totalDue, paymentTerms, updateInvoice, user, router]);
+    const html = buildInvoiceEmailHtml({
+      companyName: branding.companyName,
+      recipientName: sendRecipientName,
+      projectName: project?.name ?? 'Project',
+      invoiceNumber: workingInvoice.number,
+      totalDue,
+      dueDate,
+      paymentTerms,
+      contactName: branding.contactName,
+      contactEmail: branding.email,
+      contactPhone: branding.phone,
+      // One-tap pay button in the email body. Closes the friction loop:
+      // client gets invoice → taps "Pay Securely" → on Stripe in 1s.
+      payLinkUrl,
+    });
+
+    const result = await sendEmail({
+      to: sendRecipientEmail.trim(),
+      subject: `Invoice #${workingInvoice.number}: ${(() => { const v = totalDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
+      html,
+      replyTo: branding.email || undefined,
+      fromCompanyName: branding.companyName || undefined,
+      unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'invoice', enabled: true },
+    });
+
+    if (!result.success) {
+      // If we created this invoice just for the send, drop it back to draft
+      // so the user can retry rather than stranding a phantom "sent" record.
+      if (createdNew) updateInvoice(workingInvoice.id, { status: 'draft' });
+      if (result.error === 'cancelled') return;
+      console.warn('[Invoice] Email send failed:', result.error);
+      Alert.alert('Email Notice', `Invoice ${createdNew ? 'saved as draft' : 'saved'} but email could not be sent: ${result.error}`);
+      return;
+    }
+    console.log('[Invoice] Email sent successfully');
+
+    // Persist the sent state. New invoices were created as 'sent' with full
+    // data already; existing invoices need their edits + status flushed.
+    if (!createdNew && existingInvoice) {
+      updateInvoice(existingInvoice.id, {
+        lineItems,
+        paymentTerms,
+        notes: notes.trim(),
+        subtotal,
+        taxRate,
+        taxAmount,
+        totalDue,
+        dueDate,
+        status: 'sent',
+        progressPercent: isProgressType ? pctValue : undefined,
+        retentionPercent: retentionPctValue || undefined,
+        retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
+      });
+    }
+
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Stripe-not-connected nudge. Pre-audit this state was a silent
+    // console.log; the user shipped an invoice with no Pay button and
+    // never knew why. Surface a one-time alert so they can set up Connect
+    // for next time. Non-blocking — we navigate back regardless.
+    if (stripeNotConnected && totalDue > 0) {
+      Alert.alert(
+        'Invoice sent — no Pay button included',
+        "You haven't connected Stripe yet, so this invoice was emailed without a one-tap Pay button. Set up Stripe in Payments to add Pay buttons to future invoices.",
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Set up Stripe', onPress: () => router.push('/payments-setup' as never) },
+        ],
+      );
+    } else {
+      nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}`);
+    }
+    router.back();
+  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;

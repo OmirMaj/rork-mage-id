@@ -34,7 +34,7 @@ import UniversalMicButton from '@/components/UniversalMicButton';
 import EmptyState from '@/components/EmptyState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
-import Tutorial, { hasSeenTutorial } from '@/components/Tutorial';
+import Tutorial from '@/components/Tutorial';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
@@ -93,19 +93,12 @@ export default function HomeScreen() {
   void user; // user kept available for future per-tier gates
   const showDemoSeed = true;
 
-  // Auto-open the interactive tutorial once after first login. The header
-  // comment in Tutorial.tsx promised this but the auto-open never actually
-  // fired — audit found it was hidden behind Settings. Now it surfaces on
-  // first home-tab render, persists the "seen" flag on close.
+  // Tutorial is opt-in, never auto-opened. The launch-readiness audit
+  // (2026-05-16) found a brand-new user landed behind a 20-step quiz modal
+  // the instant they finished onboarding — the single biggest "where do I
+  // start" failure. It stays one tap away via the HelpFab ("Replay
+  // tutorial") and Settings; NextStepHero is the real first-run spine.
   const [showTutorial, setShowTutorial] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const seen = await hasSeenTutorial();
-      if (!seen && !cancelled) setShowTutorial(true);
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   // Onboarding milestones — drives the 5-step "Get up and running" panel.
   // Re-reads when the project / invoice count changes so the user sees
@@ -362,17 +355,21 @@ export default function HomeScreen() {
 
   const handleNextStep = useCallback((step: 'estimate' | 'schedule' | 'later') => {
     setShowNextStepModal(false);
-    // Cross-tab navigation: replace rather than push so the destination tab
-    // surfaces correctly. A push stacks the target tab ON TOP of the current
-    // tab's stack, which on iOS causes the new screen to render behind the
-    // active one (classic "press back and the new screen appears" bug).
-    if (step === 'estimate') {
-      router.replace('/(tabs)/estimate' as any);
-    } else if (step === 'schedule') {
-      router.replace('/(tabs)/schedule' as any);
+    // Carry the just-created project into the wizard. Pre-audit this did
+    // router.replace('/(tabs)/estimate') with NO projectId — the single
+    // most-guided moment dropped context, landing the user on a generic
+    // tab bound to the wrong (or no) project. estimate-wizard is now
+    // project-aware (scope feature), so passing projectId folds the AI
+    // estimate straight into the project. These are modal/stack screens,
+    // not tabs, so push-with-params is correct here.
+    const pid = _createdProjectId;
+    if (step === 'estimate' && pid) {
+      router.push({ pathname: '/estimate-wizard', params: { projectId: pid } } as never);
+    } else if (step === 'schedule' && pid) {
+      router.push({ pathname: '/schedule-wizard', params: { projectId: pid } } as never);
     }
     setCreatedProjectId(null);
-  }, [router]);
+  }, [router, _createdProjectId]);
 
   const renderProject = useCallback(({ item, index }: { item: Project; index: number }) => (
     <ProjectCard
