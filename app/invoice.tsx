@@ -62,6 +62,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -142,7 +143,7 @@ function InvoiceInner() {
 
   const contractTotal = useMemo(() => {
     if (!project) return 0;
-    let base = project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
+    let base = effectiveEstimateTotal(project);
     approvedCOs.forEach(co => { base += co.changeAmount; });
     return base;
   }, [project, approvedCOs]);

@@ -696,7 +696,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       const approvedCOs = changeOrders
         .filter(co => co.projectId === project.id && co.status === 'approved')
         .reduce((s, co) => s + co.changeAmount, 0);
-      const contractValue = (project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0) + approvedCOs;
+      const contractValue = effectiveEstimateTotal(project) + approvedCOs;
       return {
         mode,
         budget: job.budget,

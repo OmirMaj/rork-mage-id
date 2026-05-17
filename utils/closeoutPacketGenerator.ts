@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import type {
   Project, CompanyBranding, ChangeOrder, Invoice, DailyFieldReport, PunchItem, Warranty, ProjectPhoto,
 } from '@/types';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 function escapeHtml(raw: string | number | undefined | null): string {
   if (raw === undefined || raw === null) return '';
@@ -96,7 +97,7 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
 
   const activeWarranties = warranties.filter(w => w.status === 'active' || w.status === 'expiring_soon');
 
-  const baseEstimate = project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
+  const baseEstimate = effectiveEstimateTotal(project);
   const finalContractValue = baseEstimate + totalCOValue;
 
   const company = branding.companyName || 'Contractor';

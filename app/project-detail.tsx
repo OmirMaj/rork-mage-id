@@ -18,7 +18,7 @@ import {
   Clock, Lock,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision } from '@/types';
-import { diffEstimates, snapshotPatch, restorePatch } from '@/utils/estimateCommit';
+import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -1109,7 +1109,7 @@ export default function ProjectDetailScreen() {
   const hasAnyEstimate = !!(linkedEstimate && linkedItems.length > 0) || !!estimate;
   const collaborators = project.collaborators ?? [];
 
-  const heroTotal = linkedEstimate?.grandTotal ?? estimate?.grandTotal ?? 0;
+  const heroTotal = effectiveEstimateTotal(project);
   const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
 
   return (
@@ -2800,7 +2800,7 @@ export default function ProjectDetailScreen() {
                   <View style={{ flex: 1, backgroundColor: themeColors.successSoft, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
                     <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.success }}>Budget</Text>
                     <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: themeColors.success }}>
-                      {formatMoney(project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0)}
+                      {formatMoney(effectiveEstimateTotal(project))}
                     </Text>
                   </View>
                   <View style={{ flex: 1, backgroundColor: themeColors.info, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>

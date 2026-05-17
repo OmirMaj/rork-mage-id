@@ -15,6 +15,7 @@
 
 import type { Project, Invoice, ChangeOrder, Commitment } from '@/types';
 import { computeJobCost } from './jobCostEngine';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 // ─── WIP ─────────────────────────────────────────────────────────────
 
@@ -61,10 +62,7 @@ export function computeWIPReport(
   for (const project of projects) {
     if (project.status === 'closed') continue;
 
-    const contractValue =
-      project.linkedEstimate?.grandTotal
-      ?? project.estimate?.grandTotal
-      ?? 0;
+    const contractValue = effectiveEstimateTotal(project);
     const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
     const approvedChangeOrders = projectCOs.reduce((s, co) => s + co.changeAmount, 0);
     const revisedContract = contractValue + approvedChangeOrders;
@@ -168,10 +166,7 @@ export function computeProfitReport(
 ): { rows: ProfitRow[]; totalRevenue: number; totalProfit: number; weightedMargin: number } {
   const rows: ProfitRow[] = [];
   for (const project of projects) {
-    const contractValue =
-      project.linkedEstimate?.grandTotal
-      ?? project.estimate?.grandTotal
-      ?? 0;
+    const contractValue = effectiveEstimateTotal(project);
     const approvedCOs = changeOrders
       .filter(co => co.projectId === project.id && co.status === 'approved')
       .reduce((s, co) => s + co.changeAmount, 0);

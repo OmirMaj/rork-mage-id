@@ -1,4 +1,5 @@
 import type { Project, Invoice, ProjectSchedule, EarnedValueMetrics } from '@/types';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 export function calculateEVM(
   project: Project,
@@ -69,7 +70,7 @@ export function generateCashFlowData(
   schedule: ProjectSchedule | null | undefined,
   periods: number = 12,
 ): { period: string; plannedCumulative: number; actualCumulative: number; forecastCumulative: number }[] {
-  const bac = project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
+  const bac = effectiveEstimateTotal(project);
   const totalDays = schedule?.totalDurationDays ?? 180;
   const daysPerPeriod = Math.ceil(totalDays / periods);
   const startDate = new Date(project.createdAt);

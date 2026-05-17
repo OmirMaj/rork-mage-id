@@ -52,6 +52,7 @@ import {
 import type {
   CompanyBranding, SelectionCategory, LienWaiver,
 } from '@/types';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 type BinderStatus = CloseoutBinder['status'];
 
@@ -386,7 +387,7 @@ export default function CloseoutBinderScreen() {
         case 'G707': {
           const cos = (getChangeOrdersForProject?.(project.id) ?? []) as { status: string; changeAmount: number }[];
           const coTotal = cos.filter(c => c.status === 'approved').reduce((s, c) => s + (c.changeAmount ?? 0), 0);
-          const baseSum = (project.linkedEstimate?.grandTotal) ?? (project.estimate?.grandTotal) ?? 0;
+          const baseSum = effectiveEstimateTotal(project);
           const data: G707Data = {
             ownerName: owner,
             contractorName: branding.companyName,

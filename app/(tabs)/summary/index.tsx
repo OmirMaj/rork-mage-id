@@ -28,6 +28,7 @@ import { computeARAgingReport } from '@/utils/financialReports';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 
 // Summary tab: a bird's-eye "what's happening across all my projects" view.
 // Each card collapses the key operational numbers (budget, outstanding invoices,
@@ -100,9 +101,7 @@ function computeStats(
     }
   }
 
-  const budget = project.linkedEstimate?.grandTotal
-    ?? project.estimate?.grandTotal
-    ?? 0;
+  const budget = effectiveEstimateTotal(project);
 
   // Health score — simple rollup. Risk = high-priority punch items open OR an
   // invoice is more than 30 days past due. Watch = any open change orders or
