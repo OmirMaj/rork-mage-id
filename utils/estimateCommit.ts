@@ -7,7 +7,7 @@ import type {
 
 const MAX_REVISIONS = 30;
 const KEEP_REASONS: EstimateChangeReason[] = [
-  'manual', 'sent_to_client', 'converted_to_contract', 'restore',
+  'manual', 'sent_to_client', 'converted_to_contract',
 ];
 
 function genId(): string {
@@ -37,6 +37,7 @@ function nextRevNumber(versions: EstimateRevision[]): number {
 function applyCap(versions: EstimateRevision[]): EstimateRevision[] {
   if (versions.length <= MAX_REVISIONS) return versions;
   const result = [...versions];
+  // O(n^2) splice-in-loop, but bounded by MAX_REVISIONS (30) so negligible.
   for (let i = 0; i < result.length && result.length > MAX_REVISIONS; ) {
     if (KEEP_REASONS.includes(result[i].reason)) { i++; continue; }
     result.splice(i, 1);
@@ -113,7 +114,7 @@ export function restorePatch(
   const current = project?.linkedEstimate;
   let nextVersions = versions;
   if (current) {
-    const rev = makeRevision(current, versions, 'restore');
+    const rev = makeRevision(current, versions, 'pre_overwrite');
     nextVersions = applyCap([...versions, rev]);
   }
   return { linkedEstimate: target.snapshot, estimateVersions: nextVersions };
@@ -141,6 +142,11 @@ export function diffEstimates(a: LinkedEstimate, b: LinkedEstimate): EstimateDif
     .filter(c => Math.abs(c.delta) > 0.0001)
     .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
   const netDelta = (b.grandTotal ?? 0) - (a.grandTotal ?? 0);
+  // Markup line so category deltas reconcile to netDelta (categories use pre-markup lineTotal).
+  const markupDelta = (b.markupTotal ?? 0) - (a.markupTotal ?? 0);
+  if (Math.abs(markupDelta) > 0.0001) {
+    categories.push({ key: '__markup__', label: 'Markup & overhead', delta: markupDelta });
+  }
   return { categories, netDelta };
 }
 
