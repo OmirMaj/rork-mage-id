@@ -551,7 +551,10 @@ serve(async (req) => {
 - [ ] **Step 2: Deploy**
 
 ```bash
-supabase functions deploy financing-redirect --project-ref nteoqhcswappxxjlpvap
+# --no-verify-jwt is REQUIRED: this fn is opened anonymously from emailed
+# links / the portal (no Authorization header). Without it Supabase
+# returns 401 before our code runs.
+supabase functions deploy financing-redirect --no-verify-jwt --project-ref nteoqhcswappxxjlpvap
 ```
 
 - [ ] **Step 3: Verify** (spec §9.3)
@@ -645,7 +648,8 @@ serve(async (req) => {
 - [ ] **Step 2: Deploy**
 
 ```bash
-supabase functions deploy financing-callback --project-ref nteoqhcswappxxjlpvap
+# --no-verify-jwt REQUIRED (partner postback / browser return URL, no auth header).
+supabase functions deploy financing-callback --no-verify-jwt --project-ref nteoqhcswappxxjlpvap
 ```
 
 - [ ] **Step 3: Verify** (spec §9.5)
