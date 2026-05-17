@@ -304,11 +304,14 @@ export function buildInvoiceEmailHtml(opts: {
   /** Stripe Payment Link URL — when present, a "Pay Securely" CTA button is
       rendered so the client can pay in one tap from the email itself. */
   payLinkUrl?: string;
+  /** Pre-rendered financing offer block — injected after the stat card.
+      Pass '' or omit to suppress the block entirely. */
+  financingHtml?: string;
 }): string {
   const {
     companyName, recipientName, projectName, invoiceNumber,
     totalDue, dueDate, paymentTerms, message,
-    contactName, contactEmail, contactPhone, payLinkUrl,
+    contactName, contactEmail, contactPhone, payLinkUrl, financingHtml,
   } = opts;
 
   const formattedDue = new Date(dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -323,6 +326,7 @@ export function buildInvoiceEmailHtml(opts: {
     ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
     ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">A new invoice is ready for review and payment.</p>'}
     ${emailStatCard(stats)}
+    ${financingHtml ?? ''}
     ${payLinkUrl ? `<p style="margin:6px 0 0;text-align:center;color:#9AA3AD;font-size:11px;">Powered by Stripe · secure card &amp; bank payment</p>` : '<p style="margin:0 0 6px;color:#4A5159;font-size:13px;">Pay by check, ACH, or whatever method we agreed to. Reply to this email if you have any questions about the invoice.</p>'}
   `;
 
@@ -538,10 +542,13 @@ export function buildEstimateEmailHtml(opts: {
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  /** Pre-rendered financing offer block — injected after the stat card.
+      Pass '' or omit to suppress the block entirely. */
+  financingHtml?: string;
 }): string {
   const {
     companyName, recipientName, projectName, grandTotal,
-    itemCount, message, contactName, contactEmail, contactPhone,
+    itemCount, message, contactName, contactEmail, contactPhone, financingHtml,
   } = opts;
 
   const bodyHtml = `
@@ -552,6 +559,7 @@ export function buildEstimateEmailHtml(opts: {
       ${emailStatRow('Line items', `${itemCount} items`)}
       ${emailStatRow('Estimated total', fmtMoney(grandTotal), { emphasize: true })}
     `)}
+    ${financingHtml ?? ''}
     <p style="margin:0;color:#4A5159;font-size:13px;">Reply with questions, or let me know when you'd like to walk through the numbers together.</p>
   `;
 

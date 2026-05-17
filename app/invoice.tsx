@@ -28,6 +28,8 @@ import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
+import { useFinancingReferrals } from '@/hooks/useFinancingReferrals';
+import { financingEmailBlockHtml, isFinancingAvailable } from '@/utils/financing';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
@@ -129,6 +131,7 @@ function InvoiceInner() {
   } = useProjects();
   const { tier } = useSubscription();
   const { user } = useAuth();
+  const { ensureReferral } = useFinancingReferrals(user?.id);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
@@ -426,6 +429,19 @@ function InvoiceInner() {
       }
     }
 
+    let financingHtml = '';
+    if (isFinancingAvailable(settings) && projectId) {
+      const refToken = await ensureReferral({
+        projectId,
+        source: 'invoice',
+        amountCents: Math.round(totalDue * 100),
+        partnerName: settings.financing!.partnerName,
+      });
+      if (refToken) {
+        financingHtml = financingEmailBlockHtml({ settings, amountCents: Math.round(totalDue * 100), refToken });
+      }
+    }
+
     const html = buildInvoiceEmailHtml({
       companyName: branding.companyName,
       recipientName: sendRecipientName,
@@ -440,6 +456,7 @@ function InvoiceInner() {
       // One-tap pay button in the email body. Closes the friction loop:
       // client gets invoice → taps "Pay Securely" → on Stripe in 1s.
       payLinkUrl,
+      financingHtml,
     });
 
     const result = await sendEmail({
@@ -500,7 +517,7 @@ function InvoiceInner() {
       nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}`);
     }
     router.back();
-  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router]);
+  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;

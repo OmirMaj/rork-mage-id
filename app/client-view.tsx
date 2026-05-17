@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured, SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -29,6 +29,8 @@ import SignaturePad from '@/components/SignaturePad';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import * as Linking from 'expo-linking';
+import { isFinancingAvailable } from '@/utils/financing';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -88,6 +90,7 @@ export default function ClientViewScreen() {
   const {
     projects, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject,
     getPunchItemsForProject, getPhotosForProject, getRFIsForProject, updateProject, updateChangeOrder,
+    settings,
   } = useProjects();
 
   // Find project by portalId
@@ -401,6 +404,8 @@ export default function ClientViewScreen() {
       [{ text: 'OK', onPress: closeApprovalFlow }]
     );
   }, [approvalCO, project, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, updateChangeOrder, closeApprovalFlow]);
+
+  const financingEnabledForPortal = isFinancingAvailable(settings);
 
   // Budget metrics
   const contractValue = project?.estimate?.grandTotal ?? 0;
@@ -742,6 +747,22 @@ export default function ClientViewScreen() {
                     {revisedContract > 0 ? Math.round((paidTotal / revisedContract) * 100) : 0}% paid
                   </Text>
                 </View>
+                {financingEnabledForPortal && project?.id && (
+                  <View style={{ marginTop: 14 }}>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#1F6FEB', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center' }}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        void Linking.openURL(`${SUPABASE_FUNCTIONS_URL}/financing-redirect?project=${encodeURIComponent(project.id)}&src=portal`);
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Finance this project</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.budgetLabel, { marginTop: 6, textAlign: 'center' }]}>
+                      Financing is provided by a third party, subject to credit approval. MAGE ID is not a lender.
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
           </View>
