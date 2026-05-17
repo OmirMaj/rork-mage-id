@@ -45,6 +45,7 @@ import SignaturePad from '@/components/SignaturePad';
 import { fireConfetti } from '@/components/animations/Confetti';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus } from '@/types';
+import { snapshotPatch } from '@/utils/estimateCommit';
 
 // Pipeline shown at the top of every saved contract. Void is omitted
 // from the visual (user can still set status=void via the existing UI);
@@ -210,6 +211,12 @@ export default function ContractScreen() {
     }
     setSigning(true);
     try {
+      // Snapshot the current linked estimate before the contract is persisted
+      // (converted_to_contract milestone for estimate versioning).
+      if (project) {
+        const _cvSnap = snapshotPatch(project, 'converted_to_contract');
+        if (Object.keys(_cvSnap).length) ctxUpdateProject(project.id, _cvSnap);
+      }
       // Save first to get an id.
       const saved = await saveContract({ ...contract, id: contract.id || undefined });
       if (!saved) {
