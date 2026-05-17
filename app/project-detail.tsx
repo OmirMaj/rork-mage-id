@@ -17,7 +17,8 @@ import {
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
   Clock, Lock,
 } from 'lucide-react-native';
-import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
+import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision } from '@/types';
+import { diffEstimates, snapshotPatch, restorePatch } from '@/utils/estimateCommit';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -60,6 +61,14 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { buildPortalSnapshot } from '@/utils/portalSnapshot';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+
+const ESTIMATE_REASON_LABEL: Record<EstimateChangeReason, string> = {
+  manual: 'Manual save',
+  sent_to_client: 'Sent to client',
+  converted_to_contract: 'Converted to contract',
+  pre_overwrite: 'Before re-estimate',
+  restore: 'Restored',
+};
 
 // Enable LayoutAnimation on Android (no-op on iOS — already enabled).
 // Without this, the smooth collapse/expand animation only works on iOS.
@@ -389,6 +398,10 @@ export default function ProjectDetailScreen() {
   const [invoiceFilter, setInvoiceFilter] = useState<'unpaid' | 'paid' | 'all'>('unpaid');
   // Change order status filter — defaults to 'pending' (submitted, awaiting approval).
   const [coFilter, setCoFilter] = useState<'pending' | 'approved' | 'all'>('pending');
+  // Estimate revision detail modal — stores the revision being inspected, or null when closed.
+  const [selectedRevision, setSelectedRevision] = useState<EstimateRevision | null>(null);
+  // Revision detail sub-view: null = summary+delta, 'items' = line-items list.
+  const [revDetailView, setRevDetailView] = useState<'delta' | 'items'>('delta');
   const toggleGroup = useCallback((key: TileGroupKey) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Animate the collapse/expand. Using scaleXY (not opacity) so the
@@ -1698,6 +1711,74 @@ export default function ProjectDetailScreen() {
                 )}
               </View>
             )}
+
+            {/* ── Save as revision button ── */}
+            <TouchableOpacity
+              style={styles.revSaveBtn}
+              onPress={() => {
+                const doSave = (note?: string) => {
+                  const patch = snapshotPatch(project, 'manual', note?.trim() || undefined);
+                  if (Object.keys(patch).length) {
+                    updateProject(project.id, patch);
+                    nailIt('Revision saved');
+                  } else {
+                    Alert.alert('No Changes', 'This estimate is identical to the latest revision.');
+                  }
+                };
+                if (Platform.OS === 'ios') {
+                  Alert.prompt(
+                    'Save Revision',
+                    'Add an optional note for this revision:',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Save', onPress: (note?: string) => doSave(note) },
+                    ],
+                    'plain-text',
+                  );
+                } else {
+                  // Android / web fallback — save immediately without a note prompt.
+                  doSave();
+                }
+              }}
+              activeOpacity={0.7}
+              testID="save-estimate-revision-btn"
+            >
+              <Layers size={16} color={themeColors.accent} />
+              <Text style={styles.revSaveBtnText}>Save as Revision</Text>
+            </TouchableOpacity>
+
+            {/* ── Revisions subsection ── */}
+            {(() => {
+              const versions = (project.estimateVersions ?? []).slice().reverse(); // newest first
+              return (
+                <View style={styles.revSection}>
+                  <Text style={styles.revSectionTitle}>Revisions</Text>
+                  {versions.length === 0 && (
+                    <Text style={styles.revEmptyText}>
+                      No revisions yet — saved automatically when you re-estimate or send to a client.
+                    </Text>
+                  )}
+                  {versions.map((rev) => (
+                    <TouchableOpacity
+                      key={rev.id}
+                      style={styles.revRow}
+                      onPress={() => { setSelectedRevision(rev); setRevDetailView('delta'); }}
+                      activeOpacity={0.7}
+                      testID={`rev-row-${rev.id}`}
+                    >
+                      <View style={styles.revRowLeft}>
+                        <Text style={styles.revRowTitle}>Rev {rev.revNumber}</Text>
+                        <Text style={styles.revRowMeta}>
+                          {new Date(rev.createdAt).toLocaleDateString()} · {ESTIMATE_REASON_LABEL[rev.reason]}
+                        </Text>
+                      </View>
+                      <Text style={styles.revRowTotal}>{formatMoney(rev.grandTotal)}</Text>
+                      <ChevronRight size={16} color={themeColors.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            })()}
           </View>
         )}
 
@@ -3160,6 +3241,169 @@ export default function ProjectDetailScreen() {
         </View>
       </Modal>
 
+      {/* ── Revision Detail Modal ── */}
+      <Modal
+        visible={selectedRevision !== null}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setSelectedRevision(null)}
+      >
+        {selectedRevision && (() => {
+          // Chronological list (oldest first) for delta calc.
+          const chronological = (project.estimateVersions ?? []).slice().sort(
+            (a, b) => a.revNumber - b.revNumber,
+          );
+          const revIdx = chronological.findIndex(r => r.id === selectedRevision.id);
+          const olderRev = revIdx > 0 ? chronological[revIdx - 1] : null;
+          const diff = olderRev
+            ? diffEstimates(olderRev.snapshot, selectedRevision.snapshot)
+            : null;
+          return (
+            <View style={{ flex: 1, backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
+              <View style={styles.sectionModalHeader}>
+                <TouchableOpacity
+                  onPress={() => setSelectedRevision(null)}
+                  style={styles.sectionModalBack}
+                  activeOpacity={0.7}
+                  testID="rev-detail-back"
+                >
+                  <ChevronLeft size={22} color={themeColors.text} />
+                  <Text style={styles.sectionModalBackText}>Back</Text>
+                </TouchableOpacity>
+                <Text style={styles.sectionModalTitle} numberOfLines={1}>
+                  Rev {selectedRevision.revNumber}
+                </Text>
+                <View style={{ width: 72 }} />
+              </View>
+
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 12 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Grand total hero */}
+                <View style={styles.revDetailHero}>
+                  <Text style={styles.revDetailHeroLabel}>Grand Total</Text>
+                  <Text style={styles.revDetailHeroValue}>{formatMoney(selectedRevision.grandTotal)}</Text>
+                  <Text style={styles.revDetailHeroMeta}>
+                    {new Date(selectedRevision.createdAt).toLocaleDateString()} · {ESTIMATE_REASON_LABEL[selectedRevision.reason]}
+                  </Text>
+                  {selectedRevision.note ? (
+                    <Text style={styles.revDetailNote}>{selectedRevision.note}</Text>
+                  ) : null}
+                </View>
+
+                {/* Tab row */}
+                <View style={styles.revDetailTabRow}>
+                  <TouchableOpacity
+                    style={[styles.revDetailTab, revDetailView === 'delta' && styles.revDetailTabActive]}
+                    onPress={() => setRevDetailView('delta')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.revDetailTabText, revDetailView === 'delta' && styles.revDetailTabTextActive]}>
+                      Changes
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.revDetailTab, revDetailView === 'items' && styles.revDetailTabActive]}
+                    onPress={() => setRevDetailView('items')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.revDetailTabText, revDetailView === 'items' && styles.revDetailTabTextActive]}>
+                      Line Items
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Delta view */}
+                {revDetailView === 'delta' && (
+                  <View style={[styles.summaryCard, { marginHorizontal: 20 }]}>
+                    {!diff && (
+                      <Text style={styles.revEmptyText}>First revision — no prior to compare.</Text>
+                    )}
+                    {diff && diff.categories.length === 0 && (
+                      <Text style={styles.revEmptyText}>No line-item changes from the previous revision.</Text>
+                    )}
+                    {diff && diff.categories.map((cat) => (
+                      <View key={cat.key} style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>{cat.label}</Text>
+                        <Text style={[styles.summaryValue, { color: cat.delta >= 0 ? themeColors.accent : themeColors.success }]}>
+                          {cat.delta >= 0 ? '+' : ''}{formatMoney(cat.delta)}
+                        </Text>
+                      </View>
+                    ))}
+                    {diff && (
+                      <>
+                        <View style={styles.grandTotalDivider} />
+                        <View style={styles.summaryRow}>
+                          <Text style={styles.grandTotalLabel}>Net Change</Text>
+                          <Text style={[styles.grandTotalValue, { color: diff.netDelta >= 0 ? themeColors.accent : themeColors.success }]}>
+                            {diff.netDelta >= 0 ? '+' : ''}{formatMoney(diff.netDelta)}
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                  </View>
+                )}
+
+                {/* Line items view */}
+                {revDetailView === 'items' && (
+                  <View style={[styles.tableContainer, { marginHorizontal: 20 }]}>
+                    <View style={styles.tableHeader}>
+                      <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
+                      <Text style={[styles.tableHeaderText, { flex: 1 }]}>Qty</Text>
+                      <Text style={[styles.tableHeaderText, { flex: 1 }]}>Unit</Text>
+                      <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
+                    </View>
+                    {(Array.isArray(selectedRevision.snapshot.items) ? selectedRevision.snapshot.items : []).map((item, idx) => (
+                      <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+                        <Text style={[styles.tableCellName, { flex: 2 }]} numberOfLines={1}>{item.name ?? 'Unnamed'}</Text>
+                        <Text style={[styles.tableCell, { flex: 1 }]}>{item.quantity ?? 0}</Text>
+                        <Text style={[styles.tableCell, { flex: 1 }]}>{item.unit ?? 'ea'}</Text>
+                        <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
+                          {formatMoney(typeof item.lineTotal === 'number' ? item.lineTotal : 0)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Restore button */}
+                <TouchableOpacity
+                  style={styles.revRestoreBtn}
+                  onPress={() => {
+                    Alert.alert(
+                      `Restore Rev ${selectedRevision.revNumber}?`,
+                      'Your current estimate is saved as a revision first. Existing contracts/invoices are not changed — regenerate them if needed.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Restore',
+                          style: 'destructive',
+                          onPress: () => {
+                            const patch = restorePatch(project, selectedRevision.id);
+                            if (Object.keys(patch).length) {
+                              updateProject(project.id, patch);
+                              nailIt(`Rev ${selectedRevision.revNumber} restored`);
+                            }
+                            setSelectedRevision(null);
+                          },
+                        },
+                      ],
+                    );
+                  }}
+                  activeOpacity={0.7}
+                  testID="restore-revision-btn"
+                >
+                  <Repeat size={16} color={'#FFFFFF'} />
+                  <Text style={styles.revRestoreBtnText}>Restore this revision</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          );
+        })()}
+      </Modal>
+
       <Modal
         visible={showShareModal}
         transparent
@@ -3917,6 +4161,30 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72 },
   sectionModalBackText: { fontSize: Type.callout.fontSize, fontWeight: '500' as const, color: themeColors.accent },
   sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: Type.body.fontSize, fontWeight: '700' as const, color: themeColors.text },
+
+  // ── Estimate revisions ──
+  revSaveBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginTop: 10, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '10', borderWidth: 1, borderColor: themeColors.accent + '25' },
+  revSaveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  revSection: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, marginTop: 12, borderWidth: 1, borderColor: themeColors.line, padding: 14, gap: 2 },
+  revSectionTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginBottom: 6 },
+  revEmptyText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4, lineHeight: 18 },
+  revRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: themeColors.line },
+  revRowLeft: { flex: 1, gap: 2 },
+  revRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  revRowMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
+  revRowTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  revDetailHero: { alignItems: 'center' as const, paddingVertical: 20, paddingHorizontal: 20, gap: 4 },
+  revDetailHeroLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
+  revDetailHeroValue: { fontSize: 36, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -1 },
+  revDetailHeroMeta: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 2 },
+  revDetailNote: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontStyle: 'italic' as const, marginTop: 4, textAlign: 'center' as const },
+  revDetailTabRow: { flexDirection: 'row' as const, marginHorizontal: 20, marginBottom: 12, backgroundColor: themeColors.line, borderRadius: Tokens.radius.card, padding: 3 },
+  revDetailTab: { flex: 1, paddingVertical: 8, alignItems: 'center' as const, borderRadius: Tokens.radius.md },
+  revDetailTabActive: { backgroundColor: themeColors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 },
+  revDetailTabText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  revDetailTabTextActive: { color: themeColors.text },
+  revRestoreBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent },
+  revRestoreBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
 });
 
 const makeDetailStyles = (themeColors: ThemeColors) => StyleSheet.create({
