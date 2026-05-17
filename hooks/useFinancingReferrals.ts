@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { generateUUID } from '@/utils/generateId';
@@ -57,11 +57,11 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
   const ensureReferral = useCallback(
     async (args: {
       projectId: string;
-      gcUserId: string;
       source: FinancingReferralSource;
       amountCents: number;
       partnerName: string;
     }): Promise<string> => {
+      if (!gcUserId) return '';
       const existing = (referralsQ.data ?? []).find(
         r => r.projectId === args.projectId && r.source === args.source,
       );
@@ -71,7 +71,7 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
       const { error } = await supabase.from('financing_referrals').insert({
         id: token,
         project_id: args.projectId,
-        gc_user_id: args.gcUserId,
+        gc_user_id: gcUserId,
         partner_name: args.partnerName,
         amount_cents: Math.max(0, Math.round(args.amountCents)),
         status: 'created',
@@ -80,10 +80,10 @@ export function useFinancingReferrals(gcUserId: string | undefined) {
         updated_at: now,
       });
       if (error) console.log('[useFinancingReferrals] create failed:', error.message);
-      void queryClient.invalidateQueries({ queryKey: ['financingReferrals', args.gcUserId] });
+      void queryClient.invalidateQueries({ queryKey: ['financingReferrals', gcUserId] });
       return token;
     },
-    [referralsQ.data, queryClient],
+    [gcUserId, referralsQ.data, queryClient],
   );
 
   useEffect(() => {
