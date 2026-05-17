@@ -188,6 +188,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
                 timezone: (data.digest_timezone as string | null) ?? 'America/New_York',
                 channels: ((data.digest_channels as { email?: boolean; in_app?: boolean } | null) ?? { email: true, in_app: true }) as { email: boolean; in_app: boolean },
               },
+              financing: data.financing as AppSettings['financing'],
             };
             await saveLocal(SETTINGS_KEY, s);
             return s;
@@ -1069,6 +1070,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
             digest_hour: updatedSettings.digest?.hour ?? 6,
             digest_channels: updatedSettings.digest?.channels ?? { email: true, in_app: true },
             digest_timezone: updatedSettings.digest?.timezone ?? 'America/New_York',
+            financing: updatedSettings.financing ?? null,
           }).eq('id', userId);
         } catch (err) { console.log('[ProjectContext] Settings sync failed:', err); }
       }
