@@ -89,6 +89,25 @@ export interface ProjectCollaborator {
   invitedAt: string;
 }
 
+/**
+ * Structured scope captured on the free Project Scope screen
+ * (app/project-scope.tsx). Mirrors the Estimate Wizard's answer shape
+ * exactly so it round-trips into the wizard with zero translation.
+ * Independent of the legacy type/squareFootage/quality/targetBudget
+ * fields (different shapes, set at creation) — do NOT sync the two.
+ */
+export interface ProjectScope {
+  projectType: string;
+  sizeSqft: string;
+  location: string;
+  quality: 'budget' | 'standard' | 'high_end';
+  scope: string;
+  timelineWeeks: string;
+  specialRequirements: string;
+  targetBudget: string;
+  updatedAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -114,6 +133,7 @@ export interface Project {
   squareFootage: number;
   quality: QualityTier;
   description: string;
+  scope?: ProjectScope;
   /**
    * Primary client / homeowner contact info. Carried over from Lead on
    * convertLeadToProject so the GC doesn't re-enter phone + email after

@@ -141,9 +141,11 @@ export default function ProjectDetailScreen() {
   const detailStyles = useThemedStyles(makeDetailStyles);
   const { navigateTo } = useEntityNavigation();
   // `tile` deep-links straight to a section modal (e.g. NextStepHero's
-  // "Open estimator" → ?tile=linkedEstimate). `edit=1` auto-opens the
-  // edit-project modal (NextStepHero's "Add scope"). Both are consumed
-  // once on mount so the user lands ON the action, not on the tile grid.
+  // "Review RFIs" → ?tile=rfis). `edit=1` auto-opens the edit-project
+  // modal. Both are consumed once on mount so the user lands ON the
+  // action, not on the tile grid. (Scope + estimator now have their own
+  // screens — /project-scope and /estimate-wizard?projectId — so they no
+  // longer route through here.)
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
@@ -353,11 +355,6 @@ export default function ProjectDetailScreen() {
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
   const [showEditModal, setShowEditModal] = useState<EditModalType>(false);
-  // When opened via NextStepHero "Add scope now" (?edit=scope) the editor
-  // retitles to "Add Project Scope" and auto-focuses the Description
-  // field so the destination matches the CTA instead of dumping the user
-  // on a generic 6-field "Edit Project" form.
-  const [scopeFocusMode, setScopeFocusMode] = useState(false);
   const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
   // Tile group collapse state — Field & Money expanded by default, Docs & People collapsed.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<TileGroupKey>>(new Set(['docs', 'people']));
@@ -445,18 +442,8 @@ export default function ProjectDetailScreen() {
   useEffect(() => {
     if (deepLinkConsumed.current) return;
     if (!project) return;
-    // edit=scope → NextStepHero "Add scope now": open the editor in
-    // focused scope-mode (retitled + Description auto-focused) so the
-    // destination matches the CTA promise. edit=1/true → generic editor.
-    if (editParam === 'scope') {
-      deepLinkConsumed.current = true;
-      setScopeFocusMode(true);
-      openEditModal();
-      return;
-    }
     if (editParam === '1' || editParam === 'true') {
       deepLinkConsumed.current = true;
-      setScopeFocusMode(false);
       openEditModal();
       return;
     }
@@ -465,13 +452,6 @@ export default function ProjectDetailScreen() {
       setActiveTile(tileParam as SectionKey);
     }
   }, [project, editParam, tileParam, openEditModal]);
-
-  // Scope-mode is a one-shot deep-link affordance. Once the editor
-  // closes (save, X, or back), drop it so a later header-pencil open
-  // is the normal "Edit Project" form, not "Add Project Scope".
-  useEffect(() => {
-    if (!showEditModal && scopeFocusMode) setScopeFocusMode(false);
-  }, [showEditModal, scopeFocusMode]);
 
   const currentStage: LifecycleStage = useMemo(
     () => statusToStage(project?.status),
@@ -1293,7 +1273,7 @@ export default function ProjectDetailScreen() {
           {!hasAnyEstimate && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.replace('/(tabs)/discover/estimate' as any)}
+              onPress={() => router.push({ pathname: '/estimate-wizard', params: { projectId: id ?? '' } } as never)}
               activeOpacity={0.7}
               testID="project-create-estimate-btn"
             >
@@ -1778,7 +1758,7 @@ export default function ProjectDetailScreen() {
                 {!hasAnyEstimate && (
                   <TouchableOpacity
                     style={styles.crossLinkBtn}
-                    onPress={() => navigateFromTile('/(tabs)/discover/estimate' as any, 'replace')}
+                    onPress={() => navigateFromTile({ pathname: '/estimate-wizard', params: { projectId: id ?? '' } } as any, 'replace')}
                     activeOpacity={0.7}
                     testID="schedule-create-estimate-link"
                   >
@@ -3244,7 +3224,7 @@ export default function ProjectDetailScreen() {
             >
               <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.inviteModalHeader}>
-                  <Text style={styles.inviteModalTitle}>{scopeFocusMode ? 'Add Project Scope' : 'Edit Project'}</Text>
+                  <Text style={styles.inviteModalTitle}>Edit Project</Text>
                   <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} />
                   </TouchableOpacity>
@@ -3260,22 +3240,14 @@ export default function ProjectDetailScreen() {
                   testID="edit-name-input"
                 />
 
-                <Text style={styles.inviteFieldLabel}>
-                  {scopeFocusMode ? 'Scope of work' : 'Description'}
-                </Text>
-                {scopeFocusMode && (
-                  <Text style={[styles.inviteFieldLabel, { fontWeight: '400' as const, color: themeColors.textMuted, marginTop: -2, marginBottom: 8 }]}>
-                    A sentence or two on what this job covers. The AI uses this to draft your estimate, schedule, and client-portal copy.
-                  </Text>
-                )}
+                <Text style={styles.inviteFieldLabel}>Description</Text>
                 <TextInput
                   style={[styles.inviteInput, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
                   value={editDescription}
                   onChangeText={setEditDescription}
-                  placeholder={scopeFocusMode ? 'e.g. Full gut renovation of a 2-bed condo: demo, framing, MEP rough-in, drywall, finishes.' : 'Brief description...'}
+                  placeholder="Brief description..."
                   placeholderTextColor={themeColors.textMuted}
                   multiline
-                  autoFocus={scopeFocusMode}
                   testID="edit-desc-input"
                 />
 

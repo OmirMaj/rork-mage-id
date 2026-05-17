@@ -845,6 +845,7 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
+      <Stack.Screen name="project-scope" options={{ headerShown: false }} />
     </Stack>
   );
 }

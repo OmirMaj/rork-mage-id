@@ -165,10 +165,9 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
     };
   }
 
-  // 4. Project with no description (the "scope" surface) yet. Fresh-project
-  //    guidance — without a description, the AI estimator + client portal
-  //    can't produce useful output.
-  const projectNoScope = projScope.find(p => !p.description || p.description.trim().length < 10);
+  // 4. Project with no scope yet. Fresh-project guidance — without a scope,
+  //    the AI estimator + client portal can't produce useful output.
+  const projectNoScope = projScope.find(p => !p.scope || (p.scope.scope ?? '').trim().length === 0);
   if (projectNoScope) {
     return {
       kind: 'project_no_scope',
@@ -177,11 +176,7 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       title: `Add scope to ${projectNoScope.name}`,
       body: 'A short scope unlocks AI estimates + client-portal copy. 2 minutes of typing saves an hour later.',
       cta: 'Add scope now',
-      // edit=scope opens the project editor in focused scope-mode:
-      // retitled "Add Project Scope" with the Description field
-      // auto-focused + keyboard up, so the user lands ready to type
-      // scope instead of staring at a generic 6-field edit form.
-      href: { pathname: '/project-detail', params: { id: projectNoScope.id, edit: 'scope' } },
+      href: { pathname: '/project-scope', params: { id: projectNoScope.id } },
     };
   }
 
@@ -198,15 +193,9 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       title: `Build an estimate for ${projectNoEstimate.name}`,
       body: 'AI drafts a full line-item estimate from your scope. You edit, you send. Done in minutes.',
       cta: 'Open estimator',
-      // Route to the real Estimator screen — the same destination
-      // project-detail's own "no estimate" quick-action uses
-      // (app/project-detail.tsx:1274). The old ?tile=linkedEstimate
-      // deep-link opened an EMPTY section modal: that tile only exists
-      // and only renders content once an estimate already exists, so on
-      // an estimate-less project (exactly when this card shows) it was a
-      // blank page. The Estimator's "Add to Project" flow handles
-      // linking the result back to the project.
-      href: '/(tabs)/discover/estimate',
+      // Route to the project-aware estimate wizard so the new estimate
+      // is linked to this project automatically.
+      href: { pathname: '/estimate-wizard', params: { projectId: projectNoEstimate.id } },
     };
   }
 

@@ -18,21 +18,19 @@
 // project's estimate via the Projects context (left as a follow-up so the
 // existing estimator isn't touched by this first pass).
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, Platform, KeyboardAvoidingView,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ChevronRight, Sparkles, Building2, Home, Wrench,
-  DollarSign, CheckCircle2, FileDown, RotateCcw, Users,
+  ChevronLeft, ChevronRight, Sparkles, CheckCircle2, FileDown,
+  RotateCcw, Users,
 } from 'lucide-react-native';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
-import { z } from 'zod';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -41,74 +39,21 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
+import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
-import type { CompanyBranding } from '@/types';
+import { generateUUID } from '@/utils/generateId';
+import type { CompanyBranding, LinkedEstimate, LinkedEstimateItem } from '@/types';
+import {
+  INITIAL_SCOPE, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
+  scopeCacheKey, estimateSchema, QUALITY_LABELS,
+  type WizardAnswers, type EstimateResult,
+} from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-
-interface WizardAnswers {
-  projectType: string;
-  sizeSqft: string;
-  location: string;
-  quality: 'budget' | 'standard' | 'high_end';
-  scope: string;
-  timelineWeeks: string;
-  specialRequirements: string;
-  targetBudget: string;
-}
-
-const PROJECT_TYPES = [
-  'New Build',
-  'Full Remodel',
-  'Kitchen Remodel',
-  'Bathroom Remodel',
-  'Addition',
-  'Basement Finish',
-  'ADU / Backyard Build',
-  'Commercial TI',
-  'Roof Replacement',
-  'Deck / Outdoor',
-];
-
-const QUALITY_LABELS: Record<WizardAnswers['quality'], string> = {
-  budget: 'Budget',
-  standard: 'Standard',
-  high_end: 'High-End',
-};
-
-const estimateSchema = z.object({
-  summary: z.string().catch('').default(''),
-  lineItems: z.array(z.object({
-    category: z.string().catch('').default('Other'),
-    description: z.string().catch('').default(''),
-    quantity: z.number().catch(1).default(1),
-    unit: z.string().catch('ea').default('ea'),
-    unitCost: z.number().catch(0).default(0),
-    total: z.number().catch(0).default(0),
-  })).default([]),
-  subtotal: z.number().catch(0).default(0),
-  contingency: z.number().catch(0).default(0),
-  permits: z.number().catch(0).default(0),
-  total: z.number().catch(0).default(0),
-  notes: z.array(z.string()).default([]),
-});
-
-type EstimateResult = z.infer<typeof estimateSchema>;
-
-const INITIAL: WizardAnswers = {
-  projectType: '',
-  sizeSqft: '',
-  location: '',
-  quality: 'standard',
-  scope: '',
-  timelineWeeks: '',
-  specialRequirements: '',
-  targetBudget: '',
-};
 
 export default function EstimateWizardScreen() {
   const router = useRouter();
@@ -131,40 +76,40 @@ function EstimateWizardScreenInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { settings } = useProjects();
+  const { settings, getProject, updateProject } = useProjects();
   const { tier } = useSubscription();
 
+  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  const scopedProject = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId, getProject]);
+
   const [step, setStep] = useState<number>(0);
-  const [answers, setAnswers] = useState<WizardAnswers>(INITIAL);
+  const [answers, setAnswers] = useState<WizardAnswers>(INITIAL_SCOPE);
   const [loading, setLoading] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
 
-  const TOTAL_STEPS = 8;
+  useEffect(() => {
+    if (scopedProject?.scope) {
+      const { updatedAt: _updatedAt, ...rest } = scopedProject.scope;
+      setAnswers({ ...INITIAL_SCOPE, ...rest });
+    }
+  }, [scopedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const TOTAL_STEPS = TOTAL_SCOPE_STEPS;
 
   const set = useCallback(<K extends keyof WizardAnswers>(key: K, value: WizardAnswers[K]) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const canAdvance = useMemo(() => {
-    switch (step) {
-      case 0: return answers.projectType.length > 0;
-      case 1: return answers.sizeSqft.trim().length > 0 && !isNaN(Number(answers.sizeSqft));
-      case 2: return answers.location.trim().length > 0;
-      case 3: return true;
-      case 4: return answers.scope.trim().length > 10;
-      case 5: return answers.timelineWeeks.trim().length > 0 && !isNaN(Number(answers.timelineWeeks));
-      case 6: return true; // special requirements optional
-      case 7: return true; // target budget optional
-      default: return false;
-    }
+    return stepCanAdvance(step, answers);
   }, [step, answers]);
 
   const next = useCallback(() => {
     if (!canAdvance) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1));
-  }, [canAdvance]);
+  }, [canAdvance, TOTAL_STEPS]);
 
   const back = useCallback(() => {
     setStep((s) => Math.max(0, s - 1));
@@ -188,37 +133,61 @@ function EstimateWizardScreenInner() {
     setLoading(true);
     setResult(null);
 
-    const prompt = `You are a construction cost estimator producing a quick first-pass budget for a US contractor. Use the following inputs and return a JSON object with an itemized line-by-line estimate.
+    const prompt = buildEstimatePrompt(answers);
 
-Inputs:
-- Project type: ${answers.projectType}
-- Size: ${answers.sizeSqft} sqft
-- Location: ${answers.location}
-- Quality tier: ${QUALITY_LABELS[answers.quality]}
-- Scope: ${answers.scope}
-- Timeline: ${answers.timelineWeeks} weeks
-- Special requirements: ${answers.specialRequirements || 'None'}
-- Target budget: ${answers.targetBudget || 'Not specified'}
-
-Return JSON with:
-- summary: one paragraph plain-English overview of the estimate
-- lineItems: array of { category, description, quantity, unit, unitCost, total } (total = quantity * unitCost)
-- subtotal: sum of all lineItems totals
-- contingency: ~10% of subtotal
-- permits: rough permit/fees estimate for the location
-- total: subtotal + contingency + permits
-- notes: array of caveats (e.g. "assumes standard finishes", "excludes landscaping")
-
-Use current regional pricing where possible. Round reasonably. Keep it under 15 line items.`;
-
-    const cacheKey = `wizard::${answers.projectType}::${answers.sizeSqft}::${answers.location}::${answers.quality}::${answers.scope.slice(0, 80)}`;
+    const cacheKey = scopeCacheKey(answers);
 
     try {
       const res = await mageAISmart(prompt, estimateSchema, cacheKey);
       if (!res.success || !res.data) {
         Alert.alert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
       } else {
-        setResult(res.data as EstimateResult);
+        const data = res.data as EstimateResult;
+        setResult(data);
+
+        // Project-aware link-back. When the wizard was launched with a
+        // ?projectId (from a project's "estimate now" entry point), fold
+        // the AI line items into that project's linkedEstimate so the
+        // estimator / budget / portal all see the number. The standalone
+        // flow (no projectId) skips this entirely and is byte-identical
+        // to before.
+        //
+        // Item shape mirrors utils/estimateAssemblies.ts applyAssembly and
+        // app/drawing-analyzer.tsx (the canonical "AI lineItems →
+        // LinkedEstimate" mappers): bulkPrice = unitPrice, usesBulk=false,
+        // markup=0, supplier='', stable materialId. No markup is applied
+        // here (globalMarkup=0) — the GC tunes it in the estimator, same
+        // as the analyzer path. LinkedEstimate has no notes field, so the
+        // AI notes + refineWith are NOT folded onto it (doing so would
+        // require an unsafe cast); they remain surfaced to the user in
+        // this screen's result UI instead.
+        if (projectId && scopedProject) {
+          const items: LinkedEstimateItem[] = data.lineItems.map<LinkedEstimateItem>((li) => ({
+            materialId: generateUUID(),
+            name: li.description,
+            category: li.category,
+            unit: li.unit,
+            quantity: li.quantity,
+            unitPrice: li.unitCost,
+            bulkPrice: li.unitCost,
+            markup: 0,
+            usesBulk: false,
+            lineTotal: li.total,
+            supplier: '',
+          }));
+          const baseTotal = data.subtotal + data.contingency + data.permits;
+          const linkedEstimate: LinkedEstimate = {
+            id: generateUUID(),
+            items,
+            globalMarkup: 0,
+            baseTotal,
+            markupTotal: 0,
+            grandTotal: data.total,
+            createdAt: new Date().toISOString(),
+          };
+          updateProject(projectId, { linkedEstimate });
+        }
+
         // Fire-and-forget usage write — was previously awaited, which left
         // the loading spinner up while AsyncStorage finished on slow disks.
         // recordAIUsage failure shouldn't gate the user seeing their estimate.
@@ -232,7 +201,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
     } finally {
       setLoading(false);
     }
-  }, [answers, loading, tier, router]);
+  }, [answers, loading, tier, router, projectId, scopedProject, updateProject]);
 
   // Escape hatch for the loading screen. We don't actually abort the
   // in-flight fetch (the AbortController is internal to mageAI), but
@@ -269,7 +238,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
   }, [result, answers, settings]);
 
   const reset = useCallback(() => {
-    setAnswers(INITIAL);
+    setAnswers(INITIAL_SCOPE);
     setResult(null);
     setStep(0);
   }, []);
@@ -396,6 +365,15 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
               ) : null}
             </View>
           ) : null}
+
+          {result.refineWith && result.refineWith.length > 0 && (
+            <View style={styles.refineCard}>
+              <Text style={styles.refineTitle}>Add these for a sharper number</Text>
+              {result.refineWith.map((rfn, i) => (
+                <Text key={i} style={styles.refineItem}>• {rfn}</Text>
+              ))}
+            </View>
+          )}
 
           {/* Cost Distribution — same layout as the PDF, percentage bars. */}
           {result.total > 0 && sortedCategories.length > 0 ? (
@@ -608,169 +586,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {step === 0 && (
-            <StepCard
-              icon={<Building2 size={28} color={themeColors.accent} />}
-              title="What kind of project?"
-              subtitle="Pick the closest match — we'll refine in the next steps."
-            >
-              <View style={styles.chipWrap}>
-                {PROJECT_TYPES.map((t) => {
-                  const active = answers.projectType === t;
-                  return (
-                    <TouchableOpacity
-                      key={t}
-                      onPress={() => set('projectType', t)}
-                      style={[styles.chip, active && styles.chipActive]}
-                      activeOpacity={0.8}
-                      testID={`wizard-type-${t}`}
-                    >
-                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{t}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </StepCard>
-          )}
-
-          {step === 1 && (
-            <StepCard
-              icon={<Home size={28} color={themeColors.accent} />}
-              title="How big is the project?"
-              subtitle="Approximate square footage of the work area."
-            >
-              <TextInput
-                value={answers.sizeSqft}
-                onChangeText={(v) => set('sizeSqft', v.replace(/[^0-9.]/g, ''))}
-                placeholder="e.g. 1500"
-                placeholderTextColor={themeColors.textMuted}
-                keyboardType="numeric"
-                style={styles.input}
-                testID="wizard-size"
-              />
-              <Text style={styles.hint}>Square feet</Text>
-            </StepCard>
-          )}
-
-          {step === 2 && (
-            <StepCard
-              icon={<Building2 size={28} color={themeColors.accent} />}
-              title="Where's the job?"
-              subtitle="City and state — we use this for regional pricing."
-            >
-              <TextInput
-                value={answers.location}
-                onChangeText={(v) => set('location', v)}
-                placeholder="e.g. Austin, TX"
-                placeholderTextColor={themeColors.textMuted}
-                style={styles.input}
-                testID="wizard-location"
-              />
-            </StepCard>
-          )}
-
-          {step === 3 && (
-            <StepCard
-              icon={<Sparkles size={28} color={themeColors.accent} />}
-              title="What quality tier?"
-              subtitle="Drives material selection and labor assumptions."
-            >
-              <View style={styles.chipWrap}>
-                {(['budget', 'standard', 'high_end'] as const).map((q) => {
-                  const active = answers.quality === q;
-                  return (
-                    <TouchableOpacity
-                      key={q}
-                      onPress={() => set('quality', q)}
-                      style={[styles.chip, active && styles.chipActive]}
-                      activeOpacity={0.8}
-                      testID={`wizard-quality-${q}`}
-                    >
-                      <Text style={[styles.chipText, active && styles.chipTextActive]}>{QUALITY_LABELS[q]}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </StepCard>
-          )}
-
-          {step === 4 && (
-            <StepCard
-              icon={<Wrench size={28} color={themeColors.accent} />}
-              title="What's the scope?"
-              subtitle="A few sentences on what you're actually building."
-            >
-              <TextInput
-                value={answers.scope}
-                onChangeText={(v) => set('scope', v)}
-                placeholder="e.g. Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors."
-                placeholderTextColor={themeColors.textMuted}
-                multiline
-                numberOfLines={5}
-                textAlignVertical="top"
-                style={styles.textArea}
-                testID="wizard-scope"
-              />
-            </StepCard>
-          )}
-
-          {step === 5 && (
-            <StepCard
-              icon={<Building2 size={28} color={themeColors.accent} />}
-              title="What's the timeline?"
-              subtitle="Expected duration in weeks."
-            >
-              <TextInput
-                value={answers.timelineWeeks}
-                onChangeText={(v) => set('timelineWeeks', v.replace(/[^0-9.]/g, ''))}
-                placeholder="e.g. 8"
-                placeholderTextColor={themeColors.textMuted}
-                keyboardType="numeric"
-                style={styles.input}
-                testID="wizard-timeline"
-              />
-              <Text style={styles.hint}>Weeks</Text>
-            </StepCard>
-          )}
-
-          {step === 6 && (
-            <StepCard
-              icon={<Sparkles size={28} color={themeColors.accent} />}
-              title="Any special requirements?"
-              subtitle="Permits, LEED, historical, ADA, unusual access — optional."
-            >
-              <TextInput
-                value={answers.specialRequirements}
-                onChangeText={(v) => set('specialRequirements', v)}
-                placeholder="e.g. Historic district review, second-floor access, ADA compliant bathroom."
-                placeholderTextColor={themeColors.textMuted}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                style={styles.textArea}
-                testID="wizard-special"
-              />
-            </StepCard>
-          )}
-
-          {step === 7 && (
-            <StepCard
-              icon={<DollarSign size={28} color={themeColors.accent} />}
-              title="Target budget?"
-              subtitle="Optional. We'll flag if the estimate runs over."
-            >
-              <TextInput
-                value={answers.targetBudget}
-                onChangeText={(v) => set('targetBudget', v.replace(/[^0-9.]/g, ''))}
-                placeholder="e.g. 75000"
-                placeholderTextColor={themeColors.textMuted}
-                keyboardType="numeric"
-                style={styles.input}
-                testID="wizard-budget"
-              />
-              <Text style={styles.hint}>Dollars (optional)</Text>
-            </StepCard>
-          )}
+          <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
@@ -825,23 +641,6 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
   );
 }
 
-function StepCard({ icon, title, subtitle, children }: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <View>
-      <View style={styles.stepIconWrap}>{icon}</View>
-      <Text style={styles.stepTitle}>{title}</Text>
-      <Text style={styles.stepSubtitle}>{subtitle}</Text>
-      <View style={{ marginTop: 16 }}>{children}</View>
-    </View>
-  );
-}
-
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   progressWrap: {
@@ -854,33 +653,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   progressLabel: {
     fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 6, textAlign: 'center' as const,
   },
-  stepIconWrap: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: themeColors.accent + '14',
-    alignItems: 'center' as const, justifyContent: 'center' as const,
-    marginBottom: 12,
-  },
-  stepTitle: { fontSize: 24, fontWeight: '700' as const, color: themeColors.text, marginBottom: 6 },
-  stepSubtitle: { fontSize: Type.subhead.fontSize, color: themeColors.textMuted, lineHeight: 21 },
-  chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.xl,
-    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
-  },
-  chipActive: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
-  chipText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
-  chipTextActive: { color: '#FFF' },
-  input: {
-    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
-    borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: Type.callout.fontSize, color: themeColors.text,
-  },
-  textArea: {
-    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
-    borderRadius: Tokens.radius.card, padding: 12, minHeight: 120,
-    fontSize: Type.subhead.fontSize, color: themeColors.text,
-  },
-  hint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 6 },
   footer: {
     flexDirection: 'row' as const, gap: 12,
     paddingHorizontal: 20, paddingTop: 12,
@@ -1181,6 +953,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   notesBlock: { marginTop: 8 },
   noteRow: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 20, marginBottom: 4 },
+  // "Sharper number" card — surfaces the AI's refineWith hints (the
+  // specific missing inputs that would most improve accuracy) directly
+  // under the scope summary.
+  refineCard: { backgroundColor: themeColors.accent + '12', borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
+  refineTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  refineItem: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
   disclaimer: {
     fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'center' as const, marginTop: 16, paddingHorizontal: 12,
