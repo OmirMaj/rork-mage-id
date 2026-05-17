@@ -189,10 +189,7 @@ function DrawingAnalyzerInner() {
               createdAt: new Date().toISOString(),
             };
             updateProject(pickedProjectId, commitEstimatePatch(getProject(pickedProjectId), linked, { reason: 'pre_overwrite' }));
-            router.push({
-              pathname: '/estimate' as never,
-              params: { projectId: pickedProjectId, hydratedFromAnalyzer: '1' } as never,
-            });
+            router.push({ pathname: '/project-detail', params: { id: pickedProjectId } } as never);
           },
         },
       ],
