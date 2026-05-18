@@ -30,7 +30,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // dunning reminders match sub-portal invites, contract sends, payment
 // receipts, the morning brief, the homeowner weekly digest, and COI
 // warnings.
-import { wrapEmailHtml, resendSend, emailButton, fmtMoney } from '../_shared/email.ts';
+import { wrapEmailHtml, resendSend, emailButton, fmtMoney, isEmailUnsubscribed } from '../_shared/email.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -261,6 +261,15 @@ async function processInvoice(
   // single-homeowner case; if there are multiple, we email the first).
   const invite = invites[0];
   const recipientEmail = invite.email!;
+
+  // Pre-send suppression: if this address unsubscribed from payment
+  // reminders (or globally), skip WITHOUT advancing dunning_stage /
+  // dunning_last_sent_at — those are only written after a confirmed
+  // send below, so 'skipped' loses nothing if they later re-subscribe.
+  if (await isEmailUnsubscribed(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, recipientEmail, 'payment_reminders')) {
+    console.log('[invoice-dunning] recipient unsubscribed — skipping, dunning_stage not advanced', invoice.id);
+    return 'skipped';
+  }
 
   // ── Resolve the sender's company name from the GC's profile ──
   let companyName = 'MAGE ID';
