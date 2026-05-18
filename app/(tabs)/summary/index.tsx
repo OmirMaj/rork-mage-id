@@ -13,7 +13,7 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
-import { useProjects } from '@/contexts/ProjectContext';
+import { useCoreData, useFinancialsData, useFieldData } from '@/contexts/ProjectContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard, Skeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
@@ -56,9 +56,9 @@ function daysFromNow(iso: string): number {
 
 function computeStats(
   project: Project,
-  invoices: ReturnType<typeof useProjects>['invoices'],
-  punchItems: ReturnType<typeof useProjects>['punchItems'],
-  changeOrders: ReturnType<typeof useProjects>['changeOrders'],
+  invoices: ReturnType<typeof useFinancialsData>['invoices'],
+  punchItems: ReturnType<typeof useFieldData>['punchItems'],
+  changeOrders: ReturnType<typeof useFinancialsData>['changeOrders'],
 ): ProjectSummaryStats {
   const projInvoices = invoices.filter(i => i.projectId === project.id);
   const projPunch = punchItems.filter(pi => pi.projectId === project.id);
@@ -144,7 +144,9 @@ function computeStats(
 export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projects, invoices, punchItems, changeOrders, isLoading } = useProjects();
+  const { projects, isLoading } = useCoreData();
+  const { invoices, changeOrders } = useFinancialsData();
+  const { punchItems } = useFieldData();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 

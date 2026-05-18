@@ -3253,3 +3253,11 @@ export function useProjects() {
     ...useCtx(CrossDomainContext, 'CrossDomainContext'),
   };
 }
+
+export const useCoreData = () => useCtx(CoreDataContext, 'CoreDataContext');
+export const useFinancialsData = () => useCtx(FinancialsDataContext, 'FinancialsDataContext');
+export const useFieldData = () => useCtx(FieldDataContext, 'FieldDataContext');
+export const usePreconData = () => useCtx(PreconDataContext, 'PreconDataContext');
+export const useDocsData = () => useCtx(DocsDataContext, 'DocsDataContext');
+export const useProjectActions = () => useCtx(StableActionsContext, 'StableActionsContext');
+export const useProjectCrossActions = () => useCtx(CrossDomainContext, 'CrossDomainContext');

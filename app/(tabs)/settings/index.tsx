@@ -10,7 +10,7 @@ import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
-import { useProjects } from '@/contexts/ProjectContext';
+import { useCoreData } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -75,7 +75,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { settings, updateSettings, projects, deleteProject } = useProjects();
+  const { settings, updateSettings, projects, deleteProject } = useCoreData();
   const { user, logout, deleteAccount, isAuthenticated } = useAuth();
   const { tier } = useSubscription();
   const { colors: themeColors } = useTheme();
