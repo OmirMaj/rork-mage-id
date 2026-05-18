@@ -78,3 +78,15 @@ No new failure modes — this is a provider-internal re-wiring. The shim guarant
 ## 7. Out of scope / future
 
 Long-tail migration of the remaining ~85 consumers to granular hooks (incremental, safe under the shim); physical provider/file split; `use-context-selector` adoption; any state-library change. Logged here, not built now.
+
+### 2026-05-18 — Photos-per-project scoping deferred (H5 Task 4)
+
+Investigated per-project scoping of `projectPhotos` / `getPhotosForProject` per spec §4.4. Decision: **deferred** — per-project scoping cannot be achieved without observable behavior changes in the current architecture. Specific consumers that require the full cross-project `projectPhotos` array:
+
+1. **`hooks/useUniversalSearch.ts` line 261** — iterates ALL `store.projectPhotos` to build photo search results across every project. Scoping to the active project would silently omit other-project photos from the universal search — behavior change.
+2. **`utils/entityResolver.ts` line 273** — resolves a photo entity by `id` across the full `projectPhotos` array (e.g. resolving a notification or activity-feed reference to a photo from any project). Scoping would cause resolution to return `null` for photos outside the active project — behavior change.
+3. **`app/data-export.tsx` lines 35, 77** — pulls the raw `projectPhotos` array to build an all-projects or single-project data export. Scoping would silently omit photos from non-active projects in an all-projects export — behavior change.
+4. **`app/rfi.tsx` line 94** and **`app/photo-annotator.tsx` line 48** — perform a `.find(p => p.id === photoId)` over the full `projectPhotos` array when the caller may navigate from a photo belonging to any project — scoping to one project would produce `null` and break prefill / annotation loading.
+5. **`app/closeout-binder.tsx` line 254** — applies its own `filter(p => p.projectId === project.id)` over the full array; safe only because the full multi-project array is available.
+
+The only achievable variant — filter `projectPhotos` per active project but keep a separate all-photos reference for the search/resolver/export consumers — duplicates state sources and adds complexity inconsistent with the D3 photo-library redesign, which will own the real per-project load isolation. Per the spec §4.4 authorization, the H5 re-render win (Tasks 2–3, already shipped) is the primary outcome; Task 4 is formally deferred to the D3 milestone.
