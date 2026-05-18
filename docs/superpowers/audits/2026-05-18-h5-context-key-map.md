@@ -188,74 +188,19 @@
 
 | Bucket | Count | Keys |
 |--------|-------|------|
-| CoreData | 22 | projects, settings, hasSeenOnboarding, isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject |
-| FinancialsData | 21 | changeOrders, addChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject |
-| FieldData | 44 | dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan |
-| PreconData | 21 | subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, cois, addCOI, updateCOI, deleteCOI, getCOIsForSub |
-| DocsData | 41 | rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc |
+| CoreData | 23 | projects, settings, hasSeenOnboarding, isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject |
+| FinancialsData | 22 | changeOrders, addChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject |
+| FieldData | 38 | dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan |
+| PreconData | 28 | subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, cois, addCOI, updateCOI, deleteCOI, getCOIsForSub |
+| DocsData | 38 | rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc |
 | StableActions | 1 | completeOnboarding |
 | CrossDomain | 5 | updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage |
 
-**Sum check:** 22 + 21 + 44 + 21 + 41 + 1 + 5 = **155**
+**Sum check:** 23 + 22 + 38 + 28 + 38 + 1 + 5 = **155**
 
 ---
 
 ## Reconciliation
-
-```
-TOTAL keys in useProjects() = 155; sum of buckets = 155; dropped = 0; duplicated = 0
-```
-
-**Verification of individual bucket counts:**
-- CoreData: projects, settings, hasSeenOnboarding, isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator (11) + priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert (4) + contacts, addContact, updateContact, deleteContact, getContact (5) + commEvents, addCommEvent, getCommEventsForProject (3) = **23** — *correction applied, see below*
-
-> **Note on CoreData count:** After re-count: projects(1) settings(2) hasSeenOnboarding(3) isLoading(4) addProject(5) updateProject(6) deleteProject(7) getProject(8) updateSettings(9) addCollaborator(10) removeCollaborator(11) priceAlerts(12) addPriceAlert(13) updatePriceAlert(14) deletePriceAlert(15) contacts(16) addContact(17) updateContact(18) deleteContact(19) getContact(20) commEvents(21) addCommEvent(22) getCommEventsForProject(23) = **23**
-
-> **Revised counts:** CoreData=23, FinancialsData=21 (unchanged, but recount below), FieldData=38, PreconData=24, DocsData=43, StableActions=1, CrossDomain=5.
-
-Let me provide the exact corrected counts with full key lists per bucket:
-
-### CoreData (23 keys)
-1. projects, 2. settings, 3. hasSeenOnboarding, 4. isLoading, 5. addProject, 6. updateProject, 7. deleteProject, 8. getProject, 9. updateSettings, 10. addCollaborator, 11. removeCollaborator, 12. priceAlerts, 13. addPriceAlert, 14. updatePriceAlert, 15. deletePriceAlert, 16. contacts, 17. addContact, 18. updateContact, 19. deleteContact, 20. getContact, 21. commEvents, 22. addCommEvent, 23. getCommEventsForProject
-
-### FinancialsData (22 keys)
-1. changeOrders, 2. addChangeOrder, 3. getChangeOrdersForProject, 4. addInvoice, 5. updateInvoice, 6. getInvoicesForProject, 7. getTotalOutstandingBalance, 8. invoices, 9. commitments, 10. addCommitment, 11. updateCommitment, 12. deleteCommitment, 13. getCommitmentsForProject, 14. prequalPackets, 15. upsertPrequalPacket, 16. deletePrequalPacket, 17. getPrequalPacketForSub, 18. getPrequalPacketByToken, 19. aiaPayApps, 20. addAIAPayApp, 21. deleteAIAPayApp, 22. getAIAPayAppsForProject
-
-### FieldData (38 keys)
-1. dailyReports, 2. getDailyReportsForProject, 3. punchItems, 4. addPunchItem, 5. updatePunchItem, 6. deletePunchItem, 7. getPunchItemsForProject, 8. projectPhotos, 9. addProjectPhoto, 10. updateProjectPhoto, 11. deleteProjectPhoto, 12. getPhotosForProject, 13. equipment, 14. addEquipment, 15. updateEquipment, 16. deleteEquipment, 17. logUtilization, 18. getEquipmentForProject, 19. getEquipmentCostForProject, 20. planSheets, 21. addPlanSheet, 22. updatePlanSheet, 23. deletePlanSheet, 24. getPlanSheetsForProject, 25. getPlanSheet, 26. drawingPins, 27. addDrawingPin, 28. updateDrawingPin, 29. deleteDrawingPin, 30. getPinsForPlan, 31. getPinsForPhoto, 32. planMarkups, 33. addPlanMarkup, 34. deletePlanMarkup, 35. getMarkupsForPlan, 36. planCalibrations, 37. upsertPlanCalibration, 38. getCalibrationForPlan
-
-### PreconData (28 keys)
-1. subcontractors, 2. addSubcontractor, 3. updateSubcontractor, 4. deleteSubcontractor, 5. getSubcontractor, 6. leads, 7. addLead, 8. updateLead, 9. deleteLead, 10. getLead, 11. getLeadsByStage, 12. addLeadTouch, 13. bidPackages, 14. bidPackageBids, 15. addBidPackage, 16. updateBidPackage, 17. deleteBidPackage, 18. getBidPackagesForProject, 19. getBidPackage, 20. addBidPackageBid, 21. updateBidPackageBid, 22. deleteBidPackageBid, 23. getBidsForPackage, 24. cois, 25. addCOI, 26. updateCOI, 27. deleteCOI, 28. getCOIsForSub
-
-### DocsData (43 keys)
-1. rfis, 2. addRFI, 3. updateRFI, 4. deleteRFI, 5. getRFIsForProject, 6. permits, 7. addPermit, 8. updatePermit, 9. deletePermit, 10. getPermitsForProject, 11. subPortalLinks, 12. upsertSubPortalLink, 13. deleteSubPortalLink, 14. getSubPortalLinkFor, 15. getSubPortalLinksForProject, 16. submittals, 17. addSubmittal, 18. updateSubmittal, 19. deleteSubmittal, 20. getSubmittalsForProject, 21. addReviewCycle, 22. oacMeetings, 23. addOACMeeting, 24. updateOACMeeting, 25. deleteOACMeeting, 26. getOACMeetingsForProject, 27. warranties, 28. addWarranty, 29. updateWarranty, 30. deleteWarranty, 31. getWarrantiesForProject, 32. addWarrantyClaim, 33. portalMessages, 34. addPortalMessage, 35. markPortalMessagesRead, 36. getPortalMessagesForProject, 37. getUnreadPortalMessageCount, 38. getTotalUnreadPortalCountForGc
-
-> *Note: that's 38 for DocsData above. Re-verifying...*
-
-Full DocsData recount: rfis(1) addRFI(2) updateRFI(3) deleteRFI(4) getRFIsForProject(5) permits(6) addPermit(7) updatePermit(8) deletePermit(9) getPermitsForProject(10) subPortalLinks(11) upsertSubPortalLink(12) deleteSubPortalLink(13) getSubPortalLinkFor(14) getSubPortalLinksForProject(15) submittals(16) addSubmittal(17) updateSubmittal(18) deleteSubmittal(19) getSubmittalsForProject(20) addReviewCycle(21) oacMeetings(22) addOACMeeting(23) updateOACMeeting(24) deleteOACMeeting(25) getOACMeetingsForProject(26) warranties(27) addWarranty(28) updateWarranty(29) deleteWarranty(30) getWarrantiesForProject(31) addWarrantyClaim(32) portalMessages(33) addPortalMessage(34) markPortalMessagesRead(35) getPortalMessagesForProject(36) getUnreadPortalMessageCount(37) getTotalUnreadPortalCountForGc(38) = **38**
-
-### StableActions (1 key)
-1. completeOnboarding
-
-### CrossDomain (5 keys)
-1. updateChangeOrder, 2. addDailyReport, 3. updateDailyReport, 4. convertLeadToProject, 5. awardBidPackage
-
----
-
-## Corrected Authoritative Bucket Counts
-
-| Bucket | Count |
-|--------|-------|
-| CoreData | 23 |
-| FinancialsData | 22 |
-| FieldData | 38 |
-| PreconData | 28 |
-| DocsData | 38 |
-| StableActions | 1 |
-| CrossDomain | 5 |
-| **TOTAL** | **155** |
-
-**23 + 22 + 38 + 28 + 38 + 1 + 5 = 155 ✓**
 
 ```
 TOTAL keys in useProjects() = 155; sum of buckets = 155; dropped = 0; duplicated = 0
