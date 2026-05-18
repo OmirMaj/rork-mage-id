@@ -8,8 +8,9 @@
 // import from here so there's exactly one design.
 //
 // Deno-friendly (no Node-specific APIs, no relative-path imports past
-// .. once). Pure functions, no I/O. Each helper returns an HTML string
-// ready to drop into bodyHtml.
+// .. once). The HTML/template helpers are pure and return strings; the
+// two network helpers — resendSend (Resend) and isEmailUnsubscribed
+// (the is_email_unsubscribed RPC) — are the file's only I/O.
 //
 // Design language matches the marketing site + portal:
 //   ink         #0B0D10   — header, primary buttons, body text
@@ -597,6 +598,44 @@ export async function resendSend(apiKey: string, opts: SendOpts): Promise<{ ok: 
     }
   }
   return { ok: false, resp: lastResp ?? { error: 'rate_limit_exhausted' } };
+}
+
+// ─── Pre-send unsubscribe check ──────────────────────────────────────
+//
+// Mirrors notify/index.ts's local isUnsubscribed EXACTLY at the RPC
+// level: POST /rest/v1/rpc/is_email_unsubscribed with
+// { p_email: <lowercased>, p_event_key }, returns true iff the address
+// is suppressed for that event_key OR globally (the RPC folds global in).
+// Fail-OPEN on any error (bad status, network throw): we'd rather send a
+// duplicate than silently drop legitimate mail on a transient glitch —
+// identical risk posture to notify, which already runs this in prod.
+//
+// Takes supabaseUrl + serviceRoleKey explicitly (dependency-injected,
+// same style as resendSend(apiKey, opts)) because shared code can't
+// close over a single function's module-scoped env constants.
+export async function isEmailUnsubscribed(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  email: string | null | undefined,
+  eventKey: string,
+): Promise<boolean> {
+  if (!email) return false;
+  try {
+    const r = await fetch(`${supabaseUrl}/rest/v1/rpc/is_email_unsubscribed`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_email: email.toLowerCase(), p_event_key: eventKey }),
+    });
+    if (!r.ok) return false;
+    const v = await r.json();
+    return v === true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Money formatter ─────────────────────────────────────────────────
