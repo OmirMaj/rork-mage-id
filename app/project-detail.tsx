@@ -37,6 +37,7 @@ import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } fro
 import {
   buildPhotoSharePayload,
   encodePhotoShareToken,
+  groupPhotosByDay,
   PHOTO_SHARE_MAX,
 } from '@/utils/photoShareToken';
 import { NextStepHero } from '@/components/NextStepHero';
@@ -402,6 +403,11 @@ export default function ProjectDetailScreen() {
   const [photoFilter, setPhotoFilter] = useState<string>('all');
   // Photo lightbox — shows the full-size image when a thumb is tapped.
   const [lightboxPhoto, setLightboxPhoto] = useState<ProjectPhoto | null>(null);
+  // D3-2: free-text photo search (matches tag / location / linked-task /
+  // geo-label — all already persisted on ProjectPhoto) + auto-album-by-date
+  // toggle. Default grouped: albums are the library win for a long project.
+  const [photoSearch, setPhotoSearch] = useState<string>('');
+  const [photoGroupByDate, setPhotoGroupByDate] = useState<boolean>(true);
   // RFI status filter — defaults to 'open' so the user lands on the work
   // that needs their attention, not a wall of closed RFIs.
   const [rfiFilter, setRfiFilter] = useState<'open' | 'answered' | 'closed' | 'all'>('open');
@@ -2956,9 +2962,47 @@ export default function ProjectDetailScreen() {
                 const filtered = photoFilter === 'all'
                   ? projectPhotos
                   : projectPhotos.filter(p => (p.tag ?? 'Untagged').trim() === photoFilter || ((p.tag ?? '').trim() === '' && photoFilter === 'Untagged'));
-                // Show 12 thumbs at this density; user can hit the gallery
-                // for the full set (route TBD — for now we show the count).
-                const visible = filtered.slice(0, 12);
+                // D3-2 search: applied AFTER the chip filter. Case-insensitive
+                // substring over the fields ProjectPhoto already persists, so
+                // "electrical rough" matches whichever field carries it. Empty
+                // query is identity → byte-equivalent to the pre-D3-2 result.
+                const q = photoSearch.trim().toLowerCase();
+                const searched = q === ''
+                  ? filtered
+                  : filtered.filter(p =>
+                      [p.tag, p.location, p.linkedTaskName, p.locationLabel]
+                        .map(x => x ?? '')
+                        .join(' ')
+                        .toLowerCase()
+                        .includes(q),
+                    );
+                const dayLabel = (dayISO: string) =>
+                  dayISO === 'unknown'
+                    ? 'Undated'
+                    : new Date(dayISO + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                const renderThumb = (photo: ProjectPhoto) => (
+                  <TouchableOpacity
+                    key={photo.id}
+                    style={styles.photoThumb}
+                    activeOpacity={0.85}
+                    onPress={() => setLightboxPhoto(photo)}
+                    testID={`photo-thumb-${photo.id}`}
+                  >
+                    {photo.uri ? (
+                      <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} resizeMode="cover" />
+                    ) : (
+                      <Camera size={20} color={themeColors.textMuted} />
+                    )}
+                    {(photo.markup?.length ?? 0) > 0 && (
+                      <View style={styles.photoThumbMarkupBadge}>
+                        <Pencil size={10} color={themeColors.surface} />
+                      </View>
+                    )}
+                    <View style={styles.photoThumbDateOverlay}>
+                      <Text style={styles.photoThumbDate}>{new Date(photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
                 return (
                   <>
                     <FilterChipRow
@@ -2968,33 +3012,46 @@ export default function ProjectDetailScreen() {
                       noPadding
                       testID="photos-tag-filter"
                     />
-                    <View style={styles.photoGrid}>
-                      {visible.map(photo => (
-                        <TouchableOpacity
-                          key={photo.id}
-                          style={styles.photoThumb}
-                          activeOpacity={0.85}
-                          onPress={() => setLightboxPhoto(photo)}
-                          testID={`photo-thumb-${photo.id}`}
-                        >
-                          {photo.uri ? (
-                            <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} resizeMode="cover" />
-                          ) : (
-                            <Camera size={20} color={themeColors.textMuted} />
-                          )}
-                          {(photo.markup?.length ?? 0) > 0 && (
-                            <View style={styles.photoThumbMarkupBadge}>
-                              <Pencil size={10} color={themeColors.surface} />
-                            </View>
-                          )}
-                          <View style={styles.photoThumbDateOverlay}>
-                            <Text style={styles.photoThumbDate}>{new Date(photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
+                    <View style={styles.photoSearchRow}>
+                      <TextInput
+                        style={styles.photoSearchInput}
+                        value={photoSearch}
+                        onChangeText={setPhotoSearch}
+                        placeholder="Search photos (tag, location, task)"
+                        placeholderTextColor={themeColors.textMuted}
+                        testID="photos-search-input"
+                      />
+                      <TouchableOpacity
+                        style={styles.photoGroupToggle}
+                        onPress={() => setPhotoGroupByDate(v => !v)}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={photoGroupByDate ? 'Switch to grid view' : 'Group photos by date'}
+                        testID="photos-group-toggle"
+                      >
+                        {photoGroupByDate ? (
+                          <CalendarDays size={14} color={themeColors.accent} />
+                        ) : (
+                          <Layers size={14} color={themeColors.textMuted} />
+                        )}
+                        <Text style={styles.photoGroupToggleText}>{photoGroupByDate ? 'By date' : 'Grid'}</Text>
+                      </TouchableOpacity>
                     </View>
-                    {filtered.length > 12 && (
-                      <Text style={styles.punchMoreText}>+{filtered.length - 12} more in this filter</Text>
+                    {searched.length === 0 ? (
+                      <Text style={styles.punchMoreText}>No photos match this filter.</Text>
+                    ) : photoGroupByDate ? (
+                      groupPhotosByDay(searched.map(p => ({ ts: p.timestamp, photo: p }))).map(group => (
+                        <View key={group.dayISO} testID={`photo-day-${group.dayISO}`}>
+                          <Text style={styles.photoDayHeader}>{dayLabel(group.dayISO)}</Text>
+                          <View style={styles.photoGrid}>
+                            {group.items.map(({ photo }) => renderThumb(photo))}
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <View style={styles.photoGrid}>
+                        {searched.map(photo => renderThumb(photo))}
+                      </View>
                     )}
                   </>
                 );
@@ -4067,6 +4124,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '600' as const,
   },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  photoSearchRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 8 },
+  photoSearchInput: { flex: 1, minHeight: 40, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: themeColors.text },
+  photoGroupToggle: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, paddingHorizontal: 10, paddingVertical: 9, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.surfaceAlt },
+  photoGroupToggleText: { fontSize: Type.caption1.fontSize, color: themeColors.text, fontWeight: '600' as const },
+  photoDayHeader: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, fontWeight: '700' as const, marginTop: 12, marginBottom: 2 },
   photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
   photoThumbImage: { width: '100%', height: '100%' },
   photoThumbDate: { fontSize: 9, color: themeColors.surface, fontWeight: '700' as const },
