@@ -7,6 +7,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
 import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
+import { snapshotPatch } from '@/utils/estimateCommit';
 
 const PROJECTS_KEY = 'buildwise_projects';
 const SETTINGS_KEY = 'buildwise_settings';
@@ -2032,13 +2033,23 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       const proj = projects.find(p => p.id === pkg.projectId);
       const linkedEstimate = proj?.linkedEstimate;
       if (proj && linkedEstimate && linkedEstimate.items.some(i => pkg.linkedEstimateItemIds.includes(i.materialId) && i.isAllowance)) {
+        // H7: snapshot the CURRENT estimate (pre-buyout) before we mutate
+        // it to firm prices. snapshotPatch appends to proj.estimateVersions
+        // (the fresh array just read from closure state) so the result
+        // is always monotonically growing — stale-closure clobber
+        // is impossible because we read from `proj` here, not from a
+        // separately-captured array that could be behind.
+        const preBuyoutPatch = snapshotPatch(proj, 'pre_overwrite', 'pre-buyout snapshot');
         const updatedItems = linkedEstimate.items.map(item => {
           if (pkg.linkedEstimateItemIds.includes(item.materialId) && item.isAllowance) {
             return { ...item, isAllowance: false, firmPricedAt: now };
           }
           return item;
         });
-        updatedProject = { ...proj, linkedEstimate: { ...linkedEstimate, items: updatedItems }, updatedAt: now };
+        // Spread preBuyoutPatch (which may contain estimateVersions with the
+        // appended revision) into updatedProject so the single Supabase upsert
+        // carries BOTH the firm-priced estimate AND the updated version history.
+        updatedProject = { ...proj, ...preBuyoutPatch, linkedEstimate: { ...linkedEstimate, items: updatedItems }, updatedAt: now };
         nextProjects = projects.map(p => p.id === pkg.projectId ? updatedProject! : p);
       }
     }
