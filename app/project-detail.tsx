@@ -1794,6 +1794,58 @@ export default function ProjectDetailScreen() {
                 </View>
               );
             })()}
+
+            {/* ── Create proposal from estimate ── */}
+            {(() => {
+              const versions = (project.estimateVersions ?? [])
+                .slice()
+                .sort((a, b) => b.revNumber - a.revNumber); // newest first
+              const hasVersions = versions.length > 0;
+              if (!hasVersions) {
+                return (
+                  <TouchableOpacity
+                    style={[styles.revSaveBtn, { opacity: 0.45 }]}
+                    disabled
+                    activeOpacity={1}
+                    testID="create-proposal-disabled"
+                  >
+                    <FileText size={16} color={themeColors.accent} />
+                    <Text style={styles.revSaveBtnText}>Create Proposal — save a revision first</Text>
+                  </TouchableOpacity>
+                );
+              }
+              const handleCreateProposal = () => {
+                if (versions.length === 1) {
+                  // Only one revision — skip picker and go straight to it.
+                  router.push({ pathname: '/contract' as any, params: { projectId: id, fromRevision: versions[0].id } });
+                  return;
+                }
+                Alert.alert(
+                  'Create Proposal',
+                  'Choose a revision to base the proposal on:',
+                  [
+                    ...versions.map(rev => ({
+                      text: `Rev ${rev.revNumber} · $${(rev.grandTotal ?? 0).toLocaleString()}${rev.note ? ' · ' + rev.note : ''}`,
+                      onPress: () => {
+                        router.push({ pathname: '/contract' as any, params: { projectId: id, fromRevision: rev.id } });
+                      },
+                    })),
+                    { text: 'Cancel', style: 'cancel' as const },
+                  ],
+                );
+              };
+              return (
+                <TouchableOpacity
+                  style={styles.revSaveBtn}
+                  onPress={handleCreateProposal}
+                  activeOpacity={0.7}
+                  testID="create-proposal-btn"
+                >
+                  <FileText size={16} color={themeColors.accent} />
+                  <Text style={styles.revSaveBtnText}>Create Proposal from Revision</Text>
+                </TouchableOpacity>
+              );
+            })()}
           </View>
         )}
 

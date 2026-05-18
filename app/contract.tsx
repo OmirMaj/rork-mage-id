@@ -33,7 +33,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   fetchActiveContract, saveContract, setContractStatus,
-  buildDraftContract, defaultPaymentSchedule,
+  buildDraftContract, buildProposalFromRevision, defaultPaymentSchedule,
 } from '@/utils/contractEngine';
 import { generateUUID } from '@/utils/generateId';
 import { formatMoney } from '@/utils/formatters';
@@ -66,7 +66,7 @@ export default function ContractScreen() {
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
   const { getProject, updateProject: ctxUpdateProject, settings } = useProjects();
   const project = projectId ? getProject(projectId) : undefined;
 
@@ -87,7 +87,14 @@ export default function ContractScreen() {
         setContract(existing);
       } else {
         // Seed a draft from the project — caller can edit before saving.
-        const draft = buildDraftContract({ project });
+        // If a fromRevision param was passed and the revision exists, seed a
+        // proposal from that revision instead of the generic draft.
+        const rev = fromRevision
+          ? (project.estimateVersions ?? []).find(v => v.id === fromRevision)
+          : undefined;
+        const draft = rev
+          ? buildProposalFromRevision(project, rev)
+          : buildDraftContract({ project });
         setContract({
           ...draft,
           id: '',
