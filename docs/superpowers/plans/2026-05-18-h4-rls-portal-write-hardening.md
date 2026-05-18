@@ -102,8 +102,8 @@ from (select distinct tablename from pg_policies where schemaname='public') t;
 ```sql
 select string_agg(block, E'\n\n' order by tablename, policyname) from (
   select tablename, policyname,
-    'drop policy if exists '||quote_literal(policyname)||' on public.'||quote_ident(tablename)||';'||E'\n'||
-    'create policy '||quote_literal(policyname)||' on public.'||quote_ident(tablename)||
+    'drop policy if exists '||quote_ident(policyname)||' on public.'||quote_ident(tablename)||';'||E'\n'||
+    'create policy '||quote_ident(policyname)||' on public.'||quote_ident(tablename)||
       ' as '||lower(permissive)||' for '||lower(cmd)||' to '||array_to_string(roles, ', ')||
       coalesce(' using ('||qual||')','')||
       coalesce(' with check ('||with_check||')','')||';' as block
@@ -111,7 +111,7 @@ select string_agg(block, E'\n\n' order by tablename, policyname) from (
 ) s;
 ```
 
-These two queries are the deterministic generator — output is the migration body verbatim, no hand-transcription. (Supabase roles in `roles` are `anon`/`authenticated`/`public`/`service_role`/`postgres` — all bare-identifier-safe; `to public` is valid CREATE POLICY syntax.)
+These two queries are the deterministic generator — output is the migration body verbatim, no hand-transcription. **Policy and table names use `quote_ident` (NOT `quote_literal`)** — `CREATE/DROP POLICY` require an *identifier*; ~26 live policy names contain spaces (e.g. `client submits CO approvals`) and must render double-quoted (`"client submits CO approvals"`), simple names render bare. A single-quoted string-literal name is a SQL syntax error at apply time. Supabase roles in `roles` are `anon`/`authenticated`/`public`/`service_role`/`postgres` — bare-identifier-safe; `to public` is valid CREATE POLICY syntax.
 
 - [ ] **Step 3: Write the migration file**
 
@@ -138,8 +138,10 @@ Run:
 ```bash
 grep -c "create policy" supabase/migrations/20260518120000_rls_baseline.sql
 grep -nE "contracts_client_sign|selopt_client_choose" supabase/migrations/20260518120000_rls_baseline.sql
+grep -cE "create policy '" supabase/migrations/20260518120000_rls_baseline.sql   # MUST be 0 — names must be identifiers, not 'literals'
+grep -cE 'create policy "client submits CO approvals" on' supabase/migrations/20260518120000_rls_baseline.sql  # MUST be 1 — space-name double-quoted
 ```
-Expected: `create policy` count equals the `policy_count` from Task 0 Step 2; both `contracts_client_sign` and `selopt_client_choose` ARE present (this baseline is pre-fix). No literal `<<paste` markers remain (`grep -n '<<paste' …` → no output).
+Expected: `create policy` count equals the `policy_count` from Task 0 Step 2 (285); both `contracts_client_sign` and `selopt_client_choose` ARE present (this baseline is pre-fix); **zero** `create policy '` single-quoted-literal names (identifiers only); a known space-containing name renders double-quoted. No literal `<<paste` markers remain (`grep -n '<<paste' …` → no output).
 
 - [ ] **Step 5: Gate**
 
