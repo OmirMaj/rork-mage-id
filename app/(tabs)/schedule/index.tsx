@@ -1755,17 +1755,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                             <Text style={styles.phaseHeaderMeta}>{phaseProgress}% · {tasks.length}</Text>
                           </View>
                         </TouchableOpacity>
-                        {!isCollapsed && (
-                          <View style={styles.phaseTaskList}>
-                            {/* scrollEnabled={false}: FlatList virtualizes render within the outer ScrollView */}
-                            <FlatList
-                              data={tasks}
-                              keyExtractor={item => item.id}
-                              renderItem={({ item: task }) => renderTaskCard(task)}
-                              scrollEnabled={false}
-                            />
-                          </View>
-                        )}
+                        {!isCollapsed && <View style={styles.phaseTaskList}>{tasks.map(renderTaskCard)}</View>}
                       </View>
                     );
                   })}
@@ -2369,13 +2359,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                           </TouchableOpacity>
                           {!isCollapsed && (
                             <View style={styles.phaseTaskList}>
-                              {/* scrollEnabled={false}: FlatList virtualizes render within the outer ScrollView */}
-                              <FlatList
-                                data={tasks}
-                                keyExtractor={item => item.id}
-                                renderItem={({ item: task }) => renderTaskCard(task)}
-                                scrollEnabled={false}
-                              />
+                              {tasks.map(renderTaskCard)}
                             </View>
                           )}
                         </View>
