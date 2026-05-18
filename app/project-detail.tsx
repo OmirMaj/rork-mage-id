@@ -3038,9 +3038,11 @@ export default function ProjectDetailScreen() {
                       </TouchableOpacity>
                     </View>
                     {searched.length === 0 ? (
-                      <Text style={styles.punchMoreText}>No photos match this filter.</Text>
+                      <Text style={styles.punchMoreText}>{q !== '' ? 'No photos match your search.' : 'No photos in this tag.'}</Text>
                     ) : photoGroupByDate ? (
-                      groupPhotosByDay(searched.map(p => ({ ts: p.timestamp, photo: p }))).map(group => (
+                      groupPhotosByDay(searched.map(p => ({ ts: p.timestamp, photo: p })))
+                        .sort((a, b) => (a.dayISO === 'unknown' ? 1 : b.dayISO === 'unknown' ? -1 : 0))
+                        .map(group => (
                         <View key={group.dayISO} testID={`photo-day-${group.dayISO}`}>
                           <Text style={styles.photoDayHeader}>{dayLabel(group.dayISO)}</Text>
                           <View style={styles.photoGrid}>
