@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import createContextHook from '@nkzw/create-context-hook';
 import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -78,7 +77,197 @@ async function saveLocal(key: string, data: unknown): Promise<void> {
   }
 }
 
-export const [ProjectProvider, useProjects] = createContextHook(() => {
+// ─── Per-bucket context objects ───────────────────────────────────────────────
+// Each holds exactly the slice of useProjects() keys assigned to its bucket by
+// docs/superpowers/audits/2026-05-18-h5-context-key-map.md.
+// All default to null; the provider below fills every one before children render.
+
+type CoreDataValue = {
+  projects: Project[];
+  settings: AppSettings;
+  hasSeenOnboarding: boolean | null;
+  isLoading: boolean;
+  addProject: (project: Project) => void;
+  updateProject: (id: string, updates: Partial<Project>) => void;
+  deleteProject: (id: string) => void;
+  getProject: (id: string) => Project | null;
+  updateSettings: (updates: Partial<AppSettings>) => void;
+  addCollaborator: (projectId: string, collab: ProjectCollaborator) => void;
+  removeCollaborator: (projectId: string, collabId: string) => void;
+  priceAlerts: PriceAlert[];
+  addPriceAlert: (alert: PriceAlert) => void;
+  updatePriceAlert: (id: string, updates: Partial<PriceAlert>) => void;
+  deletePriceAlert: (id: string) => void;
+  contacts: Contact[];
+  addContact: (contact: Contact) => void;
+  updateContact: (id: string, updates: Partial<Contact>) => void;
+  deleteContact: (id: string) => void;
+  getContact: (id: string) => Contact | null;
+  commEvents: CommunicationEvent[];
+  addCommEvent: (event: CommunicationEvent) => void;
+  getCommEventsForProject: (projectId: string) => CommunicationEvent[];
+};
+
+type FinancialsDataValue = {
+  changeOrders: ChangeOrder[];
+  addChangeOrder: (co: ChangeOrder) => void;
+  getChangeOrdersForProject: (projectId: string) => ChangeOrder[];
+  addInvoice: (invoice: Invoice) => void;
+  updateInvoice: (id: string, updates: Partial<Invoice>) => void;
+  getInvoicesForProject: (projectId: string) => Invoice[];
+  getTotalOutstandingBalance: () => number;
+  invoices: Invoice[];
+  commitments: Commitment[];
+  addCommitment: (c: Commitment) => void;
+  updateCommitment: (id: string, updates: Partial<Commitment>) => void;
+  deleteCommitment: (id: string) => void;
+  getCommitmentsForProject: (projectId: string) => Commitment[];
+  prequalPackets: PrequalPacket[];
+  upsertPrequalPacket: (packet: PrequalPacket) => void;
+  deletePrequalPacket: (id: string) => void;
+  getPrequalPacketForSub: (subId: string) => PrequalPacket | null;
+  getPrequalPacketByToken: (token: string) => PrequalPacket | null;
+  aiaPayApps: SavedAIAPayApp[];
+  addAIAPayApp: (app: SavedAIAPayApp) => SavedAIAPayApp;
+  deleteAIAPayApp: (id: string) => void;
+  getAIAPayAppsForProject: (projectId: string) => SavedAIAPayApp[];
+};
+
+type FieldDataValue = {
+  dailyReports: DailyFieldReport[];
+  getDailyReportsForProject: (projectId: string) => DailyFieldReport[];
+  punchItems: PunchItem[];
+  addPunchItem: (item: PunchItem) => void;
+  updatePunchItem: (id: string, updates: Partial<PunchItem>) => void;
+  deletePunchItem: (id: string) => void;
+  getPunchItemsForProject: (projectId: string) => PunchItem[];
+  projectPhotos: ProjectPhoto[];
+  addProjectPhoto: (photo: ProjectPhoto) => void;
+  updateProjectPhoto: (id: string, updates: Partial<ProjectPhoto>) => void;
+  deleteProjectPhoto: (id: string) => void;
+  getPhotosForProject: (projectId: string) => ProjectPhoto[];
+  equipment: Equipment[];
+  addEquipment: (equip: Omit<Equipment, 'id' | 'createdAt'>) => void;
+  updateEquipment: (id: string, updates: Partial<Equipment>) => void;
+  deleteEquipment: (id: string) => void;
+  logUtilization: (entry: Omit<EquipmentUtilizationEntry, 'id'>) => void;
+  getEquipmentForProject: (projectId: string) => Equipment[];
+  getEquipmentCostForProject: (projectId: string) => number;
+  planSheets: PlanSheet[];
+  addPlanSheet: (sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) => PlanSheet;
+  updatePlanSheet: (id: string, updates: Partial<PlanSheet>) => void;
+  deletePlanSheet: (id: string) => void;
+  getPlanSheetsForProject: (projectId: string) => PlanSheet[];
+  getPlanSheet: (id: string) => PlanSheet | undefined;
+  drawingPins: DrawingPin[];
+  addDrawingPin: (pin: Omit<DrawingPin, 'id' | 'createdAt' | 'updatedAt'>) => DrawingPin;
+  updateDrawingPin: (id: string, updates: Partial<DrawingPin>) => void;
+  deleteDrawingPin: (id: string) => void;
+  getPinsForPlan: (planSheetId: string) => DrawingPin[];
+  getPinsForPhoto: (photoId: string) => DrawingPin[];
+  planMarkups: PlanMarkup[];
+  addPlanMarkup: (markup: Omit<PlanMarkup, 'id' | 'createdAt'>) => PlanMarkup;
+  deletePlanMarkup: (id: string) => void;
+  getMarkupsForPlan: (planSheetId: string) => PlanMarkup[];
+  planCalibrations: PlanCalibration[];
+  upsertPlanCalibration: (cal: Omit<PlanCalibration, 'id' | 'createdAt'>) => PlanCalibration;
+  getCalibrationForPlan: (planSheetId: string) => PlanCalibration | undefined;
+};
+
+type PreconDataValue = {
+  subcontractors: Subcontractor[];
+  addSubcontractor: (sub: Subcontractor) => void;
+  updateSubcontractor: (id: string, updates: Partial<Subcontractor>) => void;
+  deleteSubcontractor: (id: string) => void;
+  getSubcontractor: (id: string) => Subcontractor | null;
+  leads: Lead[];
+  addLead: (lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'receivedAt'> & { id?: string; receivedAt?: string }) => Lead;
+  updateLead: (id: string, updates: Partial<Lead>) => void;
+  deleteLead: (id: string) => void;
+  getLead: (id: string) => Lead | null;
+  getLeadsByStage: (stage: LeadStage) => Lead[];
+  addLeadTouch: (leadId: string, kind: LeadTouch['kind'], body: string, byName?: string) => void;
+  bidPackages: BidPackage[];
+  bidPackageBids: BidPackageBid[];
+  addBidPackage: (pkg: Omit<BidPackage, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => BidPackage;
+  updateBidPackage: (id: string, updates: Partial<BidPackage>) => void;
+  deleteBidPackage: (id: string) => void;
+  getBidPackagesForProject: (projectId: string) => BidPackage[];
+  getBidPackage: (id: string) => BidPackage | null;
+  addBidPackageBid: (bid: Omit<BidPackageBid, 'id' | 'createdAt' | 'updatedAt' | 'submittedAt'> & { id?: string; submittedAt?: string }) => BidPackageBid;
+  updateBidPackageBid: (id: string, updates: Partial<BidPackageBid>) => void;
+  deleteBidPackageBid: (id: string) => void;
+  getBidsForPackage: (packageId: string) => BidPackageBid[];
+  cois: CertificateOfInsurance[];
+  addCOI: (coi: CertificateOfInsurance) => void;
+  updateCOI: (id: string, patch: Partial<CertificateOfInsurance>) => void;
+  deleteCOI: (id: string) => void;
+  getCOIsForSub: (subId: string) => CertificateOfInsurance[];
+};
+
+type DocsDataValue = {
+  rfis: RFI[];
+  addRFI: (rfi: Omit<RFI, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => RFI;
+  updateRFI: (id: string, updates: Partial<RFI>) => void;
+  deleteRFI: (id: string) => void;
+  getRFIsForProject: (projectId: string) => RFI[];
+  permits: Permit[];
+  addPermit: (permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>) => Permit;
+  updatePermit: (id: string, updates: Partial<Permit>) => void;
+  deletePermit: (id: string) => void;
+  getPermitsForProject: (projectId: string) => Permit[];
+  subPortalLinks: SubPortalLink[];
+  upsertSubPortalLink: (link: SubPortalLink) => SubPortalLink;
+  deleteSubPortalLink: (id: string) => void;
+  getSubPortalLinkFor: (projectId: string, subcontractorId: string) => SubPortalLink | undefined;
+  getSubPortalLinksForProject: (projectId: string) => SubPortalLink[];
+  submittals: Submittal[];
+  addSubmittal: (sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => void;
+  updateSubmittal: (id: string, updates: Partial<Submittal>) => void;
+  deleteSubmittal: (id: string) => void;
+  getSubmittalsForProject: (projectId: string) => Submittal[];
+  addReviewCycle: (submittalId: string, cycle: Omit<SubmittalReviewCycle, 'cycleNumber'>) => void;
+  oacMeetings: OACMeeting[];
+  addOACMeeting: (meeting: OACMeeting) => void;
+  updateOACMeeting: (id: string, patch: Partial<OACMeeting>) => void;
+  deleteOACMeeting: (id: string) => void;
+  getOACMeetingsForProject: (projectId: string) => OACMeeting[];
+  warranties: Warranty[];
+  addWarranty: (w: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'claims'> & { id?: string; status?: Warranty['status']; claims?: WarrantyClaim[] }) => Warranty;
+  updateWarranty: (id: string, updates: Partial<Warranty>) => void;
+  deleteWarranty: (id: string) => void;
+  getWarrantiesForProject: (projectId: string) => Warranty[];
+  addWarrantyClaim: (warrantyId: string, claim: Omit<WarrantyClaim, 'id'>) => void;
+  portalMessages: PortalMessage[];
+  addPortalMessage: (msg: Omit<PortalMessage, 'id' | 'createdAt'>) => PortalMessage;
+  markPortalMessagesRead: (projectId: string, side: 'gc' | 'client') => void;
+  getPortalMessagesForProject: (projectId: string) => PortalMessage[];
+  getUnreadPortalMessageCount: (projectId: string, side: 'gc' | 'client') => number;
+  getTotalUnreadPortalCountForGc: () => number;
+};
+
+type StableActionsValue = {
+  completeOnboarding: () => Promise<void>;
+};
+
+type CrossDomainValue = {
+  updateChangeOrder: (id: string, updates: Partial<ChangeOrder>) => void;
+  addDailyReport: (report: DailyFieldReport) => void;
+  updateDailyReport: (id: string, updates: Partial<DailyFieldReport>) => void;
+  convertLeadToProject: (leadId: string) => string | null;
+  awardBidPackage: (packageId: string, bidId: string) => string | null;
+};
+
+const CoreDataContext = createContext<CoreDataValue | null>(null);
+const FinancialsDataContext = createContext<FinancialsDataValue | null>(null);
+const FieldDataContext = createContext<FieldDataValue | null>(null);
+const PreconDataContext = createContext<PreconDataValue | null>(null);
+const DocsDataContext = createContext<DocsDataValue | null>(null);
+const StableActionsContext = createContext<StableActionsValue | null>(null);
+const CrossDomainContext = createContext<CrossDomainValue | null>(null);
+
+// ─── Inner provider (holds the full hook body verbatim) ───────────────────────
+function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -2967,39 +3156,100 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
-  return useMemo(() => ({
-    projects: sortedProjects, settings, hasSeenOnboarding, completeOnboarding,
+  // ── Bucket memos ─────────────────────────────────────────────────────────────
+  const coreData = useMemo<CoreDataValue>(() => ({
+    projects: sortedProjects, settings, hasSeenOnboarding,
     isLoading: projectsQuery.isLoading || settingsQuery.isLoading || onboardingQuery.isLoading,
     addProject, updateProject, deleteProject, getProject, updateSettings,
     addCollaborator, removeCollaborator,
-    changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject,
-    addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices,
-    commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject,
-    prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
-    dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject,
-    subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
-    punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject,
-    projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-    leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject,
-    bidPackages, bidPackageBids,
-    addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage,
-    addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, awardBidPackage,
-    rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
-    permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
+  }), [sortedProjects, settings, hasSeenOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
+
+  const financialsData = useMemo<FinancialsDataValue>(() => ({
+    changeOrders, addChangeOrder, getChangeOrdersForProject,
+    addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices,
+    commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject,
+    prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
-    subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
-    submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
-    oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject,
-    cois, addCOI, updateCOI, deleteCOI, getCOIsForSub,
+  }), [changeOrders, addChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject]);
+
+  const fieldData = useMemo<FieldDataValue>(() => ({
+    dailyReports, getDailyReportsForProject,
+    punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject,
+    projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
-    warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
-    portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
     planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, awardBidPackage, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, cois, addCOI, updateCOI, deleteCOI, getCOIsForSub, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
-});
+  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+
+  const preconData = useMemo<PreconDataValue>(() => ({
+    subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
+    leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch,
+    bidPackages, bidPackageBids,
+    addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage,
+    addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage,
+    cois, addCOI, updateCOI, deleteCOI, getCOIsForSub,
+  }), [subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, cois, addCOI, updateCOI, deleteCOI, getCOIsForSub]);
+
+  const docsData = useMemo<DocsDataValue>(() => ({
+    rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
+    permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
+    subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
+    submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
+    oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject,
+    warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
+    portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
+  }), [rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
+
+  const stableActions = useMemo<StableActionsValue>(() => ({
+    completeOnboarding,
+  }), [completeOnboarding]);
+
+  const crossDomain = useMemo<CrossDomainValue>(() => ({
+    updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage,
+  }), [updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage]);
+
+  return (
+    <StableActionsContext.Provider value={stableActions}>
+      <CrossDomainContext.Provider value={crossDomain}>
+        <CoreDataContext.Provider value={coreData}>
+          <FinancialsDataContext.Provider value={financialsData}>
+            <FieldDataContext.Provider value={fieldData}>
+              <PreconDataContext.Provider value={preconData}>
+                <DocsDataContext.Provider value={docsData}>
+                  {children}
+                </DocsDataContext.Provider>
+              </PreconDataContext.Provider>
+            </FieldDataContext.Provider>
+          </FinancialsDataContext.Provider>
+        </CoreDataContext.Provider>
+      </CrossDomainContext.Provider>
+    </StableActionsContext.Provider>
+  );
+}
+
+export function ProjectProvider({ children }: { children: React.ReactNode }) {
+  return <ProjectProviderInner>{children}</ProjectProviderInner>;
+}
+
+function useCtx<T>(c: React.Context<T | null>, name: string): T {
+  const v = useContext(c);
+  if (v === null) throw new Error(`${name} must be used within ProjectProvider`);
+  return v;
+}
+
+export function useProjects() {
+  return {
+    ...useCtx(CoreDataContext, 'CoreDataContext'),
+    ...useCtx(FinancialsDataContext, 'FinancialsDataContext'),
+    ...useCtx(FieldDataContext, 'FieldDataContext'),
+    ...useCtx(PreconDataContext, 'PreconDataContext'),
+    ...useCtx(DocsDataContext, 'DocsDataContext'),
+    ...useCtx(StableActionsContext, 'StableActionsContext'),
+    ...useCtx(CrossDomainContext, 'CrossDomainContext'),
+  };
+}
