@@ -137,10 +137,14 @@ export function useCustomAssemblies(): {
   const updateCustomAssembly = useCallback(async (a: AssemblyItem): Promise<void> => {
     setCustomAssemblies(prev => prev.map(x => x.id === a.id ? a : x));
     if (userId) {
+      // Don't resend created_at on update — it would reset the row's
+      // original creation timestamp on every edit. updated_at is kept
+      // (it should advance on edit) and is a real live column.
+      const { created_at: _omitCreatedAt, ...updateRow } = assemblyItemToRow(a, userId);
       void supabaseWrite(
         'assemblies',
         'update',
-        assemblyItemToRow(a, userId) as unknown as Record<string, unknown>,
+        updateRow as unknown as Record<string, unknown>,
       );
     }
   }, [userId]);
