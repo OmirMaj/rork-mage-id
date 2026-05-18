@@ -40,7 +40,10 @@ import type { LinkedEstimate, LinkedEstimateItem, Project } from '@/types';
 import { LABOR_RATES, LABOR_CATEGORIES, type LaborRate } from '@/constants/laborRates';
 import { ASSEMBLIES, ASSEMBLY_CATEGORIES, type AssemblyItem } from '@/constants/assemblies';
 import { useCustomAssemblies } from '@/hooks/useCustomAssemblies';
+import { useRateOverrides } from '@/hooks/useRateOverrides';
+import type { RateOverride } from '@/utils/rateOverrides';
 import { AssemblyEditorModal } from '@/components/AssemblyEditorModal';
+import { RateOverrideModal } from '@/components/RateOverrideModal';
 import { ESTIMATE_TEMPLATES, TEMPLATE_CATEGORIES, type EstimateTemplate } from '@/constants/estimateTemplates';
 import SquareFootEstimator from '@/components/SquareFootEstimator';
 import ProductivityCalculator from '@/components/ProductivityCalculator';
@@ -209,6 +212,8 @@ export default function EstimateScreen() {
   const [assemblyQtyInput, setAssemblyQtyInput] = useState('1');
   // Custom assemblies — GC-authored presets merged into the SAME picker
   const { customAssemblies, addCustomAssembly, updateCustomAssembly, deleteCustomAssembly } = useCustomAssemblies();
+  const { overrides, laborRate, materialPrice, addOverride, updateOverride, deleteOverride } = useRateOverrides();
+  const [costBookOpen, setCostBookOpen] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editorInitial, setEditorInitial] = useState<AssemblyItem | null>(null);
   const [showSqftEstimator, setShowSqftEstimator] = useState(false);
@@ -528,17 +533,16 @@ export default function EstimateScreen() {
   const calculateAssemblyCost = useCallback((assembly: AssemblyItem, qty: number): { materialsCost: number; laborCost: number; totalCost: number } => {
     let materialsCost = 0;
     for (const mat of assembly.materialsPerUnit) {
-      const found = materials.find(m => m.id === mat.materialId);
-      const price = found ? found.baseBulkPrice : 15;
+      const price = materialPrice(mat.materialId) ?? (materials.find(m => m.id === mat.materialId)?.baseBulkPrice ?? 15);
       materialsCost += price * mat.quantityPerUnit * (1 + mat.wasteFactor) * qty;
     }
     let laborCost = 0;
     for (const lab of assembly.laborPerUnit) {
-      const rate = LABOR_RATES.find(r => r.trade === lab.trade);
-      laborCost += (rate?.hourlyRate ?? 25) * lab.hoursPerUnit * qty;
+      const labRate = laborRate(lab.trade) ?? (LABOR_RATES.find(r => r.trade === lab.trade)?.hourlyRate ?? 25);
+      laborCost += labRate * lab.hoursPerUnit * qty;
     }
     return { materialsCost, laborCost, totalCost: materialsCost + laborCost };
-  }, [materials]);
+  }, [materials, laborRate, materialPrice]);
 
   const handleAddAssembly = useCallback(() => {
     if (!selectedAssembly) return;
@@ -1838,8 +1842,18 @@ export default function EstimateScreen() {
         <Text style={styles.resultsCount}>{filteredLabor.length} trade{filteredLabor.length !== 1 ? 's' : ''}</Text>
         <Text style={styles.resultsMicroCopy}>BLS national median rates</Text>
       </View>
+      {/* "Cost book / My rates" — opens RateOverrideModal */}
+      <TouchableOpacity
+        style={aiStyles.customEntryBtn}
+        onPress={() => setCostBookOpen(true)}
+        activeOpacity={0.7}
+      >
+        <PlusCircle size={14} color={Colors.primary} />
+        <Text style={aiStyles.customEntryBtnText}>Cost book / My rates</Text>
+        <ChevronRight size={14} color={Colors.textMuted} />
+      </TouchableOpacity>
     </View>
-  ), [listHeaderComponent, laborCategory, filteredLabor.length]);
+  ), [listHeaderComponent, laborCategory, filteredLabor.length, setCostBookOpen]);
 
   const assemblyListHeader = useMemo(() => (
     <View>
@@ -2500,6 +2514,15 @@ export default function EstimateScreen() {
             if (editorInitial) { void updateCustomAssembly(a); } else { void addCustomAssembly(a); }
             setEditorVisible(false);
           }}
+        />
+        <RateOverrideModal
+          visible={costBookOpen}
+          overrides={overrides}
+          materials={materials}
+          onClose={() => setCostBookOpen(false)}
+          onAdd={(o: RateOverride) => addOverride(o)}
+          onUpdate={(o: RateOverride) => updateOverride(o)}
+          onDelete={(id: string) => deleteOverride(id)}
         />
       </View>
     );
@@ -3462,6 +3485,15 @@ export default function EstimateScreen() {
           if (editorInitial) { void updateCustomAssembly(a); } else { void addCustomAssembly(a); }
           setEditorVisible(false);
         }}
+      />
+      <RateOverrideModal
+        visible={costBookOpen}
+        overrides={overrides}
+        materials={materials}
+        onClose={() => setCostBookOpen(false)}
+        onAdd={o => addOverride(o)}
+        onUpdate={o => updateOverride(o)}
+        onDelete={id => deleteOverride(id)}
       />
     </View>
   );
