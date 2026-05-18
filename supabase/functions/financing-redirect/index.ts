@@ -12,6 +12,12 @@
 //
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FINANCING_FALLBACK_URL
 // (optional; defaults to https://mageid.app).
+// FINANCING_CALLBACK_SECRET — shared HMAC key (same as financing-callback).
+//   ?ref=<token> branch: caller must send x-financing-signature: hex(HMAC(key,"ref")).
+//   ?project+src=portal branch: caller must send Authorization / apikey with
+//     a non-trivial (length ≥ 20) value (the portal already sends these).
+// Both fail-closed: no signature/token → DB write/insert skipped, redirect
+// still happens.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
@@ -19,6 +25,27 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const FALLBACK_URL = Deno.env.get("FINANCING_FALLBACK_URL") || "https://mageid.app";
+const FINANCING_CALLBACK_SECRET = Deno.env.get("FINANCING_CALLBACK_SECRET") || "";
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
+async function validSignature(req: Request, signedPayload: string): Promise<boolean> {
+  if (!FINANCING_CALLBACK_SECRET) return false; // fail closed (financing dormant)
+  const provided = req.headers.get("x-financing-signature") || "";
+  if (!provided) return false;
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(FINANCING_CALLBACK_SECRET),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedPayload));
+  const hex = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return timingSafeEqual(hex, provided.toLowerCase());
+}
 
 function redirect(url: string): Response {
   return new Response(null, { status: 302, headers: { Location: url } });
@@ -46,10 +73,22 @@ serve(async (req) => {
     } | null = null;
 
     if (ref) {
+      // Gate: require valid HMAC over the ref token to prevent arbitrary
+      // ref enumeration from advancing referral status.
+      const authed = await validSignature(req, ref);
+      if (!authed) return redirect(FALLBACK_URL);
       const { data } = await db
         .from("financing_referrals").select("*").eq("id", ref).maybeSingle();
       row = data ?? null;
     } else if (projectParam && srcParam === "portal") {
+      // Gate: require the portal bearer token / apikey already sent by the
+      // portal client (mirrors the apikey sanity check in _shared/auth.ts).
+      const auth = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+      const bearer = auth.replace(/^Bearer\s+/i, "").trim();
+      const apikey = req.headers.get("apikey") || req.headers.get("Apikey") || "";
+      const hasToken = (bearer && bearer.length >= 20) || (apikey && apikey.length >= 20);
+      if (!hasToken) return redirect(FALLBACK_URL);
+
       const { data: existing } = await db
         .from("financing_referrals")
         .select("*")
