@@ -10,7 +10,7 @@ import { generateUUID } from './generateId';
 import type {
   ProjectContract, PaymentMilestone, ContractAllowance,
   ContractSignature, ContractStatus,
-  Project,
+  Project, EstimateRevision,
 } from '@/types';
 
 // Row shape from the DB — snake_case mirrors columns.
@@ -38,6 +38,8 @@ interface ProjectContractRow {
   signed_at: string | null;
   voided_at: string | null;
   signed_pdf_url: string | null;
+  proposal_revision_id?: string | null;
+  kind?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -67,6 +69,8 @@ function rowToContract(r: ProjectContractRow): ProjectContract {
     signedAt: r.signed_at ?? undefined,
     voidedAt: r.voided_at ?? undefined,
     signedPdfUrl: r.signed_pdf_url ?? undefined,
+    proposalRevisionId: r.proposal_revision_id ?? undefined,
+    kind: r.kind === 'proposal' ? 'proposal' : r.kind === 'contract' ? 'contract' : undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -146,6 +150,80 @@ export function buildDraftContract(input: DraftContractInput): Omit<ProjectContr
   };
 }
 
+// Build a proposal document pre-filled from a saved EstimateRevision.
+// Returns a structurally-valid contract-draft shape so saveContract can
+// persist it immediately. kind='proposal' distinguishes it from a signed
+// construction agreement in the UI and portal.
+export function buildProposalFromRevision(
+  project: Project,
+  revision: EstimateRevision,
+): Omit<ProjectContract, 'id' | 'createdAt' | 'updatedAt' | 'userId'> {
+  const value = revision.grandTotal ?? 0;
+
+  // Build readable scope body from the revision's frozen line items.
+  const items = revision.snapshot.items ?? [];
+  let scopeText: string;
+  if (items.length > 0) {
+    const header = `${project.name} — Project Proposal (Estimate Rev ${revision.revNumber})`;
+    const itemLines = items
+      .map(item => {
+        if (item.quantity != null && item.unit) {
+          return `• ${item.name} — ${item.quantity} ${item.unit}`;
+        }
+        return `• ${item.name}`;
+      })
+      .join('\n');
+    scopeText = [
+      header,
+      '',
+      'SCOPE OF WORK',
+      itemLines,
+      '',
+      `TOTAL PROPOSED PRICE: $${value.toLocaleString()}`,
+      '',
+      DEFAULT_TERMS,
+      '',
+      'ACCEPTANCE:',
+      'By signing below, both parties accept this proposal as the binding agreement for the stated scope and price.',
+    ].join('\n');
+  } else {
+    const header = `${project.name} — Project Proposal (Estimate Rev ${revision.revNumber})`;
+    const fallbackScope = project.description ?? 'See attached estimate.';
+    scopeText = [
+      header,
+      '',
+      'SCOPE OF WORK',
+      fallbackScope,
+      '',
+      `TOTAL PROPOSED PRICE: $${value.toLocaleString()}`,
+      '',
+      DEFAULT_TERMS,
+      '',
+      'ACCEPTANCE:',
+      'By signing below, both parties accept this proposal as the binding agreement for the stated scope and price.',
+    ].join('\n');
+  }
+
+  return {
+    projectId: project.id,
+    sourceBidId: undefined,
+    sourceResponseId: undefined,
+    version: 1,
+    title: `${project.name} — Project Proposal`,
+    contractValue: value,
+    startDate: undefined,
+    durationDays: undefined,
+    scopeText,
+    termsText: DEFAULT_TERMS,
+    warrantyText: DEFAULT_WARRANTY,
+    paymentSchedule: defaultPaymentSchedule(value),
+    allowances: [],
+    status: 'draft',
+    proposalRevisionId: revision.id,
+    kind: 'proposal',
+  };
+}
+
 // ─── Supabase helpers ───────────────────────────────────────────────
 
 export async function fetchContractsForProject(projectId: string): Promise<ProjectContract[]> {
@@ -209,6 +287,8 @@ export async function saveContract(c: Omit<ProjectContract, 'id' | 'createdAt' |
     signed_at: c.signedAt ?? null,
     voided_at: c.voidedAt ?? null,
     signed_pdf_url: c.signedPdfUrl ?? null,
+    proposal_revision_id: c.proposalRevisionId ?? null,
+    kind: c.kind ?? null,
   };
 
   const { data, error } = await supabase

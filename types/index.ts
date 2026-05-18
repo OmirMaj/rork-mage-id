@@ -297,6 +297,8 @@ export interface ProjectContract {
   signedAt?: string;
   voidedAt?: string;
   signedPdfUrl?: string;
+  proposalRevisionId?: string;
+  kind?: 'contract' | 'proposal';
   createdAt: string;
   updatedAt: string;
 }
