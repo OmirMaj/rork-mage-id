@@ -63,6 +63,7 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { safeJsonParse } from '@/utils/safeJson';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -164,20 +165,18 @@ function InvoiceInner() {
     // parsed line items in the URL, seed the form with them so the
     // GC sees their dictation reflected immediately.
     if (prefillLines) {
-      try {
-        const parsed = JSON.parse(prefillLines) as { name?: string; description?: string; quantity?: number; unit?: string; unitPrice?: number }[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(li => ({
-            id: createId('ili'),
-            name: li.name || 'Voice line item',
-            description: li.description || '',
-            quantity: li.quantity ?? 1,
-            unit: li.unit || 'lump',
-            unitPrice: li.unitPrice ?? 0,
-            total: (li.quantity ?? 1) * (li.unitPrice ?? 0),
-          }));
-        }
-      } catch {/* malformed JSON; fall through */}
+      const parsed = safeJsonParse<{ name?: string; description?: string; quantity?: number; unit?: string; unitPrice?: number }[]>(prefillLines, []);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(li => ({
+          id: createId('ili'),
+          name: li.name || 'Voice line item',
+          description: li.description || '',
+          quantity: li.quantity ?? 1,
+          unit: li.unit || 'lump',
+          unitPrice: li.unitPrice ?? 0,
+          total: (li.quantity ?? 1) * (li.unitPrice ?? 0),
+        }));
+      }
     }
     // Quick Invoice mode: seed ONE empty line item instead of dragging
     // every estimate row in. Lets the GC type "$1,200 — final cleanup"

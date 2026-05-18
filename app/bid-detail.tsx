@@ -10,6 +10,7 @@ import { MapPin, Clock, DollarSign, Shield, ExternalLink, Mail, Building2, Chevr
 import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { safeJsonParse } from '@/utils/safeJson';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -148,13 +149,9 @@ export default function BidDetailScreen() {
 
   useEffect(() => {
     AsyncStorage.getItem(TRACKED_BIDS_KEY).then(data => {
-      if (data) {
-        try {
-          const tracked = JSON.parse(data) as TrackedBid[];
-          const found = tracked.find(t => t.bidId === id);
-          if (found) setTrackedBid(found);
-        } catch { /* ignore */ }
-      }
+      const tracked = safeJsonParse<TrackedBid[]>(data, []);
+      const found = tracked.find(t => t.bidId === id);
+      if (found) setTrackedBid(found);
     }).catch(() => {});
   }, [id]);
 
