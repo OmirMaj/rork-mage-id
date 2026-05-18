@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  Dimensions, TextInput, Platform, Modal, Alert,
+  Dimensions, TextInput, Platform, Modal, Alert, FlatList,
 } from 'react-native';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient } from '@tanstack/react-query';
@@ -216,6 +216,10 @@ export default function ClientViewScreen() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [signaturePaths, setSignaturePaths] = useState<string[]>([]);
   const [submittingApproval, setSubmittingApproval] = useState(false);
+
+  // Lightbox state for Site Photos
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const screenW = Dimensions.get('window').width;
 
   // Mark invite viewed when client opens portal (after passcode if required)
   const canRecordAccess = !!project && !!portal && (!portal.requirePasscode || passcodeUnlocked);
@@ -887,19 +891,14 @@ export default function ClientViewScreen() {
             />
             {expanded.photos && (
               <View style={styles.photoGrid}>
-                {photos.slice(0, 9).map(photo => (
-                  <View key={photo.id} style={styles.photoThumb}>
+                {photos.map((photo, i) => (
+                  <TouchableOpacity key={photo.id} style={styles.photoThumb} activeOpacity={0.8} onPress={() => setLightboxIndex(i)}>
                     <Image source={{ uri: photo.uri }} style={styles.photoImg} resizeMode="cover" />
                     {photo.tag && (
                       <View style={styles.photoTag}><Text style={styles.photoTagText}>{photo.tag}</Text></View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))}
-                {photos.length > 9 && (
-                  <View style={[styles.photoThumb, styles.photoMoreOverlay]}>
-                    <Text style={styles.photoMoreText}>+{photos.length - 9}</Text>
-                  </View>
-                )}
               </View>
             )}
           </View>
@@ -1162,6 +1161,46 @@ export default function ClientViewScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Site Photos Lightbox */}
+      <Modal
+        visible={lightboxIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLightboxIndex(null)}
+      >
+        <View style={styles.lbBackdrop}>
+          <View style={styles.lbHeader}>
+            <TouchableOpacity onPress={() => setLightboxIndex(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close lightbox">
+              <X size={22} color="#FFF" />
+            </TouchableOpacity>
+            <Text style={styles.lbCaption} numberOfLines={1}>
+              {lightboxIndex !== null ? [
+                photos[lightboxIndex]?.tag,
+                photos[lightboxIndex]?.location || photos[lightboxIndex]?.locationLabel,
+                new Date(photos[lightboxIndex]?.timestamp || photos[lightboxIndex]?.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+              ].filter(Boolean).join('  ·  ') : ''}
+            </Text>
+          </View>
+          {lightboxIndex !== null && (
+            <FlatList
+              data={photos}
+              keyExtractor={p => p.id}
+              horizontal
+              pagingEnabled
+              initialScrollIndex={Math.max(0, Math.min(lightboxIndex, photos.length - 1))}
+              getItemLayout={(_, index) => ({ length: screenW, offset: screenW * index, index })}
+              onMomentumScrollEnd={e => setLightboxIndex(Math.round(e.nativeEvent.contentOffset.x / screenW))}
+              renderItem={({ item }) => (
+                <View style={{ width: screenW }}>
+                  <Image source={{ uri: item.uri }} style={styles.lbImage} resizeMode="contain" />
+                </View>
+              )}
+              showsHorizontalScrollIndicator={false}
+            />
+          )}
+        </View>
+      </Modal>
     </>
   );
 }
@@ -1282,8 +1321,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   photoImg: { width: '100%', height: '100%' },
   photoTag: { position: 'absolute', bottom: 4, left: 4, backgroundColor: '#00000080', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 },
   photoTagText: { fontSize: 9, color: '#FFF', fontWeight: '600' },
-  photoMoreOverlay: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#00000060' },
-  photoMoreText: { fontSize: Type.title3.fontSize, fontWeight: '800', color: '#FFF' },
+
+  // Lightbox
+  lbBackdrop: { flex: 1, backgroundColor: '#000000F2' },
+  lbHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12 },
+  lbCaption: { flex: 1, color: '#FFF', fontSize: 13, fontWeight: '600' },
+  lbImage: { width: '100%', height: '100%' },
 
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 },
   footerText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
