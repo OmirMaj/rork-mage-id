@@ -39,6 +39,8 @@ import { sendEmail, buildEstimateEmailHtml } from '@/utils/emailService';
 import type { LinkedEstimate, LinkedEstimateItem, Project } from '@/types';
 import { LABOR_RATES, LABOR_CATEGORIES, type LaborRate } from '@/constants/laborRates';
 import { ASSEMBLIES, ASSEMBLY_CATEGORIES, type AssemblyItem } from '@/constants/assemblies';
+import { useCustomAssemblies } from '@/hooks/useCustomAssemblies';
+import { AssemblyEditorModal } from '@/components/AssemblyEditorModal';
 import { ESTIMATE_TEMPLATES, TEMPLATE_CATEGORIES, type EstimateTemplate } from '@/constants/estimateTemplates';
 import SquareFootEstimator from '@/components/SquareFootEstimator';
 import ProductivityCalculator from '@/components/ProductivityCalculator';
@@ -205,6 +207,13 @@ export default function EstimateScreen() {
   const [showAssemblyPopup, setShowAssemblyPopup] = useState(false);
   const [selectedAssembly, setSelectedAssembly] = useState<AssemblyItem | null>(null);
   const [assemblyQtyInput, setAssemblyQtyInput] = useState('1');
+  // Custom assemblies — GC-authored presets merged into the SAME picker
+  const { customAssemblies, addCustomAssembly, updateCustomAssembly, deleteCustomAssembly } = useCustomAssemblies();
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [editorInitial, setEditorInitial] = useState<AssemblyItem | null>(null);
+  // Press-through guard: when Edit/Delete is tapped we set this ref so the
+  // card's onPress (openAssemblyPopup) early-returns instead of also firing.
+  const skipAssemblyPopupRef = useRef(false);
   const [showSqftEstimator, setShowSqftEstimator] = useState(false);
   const [showProductivityCalc, setShowProductivityCalc] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
@@ -453,15 +462,27 @@ export default function EstimateScreen() {
     return results;
   }, [laborQuery, laborCategory]);
 
+  // Merge system presets + GC-authored custom assemblies into a single source.
+  // Custom items carry __custom:true so renderAssemblyCard can show affordances.
+  // Both are valid AssemblyItem so openAssemblyPopup / calculateAssemblyCost /
+  // handleAddAssembly / assemblyCart consume them identically — untouched.
+  const allAssemblies = useMemo(
+    () => [
+      ...ASSEMBLIES,
+      ...customAssemblies.map(a => ({ ...a, __custom: true as const })),
+    ],
+    [customAssemblies],
+  );
+
   const filteredAssemblies = useMemo(() => {
-    let results = ASSEMBLIES;
+    let results = allAssemblies;
     if (assemblyCategory !== 'all') results = results.filter(a => a.category === assemblyCategory);
     if (assemblyQuery.trim()) {
       const q = assemblyQuery.toLowerCase();
       results = results.filter(a => a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q));
     }
     return results;
-  }, [assemblyQuery, assemblyCategory]);
+  }, [assemblyQuery, assemblyCategory, allAssemblies]);
 
   const filteredTemplates = useMemo(() => {
     if (templateCategory === 'all') return ESTIMATE_TEMPLATES;
@@ -501,6 +522,8 @@ export default function EstimateScreen() {
   }, []);
 
   const openAssemblyPopup = useCallback((assembly: AssemblyItem) => {
+    // Skip when an Edit/Delete affordance on a custom card consumed the touch.
+    if (skipAssemblyPopupRef.current) { skipAssemblyPopupRef.current = false; return; }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedAssembly(assembly);
     setAssemblyQtyInput('1');
@@ -1668,6 +1691,7 @@ export default function EstimateScreen() {
   const renderAssemblyCard = useCallback(({ item }: { item: AssemblyItem }) => {
     const inCart = assemblyCart.find(i => i.assembly.id === item.id);
     const sampleCost = calculateAssemblyCost(item, 1);
+    const isCustom = (item as AssemblyItem & { __custom?: boolean }).__custom === true;
     return (
       <View style={styles.materialCardWrapper}>
         <TouchableOpacity style={styles.materialCard} onPress={() => openAssemblyPopup(item)} activeOpacity={0.7}>
@@ -1694,6 +1718,11 @@ export default function EstimateScreen() {
           </View>
           <View style={styles.materialFooterRow}>
             <View style={styles.materialSignalGroup}>
+              {isCustom && (
+                <View style={[styles.categoryBadge, { backgroundColor: Colors.success + '20' }]}>
+                  <Text style={[styles.categoryBadgeText, { color: Colors.success }]}>Custom</Text>
+                </View>
+              )}
               <View style={[styles.categoryBadge, { backgroundColor: Colors.primary + '15' }]}>
                 <Text style={[styles.categoryBadgeText, { color: Colors.primary }]}>{item.category}</Text>
               </View>
@@ -1714,10 +1743,45 @@ export default function EstimateScreen() {
               </View>
             )}
           </View>
+          {/* Edit / Delete affordances — custom items only */}
+          {isCustom && (
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.cardBorder }}>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: Colors.primary + '12' }}
+                onPress={() => {
+                  skipAssemblyPopupRef.current = true;
+                  // Strip __custom before passing to editor
+                  const { __custom: _c, ...clean } = item as AssemblyItem & { __custom?: boolean };
+                  setEditorInitial(clean as AssemblyItem);
+                  setEditorVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primary }}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: Colors.error + '12' }}
+                onPress={() => {
+                  skipAssemblyPopupRef.current = true;
+                  Alert.alert(
+                    'Delete assembly?',
+                    `Remove "${item.name}" from your custom assemblies?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => void deleteCustomAssembly(item.id) },
+                    ],
+                  );
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.error }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
     );
-  }, [assemblyCart, openAssemblyPopup, calculateAssemblyCost]);
+  }, [assemblyCart, openAssemblyPopup, calculateAssemblyCost, deleteCustomAssembly]);
 
   const renderTemplateCard = useCallback(({ item }: { item: EstimateTemplate }) => {
     return (
@@ -1804,6 +1868,16 @@ export default function EstimateScreen() {
         <Text style={styles.resultsCount}>{filteredAssemblies.length} assembl{filteredAssemblies.length !== 1 ? 'ies' : 'y'}</Text>
         <Text style={styles.resultsMicroCopy}>Materials + Labor bundled</Text>
       </View>
+      {/* "+ New assembly" — opens AssemblyEditorModal in create mode */}
+      <TouchableOpacity
+        style={aiStyles.customEntryBtn}
+        onPress={() => { setEditorInitial(null); setEditorVisible(true); }}
+        activeOpacity={0.7}
+      >
+        <PlusCircle size={14} color={Colors.primary} />
+        <Text style={aiStyles.customEntryBtnText}>New assembly</Text>
+        <ChevronRight size={14} color={Colors.textMuted} />
+      </TouchableOpacity>
     </View>
   ), [listHeaderComponent, assemblyCategory, filteredAssemblies.length]);
 
@@ -2024,17 +2098,68 @@ export default function EstimateScreen() {
             )}
             {activeTab === 'assemblies' && (
               <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                {filteredAssemblies.map(item => (
-                  <TouchableOpacity key={item.id} style={dStyles.catalogItem} onPress={() => openAssemblyPopup(item)} activeOpacity={0.7}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={dStyles.catalogItemName} numberOfLines={1}>{item.name}</Text>
-                      <Text style={dStyles.catalogItemPrice}>{item.unit}</Text>
+                {/* "+ New assembly" at the top of the desktop panel */}
+                <TouchableOpacity
+                  style={[dStyles.catalogItem, { borderBottomWidth: 1, borderBottomColor: Colors.cardBorder }]}
+                  onPress={() => { setEditorInitial(null); setEditorVisible(true); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[dStyles.catalogItemName, { color: Colors.primary }]}>+ New assembly</Text>
+                    <Text style={dStyles.catalogItemPrice}>Create a custom assembly</Text>
+                  </View>
+                  <PlusCircle size={14} color={Colors.primary} />
+                </TouchableOpacity>
+                {filteredAssemblies.map(item => {
+                  const isCustom = (item as AssemblyItem & { __custom?: boolean }).__custom === true;
+                  return (
+                    <View key={item.id}>
+                      <TouchableOpacity style={dStyles.catalogItem} onPress={() => openAssemblyPopup(item)} activeOpacity={0.7}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            {isCustom && (
+                              <View style={[styles.categoryBadge, { backgroundColor: Colors.success + '20' }]}>
+                                <Text style={[styles.categoryBadgeText, { color: Colors.success }]}>Custom</Text>
+                              </View>
+                            )}
+                            <Text style={dStyles.catalogItemName} numberOfLines={1}>{item.name}</Text>
+                          </View>
+                          <Text style={dStyles.catalogItemPrice}>{item.unit}</Text>
+                        </View>
+                        <View style={[styles.addButton, { width: 26, height: 26, borderRadius: 13 }]}>
+                          <Plus size={14} color={Colors.textOnPrimary} />
+                        </View>
+                      </TouchableOpacity>
+                      {isCustom && (
+                        <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingBottom: 6 }}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              const { __custom: _c, ...clean } = item as AssemblyItem & { __custom?: boolean };
+                              setEditorInitial(clean as AssemblyItem);
+                              setEditorVisible(true);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primary }}>Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => Alert.alert(
+                              'Delete assembly?',
+                              `Remove "${item.name}" from your custom assemblies?`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Delete', style: 'destructive', onPress: () => void deleteCustomAssembly(item.id) },
+                              ],
+                            )}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.error }}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
-                    <View style={[styles.addButton, { width: 26, height: 26, borderRadius: 13 }]}>
-                      <Plus size={14} color={Colors.textOnPrimary} />
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                  );
+                })}
               </ScrollView>
             )}
             {activeTab === 'templates' && (
@@ -2374,6 +2499,15 @@ export default function EstimateScreen() {
         <ProductivityCalculator visible={showProductivityCalc} onClose={() => setShowProductivityCalc(false)} />
         <EstimateComparison visible={showComparison} onClose={() => setShowComparison(false)} currentCart={cart} currentLaborCart={laborCart} currentAssemblyCart={assemblyCart} currentMaterialsTotal={cartTotal} currentLaborTotal={laborTotal} currentAssemblyTotal={assemblyTotal} currentGrandTotal={grandTotal} />
         <PDFPreSendSheet visible={showPDFPreSend} onClose={() => setShowPDFPreSend(false)} onSend={handlePDFSend} documentType="estimate" projectName={pendingLinkProject?.name ?? 'Estimate'} contacts={contacts} pdfNaming={settings.pdfNaming} onPdfNumberUsed={() => { if (settings.pdfNaming?.enabled) { updateSettings({ pdfNaming: { ...settings.pdfNaming, nextNumber: settings.pdfNaming.nextNumber + 1 } }); } }} />
+        <AssemblyEditorModal
+          visible={editorVisible}
+          initial={editorInitial}
+          onClose={() => setEditorVisible(false)}
+          onSave={(a) => {
+            if (editorInitial) { void updateCustomAssembly(a); } else { void addCustomAssembly(a); }
+            setEditorVisible(false);
+          }}
+        />
       </View>
     );
   }
@@ -3324,6 +3458,17 @@ export default function EstimateScreen() {
       <MaterialAIEstimateModal
         visible={showAIModal}
         onClose={() => setShowAIModal(false)}
+      />
+
+      {/* Assembly editor — create/edit GC-authored custom assemblies */}
+      <AssemblyEditorModal
+        visible={editorVisible}
+        initial={editorInitial}
+        onClose={() => setEditorVisible(false)}
+        onSave={(a) => {
+          if (editorInitial) { void updateCustomAssembly(a); } else { void addCustomAssembly(a); }
+          setEditorVisible(false);
+        }}
       />
     </View>
   );
