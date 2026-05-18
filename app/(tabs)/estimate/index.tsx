@@ -211,9 +211,6 @@ export default function EstimateScreen() {
   const { customAssemblies, addCustomAssembly, updateCustomAssembly, deleteCustomAssembly } = useCustomAssemblies();
   const [editorVisible, setEditorVisible] = useState(false);
   const [editorInitial, setEditorInitial] = useState<AssemblyItem | null>(null);
-  // Press-through guard: when Edit/Delete is tapped we set this ref so the
-  // card's onPress (openAssemblyPopup) early-returns instead of also firing.
-  const skipAssemblyPopupRef = useRef(false);
   const [showSqftEstimator, setShowSqftEstimator] = useState(false);
   const [showProductivityCalc, setShowProductivityCalc] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
@@ -522,8 +519,6 @@ export default function EstimateScreen() {
   }, []);
 
   const openAssemblyPopup = useCallback((assembly: AssemblyItem) => {
-    // Skip when an Edit/Delete affordance on a custom card consumed the touch.
-    if (skipAssemblyPopupRef.current) { skipAssemblyPopupRef.current = false; return; }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedAssembly(assembly);
     setAssemblyQtyInput('1');
@@ -1749,7 +1744,6 @@ export default function EstimateScreen() {
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: Colors.primary + '12' }}
                 onPress={() => {
-                  skipAssemblyPopupRef.current = true;
                   // Strip __custom before passing to editor
                   const { __custom: _c, ...clean } = item as AssemblyItem & { __custom?: boolean };
                   setEditorInitial(clean as AssemblyItem);
@@ -1762,7 +1756,6 @@ export default function EstimateScreen() {
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: Colors.error + '12' }}
                 onPress={() => {
-                  skipAssemblyPopupRef.current = true;
                   Alert.alert(
                     'Delete assembly?',
                     `Remove "${item.name}" from your custom assemblies?`,
