@@ -3123,12 +3123,9 @@
     };
     target.style.opacity = '0.6';
 
-    fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/selection_options?category_id=eq.' + encodeURIComponent(selCat.id),
-      { method: 'PATCH', headers: headers, body: JSON.stringify({ is_chosen: false, chosen_at: null, chosen_by_role: null }) })
-    .then(function () {
-      return fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/selection_options?id=eq.' + encodeURIComponent(selOpt.id),
-        { method: 'PATCH', headers: headers, body: JSON.stringify({ is_chosen: true, chosen_at: new Date().toISOString(), chosen_by_role: 'homeowner' }) });
-    })
+    fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/rpc/portal_choose_selection',
+      { method: 'POST', headers: headers, body: JSON.stringify({
+          p_portal_id: api.portalId, p_category_id: selCat.id, p_option_id: selOpt.id }) })
     .then(function () {
       var totalCost = selOpt ? selOpt.total : null;
       var overBudget = !!(selCat && totalCost && totalCost > (selCat.budget * 1.05));
@@ -3235,22 +3232,18 @@
     var api = data.portalApi;
     target.disabled = true;
     target.textContent = 'Signing…';
-    fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/project_contracts?id=eq.' + encodeURIComponent(contractId), {
-      method: 'PATCH',
+    fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/rpc/portal_sign_contract', {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': api.supabaseAnonKey,
         'Authorization': 'Bearer ' + api.supabaseAnonKey,
-        'Prefer': 'return=minimal',
       },
       body: JSON.stringify({
-        homeowner_signature: {
-          name: typedName,
-          role: 'homeowner',
-          signedAt: new Date().toISOString(),
-        },
-        status: 'signed',
-        signed_at: new Date().toISOString(),
+        p_portal_id: api.portalId,
+        p_contract_id: contractId,
+        p_signer_name: typedName,
+        p_passcode: (data && data.passcode) || null,
       }),
     })
     .then(function (r) {
