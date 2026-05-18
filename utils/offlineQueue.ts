@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const OFFLINE_QUEUE_KEY = 'mageid_offline_queue';
 const MAX_RETRIES = 5;
+const MAX_QUEUE = 1000;
 
 export interface OfflineMutation {
   id: string;
@@ -32,6 +33,11 @@ export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | '
       retryCount: 0,
     };
     queue.push(entry);
+    if (queue.length > MAX_QUEUE) {
+      const dropped = queue.length - MAX_QUEUE;
+      queue.splice(0, dropped); // FIFO: drop oldest
+      console.warn(`[OfflineQueue] cap ${MAX_QUEUE} exceeded — dropped ${dropped} oldest mutation(s)`);
+    }
     await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
     console.log('[OfflineQueue] Queued mutation:', mutation.table, mutation.operation);
   } catch (err) {
@@ -62,49 +68,90 @@ export async function processOfflineQueue(): Promise<{ processed: number; failed
   console.log('[OfflineQueue] Processing', queue.length, 'queued mutations');
 
   const sorted = [...queue].sort((a, b) => a.timestamp - b.timestamp);
+
+  // Group by record key to allow bounded concurrency across records while
+  // preserving strict ordering within each record (insert-before-update, etc.).
+  // An insert with no data.id yet gets its own singleton group keyed by
+  // mutation.id so it never races with mutations for other records.
+  const groupMap = new Map<string, OfflineMutation[]>();
+  for (const mutation of sorted) {
+    const recordKey = `${mutation.table}:${String((mutation.data && mutation.data.id) ?? mutation.id)}`;
+    let group = groupMap.get(recordKey);
+    if (!group) {
+      group = [];
+      groupMap.set(recordKey, group);
+    }
+    group.push(mutation);
+  }
+
+  // Process one group serially; return its accounting totals.
+  async function processGroup(group: OfflineMutation[]): Promise<{ processed: number; failed: number; remaining: OfflineMutation[] }> {
+    let gProcessed = 0;
+    let gFailed = 0;
+    const gRemaining: OfflineMutation[] = [];
+
+    for (const mutation of group) {
+      try {
+        let error: { message: string } | null = null;
+
+        if (mutation.operation === 'insert') {
+          // Plain insert — upsert here would silently overwrite a colliding
+          // row that some other client already created, masking conflicts.
+          const result = await supabase.from(mutation.table).insert(mutation.data);
+          error = result.error;
+        } else if (mutation.operation === 'update') {
+          const { id, ...rest } = mutation.data;
+          const result = await supabase.from(mutation.table).update(rest).eq('id', id as string);
+          error = result.error;
+        } else if (mutation.operation === 'delete') {
+          const result = await supabase.from(mutation.table).delete().eq('id', mutation.data.id as string);
+          error = result.error;
+        }
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        gProcessed++;
+        console.log('[OfflineQueue] Processed:', mutation.table, mutation.operation);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (isTerminalError(msg)) {
+          console.warn('[OfflineQueue] Terminal error, discarding mutation:', mutation.table, mutation.operation, msg);
+          gFailed++;
+          continue;
+        }
+        mutation.retryCount++;
+        if (mutation.retryCount >= MAX_RETRIES) {
+          console.warn('[OfflineQueue] Discarding mutation after max retries:', mutation.table, mutation.operation, err);
+          gFailed++;
+        } else {
+          gRemaining.push(mutation);
+        }
+      }
+    }
+
+    return { processed: gProcessed, failed: gFailed, remaining: gRemaining };
+  }
+
+  // Bounded-concurrency async pool: at most MAX_CONCURRENCY groups in flight.
+  const MAX_CONCURRENCY = 5;
+  const groups = [...groupMap.values()];
+  const results: { processed: number; failed: number; remaining: OfflineMutation[] }[] = [];
+  for (let i = 0; i < groups.length; i += MAX_CONCURRENCY) {
+    const batch = groups.slice(i, i + MAX_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(processGroup));
+    results.push(...batchResults);
+  }
+
+  // Reduce all group results into final accounting.
   const remaining: OfflineMutation[] = [];
   let processed = 0;
   let failed = 0;
-
-  for (const mutation of sorted) {
-    try {
-      let error: { message: string } | null = null;
-
-      if (mutation.operation === 'insert') {
-        // Plain insert — upsert here would silently overwrite a colliding
-        // row that some other client already created, masking conflicts.
-        const result = await supabase.from(mutation.table).insert(mutation.data);
-        error = result.error;
-      } else if (mutation.operation === 'update') {
-        const { id, ...rest } = mutation.data;
-        const result = await supabase.from(mutation.table).update(rest).eq('id', id as string);
-        error = result.error;
-      } else if (mutation.operation === 'delete') {
-        const result = await supabase.from(mutation.table).delete().eq('id', mutation.data.id as string);
-        error = result.error;
-      }
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      processed++;
-      console.log('[OfflineQueue] Processed:', mutation.table, mutation.operation);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (isTerminalError(msg)) {
-        console.warn('[OfflineQueue] Terminal error, discarding mutation:', mutation.table, mutation.operation, msg);
-        failed++;
-        continue;
-      }
-      mutation.retryCount++;
-      if (mutation.retryCount >= MAX_RETRIES) {
-        console.warn('[OfflineQueue] Discarding mutation after max retries:', mutation.table, mutation.operation, err);
-        failed++;
-      } else {
-        remaining.push(mutation);
-      }
-    }
+  for (const r of results) {
+    processed += r.processed;
+    failed += r.failed;
+    remaining.push(...r.remaining);
   }
 
   await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
