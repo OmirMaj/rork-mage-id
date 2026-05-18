@@ -1,85 +1,78 @@
-# D1b-1 — GC-Authored Custom Assemblies — Design
+# D1b-1 — GC-Authored Custom Assemblies — Design (v2, corrected model)
 
-Source: `docs/superpowers/audits/2026-05-17-feature-depth-audit.md` item **D1** ("author-your-own assemblies/rates"). D1a (estimate versioning) already shipped. This spec is **D1b-1** only.
+Source: `docs/superpowers/audits/2026-05-17-feature-depth-audit.md` item **D1** ("author-your-own assemblies/rates"). D1a (estimate versioning) shipped. This spec is **D1b-1** only.
 
-Build target: p0-on-main worktree, branch `claude/p0-launch-on-main`, HEAD `a5fc2a1`. Code-only, **no migration** (the `assemblies` table already exists in prod with RLS). OTA-able.
+> **v2 correction (2026-05-18):** v1 of this spec keyed D1b-1 to `utils/estimateAssemblies.ts`'s `EstimateAssembly`. That was the wrong model — it has no live picker consumer. The estimator the GC actually uses (the Assemblies tab, AI quick-estimate, cost-breakdown, comparison) runs on **`AssemblyItem`** from `constants/assemblies.ts` (`ASSEMBLIES`). The prod `assemblies` table maps **1:1 to `AssemblyItem`** (not `EstimateAssembly`). v1's build was reverted (unmerged/unpushed). This v2 targets `AssemblyItem` — simpler, lossless, integrates into the *existing* picker with no parallel UI.
 
-## 1. Decomposition (D1b split — important)
+Build target: p0-on-main worktree, branch `claude/p0-launch-on-main`. Code-only, **no migration**. OTA-able.
 
-D1b ("author-your-own assemblies *and* rates") is two separable concerns with different data models and risk profiles. Per the brainstorming decomposition guidance + the audit's "D1 phased":
+## 1. Decomposition (unchanged)
 
-- **D1b-1 (THIS spec): GC-authored custom assemblies.** DB-ready (the `assemblies` table + RLS already exist in prod, unused by the app today). Pure app-side: CRUD + merge into the estimate flow. Highest lock-in, lowest risk, self-contained, shippable now.
-- **D1b-2 (SEPARATE follow-on spec, NOT built here): per-project cost-book / rate overrides.** Requires a new storage decision (no per-project override store exists — `labor_rates`/`material_prices` are system reference data) + merge/precedence into estimate building. Recorded in §7 as the next sub-project; its own brainstorm→spec→plan cycle.
+- **D1b-1 (THIS spec):** GC-authored custom assemblies, `AssemblyItem` model, persisted to the existing `assemblies` table, merged into the existing estimate Assemblies picker.
+- **D1b-2 (separate follow-on, NOT here):** per-project cost-book / rate overrides — own brainstorm→spec→plan. Recorded in §7.
 
 ## 2. Problem
 
-`utils/estimateAssemblies.ts` exposes a hardcoded `ESTIMATE_ASSEMBLIES: EstimateAssembly[]` (the 42 system presets) and `applyAssembly(assembly, areaSf) → LinkedEstimateItem[]`. A GC cannot create/save their own assemblies (their real recurring scopes — "my standard bathroom gut", "my deck package"). The audit calls versioned, assembly-driven estimating the market's #1 loved depth; not being able to author your own is the gap.
+`constants/assemblies.ts` exposes a hardcoded `ASSEMBLIES: AssemblyItem[]` (the system presets) consumed by the estimate Assemblies tab (`app/(tabs)/estimate/index.tsx:457` `let results = ASSEMBLIES`), `AIQuickEstimate.tsx`, `CostBreakdownReport.tsx`, `EstimateComparison.tsx`. A GC cannot author/save their own recurring scopes. The `assemblies` table already exists in prod (RLS `assemblies_select_all` = `is_system=true OR auth.uid()=user_id`; `assemblies_insert_own`/`update_own`/`delete_own` with `is_system=false`+own), currently unused by the app. **No migration needed.**
 
-The `assemblies` table already exists in prod: `id uuid, name text NOT NULL, category text NOT NULL, description text, unit text NOT NULL, materials jsonb NOT NULL, labor jsonb NOT NULL, notes text, is_system bool, is_custom bool, user_id uuid, created_at, updated_at`, with RLS `assemblies_select_all` (`is_system = true OR auth.uid() = user_id`), `assemblies_insert_own`/`assemblies_update_own`/`assemblies_delete_own` (`is_system = false` + own). The app currently reads/writes none of it. **No migration needed.**
+Types (`constants/assemblies.ts`):
+```ts
+interface AssemblyMaterial { materialId: string; name: string; quantityPerUnit: number; unit: string; wasteFactor: number }
+interface AssemblyLabor    { trade: string; hoursPerUnit: number }
+interface AssemblyItem     { id: string; name: string; category: string; description: string; unit: string;
+                             materialsPerUnit: AssemblyMaterial[]; laborPerUnit: AssemblyLabor[]; notes: string }
+```
 
 ## 3. Goal / Non-goals
 
-**Goal:** A GC can create, edit, and delete their own assemblies; their custom assemblies appear alongside the 42 system assemblies everywhere assemblies are picked, and apply to an estimate via the existing unchanged `applyAssembly`. Persisted to the existing `assemblies` table, user-scoped, offline-queue-safe.
+**Goal:** A GC can create/edit/delete their own `AssemblyItem`s; they appear in the **existing** Assemblies picker alongside the system `ASSEMBLIES`, badged "Custom", and flow through the **existing unchanged** `openAssemblyPopup`/`calculateAssemblyCost`/`handleAddAssembly`/`assemblyCart` path. Persisted to the existing `assemblies` table, user-scoped, offline-queue-safe.
 
-**Non-goals (YAGNI / risk):** Re-architecting the estimator's assembly model or `applyAssembly`; normalizing the table's `materials`/`labor` columns into a different assembly concept; seeding the 42 system assemblies into the table (they stay the TS constant — merged client-side); per-project rate overrides / cost-book (that is D1b-2); sharing/marketplace of assemblies; AI-generated assembly authoring.
+**Non-goals (YAGNI / risk):** Touching `calculateAssemblyCost`/`openAssemblyPopup`/`handleAddAssembly`/the cart, or `ASSEMBLIES`; a parallel/second assembly section or popup; seeding system presets into the table; the `EstimateAssembly`/`utils/estimateAssemblies.ts` path (out of scope, separate legacy shape); per-project rate overrides (D1b-2); template-applied-assembly resolution of custom ids (`:595` `ASSEMBLIES.find` — leave as-is; the picker is the requirement); sharing/AI-authoring.
 
 ## 4. Architecture
 
-### 4.1 Canonical shape stays the app's `EstimateAssembly`
+### 4.1 Canonical shape = `AssemblyItem`
 
-Keep `EstimateAssembly` / `EstimateAssemblyItem` (in `utils/estimateAssemblies.ts`) as the single canonical shape so `applyAssembly` works **unchanged** for both system and custom assemblies (uniform consumption — no estimator changes). The DB table's columns were designed for a more-normalized assembly concept the app never adopted; D1b-1 uses the table purely as a user-scoped persistence store, mapping the app shape onto its columns losslessly (a future normalization effort can revisit — out of scope).
+Custom assemblies ARE `AssemblyItem`s. The existing picker/cost/cart code consumes them with **zero change** (same type). No estimator logic is modified.
 
 ### 4.2 Table mapping (lossless, no migration)
 
-`EstimateAssembly { id, label, description, defaultAreaSf, items: EstimateAssemblyItem[] }` ⇄ `assemblies` row:
-- `id` ⇄ `id` (uuid)
-- `name` ← `label`
-- `description` ← `description`
-- `category` ← `'custom'` (constant; the app model has no assembly-level category — items carry category)
-- `unit` ← `'ea'` (constant nominal; the app model's units are per-item)
-- `materials` jsonb ← `{ defaultAreaSf, items: <items where category !== 'labor'> }`
-- `labor` jsonb ← `{ items: <items where category === 'labor'> }`
-- `notes` ← `null` (unused by D1b-1)
-- `is_system` ← `false`, `is_custom` ← `true`, `user_id` ← current user id, `created_at`/`updated_at` ← now
-- **Reconstruct on load:** `EstimateAssembly = { id, label: row.name, description: row.description ?? '', defaultAreaSf: row.materials.defaultAreaSf ?? <fallback 100>, items: [...row.materials.items, ...row.labor.items] }`. Item order within materials vs labor is not semantically significant to `applyAssembly` (it scales each item independently), so the split round-trips correctly.
+`AssemblyItem` ⇄ `assemblies` row (near-1:1 — the table was designed for this model):
+- `id`⇄`id`; `name`⇄`name`; `category`⇄`category`; `description`⇄`description` (`'' `↔`null`); `unit`⇄`unit`; `notes`⇄`notes` (`''`↔`null`)
+- `materials` jsonb ← `materialsPerUnit: AssemblyMaterial[]`; `labor` jsonb ← `laborPerUnit: AssemblyLabor[]`
+- `is_system`←`false`, `is_custom`←`true`, `user_id`←current user, `created_at`/`updated_at`←now
+- Reconstruct: `AssemblyItem = { id, name, category, description: description ?? '', unit, materialsPerUnit: Array.isArray(materials)?materials:[], laborPerUnit: Array.isArray(labor)?labor:[], notes: notes ?? '' }`
 
-Two pure helpers in `utils/estimateAssemblies.ts` (co-located with the shape they convert): `assemblyToRow(a: EstimateAssembly, userId: string): AssemblyRow` and `rowToAssembly(row: AssemblyRow): EstimateAssembly`. Unit-of-truth for the mapping; no logic elsewhere depends on the column layout.
+Two pure helpers in a new `utils/assemblyRows.ts` (NOT in `constants/assemblies.ts` — keep the constant file data-only; and NOT in `utils/estimateAssemblies.ts` — that's the unrelated legacy shape): `assemblyItemToRow(a: AssemblyItem, userId: string): AssemblyRow` and `rowToAssemblyItem(row: AssemblyRow): AssemblyItem`. `AssemblyRow` type also defined there.
 
 ### 4.3 Data layer
 
-A focused hook/provider for the user's custom assemblies (follow the repo's offline-first convention — `supabaseWrite` via `utils/offlineQueue.ts`, optimistic local state, AsyncStorage cache key `tertiary_*`-style or reuse an existing context if one cleanly owns estimate-adjacent data). Surface:
-- `customAssemblies: EstimateAssembly[]` (loaded from `assemblies` where the row is the user's — RLS returns only own non-system rows since system assemblies are not seeded in the table; map via `rowToAssembly`).
-- `addCustomAssembly(a)`, `updateCustomAssembly(a)`, `deleteCustomAssembly(id)` — optimistic local update + `supabaseWrite('assemblies','insert'|'update'|'delete', assemblyToRow(...) / { id })` through the offline queue (never a direct supabase write from UI, per CLAUDE.md).
-- A derived `allAssemblies = [...ESTIMATE_ASSEMBLIES, ...customAssemblies]` selector for pickers (system first, then the GC's, visually distinguished). Decide during planning whether this belongs in an existing estimate context vs a new small one — prefer the smallest cohesive home; do not bloat the just-split ProjectContext (H5).
+`hooks/useCustomAssemblies.ts` — standalone offline-first hook mirroring `hooks/useTimeEntries.ts` exactly (NOT added to ProjectContext — H5 just split it). Surface:
+- `customAssemblies: AssemblyItem[]` (the user's rows from `assemblies`, mapped via `rowToAssemblyItem`; defensively ignore `is_custom !== true`).
+- `isLoading`, `addCustomAssembly(a)`, `updateCustomAssembly(a)`, `deleteCustomAssembly(id)` — optimistic local + AsyncStorage cache (`tertiary_custom_assemblies`, read via `safeJsonParse`) + `supabaseWrite('assemblies','insert'|'update'|'delete', assemblyItemToRow(a,userId) / {id})` through the offline queue (never a direct supabase write from UI). Same auth/cache/reconcile/unauthed semantics as `useTimeEntries.ts`.
 
-### 4.4 Authoring UI (modal-in-screen, where assemblies are used)
+### 4.4 Authoring UI (into the EXISTING picker — no parallel section)
 
-The estimate flow already presents assemblies in `app/(tabs)/estimate/index.tsx` (an "Assemblies" tab + `assemblyCart`) and `app/estimate-wizard.tsx` (the picker consuming `ESTIMATE_ASSEMBLIES`). Per the repo's modal-in-screen pattern:
-- In the Assemblies tab/picker, render system + custom assemblies in one list (custom badged, e.g. "Custom"). System ones are read-only; custom ones have edit/delete affordances.
-- A "＋ New assembly" action opens an **assembly-editor modal**: fields `label`, `description`, `defaultAreaSf` (number), and a repeatable item editor — each item: `name`, `category` (materials/labor/equipment/subcontractor/other), `unit` (lf/sf/ea/hr/cy/ton), `qtyPer100Sf` (number), `unitCost` ($). Add/remove item rows. Save → `addCustomAssembly`; editing an existing custom assembly reuses the same modal pre-filled → `updateCustomAssembly`. Delete with a confirm.
-- Picking a custom assembly applies it via the existing `applyAssembly` exactly like a system one (no consumption-path change). Reuse existing estimate styling/components; no new design system.
+`components/AssemblyEditorModal.tsx` — modal authoring an `AssemblyItem`: `name` (req), `category` (selector over `ASSEMBLY_CATEGORIES`), `description`, `unit` (text, e.g. "per LF"), repeatable `materialsPerUnit` rows (`name` req, `quantityPerUnit` ≥0, `unit`, `wasteFactor` ≥0; `materialId` may be `''`), repeatable `laborPerUnit` rows (`trade` req, `hoursPerUnit` ≥0), `notes`. Validation at the boundary (non-empty name; ≥1 material OR ≥1 labor row; finite non-negative numerics). Mirror an existing modal's pattern/styling. Builds an `AssemblyItem` (`id: initial?.id ?? generateUUID()`) → `onSave`.
 
-### 5. Error handling / correctness
+Integration in `app/(tabs)/estimate/index.tsx` — **single source change**: at `filteredAssemblies` (`:456-457`), replace `let results = ASSEMBLIES;` with `let results = allAssemblies;` where `const allAssemblies = useMemo(() => [...ASSEMBLIES, ...customAssemblies.map(a => ({ ...a, __custom: true as const }))], [customAssemblies])`. The filter logic, `openAssemblyPopup`, `calculateAssemblyCost`, `handleAddAssembly`, `assemblyCart`, the FlatList/desktop map all stay **untouched** (custom items are real `AssemblyItem`s; the `__custom` extra is ignored by all of them). In `renderAssemblyCard` (`:1668`) add a "Custom" badge + Edit/Delete (custom only; system shows neither) and a "＋ New assembly" affordance in the assembly list header; wire to a single `<AssemblyEditorModal>` instance + the hook. Read the tag as `(item as AssemblyItem & { __custom?: boolean }).__custom === true` (do not widen `AssemblyItem`).
 
-- All writes go through the offline queue (consistent offline-first; H6b cap/flush already hardened). Optimistic local state; reconcile on load.
-- Validation at the modal boundary: non-empty `label`; ≥1 item; numeric `defaultAreaSf > 0`, `qtyPer100Sf >= 0`, `unitCost >= 0`. Reject save otherwise (inline message) — never persist a malformed assembly.
-- RLS already prevents editing system/other users' rows; the UI also only exposes edit/delete on `is_custom` user rows (defense in depth, and correct UX).
-- `rowToAssembly` tolerates a legacy/short row (missing `defaultAreaSf` → fallback 100; missing `items` arrays → `[]`) so a partially-formed row never crashes the picker (use the H6c `safeJson`/defensive pattern where parsing jsonb client-side).
+## 5. Error handling / correctness
+
+Offline queue for all writes (H6b-hardened). Optimistic local; reconcile on load (server-wins on id, local-only survive — mirror `useTimeEntries`). Modal validation rejects malformed input inline. RLS + UI both restrict edit/delete to `is_custom` user rows. `rowToAssemblyItem` tolerant of short/legacy rows (missing arrays→`[]`, null text→`''`) — no crash in the picker. Cache read via `safeJsonParse` (H6c). `applyAssembly`/`EstimateAssembly`/`ESTIMATE_ASSEMBLIES` are NOT touched (unrelated path).
 
 ## 6. Verification (no unit runner)
 
 `npx tsc --noEmit` clean + manual walkthrough:
-- Create a custom assembly (multiple items, mixed categories) → it appears in the Assemblies tab AND the estimate-wizard picker, badged custom, below the system ones.
-- Apply it to an estimate → correct `LinkedEstimateItem`s (same scaling as a system assembly), estimate totals recompute correctly.
-- Edit it (change an item cost / add an item) → persists; re-applying reflects the change.
-- Delete it → removed from pickers; system assemblies unaffected.
-- Airplane-mode create/edit → queued, survives, syncs on reconnect (offline-queue path).
-- Round-trip: reload app → custom assemblies reload from the table identical (lossless mapping).
-- System assemblies + existing estimate flows behave exactly as before (no regression to `applyAssembly` or the 42 presets).
+- Create a custom assembly (materials + labor rows) → appears in the existing Assemblies picker, badged Custom, alongside system ones; filter/search/category still work.
+- Tap it → the EXISTING assembly popup opens; `calculateAssemblyCost` computes correctly; add to `assemblyCart` works identically to a system assembly.
+- Edit (change a material qty / add a labor row) → persists; re-add reflects it. Delete → removed; system unaffected.
+- Airplane-mode create/edit → queued, survives, syncs. Reload → reloads from table identical (lossless).
+- System assemblies + AI quick-estimate + cost-breakdown + comparison + the whole existing estimate flow behave EXACTLY as before (no regression; zero estimator-logic change).
 - Final whole-impl review (opus).
 
 ## 7. Out of scope / future
 
-- **D1b-2 — per-project cost-book / rate overrides** (the other half of the audit's D1b): a per-project store (new `project_rate_overrides` table OR a `projects` jsonb field — decision deferred to its own brainstorm) letting a GC override labor/material rates per project, applied with precedence (project override → custom assembly value → system reference) when building estimates. Separate spec/plan/build; queued after this.
-- D1c (one-tap e-signable proposal) — already the next backlog item, separate.
-- Assembly sharing/marketplace, AI-authored assemblies, table normalization — not planned.
+- **D1b-2 — per-project cost-book / rate overrides** (other half of audit D1b): a per-project override store + precedence into estimate building. Separate spec/plan/build, queued after this.
+- D1c (e-signable proposal) — next backlog item, separate.
+- `EstimateAssembly`/`utils/estimateAssemblies.ts` consolidation, template-applied custom-assembly id resolution, assembly sharing/marketplace, AI-authored assemblies — not planned.

@@ -1,217 +1,124 @@
-# D1b-1 — GC-Authored Custom Assemblies — Implementation Plan
+# D1b-1 — GC-Authored Custom Assemblies — Implementation Plan (v2, `AssemblyItem` model)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Steps use `- [ ]`.
+> **v2:** Corrected from the reverted v1 (which targeted the wrong `EstimateAssembly` shape). This targets `AssemblyItem` (`constants/assemblies.ts`) — the model the estimate picker actually uses; the DB `assemblies` table maps 1:1 to it; integration is a single source-array change into the existing picker (no parallel UI, no estimator-logic change).
 
-**Goal:** Let a GC create/edit/delete their own estimate assemblies, persisted to the existing `assemblies` table, shown alongside the 42 system presets and applied via the unchanged `applyAssembly`.
+**Goal:** GC creates/edits/deletes their own `AssemblyItem`s; they appear in the existing estimate Assemblies picker (badged Custom) and flow through the existing unchanged popup/cost/cart path. Persisted to the existing `assemblies` table.
 
-**Architecture:** Canonical shape stays the app's `EstimateAssembly` (so `applyAssembly` is untouched). Lossless mapping helpers ⇄ the existing `assemblies` table. A standalone offline-first hook (`useCustomAssemblies`) mirroring `hooks/useTimeEntries.ts`. An assembly-editor modal. Merge custom into the estimate tab's existing `filteredAssemblies` data source.
+**Tech Stack:** RN/Expo, TS strict, `utils/offlineQueue.ts` (`supabaseWrite`), AsyncStorage, `@/utils/safeJson`, existing estimate UI. No unit runner — gate = `npx tsc --noEmit` + manual (spec §6).
 
-**Tech Stack:** React Native/Expo, TypeScript strict, `utils/offlineQueue.ts` (`supabaseWrite`), AsyncStorage, existing estimate UI/components. No unit runner — gate = `npx tsc --noEmit` + manual walkthrough (spec §6).
-
-**Spec:** `docs/superpowers/specs/2026-05-18-d1b-gc-authored-assemblies-design.md` (@ `81f5958`). Worktree `/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main`, branch `claude/p0-launch-on-main`. Use `git -C "<that path>"`.
-
----
+**Spec:** `docs/superpowers/specs/2026-05-18-d1b-gc-authored-assemblies-design.md` (v2). Worktree `/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main`, branch `claude/p0-launch-on-main`. Use `git -C "<that path>"`.
 
 ## CRITICAL
-
-- **No migration** — the `assemblies` table + RLS already exist in prod. Build authors code only; no migration/deploy. Ships via OTA at controller ship-time.
-- **No estimator change** — `applyAssembly` and `ESTIMATE_ASSEMBLIES` (the 42 system presets) must remain behaviorally untouched; custom assemblies are the same `EstimateAssembly` shape and flow through the SAME consumption path.
-- **Offline-first** — every write goes through `supabaseWrite` (offline queue), never a direct `supabase.from(...)` from UI (CLAUDE.md). Mirror an existing hook.
-- Per-task gate: `npx tsc --noEmit` clean + the named manual reasoning/check.
-
----
+- **No migration** (table exists). Build authors code only; OTA at ship-time (controller).
+- **Zero estimator change:** `ASSEMBLIES`, `openAssemblyPopup`, `calculateAssemblyCost`, `handleAddAssembly`, `assemblyCart`, the filter logic, the FlatList/desktop render — all UNTOUCHED. Custom items are real `AssemblyItem`s flowing the same path.
+- **Do NOT touch** `utils/estimateAssemblies.ts` / `applyAssembly` / `ESTIMATE_ASSEMBLIES` (unrelated legacy shape).
+- Offline-first: all writes via `supabaseWrite` (never direct supabase write from UI). Per-task gate: `npx tsc --noEmit` clean + named manual reasoning.
 
 ## File Structure
-
-- Modify `utils/estimateAssemblies.ts` — Task 1: add `AssemblyRow` type + `assemblyToRow` / `rowToAssembly` pure helpers (co-located with `EstimateAssembly`).
-- Create `hooks/useCustomAssemblies.ts` — Task 2: offline-first CRUD hook (mirror `hooks/useTimeEntries.ts`).
-- Create `components/AssemblyEditorModal.tsx` — Task 3: the authoring modal.
-- Modify `app/(tabs)/estimate/index.tsx` — Task 4: merge custom into `filteredAssemblies`, badge, +New/edit/delete wired to the modal + hook. (Also: find any OTHER consumer of `ESTIMATE_ASSEMBLIES`/`applyAssembly` — e.g. `app/estimate-wizard.tsx` — and feed it the merged set if it has its own picker.)
+- Create `utils/assemblyRows.ts` — Task 1: `AssemblyRow` type + `assemblyItemToRow`/`rowToAssemblyItem` (pure).
+- Create `hooks/useCustomAssemblies.ts` — Task 2: offline-first CRUD hook (mirror `hooks/useTimeEntries.ts`), `AssemblyItem[]`.
+- Create `components/AssemblyEditorModal.tsx` — Task 3: author an `AssemblyItem`.
+- Modify `app/(tabs)/estimate/index.tsx` — Task 4: single `filteredAssemblies` source merge + badge/edit/delete/＋New wired to modal+hook.
 
 ---
 
-### Task 1: Mapping helpers + row type (pure, no I/O)
+### Task 1: `utils/assemblyRows.ts` — mapping helpers (pure)
 
-**Files:** Modify `utils/estimateAssemblies.ts`
-
-- [ ] **Step 1: Add the row type + helpers**
-
-After the existing `EstimateAssembly` interface in `utils/estimateAssemblies.ts`, add:
+- [ ] **Step 1** Create `utils/assemblyRows.ts`:
 ```ts
-/** Shape of a row in the existing prod `assemblies` table (D1b-1 uses the
- *  table as a user-scoped store; columns map losslessly to EstimateAssembly). */
+import type { AssemblyItem, AssemblyMaterial, AssemblyLabor } from '@/constants/assemblies';
+
 export interface AssemblyRow {
-  id: string;
-  name: string;
-  category: string;
-  description: string | null;
-  unit: string;
-  materials: { defaultAreaSf: number; items: EstimateAssemblyItem[] };
-  labor: { items: EstimateAssemblyItem[] };
-  notes: string | null;
-  is_system: boolean;
-  is_custom: boolean;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
+  id: string; name: string; category: string; description: string | null; unit: string;
+  materials: AssemblyMaterial[]; labor: AssemblyLabor[]; notes: string | null;
+  is_system: boolean; is_custom: boolean; user_id: string;
+  created_at: string; updated_at: string;
 }
 
-export function assemblyToRow(a: EstimateAssembly, userId: string): AssemblyRow {
+export function assemblyItemToRow(a: AssemblyItem, userId: string): AssemblyRow {
   const now = new Date().toISOString();
-  const laborItems = a.items.filter(i => i.category === 'labor');
-  const nonLabor = a.items.filter(i => i.category !== 'labor');
   return {
-    id: a.id,
-    name: a.label,
-    category: 'custom',
-    description: a.description || null,
-    unit: 'ea',
-    materials: { defaultAreaSf: a.defaultAreaSf, items: nonLabor },
-    labor: { items: laborItems },
-    notes: null,
-    is_system: false,
-    is_custom: true,
-    user_id: userId,
-    created_at: now,
-    updated_at: now,
+    id: a.id, name: a.name, category: a.category,
+    description: a.description || null, unit: a.unit,
+    materials: a.materialsPerUnit, labor: a.laborPerUnit,
+    notes: a.notes || null,
+    is_system: false, is_custom: true, user_id: userId,
+    created_at: now, updated_at: now,
   };
 }
 
-export function rowToAssembly(row: AssemblyRow): EstimateAssembly {
-  const materials = row.materials ?? { defaultAreaSf: 100, items: [] };
-  const labor = row.labor ?? { items: [] };
+export function rowToAssemblyItem(row: AssemblyRow): AssemblyItem {
   return {
-    id: row.id,
-    label: row.name,
-    description: row.description ?? '',
-    defaultAreaSf: typeof materials.defaultAreaSf === 'number' && materials.defaultAreaSf > 0 ? materials.defaultAreaSf : 100,
-    items: [...(Array.isArray(materials.items) ? materials.items : []), ...(Array.isArray(labor.items) ? labor.items : [])],
+    id: row.id, name: row.name, category: row.category,
+    description: row.description ?? '', unit: row.unit,
+    materialsPerUnit: Array.isArray(row.materials) ? row.materials : [],
+    laborPerUnit: Array.isArray(row.labor) ? row.labor : [],
+    notes: row.notes ?? '',
   };
 }
 ```
-
-- [ ] **Step 2: Gate** — `npx tsc --noEmit` from worktree root → clean. Reason: `rowToAssembly(assemblyToRow(a, 'u'))` deep-equals `a` for any valid `EstimateAssembly` (id/label/description/defaultAreaSf preserved; items order = nonLabor then labor — semantically irrelevant to `applyAssembly`, which scales each item independently). Defensive on a short/legacy row (missing `materials`/`labor` → fallbacks, no throw).
-
-- [ ] **Step 3: Commit**
+Confirm the real `AssemblyItem`/`AssemblyMaterial`/`AssemblyLabor` interfaces in `constants/assemblies.ts` match (id,name,category,description,unit,materialsPerUnit,laborPerUnit,notes); adapt the helper field-for-field if any name differs (report it). Do not modify `constants/assemblies.ts`.
+- [ ] **Step 2** `npx tsc --noEmit` clean. Reason: `rowToAssemblyItem(assemblyItemToRow(a,'u'))` deep-equals `a` for any valid `AssemblyItem` (text fields identity; `''`↔`null`↔`''` round-trips; arrays passed through; short/legacy row → `[]`/`''` fallbacks, no throw).
+- [ ] **Step 3** Commit:
 ```bash
-git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" add utils/estimateAssemblies.ts
-git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): EstimateAssembly <-> assemblies-table mapping helpers"
+git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" add utils/assemblyRows.ts
+git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): AssemblyItem <-> assemblies-table mapping helpers"
 ```
 
 ---
 
-### Task 2: `useCustomAssemblies` offline-first hook
+### Task 2: `hooks/useCustomAssemblies.ts` — offline-first hook
 
-**Files:** Create `hooks/useCustomAssemblies.ts`
-
-- [ ] **Step 1: Read the pattern to mirror**
-
-Read `hooks/useTimeEntries.ts` (and skim `hooks/useSubSubmittedInvoices.ts`) — the established offline-first collection-hook pattern in this repo: AsyncStorage cache load → hydrate state → fetch from Supabase on auth → reconcile → CRUD that optimistically updates local state + `supabaseWrite(table, op, data)` through the offline queue. **Mirror that structure exactly** (same cache-then-network shape, same offline-queue usage, same auth-gating, same error-tolerance) — do not invent a new pattern.
-
-- [ ] **Step 2: Implement the hook**
-
-Create `hooks/useCustomAssemblies.ts` exporting `useCustomAssemblies()` returning:
-```ts
-{
-  customAssemblies: EstimateAssembly[];   // user's rows, mapped via rowToAssembly
-  isLoading: boolean;
-  addCustomAssembly: (a: EstimateAssembly) => Promise<void>;     // generateUUID() id if absent
-  updateCustomAssembly: (a: EstimateAssembly) => Promise<void>;
-  deleteCustomAssembly: (id: string) => Promise<void>;
-}
-```
-Specifics:
-- AsyncStorage cache key: `tertiary_custom_assemblies` (follows the `tertiary_*` convention in CLAUDE.md for newer project sub-collections).
-- Load: hydrate from cache, then (if authed) `supabase.from('assemblies').select('*')` — RLS returns only the user's own non-system rows (system presets are NOT in the table; they stay the `ESTIMATE_ASSEMBLIES` constant). Map rows via `rowToAssembly`; ignore any row where `is_custom !== true` defensively. Persist mapped list to cache. Tolerate fetch failure (keep cache; no crash) — mirror `useTimeEntries.ts`'s error handling.
-- `add/update`: optimistic local state update + cache write, then `supabaseWrite('assemblies', 'insert'|'update', assemblyToRow(a, userId))`. (`update` passes the full row incl. `id`; the offline queue's update path does `update(rest).eq('id', id)`.)
-- `delete`: optimistic remove + cache write, then `supabaseWrite('assemblies', 'delete', { id })`.
-- Get `userId` the same way `useTimeEntries.ts` does (the repo's auth/session accessor — reuse it, do not add a new auth path). If no `userId`, the hook still serves cache and no-ops writes (mirror the existing hooks' unauthed behavior).
-- Do NOT add this to `ProjectContext` (H5 just split it — keep this a standalone hook; spec §4.3).
-
-- [ ] **Step 3: Gate** — `npx tsc --noEmit` clean. Reason through: cache-first render; authed fetch reconciles; CRUD optimistic + queued; unauthed serves cache + no-op writes; a malformed cached blob is tolerated (use `safeJsonParse` from `utils/safeJson.ts` for the AsyncStorage read — H6c helper).
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 1** Read `hooks/useTimeEntries.ts` fully (skim `hooks/useSubSubmittedInvoices.ts`). Mirror its offline-first structure EXACTLY: `useAuth()` accessor, AsyncStorage cache hydrate (via `safeJsonParse` from `@/utils/safeJson`, fallback `[]`) → authed Supabase fetch → `Map`-merge reconcile (server wins on id; local-only rows survive) → single-writer persist effect → `lastUserIdRef` user-isolation guard (clear state+cache on userId change) → fetch-error tolerance (keep cache, no throw) → CRUD optimistic + `supabaseWrite`.
+- [ ] **Step 2** Create `hooks/useCustomAssemblies.ts` exporting `useCustomAssemblies()` → `{ customAssemblies: AssemblyItem[]; isLoading: boolean; addCustomAssembly(a: AssemblyItem): Promise<void>; updateCustomAssembly(a: AssemblyItem): Promise<void>; deleteCustomAssembly(id: string): Promise<void> }`. Cache key `tertiary_custom_assemblies`. Load: `supabase.from('assemblies').select('*')`, keep rows with `is_custom === true`, map via `rowToAssemblyItem`. add: assign `generateUUID()` (from `@/utils/generateId`) if `!a.id`; optimistic state+cache; `supabaseWrite('assemblies','insert', assemblyItemToRow(a,userId) as unknown as Record<string,unknown>)`. update: same with `'update'` (row includes `id` → queue does `.update(rest).eq('id',id)`). delete: optimistic remove; `supabaseWrite('assemblies','delete',{ id })`. Unauthed: serve cache, local-only writes (mirror `useTimeEntries`). Not in ProjectContext.
+- [ ] **Step 3** `npx tsc --noEmit` clean; reason through cache-first/reconcile/queue/unauthed/user-isolation parity with `useTimeEntries`.
+- [ ] **Step 4** Commit:
 ```bash
 git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" add hooks/useCustomAssemblies.ts
-git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): useCustomAssemblies offline-first CRUD hook"
+git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): useCustomAssemblies offline-first CRUD hook (AssemblyItem)"
 ```
 
 ---
 
-### Task 3: Assembly-editor modal
+### Task 3: `components/AssemblyEditorModal.tsx` — author an `AssemblyItem`
 
-**Files:** Create `components/AssemblyEditorModal.tsx`
-
-- [ ] **Step 1: Inspect existing modal + estimate styling to reuse**
-
-Read `app/(tabs)/estimate/index.tsx` around the existing assembly popup (`openAssemblyPopup`, `renderAssemblyCard`, `dStyles.catalogItem`, `styles.addButton`) and one existing editor-modal component in `components/` to match the repo's modal-in-screen pattern, styling tokens, and `lucide-react-native` icon usage. Reuse existing styles/components — no new design system.
-
-- [ ] **Step 2: Implement the modal**
-
-Create `components/AssemblyEditorModal.tsx`:
+- [ ] **Step 1** Read the repo modal-in-screen pattern (mirror `components/SubDailyUpdateModal.tsx` — bottom-sheet `Modal`, `useThemedStyles`/`useTheme`, `useSafeAreaInsets`, header chevron, ScrollView body, Cancel/Save footer) + estimate styling + `ASSEMBLY_CATEGORIES` from `constants/assemblies.ts`.
+- [ ] **Step 2** Create `components/AssemblyEditorModal.tsx`:
 ```tsx
 export interface AssemblyEditorModalProps {
-  visible: boolean;
-  initial?: EstimateAssembly | null;   // null/undefined = create; set = edit
-  onClose: () => void;
-  onSave: (a: EstimateAssembly) => void; // parent calls add/updateCustomAssembly
+  visible: boolean; initial?: AssemblyItem | null;
+  onClose: () => void; onSave: (a: AssemblyItem) => void;
 }
 ```
-- Fields: `label` (TextInput, required), `description` (TextInput, optional), `defaultAreaSf` (numeric TextInput, default 100, must be > 0).
-- Repeatable item rows — each `EstimateAssemblyItem`: `name` (TextInput, required), `category` (selector over `'materials'|'labor'|'equipment'|'subcontractor'|'other'`), `unit` (selector over `'lf'|'sf'|'ea'|'hr'|'cy'|'ton'`), `qtyPer100Sf` (numeric, ≥ 0), `unitCost` (numeric, ≥ 0). "＋ Add item" appends a blank row; each row has a remove (✕). At least 1 item required.
-- On Save: validate (non-empty label; ≥1 item; each item non-empty name; numerics parse and `defaultAreaSf > 0`, `qtyPer100Sf >= 0`, `unitCost >= 0`). If invalid → inline error, do not call `onSave`. If valid → construct an `EstimateAssembly` (`id`: `initial?.id ?? generateUUID()` from `@/utils/generateId`) and call `onSave(a)` then `onClose()`.
-- Pre-fill all fields from `initial` when editing. Follow the back-button/modal-close pattern of the existing estimate modals.
-
-- [ ] **Step 3: Gate** — `npx tsc --noEmit` clean. Reason: create + edit paths produce a valid `EstimateAssembly`; invalid input blocked with a message; numeric coercion safe (no `NaN` persisted).
-
-- [ ] **Step 4: Commit**
+Fields: `name` (req), `category` (selector over `ASSEMBLY_CATEGORIES`), `description`, `unit` (TextInput, e.g. "per LF"), `notes`. Repeatable `materialsPerUnit` rows: `name` (req), `quantityPerUnit` (numeric ≥0), `unit` (text), `wasteFactor` (numeric ≥0); `materialId` defaults `''`. Repeatable `laborPerUnit` rows: `trade` (req), `hoursPerUnit` (numeric ≥0). "＋ Add material"/"＋ Add labor" append; each row removable. Validate: `name` non-empty; at least one material OR one labor row; every present row's required text non-empty; numerics `Number.isFinite` and ≥0 (store as strings, coerce with `Number()` at save). Seed from `initial` (deep-copy arrays — no parent mutation); reseed on `visible` false→true. Build `AssemblyItem { id: initial?.id ?? generateUUID(), name:trim, category, description:trim, unit:trim, materialsPerUnit, laborPerUnit, notes:trim }` → `onSave(a); onClose()`. Invalid → inline error, no `onSave`. No persistence logic (parent's job).
+- [ ] **Step 3** `npx tsc --noEmit` clean; reason create/edit/reopen/NaN/deep-copy.
+- [ ] **Step 4** Commit:
 ```bash
 git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" add components/AssemblyEditorModal.tsx
-git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): assembly-editor modal"
+git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): AssemblyItem editor modal"
 ```
 
 ---
 
-### Task 4: Wire custom assemblies into the estimate Assemblies tab (+ other pickers)
+### Task 4: Wire into the existing estimate Assemblies picker (single source change)
 
-**Files:** Modify `app/(tabs)/estimate/index.tsx` (+ `app/estimate-wizard.tsx` if it has its own assembly picker)
-
-- [ ] **Step 1: Locate the data source + consumers**
-
-In `app/(tabs)/estimate/index.tsx` find how `filteredAssemblies` is derived (it feeds both the mobile `<FlatList data={filteredAssemblies} renderItem={renderAssemblyCard}>` and the desktop `filteredAssemblies.map(... openAssemblyPopup)`), and where the base assembly list comes from (the `ESTIMATE_ASSEMBLIES` import / a derived `assemblies` array). Also grep the repo for every consumer of `ESTIMATE_ASSEMBLIES`/`applyAssembly` (`grep -rn "ESTIMATE_ASSEMBLIES\|applyAssembly" app/ components/`) — confirm whether `app/estimate-wizard.tsx` has its own picker that also needs the merged set, or only references the shape in a comment.
-
-- [ ] **Step 2: Merge custom into the base list**
-
-Call `const { customAssemblies, addCustomAssembly, updateCustomAssembly, deleteCustomAssembly } = useCustomAssemblies();` in the estimate screen. Build the base list as `const allAssemblies = useMemo(() => [...ESTIMATE_ASSEMBLIES, ...customAssemblies], [customAssemblies]);` and feed `allAssemblies` into wherever the existing `filteredAssemblies` filter/search operates (replace the `ESTIMATE_ASSEMBLIES` source with `allAssemblies` at that derivation point only — do not change the filter logic). System ones keep working identically; `applyAssembly`/`openAssemblyPopup` consume custom ones unchanged (same `EstimateAssembly` shape).
-
-- [ ] **Step 3: Badge + author affordances**
-
-In `renderAssemblyCard` (and the desktop row), if the assembly is custom (track via membership in `customAssemblies` by id, or a derived `isCustom` flag in the merged list — prefer a small `{ ...a, __custom: true }` tag added only in the merge for custom entries, read in render), show a "Custom" badge and edit + delete controls (delete → confirm → `deleteCustomAssembly(id)`; edit → open `AssemblyEditorModal` with `initial`). Add a "＋ New assembly" button in the Assemblies tab header/area that opens `AssemblyEditorModal` with no `initial`. Wire `onSave` → `initial ? updateCustomAssembly : addCustomAssembly`. System assemblies show NO edit/delete. Reuse existing badge/button styles.
-
-- [ ] **Step 4: Propagate to other pickers (only if found in Step 1)**
-
-If `app/estimate-wizard.tsx` (or any other file) renders its own assembly picker off `ESTIMATE_ASSEMBLIES`, apply the SAME minimal merge there (`[...ESTIMATE_ASSEMBLIES, ...customAssemblies]` via `useCustomAssemblies`) so custom assemblies are pickable everywhere. If it only references the shape in a comment (no picker), no change. Document which consumers were updated.
-
-- [ ] **Step 5: Gate** — `npx tsc --noEmit` clean. Manual reasoning (and `bun run start` if feasible): system assemblies unchanged; a created custom assembly appears badged in the tab + any wizard picker, applies correctly to an estimate (totals recompute as for a system assembly), edits/deletes persist and reflect; offline create survives + syncs. No regression to the existing estimate/assembly flow.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 1** In `app/(tabs)/estimate/index.tsx`: import `useCustomAssemblies` + `AssemblyEditorModal`. Call the hook. Add `const allAssemblies = useMemo(() => [...ASSEMBLIES, ...customAssemblies.map(a => ({ ...a, __custom: true as const }))], [customAssemblies]);`.
+- [ ] **Step 2** At `filteredAssemblies` (`~:456-457`), change ONLY `let results = ASSEMBLIES;` → `let results = allAssemblies;`. Add `customAssemblies` (or `allAssemblies`) to that `useMemo`'s dep array. Do NOT change the filter/search/category logic, `openAssemblyPopup`, `calculateAssemblyCost`, `handleAddAssembly`, `assemblyCart`, the FlatList/desktop map, or `renderAssemblyCard`'s existing body — custom items are real `AssemblyItem`s and flow through all of it unchanged.
+- [ ] **Step 3** In `renderAssemblyCard` (`~:1668`): read `const isCustom = (item as AssemblyItem & { __custom?: boolean }).__custom === true;`. If `isCustom`, render a small "Custom" badge (reuse an existing badge style) + Edit and Delete affordances (system items: neither). Delete → `Alert.alert` confirm (repo pattern) → `deleteCustomAssembly(item.id)`. Edit → open modal with the item (strip `__custom`). Add a "＋ New assembly" control in the assembly list header (`assemblyListHeader`/results header area, matching existing button style) → opens modal with `initial=null`. Local state: `editorVisible`,`editorInitial`. Render ONE `<AssemblyEditorModal visible={editorVisible} initial={editorInitial} onClose={()=>setEditorVisible(false)} onSave={(a)=>{ editorInitial ? updateCustomAssembly(a) : addCustomAssembly(a); setEditorVisible(false); }} />`. Tapping the card body still calls the existing `openAssemblyPopup` (use a guarded state so Edit/Delete taps don't also open the popup — wrap Edit/Delete in their own `TouchableOpacity` with `onPress` that does the action and nothing else; if RN propagation is a concern, gate `openAssemblyPopup` with a ref set on edit/delete press).
+- [ ] **Step 4** `npx tsc --noEmit` clean. Manual reasoning (+ `bun run start` only if quick): system assemblies + filter/popup/cost/cart unchanged; custom assembly appears badged, opens the existing popup, costs/carts correctly; edit/delete persist; offline create survives; no estimator-logic change. NO parallel section/popup.
+- [ ] **Step 5** Commit:
 ```bash
-git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" add "app/(tabs)/estimate/index.tsx" app/estimate-wizard.tsx
-git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): GC custom assemblies in estimate picker (author/edit/delete)"
+git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" add "app/(tabs)/estimate/index.tsx"
+git -C "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main" commit -m "feat(D1b-1): GC custom assemblies in existing estimate picker (author/edit/delete)"
 ```
 
 ---
 
 ## Ship (controller, after final whole-impl review — not build)
-
-Code-only, OTA-able, no migration. After final review APPROVES: FF-merge `claude/p0-launch-on-main` → `main`, push, `eas update --branch production --message "D1b-1 GC-authored custom assemblies"`. (Independent of H4's Netlify block.)
-
----
+Code-only, no migration. FF-merge → push → `eas update --branch production --message "D1b-1 GC-authored custom assemblies"`. (Independent of H4 Netlify block.)
 
 ## Self-Review
-
-**Spec coverage:** §4.1 canonical shape → Task 1 (helpers, applyAssembly untouched). §4.2 lossless mapping → Task 1 (`assemblyToRow`/`rowToAssembly` + round-trip reasoning). §4.3 data layer → Task 2 (standalone offline-first hook, not in ProjectContext). §4.4 authoring UI → Task 3 (modal) + Task 4 (merge/badge/affordances, modal-in-screen). §5 error handling → Task 1 defensive `rowToAssembly`, Task 2 `safeJsonParse` cache + offline queue + unauthed tolerance, Task 3 validation, RLS+UI defense-in-depth. §6 verification → each task gate + Task 4 manual. §1/§7 decomposition: D1b-2 explicitly NOT in any task. No gaps.
-
-**Placeholder scan:** All new code (helpers, hook API, modal props/fields/validation, merge expression) is concrete. "Mirror `hooks/useTimeEntries.ts`" / "reuse existing estimate styles" / "find the `filteredAssemblies` derivation" are precise in-situ-adaptive directives against named anchors (the repo's established offline-hook pattern; the real data source) — not vague TODOs; reproducing useTimeEntries.ts or the estimate screen in the plan would be counterproductive. No "handle appropriately".
-
-**Type/name consistency:** `EstimateAssembly`/`EstimateAssemblyItem` (existing), `AssemblyRow`/`assemblyToRow`/`rowToAssembly` (Task 1) used identically in Tasks 2/4. Hook name `useCustomAssemblies` + its API (`customAssemblies`,`addCustomAssembly`,`updateCustomAssembly`,`deleteCustomAssembly`,`isLoading`) consistent across Tasks 2 & 4. `AssemblyEditorModal` props (`visible`,`initial`,`onClose`,`onSave`) consistent Tasks 3 & 4. Category/unit literal unions match `EstimateAssemblyItem` exactly. Cache key `tertiary_custom_assemblies` single definition (Task 2).
+**Spec coverage:** §4.1 AssemblyItem canonical → all tasks. §4.2 mapping → Task 1. §4.3 hook → Task 2. §4.4 modal+single-source-merge → Tasks 3-4. §5 error handling → defensive `rowToAssemblyItem`, `safeJsonParse`, offline queue, validation, RLS+UI. §6 → gates. Decomposition (no D1b-2) honored.
+**Placeholder scan:** All new code given in full; in-situ directives ("change only `let results = ASSEMBLIES`", "mirror useTimeEntries/SubDailyUpdateModal") are precise against named anchors, not vague TODOs.
+**Type/name consistency:** `AssemblyItem`/`AssemblyMaterial`/`AssemblyLabor` (constants/assemblies.ts), `AssemblyRow`/`assemblyItemToRow`/`rowToAssemblyItem` (Task 1) used identically in Tasks 2/4. Hook API + modal props consistent Tasks 2-4. `__custom` tag read identically Task 4. Cache key single (`tertiary_custom_assemblies`). No `EstimateAssembly` anywhere.
