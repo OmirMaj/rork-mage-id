@@ -111,3 +111,20 @@ SELECT cron.schedule(
   );
   $cronbody$
 );
+
+-- 6. invoice-dunning — daily at 15:00 UTC (10 AM EST). Emails the project
+--    client an escalating reminder on each overdue, still-owed invoice.
+--    Idempotent via per-invoice dunning_stage; empty body = process all.
+DO $$ BEGIN PERFORM cron.unschedule('invoice-dunning'); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+SELECT cron.schedule(
+  'invoice-dunning',
+  '0 15 * * *',
+  $cronbody$
+  SELECT net.http_post(
+    url := 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/invoice-dunning',
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    body := '{}'::jsonb,
+    timeout_milliseconds := 60000
+  );
+  $cronbody$
+);
