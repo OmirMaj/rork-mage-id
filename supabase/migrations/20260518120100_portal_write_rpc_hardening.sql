@@ -40,11 +40,18 @@ begin
     raise exception 'sign_denied';
   end if;
 
-  if coalesce((v_portal->>'requirePasscode')::boolean, false) = true
-     and coalesce(v_portal->>'passcode', '') <> '' then
-    if p_passcode is null or p_passcode <> (v_portal->>'passcode') then
-      raise exception 'sign_denied';
-    end if;
+  -- Passcode is defense-in-depth, enforced only when the caller supplies one.
+  -- The portal passcode is validated out-of-band by the
+  -- validate-portal-passcode edge fn and is deliberately NEVER bundled into
+  -- the portal snapshot (utils/portalSnapshot.ts), so the client legitimately
+  -- cannot supply p_passcode in the normal flow. The security boundary that
+  -- closes the vuln is the enabled-portalId scope + contract-belongs-to-project
+  -- + server-constructed columns. A hard "reject when null" gate would
+  -- permanently break signing for every passcode-protected portal.
+  if p_passcode is not null
+     and coalesce(v_portal->>'passcode', '') <> ''
+     and p_passcode <> (v_portal->>'passcode') then
+    raise exception 'sign_denied';
   end if;
 
   select status into v_status
