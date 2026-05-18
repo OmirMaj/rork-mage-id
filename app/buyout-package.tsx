@@ -43,6 +43,7 @@ import { parseBidFromTranscript } from '@/utils/voiceFormParsers';
 import { levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -64,6 +65,7 @@ export default function BuyoutPackageScreen() {
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
     awardBidPackage, getProject, prequalPackets, getSubcontractor,
+    updateCommitment, getCommitmentsForProject,
     settings,
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
@@ -195,11 +197,19 @@ export default function BuyoutPackageScreen() {
     const packet = sub
       ? prequalPackets.find(p => p.subcontractorId === sub.id)
       : null;
-    const prequalGap = !packet
-      ? (sub ? 'No prequal packet on file for this sub.' : 'Bid is not linked to a tracked subcontractor — no prequal docs verified.')
-      : (packet.status === 'approved' ? null
-        : packet.status === 'expired' ? 'Prequal packet has EXPIRED — renewal required.'
-        : `Prequal packet status: ${packet.status} (not yet approved).`);
+
+    // D4-1: structured blocker evaluation via prequalEngine
+    const review = packet ? reviewPrequalPacket(packet) : null;
+    const blockers: string[] = [];
+    if (!packet) {
+      blockers.push(sub ? 'No prequal packet on file for this sub.' : 'Bid is not linked to a tracked subcontractor — no prequal/COI verified.');
+    } else if (review && review.overall !== 'pass') {
+      for (const f of review.findings) {
+        if (!f.passed && f.severity === 'blocker') blockers.push(f.note ? `${f.label} — ${f.note}` : f.label);
+      }
+      if (blockers.length === 0) blockers.push(`Prequal not approved: ${review.summary}`);
+    }
+    const isRisky = blockers.length > 0;
 
     const lines: string[] = [];
     lines.push(`Vendor: ${bid.vendorName ?? sub?.companyName ?? 'Subcontractor'}`);
@@ -209,31 +219,71 @@ export default function BuyoutPackageScreen() {
       lines.push('');
       lines.push(`✓ ${allowanceItems.length} allowance item${allowanceItems.length === 1 ? '' : 's'} will lock to firm price.`);
     }
-    if (prequalGap) {
+    if (isRisky) {
       lines.push('');
-      lines.push(`⚠️ Prequal: ${prequalGap}`);
+      lines.push(`⚠️ Prequal: ${blockers[0]}`);
     }
     lines.push('');
     lines.push('Awarding will create a Commitment and mark this package complete.');
 
-    Alert.alert(
-      prequalGap ? 'Award without prequal docs?' : 'Award this bid?',
-      lines.join('\n'),
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: prequalGap ? 'Award anyway' : 'Award',
-          style: prequalGap ? 'destructive' : 'default',
-          onPress: () => {
-            const commitmentId = awardBidPackage(pkg.id, bid.id);
-            if (commitmentId) {
-              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
+    const doAward = () => {
+      const commitmentId = awardBidPackage(pkg.id, bid.id);
+      if (commitmentId) {
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // D4-1: record override audit line on the commitment when risks were acknowledged
+        if (isRisky) {
+          try {
+            const overrideLine = `[risk-override ${new Date().toISOString().slice(0, 10)}] Awarded despite: ${blockers.join('; ')}. Acknowledged by GC.`;
+            const existing = getCommitmentsForProject(pkg.projectId).find(c => c.id === commitmentId);
+            const existingNotes = existing?.notes ?? '';
+            updateCommitment(commitmentId, {
+              notes: (existingNotes ? existingNotes + '\n' : '') + overrideLine,
+            });
+          } catch (e) {
+            console.warn('[award-override] Failed to record override note on commitment:', e);
+          }
+        }
+      }
+    };
+
+    if (!isRisky) {
+      Alert.alert(
+        'Award this bid?',
+        lines.join('\n'),
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Award', style: 'default', onPress: doAward },
+        ],
+      );
+    } else {
+      Alert.alert(
+        '⚠️ Compliance risk — review before award',
+        [
+          ...lines,
+          '',
+          'RISKS:',
+          ...blockers.map(b => '• ' + b),
+          '',
+          'Awarding accepts this compliance/insurance exposure. Your override will be recorded on the commitment.',
+        ].join('\n'),
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Review override',
+            style: 'destructive',
+            onPress: () => Alert.alert(
+              'Confirm risk override',
+              `Award ${bid.vendorName ?? sub?.companyName ?? 'this sub'} despite:\n\n${blockers.map(b => '• ' + b).join('\n')}\n\nThis is the GC's compliance risk and will be recorded.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Award & accept risk', style: 'destructive', onPress: doAward },
+              ],
+            ),
           },
-        },
-      ],
-    );
-  }, [pkg, awardBidPackage, getSubcontractor, prequalPackets, allowanceItems]);
+        ],
+      );
+    }
+  }, [pkg, awardBidPackage, getSubcontractor, prequalPackets, allowanceItems, updateCommitment, getCommitmentsForProject]);
 
   // Generate A401-styled subcontract PDF for the awarded sub. Pulls
   // scope, contract sum, and CSI division from the bid package; pulls
