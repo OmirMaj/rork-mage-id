@@ -34,7 +34,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // Shared email helpers — same shell used by every transactional email
 // the app sends so this digest matches sub-portal invites, contract
 // sends, payment receipts, COI warnings, and the morning brief.
-import { wrapEmailHtml, resendSend } from '../_shared/email.ts';
+import { wrapEmailHtml, resendSend, isEmailUnsubscribed } from '../_shared/email.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -389,6 +389,14 @@ async function sendForProject(
   let sent = 0;
   const errors: string[] = [];
   for (const invite of invites) {
+    // Pre-send suppression: skip an invite that unsubscribed from the
+    // weekly digest (or globally). 'continue' does not increment `sent`,
+    // so weeklyDigest.lastSentAt (stamped only when sent > 0) is not
+    // advanced if ALL invites are suppressed — nothing is lost.
+    if (await isEmailUnsubscribed(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, invite.email, 'weekly_digest')) {
+      console.log('[homeowner-weekly-digest] recipient unsubscribed — skipping', project.id, invite.email);
+      continue;
+    }
     const html = buildEmailHtml({
       companyName,
       homeownerName: invite.name,
