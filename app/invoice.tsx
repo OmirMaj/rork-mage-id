@@ -64,6 +64,7 @@ import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { safeJsonParse } from '@/utils/safeJson';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -504,11 +505,13 @@ function InvoiceInner() {
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Stripe-not-connected nudge. Pre-audit this state was a silent
-    // console.log; the user shipped an invoice with no Pay button and
-    // never knew why. Surface a one-time alert so they can set up Connect
-    // for next time. Non-blocking — we navigate back regardless.
-    if (stripeNotConnected && totalDue > 0) {
+    // FF1-C: Stripe-not-connected nudge — show ONCE EVER, not on every
+    // send. After the first time, the user knows; nagging on each invoice
+    // is friction. A failed flag read counts as "not seen" (show it);
+    // the flag write is fire-and-forget and never blocks the send.
+    const stripeNudgeSeen = await AsyncStorage.getItem('buildwise_stripe_nudge_seen').catch(() => null);
+    if (stripeNotConnected && totalDue > 0 && stripeNudgeSeen !== '1') {
+      void AsyncStorage.setItem('buildwise_stripe_nudge_seen', '1');
       Alert.alert(
         'Invoice sent — no Pay button included',
         "You haven't connected Stripe yet, so this invoice was emailed without a one-tap Pay button. Set up Stripe in Payments to add Pay buttons to future invoices.",
