@@ -18,19 +18,20 @@ const BILLABLE: ReadonlySet<InvoiceStatus> = new Set<InvoiceStatus>([
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return '';
   let s = typeof v === 'object' ? JSON.stringify(v) : String(v);
-  if (s.length > 0 && '=+-@'.indexOf(s[0] as string) !== -1) s = `'${s}`;
+  if (s.length > 0 && '=+-@'.indexOf(s[0]!) !== -1) s = `'${s}`;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 
 function fmtDate(iso: string | undefined, format: AccountingFormat): string {
-  if (!iso) return '';
-  const t = Date.parse(iso);
+  const key = ((iso ?? '') + '').slice(0, 10); // YYYY-MM-DD portion
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return '';
+  const t = Date.parse(`${key}T12:00:00Z`);
   if (!Number.isFinite(t)) return '';
   const d = new Date(t);
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const yyyy = String(d.getFullYear());
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const yyyy = String(d.getUTCFullYear());
   return format === 'xero' ? `${dd}/${mm}/${yyyy}` : `${mm}/${dd}/${yyyy}`;
 }
 
@@ -78,7 +79,7 @@ export function buildAccountingCsv(
           String(inv.number), customer, issue, due, li.name,
           li.description, String(li.quantity), money(li.unitPrice),
           money(li.total), inv.taxAmount > 0 ? 'Yes' : 'No',
-          String(inv.taxRate ?? ''), issue, `Invoice #${inv.number}`,
+          String(inv.taxRate), issue, `Invoice #${inv.number}`,
         ]);
       }
     }
