@@ -51,6 +51,7 @@ import ConcretePour from '@/components/animations/ConcretePour';
 import { nailIt } from '@/components/animations/NailItToast';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
+import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 import { fetchActiveContract } from '@/utils/contractEngine';
@@ -716,6 +717,30 @@ export default function ProjectDetailScreen() {
       Alert.alert('Calendar Feed', 'Could not generate the calendar feed. Please try again.');
     }
   }, [project, projectInvoices, projectWarranties]);
+
+  const handleExportAccounting = useCallback(async () => {
+    if (!project) return;
+    const run = async (format: AccountingFormat) => {
+      try {
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const result = await exportProjectAccountingCsv({ format, project, invoices: projectInvoices });
+        if (result.rowCount === 0) {
+          Alert.alert('Nothing to export', 'No billable invoices on this project yet (draft invoices are excluded).');
+          return;
+        }
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        nailIt(`Exported ${result.rowCount} line${result.rowCount === 1 ? '' : 's'} · ${format === 'xero' ? 'Xero' : 'QuickBooks'}`);
+      } catch (err) {
+        console.error('[ProjectDetail] Accounting export error:', err);
+        Alert.alert('Error', 'Could not export the accounting CSV. Please try again.');
+      }
+    };
+    Alert.alert('Export to accounting', 'Choose the format your bookkeeper imports.', [
+      { text: 'QuickBooks Online', onPress: () => { void run('quickbooks'); } },
+      { text: 'Xero', onPress: () => { void run('xero'); } },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [project, projectInvoices]);
 
   const handleSharePhotoTimeline = useCallback(async () => {
     if (!project) return;
@@ -2364,6 +2389,18 @@ export default function ProjectDetailScreen() {
             <View style={styles.coCard}>
               {projectInvoices.length === 0 && (
                 <Text style={styles.coEmptyText}>No invoices yet.</Text>
+              )}
+              {projectInvoices.some(i => i.status !== 'draft') && (
+                <TouchableOpacity
+                  style={styles.photoShareBtn}
+                  onPress={() => { void handleExportAccounting(); }}
+                  activeOpacity={0.8}
+                  testID="invoices-accounting-export"
+                >
+                  <Share2 size={16} color={themeColors.accent} />
+                  <Text style={styles.photoShareBtnText}>Export to accounting (CSV)</Text>
+                  <Text style={styles.photoShareBtnHint}>QuickBooks · Xero</Text>
+                </TouchableOpacity>
               )}
               {projectInvoices.length > 0 && (() => {
                 const counts = {
