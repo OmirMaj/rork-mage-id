@@ -984,6 +984,11 @@ export interface ChangeOrderLineItem {
   unitPrice: number;
   total: number;
   isNew: boolean;
+  /** Optional CSI MasterFormat division code (2-digit, e.g. "03" for Concrete).
+   *  When set, downstream tooling (job-cost, export, audit) can attribute this
+   *  line item to a CSI division instead of falling back to free-text matching
+   *  on the CO description. */
+  csiDivision?: string;
 }
 
 export type ChangeOrderStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'revised' | 'void';
