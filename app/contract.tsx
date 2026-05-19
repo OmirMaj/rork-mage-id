@@ -653,15 +653,26 @@ export default function ContractScreen() {
         )}
 
         {contract.status === 'signed' && (
-          <View style={[styles.statusBanner, { backgroundColor: themeColors.success + '0D', borderColor: themeColors.success + '30' }]}>
-            <CheckCircle2 size={16} color={themeColors.success} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.statusBannerTitle, { color: themeColors.success }]}>Signed by both parties</Text>
-              <Text style={styles.statusBannerBody}>
-                Binding agreement on file. Invoices on this project should reference it.
-              </Text>
+          <>
+            <View style={[styles.statusBanner, { backgroundColor: themeColors.success + '0D', borderColor: themeColors.success + '30' }]}>
+              <CheckCircle2 size={16} color={themeColors.success} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.statusBannerTitle, { color: themeColors.success }]}>Signed by both parties</Text>
+                <Text style={styles.statusBannerBody}>
+                  Binding agreement on file. Invoices on this project should reference it.
+                </Text>
+              </View>
             </View>
-          </View>
+            <TouchableOpacity
+              style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
+              onPress={() => router.push({ pathname: '/bill-from-estimate', params: { projectId } } as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Create first invoice"
+            >
+              <Plus size={16} color="#FFF" />
+              <Text style={styles.primaryBtnText}>Create first invoice</Text>
+            </TouchableOpacity>
+          </>
         )}
       </ScrollView>
 
