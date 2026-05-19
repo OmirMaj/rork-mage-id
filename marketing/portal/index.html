@@ -1606,6 +1606,29 @@
     animation: fadeIn 0.2s ease;
   }
   .lightbox.open { display: flex; }
+  .photo-day {
+    margin: 18px 0 8px; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.4px; text-transform: uppercase; color: #64748b;
+  }
+  .photo-day:first-child { margin-top: 0; }
+  .lightbox-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(255,255,255,0.10); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; line-height: 1;
+    border: 1px solid rgba(255,255,255,0.16); cursor: pointer;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    z-index: 101;
+  }
+  .lightbox-prev { left: 20px; }
+  .lightbox-next { right: 20px; }
+  .lightbox-cap {
+    position: absolute; left: 0; right: 0; bottom: 22px;
+    text-align: center; color: #fff; font-size: 13px; font-weight: 600;
+    padding: 0 70px; pointer-events: none;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
   .lightbox-stage {
     position: relative; max-width: 100%; max-height: 100%;
     display: flex; align-items: center; justify-content: center;
@@ -2315,10 +2338,13 @@
   <!-- Lightbox -->
   <div class="lightbox" id="lightbox">
     <button class="lightbox-close" id="lightbox-close" aria-label="Close">×</button>
+    <button class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous photo">‹</button>
     <div class="lightbox-stage" id="lightbox-stage">
       <img id="lightbox-img" alt="" />
       <svg id="lightbox-svg" preserveAspectRatio="none"></svg>
     </div>
+    <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next photo">›</button>
+    <div class="lightbox-cap" id="lightbox-cap"></div>
   </div>
 
   <!-- Selection confirmation modal — shown when the homeowner taps an
@@ -3612,14 +3638,12 @@
 
   function renderPhotos(photos) {
     if (!photos || !photos.length) return emptyState('No photos shared yet.');
-    // Masonry-style grid via CSS column-count. Each photo gets a
-    // randomized "tall / standard / wide" hint so the wall feels
-    // organic instead of a uniform grid. Hint is deterministic per
-    // index so re-renders don't reflow.
-    var grid = photos.map(function (p, idx) {
+    // One figure, byte-identical to the pre-D3-3 markup. data-photo stays
+    // the GLOBAL index into the flat photos array so the lightbox wiring
+    // (photoData[idx]) is unchanged.
+    function figure(p, idx) {
       var cap = p.caption ? '<div class="photo-caption">'+esc(p.caption)+'</div>' : '';
       var badge = (p.markup && p.markup.length) ? '<span class="photo-markup-badge" title="Has markup">✏️</span>' : '';
-      // Hash idx to a tall (1 in 3) / wide (1 in 4) / default ratio
       var sizeClass = (idx % 7 === 0) ? ' photo-tall' : (idx % 5 === 0) ? ' photo-wide' : '';
       var animDelay = (idx * 35);
       return '<figure class="photo'+sizeClass+'" data-photo="'+idx+'" style="animation-delay:'+animDelay+'ms">' +
@@ -3627,8 +3651,29 @@
                badge +
                cap +
              '</figure>';
+    }
+    // Group by calendar day, preserving the snapshot's newest-first order.
+    // Photos with no timestamp -> a single 'unknown' group emitted LAST.
+    var order = [];
+    var byDay = {};
+    photos.forEach(function (p, idx) {
+      var key = (((p && p.timestamp) || '') + '').slice(0, 10) || 'unknown';
+      if (!byDay[key]) { byDay[key] = []; order.push(key); }
+      byDay[key].push(figure(p, idx));
+    });
+    order = order.filter(function (k) { return k !== 'unknown'; });
+    if (byDay['unknown']) order.push('unknown');
+    function dayLabel(key) {
+      if (key === 'unknown') return 'Undated';
+      var d = new Date(key + 'T00:00:00');
+      return isNaN(d.getTime())
+        ? 'Undated'
+        : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return order.map(function (key) {
+      return '<div class="photo-day">'+esc(dayLabel(key))+'</div>' +
+             '<div class="photo-wall">'+byDay[key].join('')+'</div>';
     }).join('');
-    return '<div class="photo-wall">'+grid+'</div>';
   }
 
   // Build an SVG string from a list of normalized markup primitives.
@@ -4917,46 +4962,97 @@
       }
     }
 
-    // Lightbox for photos
+    // Lightbox for photos — index-aware so the client can page through
+    // the whole set without closing. Swatch zoom reuses the overlay in a
+    // single-image, no-nav mode (byte-identical to pre-D3-3 swatch UX).
     var photoData = (sections.photos || []);
+    var lbIndex = 0;
+    var lbMode = 'photo'; // 'photo' = nav enabled; 'single' = swatch (no nav)
+    var lbEl   = document.getElementById('lightbox');
+    var lbImg  = document.getElementById('lightbox-img');
+    var lbSvg  = document.getElementById('lightbox-svg');
+    var lbCap  = document.getElementById('lightbox-cap');
+    var lbPrev = document.getElementById('lightbox-prev');
+    var lbNext = document.getElementById('lightbox-next');
+
+    function fmtPhotoDate(ts) {
+      if (!ts) return '';
+      var d = new Date(ts);
+      return isNaN(d.getTime())
+        ? ''
+        : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function showLightboxAt(i) {
+      if (!photoData.length) return;
+      lbIndex = Math.max(0, Math.min(i, photoData.length - 1));
+      var p = photoData[lbIndex];
+      if (!p) return;
+      lbImg.src = p.url;
+      if (lbSvg) {
+        if (p.markup && p.markup.length) {
+          lbSvg.setAttribute('viewBox', '0 0 1 1');
+          lbSvg.style.display = 'block';
+          lbSvg.innerHTML = buildMarkupSvg(p.markup);
+        } else {
+          lbSvg.innerHTML = '';
+          lbSvg.style.display = 'none';
+        }
+      }
+      if (lbCap) {
+        var parts = [];
+        if (p.caption) parts.push(p.caption);
+        var ds = fmtPhotoDate(p.timestamp);
+        if (ds) parts.push(ds);
+        lbCap.textContent = parts.join('  ·  ');
+        lbCap.style.display = '';
+      }
+      var multi = photoData.length > 1;
+      if (lbPrev) lbPrev.style.display = multi ? '' : 'none';
+      if (lbNext) lbNext.style.display = multi ? '' : 'none';
+    }
     document.querySelectorAll('.photo').forEach(function (el) {
       el.addEventListener('click', function () {
         var idx = parseInt(el.getAttribute('data-photo'), 10);
-        var p = photoData[idx];
-        if (!p) return;
-        document.getElementById('lightbox-img').src = p.url;
-        // Populate the SVG overlay with whatever markup the GC drew.
-        // viewBox 0 0 1 1 makes our normalized coords map cleanly to
-        // any rendered image size.
-        var svg = document.getElementById('lightbox-svg');
-        if (svg) {
-          if (p.markup && p.markup.length) {
-            svg.setAttribute('viewBox', '0 0 1 1');
-            svg.style.display = 'block';
-            svg.innerHTML = buildMarkupSvg(p.markup);
-          } else {
-            svg.innerHTML = '';
-            svg.style.display = 'none';
-          }
-        }
-        document.getElementById('lightbox').classList.add('open');
+        if (isNaN(idx) || !photoData[idx]) return;
+        lbMode = 'photo';
+        showLightboxAt(idx);
+        lbEl.classList.add('open');
       });
     });
-    function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
-    document.getElementById('lightbox').addEventListener('click', closeLightbox);
-    document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+    function closeLightbox() { lbEl.classList.remove('open'); }
+    lbEl.addEventListener('click', closeLightbox);
+    document.getElementById('lightbox-close').addEventListener('click', function (e) {
+      e.stopPropagation(); closeLightbox();
+    });
+    lbImg.addEventListener('click', function (e) { e.stopPropagation(); });
+    if (lbPrev) lbPrev.addEventListener('click', function (e) {
+      e.stopPropagation(); if (lbMode === 'photo') showLightboxAt(lbIndex - 1);
+    });
+    if (lbNext) lbNext.addEventListener('click', function (e) {
+      e.stopPropagation(); if (lbMode === 'photo') showLightboxAt(lbIndex + 1);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (!lbEl.classList.contains('open')) return;
+      if (e.key === 'Escape') { closeLightbox(); return; }
+      if (lbMode !== 'photo') return;
+      if (e.key === 'ArrowLeft') showLightboxAt(lbIndex - 1);
+      else if (e.key === 'ArrowRight') showLightboxAt(lbIndex + 1);
+    });
 
-    // Selection swatches → lightbox. Same overlay as photos. We don't
-    // have markup data for selections, so the SVG layer is hidden.
+    // Selection swatches → same overlay, single image, NO nav (no
+    // photoData/markup context). Byte-identical UX to pre-D3-3.
     document.querySelectorAll('[data-zoom]').forEach(function (el) {
       el.addEventListener('click', function (e) {
         e.stopPropagation(); // don't trigger the parent .sel-opt's choose-selection
         var url = el.getAttribute('data-zoom');
         if (!url) return;
-        document.getElementById('lightbox-img').src = url;
-        var svg = document.getElementById('lightbox-svg');
-        if (svg) { svg.innerHTML = ''; svg.style.display = 'none'; }
-        document.getElementById('lightbox').classList.add('open');
+        lbMode = 'single';
+        lbImg.src = url;
+        if (lbSvg) { lbSvg.innerHTML = ''; lbSvg.style.display = 'none'; }
+        if (lbCap) { lbCap.textContent = ''; lbCap.style.display = 'none'; }
+        if (lbPrev) lbPrev.style.display = 'none';
+        if (lbNext) lbNext.style.display = 'none';
+        lbEl.classList.add('open');
       });
     });
 
