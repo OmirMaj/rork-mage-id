@@ -25,30 +25,30 @@ The audit + brief: the accounting screen is a static waitlist stub, forcing GCs 
 
 ## 4. Architecture
 
-### 4.1 `utils/accountingExport.ts` (new, pure)
+### 4.1 `utils/accountingExport.ts` (new, pure — builder only; caller does file I/O)
+Mirrors the verified `utils/tax1099Export.ts` split: the **`utils/` module is a pure CSV-string builder**; the **caller (the project-detail handler) does `FileSystem.writeAsStringAsync` + `Sharing.shareAsync`** (exact precedent: `app/tax-1099-export.tsx:141-146` — `dir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory`, `import * as FileSystem from 'expo-file-system/legacy'`, `Sharing.isAvailableAsync()` then `Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle })`). Reuse the proven `csvCell` escaper shape from `tax1099Export.ts` (`if (/[",\n\r]/.test(s)) return '"'+s.replace(/"/g,'""')+'"'`), extended with the formula-injection guard (§5).
 ```ts
 export type AccountingFormat = 'quickbooks' | 'xero';
+// pure: builds the CSV string + a sanitized filename; never touches the FS
 export function buildAccountingCsv(
   format: AccountingFormat,
   project: Project,
   invoices: Invoice[],
 ): { filename: string; csv: string; rowCount: number };
-export async function exportAccountingCsv(
-  format: AccountingFormat, project: Project, invoices: Invoice[],
-): Promise<{ ok: true; rowCount: number } | { ok: false; reason: string }>;
 ```
-- **Row model:** both QBO and Xero import sales invoices as **one row per invoice line item**, repeating invoice-header fields per row (their real documented import shape). Only invoices with `status` in a billable set (exclude `draft`/`void`) are exported; each `invoice.lineItems[]` → one row; a trailing tax row per invoice when `taxAmount > 0`.
+The project-detail UI handler calls `buildAccountingCsv(...)`, and if `rowCount > 0` performs the FileSystem-write + `Sharing.shareAsync` inline (same calls as the 1099 screen); `rowCount === 0` → friendly toast, no file.
+- **Row model:** both QBO and Xero import sales invoices as **one row per invoice line item**, repeating invoice-header fields per row (their real documented import shape). Only **billable** invoices are exported — `status` ∈ `{ sent, partially_paid, paid, overdue }` (exclude `draft`; the `InvoiceStatus` enum has **no** `void`). Each `invoice.lineItems[]` (`{ id, name, description, quantity, unit, unitPrice, total }`) → one row; a trailing tax row per invoice when `taxAmount > 0`.
 - **QuickBooks Online** columns (canonical QBO invoice-import header): `InvoiceNo, Customer, InvoiceDate, DueDate, Item(Product/Service), ItemDescription, ItemQuantity, ItemRate, ItemAmount, Taxable, TaxRate, ServiceDate, Memo`.
 - **Xero** columns (canonical Xero sales-invoice import header): `ContactName, InvoiceNumber, InvoiceDate, DueDate, Description, Quantity, UnitAmount, AccountCode, TaxType, TrackingName1, TrackingOption1`. `AccountCode` left blank (the accountant maps on import — documented in the spec note and an in-app hint); `TrackingOption1` = project name (lets the accountant class by job).
-- Customer/ContactName = `project.clientName ?? project.name`; dates ISO→`MM/DD/YYYY` (QBO) / `DD/MM/YYYY` (Xero) per each tool's default import locale expectation; money = 2dp, no currency symbol/thousands; **RFC-4180 CSV escaping** (quote fields containing `, " \n`, double embedded quotes) — reuse the escaping approach already in `utils/tax1099Export.ts` (confirm its exact helper at plan time and reuse, do not duplicate).
-- `exportAccountingCsv` writes `FileSystem.documentDirectory + filename` then `Sharing.shareAsync` — exact same call shape as `tax1099Export.ts` (confirm + mirror at plan time). Filename: `<projectName>-invoices-<format>-<YYYYMMDD>.csv` (sanitized).
-- Pure/total: empty/`null` invoices → `{ ok:false, reason:'No billable invoices to export' }` (no throw, no file).
+- Customer/ContactName = `project.primaryContact?.name ?? project.name` (the `Project` interface has **no** `clientName`; it has `primaryContact?: { … }` — confirm the exact `name` field at plan time, fall back to `project.name`); dates ISO→`MM/DD/YYYY` (QBO) / `DD/MM/YYYY` (Xero) per each tool's default import locale expectation; money = 2dp, no currency symbol/thousands; **RFC-4180 CSV escaping** via the proven `csvCell` shape from `utils/tax1099Export.ts`.
+- Filename: `<projectName>-invoices-<format>-<YYYYMMDD>.csv` (sanitized); the caller writes it to `FileSystem.cacheDirectory ?? FileSystem.documentDirectory` and shares (mirrors `app/tax-1099-export.tsx:141-146`).
+- Pure/total: empty/`null`/all-draft invoices → `rowCount: 0` (caller shows a friendly "no billable invoices to export" toast; no throw, no file).
 
 ### 4.2 UI trigger (project-detail Financials/invoices sub-panel)
 In `app/project-detail.tsx`, within the existing invoices sub-section (where `projectInvoices` + `project` are already in scope), add one action: "Export to accounting (CSV)" → a 2-option chooser (QuickBooks Online / Xero) → `await exportAccountingCsv(fmt, project, projectInvoices)` → success/empty toast via the screen's existing toast (`nailIt`-style) pattern. Reuse an existing in-panel action-button style in the file (no new design system). Disabled/hidden when `projectInvoices` has no billable invoices.
 
-### 4.3 Tier gating (deliberate, codebase-consistent)
-Accounting is positioned as a **Business**-tier capability (`quickbooks_sync` FeatureKey, per the audit + `useTierAccess`/`FEATURE_LIMITS`). The export gates behind the existing Business accounting FeatureKey via `useTierAccess` (exact key confirmed at plan time) — non-entitled users see the standard upgrade affordance, not the export. Rationale: shipping CSV export *free* would undercut the tier model the audit flagged; gating it *consistently* is the honest product-aligned choice. (Surfaced as a deliberate decision, not an accident.)
+### 4.3 Tier gating — **ungated (corrected after reality-check)**
+The pasted brief implied gating; the spec originally proposed a Business gate. **Verification overturned this:** the `quickbooks_sync` FeatureKey was **deliberately removed** in the May-2026 audit cleanup ("no real OAuth flow … removed from paywall") and there is **no accounting FeatureKey** in the current `FeatureKey` union. The directly-analogous feature — the **1099-NEC CSV export** (`app/tax-1099-export.tsx`) — ships **ungated**. Gating this on a deleted key (or a tangential one) would (a) revive a key the audit intentionally killed, (b) contradict the established 1099-export precedent, (c) be dishonest tier theater for what is simply *the user exporting their own invoice data as a file* (not a sync/integration). **Decision: ship ungated, exactly like the 1099 export.** This is the honest, codebase-consistent call (a deliberate correction, surfaced — not an oversight).
 
 ## 5. Error handling / correctness
 
@@ -62,9 +62,9 @@ Accounting is positioned as a **Business**-tier capability (`quickbooks_sync` Fe
 
 `npx tsc --noEmit` clean + manual reasoning:
 - A project with ≥2 invoices (mixed full/progress, with line items, tax, a partial payment) → QBO CSV: header correct, one row per line item, tax row when taxAmount>0, money 2dp, dates MM/DD/YYYY, RFC-4180 quoting on a description containing a comma; Xero CSV: Xero header, DD/MM/YYYY, project name in TrackingOption1.
-- Draft/void invoices excluded; 0 billable → friendly "nothing to export", no file.
+- Draft invoices excluded (no `void` status exists); 0 billable → friendly "nothing to export", no file.
 - Formula-injection cell (`=cmd`) → prefixed with `'`.
-- Non-Business tier → export gated (upgrade affordance), Business+ → works.
+- Ungated (parity with the 1099 CSV export) — available to all tiers; no `useTierAccess` call added.
 - Every other project-detail behavior, `integrations.tsx`, other exporters byte-unchanged; no schema/migration/dep.
 - Final whole-impl review (opus).
 
