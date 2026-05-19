@@ -14,7 +14,8 @@ const BILLABLE: ReadonlySet<InvoiceStatus> = new Set<InvoiceStatus>([
 ]);
 
 // RFC-4180 escaping + spreadsheet formula-injection guard (these files
-// open in Excel/Sheets). Same shape as utils/tax1099Export.ts csvCell.
+// open in Excel/Sheets). Same shape as utils/dataExport.ts csvCell,
+// extended with the leading =+-@ formula-injection guard.
 function csvCell(v: unknown): string {
   if (v === null || v === undefined) return '';
   let s = typeof v === 'object' ? JSON.stringify(v) : String(v);
