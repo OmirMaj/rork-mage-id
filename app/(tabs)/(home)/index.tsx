@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
@@ -6,7 +6,7 @@ import {
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
@@ -66,6 +66,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { openCreate } = useLocalSearchParams<{ openCreate?: string }>();
+  const openCreateConsumed = useRef(false);
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
@@ -269,6 +271,20 @@ export default function HomeScreen() {
     if (statusBuckets.active.length > 0) setStatusFilter('active');
     setDidAutoFilter(true);
   }, [projects.length, statusBuckets.active.length, didAutoFilter]);
+
+  // FF1-A: /?openCreate=1 is pushed by the global "+" "Project" row,
+  // the zero-project fallback, and the onboarding checklist's #1 row,
+  // but nothing consumed it (the route resolved to home with no modal).
+  // Open the create modal exactly once, then clear the param. The ref
+  // guard guarantees fire-once even if a re-render re-delivers it before
+  // setParams clears; no param ⇒ inert ⇒ zero change to normal entry.
+  useEffect(() => {
+    if (openCreate && !openCreateConsumed.current) {
+      openCreateConsumed.current = true;
+      setShowCreateModal(true);
+      router.setParams({ openCreate: undefined });
+    }
+  }, [openCreate, router]);
 
   const filteredProjects = useMemo(
     () => statusBuckets[statusFilter],
