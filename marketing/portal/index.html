@@ -1626,7 +1626,7 @@
   .lightbox-cap {
     position: absolute; left: 0; right: 0; bottom: 22px;
     text-align: center; color: #fff; font-size: 13px; font-weight: 600;
-    padding: 0 70px; pointer-events: none;
+    padding: 0 70px; pointer-events: auto;
     text-shadow: 0 1px 4px rgba(0,0,0,0.6);
   }
   .lightbox-stage {
@@ -4976,8 +4976,9 @@
     var lbNext = document.getElementById('lightbox-next');
 
     function fmtPhotoDate(ts) {
-      if (!ts) return '';
-      var d = new Date(ts);
+      var key = ((ts || '') + '').slice(0, 10);
+      if (!key) return '';
+      var d = new Date(key + 'T00:00:00');
       return isNaN(d.getTime())
         ? ''
         : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -5025,6 +5026,7 @@
       e.stopPropagation(); closeLightbox();
     });
     lbImg.addEventListener('click', function (e) { e.stopPropagation(); });
+    if (lbCap) lbCap.addEventListener('click', function (e) { e.stopPropagation(); });
     if (lbPrev) lbPrev.addEventListener('click', function (e) {
       e.stopPropagation(); if (lbMode === 'photo') showLightboxAt(lbIndex - 1);
     });
