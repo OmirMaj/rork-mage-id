@@ -63,6 +63,7 @@ import { getSimulatedForecast } from '@/utils/weatherService';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
+import { resolveCalendarForTask } from '@/utils/scheduleResourceCalendars';
 import type { CpmResult as ContextCpmResult } from '@/components/schedule/SchedulerContext';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
@@ -215,6 +216,27 @@ function ScheduleProScreenInner() {
   // before running CPM. This keeps the WBS tree honest: editing a child
   // auto-updates the summary's span, the same way MS Project's outline does.
   const rolledTasks = useMemo(() => computeSummaryRollup(workingTasks), [workingTasks]);
+  // v2.2c — per-task calendar map for tasks with resourceIds that resolve
+  // to a non-project calendar. Tasks not in the map fall back to the
+  // project-level workingDaysPerWeek + nonWorkingDates inside runCpm.
+  const taskCalendars = useMemo(() => {
+    if (!project?.schedule) return undefined;
+    const map = new Map<string, { workingDaysPerWeek: number; closures: string[] }>();
+    for (const task of rolledTasks) {
+      if (!task.resourceIds || task.resourceIds.length === 0) continue;
+      const resolved = resolveCalendarForTask(task, project.schedule);
+      // Only add when it differs from project default — keeps map small
+      // and lets the engine's project-level path stay hot.
+      if (resolved.source !== 'project') {
+        map.set(task.id, {
+          workingDaysPerWeek: resolved.workingDaysPerWeek,
+          closures: resolved.closures,
+        });
+      }
+    }
+    return map.size > 0 ? map : undefined;
+  }, [rolledTasks, project?.schedule]);
+
   const cpm: CpmResult = useMemo(
     () => runCpm(rolledTasks, {
       scheduleStartDate: scheduleStartIso,
@@ -222,6 +244,8 @@ function ScheduleProScreenInner() {
       // v2.2b — thread project calendar so EF/LS skip weekends + closures.
       workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
       nonWorkingDates: project?.schedule?.nonWorkingDates,
+      // v2.2c — per-task calendar overrides for resource-assigned tasks.
+      taskCalendars,
     }),
     [
       rolledTasks,
@@ -229,6 +253,7 @@ function ScheduleProScreenInner() {
       criticalFloatThresholdDays,
       project?.schedule?.workingDaysPerWeek,
       project?.schedule?.nonWorkingDates,
+      taskCalendars,
     ],
   );
 
