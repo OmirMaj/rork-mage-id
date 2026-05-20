@@ -75,6 +75,7 @@ import {
   downloadCsvInBrowser,
   encodeShareToken,
   buildSharePayload,
+  ShareTokenTooLargeError,
   type NamedBaseline,
 } from '@/utils/scheduleOps';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
@@ -864,7 +865,19 @@ function ScheduleProScreenInner() {
       workingTasks,
       { projectId: project.id },
     );
-    const token = encodeShareToken(payload);
+    let token: string;
+    try {
+      token = encodeShareToken(payload);
+    } catch (err) {
+      if (err instanceof ShareTokenTooLargeError) {
+        Alert.alert(
+          'Schedule too large to share via link',
+          `This schedule (${workingTasks.length} tasks) exceeds the URL size limit. Reduce the task count or use the sub-portal to share with subs.`
+        );
+        return;
+      }
+      throw err;
+    }
     let url = `/shared-schedule?t=${token}`;
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       url = `${window.location.origin}${url}`;

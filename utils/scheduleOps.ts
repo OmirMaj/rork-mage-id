@@ -323,6 +323,22 @@ export interface SharedSchedulePayload {
   }[];
 }
 
+/** Typed error thrown by `encodeShareToken` when the resulting URL-safe
+ *  base64 token exceeds the Safari URL ceiling buffer. Callers should
+ *  catch this and surface a friendly "schedule too large to share via
+ *  link" message; the active Supabase-snapshot fallback is its own
+ *  sub-project. */
+export class ShareTokenTooLargeError extends Error {
+  constructor(public tokenLength: number, public maxLength: number) {
+    super(`Share token too large: ${tokenLength} > ${maxLength} chars`);
+    this.name = 'ShareTokenTooLargeError';
+  }
+}
+
+/** Safari URL ceiling buffer. Real limit varies by browser/proxy/referrer-
+ *  header; 6000 chars is a safe headroom under the 8KB practical floor. */
+const MAX_SHARE_TOKEN_LENGTH = 6000;
+
 export function encodeShareToken(payload: SharedSchedulePayload): string {
   const json = JSON.stringify(payload);
   // btoa only handles ASCII; use utf-8 round-trip.
@@ -334,7 +350,13 @@ export function encodeShareToken(payload: SharedSchedulePayload): string {
     ? btoa(ascii)
     : Buffer.from(json, 'utf-8').toString('base64');
   // Make URL-safe.
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const token = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // v2.3 P1 — guard against silent URL-too-long failures. Throws a typed
+  // error the caller can catch and surface a friendly alert.
+  if (token.length > MAX_SHARE_TOKEN_LENGTH) {
+    throw new ShareTokenTooLargeError(token.length, MAX_SHARE_TOKEN_LENGTH);
+  }
+  return token;
 }
 
 export function decodeShareToken(token: string): SharedSchedulePayload | null {
