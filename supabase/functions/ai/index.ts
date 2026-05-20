@@ -111,11 +111,54 @@ serve(async (req) => {
       return jsonResp({ success: false, error: "Missing prompt", finishReason: "BAD_REQUEST" }, 400);
     }
 
+    // Input length cap — defense against per-tier cost bypass via giant
+    // prompts. The MONTHLY_CAPS economic model assumes "average" prompt
+    // sizes (~5-15KB legitimate range for estimate-context generations).
+    // Without an upper bound, a power user (or a leaked credential) could
+    // burn the monthly count quickly via 1MB prompts that each still tick
+    // the counter as 1 unit. 50KB is ~10-12K English words — far more than
+    // any legitimate in-app request.
+    const MAX_PROMPT_CHARS = 50_000;
+    const MAX_SCHEMA_HINT_CHARS = 20_000;
+    if (prompt.length > MAX_PROMPT_CHARS) {
+      return jsonResp({
+        success: false,
+        error: `Prompt too long (${prompt.length.toLocaleString()} chars; max ${MAX_PROMPT_CHARS.toLocaleString()}).`,
+        finishReason: "BAD_REQUEST",
+      }, 400);
+    }
+    if (schemaHint !== undefined && schemaHint !== null) {
+      try {
+        const schemaLen = JSON.stringify(schemaHint).length;
+        if (schemaLen > MAX_SCHEMA_HINT_CHARS) {
+          return jsonResp({
+            success: false,
+            error: `Schema hint too large (${schemaLen.toLocaleString()} chars; max ${MAX_SCHEMA_HINT_CHARS.toLocaleString()}). Simplify the response structure.`,
+            finishReason: "BAD_REQUEST",
+          }, 400);
+        }
+      } catch {
+        return jsonResp({
+          success: false,
+          error: "Schema hint is not serializable.",
+          finishReason: "BAD_REQUEST",
+        }, 400);
+      }
+    }
+
     // Token budget. Floors lifted from the prior 8192 → 16000 for jsonMode
     // smart tier so heavy estimate / schedule generations don't truncate.
     // Gemini 2.5 Flash supports up to 65,535 output tokens; 16000 leaves
     // plenty of headroom for any prompt the app sends.
-    const maxTokensReq = typeof body.maxTokens === "number" ? body.maxTokens : 0;
+    //
+    // MAX_OUTPUT_TOKENS_CAP — hard upper bound regardless of what the
+    // caller requests. Same cost-bypass concern as MAX_PROMPT_CHARS:
+    // without this, a body.maxTokens of 100000 would charge ~6x more
+    // Gemini output cost than the cap model assumes, while still
+    // counting as a single ai_text unit on the monthly counter.
+    const MAX_OUTPUT_TOKENS_CAP = 24000;
+    const rawMaxTokens = typeof body.maxTokens === "number" ? body.maxTokens : 0;
+    const maxTokensReq = Math.max(0, Math.min(rawMaxTokens, MAX_OUTPUT_TOKENS_CAP));
     let maxTokens: number;
     if (jsonMode && tier === "smart") {
       maxTokens = Math.max(maxTokensReq || 16000, 16000);
@@ -124,6 +167,8 @@ serve(async (req) => {
     } else {
       maxTokens = maxTokensReq || 1000;
     }
+    // Final clamp — even the floor-Math.max above can't exceed the cap.
+    maxTokens = Math.min(maxTokens, MAX_OUTPUT_TOKENS_CAP);
 
     // Monthly cap check + atomic increment. Caps are deliberately set to
     // daily × 30 in MONTHLY_CAPS so the server-side ceiling matches the
