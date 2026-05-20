@@ -434,11 +434,23 @@ function forwardPass(
       if (anchor.esExact !== undefined) es = anchor.esExact;
       if (anchor.esMin !== undefined && anchor.esMin > es) es = anchor.esMin;
       if (anchor.efMin !== undefined) {
-        const req = dur === 0 ? anchor.efMin : anchor.efMin - dur + 1;
+        // v2.2b — Calendar-aware: walk back working days from efMin
+        // to find the matching ES. Falls back to raw math when
+        // scheduleStart is absent.
+        const req = dur === 0 ? anchor.efMin
+          : !scheduleStart ? anchor.efMin - dur + 1
+          : isWorkingDay(anchor.efMin, wdPerWeek, scheduleStart, closuresSet)
+            ? walkWorkingDays(anchor.efMin, dur - 1, -1, wdPerWeek, scheduleStart, closuresSet)
+            : walkWorkingDays(anchor.efMin, dur, -1, wdPerWeek, scheduleStart, closuresSet);
         if (req > es) es = req;
       }
       if (anchor.efExact !== undefined) {
-        es = dur === 0 ? anchor.efExact : anchor.efExact - dur + 1;
+        // v2.2b — Calendar-aware mirror of efMin branch.
+        es = dur === 0 ? anchor.efExact
+          : !scheduleStart ? anchor.efExact - dur + 1
+          : isWorkingDay(anchor.efExact, wdPerWeek, scheduleStart, closuresSet)
+            ? walkWorkingDays(anchor.efExact, dur - 1, -1, wdPerWeek, scheduleStart, closuresSet)
+            : walkWorkingDays(anchor.efExact, dur, -1, wdPerWeek, scheduleStart, closuresSet);
       }
       // esMax / efMax don't push ES earlier — they're enforced as warnings
       // (conflict surfacing is wired in runCpm below, not here).
@@ -540,9 +552,21 @@ function backwardPass(
         lf = anchor.efMax;
       }
       if (anchor.esExact !== undefined) {
-        lf = dur === 0 ? anchor.esExact : anchor.esExact + dur - 1;
+        // v2.2b — Calendar-aware: walk forward working days from
+        // esExact to find the matching LF. Falls back to raw math
+        // when scheduleStartDate is absent.
+        lf = dur === 0 ? anchor.esExact
+          : !scheduleStartDate ? anchor.esExact + dur - 1
+          : isWorkingDay(anchor.esExact, wdPerWeek, scheduleStartDate, closuresSet)
+            ? walkWorkingDays(anchor.esExact, dur - 1, 1, wdPerWeek, scheduleStartDate, closuresSet)
+            : walkWorkingDays(anchor.esExact, dur, 1, wdPerWeek, scheduleStartDate, closuresSet);
       } else if (anchor.esMax !== undefined) {
-        const req = dur === 0 ? anchor.esMax : anchor.esMax + dur - 1;
+        // v2.2b — Calendar-aware mirror of esExact branch.
+        const req = dur === 0 ? anchor.esMax
+          : !scheduleStartDate ? anchor.esMax + dur - 1
+          : isWorkingDay(anchor.esMax, wdPerWeek, scheduleStartDate, closuresSet)
+            ? walkWorkingDays(anchor.esMax, dur - 1, 1, wdPerWeek, scheduleStartDate, closuresSet)
+            : walkWorkingDays(anchor.esMax, dur, 1, wdPerWeek, scheduleStartDate, closuresSet);
         if (req < lf) lf = req;
       }
     }
