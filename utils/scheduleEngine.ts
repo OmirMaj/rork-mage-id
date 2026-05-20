@@ -272,7 +272,14 @@ export function buildScheduleFromTasks(
   name: string,
   projectId: string | null,
   tasks: ScheduleTask[],
-  existingBaseline?: ScheduleBaseline | null
+  existingBaseline?: ScheduleBaseline | null,
+  opts?: {
+    /** Engine-derived project-finish day. When omitted, falls back to
+     *  max(t.startDay + t.durationDays - 1) — correct for a single-pass
+     *  forward-only resolver. Pass `cpm.projectFinish` to use the full
+     *  CPM result. */
+    criticalPathDays?: number;
+  },
 ): ProjectSchedule {
   const recalculated = recalculateStartDays(tasks);
   const sortedTasks = recalculated
@@ -283,8 +290,16 @@ export function buildScheduleFromTasks(
     return Math.max(max, task.startDay + task.durationDays);
   }, 0);
 
-  const criticalTasks = sortedTasks.filter(t => t.isCriticalPath || getDepLinks(t).length > 0 || t.durationDays >= 4);
-  const criticalPathDays = criticalTasks.reduce((sum, task) => sum + task.durationDays, 0);
+  // criticalPathDays = engine-true project-finish day. Caller passes
+  // cpm.projectFinish via opts; if absent, fall back to the latest
+  // task end-day (semantically the same as projectFinish for a
+  // schedule whose tasks have already had a forward pass applied,
+  // and a sane approximation otherwise). NEVER the old
+  // sum-of-critical-durations heuristic — that produced a different
+  // value from runCpm and overwrote it on every persist (audit bug #4).
+  const criticalPathDays =
+    opts?.criticalPathDays
+    ?? sortedTasks.reduce((max, t) => Math.max(max, t.startDay + t.durationDays - 1), 0);
 
   const averageProgress = sortedTasks.length > 0
     ? sortedTasks.reduce((sum, task) => sum + task.progress, 0) / sortedTasks.length

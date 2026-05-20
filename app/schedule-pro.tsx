@@ -65,7 +65,6 @@ import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSche
 import { runCpm, type CpmResult } from '@/utils/cpm';
 import type { CpmResult as ContextCpmResult } from '@/components/schedule/SchedulerContext';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
-import { applyLevelOfEffortSpans, hasAnyLevelOfEffort } from '@/utils/scheduleLoeEngine';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
@@ -224,19 +223,6 @@ function ScheduleProScreenInner() {
     criticalTaskIds: cpm.criticalPath,
   }), [cpm.projectFinish, cpm.criticalPath]);
 
-  // Level-of-Effort post-process: stretch LOE tasks to span their linked
-  // work. Cheap when no LOE tasks exist (early-return). The result feeds
-  // the Gantt + grid views, which call this `loeAdjustedTasks` instead
-  // of `rolledTasks` for rendering.
-  const loeAdjustedTasks = useMemo(
-    () => hasAnyLevelOfEffort(rolledTasks)
-      ? applyLevelOfEffortSpans(rolledTasks, cpm)
-      : rolledTasks,
-    [rolledTasks, cpm],
-  );
-  void loeAdjustedTasks; // exposed for future view wiring; rolledTasks
-  // is still the authoritative source for the existing render paths.
-
   // Schedule health score — pure compute over current tasks + cpm.
   // Cheap to recompute on every edit.
   const healthScore = useMemo(
@@ -303,6 +289,7 @@ function ScheduleProScreenInner() {
         project.id,
         tasks,
         project.schedule?.baseline ?? null,
+        { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
       );
       // Preserve named baselines across debounced writes — `buildScheduleFromTasks`
       // rebuilds a fresh schedule object, so without this spread the baselines
@@ -324,7 +311,7 @@ function ScheduleProScreenInner() {
       });
       updateProject(project.id, { schedule: withBaselines });
     }, 500);
-  }, [project, updateProject]);
+  }, [project, updateProject, cpm.projectFinish]);
 
   // Flush on unmount so we never lose an edit to a pending timer.
   useEffect(() => {
@@ -338,6 +325,7 @@ function ScheduleProScreenInner() {
             project.id,
             workingTasks,
             project.schedule?.baseline ?? null,
+            { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
           );
           updateProject(project.id, {
             schedule: {
@@ -353,8 +341,11 @@ function ScheduleProScreenInner() {
         }
       }
     };
+  // v2.1: cpm.projectFinish in deps so the unmount-flush closure captures
+  // the engine-true value (rest of refs/closures intentionally omitted —
+  // debounce race audit bug #7 is out of scope for v2.1).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cpm.projectFinish]);
 
   // -------------------------------------------------------------------------
   // Edit handlers — all go through a single `commit` that snapshots history
