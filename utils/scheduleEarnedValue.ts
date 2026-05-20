@@ -105,7 +105,18 @@ export function buildEarnedValueSnapshot(
   for (const task of tasks) {
     if (task.isSummary) continue; // summary rows are derived
     const items = (task.linkedEstimateItems ?? [])
-      .map(id => itemMap.get(id))
+      .map(id => {
+        const item = itemMap.get(id);
+        if (!item && task.linkedEstimateItems && task.linkedEstimateItems.length > 0) {
+          // v2.3 wedge C: surface stale linkedEstimateItems so they don't
+          // silently zero out task budgets. Active re-sync on estimate edit
+          // is a separate sub-project — this is honest telemetry only.
+          console.warn(
+            `[scheduleEarnedValue] stale linkedEstimateItems id=${id} on task=${task.id} (${task.title}). Skipping.`
+          );
+        }
+        return item;
+      })
       .filter((x): x is LinkedEstimateItem => !!x)
       .map(li => ({ id: li.materialId, description: li.name, carry: itemCarry(li) }));
 
