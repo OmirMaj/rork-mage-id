@@ -138,6 +138,15 @@ export interface RunCpmOptions {
    * with the workingDaysPerWeek weekend mask.
    */
   nonWorkingDates?: string[];
+  /**
+   * v2.2c — Per-task calendar override map. Caller builds this via
+   * `resolveCalendarForTask(task, schedule)` from
+   * utils/scheduleResourceCalendars.ts. Tasks not in the map fall back
+   * to the project-level workingDaysPerWeek + nonWorkingDates above.
+   * When undefined (default), every task uses project-level —
+   * behavior identical to v2.2b Layer A.
+   */
+  taskCalendars?: Map<string, { workingDaysPerWeek: number; closures: string[] }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -402,12 +411,26 @@ function forwardPass(
   scheduleStart?: string,
   workingDaysPerWeek?: number,
   nonWorkingDates?: string[],
+  taskCalendars?: Map<string, { workingDaysPerWeek: number; closures: string[] }>,
 ): Map<string, { es: number; ef: number }> {
   const map = new Map<string, { es: number; ef: number }>();
   const byId = new Map(all.map(t => [t.id, t]));
   // v2.2b — derive working values once per pass.
   const wdPerWeek = workingDaysPerWeek ?? 7;
   const closuresSet = new Set(nonWorkingDates ?? []);
+  // v2.2c — per-task calendar cache. Built once per pass; same instance
+  // reused at all 3 calendar-aware sites per task (EF + 2 anchor branches).
+  const resolvedCalendars = new Map<string, { wd: number; closures: Set<string> }>();
+  function calendarForTask(taskId: string): { wd: number; closures: Set<string> } {
+    const cached = resolvedCalendars.get(taskId);
+    if (cached) return cached;
+    const cal = taskCalendars?.get(taskId);
+    const resolved = cal
+      ? { wd: cal.workingDaysPerWeek, closures: new Set(cal.closures) }
+      : { wd: wdPerWeek, closures: closuresSet };
+    resolvedCalendars.set(taskId, resolved);
+    return resolved;
+  }
 
   for (const task of ordered) {
     const links = getLinks(task);
@@ -445,37 +468,37 @@ function forwardPass(
       if (anchor.esExact !== undefined) es = anchor.esExact;
       if (anchor.esMin !== undefined && anchor.esMin > es) es = anchor.esMin;
       if (anchor.efMin !== undefined) {
-        // v2.2b — Calendar-aware: walk back working days from efMin
-        // to find the matching ES. Falls back to raw math when
-        // scheduleStart is absent.
+        // v2.2b/c — Calendar-aware: walk back working days from efMin
+        // to find the matching ES, using the per-task calendar.
+        const { wd: aWd, closures: aClosures } = calendarForTask(task.id);
         const req = dur === 0 ? anchor.efMin
           : !scheduleStart ? anchor.efMin - dur + 1
-          : isWorkingDay(anchor.efMin, wdPerWeek, scheduleStart, closuresSet)
-            ? walkWorkingDays(anchor.efMin, dur - 1, -1, wdPerWeek, scheduleStart, closuresSet)
-            : walkWorkingDays(anchor.efMin, dur, -1, wdPerWeek, scheduleStart, closuresSet);
+          : isWorkingDay(anchor.efMin, aWd, scheduleStart, aClosures)
+            ? walkWorkingDays(anchor.efMin, dur - 1, -1, aWd, scheduleStart, aClosures)
+            : walkWorkingDays(anchor.efMin, dur, -1, aWd, scheduleStart, aClosures);
         if (req > es) es = req;
       }
       if (anchor.efExact !== undefined) {
-        // v2.2b — Calendar-aware mirror of efMin branch.
+        // v2.2b/c — Calendar-aware mirror of efMin branch.
+        const { wd: aWd, closures: aClosures } = calendarForTask(task.id);
         es = dur === 0 ? anchor.efExact
           : !scheduleStart ? anchor.efExact - dur + 1
-          : isWorkingDay(anchor.efExact, wdPerWeek, scheduleStart, closuresSet)
-            ? walkWorkingDays(anchor.efExact, dur - 1, -1, wdPerWeek, scheduleStart, closuresSet)
-            : walkWorkingDays(anchor.efExact, dur, -1, wdPerWeek, scheduleStart, closuresSet);
+          : isWorkingDay(anchor.efExact, aWd, scheduleStart, aClosures)
+            ? walkWorkingDays(anchor.efExact, dur - 1, -1, aWd, scheduleStart, aClosures)
+            : walkWorkingDays(anchor.efExact, dur, -1, aWd, scheduleStart, aClosures);
       }
       // esMax / efMax don't push ES earlier — they're enforced as warnings
       // (conflict surfacing is wired in runCpm below, not here).
     }
 
-    // v2.2b — Calendar-aware EF. Branches on whether ES is itself a working
-    // day: if yes, dur-1 advances (ES counts as unit 1). If no, walk dur
-    // working days forward (past the non-working start). Falls back to
-    // raw math when scheduleStart is absent — preserves pre-v2.2b behavior.
+    // v2.2b — Calendar-aware EF. v2.2c — uses per-task resolved calendar
+    // so resource-assigned tasks honor their own working-day mask.
+    const { wd: taskWd, closures: taskClosures } = calendarForTask(task.id);
     const ef = dur === 0 ? es
       : !scheduleStart ? es + dur - 1
-      : isWorkingDay(es, wdPerWeek, scheduleStart, closuresSet)
-        ? walkWorkingDays(es, dur - 1, 1, wdPerWeek, scheduleStart, closuresSet)
-        : walkWorkingDays(es, dur, 1, wdPerWeek, scheduleStart, closuresSet);
+      : isWorkingDay(es, taskWd, scheduleStart, taskClosures)
+        ? walkWorkingDays(es, dur - 1, 1, taskWd, scheduleStart, taskClosures)
+        : walkWorkingDays(es, dur, 1, taskWd, scheduleStart, taskClosures);
     map.set(task.id, { es, ef });
   }
 
@@ -498,12 +521,25 @@ function backwardPass(
   scheduleStartDate?: string,
   workingDaysPerWeek?: number,
   nonWorkingDates?: string[],
+  taskCalendars?: Map<string, { workingDaysPerWeek: number; closures: string[] }>,
 ): Map<string, { ls: number; lf: number }> {
   const byId = new Map(all.map(t => [t.id, t]));
   const result = new Map<string, { ls: number; lf: number }>();
   // v2.2b — derive working values once per pass.
   const wdPerWeek = workingDaysPerWeek ?? 7;
   const closuresSet = new Set(nonWorkingDates ?? []);
+  // v2.2c — per-task calendar cache (mirror of forwardPass).
+  const resolvedCalendars = new Map<string, { wd: number; closures: Set<string> }>();
+  function calendarForTask(taskId: string): { wd: number; closures: Set<string> } {
+    const cached = resolvedCalendars.get(taskId);
+    if (cached) return cached;
+    const cal = taskCalendars?.get(taskId);
+    const resolved = cal
+      ? { wd: cal.workingDaysPerWeek, closures: new Set(cal.closures) }
+      : { wd: wdPerWeek, closures: closuresSet };
+    resolvedCalendars.set(taskId, resolved);
+    return resolved;
+  }
 
   // Pre-compute successor list keyed by predecessor id.
   const successors = new Map<string, { succ: ScheduleTask; link: DependencyLink }[]>();
@@ -563,32 +599,32 @@ function backwardPass(
         lf = anchor.efMax;
       }
       if (anchor.esExact !== undefined) {
-        // v2.2b — Calendar-aware: walk forward working days from
-        // esExact to find the matching LF. Falls back to raw math
-        // when scheduleStartDate is absent.
+        // v2.2b/c — Calendar-aware with per-task calendar.
+        const { wd: aWd, closures: aClosures } = calendarForTask(task.id);
         lf = dur === 0 ? anchor.esExact
           : !scheduleStartDate ? anchor.esExact + dur - 1
-          : isWorkingDay(anchor.esExact, wdPerWeek, scheduleStartDate, closuresSet)
-            ? walkWorkingDays(anchor.esExact, dur - 1, 1, wdPerWeek, scheduleStartDate, closuresSet)
-            : walkWorkingDays(anchor.esExact, dur, 1, wdPerWeek, scheduleStartDate, closuresSet);
+          : isWorkingDay(anchor.esExact, aWd, scheduleStartDate, aClosures)
+            ? walkWorkingDays(anchor.esExact, dur - 1, 1, aWd, scheduleStartDate, aClosures)
+            : walkWorkingDays(anchor.esExact, dur, 1, aWd, scheduleStartDate, aClosures);
       } else if (anchor.esMax !== undefined) {
-        // v2.2b — Calendar-aware mirror of esExact branch.
+        // v2.2b/c — Calendar-aware mirror of esExact branch.
+        const { wd: aWd, closures: aClosures } = calendarForTask(task.id);
         const req = dur === 0 ? anchor.esMax
           : !scheduleStartDate ? anchor.esMax + dur - 1
-          : isWorkingDay(anchor.esMax, wdPerWeek, scheduleStartDate, closuresSet)
-            ? walkWorkingDays(anchor.esMax, dur - 1, 1, wdPerWeek, scheduleStartDate, closuresSet)
-            : walkWorkingDays(anchor.esMax, dur, 1, wdPerWeek, scheduleStartDate, closuresSet);
+          : isWorkingDay(anchor.esMax, aWd, scheduleStartDate, aClosures)
+            ? walkWorkingDays(anchor.esMax, dur - 1, 1, aWd, scheduleStartDate, aClosures)
+            : walkWorkingDays(anchor.esMax, dur, 1, aWd, scheduleStartDate, aClosures);
         if (req < lf) lf = req;
       }
     }
 
-    // v2.2b — Calendar-aware LS. Mirror of forward EF. Falls back to
-    // raw math when scheduleStartDate is absent.
+    // v2.2b — Calendar-aware LS. v2.2c — per-task calendar.
+    const { wd: lsWd, closures: lsClosures } = calendarForTask(task.id);
     const ls = dur === 0 ? lf
       : !scheduleStartDate ? lf - dur + 1
-      : isWorkingDay(lf, wdPerWeek, scheduleStartDate, closuresSet)
-        ? walkWorkingDays(lf, dur - 1, -1, wdPerWeek, scheduleStartDate, closuresSet)
-        : walkWorkingDays(lf, dur, -1, wdPerWeek, scheduleStartDate, closuresSet);
+      : isWorkingDay(lf, lsWd, scheduleStartDate, lsClosures)
+        ? walkWorkingDays(lf, dur - 1, -1, lsWd, scheduleStartDate, lsClosures)
+        : walkWorkingDays(lf, dur, -1, lsWd, scheduleStartDate, lsClosures);
     result.set(task.id, { ls, lf });
   }
 
@@ -797,6 +833,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
   const forward = forwardPass(
     ordered, tasks,
     options.scheduleStartDate, options.workingDaysPerWeek, options.nonWorkingDates,
+    options.taskCalendars,
   );
 
   // 4. Project finish = max EF, unless caller pinned a target.
@@ -810,6 +847,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
   const backward = backwardPass(
     ordered, tasks, forward, projectFinish,
     options.scheduleStartDate, options.workingDaysPerWeek, options.nonWorkingDates,
+    options.taskCalendars,
   );
 
   // 6. Free float.
