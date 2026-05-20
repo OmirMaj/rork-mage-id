@@ -115,6 +115,18 @@ export interface RunCpmOptions {
    * know about anchors yet).
    */
   scheduleStartDate?: string;
+  /**
+   * v2.2b — Working days per week (1-7). Default 7 (no weekend skipping
+   * — preserves pre-v2.2b raw-day behavior for callers that don't opt
+   * in). Typical construction values: 5 (Mon-Fri) or 6 (Mon-Sat).
+   */
+  workingDaysPerWeek?: number;
+  /**
+   * v2.2b — ISO date strings (YYYY-MM-DD) for closures / holidays that
+   * block work even when the weekday would otherwise be working. Union
+   * with the workingDaysPerWeek weekend mask.
+   */
+  nonWorkingDates?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +148,66 @@ function isoToDay(iso: string | undefined, scheduleStart: string | undefined): n
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
   // +1 so scheduleStart itself is day 1 (matching the 1-indexed convention).
   return Math.round((a - b) / 86400000) + 1;
+}
+
+/**
+ * v2.2b — Is `dayIndex` a working day per the given project calendar?
+ * Matches the addWorkingDays helper in scheduleEngine.ts:175 so engine
+ * and renderer agree on which days count.
+ *
+ * - dayIndex 1 = scheduleStartDate (matches isoToDay convention).
+ * - workingDaysPerWeek < 7 excludes weekends (Sun=0, Sat=6).
+ * - closures set holds ISO dates (YYYY-MM-DD) that are blocked even
+ *   when the weekday would normally be working.
+ *
+ * Returns true (permissive) when scheduleStartDate is unparseable so
+ * the engine degrades to raw-day behavior instead of crashing.
+ */
+function isWorkingDay(
+  dayIndex: number,
+  workingDaysPerWeek: number,
+  scheduleStartDate: string,
+  closures: Set<string>,
+): boolean {
+  const startMs = Date.parse(scheduleStartDate + 'T00:00:00Z');
+  if (!Number.isFinite(startMs)) return true;
+  const dayMs = startMs + (dayIndex - 1) * 86400000;
+  const d = new Date(dayMs);
+  const dow = d.getUTCDay();
+  const weekendSkip = workingDaysPerWeek < 7 && (dow === 0 || dow === 6);
+  if (weekendSkip) return false;
+  const iso = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  return !closures.has(iso);
+}
+
+/**
+ * v2.2b — Walk `count` working days from startIndex in `direction`
+ * (1 = forward, -1 = backward), skipping non-working days. Returns the
+ * resulting calendar-day index. For count=0 or missing scheduleStart,
+ * returns startIndex unchanged (no-op).
+ *
+ * Caller MUST pre-check whether startIndex itself is a working day:
+ *  - If yes, pass count = dur - 1 (startIndex counts as the first unit).
+ *  - If no, pass count = dur (advance past the non-working start first).
+ */
+function walkWorkingDays(
+  startIndex: number,
+  count: number,
+  direction: 1 | -1,
+  workingDaysPerWeek: number,
+  scheduleStartDate: string | undefined,
+  closures: Set<string>,
+): number {
+  if (count <= 0 || !scheduleStartDate) return startIndex;
+  let day = startIndex;
+  let counted = 0;
+  while (counted < count) {
+    day += direction;
+    if (isWorkingDay(day, workingDaysPerWeek, scheduleStartDate, closures)) {
+      counted++;
+    }
+  }
+  return day;
 }
 
 interface AnchorClamp {
