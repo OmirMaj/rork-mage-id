@@ -786,9 +786,6 @@ export interface ProjectSchedule {
   /** Per-resource calendar definitions, keyed by ResourceCalendar.key.
    *  Resources opt in via `ProjectResource.calendarKey`. */
   resourceCalendars?: ResourceCalendar[];
-  /** Append-only audit log of every change. P6 famously misses logic
-   *  changes; we don't. Bounded at 500 entries on read for performance. */
-  auditLog?: ScheduleAuditEntry[];
   /** Saved fragnets (template task groups) the user can drag onto a
    *  schedule. Project-scoped so a "bathroom rough-in" template can be
    *  refined per-project, but they can also live in a global library

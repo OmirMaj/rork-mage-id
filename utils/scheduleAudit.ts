@@ -5,14 +5,13 @@
 // before/after. Bounded at 500 entries on the project; older entries
 // roll off (FIFO).
 //
-// Storage: lives on `ProjectSchedule.auditLog` so it persists with the
-// rest of the schedule. The Settings → Schedule audit viewer reads from
-// here.
+// Storage: AsyncStorage (key `tertiary_schedule_audit::<projectId>`).
+// The Settings → Schedule audit viewer reads from here.
 //
-// Side-channel local backup: also append to AsyncStorage so a user who
-// loses connectivity mid-edit can still reconstruct what they did. The
-// AsyncStorage cache is opportunistic; ProjectSchedule is the source of
-// truth.
+// The field `ProjectSchedule.auditLog` used to exist for "ride-with-
+// the-schedule" persistence, but nothing ever populated it and v2.1
+// removed it. AsyncStorage is the sole storage path now; cap at 500
+// entries via FIFO trim.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ScheduleAuditEntry } from '@/types';

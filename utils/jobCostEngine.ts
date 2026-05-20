@@ -20,8 +20,9 @@
 // needs to kill the project before it bleeds further.
 //
 // NOTE: we intentionally don't include progress-weighted EAC variants
-// (CPI / SPI-based) here — those require earnedValueEngine output which is
-// a separate concern. See utils/earnedValueEngine.ts for that flavor.
+// (CPI / SPI-based) here — those require earned-value output which is a
+// separate concern. See utils/scheduleEarnedValue.ts
+// (buildEarnedValueSnapshot, legacyEvmMetrics) for that flavor.
 
 import type {
   Project,
