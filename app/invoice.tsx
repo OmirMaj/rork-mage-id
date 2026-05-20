@@ -24,6 +24,7 @@ import Paywall from '@/components/Paywall';
 import AIInvoicePredictor from '@/components/AIInvoicePredictor';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { generateInvoicePDF, generateInvoicePDFUri } from '@/utils/pdfGenerator';
+import { legacyEvmMetrics } from '@/utils/scheduleEarnedValue';
 import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
@@ -234,9 +235,21 @@ function InvoiceInner() {
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialLineItems);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>(existingInvoice?.paymentTerms ?? 'net_30');
   const [notes, setNotes] = useState(existingInvoice?.notes ?? prefillNotes ?? '');
-  const [progressPercent, setProgressPercent] = useState(
-    existingInvoice?.progressPercent?.toString() ?? '30'
-  );
+  const [progressPercent, setProgressPercent] = useState(() => {
+    if (existingInvoice?.progressPercent != null) {
+      return existingInvoice.progressPercent.toString();
+    }
+    // v2.3 wedge A1 — prefill from the canonical EV pipeline.
+    // legacyEvmMetrics returns percentComplete = (EV/BAC × 100) cost-weighted.
+    // Falls back to 30 only when there's no schedule or no linked estimate.
+    if (project?.schedule && project.linkedEstimate) {
+      const metrics = legacyEvmMetrics(project, [], project.schedule);
+      if (metrics.percentComplete > 0) {
+        return Math.round(metrics.percentComplete).toString();
+      }
+    }
+    return '30';
+  });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('check');
