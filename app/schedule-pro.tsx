@@ -32,6 +32,7 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus } from 'lucide-react-native';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { Colors } from '@/constants/colors';
@@ -64,6 +65,9 @@ import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
 import { resolveCalendarForTask } from '@/utils/scheduleResourceCalendars';
+import {
+  countStaleLinkedEstimateItems, pruneStaleLinkedEstimateItems,
+} from '@/utils/scheduleEarnedValue';
 import type { CpmResult as ContextCpmResult } from '@/components/schedule/SchedulerContext';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
@@ -335,6 +339,40 @@ function ScheduleProScreenInner() {
     ),
     [rolledTasks, project?.linkedEstimate, dayCursor, projectInvoices],
   );
+
+  // v2.4 (audit Item 5) — Count stale linkedEstimateItems references so
+  // the cleanup banner can surface when > 0. Cheap O(N tasks × M refs);
+  // memoized over the same deps as evSnapshot.
+  const staleEstimateRefCount = useMemo(
+    () => countStaleLinkedEstimateItems(rolledTasks, project?.linkedEstimate ?? undefined),
+    [rolledTasks, project?.linkedEstimate],
+  );
+
+  const handleCleanupStaleRefs = useCallback(() => {
+    if (!project?.linkedEstimate || staleEstimateRefCount === 0) return;
+    Alert.alert(
+      'Clean up stale estimate references?',
+      `${staleEstimateRefCount} reference${staleEstimateRefCount === 1 ? '' : 's'} on schedule tasks point to estimate items that no longer exist. Cleaning up will remove the dead IDs from each task's linkedEstimateItems. The tasks themselves keep working — they just won't carry budget from those missing items.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clean up',
+          style: 'destructive',
+          onPress: () => {
+            const { cleanedTasks, removed } = pruneStaleLinkedEstimateItems(
+              workingTasks,
+              project.linkedEstimate ?? undefined,
+            );
+            setWorkingTasks(cleanedTasks);
+            if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            // Toast handled by the cleanup banner re-rendering with count=0
+            // — no extra UI needed.
+            void removed;
+          },
+        },
+      ]
+    );
+  }, [project, staleEstimateRefCount, workingTasks]);
 
   // Anchored early so the export/share/AI handlers below can reference it
   // without running into the `used before declaration` trap — TS is strict
@@ -1237,6 +1275,22 @@ function ScheduleProScreenInner() {
         </View>
       )}
 
+      {/* v2.4 (audit Item 5) — Surface stale linkedEstimateItems refs +
+          offer one-tap cleanup. Hidden when count is 0 (typical case). */}
+      {staleEstimateRefCount > 0 && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <TouchableOpacity
+            onPress={handleCleanupStaleRefs}
+            style={[styles.cleanupBanner]}
+            testID="cleanup-stale-estimate-refs"
+          >
+            <Text style={styles.cleanupBannerText}>
+              {staleEstimateRefCount} stale estimate reference{staleEstimateRefCount === 1 ? '' : 's'} found · tap to clean up
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Sub Schedule Collab — surfaces a tile when subs have posted
           daily updates via the shared URL. Hidden when nothing's been
           posted yet (component returns null). */}
@@ -1562,6 +1616,22 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   primaryBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.bodyCompact.fontSize },
+
+  // v2.4 — cleanup banner for stale linkedEstimateItems refs.
+  // Uses accent-soft palette (attention without alarm) to match the
+  // file's existing soft-banner pattern.
+  cleanupBanner: {
+    backgroundColor: t.accentSoft,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: t.accent,
+  },
+  cleanupBannerText: {
+    color: t.accentLabel,
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600',
+  },
 
   header: {
     flexDirection: 'row',

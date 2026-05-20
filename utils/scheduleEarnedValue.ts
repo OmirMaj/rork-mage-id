@@ -187,6 +187,68 @@ export function performanceTone(value: number): 'good' | 'warn' | 'bad' {
   return 'bad';
 }
 
+/**
+ * v2.4 (audit Item 5) — Count stale linkedEstimateItems references on the
+ * given tasks. A reference is stale when the materialId points to an
+ * item that's no longer in linkedEstimate.items (deleted or
+ * recategorized). v2.3 wedge C surfaced these via console.warn but
+ * didn't actively prune them — this helper enables the active cleanup
+ * path: count first (for "show me how many"), then call
+ * pruneStaleLinkedEstimateItems to apply.
+ */
+export function countStaleLinkedEstimateItems(
+  tasks: ScheduleTask[],
+  linkedEstimate: LinkedEstimate | undefined,
+): number {
+  if (!linkedEstimate) return 0;
+  const valid = new Set(linkedEstimate.items.map(i => i.materialId));
+  let count = 0;
+  for (const t of tasks) {
+    if (!t.linkedEstimateItems) continue;
+    for (const id of t.linkedEstimateItems) {
+      if (!valid.has(id)) count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * v2.4 (audit Item 5) — Active cleanup of stale linkedEstimateItems
+ * references. Returns a new task array with every dead materialId
+ * removed from each task's linkedEstimateItems + a count of refs
+ * pruned. Caller decides when to apply (typically: an explicit user
+ * tap of a "Clean up N stale references" button surfaced when the
+ * count from countStaleLinkedEstimateItems > 0).
+ *
+ * Non-destructive: a task whose linkedEstimateItems becomes empty
+ * after pruning gets `linkedEstimateItems: []` (not `undefined`) so
+ * the user can still see "no items linked" vs "never linked any."
+ */
+export function pruneStaleLinkedEstimateItems(
+  tasks: ScheduleTask[],
+  linkedEstimate: LinkedEstimate | undefined,
+): { cleanedTasks: ScheduleTask[]; removed: number } {
+  if (!linkedEstimate) return { cleanedTasks: tasks, removed: 0 };
+  const valid = new Set(linkedEstimate.items.map(i => i.materialId));
+  let removed = 0;
+  let mutated = false;
+  const cleanedTasks = tasks.map(t => {
+    if (!t.linkedEstimateItems || t.linkedEstimateItems.length === 0) return t;
+    const kept = t.linkedEstimateItems.filter(id => {
+      const ok = valid.has(id);
+      if (!ok) removed++;
+      return ok;
+    });
+    if (kept.length === t.linkedEstimateItems.length) return t;
+    mutated = true;
+    return { ...t, linkedEstimateItems: kept };
+  });
+  // Return original array reference when no changes — preserves React
+  // referential-equality so consumers' useMemo deps don't trigger
+  // needlessly.
+  return { cleanedTasks: mutated ? cleanedTasks : tasks, removed };
+}
+
 // ---------------------------------------------------------------------------
 // Cash flow + legacy-EVM adapter
 //
