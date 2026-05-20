@@ -42,6 +42,9 @@ import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import { sendEmail } from '@/utils/emailService';
 import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import SignaturePad from '@/components/SignaturePad';
+import { supabase } from '@/lib/supabase';
+import { sealSignedContract, downloadSealedContractPdf, SealAlreadyExistsError } from '@/utils/contractSealing';
+import { nailIt } from '@/components/animations/NailItToast';
 import { fireConfetti } from '@/components/animations/Confetti';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus } from '@/types';
@@ -354,6 +357,46 @@ export default function ContractScreen() {
     }
   }, [contract, project, ctxUpdateProject, settings]);
 
+  const handleSealSignedContract = useCallback(async () => {
+    if (!project || !contract || !user?.id) return;
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const result = await sealSignedContract({
+        contract,
+        project,
+        branding: settings?.branding ?? {},
+        supabase,
+        userId: user.id,
+      });
+      // Reflect into local state immediately so the UI flips to Download.
+      setContract({
+        ...contract,
+        signedPdfUrl: result.signedPdfUrl,
+        documentHash: result.documentHash,
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      nailIt(`Sealed · ${result.documentHash.slice(0, 12)}…`);
+    } catch (err) {
+      if (err instanceof SealAlreadyExistsError) {
+        Alert.alert('Already sealed', 'This contract has already been sealed.');
+        return;
+      }
+      console.error('[Contract] Seal error:', err);
+      Alert.alert('Seal failed', err instanceof Error ? err.message : 'Could not seal the contract. Please try again.');
+    }
+  }, [project, contract, user?.id, settings?.branding]);
+
+  const handleDownloadSealedPdf = useCallback(async () => {
+    if (!contract || !user?.id) return;
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await downloadSealedContractPdf({ contract, userId: user.id, supabase });
+    } catch (err) {
+      console.error('[Contract] Download sealed PDF error:', err);
+      Alert.alert('Download failed', err instanceof Error ? err.message : 'Could not download the sealed PDF.');
+    }
+  }, [contract, user?.id]);
+
   if (!project) {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
@@ -663,6 +706,30 @@ export default function ContractScreen() {
                 </Text>
               </View>
             </View>
+            {!contract.signedPdfUrl && (
+              <TouchableOpacity
+                style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
+                onPress={() => { void handleSealSignedContract(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Seal and save signed PDF"
+                testID="contract-seal-btn"
+              >
+                <FileText size={16} color="#FFF" />
+                <Text style={styles.primaryBtnText}>Seal &amp; save signed PDF</Text>
+              </TouchableOpacity>
+            )}
+            {contract.signedPdfUrl && (
+              <TouchableOpacity
+                style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
+                onPress={() => { void handleDownloadSealedPdf(); }}
+                accessibilityRole="button"
+                accessibilityLabel="Download sealed signed PDF"
+                testID="contract-download-sealed-btn"
+              >
+                <FileText size={16} color="#FFF" />
+                <Text style={styles.primaryBtnText}>Download signed PDF</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.primaryBtn, { flex: 0, alignSelf: 'stretch', marginTop: 10 }]}
               onPress={() => router.push({ pathname: '/bill-from-estimate', params: { projectId } } as any)}
