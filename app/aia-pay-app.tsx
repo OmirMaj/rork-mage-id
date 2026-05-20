@@ -19,6 +19,7 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
+import { legacyEvmMetrics } from '@/utils/scheduleEarnedValue';
 import {
   AIAPayApplication,
   AIASOVLine,
@@ -192,6 +193,30 @@ function AIAPayAppScreenInner() {
       lines: prev.lines.map(l => ({ ...l, retainagePercent: pct })),
     } : prev);
   }, []);
+
+  // v2.3 wedge A2 — apply the project-level cost-weighted EV % to every
+  // AIA line. Per-line linkedTaskId mapping (a SavedAIAPayAppLine field)
+  // is its own sub-project — this is project-level sync only.
+  const handleSyncFromSchedule = useCallback(() => {
+    if (!project?.schedule || !project.linkedEstimate || !app) {
+      Alert.alert(
+        'No schedule data',
+        'Link a schedule with a linked estimate to use this action.'
+      );
+      return;
+    }
+    const metrics = legacyEvmMetrics(project, [], project.schedule);
+    const pct = Math.round(metrics.percentComplete);
+    if (pct <= 0) {
+      Alert.alert(
+        'No progress yet',
+        'Schedule shows 0% complete. Update task progress first.'
+      );
+      return;
+    }
+    app.lines.forEach(line => applyPercentToLine(line.id, pct));
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [project, app, applyPercentToLine]);
 
   // Build a portable SavedAIAPayApp record from the in-memory app + computed
   // totals. Used both for the explicit "Save to Project" tap and as a
@@ -517,7 +542,17 @@ function AIAPayAppScreenInner() {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Schedule of Values (G703)</Text>
-            <Text style={styles.sectionTitleCount}>{app.lines.length} items</Text>
+            <View style={styles.sovHeaderActions}>
+              <TouchableOpacity
+                onPress={handleSyncFromSchedule}
+                style={styles.chip}
+                activeOpacity={0.8}
+                testID="aia-sync-from-schedule"
+              >
+                <Text style={styles.chipText}>Sync from schedule</Text>
+              </TouchableOpacity>
+              <Text style={styles.sectionTitleCount}>{app.lines.length} items</Text>
+            </View>
           </View>
           <Text style={styles.sectionHint}>
             Tap a line to adjust this period's work completed. Use the % slider to quickly set line progress.
@@ -818,6 +853,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: themeColors.text, marginBottom: 4 },
   sectionTitleCount: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  sovHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionHint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 16 },
 
   formRow: { marginBottom: 10 },
