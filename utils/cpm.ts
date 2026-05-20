@@ -448,9 +448,10 @@ function backwardPass(
 // ---------------------------------------------------------------------------
 //
 // Free float = how much this task can slip WITHOUT delaying ANY successor's
-// early start. Computed only for FS links in this first pass — the other
-// link types have messier "earliest successor impact" semantics and the
-// pragmatic MS Project convention is to only surface TF for those.
+// relevant CPM date (ES for FS/SS successors; EF for FF/SF successors —
+// any shift in T's ES propagates to T's EF since duration is fixed, so
+// the formulas all reduce to "how much can T's ES move before the
+// successor's constraint binds"). MIN over outgoing links, clamp at 0.
 
 function computeFreeFloat(
   tasks: ScheduleTask[],
@@ -484,10 +485,18 @@ function computeFreeFloat(
     for (const { succ, link } of succs) {
       const succFwd = forward.get(succ.id);
       if (!succFwd) continue;
-      if ((link.type ?? 'FS') !== 'FS') continue;
       const lag = link.lagDays || 0;
-      // succ.ES − lag − 1 is the latest this task can finish; − EF is slack.
-      const slack = succFwd.es - lag - 1 - fwd.ef;
+      // Bound on this task's allowable forward shift Δ that keeps the
+      // successor's relevant CPM date (ES for FS/SS; EF for FF/SF)
+      // unchanged. See spec §4.1 for derivation. MIN across outgoing
+      // links is the predecessor's free float.
+      let slack: number;
+      switch (link.type ?? 'FS') {
+        case 'FS': slack = succFwd.es - fwd.ef - lag - 1; break;
+        case 'SS': slack = succFwd.es - fwd.es - lag;     break;
+        case 'FF': slack = succFwd.ef - fwd.ef - lag;     break;
+        case 'SF': slack = succFwd.ef - fwd.es - lag;     break;
+      }
       if (slack < minSucc) minSucc = slack;
     }
     ff.set(task.id, minSucc === Infinity ? 0 : Math.max(0, minSucc));
@@ -726,20 +735,6 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
 // ---------------------------------------------------------------------------
 // Helpers for the UI layer
 // ---------------------------------------------------------------------------
-
-/**
- * Annotates the tasks with their CPM results (isCriticalPath + optional
- * baseline-style fields). Non-destructive — returns a new array. The UI uses
- * this to render the critical-path highlight without threading CpmResult
- * through every component.
- */
-export function applyCpmToTasks(tasks: ScheduleTask[], cpm: CpmResult): ScheduleTask[] {
-  return tasks.map(t => {
-    const r = cpm.perTask.get(t.id);
-    if (!r) return t;
-    return { ...t, isCriticalPath: r.isCritical };
-  });
-}
 
 /**
  * Human-readable float summary for the grid's Float column.
