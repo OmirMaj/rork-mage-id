@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI, Submittal } from '@/types';
+import type { CompanyBranding, ContractSignature, Project, ProjectContract, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI, Submittal } from '@/types';
 import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
@@ -1278,6 +1278,124 @@ export async function generateChangeOrderPDFUri(
     return uri;
   } catch (error) {
     console.error('[PDF] Error generating CO PDF URI:', error);
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Contract — sealed/signed PDF render (used by utils/contractSealing.ts
+// to produce the immutable artifact stored in the secure-contracts
+// bucket). Mirrors the structure of buildChangeOrderHtml +
+// generateChangeOrderPDFUri: HTML builder + thin Print wrapper.
+// Signatures: when sig.signaturePaths is present (GC-side capture from
+// SignaturePad), render the strokes as inline SVG; when it's absent
+// (homeowner-side counter-sign via the portal RPC, which captures only
+// a typed name), render the typed name + signedAt timestamp instead.
+// Both forms are legal-grade per ESIGN Act intent-to-sign + identity.
+// ──────────────────────────────────────────────────────────────────────
+
+function buildSignatureBlock(label: string, sig: ContractSignature | undefined): string {
+  if (!sig) {
+    return `
+      <div style="border:1px dashed ${PDF_PALETTE.bone};padding:14px;border-radius:8px;color:${PDF_PALETTE.text2};font-size:12px">
+        <div style="font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${PDF_PALETTE.text2};margin-bottom:4px">${escHtml(label)}</div>
+        <div>Not signed.</div>
+      </div>`;
+  }
+  const sigVisual = (sig.signaturePaths && sig.signaturePaths.length > 0)
+    ? `<svg viewBox="0 0 400 120" preserveAspectRatio="xMinYMid meet" style="width:100%;max-width:360px;height:90px;background:#FFF">
+         ${sig.signaturePaths.map((d) => `<path d="${escHtml(d)}" stroke="#0B0D10" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />`).join('')}
+       </svg>`
+    : `<div style="font-family:'Caveat',cursive,Georgia,serif;font-size:30px;color:#0B0D10;line-height:1.05;padding:6px 0">${escHtml(sig.name)}</div>`;
+  return `
+    <div style="border:1px solid ${PDF_PALETTE.bone};padding:14px;border-radius:8px">
+      <div style="font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:${PDF_PALETTE.text2};font-size:11px;margin-bottom:6px">${escHtml(label)}</div>
+      ${sigVisual}
+      <div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:6px">${escHtml(sig.name)} · ${escHtml(fmtDate(sig.signedAt))}</div>
+    </div>`;
+}
+
+function buildContractHtml(contract: ProjectContract, project: Project, branding: CompanyBranding): string {
+  const title = `Contract — ${project.name}`;
+  const milestones = Array.isArray(contract.paymentSchedule) ? contract.paymentSchedule : [];
+  const allowances = Array.isArray(contract.allowances) ? contract.allowances : [];
+  const scopeText = contract.scopeText && contract.scopeText.trim() ? contract.scopeText : (project.description ?? '');
+
+  const milestonesHtml = milestones.length === 0 ? '' : `
+    <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Payment milestones</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:${PDF_PALETTE.cream2}">
+        <th style="text-align:left;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone}">Milestone</th>
+        <th style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone};white-space:nowrap">Amount</th>
+        <th style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone};white-space:nowrap">Due</th>
+      </tr></thead>
+      <tbody>
+        ${milestones.map((m) => `
+          <tr>
+            <td style="padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(m.label)}</td>
+            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(fmtMoney(Number(m.amount ?? 0)))}</td>
+            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(m.triggerDate ? fmtDate(m.triggerDate) : '')}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const allowancesHtml = allowances.length === 0 ? '' : `
+    <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Allowances</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:${PDF_PALETTE.cream2}">
+        <th style="text-align:left;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone}">Item</th>
+        <th style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone};white-space:nowrap">Allowance</th>
+      </tr></thead>
+      <tbody>
+        ${allowances.map((a) => `
+          <tr>
+            <td style="padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(a.category)}${a.description ? ` — ${escHtml(a.description)}` : ''}</td>
+            <td style="text-align:right;padding:8px 10px;border-bottom:1px solid ${PDF_PALETTE.bone2}">${escHtml(fmtMoney(Number(a.amount ?? 0)))}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const warrantyHtml = (contract.warrantyText && contract.warrantyText.trim()) ? `
+    <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Warranty</h2>
+    <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};white-space:pre-wrap">${escHtml(contract.warrantyText)}</div>` : '';
+
+  const sealedAt = fmtDate(new Date().toISOString());
+
+  const bodyHtml = `
+    ${pdfHeader(branding)}
+    <h1 style="font-family:'Fraunces',Georgia,serif;font-size:26px;margin:6px 0 2px">Construction Contract</h1>
+    <div style="font-size:12px;color:${PDF_PALETTE.text2};margin-bottom:6px">Status: SIGNED · Sealed ${escHtml(sealedAt)}</div>
+    ${scopeText ? `
+      <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:18px 0 8px">Scope</h2>
+      <div style="font-size:13px;line-height:1.55;color:${PDF_PALETTE.text};white-space:pre-wrap">${escHtml(scopeText)}</div>` : ''}
+    <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:18px 0 8px">Contract value</h2>
+    <div style="font-size:14px"><strong>${escHtml(fmtMoney(Number(contract.contractValue ?? 0)))}</strong></div>
+    ${milestonesHtml}
+    ${allowancesHtml}
+    ${warrantyHtml}
+    <h2 style="font-family:'Fraunces',Georgia,serif;font-size:18px;margin:24px 0 8px">Signatures</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:260px">${buildSignatureBlock('General contractor', contract.gcSignature)}</div>
+      <div style="flex:1;min-width:260px">${buildSignatureBlock('Homeowner', contract.homeownerSignature)}</div>
+    </div>
+    <div style="margin-top:18px;padding:10px 12px;border:1px solid ${PDF_PALETTE.bone};border-radius:6px;background:#FAFAF7;font-size:11px;color:${PDF_PALETTE.text2}">
+      This document was electronically signed and sealed via MAGE ID. The cryptographic hash recorded with this contract makes any subsequent byte-level change detectable. Sealed at ${escHtml(sealedAt)}.
+    </div>`;
+
+  return pdfShell({ title, bodyHtml, branding });
+}
+
+export async function generateContractPDFUri(
+  contract: ProjectContract, project: Project, branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildContractHtml(contract, project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    console.log('[PDF] Contract PDF URI:', uri);
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating contract PDF URI:', error);
     return null;
   }
 }
