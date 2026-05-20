@@ -387,6 +387,7 @@ function backwardPass(
   all: ScheduleTask[],
   forward: Map<string, { es: number; ef: number }>,
   projectFinish: number,
+  scheduleStartDate?: string,
 ): Map<string, { ls: number; lf: number }> {
   const byId = new Map(all.map(t => [t.id, t]));
   const result = new Map<string, { ls: number; lf: number }>();
@@ -434,6 +435,26 @@ function backwardPass(
         case 'SF': thisLf = (succLate.lf - lag) + Math.max(0, dur - 1); break;
       }
       if (thisLf < lf) lf = thisLf;
+    }
+
+    // v2.2a — Backward-pass anchor clamps (mirror of the forward-pass
+    // clamps at :355-368). Apply AFTER the dependency-derived LF so
+    // anchors can only tighten LF, never relax it. Strictest of multiple
+    // bounds wins via min(). ALAP needs no clamp — the default
+    // lf = projectFinish IS "as late as possible".
+    const anchor = computeAnchor(task, scheduleStartDate);
+    if (anchor) {
+      if (anchor.efExact !== undefined) {
+        lf = anchor.efExact;
+      } else if (anchor.efMax !== undefined && anchor.efMax < lf) {
+        lf = anchor.efMax;
+      }
+      if (anchor.esExact !== undefined) {
+        lf = dur === 0 ? anchor.esExact : anchor.esExact + dur - 1;
+      } else if (anchor.esMax !== undefined) {
+        const req = dur === 0 ? anchor.esMax : anchor.esMax + dur - 1;
+        if (req < lf) lf = req;
+      }
     }
 
     const ls = dur === 0 ? lf : lf - dur + 1;
@@ -652,7 +673,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
   }
 
   // 5. Backward pass.
-  const backward = backwardPass(ordered, tasks, forward, projectFinish);
+  const backward = backwardPass(ordered, tasks, forward, projectFinish, options.scheduleStartDate);
 
   // 6. Free float.
   const freeFloat = computeFreeFloat(tasks, forward);
