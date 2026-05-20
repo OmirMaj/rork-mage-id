@@ -19,6 +19,14 @@ export interface AIASOVLine {
   thisPeriod: number;      // column E — work completed this period
   materialsPresentlyStored: number; // column F
   retainagePercent: number; // default from cover
+  /**
+   * v2.4 — Optional binding to a schedule task. When set, the
+   * "Sync from schedule" action uses this task's progress instead of
+   * the project-level EV percentage to fill thisPeriod. Lets a GC
+   * billing per-trade get per-trade accuracy instead of one
+   * project-wide average across all SOV lines.
+   */
+  linkedTaskId?: string;
 }
 
 export interface AIAPayApplication {

@@ -194,9 +194,11 @@ function AIAPayAppScreenInner() {
     } : prev);
   }, []);
 
-  // v2.3 wedge A2 — apply the project-level cost-weighted EV % to every
-  // AIA line. Per-line linkedTaskId mapping (a SavedAIAPayAppLine field)
-  // is its own sub-project — this is project-level sync only.
+  // v2.3 wedge A2 — sync schedule progress to AIA lines.
+  // v2.4 (Item 4) — Honor per-line linkedTaskId bindings: a line with
+  // linkedTaskId set uses THAT task's progress for itself; lines without
+  // a binding fall back to the project-level EV %. Gives per-trade billing
+  // accuracy when the GC has bound SOV lines to schedule tasks.
   const handleSyncFromSchedule = useCallback(() => {
     if (!project?.schedule || !project.linkedEstimate || !app) {
       Alert.alert(
@@ -206,15 +208,35 @@ function AIAPayAppScreenInner() {
       return;
     }
     const metrics = legacyEvmMetrics(project, [], project.schedule);
-    const pct = Math.round(metrics.percentComplete);
-    if (pct <= 0) {
+    const projectPct = Math.round(metrics.percentComplete);
+    const anyLinked = app.lines.some(l => l.linkedTaskId);
+    if (projectPct <= 0 && !anyLinked) {
       Alert.alert(
         'No progress yet',
         'Schedule shows 0% complete. Update task progress first.'
       );
       return;
     }
-    app.lines.forEach(line => applyPercentToLine(line.id, pct));
+    const tasksById = new Map(project.schedule.tasks.map(t => [t.id, t]));
+    let appliedCount = 0;
+    app.lines.forEach(line => {
+      let pct = projectPct;
+      if (line.linkedTaskId) {
+        const linked = tasksById.get(line.linkedTaskId);
+        if (linked) pct = Math.round(linked.progress ?? 0);
+      }
+      if (pct > 0) {
+        applyPercentToLine(line.id, pct);
+        appliedCount++;
+      }
+    });
+    if (appliedCount === 0) {
+      Alert.alert(
+        'No progress yet',
+        'Neither project EV nor any linked task has progress > 0.'
+      );
+      return;
+    }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, app, applyPercentToLine]);
 
@@ -253,6 +275,7 @@ function AIAPayAppScreenInner() {
         thisPeriod: l.thisPeriod,
         materialsPresentlyStored: l.materialsPresentlyStored,
         retainagePercent: l.retainagePercent,
+        linkedTaskId: l.linkedTaskId, // v2.4 — preserve per-line schedule binding
       })),
       notes: app.notes,
       totals: {

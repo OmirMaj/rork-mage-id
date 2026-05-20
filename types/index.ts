@@ -1122,6 +1122,13 @@ export interface SavedAIAPayAppLine {
   thisPeriod: number;
   materialsPresentlyStored: number;
   retainagePercent: number;
+  /**
+   * v2.4 — Optional binding to a schedule task. Mirrors AIASOVLine.
+   * When set, the "Sync from schedule" handler in app/aia-pay-app.tsx
+   * uses this task's progress for this specific line instead of the
+   * project-level EV % that other lines fall back to.
+   */
+  linkedTaskId?: string;
 }
 
 export interface SavedAIAPayApp {
