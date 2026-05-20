@@ -10,6 +10,7 @@ import {
   Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool,
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
+import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -731,34 +732,50 @@ function ChangeOrderInner() {
                   )}
                 </View>
                 {!isLocked ? (
-                  <View style={styles.lineItemFields}>
-                    <View style={styles.lineItemFieldSmall}>
-                      <Text style={styles.lineItemFieldLabel}>Qty</Text>
-                      <TextInput
-                        style={styles.lineItemInput}
-                        value={item.quantity.toString()}
-                        onChangeText={(v) => handleUpdateItemQty(item.id, v)}
-                        keyboardType="numeric"
+                  <>
+                    <View style={styles.lineItemFields}>
+                      <View style={styles.lineItemFieldSmall}>
+                        <Text style={styles.lineItemFieldLabel}>Qty</Text>
+                        <TextInput
+                          style={styles.lineItemInput}
+                          value={item.quantity.toString()}
+                          onChangeText={(v) => handleUpdateItemQty(item.id, v)}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <View style={styles.lineItemFieldSmall}>
+                        <Text style={styles.lineItemFieldLabel}>Unit</Text>
+                        <Text style={styles.lineItemUnitText}>{item.unit}</Text>
+                      </View>
+                      <View style={styles.lineItemFieldSmall}>
+                        <Text style={styles.lineItemFieldLabel}>Price</Text>
+                        <TextInput
+                          style={styles.lineItemInput}
+                          value={item.unitPrice.toString()}
+                          onChangeText={(v) => handleUpdateItemPrice(item.id, v)}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <View style={styles.lineItemFieldSmall}>
+                        <Text style={styles.lineItemFieldLabel}>Total</Text>
+                        <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
+                      </View>
+                    </View>
+                    <View style={{ marginTop: 8 }}>
+                      <CSIDivisionPicker
+                        value={item.csiDivision}
+                        suggestFromText={item.description}
+                        onChange={(next) =>
+                          setLineItems((prev) =>
+                            prev.map((li) =>
+                              li.id === item.id ? { ...li, csiDivision: next } : li,
+                            ),
+                          )
+                        }
+                        testID={`co-line-csi-${item.id}`}
                       />
                     </View>
-                    <View style={styles.lineItemFieldSmall}>
-                      <Text style={styles.lineItemFieldLabel}>Unit</Text>
-                      <Text style={styles.lineItemUnitText}>{item.unit}</Text>
-                    </View>
-                    <View style={styles.lineItemFieldSmall}>
-                      <Text style={styles.lineItemFieldLabel}>Price</Text>
-                      <TextInput
-                        style={styles.lineItemInput}
-                        value={item.unitPrice.toString()}
-                        onChangeText={(v) => handleUpdateItemPrice(item.id, v)}
-                        keyboardType="numeric"
-                      />
-                    </View>
-                    <View style={styles.lineItemFieldSmall}>
-                      <Text style={styles.lineItemFieldLabel}>Total</Text>
-                      <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
-                    </View>
-                  </View>
+                  </>
                 ) : (
                   <View style={styles.lineItemFields}>
                     <Text style={styles.lockedFieldText}>{item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}</Text>
