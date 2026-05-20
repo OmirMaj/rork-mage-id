@@ -1,0 +1,25 @@
+# MAGE ID marketing site — https://mageid.app
+# Marketing-audit M4 fix.
+
+User-agent: *
+Allow: /
+
+# Token-gated portal pages — already noindex'd at the page level, but
+# explicit Disallow gives crawlers a shortcut so they don't even fetch.
+Disallow: /portal/
+Disallow: /sub-portal/
+Disallow: /architect/
+
+# Email lifecycle subdirs — functional, not content. List-Unsubscribe
+# links land here with one-shot ?e=&k= query params.
+Disallow: /unsubscribe
+Disallow: /preferences
+
+# Internal preview / screenshot pages — not public landing pages.
+Disallow: /app-store-screenshots/
+Disallow: /screenshots/
+
+# 404 page — should never be linked-to directly.
+Disallow: /404.html
+
+Sitemap: https://mageid.app/sitemap.xml

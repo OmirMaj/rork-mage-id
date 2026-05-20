@@ -53,10 +53,18 @@
   to = "/preferences/index.html"
   status = 200
 
+# Catch-all 404 — marketing-audit M3 fix. Previously this was a 200 status
+# fallback to /index.html, which masked all unknown URLs as the homepage
+# (bad SEO: search engines couldn't drop dead URLs; bad UX: users typing
+# /featurez saw the homepage with no indication they'd typoed). Now we
+# serve a real 404 page with a real 404 status. Netlify still serves any
+# directly-existing file (/features/financials.html, /pricing.html, etc.)
+# before this catch-all triggers, so this only fires on genuinely unknown
+# paths.
 [[redirects]]
   from = "/*"
-  to = "/index.html"
-  status = 200
+  to = "/404.html"
+  status = 404
 
 # Cache static assets aggressively; HTML stays uncached so updates ship
 # immediately on push without users having to hard-refresh.
@@ -79,3 +87,43 @@
   for = "/*.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Security headers — marketing-audit M1 fix.
+#
+# Defense-in-depth for a site that handles unauthenticated portal flows
+# (portal_sign_contract, portal_choose_selection, sub invoice submission)
+# + form submissions to Formspree + payment redirects.
+#
+# CSP rationale (per-directive):
+#   default-src 'self'      — restrict everything not explicitly listed
+#   script-src              — 'unsafe-inline' is required by the PostHog
+#                             snippet in <head>; can be tightened with
+#                             nonces later. PostHog assets domain whitelisted.
+#   style-src               — 'unsafe-inline' for the per-page <style>
+#                             blocks; Google Fonts CSS whitelisted.
+#   font-src                — Google Fonts CDN.
+#   img-src                 — data: for inline base64 (signature canvas
+#                             exports), https: for any third-party logo/og.
+#   connect-src             — Supabase REST + WebSocket (realtime),
+#                             PostHog ingest + assets, Formspree form posts.
+#   frame-ancestors 'none'  — paired with X-Frame-Options for older browsers.
+#   base-uri 'self'         — prevent <base> hijack.
+#   form-action             — restrict form posts to self + Formspree.
+#   object-src 'none'       — no plugins/Flash/embeds.
+#   upgrade-insecure-requests — force https on any accidental http reference.
+#
+# Permissions-Policy: portals legitimately use camera (sub-portal photo
+# uploads) so camera=(self). Microphone + geolocation + payment-API not used.
+#
+# HSTS: 2-year max-age + includeSubDomains. NOT including 'preload' until
+# we explicitly submit at https://hstspreload.org/ — header alone is enough
+# for browser-level protection on second visit onward.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://us.i.posthog.com https://us-assets.i.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://nteoqhcswappxxjlpvap.supabase.co wss://nteoqhcswappxxjlpvap.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://formspree.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://formspree.io; object-src 'none'; upgrade-insecure-requests"

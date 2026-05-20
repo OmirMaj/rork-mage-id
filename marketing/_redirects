@@ -6,5 +6,11 @@
 # never sent to the server.
 /sub-portal/*  /sub-portal/index.html  200
 
-# SPA-style fallback: unknown paths go to the landing page rather than the default Netlify 404.
-/*  /index.html  200
+# Catch-all 404 (marketing-audit M3). Was previously `/* /index.html 200` —
+# unknown URLs got served the homepage with status 200, which hurt SEO
+# (search engines couldn't drop dead URLs from the index) and UX (typos
+# silently served the homepage). Now: unknown paths serve /404.html with
+# real 404 status. Netlify still serves any directly-existing file
+# (/features/financials.html, /pricing.html, etc.) before this catch-all
+# triggers, so this only fires on genuinely unknown paths.
+/*  /404.html  404

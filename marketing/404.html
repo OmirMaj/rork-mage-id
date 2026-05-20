@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Not found — MAGE ID</title>
+  <meta name="description" content="The page you were looking for doesn't exist on MAGE ID." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #0B0D10;
+      --bg-elev: #14171C;
+      --fg: #F2F3F5;
+      --fg-muted: #9BA3AD;
+      --accent: #E7C77B;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+    .code {
+      font-family: 'Fraunces', Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(96px, 18vw, 192px);
+      line-height: 1;
+      letter-spacing: -0.04em;
+      background: linear-gradient(180deg, var(--accent) 0%, rgba(231, 199, 123, 0.4) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-family: 'Fraunces', Georgia, serif;
+      font-weight: 600;
+      font-size: clamp(28px, 4vw, 40px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+    p {
+      color: var(--fg-muted);
+      font-size: 1.0625rem;
+      line-height: 1.5;
+      max-width: 36rem;
+      margin: 0 auto 2rem;
+    }
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.5rem;
+      background: var(--fg);
+      color: var(--bg);
+      font-weight: 600;
+      font-size: 0.9375rem;
+      text-decoration: none;
+      border-radius: 999px;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .cta:hover { transform: translateY(-1px); background: var(--accent); }
+    .links {
+      margin-top: 2.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      max-width: 36rem;
+      width: 100%;
+    }
+    .links h2 {
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 0.8125rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+      margin-bottom: 1rem;
+    }
+    .links ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.5rem;
+    }
+    .links a {
+      color: var(--fg);
+      text-decoration: none;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9375rem;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .links a:hover { border-color: var(--accent); color: var(--accent); }
+    .grain {
+      position: fixed; inset: 0;
+      background-image: radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 3px 3px;
+      pointer-events: none;
+      z-index: 1;
+    }
+    main { position: relative; z-index: 2; }
+  </style>
+
+  <!-- PostHog — track 404s as analytics events to identify dead-link patterns. -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+      api_host: 'https://us.i.posthog.com',
+      capture_pageview: false,
+      autocapture: false,
+      persistence: 'localStorage+cookie',
+    });
+    // Emit a specific 404 event with the attempted path so we can spot
+    // patterns of dead links (typos, old urls being linked externally, etc.)
+    try {
+      posthog.capture('marketing_404', {
+        attempted_path: window.location.pathname + window.location.search,
+        referrer: document.referrer || null,
+      });
+    } catch (_) {}
+  </script>
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <main>
+    <div class="code">404</div>
+    <h1>This page doesn't exist.</h1>
+    <p>The link you followed may be broken, or the page may have been moved. Head back to the home page or try one of the links below.</p>
+    <a class="cta" href="/">Back to home →</a>
+
+    <div class="links">
+      <h2>Where to next?</h2>
+      <ul>
+        <li><a href="/pricing.html">Pricing</a></li>
+        <li><a href="/features/">Features</a></li>
+        <li><a href="/demo.html">Book a demo</a></li>
+        <li><a href="/builders/">For builders</a></li>
+        <li><a href="/architect/">For architects</a></li>
+        <li><a href="/support.html">Support</a></li>
+      </ul>
+    </div>
+  </main>
+</body>
+</html>
