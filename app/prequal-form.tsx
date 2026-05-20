@@ -28,6 +28,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { supabase } from '@/lib/supabase';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -39,25 +40,139 @@ import type {
 
 // ─────────────────────────────────────────────────────────────
 
+// Maps a prequal_packets row (snake_case) to PrequalPacket (camelCase).
+// Mirrors the inline mapper at contexts/ProjectContext.tsx:495 — kept in
+// sync by hand because the contexts one runs against the authed-GC array
+// while this one runs against the SECURITY DEFINER RPC result for the
+// unauth sub flow (Finding 10.1).
+function rowToPacket(r: Record<string, unknown>): PrequalPacket {
+  return {
+    id: r.id as string,
+    subcontractorId: r.subcontractor_id as string,
+    projectId: (r.project_id as string | null) ?? undefined,
+    status: r.status as PrequalPacket['status'],
+    criteria: (r.criteria as PrequalPacket['criteria']) ?? {} as PrequalPacket['criteria'],
+    financials: (r.financials as PrequalPacket['financials']) ?? {} as PrequalPacket['financials'],
+    safety: (r.safety as PrequalPacket['safety']) ?? {} as PrequalPacket['safety'],
+    insurance: (r.insurance as PrequalPacket['insurance']) ?? {} as PrequalPacket['insurance'],
+    licenses: (r.licenses as PrequalPacket['licenses']) ?? [],
+    w9OnFile: !!r.w9_on_file,
+    w9DocPath: (r.w9_doc_path as string | null) ?? undefined,
+    inviteToken: (r.invite_token as string | null) ?? undefined,
+    inviteSentAt: (r.invite_sent_at as string | null) ?? undefined,
+    inviteEmail: (r.invite_email as string | null) ?? undefined,
+    submittedAt: (r.submitted_at as string | null) ?? undefined,
+    reviewedAt: (r.reviewed_at as string | null) ?? undefined,
+    reviewedBy: (r.reviewed_by as string | null) ?? undefined,
+    autoReviewFindings: (r.auto_review_findings as PrequalPacket['autoReviewFindings']) ?? undefined,
+    reviewerNotes: (r.reviewer_notes as string | null) ?? undefined,
+    expiresAt: (r.expires_at as string | null) ?? undefined,
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+  };
+}
+
 export default function PrequalFormScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string }>();
   const token = typeof params.token === 'string' ? params.token : '';
-  const { getPrequalPacketByToken, upsertPrequalPacket, subcontractors } = useProjects();
+  const { subcontractors } = useProjects();
 
-  const packet = useMemo(() => (token ? getPrequalPacketByToken(token) : null), [token, getPrequalPacketByToken]);
-  const sub = useMemo(() => packet ? subcontractors.find(s => s.id === packet.subcontractorId) ?? null : null, [packet, subcontractors]);
+  // Finding 10.1 — Call the SECURITY DEFINER RPC instead of relying on the
+  // authed GC's local prequalPackets array. The RPC honors expires_at TTL
+  // server-side + works for anon callers (no auth context needed). This
+  // makes the token-bearer "no auth" design described in the file's own
+  // header comment actually work.
+  const [packet, setPacket] = useState<PrequalPacket | null>(null);
+  const [loadState, setLoadState] = useState<'loading' | 'ok' | 'missing' | 'error'>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  if (!token) {
-    return <ErrorState title="Missing link" body="This page was opened without a valid token. Open the invite link from your email again." onBack={() => router.back()} />;
+  useEffect(() => {
+    if (!token) { setLoadState('missing'); return; }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase.rpc('lookup_prequal_packet_by_token', {
+        p_token: token,
+      });
+      if (cancelled) return;
+      if (error) {
+        setLoadError(error.message);
+        setLoadState('error');
+        return;
+      }
+      if (!data) {
+        setLoadState('missing');
+        return;
+      }
+      setPacket(rowToPacket(data as Record<string, unknown>));
+      setLoadState('ok');
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  // Sub is best-effort — for authed GCs the subcontractors array is
+  // populated; for anon subs it's empty and we fall back to "your company".
+  const sub = packet ? subcontractors.find(s => s.id === packet.subcontractorId) ?? null : null;
+
+  // RPC-backed save: submits the packet via the submit_prequal_packet
+  // SECURITY DEFINER RPC. Server-side guards: token must match, packet
+  // must not be approved, packet must not be expired. Status transitions
+  // draft|invited|needs_changes → submitted only when p_status is
+  // 'submitted'; otherwise status is preserved (autosave path).
+  const saveViaRpc = useCallback(async (next: PrequalPacket) => {
+    const { data, error } = await supabase.rpc('submit_prequal_packet', {
+      p_token: token,
+      p_criteria: next.criteria,
+      p_financials: next.financials,
+      p_safety: next.safety,
+      p_insurance: next.insurance,
+      p_licenses: next.licenses,
+      p_w9_on_file: next.w9OnFile,
+      p_w9_doc_path: next.w9DocPath ?? null,
+      p_status: next.status,
+    });
+    if (error) {
+      console.warn('[prequal-form] save RPC failed:', error.message);
+      Alert.alert('Save failed', error.message);
+      return;
+    }
+    if (data !== true) {
+      Alert.alert(
+        'Couldn\'t save',
+        'The packet may have been approved or the invite link expired. Ask the GC to send a fresh link.',
+      );
+    }
+  }, [token]);
+
+  if (loadState === 'loading') {
+    return (
+      <View style={[styles.root, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <Text style={styles.errorTitle}>Loading…</Text>
+        <Text style={styles.errorBody}>Loading prequalification packet…</Text>
+      </View>
+    );
   }
-  if (!packet) {
-    return <ErrorState title="Link expired or invalid" body="We couldn't find a prequalification packet for this link. Ask your GC to resend the invite." onBack={() => router.back()} />;
+  if (loadState === 'missing' || !packet) {
+    return <ErrorState
+      title={!token ? 'Missing link' : 'Link expired or invalid'}
+      body={!token
+        ? 'This page was opened without a valid token. Open the invite link from your email again.'
+        : 'We couldn\'t find a prequalification packet for this link, or it has expired. Ask your GC to resend the invite.'}
+      onBack={() => router.back()}
+    />;
+  }
+  if (loadState === 'error') {
+    return <ErrorState
+      title="Couldn't load packet"
+      body={loadError ?? 'A network or server error occurred. Try again in a moment.'}
+      onBack={() => router.back()}
+    />;
   }
 
-  return <PrequalFormInner packet={packet} subCompanyName={sub?.companyName ?? 'your company'} onSave={upsertPrequalPacket} onExit={() => router.back()} />;
+  return <PrequalFormInner packet={packet} subCompanyName={sub?.companyName ?? 'your company'} onSave={saveViaRpc} onExit={() => router.back()} />;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -65,7 +180,10 @@ export default function PrequalFormScreen() {
 function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
   packet: PrequalPacket;
   subCompanyName: string;
-  onSave: (p: PrequalPacket) => void;
+  /** Async or sync; the autosave + handleSubmit callers don't await this
+   *  (fire-and-forget). Errors are surfaced inside the save handler via
+   *  Alert (see saveViaRpc in the parent). */
+  onSave: (p: PrequalPacket) => void | Promise<void>;
   onExit: () => void;
 }) {
   const { colors: themeColors } = useTheme();
