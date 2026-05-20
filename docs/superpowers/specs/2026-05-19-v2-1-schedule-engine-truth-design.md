@@ -6,7 +6,13 @@ Build target: p0-on-main worktree (`/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.
 
 ## 1. Reality check (vs the audit findings used as input)
 
-The audit (`/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main`, run @ `f0de54f`) surfaced 9 bugs and 5 integration gaps. v2.1 takes the **3 engine-truth bugs that affect what every reader of `project.schedule` sees**, plus 2 dead-code deletes. The remaining items are queued as v2.2 (calendar-aware CPM + anchor honoring) and v2.3 (schedule→invoice/AIA prefill + sub-update rollup). Audit findings folded in: #1 (two EV engines), #4 (two critical-path sources), #5 (FS-only free float), plus the truly-orphaned fragnets/rates utils.
+The audit (`/Users/omirmajeed/Desktop/MAGE ID - CLAUDE/.claude/worktrees/p0-on-main`, run @ `f0de54f`) surfaced 9 bugs and 5 integration gaps. v2.1 takes:
+- **3 engine-truth bugs** that affect what every reader of `project.schedule` sees — audit #1 (two EV engines), #4 (two critical-path sources), #5 (FS-only free float).
+- **3 whole-file dead-code deletes** — `earnedValueEngine.ts` (replaced by adapter), `scheduleFragnets.ts`, `scheduleResourceRates.ts`.
+- **2 within-file dead-code deletes** — `applyCpmToTasks` in `cpm.ts`, `loeAdjustedTasks` void'd computation in `schedule-pro`.
+- **1 type-shape cleanup** — remove unused `auditLog` field from `ProjectSchedule`.
+
+The remaining audit items are queued as v2.2 (calendar-aware CPM + anchor honoring), v2.3 (cross-domain wedges: schedule→invoice/AIA prefill + sub-update rollup + estimate→schedule re-sync), or polish (URL guard, debounce race, dep-vs-depLinks UI filter, legacy resolver elimination, tier-gate granularity, levelResources surfacing). Bug #9 (duration-0 milestone) and gap D (two health systems) were investigated and dismissed as non-issues — see §7.
 
 Verified callsites:
 - `utils/earnedValueEngine.ts` (112 lines) — ONE callsite: `app/budget-dashboard.tsx:21` imports `calculateEVM` + `generateCashFlowData`.
@@ -34,9 +40,15 @@ Three distinct integrity problems that all surface as "the dashboards lie":
 - NOT backward-pass anchor honoring (audit bug #3). Sister fix to calendar-aware. v2.2.
 - NOT the AIA G702 wedge (schedule→invoice progress prefill) — gap A. The data path is ready (`scheduleEarnedValue` already computes per-task EV); wiring it into `app/invoice.tsx` and `app/aia-pay-app.tsx` is its own sub-project. v2.3.
 - NOT sub-update → master-task progress rollup — gap B. v2.3.
+- NOT estimate-change → tasks-with-stale-`linkedEstimateItems` re-sync — gap C. Same cross-domain re-sync shape as A/B. v2.3.
 - NOT `dependencies` vs `dependencyLinks` callsite normalization (audit bug #8). UI bug, not engine-truth.
 - NOT `shared-schedule` URL size guard (bug #6). Queueable any time.
+- NOT `schedulePersist` debounce race (bug #7). Polish.
+- NOT `recalculateStartDays` + `runCpm` double-execution elimination (gap E). Interconnected with the persist flow's contract about whether `task.startDay` already reflects engine ES; deserves own design. Polish queue.
+- NOT health-system unification (gap D). On re-read, `scheduleHealth.computePillStatus` and `scheduleHealthScore.computeScheduleHealthScore` are complementary, not duplicative — the pill consumes the score as input and adds two extra signals (`overdueCount`, `cpmSlipDays`). The audit's "can disagree" framing is true but by design.
+- NOT duration-0 milestone off-by-one verification (audit bug #9 — "worth a unit test"). On re-read of `cpm.ts:355-372`, both `efMin` and `efExact` branches handle `dur === 0` symmetrically (`req = efMin` and `es = efExact` respectively) and `ef = dur === 0 ? es : es + dur - 1` resolves milestones correctly. Audit was over-cautious.
 - NOT classic-mobile-schedule tier-gate decision. Policy question.
+- NOT `runCpm({ levelResources: true })` deletion. The code is wired (forward + backward passes call into it conditionally); deleting requires removing the optional parameter from `RunCpmOptions` and the conditional branches inside the engine. Surfacing the toggle in UI is the right move — but it's its own sub-project, not v2.1 cleanup.
 - NO change to RevenueCat / tiers. No new entitlement keys.
 - NO migration. NO edge fn. NO portal HTML change. NO new dep.
 
@@ -198,10 +210,20 @@ This is a deliberate math change. The `Percent Complete` tile on Budget Dashboar
 
 ### 4.5 Dead-code deletions
 
-- **Delete `utils/scheduleFragnets.ts`** — fragnet library, no callers, no UI route.
-- **Delete `utils/scheduleResourceRates.ts`** — multi-rate picker, no callers.
+Verified zero external callers via `git grep` against `--include='*.ts' --include='*.tsx'` across `app/` and `components/`:
 
-**Keep `utils/scheduleResourceCalendars.ts`** — slated for v2.2 calendar-aware CPM wiring.
+**Whole-file deletes:**
+- **Delete `utils/scheduleFragnets.ts`** — fragnet library (`STARTER_FRAGNETS`, `applyFragnetToSchedule`, etc.), no callers, no UI route.
+- **Delete `utils/scheduleResourceRates.ts`** — multi-rate picker (`getResourceRate`), no callers.
+
+**Within-file deletes:**
+- **Delete `applyCpmToTasks` from `utils/cpm.ts:730-742`** — function annotates tasks with `isCriticalPath` derived from `CpmResult`. Confirmed zero callers across the codebase (only its own export line matches in grep). The `schedule-pro` render path consumes `cpm.perTask` directly instead of via this annotation. Tighter API; one less export to maintain.
+- **Delete `loeAdjustedTasks` useMemo + `void` statement at `app/schedule-pro.tsx:228-238`** — computed result is explicitly `void`'d on the next line, comment admits "exposed for future view wiring; rolledTasks is still the authoritative source." Render path uses `rolledTasks`, not this. ~10 lines including the useMemo, the void, and the comment block. Cheap cleanup.
+
+**Type-shape clean-up:**
+- **Remove `auditLog?: ScheduleAuditEntry[]` from `ProjectSchedule` at `types/index.ts:791`** — field is reserved but never populated. `utils/scheduleAudit.ts:96` `appendAuditToAsyncStorage` writes audit entries into AsyncStorage (key `tertiary_schedule_audit_*`), not into the typed field. Only reference to `.auditLog` anywhere in the codebase is a stale comment at `scheduleAudit.ts:8` (claims "Storage: lives on `ProjectSchedule.auditLog`" — the code never lived up to the claim). Spec also updates that comment to reflect the actual AsyncStorage backing.
+
+**Keep `utils/scheduleResourceCalendars.ts`** — orphaned today but slated for v2.2 calendar-aware CPM wiring. Re-authoring after delete would be wasteful.
 
 ## 5. Error handling / correctness
 
@@ -219,11 +241,12 @@ This is a deliberate math change. The `Percent Complete` tile on Budget Dashboar
 2. **`criticalPathDays`** — 10-task FS chain in Schedule Pro. Header shows `cpm.projectFinish` (e.g. 87). Save. Project-detail "X days" tile shows 87. Today shows 64.
 3. **EV consistency** — Schedule Pro `EarnedValuePanel` SPI/CPI. Budget Dashboard SPI/CPI. They agree. Today they differ.
 4. **`percentComplete` semantic shift** — Budget Dashboard `Percent Complete` tile reads lower on uneven-budget projects (correct cost-weighted math).
-5. **Dead-code deletes** — `git grep -nE "from '@/utils/(earnedValueEngine|scheduleFragnets|scheduleResourceRates)'"` returns 0 hits after the EV-collapse commit and the dead-code-delete commit.
+5. **Dead-code deletes** — `git grep -nE "from '@/utils/(earnedValueEngine|scheduleFragnets|scheduleResourceRates)'"` returns 0 hits after the EV-collapse commit and the dead-code-delete commit. `git grep -nE "applyCpmToTasks|loeAdjustedTasks"` returns only the deletion-site lines (now gone). `git grep -nE "\\.auditLog"` returns 0 hits in `app/` and `components/` (only the type definition was the unread surface; it's now gone too).
 6. Final opus whole-impl review.
 
 ## 7. Out of scope / future
 
 - **v2.2 — Calendar-aware CPM** — `runCpm` consumes `workingDaysPerWeek` + `nonWorkingDates` + per-resource calendars (via `resolveCalendarForTask`). Sister fix: backward-pass honors anchors (SNLT/FNLT/MFO clamps into LF/LS). Together these are the engine's biggest remaining accuracy gap.
-- **v2.3 — Wedge integrations** — Schedule progress → invoice / AIA G702 progress-billing prefill (highest product leverage; data path ready). Sub schedule-update → master task progress rollup (closes the sub-portal hole).
-- **Polish queue** — `dependencies` vs `dependencyLinks` callsite normalization (audit bug #8), `shared-schedule` URL size guard (bug #6), `schedulePersist` debounce race (bug #7), classic-mobile-schedule tier-gate policy decision.
+- **v2.3 — Wedge integrations** — Schedule progress → invoice / AIA G702 progress-billing prefill (highest product leverage; data path ready). Sub schedule-update → master task progress rollup (closes the sub-portal hole). Estimate-change → tasks-with-stale-`linkedEstimateItems` re-sync (gap C — same cross-domain re-sync shape).
+- **Polish queue** — `dependencies` vs `dependencyLinks` callsite normalization (audit bug #8), `shared-schedule` URL size guard (bug #6), `schedulePersist` debounce race (bug #7), `recalculateStartDays` + `runCpm` double-execution elimination (gap E — needs a contract decision about whether `task.startDay` reflects engine ES post-edit), classic-mobile-schedule tier-gate policy decision, `runCpm({ levelResources: true })` UI surfacing or removal.
+- **Investigated and dismissed** — Bug #9 duration-0 milestone off-by-one (math verified correct on re-read of `cpm.ts:355-372`). Gap D two health systems (re-read shows complementary, not duplicative — pill consumes score as input).
