@@ -389,9 +389,14 @@ function forwardPass(
   ordered: ScheduleTask[],
   all: ScheduleTask[],
   scheduleStart?: string,
+  workingDaysPerWeek?: number,
+  nonWorkingDates?: string[],
 ): Map<string, { es: number; ef: number }> {
   const map = new Map<string, { es: number; ef: number }>();
   const byId = new Map(all.map(t => [t.id, t]));
+  // v2.2b — derive working values once per pass.
+  const wdPerWeek = workingDaysPerWeek ?? 7;
+  const closuresSet = new Set(nonWorkingDates ?? []);
 
   for (const task of ordered) {
     const links = getLinks(task);
@@ -439,7 +444,15 @@ function forwardPass(
       // (conflict surfacing is wired in runCpm below, not here).
     }
 
-    const ef = dur === 0 ? es : es + dur - 1; // milestone: duration 0, ES=EF
+    // v2.2b — Calendar-aware EF. Branches on whether ES is itself a working
+    // day: if yes, dur-1 advances (ES counts as unit 1). If no, walk dur
+    // working days forward (past the non-working start). Falls back to
+    // raw math when scheduleStart is absent — preserves pre-v2.2b behavior.
+    const ef = dur === 0 ? es
+      : !scheduleStart ? es + dur - 1
+      : isWorkingDay(es, wdPerWeek, scheduleStart, closuresSet)
+        ? walkWorkingDays(es, dur - 1, 1, wdPerWeek, scheduleStart, closuresSet)
+        : walkWorkingDays(es, dur, 1, wdPerWeek, scheduleStart, closuresSet);
     map.set(task.id, { es, ef });
   }
 
@@ -460,9 +473,14 @@ function backwardPass(
   forward: Map<string, { es: number; ef: number }>,
   projectFinish: number,
   scheduleStartDate?: string,
+  workingDaysPerWeek?: number,
+  nonWorkingDates?: string[],
 ): Map<string, { ls: number; lf: number }> {
   const byId = new Map(all.map(t => [t.id, t]));
   const result = new Map<string, { ls: number; lf: number }>();
+  // v2.2b — derive working values once per pass.
+  const wdPerWeek = workingDaysPerWeek ?? 7;
+  const closuresSet = new Set(nonWorkingDates ?? []);
 
   // Pre-compute successor list keyed by predecessor id.
   const successors = new Map<string, { succ: ScheduleTask; link: DependencyLink }[]>();
@@ -529,7 +547,13 @@ function backwardPass(
       }
     }
 
-    const ls = dur === 0 ? lf : lf - dur + 1;
+    // v2.2b — Calendar-aware LS. Mirror of forward EF. Falls back to
+    // raw math when scheduleStartDate is absent.
+    const ls = dur === 0 ? lf
+      : !scheduleStartDate ? lf - dur + 1
+      : isWorkingDay(lf, wdPerWeek, scheduleStartDate, closuresSet)
+        ? walkWorkingDays(lf, dur - 1, -1, wdPerWeek, scheduleStartDate, closuresSet)
+        : walkWorkingDays(lf, dur, -1, wdPerWeek, scheduleStartDate, closuresSet);
     result.set(task.id, { ls, lf });
   }
 
@@ -735,7 +759,10 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
   const ordered = topoSort(tasks);
 
   // 3. Forward pass.
-  const forward = forwardPass(ordered, tasks, options.scheduleStartDate);
+  const forward = forwardPass(
+    ordered, tasks,
+    options.scheduleStartDate, options.workingDaysPerWeek, options.nonWorkingDates,
+  );
 
   // 4. Project finish = max EF, unless caller pinned a target.
   let projectFinish = 1;
@@ -745,7 +772,10 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
   }
 
   // 5. Backward pass.
-  const backward = backwardPass(ordered, tasks, forward, projectFinish, options.scheduleStartDate);
+  const backward = backwardPass(
+    ordered, tasks, forward, projectFinish,
+    options.scheduleStartDate, options.workingDaysPerWeek, options.nonWorkingDates,
+  );
 
   // 6. Free float.
   const freeFloat = computeFreeFloat(tasks, forward);
