@@ -170,7 +170,12 @@ export async function supabaseWrite(
     let error: { message: string } | null = null;
 
     if (operation === 'insert') {
-      const result = await supabase.from(table).upsert(data);
+      // Plain insert (not upsert) — matches processOfflineQueue's semantic
+      // at :100. An upsert here would silently overwrite a colliding row
+      // some other client (or this client on another device) had already
+      // created, masking real conflicts. If the unique constraint is hit,
+      // the catch below decides retry vs terminal-discard.
+      const result = await supabase.from(table).insert(data);
       error = result.error;
     } else if (operation === 'update') {
       const { id, ...rest } = data;
