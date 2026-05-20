@@ -219,8 +219,17 @@ function ScheduleProScreenInner() {
     () => runCpm(rolledTasks, {
       scheduleStartDate: scheduleStartIso,
       criticalFloatThresholdDays,
+      // v2.2b — thread project calendar so EF/LS skip weekends + closures.
+      workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project?.schedule?.nonWorkingDates,
     }),
-    [rolledTasks, scheduleStartIso, criticalFloatThresholdDays],
+    [
+      rolledTasks,
+      scheduleStartIso,
+      criticalFloatThresholdDays,
+      project?.schedule?.workingDaysPerWeek,
+      project?.schedule?.nonWorkingDates,
+    ],
   );
 
   // SchedulerContext-shaped CPM summary for the tab shell's SchedulerProvider.
