@@ -38,6 +38,7 @@ interface ProjectContractRow {
   signed_at: string | null;
   voided_at: string | null;
   signed_pdf_url: string | null;
+  document_hash?: string | null;
   proposal_revision_id?: string | null;
   kind?: string | null;
   created_at: string;
@@ -69,6 +70,7 @@ function rowToContract(r: ProjectContractRow): ProjectContract {
     signedAt: r.signed_at ?? undefined,
     voidedAt: r.voided_at ?? undefined,
     signedPdfUrl: r.signed_pdf_url ?? undefined,
+    documentHash: r.document_hash ?? undefined,
     proposalRevisionId: r.proposal_revision_id ?? undefined,
     kind: r.kind === 'proposal' ? 'proposal' : r.kind === 'contract' ? 'contract' : undefined,
     createdAt: r.created_at,

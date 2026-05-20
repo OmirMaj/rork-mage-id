@@ -297,6 +297,10 @@ export interface ProjectContract {
   signedAt?: string;
   voidedAt?: string;
   signedPdfUrl?: string;
+  /** SHA-256 (hex) of the sealed signed PDF bytes. Written only by the
+   *  seal-document edge fn after server-side hash-verify; tamper-evidence
+   *  pairs with signedPdfUrl. Unset until the GC seals. */
+  documentHash?: string;
   proposalRevisionId?: string;
   kind?: 'contract' | 'proposal';
   createdAt: string;
