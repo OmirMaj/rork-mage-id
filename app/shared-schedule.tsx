@@ -38,10 +38,12 @@ import {
   decodeShareToken, tasksFromSharePayload,
   composeSubReply, buildMailtoUrl, buildSmsUrl,
   type SubConfirmAction,
+  type SharedSchedulePayload,
 } from '@/utils/scheduleOps';
 import { addWorkingDays, formatShortDate } from '@/utils/scheduleEngine';
 import { SubDailyUpdateModal } from '@/components/SubDailyUpdateModal';
 import { appendSubUpdate, loadSubUpdates, rollupLatest } from '@/utils/subScheduleUpdatesStorage';
+import { supabase } from '@/lib/supabase';
 import type { ScheduleTask, SubScheduleUpdate } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -51,10 +53,35 @@ export default function SharedScheduleScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { t, asSub } = useLocalSearchParams<{ t?: string; asSub?: string }>();
+  // v2.4 (audit Item 6) — Accept either `t=` (inline base64, v2.3 P1
+  // path) or `s=` (snapshot row-id, new fallback for oversize schedules).
+  const { t, s, asSub } = useLocalSearchParams<{ t?: string; s?: string; asSub?: string }>();
   const { width } = useWindowDimensions();
 
-  const payload = useMemo(() => (t ? decodeShareToken(String(t)) : null), [t]);
+  // Inline payload (synchronous decode) — null if t= is absent or invalid.
+  const inlinePayload = useMemo(() => (t ? decodeShareToken(String(t)) : null), [t]);
+
+  // Snapshot payload (async fetch via SECURITY DEFINER RPC) — fires on
+  // mount when s= is present; sets snapshotPayload on success or
+  // snapshotError on failure.
+  const [snapshotPayload, setSnapshotPayload] = useState<SharedSchedulePayload | null>(null);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!s || inlinePayload) return; // inline wins when both are present
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase.rpc('fetch_shared_schedule', {
+        snapshot_id: String(s),
+      });
+      if (cancelled) return;
+      if (error) { setSnapshotError(error.message); return; }
+      if (!data) { setSnapshotError('Snapshot expired or not found'); return; }
+      setSnapshotPayload(data as SharedSchedulePayload);
+    })();
+    return () => { cancelled = true; };
+  }, [s, inlinePayload]);
+
+  const payload = inlinePayload ?? snapshotPayload;
   const tasks = useMemo(() => payload ? tasksFromSharePayload(payload) : [], [payload]);
   const cpm = useMemo(() => runCpm(tasks), [tasks]);
   const projectStartDate = useMemo(
@@ -183,13 +210,20 @@ export default function SharedScheduleScreen() {
   }, [payload?.projectId]);
 
   if (!payload) {
+    // v2.4 (audit Item 6) — Distinguish "snapshot still loading" from
+    // "snapshot failed / expired" so the user gets useful feedback.
+    const stillLoading = !!s && !inlinePayload && !snapshotPayload && !snapshotError;
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ title: 'Schedule' }} />
         <Lock size={28} color={themeColors.textMuted} />
-        <Text style={styles.title}>Invalid or expired link</Text>
+        <Text style={styles.title}>
+          {stillLoading ? 'Loading schedule…' : 'Invalid or expired link'}
+        </Text>
         <Text style={styles.body}>
-          This schedule link could not be opened. Ask the sender for a fresh link.
+          {stillLoading
+            ? 'Fetching the schedule snapshot from the server.'
+            : (snapshotError ?? 'This schedule link could not be opened. Ask the sender for a fresh link.')}
         </Text>
         <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace('/' as never)} activeOpacity={0.85}>
           <Text style={styles.primaryBtnText}>Home</Text>

@@ -81,9 +81,11 @@ import {
   encodeShareToken,
   buildSharePayload,
   ShareTokenTooLargeError,
+  tryEncodeShareToken,
   type NamedBaseline,
 } from '@/utils/scheduleOps';
 import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
+import { supabase } from '@/lib/supabase';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -958,7 +960,7 @@ function ScheduleProScreenInner() {
   // Share link — base64 payload in URL, no backend
   // -------------------------------------------------------------------------
 
-  const handleShare = useCallback(() => {
+  const handleShare = useCallback(async () => {
     if (!project) return;
     const payload = buildSharePayload(
       project.name ?? 'Schedule',
@@ -966,24 +968,40 @@ function ScheduleProScreenInner() {
       workingTasks,
       { projectId: project.id },
     );
-    let token: string;
-    try {
-      token = encodeShareToken(payload);
-    } catch (err) {
-      if (err instanceof ShareTokenTooLargeError) {
+    // v2.4 (audit Item 6) — Try inline first; on oversize, write a
+    // server-side snapshot and use the short row-id token instead.
+    // Replaces the v2.3 P1 throw-on-oversize behavior with a graceful
+    // fallback that produces a working URL for any schedule size.
+    const result = tryEncodeShareToken(payload);
+    let url: string;
+    if (result.kind === 'inline') {
+      url = `/shared-schedule?t=${result.token}`;
+    } else {
+      // Oversize — write snapshot to shared_schedule_snapshots. Anyone
+      // with the resulting UUID-in-URL can fetch via the
+      // fetch_shared_schedule SECURITY DEFINER RPC for 30 days
+      // (default TTL on the table).
+      const { data, error } = await supabase
+        .from('shared_schedule_snapshots')
+        .insert({
+          user_id: user?.id,
+          project_id: project.id,
+          payload,
+          task_count: payload.tasks.length,
+        })
+        .select('id')
+        .single();
+      if (error || !data) {
         Alert.alert(
-          'Schedule too large to share via link',
-          `This schedule (${workingTasks.length} tasks) exceeds the URL size limit. Reduce the task count or use the sub-portal to share with subs.`
+          'Could not save snapshot',
+          `Schedule has ${workingTasks.length} tasks (URL fallback). ${error?.message ?? 'Network error — try again in a moment.'}`,
         );
         return;
       }
-      throw err;
+      url = `/shared-schedule?s=${data.id}`;
     }
-    let url = `/shared-schedule?t=${token}`;
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       url = `${window.location.origin}${url}`;
-      // Try to copy. Not all browsers allow clipboard writes without https;
-      // show the URL as a fallback either way so the user can grab it.
       try {
         navigator.clipboard?.writeText(url);
         window.alert?.(`Share link copied to clipboard.\n\n${url}`);
@@ -996,7 +1014,7 @@ function ScheduleProScreenInner() {
         `Open this URL in a laptop browser:\n\n${url}`,
       );
     }
-  }, [project, projectStartDate, workingTasks]);
+  }, [project, projectStartDate, workingTasks, user?.id]);
 
   // -------------------------------------------------------------------------
   // AirPrint — Task 17. Renders a minimal HTML task-list via expo-print.

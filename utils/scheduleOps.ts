@@ -339,6 +339,34 @@ export class ShareTokenTooLargeError extends Error {
  *  header; 6000 chars is a safe headroom under the 8KB practical floor. */
 const MAX_SHARE_TOKEN_LENGTH = 6000;
 
+/** Discriminated result for the Item-6 fallback. When `oversize`, the
+ *  caller should write the payload to shared_schedule_snapshots via
+ *  Supabase and use the snapshot UUID as the URL token (`s=` param)
+ *  instead of the base64 inline token (`t=` param). */
+export type ShareTokenResult =
+  | { kind: 'inline'; token: string }
+  | { kind: 'oversize'; tokenLength: number; maxLength: number };
+
+/** v2.4 (audit Item 6) — non-throwing variant of encodeShareToken.
+ *  Returns a discriminated union so callers can branch on inline vs
+ *  oversize without try/catch noise. Existing `encodeShareToken` is
+ *  preserved unchanged for back-compat (v2.3 P1 callers). */
+export function tryEncodeShareToken(payload: SharedSchedulePayload): ShareTokenResult {
+  const json = JSON.stringify(payload);
+  const bytes = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(json) : null;
+  const ascii = bytes
+    ? Array.from(bytes).map(b => String.fromCharCode(b)).join('')
+    : json;
+  const b64 = typeof btoa === 'function'
+    ? btoa(ascii)
+    : Buffer.from(json, 'utf-8').toString('base64');
+  const token = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  if (token.length > MAX_SHARE_TOKEN_LENGTH) {
+    return { kind: 'oversize', tokenLength: token.length, maxLength: MAX_SHARE_TOKEN_LENGTH };
+  }
+  return { kind: 'inline', token };
+}
+
 export function encodeShareToken(payload: SharedSchedulePayload): string {
   const json = JSON.stringify(payload);
   // btoa only handles ASCII; use utf-8 round-trip.
