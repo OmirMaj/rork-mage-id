@@ -18,7 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
-import { calculateEVM, generateCashFlowData } from '@/utils/earnedValueEngine';
+import { legacyEvmMetrics, buildCashFlow } from '@/utils/scheduleEarnedValue';
 import { mageAI } from '@/utils/mageAI';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -79,12 +79,12 @@ function BudgetDashboardScreenInner() {
 
   const metrics = useMemo(() => {
     if (!project) return null;
-    return calculateEVM(project, projectInvoices, project.schedule);
+    return legacyEvmMetrics(project, projectInvoices, project.schedule);
   }, [project, projectInvoices]);
 
   const cashFlowData = useMemo(() => {
     if (!project) return [];
-    return generateCashFlowData(project, projectInvoices, project.schedule, 10);
+    return buildCashFlow(project, projectInvoices, project.schedule, 10);
   }, [project, projectInvoices]);
 
   const [forecast, setForecast] = useState('');
