@@ -281,7 +281,20 @@ export function buildScheduleFromTasks(
     criticalPathDays?: number;
   },
 ): ProjectSchedule {
-  const recalculated = recalculateStartDays(tasks);
+  // Gap E (audit) — Skip the legacy forward-pass-only resolver when the
+  // caller has already run full CPM and threaded cpm.projectFinish in via
+  // opts.criticalPathDays. Without this guard the engine double-executes:
+  // schedule-pro runs runCpm (full forward + backward + anchors + calendar),
+  // then this function re-runs the simpler forward-pass-only resolver,
+  // which can disagree by ±1 day on certain edge cases — surfaces as a
+  // "save jitters task by 1 day" bug.
+  //
+  // Classic-mobile callers in app/(tabs)/schedule/index.tsx don't run full
+  // CPM themselves and DO need recalculateStartDays as a forward-fix safety
+  // net, so we keep it for them (signal: no opts.criticalPathDays).
+  const recalculated = opts?.criticalPathDays !== undefined
+    ? tasks
+    : recalculateStartDays(tasks);
   const sortedTasks = recalculated
     .slice()
     .sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
