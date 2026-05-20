@@ -538,7 +538,12 @@ function ScheduleProScreenInner() {
       const succSet = new Set(values.successorIds ?? []);
       const patched = prev.map(t => {
         if (!succSet.has(t.id)) return t;
+        // Audit bug #8: check both legacy `dependencies` and the newer
+        // `dependencyLinks` array so we don't silently duplicate an edge
+        // that already exists in only one of them. The CPM engine prefers
+        // dependencyLinks when both are present (cpm.ts:185).
         if (t.dependencies.includes(newId)) return t;
+        if ((t.dependencyLinks ?? []).some(l => l.taskId === newId)) return t;
         return { ...t, dependencies: [...t.dependencies, newId] };
       });
 
@@ -553,7 +558,11 @@ function ScheduleProScreenInner() {
   const handleDependencyCreate = useCallback((fromId: string, toId: string) => {
     commit(prev => prev.map(t => {
       if (t.id !== toId) return t;
+      // Audit bug #8: check both arrays before adding so a Gantt-drag
+      // can't duplicate an edge already in dependencyLinks (cpm.ts:185
+      // prefers dependencyLinks when both are populated).
       if (t.dependencies.includes(fromId)) return t;
+      if ((t.dependencyLinks ?? []).some(l => l.taskId === fromId)) return t;
       return { ...t, dependencies: [...t.dependencies, fromId] };
     }));
   }, [commit]);
