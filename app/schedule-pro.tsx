@@ -195,6 +195,14 @@ function ScheduleProScreenInner() {
     baselinesRef.current = namedBaselines;
   }, [namedBaselines]);
 
+  // Mirror workingTasks into a ref so the unmount-flush closure (which only
+  // re-binds on cpm.projectFinish changes) always reads the latest copy.
+  // Addresses audit bug #7 — the closure-staleness race where a final
+  // keystroke between the last debounce timer and unmount could be lost.
+  useEffect(() => {
+    workingTasksRef.current = workingTasks;
+  }, [workingTasks]);
+
   // -------------------------------------------------------------------------
   // CPM + persistence
   // -------------------------------------------------------------------------
@@ -320,6 +328,12 @@ function ScheduleProScreenInner() {
   // latest list without having to re-memoize schedulePersist on every
   // capture (which would kick off the debounce + potentially lose edits).
   const baselinesRef = React.useRef<NamedBaseline[]>([]);
+  // Ref-mirror of workingTasks used by the unmount-flush cleanup. The
+  // cleanup only re-binds when cpm.projectFinish changes, so without this
+  // ref a keystroke applied after the most recent debounce timer but
+  // before unmount could be lost (audit bug #7). Sync useEffect lives
+  // alongside the baselinesRef sync above.
+  const workingTasksRef = React.useRef<ScheduleTask[]>([]);
   const schedulePersist = useCallback((tasks: ScheduleTask[]) => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => {
@@ -358,12 +372,16 @@ function ScheduleProScreenInner() {
     return () => {
       if (persistTimer.current) {
         clearTimeout(persistTimer.current);
-        // One final sync using the latest working copy.
+        // One final sync using the latest working copy. Read tasks via
+        // workingTasksRef (synced in a separate useEffect) instead of
+        // closing over the workingTasks state variable — this closes the
+        // narrow audit-bug-#7 race where a final keystroke between the
+        // last debounce timer and unmount could be lost.
         if (project) {
           const newSchedule = buildScheduleFromTasks(
             project.schedule?.name ?? project.name ?? 'Schedule',
             project.id,
-            workingTasks,
+            workingTasksRef.current,
             project.schedule?.baseline ?? null,
             { criticalPathDays: cpm.projectFinish }, // v2.1: engine-true value
           );
@@ -381,9 +399,11 @@ function ScheduleProScreenInner() {
         }
       }
     };
-  // v2.1: cpm.projectFinish in deps so the unmount-flush closure captures
-  // the engine-true value (rest of refs/closures intentionally omitted —
-  // debounce race audit bug #7 is out of scope for v2.1).
+  // cpm.projectFinish in deps so the unmount-flush closure captures the
+  // engine-true value. workingTasks read via workingTasksRef.current (mirror
+  // synced above) — closes audit bug #7. project/updateProject are stable
+  // for the lifetime of this project's mount; capturing them at the last
+  // re-bind is correct (we want to write to the project we were editing).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cpm.projectFinish]);
 
