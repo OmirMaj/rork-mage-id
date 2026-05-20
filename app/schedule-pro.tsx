@@ -77,6 +77,7 @@ import {
   buildSharePayload,
   type NamedBaseline,
 } from '@/utils/scheduleOps';
+import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -222,6 +223,44 @@ function ScheduleProScreenInner() {
     slipDaysVsBaseline: 0, // TODO Phase 27: wire from baseline delta
     criticalTaskIds: cpm.criticalPath,
   }), [cpm.projectFinish, cpm.criticalPath]);
+
+  // v2.3 wedge B — sub daily updates → master task.progress rollup.
+  // Max-only guard: never decrease (a GC who set 80% locally shouldn't
+  // see it drop because a sub said 60%). The SubUpdatesPanel shows the
+  // underlying updates as the source of truth; this effect just keeps
+  // the Gantt bar honest.
+  //
+  // Loads sub updates once per project — the functional setWorkingTasks
+  // updater reads the latest task state without needing workingTasks in
+  // deps. The `mutated` flag short-circuits no-op renders so the effect
+  // is cheap even when there are no new updates.
+  useEffect(() => {
+    if (!project?.id) return;
+    let cancelled = false;
+    void (async () => {
+      const subUpdates = await loadSubUpdates(project.id);
+      if (cancelled || subUpdates.length === 0) return;
+      // Latest update per task wins (highest progressPercent).
+      const latestByTask = new Map<string, number>();
+      for (const u of subUpdates) {
+        const prev = latestByTask.get(u.taskId) ?? 0;
+        if (u.progressPercent > prev) latestByTask.set(u.taskId, u.progressPercent);
+      }
+      setWorkingTasks(prev => {
+        let mutated = false;
+        const next = prev.map(t => {
+          const rollup = latestByTask.get(t.id);
+          if (rollup != null && rollup > (t.progress ?? 0)) {
+            mutated = true;
+            return { ...t, progress: rollup };
+          }
+          return t;
+        });
+        return mutated ? next : prev;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [project?.id]);
 
   // Schedule health score — pure compute over current tasks + cpm.
   // Cheap to recompute on every edit.
