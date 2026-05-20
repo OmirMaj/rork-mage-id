@@ -416,7 +416,7 @@ through the **Bill-from-Estimate** screen rather than starting blank.
   `app/budget-dashboard.tsx`, `app/retention.tsx`, `app/payments.tsx` —
   finance dashboards.
 - `utils/` — `cashFlowEngine.ts`, `cashFlowStorage.ts`, `paymentPrediction.ts`,
-  `projectFinancials.ts`, `aiaBilling.ts`, `earnedValueEngine.ts`, `stripe.ts`.""",
+  `projectFinancials.ts`, `aiaBilling.ts`, `scheduleEarnedValue.ts`, `stripe.ts`.""",
     [
         "app/bill-from-estimate.tsx",
         "app/invoice.tsx",
@@ -437,7 +437,7 @@ through the **Bill-from-Estimate** screen rather than starting blank.
         "utils/paymentPrediction.ts",
         "utils/projectFinancials.ts",
         "utils/aiaBilling.ts",
-        "utils/earnedValueEngine.ts",
+        "utils/scheduleEarnedValue.ts",
         "utils/stripe.ts",
     ],
 )
