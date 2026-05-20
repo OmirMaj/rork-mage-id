@@ -175,3 +175,165 @@ export function performanceTone(value: number): 'good' | 'warn' | 'bad' {
   if (value >= 0.85) return 'warn';
   return 'bad';
 }
+
+// ---------------------------------------------------------------------------
+// Cash flow + legacy-EVM adapter
+//
+// These two exports replace the dead utils/earnedValueEngine.ts. They route
+// every EV-derived number through buildEarnedValueSnapshot above so the
+// Schedule Pro panel and the Budget Dashboard agree on SPI/CPI for the same
+// project. See spec §4.3 for the collapse rationale.
+// ---------------------------------------------------------------------------
+
+import type { Project, Invoice, ProjectSchedule, EarnedValueMetrics } from '@/types';
+import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+
+export interface CashFlowPoint {
+  period: string;
+  plannedCumulative: number;
+  actualCumulative: number;
+  forecastCumulative: number;
+}
+
+/**
+ * Period-bucket cash-flow projection. PV is linearly distributed across
+ * `periods` buckets; AC is real invoice payments bucketed by period;
+ * forecast = planned / CPI (so a CPI < 1 inflates the forecast). Matches
+ * the shape of the dead engine's generateCashFlowData; CPI is sourced
+ * from buildEarnedValueSnapshot at end-of-project (one canonical engine).
+ *
+ * Per-task PV-per-period (more accurate than linear) is deliberately
+ * deferred — same approximation the dead engine used. v2.1 = engine-
+ * truth at the SPI/CPI level; cash-flow accuracy is its own product
+ * question.
+ */
+export function buildCashFlow(
+  project: Project,
+  invoices: Invoice[],
+  schedule: ProjectSchedule | null | undefined,
+  periods: number = 12,
+): CashFlowPoint[] {
+  const bac = effectiveEstimateTotal(project);
+  const totalDays = schedule?.totalDurationDays ?? 180;
+  const daysPerPeriod = Math.ceil(totalDays / periods);
+  const startDate = new Date(project.createdAt);
+
+  const projectInvoices = invoices
+    .filter(inv => inv.projectId === project.id)
+    .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
+
+  // Canonical CPI source — same engine the Schedule Pro panel uses.
+  const snap = buildEarnedValueSnapshot(
+    schedule?.tasks ?? [],
+    project.linkedEstimate ?? undefined,
+    { dayCursor: totalDays, invoices: projectInvoices },
+  );
+  const cpi = snap.cpi ?? 1;
+
+  const data: CashFlowPoint[] = [];
+  let actualCumulative = 0;
+
+  for (let i = 0; i < periods; i++) {
+    const periodStart = new Date(startDate.getTime() + i * daysPerPeriod * 86400000);
+    const periodEnd = new Date(startDate.getTime() + (i + 1) * daysPerPeriod * 86400000);
+
+    const plannedRatio = Math.min((i + 1) / periods, 1);
+    const plannedCumulative = bac * plannedRatio;
+
+    const periodPayments = projectInvoices.filter(inv => {
+      const d = new Date(inv.issueDate).getTime();
+      return d >= periodStart.getTime() && d < periodEnd.getTime();
+    });
+    actualCumulative += periodPayments.reduce((sum, inv) => sum + (inv.amountPaid ?? 0), 0);
+
+    const forecastCumulative = cpi !== 0 ? plannedCumulative / cpi : plannedCumulative;
+
+    data.push({
+      period: `Wk ${i + 1}`,
+      plannedCumulative: Math.round(plannedCumulative),
+      actualCumulative: Math.round(actualCumulative),
+      forecastCumulative: Math.round(forecastCumulative),
+    });
+  }
+
+  return data;
+}
+
+/**
+ * Legacy-shape EarnedValueMetrics adapter. Lets budget-dashboard.tsx
+ * keep its existing UI code path unchanged while sourcing every number
+ * from the canonical buildEarnedValueSnapshot pipeline.
+ *
+ * Deliberate semantic shift on `percentComplete`: the dead engine used
+ * avg(task.progress) — equally weighted regardless of dollar value. The
+ * new shape uses cost-weighted EV/BAC × 100. Same scenario can produce
+ * a much lower (correct) number on schedules with uneven task budgets.
+ * Documented in spec §4.4.
+ */
+export function legacyEvmMetrics(
+  project: Project,
+  invoices: Invoice[],
+  schedule: ProjectSchedule | null | undefined,
+): EarnedValueMetrics {
+  const tasks = schedule?.tasks ?? [];
+  const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
+  const dayCursor = elapsedDaysForCursor(project, schedule);
+
+  const snap = buildEarnedValueSnapshot(
+    tasks,
+    project.linkedEstimate ?? undefined,
+    { dayCursor, invoices: projectInvoices },
+  );
+
+  const bac = snap.totalBudget;
+  const pv = snap.totalPlannedValue;
+  const ev = snap.totalEarnedValue;
+  const ac = computeActualCostFromInvoices(projectInvoices);
+  const sv = ev - pv;
+  const cv = ev - ac;
+  const spi = snap.spi;
+  const cpi = snap.cpi ?? 1;
+  const eac = cpi !== 0 ? bac / cpi : bac;
+  const etc = eac - ac;
+  const vac = bac - eac;
+  const percentComplete = bac > 0 ? (ev / bac) * 100 : 0;
+
+  return {
+    budgetAtCompletion: bac,
+    plannedValue: pv,
+    earnedValue: ev,
+    actualCost: ac,
+    scheduleVariance: sv,
+    costVariance: cv,
+    schedulePerformanceIndex: round2(spi),
+    costPerformanceIndex: round2(cpi),
+    estimateAtCompletion: round2(eac),
+    estimateToComplete: round2(etc),
+    varianceAtCompletion: round2(vac),
+    percentComplete: round1(percentComplete),
+    calculatedAt: new Date().toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
+
+/** Calendar-days elapsed since project start, clamped to 1..totalDurationDays.
+ *  v2.1 keeps the same calendar-days approximation the dead engine used.
+ *  Calendar-aware (working days + holidays) lands in v2.2. */
+function elapsedDaysForCursor(
+  project: Project,
+  schedule: ProjectSchedule | null | undefined,
+): number {
+  if (!project.createdAt) return 1;
+  const start = new Date(project.createdAt).getTime();
+  const now = Date.now();
+  if (now <= start) return 1;
+  const elapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24)) + 1;
+  const cap = schedule?.totalDurationDays ?? elapsed;
+  return Math.min(Math.max(1, elapsed), Math.max(1, cap));
+}
+
+function round1(n: number): number { return Math.round(n * 10) / 10; }
+function round2(n: number): number { return Math.round(n * 100) / 100; }
