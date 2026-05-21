@@ -484,6 +484,46 @@ serve(async (req) => {
       }
       break;
     }
+    case "account.application.deauthorized": {
+      // Audit-2026-05-21 #30.4: connected account disconnected from the
+      // platform. Stripe fires this when a GC deauthorizes us from their
+      // Express dashboard (or when Stripe disables the account on their
+      // end). Pre-fix we ignored the event entirely — the profile's
+      // stripe_account_id + stripe_charges_enabled flags stayed set,
+      // leaving the Settings page claiming "Connected" against a Stripe
+      // account that no longer accepts charges.
+      //
+      // The event payload's data.object IS the Account object, but the
+      // top-level event.account field is the more-reliable identifier
+      // for deauthorization events per Stripe's docs (Account object
+      // can be partial here).
+      const acctId = event.account ?? (event.data.object as StripeAccountObject)?.id;
+      if (!acctId) {
+        console.warn("[stripe-webhook] account.application.deauthorized with no account id");
+        break;
+      }
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            stripe_account_id: null,
+            stripe_charges_enabled: false,
+            stripe_payouts_enabled: false,
+            stripe_details_submitted: false,
+            stripe_connect_updated_at: new Date().toISOString(),
+          })
+          .eq("stripe_account_id", acctId);
+        if (error) {
+          console.error("[stripe-webhook] deauthorize cleanup failed:", error);
+        } else {
+          console.log("[stripe-webhook] Cleared Connect linkage for deauthorized account", acctId);
+        }
+      } catch (err) {
+        console.error("[stripe-webhook] deauthorize handler threw:", err);
+      }
+      break;
+    }
     default:
       // Ignore other event types — we acknowledge with 200 so Stripe stops
       // retrying. The dashboard webhook config should only subscribe us to
