@@ -164,14 +164,49 @@ function AIAPayAppScreenInner() {
 
   const totals = useMemo(() => (app ? computeAIATotals(app) : null), [app]);
 
+  // Audit-2026-05-21 (#28.1 HIGH): edit-after-send lock for AIA pay-apps.
+  //
+  // Pre-fix this screen accepted edits at any time. After a GC tapped
+  // "Generate" — which writes a SavedAIAPayApp record + auto-creates a
+  // Stripe pay link for the homeowner — the screen would happily let
+  // the GC change SOV percentages, retainage, or line items, then
+  // re-Generate, producing a NEW PDF + a NEW pay link with different
+  // numbers. The architect's already-certified copy (sealed via
+  // seal-document) and the GC's live data drift, and the next period's
+  // pay-app would seed from the corrupted "billed-through" totals.
+  // Real audit / fraud risk on commercial projects.
+  //
+  // Lock signal: an existing SavedAIAPayApp at the same applicationNumber
+  // AND payLinkUrl is set. payLinkUrl = pay link generated = "sent for
+  // payment" = locked. Plain "save to project" (without a Stripe link,
+  // e.g. GC hasn't connected Stripe) is NOT a lock event — that path is
+  // a draft and stays editable.
+  //
+  // Once locked, the user's path forward is to create the NEXT period
+  // (applicationNumber + 1) instead of editing this one. The carry-
+  // forward logic in the seeding useEffect already handles this — every
+  // monthly pay-app seeds from the prior one's billed-through totals.
+  //
+  // NOTE: This is a UI-only lock. RLS gates ownership on aia_pay_apps
+  // but does NOT enforce a state-machine. Determined users or stale UI
+  // bundles can bypass via direct API. A future migration adding a
+  // DB-level update policy on aia_pay_apps is the durable fix.
+  const savedForThisAppNumber = useMemo(() => {
+    if (!project || !app) return null;
+    return getAIAPayAppsForProject(project.id).find(a => a.applicationNumber === app.applicationNumber) ?? null;
+  }, [project, app, getAIAPayAppsForProject]);
+  const isLocked = !!savedForThisAppNumber?.payLinkUrl;
+
   const updateLine = useCallback((lineId: string, patch: Partial<AIASOVLine>) => {
+    if (isLocked) return;
     setApp(prev => prev ? {
       ...prev,
       lines: prev.lines.map(l => l.id === lineId ? { ...l, ...patch } : l),
     } : prev);
-  }, []);
+  }, [isLocked]);
 
   const applyPercentToLine = useCallback((lineId: string, percent: number) => {
+    if (isLocked) return;
     setApp(prev => {
       if (!prev) return prev;
       return {
@@ -184,15 +219,16 @@ function AIAPayAppScreenInner() {
         }),
       };
     });
-  }, []);
+  }, [isLocked]);
 
   const updateRetainagePctAll = useCallback((pct: number) => {
+    if (isLocked) return;
     setApp(prev => prev ? {
       ...prev,
       retainagePercent: pct,
       lines: prev.lines.map(l => ({ ...l, retainagePercent: pct })),
     } : prev);
-  }, []);
+  }, [isLocked]);
 
   // v2.3 wedge A2 — sync schedule progress to AIA lines.
   // v2.4 (Item 4) — Honor per-line linkedTaskId bindings: a line with
@@ -200,6 +236,13 @@ function AIAPayAppScreenInner() {
   // a binding fall back to the project-level EV %. Gives per-trade billing
   // accuracy when the GC has bound SOV lines to schedule tasks.
   const handleSyncFromSchedule = useCallback(() => {
+    if (isLocked) {
+      Alert.alert(
+        'Period locked',
+        'This pay application has been generated with a payment link. Create the next period to revise.'
+      );
+      return;
+    }
     if (!project?.schedule || !project.linkedEstimate || !app) {
       Alert.alert(
         'No schedule data',
@@ -238,7 +281,7 @@ function AIAPayAppScreenInner() {
       return;
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, app, applyPercentToLine]);
+  }, [project, app, applyPercentToLine, isLocked]);
 
   // Build a portable SavedAIAPayApp record from the in-memory app + computed
   // totals. Used both for the explicit "Save to Project" tap and as a
@@ -292,6 +335,13 @@ function AIAPayAppScreenInner() {
   }, [app, project, totals, invoice?.id, getAIAPayAppsForProject]);
 
   const handleSave = useCallback(async () => {
+    if (isLocked) {
+      Alert.alert(
+        'Period locked',
+        'This pay application has already been generated and a payment link is active. To revise the numbers, create the next period instead.'
+      );
+      return;
+    }
     const rec = buildSavedRecord();
     if (!rec) return;
 
@@ -366,15 +416,22 @@ function AIAPayAppScreenInner() {
         [{ text: 'OK', style: 'default' }],
       );
     }
-  }, [buildSavedRecord, addAIAPayApp, user, settings, router]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router, isLocked, tier]);
 
   // Tap "Generate PDF" → show pre-export confirmation first (liability
   // reducer). Once user confirms they reviewed the totals, we actually
   // generate.
   const requestGenerate = useCallback(() => {
+    if (isLocked) {
+      Alert.alert(
+        'Period locked',
+        'This pay application has already been generated. Create the next period to produce a new PDF + pay link.'
+      );
+      return;
+    }
     if (!app || !settings?.branding) return;
     setShowPreExportConfirm(true);
-  }, [app, settings?.branding]);
+  }, [app, settings?.branding, isLocked]);
 
   const handleGenerate = useCallback(async () => {
     setShowPreExportConfirm(false);
@@ -453,6 +510,30 @@ function AIAPayAppScreenInner() {
             ],
           }}
         />
+
+        {/* Audit-2026-05-21 (#28.1 HIGH): edit-after-send lock banner.
+            Surfaces the locked state immediately so the GC knows why
+            edits are being refused. CTA bounces back to the invoice so
+            they can navigate to the next billing period. */}
+        {isLocked && (
+          <View style={styles.lockedBanner}>
+            <Text style={styles.lockedBannerTitle}>
+              Period #{app.applicationNumber} locked
+            </Text>
+            <Text style={styles.lockedBannerBody}>
+              This pay application has been generated with a payment link active for ${(savedForThisAppNumber?.totals?.currentPaymentDue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}. To revise the numbers, create the next period instead — carry-forward will seed the next pay-app from this period&apos;s billed-through totals.
+            </Text>
+            <TouchableOpacity
+              style={styles.lockedBannerCta}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Back to invoice to create next period"
+            >
+              <Text style={styles.lockedBannerCtaText}>Back to invoice →</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Hero summary card */}
         <View style={styles.hero}>
@@ -847,6 +928,42 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: themeColors.bg },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted },
+
+  // Audit-2026-05-21 (#28.1) — locked-period banner styles. Amber accent
+  // matches the FeatureHeader eyebrow + signals "warning, not error."
+  lockedBanner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: Tokens.radius.panel,
+    backgroundColor: themeColors.accent + '15',
+    borderWidth: 1,
+    borderColor: themeColors.accent + '40',
+  },
+  lockedBannerTitle: {
+    fontSize: Type.subheadline.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.text,
+    marginBottom: 4,
+  },
+  lockedBannerBody: {
+    fontSize: Type.footnote.fontSize,
+    lineHeight: 18,
+    color: themeColors.textSecondary,
+    marginBottom: 10,
+  },
+  lockedBannerCta: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: themeColors.accent,
+  },
+  lockedBannerCtaText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
 
   hero: {
     margin: 16, padding: 16, borderRadius: Tokens.radius.panel,
