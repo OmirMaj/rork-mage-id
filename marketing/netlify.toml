@@ -126,4 +126,8 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
     Strict-Transport-Security = "max-age=63072000; includeSubDomains"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://us.i.posthog.com https://us-assets.i.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://nteoqhcswappxxjlpvap.supabase.co wss://nteoqhcswappxxjlpvap.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://formspree.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://formspree.io; object-src 'none'; upgrade-insecure-requests"
+    # Post-deploy Lighthouse audit caught cdn.jsdelivr.net blocked by the
+    # original CSP — homepage uses GSAP + ScrollTrigger from jsdelivr for
+    # scroll animations, and the internal /screenshots/ preview uses
+    # React + Babel from unpkg. Both whitelisted in script-src below.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://nteoqhcswappxxjlpvap.supabase.co wss://nteoqhcswappxxjlpvap.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://formspree.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://formspree.io; object-src 'none'; upgrade-insecure-requests"
