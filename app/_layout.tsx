@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
@@ -34,6 +34,107 @@ import * as Sentry from '@sentry/react-native';
 // alerts, which silently breaks every Cancel/Confirm flow (sign out,
 // delete, etc.). Routing through window.confirm restores the behavior.
 patchAlertForWeb();
+
+/**
+ * Audit-2026-05-21 W1: map pathname → human-readable page title for the
+ * browser tab on web. Returns null for routes not in the table (the effect
+ * falls back to plain "MAGE ID" — no false labels). Add entries when new
+ * top-level routes ship.
+ */
+function pathToDocumentTitle(pathname: string): string | null {
+  if (!pathname || pathname === '/') return 'Projects';
+  // Strip query / hash if router ever passes them.
+  const path = pathname.split('?')[0].split('#')[0];
+  // Exact matches first.
+  const exact: Record<string, string> = {
+    '/': 'Projects',
+    '/summary': 'Summary',
+    '/login': 'Sign in',
+    '/signup': 'Create account',
+    '/onboarding': 'Welcome',
+    '/onboarding-paywall': 'Subscribe',
+    '/paywall': 'Subscribe',
+    '/reset-password': 'Reset password',
+    '/settings': 'Settings',
+    '/settings/appearance': 'Appearance',
+    '/notifications-inbox': 'Notifications',
+    '/messages': 'Messages',
+    '/report-inbox': 'Report inbox',
+    '/activity-feed': 'Activity',
+    '/payments': 'Payments',
+    '/payments-setup': 'Stripe Connect',
+    '/plans': 'Plans',
+    '/reports': 'Reports',
+    '/invoice': 'Invoice',
+    '/aia-pay-app': 'AIA pay application',
+    '/change-order': 'Change order',
+    '/budget-dashboard': 'Budget dashboard',
+    '/cash-flow': 'Cash flow',
+    '/job-costing': 'Job costing',
+    '/contract': 'Contract',
+    '/selections': 'Selections',
+    '/closeout-binder': 'Closeout binder',
+    '/punch-list': 'Punch list',
+    '/punch-walk': 'Punch walk',
+    '/ai-punch': 'AI punch',
+    '/rfi': 'RFI',
+    '/submittal': 'Submittal',
+    '/oac-meeting': 'OAC meeting',
+    '/daily-report': 'Daily report',
+    '/time-tracking': 'Time tracking',
+    '/photo-triage': 'Photo triage',
+    '/leads': 'Pipeline',
+    '/contacts': 'Contacts',
+    '/buyout': 'Buyout',
+    '/buyout-package': 'Bid package',
+    '/bill-from-estimate': 'Bill from estimate',
+    '/client-messages': 'Client messages',
+    '/client-portal-setup': 'Client portal',
+    '/client-view': 'Client view',
+    '/client-update': 'Client update',
+    '/permits': 'Permits',
+    '/warranties': 'Warranties',
+    '/lien-waivers': 'Lien waivers',
+    '/coi-vault': 'COI vault',
+    '/prequal-manager': 'Prequal manager',
+    '/prequal-form': 'Prequal form',
+    '/sub-portals': 'Sub portals',
+    '/sub-portal-setup': 'Sub portal',
+    '/public-profile-setup': 'Public profile',
+    '/integrations': 'Integrations',
+    '/handover': 'Handover',
+    '/weekly-snapshot': 'Weekly snapshot',
+    '/schedule-pro': 'Schedule',
+    '/schedule-wizard': 'Schedule wizard',
+    '/shared-schedule': 'Schedule',
+    '/estimate-wizard': 'Estimate',
+    '/bid-detail': 'Bid',
+    '/submit-bid-response': 'Submit bid',
+    '/post-bid': 'Post bid',
+    '/post-homeowner-request': 'Post project',
+    '/post-community-bid': 'Post bid',
+  };
+  if (exact[path]) return exact[path];
+  // Tab-grouped routes — strip /(tabs) prefix.
+  if (path.startsWith('/(tabs)')) {
+    return pathToDocumentTitle(path.replace('/(tabs)', '')) ?? null;
+  }
+  // Common nested patterns.
+  if (path.startsWith('/discover/')) {
+    const seg = path.replace('/discover/', '');
+    return seg.charAt(0).toUpperCase() + seg.slice(1);
+  }
+  if (path.startsWith('/materials/')) return 'Materials';
+  if (path.startsWith('/equipment/')) return 'Equipment';
+  if (path.startsWith('/marketplace/')) return 'Marketplace';
+  if (path.startsWith('/mage-id-bids/')) return 'MAGE ID Bids';
+  if (path.startsWith('/construction-ai/')) return 'Construction AI';
+  // Detail routes like /invoice/123 — return the parent label.
+  const top = path.split('/')[1];
+  const topRoute = '/' + top;
+  if (exact[topRoute]) return exact[topRoute];
+  return null;
+}
 
 Sentry.init({
   dsn: 'https://f1ef45279647b4001040c1e2f9407faa@o4511315578388480.ingest.us.sentry.io/4511315581075456',
@@ -295,6 +396,25 @@ function RootLayoutNav() {
       })();
     }
   }, [isAuthenticated, hasSeenOnboarding, authLoading, projectLoading, segments, router, tier, projects]);
+
+  // Audit-2026-05-21 W1 (HIGH): per-route document.title on web.
+  //
+  // Pre-fix every browser tab showed "MAGE ID" because Expo Router's
+  // Stack.Screen `title` prop drives the in-app React Navigation header
+  // only — it doesn't bridge to document.title on web. Result: every
+  // bookmark + every tab + every share-as-link preview reads identically.
+  //
+  // Global path→title mapper here covers every route in one place. Adding
+  // a new route doesn't require touching each screen — just add an entry
+  // here. Format is "Page · MAGE ID" matching the dot-separator convention
+  // Linear/Vercel/Notion use. Native (iOS/Android) skips entirely.
+  const pathname = usePathname();
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (typeof document === 'undefined') return;
+    const title = pathToDocumentTitle(pathname);
+    document.title = title ? `${title} · MAGE ID` : 'MAGE ID';
+  }, [pathname]);
 
   // Cold-start gate: while the auth + project contexts are hydrating from
   // AsyncStorage/Supabase, render the branded construction loader instead

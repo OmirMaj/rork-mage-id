@@ -848,7 +848,19 @@ function InvoiceInner() {
   const effectiveStatus = existingInvoice ? getEffectiveInvoiceStatus(existingInvoice) : null;
   const daysPastDue = existingInvoice ? getDaysPastDue(existingInvoice) : 0;
 
-  const isLocked = effectiveStatus === 'paid';
+  // Audit-2026-05-21 (#28.2 MED): tighten lock from paid-only to "anything
+  // past draft." Pre-fix the lock was effectiveStatus === 'paid' only, so a
+  // SENT invoice was fully editable — GC could change line items + totals
+  // after the client had already received the invoice + the Stripe pay link.
+  // Industry standard (QuickBooks/Xero/FreshBooks) locks at SENT and
+  // requires a Void & Reissue to make changes. The lock here gates only
+  // line-item edits + pickers; status-action buttons (Mark paid, Generate
+  // pay link, Send) are gated independently by effectiveStatus checks and
+  // continue to work post-send.
+  const isLocked = effectiveStatus === 'paid'
+    || effectiveStatus === 'sent'
+    || effectiveStatus === 'partially_paid'
+    || effectiveStatus === 'overdue';
 
   const statusColor = effectiveStatus ? getInvoiceStatusColors(themeColors, effectiveStatus) : null;
   const statusLabel = effectiveStatus ? (

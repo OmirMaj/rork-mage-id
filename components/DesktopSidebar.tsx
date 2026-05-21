@@ -139,7 +139,15 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   }));
 
   return (
-    <View style={[styles.container, { width, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
+    <View
+      style={[styles.container, { width, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
+      // Audit-2026-05-21 W5: semantic landmark on web. React Native Web
+      // maps accessibilityRole="navigation" to <nav>, giving screen
+      // readers a "Jump to navigation" skip-link target + improving
+      // Lighthouse a11y score. Native ignores the role.
+      accessibilityRole={Platform.OS === 'web' ? ('navigation' as never) : undefined}
+      accessibilityLabel="Primary navigation"
+    >
       <View style={styles.brandSection}>
         <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
           <Wrench size={20} color={'#FFFFFF'} />
