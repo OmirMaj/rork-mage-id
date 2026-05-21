@@ -67,7 +67,17 @@ function FeatureHeaderImpl({
               {eyebrow}
             </Text>
           )}
-          <Text style={[Type.title2, { color: colors.text }]} numberOfLines={2}>
+          {/* Audit-2026-05-21 W2 (HIGH): accessibilityRole="header" +
+              aria-level=1 promotes this to an <h1> on web. Every
+              workflow screen using FeatureHeader (RFI, Submittal, CO,
+              Invoice, AIA, Buyout, Closeout, Handover, etc.) inherits
+              this fix. Native ignores. */}
+          <Text
+            style={[Type.title2, { color: colors.text }]}
+            numberOfLines={2}
+            accessibilityRole="header"
+            aria-level={1 as never}
+          >
             {title}
           </Text>
         </View>

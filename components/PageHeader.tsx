@@ -56,7 +56,20 @@ const PageHeader = React.memo(function PageHeader({
     <View style={[styles.root, style]}>
       <View style={styles.left}>
         <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{title}</Text>
+          {/* Audit-2026-05-21 W2 (HIGH): accessibilityRole="header" +
+              aria-level=1 promotes this to an <h1> on web. Pre-fix
+              every page rendered with NO h1, killing reader-mode, screen
+              readers, browser bookmarks, and SEO. Every screen using
+              PageHeader inherits this fix automatically. Native ignores
+              the role + aria-level. */}
+          <Text
+            style={[styles.title, { color: colors.text }]}
+            numberOfLines={1}
+            accessibilityRole="header"
+            aria-level={1 as never}
+          >
+            {title}
+          </Text>
           {statusPill}
         </View>
         {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{subtitle}</Text> : null}
