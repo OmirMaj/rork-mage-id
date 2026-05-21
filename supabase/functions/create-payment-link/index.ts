@@ -49,6 +49,8 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_API_VERSION = "2024-06-20";
 const STRIPE_BASE = "https://api.stripe.com/v1";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -230,6 +232,82 @@ serve(async (req) => {
       { success: false, error: "Amount exceeds Stripe maximum ($999,999.99)" },
       400,
     );
+  }
+
+  // Audit-2026-05-21: ownership check. Pre-fix this function had
+  // verify_jwt:true at the platform level but trusted body.invoiceId
+  // and body.stripeAccountId blindly. An authenticated attacker A could:
+  //   1. Call with body.invoiceId = victim_B's invoice id, body.stripeAccountId = A's own account
+  //   2. Get a Stripe payment link with metadata.invoice_id = victim_B's id, money flowing to A
+  //   3. Send the link to the real homeowner who pays
+  //   4. Stripe webhook fires with metadata.invoice_id = B's id → MAGE marks B's invoice paid
+  //   5. Attacker pocketed the money; victim B sees "paid in full" without receiving funds
+  // Fix: decode caller's JWT, confirm invoice.user_id === caller.sub AND
+  // profile.stripe_account_id === body.stripeAccountId (when provided).
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("[create-payment-link] Supabase server config missing — cannot verify ownership");
+    return jsonResponse({ success: false, error: "Server misconfigured" }, 500);
+  }
+  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+  let callerSub: string | null = null;
+  try {
+    const parts = bearer.split(".");
+    if (parts.length === 3) {
+      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      const payload = JSON.parse(atob(b64));
+      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
+    }
+  } catch { /* fall through to 401 */ }
+  if (!callerSub) {
+    return jsonResponse({ success: false, error: "Unauthenticated" }, 401);
+  }
+  // Verify the caller owns the invoice they're creating a payment link for.
+  try {
+    const invRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/invoices?id=eq.${encodeURIComponent(body.invoiceId)}&select=id,user_id&limit=1`,
+      { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+    );
+    if (!invRes.ok) {
+      console.error("[create-payment-link] invoice lookup failed:", invRes.status);
+      return jsonResponse({ success: false, error: "Could not verify invoice ownership" }, 500);
+    }
+    const invRows = await invRes.json() as { id: string; user_id: string }[];
+    if (invRows.length === 0) {
+      return jsonResponse({ success: false, error: "Invoice not found" }, 404);
+    }
+    if (invRows[0].user_id !== callerSub) {
+      console.warn("[create-payment-link] caller", callerSub, "tried to create link for invoice owned by", invRows[0].user_id);
+      return jsonResponse({ success: false, error: "Invoice does not belong to caller" }, 403);
+    }
+  } catch (e) {
+    console.error("[create-payment-link] ownership check exception:", e);
+    return jsonResponse({ success: false, error: "Ownership check failed" }, 500);
+  }
+  // If a Stripe Connect account is specified, verify it belongs to the caller.
+  // This blocks the attack where caller routes a victim's payment into someone
+  // else's Stripe account.
+  if (body.stripeAccountId) {
+    try {
+      const profRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(callerSub)}&select=stripe_account_id&limit=1`,
+        { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+      );
+      if (!profRes.ok) {
+        console.error("[create-payment-link] profile lookup failed:", profRes.status);
+        return jsonResponse({ success: false, error: "Could not verify Stripe account ownership" }, 500);
+      }
+      const profRows = await profRes.json() as { stripe_account_id: string | null }[];
+      const ownAccountId = profRows[0]?.stripe_account_id ?? null;
+      if (!ownAccountId || ownAccountId !== body.stripeAccountId) {
+        console.warn("[create-payment-link] caller", callerSub, "tried to use stripeAccountId", body.stripeAccountId, "which is not theirs (own:", ownAccountId, ")");
+        return jsonResponse({ success: false, error: "stripeAccountId does not belong to caller" }, 403);
+      }
+    } catch (e) {
+      console.error("[create-payment-link] stripeAccountId check exception:", e);
+      return jsonResponse({ success: false, error: "Connect account check failed" }, 500);
+    }
   }
 
   const currency = (body.currency || "usd").toLowerCase();

@@ -47,6 +47,11 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { resendSend, htmlToPlaintext, buildFromAddress, buildUnsubscribeUrl, type UnsubscribeOpts } from "../_shared/email.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
+const MAX_RECIPIENTS_PER_CALL = 25;
+const MAX_HTML_BYTES = 250_000;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -170,9 +175,86 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: "Missing html body" }, 400);
   }
 
+  // Audit-2026-05-21: anti-impersonation + size caps. Pre-fix this
+  // function had verify_jwt:true at the platform level but blindly
+  // honored caller-supplied `from`, `fromCompanyName`, and `replyTo`
+  // — any authenticated MAGE user could send emails branded as
+  // "[Any Company] via MAGE ID <noreply@mageid.app>" with a reply-to
+  // pointing anywhere. That's a phishing kit shipped with every signup.
+  // Plus there was no cap on body.html size, attachment size, or
+  // recipient count — abuse vector for Resend quota burn.
+  //
+  // Fix:
+  //   1. Decode caller JWT → identify the authenticated user
+  //   2. Look up their profile.company_name + profile.email
+  //   3. FORCE fromCompanyName to their company_name (ignore body.fromCompanyName)
+  //   4. FORCE replyTo to their email (ignore body.replyTo)
+  //   5. REJECT body.from (no legacy override path)
+  //   6. Cap recipients at 25 per call, html at 250KB, attachments at 5MB total
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("[send-email] Supabase server config missing — cannot verify caller identity");
+    return jsonResponse({ success: false, error: "Server misconfigured" }, 500);
+  }
+  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+  let callerSub: string | null = null;
+  try {
+    const parts = bearer.split(".");
+    if (parts.length === 3) {
+      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      const payload = JSON.parse(atob(b64));
+      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
+    }
+  } catch { /* fall through to 401 */ }
+  if (!callerSub) {
+    return jsonResponse({ success: false, error: "Unauthenticated" }, 401);
+  }
+  // Look up caller profile for the trust-derived FROM / reply-to.
+  let callerCompany: string | null = null;
+  let callerEmail: string | null = null;
+  try {
+    const pRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(callerSub)}&select=company_name,contact_name,email&limit=1`,
+      { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
+    );
+    if (pRes.ok) {
+      const rows = await pRes.json() as { company_name: string | null; contact_name: string | null; email: string | null }[];
+      if (rows.length > 0) {
+        callerCompany = rows[0].company_name || rows[0].contact_name || null;
+        callerEmail = rows[0].email || null;
+      }
+    }
+  } catch (e) {
+    console.warn("[send-email] profile lookup failed (will use defaults):", e);
+  }
+
+  // Size + recipient caps
   const recipients = Array.isArray(body.to) ? body.to : [body.to];
+  if (recipients.length > MAX_RECIPIENTS_PER_CALL) {
+    return jsonResponse({ success: false, error: `Too many recipients (max ${MAX_RECIPIENTS_PER_CALL} per call)` }, 400);
+  }
+  if (body.html.length > MAX_HTML_BYTES) {
+    return jsonResponse({ success: false, error: `HTML body too large (max ${MAX_HTML_BYTES} bytes)` }, 400);
+  }
+  if (body.attachments) {
+    let totalAttachBytes = 0;
+    for (const a of body.attachments) {
+      // base64 inflates ~33%, so we approximate decoded size.
+      totalAttachBytes += Math.floor((a.content?.length || 0) * 0.75);
+    }
+    if (totalAttachBytes > MAX_ATTACHMENT_BYTES) {
+      return jsonResponse({ success: false, error: `Attachments too large (max ${MAX_ATTACHMENT_BYTES} bytes total decoded)` }, 400);
+    }
+  }
+
+  // Force server-derived FROM + reply-to. Caller's body.from / body.fromCompanyName / body.replyTo are IGNORED.
   const text = body.text ?? htmlToPlaintext(body.html);
-  const fromAddress = body.from ?? buildFromAddress(body.fromCompanyName);
+  const fromAddress = buildFromAddress(callerCompany);
+  // Override the parsed values so the rest of the function uses trusted versions.
+  body.from = fromAddress;
+  body.fromCompanyName = callerCompany ?? undefined;
+  body.replyTo = callerEmail ?? undefined;
 
   // Send to each recipient. Resend supports multi-recipient on `to` but
   // that exposes each recipient's address to the others — never what we

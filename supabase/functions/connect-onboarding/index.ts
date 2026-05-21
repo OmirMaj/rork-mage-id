@@ -118,6 +118,38 @@ serve(async (req) => {
     });
   }
 
+  // Audit-2026-05-21: ownership check. Pre-fix, verify_jwt:true at the
+  // platform level meant the caller had to be SOME authenticated MAGE
+  // user, but the function then trusted `body.userId` blindly. An
+  // attacker A authenticated with their own MAGE account could call
+  // with body.userId = victim_B's userId, triggering Stripe Connect
+  // setup against B's profile, polluting B's stripe_account_id, and
+  // potentially leaking B's profile state in the response. Fix: derive
+  // the caller's id from their JWT and enforce equality.
+  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+  let callerSub: string | null = null;
+  try {
+    const parts = bearer.split(".");
+    if (parts.length === 3) {
+      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      const payload = JSON.parse(atob(b64));
+      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
+    }
+  } catch { /* fall through to 401 */ }
+  if (!callerSub) {
+    return new Response(JSON.stringify({ success: false, error: "unauthenticated" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (callerSub !== userId) {
+    console.warn("[connect-onboarding] caller", callerSub, "tried to onboard for", userId);
+    return new Response(JSON.stringify({ success: false, error: "userId does not match caller" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // Stripe's account_links endpoint hard-rejects anything that isn't HTTPS
   // — custom schemes (mageid://, exp://) come back with "Not a valid URL".
   // Old app builds were sending custom schemes; rather than gate on bundle

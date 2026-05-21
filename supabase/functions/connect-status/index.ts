@@ -76,6 +76,34 @@ serve(async (req) => {
     });
   }
 
+  // Audit-2026-05-21: ownership check. Pre-fix this function trusted
+  // body.userId without verifying caller identity — any authenticated
+  // MAGE user could read any other user's Stripe Connect status. Now
+  // we decode the caller's JWT and require body.userId === payload.sub.
+  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+  let callerSub: string | null = null;
+  try {
+    const parts = bearer.split(".");
+    if (parts.length === 3) {
+      let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      const payload = JSON.parse(atob(b64));
+      if (payload && typeof payload.sub === "string") callerSub = payload.sub;
+    }
+  } catch { /* fall through to 401 */ }
+  if (!callerSub) {
+    return new Response(JSON.stringify({ success: false, error: "unauthenticated" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (callerSub !== body.userId) {
+    console.warn("[connect-status] caller", callerSub, "tried to read status for", body.userId);
+    return new Response(JSON.stringify({ success: false, error: "userId does not match caller" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: profile, error } = await supabase
     .from("profiles")
