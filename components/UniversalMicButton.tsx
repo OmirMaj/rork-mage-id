@@ -418,7 +418,14 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         <TouchableOpacity
           // Stack ABOVE the AICopilot FAB which sits at insets.bottom + 70
           // with size 52. Add gap so the two don't touch.
-          style={[styles.fab, { bottom: insets.bottom + 70 + 52 + 12 }]}
+          //
+          // Audit-2026-05-21 W12 (LOW): on web there's no tab-bar safe-
+          // area, so insets.bottom is usually 0 and the FABs hover too
+          // close to the bottom of the viewport, overlapping the last
+          // ~100px of scrollable content. Push both FABs up by 48px on
+          // web to clear typical content edges. The user can still scroll
+          // to see anything obscured.
+          style={[styles.fab, { bottom: insets.bottom + 70 + 52 + 12 + (Platform.OS === 'web' ? 48 : 0) }]}
           onPress={handleOpen}
           activeOpacity={0.85}
           accessibilityLabel="Voice action"

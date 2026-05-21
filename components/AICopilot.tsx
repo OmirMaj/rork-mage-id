@@ -253,7 +253,12 @@ export default function AICopilot() {
 
   return (
     <>
-      <Animated.View style={[styles.fab, { bottom: insets.bottom + 70, transform: [{ scale: pulseAnim }] }]}>
+      {/* Audit-2026-05-21 W12 (LOW): web has no tab-bar safe-area
+          inset, so insets.bottom is usually 0. Add a 48px floor offset
+          on web to keep the AI FAB clear of typical scrollable content
+          edges. Matches the same +48 offset on UniversalMicButton so
+          the two FABs stay vertically aligned. */}
+      <Animated.View style={[styles.fab, { bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0), transform: [{ scale: pulseAnim }] }]}>
         <TouchableOpacity
           onPress={handleOpen}
           style={styles.fabButton}
