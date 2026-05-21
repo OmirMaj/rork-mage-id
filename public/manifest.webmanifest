@@ -1,0 +1,33 @@
+{
+  "name": "MAGE ID",
+  "short_name": "MAGE ID",
+  "description": "The operating system for general contractors — plans, estimates, daily reports, pay applications, and a live client portal. One app for the jobsite.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0D10",
+  "theme_color": "#0B0D10",
+  "lang": "en-US",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/assets/images/favicon.png",
+      "sizes": "48x48 72x72 96x96 128x128 256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/images/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/images/adaptive-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

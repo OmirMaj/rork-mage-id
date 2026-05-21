@@ -167,6 +167,12 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
               onMouseLeave: () => setHoveredKey(null),
             } as any : {})}
             testID="sidebar-search"
+            // Audit-2026-05-21 W7 — accessibility. accessibilityRole="button"
+            // promotes the TouchableOpacity to a real <button> on web (gets
+            // keyboard focusability + screen-reader role). accessibilityLabel
+            // gives the icon-only search affordance a spoken name.
+            accessibilityRole="button"
+            accessibilityLabel="Open universal search"
           >
             <Search
               size={18}
@@ -207,6 +213,14 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                     onMouseLeave: () => setHoveredKey(null),
                   } as any : {})}
                   testID={`sidebar-${item.key}`}
+                  // Audit-2026-05-21 W6 + W7 — accessibility. Promotes
+                  // each nav item to <button> on web (keyboard focus +
+                  // screen-reader role) and announces the destination
+                  // with current state ("Active") + locked state if
+                  // tier-gated.
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
+                  accessibilityState={{ selected: active, disabled: locked }}
                 >
                   {/* Active state is now a solid pill (matches the SaaS-
                       dashboard reference) instead of a left-bar + 9% tint
