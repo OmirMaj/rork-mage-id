@@ -191,6 +191,39 @@ export default function PaywallScreen() {
     void Linking.openURL(url);
   }, []);
 
+  // Audit-2026-05-21 W3 (HIGH): web paywall fallback.
+  //
+  // Pre-fix: opening /paywall on the web build of app.mageid.app showed
+  // a permanent loading splash. react-native-purchases (RevenueCat)
+  // doesn't initialize on web — it's a native-only SDK — so the
+  // `isLoading` flag from useSubscription() never flips to false, and
+  // every purchase handler awaits a package that will never load.
+  //
+  // The web path can't actually process App Store / Google Play
+  // subscriptions anyway (IAP is platform-bound). The cleanest fix is
+  // a read-only web view that:
+  //   - Shows the same feature comparison + AI quota tables so prospects
+  //     can compare tiers from a shared link / SEO landing
+  //   - Surfaces clear App Store + Google Play CTAs to drive web → native
+  //   - Tells already-subscribed users to sign in on the mobile app and
+  //     their entitlements will sync
+  //
+  // A future Stripe Checkout integration for true web-purchase would be
+  // a sub-project (new Stripe products, web↔RevenueCat sync, new webhook
+  // event handlers). Out of scope here.
+  if (Platform.OS === 'web') {
+    return (
+      <WebPaywallView
+        themeColors={themeColors}
+        styles={styles}
+        insets={insets}
+        onClose={() => router.back()}
+        onOpenLegal={openLegal}
+        currentTier={tier}
+      />
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg, paddingBottom: insets.bottom }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -425,6 +458,204 @@ export default function PaywallScreen() {
             <Text style={styles.loadingText}>Loading plans...</Text>
           </View>
         )}
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * Web-only paywall view. Read-only feature/quota tables + App Store /
+ * Google Play CTAs. See the W3 audit comment in PaywallScreen for why
+ * this exists (RevenueCat is native-only; web purchase flow can't run).
+ *
+ * Apple App ID 6762229238 is the App Store Connect app id (from
+ * eas.json submit config, CLAUDE.md "Submit:" line). Google Play uses
+ * the android bundle id app.mageid.android per app.json.
+ */
+function WebPaywallView({
+  themeColors,
+  styles,
+  insets,
+  onClose,
+  onOpenLegal,
+  currentTier,
+}: {
+  themeColors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+  insets: { top: number; bottom: number; left: number; right: number };
+  onClose: () => void;
+  onOpenLegal: (kind: 'privacy' | 'terms') => void;
+  currentTier: 'free' | 'pro' | 'business' | 'enterprise';
+}) {
+  const openAppStore = useCallback(() => {
+    void Linking.openURL('https://apps.apple.com/app/id6762229238');
+  }, []);
+  const openPlayStore = useCallback(() => {
+    void Linking.openURL('https://play.google.com/store/apps/details?id=app.mageid.android');
+  }, []);
+  return (
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingBottom: insets.bottom }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-close-web" accessibilityRole="button" accessibilityLabel="Close">
+          <X size={22} color={themeColors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Plans</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+        {/* Hero */}
+        <View style={{ alignItems: 'center', marginBottom: 24 }}>
+          <IconWrapper icon={Crown} tone="accent" size="md" />
+          <Text
+            style={[Type.title1, { color: themeColors.text, marginTop: 14, textAlign: 'center' }]}
+            accessibilityRole="header"
+            aria-level={1 as never}
+          >
+            Subscribe in the mobile app
+          </Text>
+          <Text style={[Type.body, { color: themeColors.textSecondary, marginTop: 8, textAlign: 'center', maxWidth: 520 }]}>
+            App Store + Google Play handle the subscription. Open MAGE ID on your phone to pick a plan — your account will be linked the moment you sign in.
+          </Text>
+        </View>
+
+        {/* Store CTAs */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
+          <TouchableOpacity
+            onPress={openAppStore}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Download MAGE ID on the App Store"
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 10,
+              paddingHorizontal: 18, paddingVertical: 12,
+              backgroundColor: themeColors.text, borderRadius: 12, minWidth: 200,
+              justifyContent: 'center',
+            }}
+          >
+            <Rocket size={18} color={themeColors.bg} />
+            <Text style={{ color: themeColors.bg, fontWeight: '700', fontSize: 15 }}>App Store</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openPlayStore}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Get MAGE ID on Google Play"
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 10,
+              paddingHorizontal: 18, paddingVertical: 12,
+              backgroundColor: themeColors.surface, borderRadius: 12, minWidth: 200,
+              borderWidth: 1, borderColor: themeColors.line,
+              justifyContent: 'center',
+            }}
+          >
+            <Zap size={18} color={themeColors.text} />
+            <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 15 }}>Google Play</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Already subscribed note */}
+        <View style={{
+          padding: 14, backgroundColor: themeColors.surface, borderRadius: 12, borderWidth: 1,
+          borderColor: themeColors.line, marginBottom: 28, alignItems: 'flex-start', gap: 6,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Shield size={16} color={themeColors.accent} />
+            <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 14 }}>
+              Already subscribed?
+            </Text>
+          </View>
+          <Text style={{ color: themeColors.textSecondary, fontSize: 13, lineHeight: 19 }}>
+            Open MAGE ID on the same iOS or Android device, sign in with this account, and your subscription will activate automatically. Pro and Business unlocks reach the web app within ~30 seconds of mobile sign-in.
+          </Text>
+        </View>
+
+        {/* Plan tiles — read-only on web */}
+        <View style={{ gap: 14, marginBottom: 28 }}>
+          {([
+            { name: 'Pro',        price: '$29/mo',  blurb: 'AI estimates, cash flow, AIA G702/G703, change orders + invoicing.', icon: Zap,       active: currentTier === 'pro' },
+            { name: 'Business',   price: '$79/mo',  blurb: 'Everything in Pro + subs, RFIs, submittals, punch + closeout, plans.', icon: Building2, active: currentTier === 'business' },
+            { name: 'Enterprise', price: '$150/mo', blurb: 'Same features as Business with the highest AI usage caps.',           icon: Rocket,    active: currentTier === 'enterprise' },
+          ]).map(plan => (
+            <View key={plan.name} style={{
+              padding: 16, borderRadius: 14, borderWidth: 1,
+              borderColor: plan.active ? themeColors.accent : themeColors.line,
+              backgroundColor: themeColors.surface,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <plan.icon size={22} color={themeColors.accent} />
+                <Text style={{ flex: 1, color: themeColors.text, fontWeight: '700', fontSize: 17 }}>{plan.name}</Text>
+                <Text style={{ color: themeColors.text, fontWeight: '800', fontSize: 17 }}>{plan.price}</Text>
+              </View>
+              <Text style={{ color: themeColors.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 8 }}>{plan.blurb}</Text>
+              {plan.active && (
+                <View style={{ marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: themeColors.accent + '22' }}>
+                  <Text style={{ color: themeColors.accent, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Your plan</Text>
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+
+        {/* Feature matrix */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>What unlocks at each tier</Text>
+          <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
+              <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Feature</Text>
+              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Free</Text>
+              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Pro</Text>
+              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Business</Text>
+            </View>
+            {FEATURES.map((row, i) => (
+              <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: i < FEATURES.length - 1 ? 1 : 0, borderColor: themeColors.line }}>
+                <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{row.label}</Text>
+                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.free} colors={themeColors} /></View>
+                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.pro} colors={themeColors} /></View>
+                <View style={{ flex: 1, alignItems: 'center' }}><FeatureCheck available={row.business} colors={themeColors} /></View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* AI quota matrix */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={{ color: themeColors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>AI quotas</Text>
+          <View style={{ borderWidth: 1, borderColor: themeColors.line, borderRadius: 12, overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', backgroundColor: themeColors.bg, padding: 10, borderBottomWidth: 1, borderColor: themeColors.line }}>
+              <Text style={{ flex: 2, color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Quota</Text>
+              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Free</Text>
+              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Pro</Text>
+              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Bus</Text>
+              <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>Ent</Text>
+            </View>
+            {AI_LIMITS.map((row, i) => (
+              <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: i < AI_LIMITS.length - 1 ? 1 : 0, borderColor: themeColors.line }}>
+                <Text style={{ flex: 2, color: themeColors.text, fontSize: 13 }}>{row.label}</Text>
+                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.textSecondary, fontSize: 13 }}>{row.free}</Text>
+                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{row.pro}</Text>
+                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.text, fontSize: 13, fontWeight: '600' }}>{row.business}</Text>
+                <Text style={{ flex: 1, textAlign: 'center', color: themeColors.accent, fontSize: 13, fontWeight: '700' }}>{row.enterprise}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Legal */}
+        <View style={{ alignItems: 'center', marginTop: 8, gap: 6 }}>
+          <Text style={{ color: themeColors.textMuted, fontSize: 12, textAlign: 'center' }}>
+            Secure payment via App Store / Google Play. Cancel anytime.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            <TouchableOpacity onPress={() => onOpenLegal('privacy')} accessibilityRole="link">
+              <Text style={{ color: themeColors.accent, fontSize: 12 }}>Privacy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onOpenLegal('terms')} accessibilityRole="link">
+              <Text style={{ color: themeColors.accent, fontSize: 12 }}>Terms</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
