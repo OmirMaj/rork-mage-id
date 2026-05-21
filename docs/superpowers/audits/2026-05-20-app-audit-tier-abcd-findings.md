@@ -10,11 +10,18 @@
 
 ---
 
-## Headline finding
+## Headline findings
 
 **Tier A.AI1 (MEDIUM, FIXED in 8993431):** `supabase/functions/ai/index.ts` (text AI relay) had no upper bound on `prompt.length` or `body.maxTokens`. Every other AI relay had `MAX_PAGE_BYTES = 8MB` caps; only the text relay was unbounded. A power user (or leaked credential) could send 1MB prompts that each still count as 1 unit on `ai_text` MONTHLY_CAPS, burning 6-100x more Gemini cost than the margin model assumes. Fixed: `MAX_PROMPT_CHARS=50000`, `MAX_SCHEMA_HINT_CHARS=20000`, `MAX_OUTPUT_TOKENS_CAP=24000`, three-layer clamp on `maxTokens`. Deploys with `supabase functions deploy ai`.
 
-That is the ONLY shippable bug found this pass. The other tiers checked clean.
+**Tier D.E1-E4 (HIGH × 3 + MEDIUM × 1, FIXED in 321bec4):** Tier D continuation on 2026-05-21 found **four edge fns in the same class of bug** — `verify_jwt:true` at the platform level confirms the caller is SOME authenticated MAGE user, but the function then trusts a client-supplied identifier without verifying ownership against the caller's JWT subject. All four shipped with JWT-decode + ownership-equality checks:
+
+- **E1 HIGH `create-payment-link`** — money diversion. Attacker creates Stripe payment link with `metadata.invoice_id = victim's id` + `stripeAccountId = attacker's own`. Webhook later marks victim's invoice as PAID (no ownership cross-check in handleCheckoutCompleted) while attacker collected funds. Fix: lookup `invoices.user_id` and `profiles.stripe_account_id`, require both belong to caller.
+- **E2 HIGH `send-email`** — phishing as `noreply@mageid.app`. Generic Resend relay honored `body.from`, `body.fromCompanyName`, `body.replyTo` verbatim. Any authenticated user (including free-tier signups) could send arbitrary HTML to arbitrary recipients with a FROM of `[Spoofed Company] via MAGE ID <noreply@mageid.app>`. Phishing kit shipped with every free signup. Fix: lookup caller's `profiles.company_name + email`, FORCE both into the send, reject `body.from` legacy override, cap recipients (25/call), html (250KB), attachments (5MB).
+- **E3 HIGH `connect-onboarding`** — Stripe Connect state pollution. `body.userId` trusted blindly; attacker triggers Express account creation against victim's profile column. Fix: require `body.userId === payload.sub`.
+- **E4 MEDIUM `connect-status`** — info disclosure. Same `body.userId` bypass; reads anyone's Stripe Connect status. Fix: same equality check.
+
+That's 5 shippable bugs total across both passes, all fixed + deployed.
 
 ---
 
