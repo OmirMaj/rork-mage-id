@@ -53,6 +53,7 @@ import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
 import { colorForTask as canonicalColorForTask } from '@/utils/scheduleColors';
 import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
+import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
 
 // Bar fill is trade-driven via the canonical colorForTask() from scheduleColors.
 // This delegates so existing internal call sites keep working unchanged.
@@ -585,17 +586,18 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       }, null)?.id ?? null;
   }, [tasks]);
 
-  // --- Dependency paths ----------------------------------------------------
-  // Draws a right-angle elbow from predecessor's right edge to successor's
-  // left edge (FS). For SS we'd go left-to-left; FF right-to-right; SF
-  // right-to-left inverted — we only render FS elbows for now and straight
-  // lines for other types. Good enough for first pass.
+  // --- Dependency paths (Task 3 restyle) ----------------------------------------
+  // Arrows are hidden unless a bar is focused (focusedTaskId != null). When
+  // focused, only the one-hop neighbors of the focused task are rendered:
+  // arrows where from === focusedTaskId OR to === focusedTaskId.
+  // Path geometry uses orthogonalArrowPath() from ganttArrowPath.ts.
   const dependencyPaths = useMemo(() => {
+    // No focus → no arrows rendered.
+    if (focusedTaskId == null) return [];
     const out: {
       id: string;
       d: string;
       critical: boolean;
-      highlighted: boolean;
     }[] = [];
     for (const succ of bars) {
       const links = succ.task.dependencyLinks && succ.task.dependencyLinks.length > 0
@@ -604,161 +606,19 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       for (const link of links) {
         const pred = barById.get(link.taskId);
         if (!pred) continue;
-        const linkType = link.type ?? 'FS';
+        // One-hop filter: only show arrows connected to the focused bar.
+        if (pred.task.id !== focusedTaskId && succ.task.id !== focusedTaskId) continue;
         const criticalBoth = pred.isCritical && succ.isCritical;
-        const highlighted =
-          hoverTaskId === pred.task.id ||
-          hoverTaskId === succ.task.id ||
-          dragState?.taskId === pred.task.id ||
-          dragState?.taskId === succ.task.id;
-
-        // Endpoints — each dep type exits/enters a different edge. `exitDir`
-        // and `enterDir` are +1 (right) or -1 (left); they determine which
-        // direction the initial/final stub heads so the elbow reads cleanly
-        // and the arrowhead points at the actual edge we're connecting to.
-        let x1: number, y1: number, x2: number, y2: number;
-        let exitDir: 1 | -1;
-        let enterDir: 1 | -1;
-        y1 = pred.y + BAR_HEIGHT / 2;
-        y2 = succ.y + BAR_HEIGHT / 2;
-        switch (linkType) {
-          case 'SS':
-            x1 = pred.x;            exitDir = -1;
-            x2 = succ.x;            enterDir = 1;
-            break;
-          case 'FF':
-            x1 = pred.x + pred.w;   exitDir = 1;
-            x2 = succ.x + succ.w;   enterDir = -1;
-            break;
-          case 'SF':
-            x1 = pred.x;            exitDir = -1;
-            x2 = succ.x + succ.w;   enterDir = -1;
-            break;
-          case 'FS':
-          default:
-            x1 = pred.x + pred.w;   exitDir = 1;
-            x2 = succ.x;            enterDir = 1;
-            break;
-        }
-
-        // Milestones render as 45°-rotated diamonds with point-to-point
-        // geometry — there's no flat "right edge" to attach to. Override
-        // the endpoints so incoming arrows land at the LEFT vertex and
-        // outgoing arrows leave from the RIGHT vertex (forward direction;
-        // mirrored for left-bound). This spreads pred/succ arrows to
-        // opposite corners of the diamond instead of bunching them at
-        // the centerline — the user-reported clutter when a milestone
-        // sits between two regular tasks.
-        const MILESTONE_HALF = BAR_HEIGHT / 2;
-        if (pred.isMilestone) {
-          x1 = exitDir === 1 ? pred.x + MILESTONE_HALF - 1 : pred.x - MILESTONE_HALF + 1;
-          y1 = pred.y + BAR_HEIGHT / 2;
-        }
-        if (succ.isMilestone) {
-          x2 = enterDir === 1 ? succ.x - MILESTONE_HALF + 1 : succ.x + MILESTONE_HALF - 1;
-          y2 = succ.y + BAR_HEIGHT / 2;
-        }
-
-        const stub = 12;
-        // MS-Project-style L-shape dependency routing — clean right-angle
-        // elbows with one or two corners depending on geometry. The Bezier
-        // curve experiment read smooth on paper but felt "wavy" against the
-        // straight bars in practice; user feedback was that it should mirror
-        // the classic Project / P6 connector that contractors already know.
-        //   • Forward FS (succ to the right of pred end): pred-right →
-        //     horizontal stub → vertical to succ row → horizontal to succ
-        //     left edge. Two corners, stair-step L.
-        //   • Same row + adjacent (succ starts right when pred ends): just
-        //     a short horizontal line, no corners.
-        //   • Backward / crossing / FF / SS / SF: orthogonal detour over
-        //     the top so the line doesn't cut through the predecessor row.
-        const x1End = x1 + exitDir * stub;
-        const x2End = x2 - enterDir * stub;
-        // MS Project drop-into-top pattern: every dependency ends with a
-        // VERTICAL segment that lands on the entering edge of the
-        // successor (top edge if approaching from above, bottom edge if
-        // approaching from below). The marker auto-orients along that
-        // vertical so the arrowhead points DOWN (or UP) into the bar.
-        // This is the classic Project / P6 visual contractors recognise:
-        // a small downward arrow tucked at the start-of-task corner.
-        const succAbove = y2 < y1;
-        const entryY = succAbove ? succ.y + BAR_HEIGHT : succ.y;
-        const entryX = enterDir === 1 ? succ.x + 6 : succ.x + succ.w - 6;
-        // tipX retained for the same-row horizontal-only path. tipOff -3
-        // because the marker is now small (7px) and refX=7 anchors the
-        // tip at the line end with no overhang into the bar.
-        const tipX = x2 + (enterDir === 1 ? -3 : 3);
-        let d: string;
-
-        // Special case: successor is a milestone. Land HORIZONTALLY on
-        // the diamond's left/right vertex instead of dropping into a
-        // top edge — diamonds don't have a clean top edge to drop into,
-        // and the H-final approach matches the visual logic of a
-        // single-point event (arrives, departs). Keeps the marker tip
-        // tucked at the vertex rather than overlapping the diamond's
-        // rotated face.
-        if (succ.isMilestone) {
-          const dropY = (y1 + y2) / 2;
-          if (Math.abs(y1 - y2) < 1) {
-            d = `M ${x1} ${y1} H ${x2}`;
-          } else {
-            d = `M ${x1} ${y1} V ${dropY} H ${x2}`;
-          }
-          out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, highlighted });
-          continue;
-        }
-
-        if (exitDir === 1 && enterDir === 1) {
-          // FS — predecessor finish → successor start. Common case.
-          if (Math.abs(y1 - y2) < 1) {
-            // Same row — no vertical drop needed; just walk horizontally
-            // and let the H-final keep the arrow pointing into succ from
-            // the side. Rare: same-lane sequencing.
-            d = `M ${x1} ${y1} H ${tipX}`;
-          } else if (x2 >= x1) {
-            // Forward FS (any gap): exit pred's right edge → drop to the
-            // row gap → walk right to entry column → drop INTO succ's top.
-            //
-            //     pred ═══════│
-            //                 │
-            //     ────────────┘     (row gap — no bars here)
-            //     │
-            //     ↓
-            //     [succ ═══════════]
-            //
-            const dropY = (y1 + y2) / 2;
-            d = `M ${x1} ${y1} V ${dropY} H ${entryX} V ${entryY}`;
-          } else {
-            // Truly backward (succ starts before pred ends): go ABOVE
-            // both bars, walk back to entry column, drop into succ's top.
-            const yAbove = Math.min(pred.y, succ.y) - 10;
-            d = `M ${x1} ${y1} V ${yAbove} H ${entryX} V ${entryY}`;
-          }
-        } else if (exitDir === -1 && enterDir === 1) {
-          // SS — exits pred's left, enters succ's left. Route above to avoid
-          // walking through pred, then drop into succ from the top.
-          const yAbove = Math.min(pred.y, succ.y) - 10;
-          d = `M ${x1} ${y1} V ${yAbove} H ${entryX} V ${entryY}`;
-        } else if (exitDir === 1 && enterDir === -1) {
-          // FF — exits pred's right, enters succ's right. Drop in from
-          // above on the right side of succ.
-          const dropY = (y1 + y2) / 2;
-          d = `M ${x1} ${y1} V ${dropY} H ${entryX} V ${entryY}`;
-        } else {
-          // SF — exits pred's left, enters succ's right. Detour above.
-          const yAbove = Math.min(pred.y, succ.y) - 10;
-          d = `M ${x1} ${y1} V ${yAbove} H ${entryX} V ${entryY}`;
-        }
-        out.push({
-          id: `${pred.task.id}->${succ.task.id}`,
-          d,
-          critical: criticalBoth,
-          highlighted,
-        });
+        // Orthogonal path: pred right-edge → succ left-edge, both at bar midpoint Y.
+        const d = orthogonalArrowPath(
+          { x: pred.x + pred.w, y: pred.y + BAR_HEIGHT / 2 },
+          { x: succ.x,          y: succ.y + BAR_HEIGHT / 2 },
+        );
+        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth });
       }
     }
     return out;
-  }, [bars, barById, hoverTaskId, dragState]);
+  }, [bars, barById, focusedTaskId]);
 
   // --- Today marker -------------------------------------------------------
   const todayX = (todayDayNumber - 1) * pxPerDay;
@@ -1153,7 +1013,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     so no SVG lines needed here. */}
               </Svg>
 
-              {/* --- Dependency arrows with marching ants --- */}
+              {/* --- Dependency arrows (Task 3): orthogonal, focused only --- */}
               <Svg
                 width={timelineWidth}
                 height={gridHeight}
@@ -1161,62 +1021,43 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 pointerEvents="none"
               >
                 <Defs>
-                  {/* Arrow markers — small 7x7 triangle. The path now ends
-                      with a vertical drop INTO succ's top edge (MS Project
-                      style), so the marker auto-orients DOWN. refX=7 puts
-                      the polygon's tip exactly at the line endpoint with
-                      the body extending backward along the path — no bar
-                      overlap regardless of approach direction. Sized to
-                      sit unobtrusively at the start of each task, not
-                      compete visually with the bar itself. */}
+                  {/* Small 5x5 arrowheads — one gray (normal), one red (critical). */}
                   <Marker
-                    id="arrowRed"
-                    markerWidth={7}
-                    markerHeight={7}
-                    refX={7}
-                    refY={3.5}
+                    id="gantt-head"
+                    markerWidth={5}
+                    markerHeight={5}
+                    refX={5}
+                    refY={2.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.pillLate} />
+                    <Polygon points="0 0, 5 2.5, 0 5" fill="#374151" />
                   </Marker>
                   <Marker
-                    id="arrowBlue"
-                    markerWidth={7}
-                    markerHeight={7}
-                    refX={7}
-                    refY={3.5}
+                    id="gantt-head-crit"
+                    markerWidth={5}
+                    markerHeight={5}
+                    refX={5}
+                    refY={2.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill="#4A5159" />
+                    <Polygon points="0 0, 5 2.5, 0 5" fill="#b91c1c" />
                   </Marker>
                 </Defs>
 
                 {dependencyPaths.map(dep => {
-                  // CP→CP links use pillLate (#FF5A51) at 1.5px base width so
-                  // they read as a distinct red chain distinct from the error red.
-                  // Normal links stay on primary blue at the existing 1.9px.
-                  const color = dep.critical ? Colors.pillLate : '#4A5159';
-                  const baseStrokeWidth = dep.critical ? 1.5 : 1.9;
-                  // Lines render solid by default — calmer than constant
-                  // marching ants on every dependency. The "alive" feel
-                  // appears only when a connected bar is hovered or being
-                  // dragged, so the animation reads as feedback for an
-                  // intentional action instead of permanent decoration.
-                  // Stroke + opacity bumped so resting-state lines read as
-                  // confident connectors instead of background hairlines.
+                  const stroke = dep.critical ? '#b91c1c' : '#374151';
                   return (
                     <AnimatedPath
                       key={dep.id}
                       d={dep.d}
-                      stroke={color}
-                      strokeWidth={dep.highlighted ? baseStrokeWidth + 1 : baseStrokeWidth}
+                      stroke={stroke}
+                      strokeWidth={1.25}
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      strokeDasharray="4 3"
+                      strokeDashoffset={dashOffset as unknown as number}
                       fill="none"
-                      strokeDasharray={dep.highlighted ? '5,4' : undefined}
-                      strokeDashoffset={dep.highlighted ? (dashOffset as unknown as number) : 0}
-                      markerEnd={`url(#${dep.critical ? 'arrowRed' : 'arrowBlue'})`}
-                      opacity={dep.highlighted ? 1 : 0.85}
+                      markerEnd={`url(#${dep.critical ? 'gantt-head-crit' : 'gantt-head'})`}
                     />
                   );
                 })}
