@@ -135,7 +135,6 @@ const WEEKEND_TINT = 'rgba(60,60,67,0.025)';
 // Bar visual primitives — used inside the bar render below to give the
 // premium look (soft fill + colored accent stripe + restrained border).
 const BAR_RADIUS = 6;
-const BAR_ACCENT_WIDTH = 3;
 
 const PX_PER_DAY: Record<ZoomMode, number> = {
   day: 28,
@@ -2181,13 +2180,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  zoomBtnActive: {
-    backgroundColor: t.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
   zoomBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600',
@@ -2257,11 +2249,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 3,
     height: 14,
     borderRadius: 1.5,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
   legendText: {
     fontSize: Type.caption2.fontSize,
@@ -2459,12 +2446,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 8,
-  },
-  barLabelText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(11,13,16,0.85)',
-    zIndex: 1,
   },
   barOutsideName: {
     fontSize: 10,
