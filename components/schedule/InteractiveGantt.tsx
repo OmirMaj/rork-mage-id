@@ -42,6 +42,7 @@ import {
   Easing,
   Platform,
   Pressable,
+  AccessibilityInfo,
 } from 'react-native';
 import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
@@ -342,23 +343,43 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     return visited;
   }, [focusedTaskId, tasksRaw]);
 
-  // --- Marching ants animation -------------------------------------------
-  // A single Animated.Value shared by every dashed arrow. We animate it from
-  // 0 → -16 (dash pattern length) in a loop; react-native-svg interpolates
-  // strokeDashoffset natively.
+  // --- Reduce-motion guard (Task 4) ----------------------------------------
+  // Read the system accessibility preference and subscribe to changes so the
+  // marching-ants animation is skipped when the user has opted out of motion.
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    let active = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
+      if (active) setReduceMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      (enabled: boolean) => setReduceMotion(enabled),
+    );
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+
+  // --- Marching ants animation (Task 4) ------------------------------------
+  // Calm 1.4s linear loop animating strokeDashoffset 0 → -7 (matches the
+  // "4 3" dash period of 7). useNativeDriver: true for smooth 60fps on
+  // native. Loop is skipped entirely when reduce-motion is enabled.
   const dashOffset = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reduceMotion) return;
     const loop = Animated.loop(
       Animated.timing(dashOffset, {
-        toValue: -16,
-        duration: 900,
+        toValue: -7,
+        duration: 1400,
         easing: Easing.linear,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
     );
     loop.start();
     return () => loop.stop();
-  }, [dashOffset]);
+  }, [dashOffset, reduceMotion]);
 
   // --- Drag machinery ------------------------------------------------------
   // We use a PanResponder per-bar (bound via onStartShouldSetResponder pattern
@@ -1054,8 +1075,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       strokeWidth={1.25}
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeDasharray="4 3"
-                      strokeDashoffset={dashOffset as unknown as number}
+                      strokeDasharray={reduceMotion ? undefined : '4 3'}
+                      strokeDashoffset={reduceMotion ? 0 : (dashOffset as unknown as number)}
                       fill="none"
                       markerEnd={`url(#${dep.critical ? 'gantt-head-crit' : 'gantt-head'})`}
                     />
