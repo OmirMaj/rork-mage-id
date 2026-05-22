@@ -1010,35 +1010,34 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 />
               ))}
 
-              {/* Weekend tint columns — only at day-zoom densities where Sat/Sun
-                  are individually visible. At week/month zoom the tint becomes
-                  noisy stripes, so we skip it. */}
-              {pxPerDay >= 8 && headerTicks.map((tick, i) => {
-                if (!tick.isWeekend) return null;
-                return (
-                  <View
-                    key={`wk-${i}`}
-                    style={{
-                      position: 'absolute',
-                      left: tick.x,
-                      top: HEADER_HEIGHT,
-                      width: pxPerDay,
-                      height: gridHeight - HEADER_HEIGHT,
-                      backgroundColor: WEEKEND_TINT,
-                      pointerEvents: 'none',
-                    }}
-                  />
-                );
-              })}
-
               {/* Vertical gridlines + today marker. Hairline below, slightly
-                  more visible at major ticks (week/month boundaries). */}
+                  more visible at major ticks (week/month boundaries).
+                  Weekend SvgRect fills are rendered FIRST (behind the grid lines)
+                  so they sit below both lines and bars — SVG paints in document
+                  order so inserting rects before SvgLines achieves the correct
+                  z-order without a separate layer. Only emitted at pxPerDay >= 8
+                  (day/week zoom) where individual Sat/Sun columns are visible;
+                  at month density they'd collapse to noisy stripes. */}
               <Svg
                 width={timelineWidth}
                 height={gridHeight}
                 style={StyleSheet.absoluteFill}
                 pointerEvents="none"
               >
+                {/* Weekend shading — behind grid lines (document order) */}
+                {pxPerDay >= 8 && headerTicks.map((tick, i) => {
+                  if (!tick.isWeekend) return null;
+                  return (
+                    <SvgRect
+                      key={`wk-${i}`}
+                      x={tick.x}
+                      y={HEADER_HEIGHT}
+                      width={pxPerDay}
+                      height={gridHeight - HEADER_HEIGHT}
+                      fill={WEEKEND_TINT}
+                    />
+                  );
+                })}
                 {headerTicks.map((tick, i) => (
                   <SvgLine
                     key={`gl-${i}`}
@@ -1258,9 +1257,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 <>
                   <View style={[styles.todayLine, { left: todayX }]} />
                   <View style={[styles.todayLabel, { left: todayX }]}>
-                    <Text style={styles.todayLabelText}>
-                      {`TODAY · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()}`}
-                    </Text>
+                    {/* Task 6: spec §7.1 pill — white bg, 1px #fecaca border, #ef4444 text.
+                        Text is "TODAY" only (no date suffix) to keep the pill compact;
+                        the line itself gives positional context. */}
+                    <Text style={styles.todayLabelText}>TODAY</Text>
                   </View>
                 </>
               )}
@@ -2385,10 +2385,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     left: 0,
   },
 
-  // Labeled TODAY line — replaces the old SVG halo stripe. The pill label
-  // floats in the header zone above the bars and the line extends through
-  // the full grid body. Colors.pillLate (#FF5A51) carries enough urgency to
-  // read as "now" without feeling like an error state.
+  // Labeled TODAY line — spec §7.1 restyle (Task 6).
+  // The line itself stays #FF5A51 so it remains visually prominent against both
+  // light and dark surfaces. The pill is restrained: white bg + hairline
+  // #fecaca (red-50) border so it reads as a "today" tag without dominating
+  // the bar colors below it.
   todayLine: {
     position: 'absolute',
     top: 0,
@@ -2401,19 +2402,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   todayLabel: {
     position: 'absolute',
     top: -1,
-    backgroundColor: Colors.pillLate,
-    paddingHorizontal: 6,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 3,
     zIndex: 6,
-    transform: [{ translateX: -30 }],
+    transform: [{ translateX: -22 }],
     pointerEvents: 'none',
   } as any,
   todayLabelText: {
-    fontSize: 8,
-    color: '#0B0D10',
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontSize: 9,
+    color: '#ef4444',
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
 
   barLabel: {
