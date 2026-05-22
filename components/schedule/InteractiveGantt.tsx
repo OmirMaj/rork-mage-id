@@ -43,6 +43,7 @@ import {
   Platform,
   Pressable,
   AccessibilityInfo,
+  type GestureResponderEvent,
 } from 'react-native';
 import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
@@ -105,6 +106,14 @@ export interface InteractiveGanttProps {
   focusedTaskId?: string | null;
   /** Fires when the user clicks a bar. Pass the id, or null to clear focus. */
   onFocusTask?: (id: string | null) => void;
+  /**
+   * Fires when the user double-taps on empty timeline background (not on a
+   * bar). `dayNumber` is 1-based relative to `projectStartDate`. The parent
+   * can use this to open the Add Task modal pre-filled with that day.
+   * Note: bar single-click already fires `onFocusTask` (which opens the
+   * TaskInspector in schedule-pro) — this callback is for empty-space only.
+   */
+  onAddTaskAtDay?: (dayNumber: number) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +173,7 @@ function daysBetween(a: Date, b: Date): number {
 export default function InteractiveGantt(props: InteractiveGanttProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask } = props;
+  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask, onAddTaskAtDay } = props;
   const isPhone = mode === 'phone';
   // Filter rows belonging to collapsed summaries. CPM still honored them (we
   // received the pre-rolled set); we only hide them visually so the gantt
@@ -604,6 +613,25 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     }),
   ).current;
 
+  // --- Double-tap on empty timeline background → Add Task at that day ------
+  // Bar clicks are handled by each BarView's Pressable/onClick (which fires
+  // `onFocusTask` to open the TaskInspector). This handler fires only when
+  // the user taps empty space — bars capture their own touch events via
+  // PanResponder(onStartShouldSetPanResponderCapture: true), so a tap on a
+  // bar never propagates to this background handler.
+  const lastTapRef = useRef<{ t: number; x: number } | null>(null);
+  const handleBackgroundPress = useCallback((evt: GestureResponderEvent) => {
+    const now = Date.now();
+    const x = evt.nativeEvent.locationX;
+    const prev = lastTapRef.current;
+    lastTapRef.current = { t: now, x };
+    if (prev && now - prev.t < 300 && Math.abs(x - prev.x) < 10) {
+      const dayNumber = Math.max(1, Math.floor(x / pxPerDay) + 1);
+      onAddTaskAtDay?.(dayNumber);
+      lastTapRef.current = null;
+    }
+  }, [pxPerDay, onAddTaskAtDay]);
+
   // --- Last milestone ID (project completion = red diamond) ----------------
   const lastMilestoneId = useMemo(() => {
     return tasks
@@ -964,7 +992,15 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             contentContainerStyle={{ height: gridHeight, width: timelineWidth }}
             showsVerticalScrollIndicator
           >
-            <View style={{ width: timelineWidth, height: gridHeight }}>
+            {/* Background Pressable: captures taps on empty timeline space.
+                Bar PanResponders use onStartShouldSetPanResponderCapture:true
+                so bar touches never propagate here. On web, bar onClick calls
+                stopPropagation(). Double-tap detection → onAddTaskAtDay. */}
+            <Pressable
+              style={{ width: timelineWidth, height: gridHeight }}
+              onPress={handleBackgroundPress}
+              accessibilityLabel="Timeline background — double-tap to add a task at that day"
+            >
               {/* --- Header --- */}
               <View style={[styles.timelineHeader, { width: timelineWidth, height: HEADER_HEIGHT }]}>
                 {/* Month row */}
@@ -1590,7 +1626,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   </View>
                 );
               })()}
-            </View>
+            </Pressable>
           </ScrollView>
         </ScrollView>
       </View>

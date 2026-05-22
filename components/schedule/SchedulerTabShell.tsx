@@ -85,6 +85,8 @@ export interface SchedulerTabShellProps {
   resources?: ProjectResource[];
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
+  /** Passed through to GanttTab → InteractiveGantt for double-tap-empty-timeline. */
+  onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
   onDependencyCreate?: (fromId: string, toId: string) => void;
   focusedTaskId?: string | null;
@@ -263,6 +265,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         paneMode={props.ganttPaneMode ?? 'split'}
         onEdit={props.onEdit}
         onAddTask={props.onAddTask}
+        onAddTaskAtDay={props.onAddTaskAtDay}
         onDeleteTask={props.onDeleteTask}
         onDependencyCreate={props.onDependencyCreate}
         focusedTaskId={props.focusedTaskId}

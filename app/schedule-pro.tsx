@@ -721,6 +721,25 @@ function ScheduleProScreenInner() {
   // panes so the two views stay in lock-step.
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
 
+  // Pre-fill start date for the Add Task modal when the user double-taps an
+  // empty day on the Gantt timeline. Cleared after the modal closes (cancel
+  // or create) so the toolbar "Add Task" button never inherits a stale day.
+  const [prefillStart, setPrefillStart] = useState<string | undefined>(undefined);
+
+  // Converts a 1-based day number (from InteractiveGantt's double-tap handler)
+  // to a yyyy-mm-dd ISO string that AddTaskModal's defaultStartDate accepts,
+  // then opens the modal. Day 1 = projectStartDate.
+  const handleAddTaskAtDay = useCallback((dayNumber: number) => {
+    const target = new Date(
+      projectStartDate.getFullYear(),
+      projectStartDate.getMonth(),
+      projectStartDate.getDate() + (dayNumber - 1),
+    );
+    const iso = target.toISOString().slice(0, 10);
+    setPrefillStart(iso);
+    handleAddTask();
+  }, [projectStartDate, handleAddTask]);
+
   const handleBulkDelete = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
     commit(prev => prev
@@ -1375,6 +1394,7 @@ function ScheduleProScreenInner() {
             resources={project?.schedule?.resources}
             onEdit={handleEdit}
             onAddTask={handleAddTask}
+            onAddTaskAtDay={handleAddTaskAtDay}
             onDeleteTask={handleDeleteTask}
             onDependencyCreate={handleDependencyCreate}
             focusedTaskId={focusedTaskId}
@@ -1544,9 +1564,10 @@ function ScheduleProScreenInner() {
           button, GridPane footer, phone FAB). */}
       <AddTaskModal
         visible={showAddTask}
-        onCancel={() => setShowAddTask(false)}
-        onCreate={handleCommitAddTask}
+        onCancel={() => { setShowAddTask(false); setPrefillStart(undefined); }}
+        onCreate={(values) => { handleCommitAddTask(values); setPrefillStart(undefined); }}
         tasks={workingTasks}
+        defaultStartDate={prefillStart}
       />
     </View>
   );

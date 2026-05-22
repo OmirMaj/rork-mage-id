@@ -46,6 +46,8 @@ export interface GanttTabProps {
   /** Callback wired to schedule-pro's undo-aware commit. */
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
+  /** Passed through to InteractiveGantt for double-tap-empty-timeline flow. */
+  onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
   onDependencyCreate?: (fromId: string, toId: string) => void;
   focusedTaskId?: string | null;
@@ -68,6 +70,7 @@ export function GanttTab({
   paneMode = 'split',
   onEdit,
   onAddTask,
+  onAddTaskAtDay,
   onDeleteTask,
   onDependencyCreate,
   focusedTaskId,
@@ -96,6 +99,7 @@ export function GanttTab({
           onDependencyCreate={onDependencyCreate}
           focusedTaskId={focusedTaskId}
           onFocusTask={onFocusTask}
+          onAddTaskAtDay={onAddTaskAtDay}
           compact={false}
           mode="phone"
         />
@@ -149,6 +153,7 @@ export function GanttTab({
           onDependencyCreate={onDependencyCreate}
           focusedTaskId={focusedTaskId}
           onFocusTask={onFocusTask}
+          onAddTaskAtDay={onAddTaskAtDay}
         />
       </View>
     );
@@ -187,6 +192,7 @@ export function GanttTab({
           onDependencyCreate={onDependencyCreate}
           focusedTaskId={focusedTaskId}
           onFocusTask={onFocusTask}
+          onAddTaskAtDay={onAddTaskAtDay}
           compact
         />
       </View>
