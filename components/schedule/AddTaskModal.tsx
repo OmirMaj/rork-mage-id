@@ -47,9 +47,17 @@ interface AddTaskModalProps {
   /** Existing tasks — used to resolve user-typed references (T5, 1.2, or
    *  raw uuid) back to task IDs for predecessor / successor fields. */
   tasks: ReadonlyArray<ScheduleTask>;
+  /**
+   * Optional yyyy-mm-dd date to pre-fill the Start date field. Used by the
+   * Gantt double-click-empty-timeline flow so the date under the tap lands in
+   * the form automatically. Omit (or pass undefined) to keep today's default
+   * behaviour — the form opens with the start field blank (caller uses the
+   * "append after last task" heuristic when no start is submitted).
+   */
+  defaultStartDate?: string;
 }
 
-export function AddTaskModal({ visible, onCancel, onCreate, tasks }: AddTaskModalProps) {
+export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartDate }: AddTaskModalProps) {
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('1');
   const [crew, setCrew] = useState('');
@@ -74,7 +82,9 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks }: AddTaskModa
   }, [tasks]);
 
   // Reset state every time the modal opens so a previous draft doesn't
-  // leak into the next task.
+  // leak into the next task. When `defaultStartDate` is provided (e.g. from a
+  // Gantt double-click), pre-fill the start field with that date so the user
+  // sees the clicked day already filled in.
   useEffect(() => {
     if (visible) {
       setTitle('');
@@ -82,13 +92,13 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks }: AddTaskModa
       setCrew('');
       setTradeKey('general');
       setNotes('');
-      setStartIso('');
+      setStartIso(defaultStartDate ?? '');
       setPredecessorsText('');
       setSuccessorsText('');
       setError(null);
       setTradeOpen(false);
     }
-  }, [visible]);
+  }, [visible, defaultStartDate]);
 
   // Parse a comma/space-separated list of task references and return
   // resolved IDs. Returns the first invalid reference in `bad` if any.
