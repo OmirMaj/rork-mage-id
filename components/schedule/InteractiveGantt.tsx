@@ -1883,49 +1883,26 @@ function BarView({
           }}
         />
       )}
-      {/* Critical-path red shell — a slightly larger halo behind the bar.
-          3px padding above/below/at-ends makes the red border visible around
-          the 20px inner bar without touching it. Shadow glow reinforces CP
-          urgency without relying on color alone (WCAG intent). */}
-      {bar.isCritical && (
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: bar.x - 3,
-            top: bar.y + (BAR_HEIGHT - 20) / 2 - 3,
-            width: bar.w + 6,
-            height: 26,
-            borderRadius: 7,
-            backgroundColor: Colors.pillLate,
-            opacity: dimmed ? 0.1 : 0.28,
-            shadowColor: Colors.pillLate,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.4,
-            shadowRadius: 8,
-            zIndex: 1,
-          }}
-        />
-      )}
     <View
       {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => {
         if (isDragging) return;
         e?.stopPropagation?.();
         onFocus();
       } } as any) : {})}
-      // Bar redesign Pt.1: solid trade color fill, white progress overlay at
-      // 22% opacity, width-aware labels via useBarLabel(). Height 20px, radius 5.
+      // Task 2 flat bar restyle: solid fill, borderRadius 4, critical outline,
+      // done opacity, name+days label.
       style={{
         position: 'absolute',
         left: bar.x,
         top: bar.y + (BAR_HEIGHT - 20) / 2,
         width: bar.w,
         height: 20,
-        borderRadius: 5,
+        borderRadius: 4,
         backgroundColor: barColor,
-        borderWidth: 0,
+        borderWidth: bar.isCritical ? 1 : 0,
+        borderColor: bar.isCritical ? '#7f1d1d' : 'transparent',
         overflow: 'hidden',
-        opacity: dimmed ? 0.28 : 1,
+        opacity: bar.task.status === 'done' ? 0.5 : (dimmed ? 0.28 : 1),
         shadowColor: '#000',
         shadowOpacity: isFocusTarget ? 0.35 : (isHovered || isDragging ? 0.30 : 0.30),
         shadowRadius: isFocusTarget ? 6 : 3,
@@ -1937,21 +1914,7 @@ function BarView({
       onPointerLeave={onHoverOut as any}
       {...responder.panHandlers}
     >
-      {/* Left accent stripe — carries category color (critical = red,
-          normal = brand). Replaces the old full-perimeter colored border
-          which was the single biggest "Excel-y" tell. */}
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: BAR_ACCENT_WIDTH,
-          backgroundColor: barColor,
-        }}
-      />
-      {/* Focus ring — only when this bar is the selected one. Sits on top
-          of the fill but below the label so the click target stays clean. */}
+      {/* Focus ring — only when this bar is the selected one. */}
       {isFocusTarget && (
         <View
           style={{
@@ -1960,16 +1923,14 @@ function BarView({
             top: 0,
             right: 0,
             bottom: 0,
-            borderRadius: BAR_RADIUS,
+            borderRadius: 4,
             borderWidth: 2,
             borderColor: themeColors.accent,
           }}
           pointerEvents="none"
         />
       )}
-      {/* Progress fill — white at 22% opacity, full height, left-anchored.
-          Clips cleanly to rounded corners via overflow:'hidden' on the parent.
-          Zero-progress tasks skip rendering to avoid a stray 0-width View. */}
+      {/* Progress fill — white at 22% opacity, full height, left-anchored. */}
       {progressPct > 0 && (
         <View
           style={{
@@ -1979,20 +1940,21 @@ function BarView({
             bottom: 0,
             width: `${progressPct * 100}%`,
             backgroundColor: 'rgba(255,255,255,0.22)',
-            borderTopLeftRadius: 5,
-            borderBottomLeftRadius: 5,
+            borderTopLeftRadius: 4,
+            borderBottomLeftRadius: 4,
           }}
           pointerEvents="none"
         />
       )}
-      {/* Width-aware label via useBarLabel() */}
-      <View style={[styles.barLabel, { paddingLeft: BAR_ACCENT_WIDTH + 4 }]}>
-        {barLabelResult.insideText !== '' && (
-          <Text style={styles.barLabelText} numberOfLines={1}>
-            {barLabelResult.insideText}
-            {barLabelResult.showPercent ? ` ${bar.task.progress ?? 0}%` : ''}
-          </Text>
-        )}
+      {/* Task 2 label: name · Nd (+ ✓ when done). White, 11pt semi-bold. */}
+      <View style={styles.barLabel}>
+        <Text
+          style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {(bar.task.title || 'Task')} · {bar.duration}d{bar.task.status === 'done' ? ' ✓' : ''}
+        </Text>
       </View>
       {/* Resize handle visual — subtle indicator on hover, no colored bar. */}
       <View
