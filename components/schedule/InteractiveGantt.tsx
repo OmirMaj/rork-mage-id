@@ -643,13 +643,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   }, [tasks]);
 
   // --- Dependency paths (Task 3 restyle) ----------------------------------------
-  // Arrows are hidden unless a bar is focused (focusedTaskId != null). When
-  // focused, only the one-hop neighbors of the focused task are rendered:
-  // arrows where from === focusedTaskId OR to === focusedTaskId.
-  // Path geometry uses orthogonalArrowPath() from ganttArrowPath.ts.
+  // Arrows reveal for the "active" task — either the pinned focus (click/tap,
+  // focusedTaskId) or, on web, the bar/row currently under the cursor
+  // (hoverTaskId, set on both bar and gutter-row hover). This keeps the timeline
+  // clean at rest while making dependencies easy to see without a click. Only the
+  // one-hop neighbors of the active task are drawn (arrows where from === activeId
+  // OR to === activeId). Path geometry uses orthogonalArrowPath().
   const dependencyPaths = useMemo(() => {
-    // No focus → no arrows rendered.
-    if (focusedTaskId == null) return [];
+    // Pinned focus wins; otherwise fall back to the hovered bar/row. Native has
+    // no hover, so there hoverTaskId stays null and it remains tap-to-reveal.
+    const activeId = focusedTaskId ?? hoverTaskId;
+    if (activeId == null) return [];
     const out: {
       id: string;
       d: string;
@@ -662,8 +666,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       for (const link of links) {
         const pred = barById.get(link.taskId);
         if (!pred) continue;
-        // One-hop filter: only show arrows connected to the focused bar.
-        if (pred.task.id !== focusedTaskId && succ.task.id !== focusedTaskId) continue;
+        // One-hop filter: only show arrows connected to the active bar.
+        if (pred.task.id !== activeId && succ.task.id !== activeId) continue;
         const criticalBoth = pred.isCritical && succ.isCritical;
         // Orthogonal path: pred right-edge → succ left-edge, both at bar midpoint Y.
         const d = orthogonalArrowPath(
@@ -674,7 +678,20 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       }
     }
     return out;
-  }, [bars, barById, focusedTaskId]);
+  }, [bars, barById, focusedTaskId, hoverTaskId]);
+
+  // Crew avatars (the small initial chip at each bar's right edge) only earn
+  // their visual cost when crews actually differ across the schedule. When every
+  // task shares one crew (or none is set), the chips are pure noise — hide them
+  // and keep the timeline clean.
+  const showCrewAvatars = useMemo(() => {
+    const distinct = new Set<string>();
+    for (const t of tasksRaw) {
+      const c = (t.crew ?? '').trim();
+      if (c) distinct.add(c);
+    }
+    return distinct.size > 1;
+  }, [tasksRaw]);
 
   // --- Today marker -------------------------------------------------------
   const todayX = (todayDayNumber - 1) * pxPerDay;
@@ -1320,6 +1337,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     dimmed={!inPath}
                     isFocusTarget={isFocusedBar}
                     isLastMilestone={bar.isMilestone && bar.task.id === lastMilestoneId}
+                    showCrewAvatar={showCrewAvatars}
                     onHoverIn={() => setHoverTaskId(bar.task.id)}
                     onHoverOut={() => setHoverTaskId(null)}
                     onBeginDrag={(mode, evt) => beginDrag(bar.task, mode, evt)}
@@ -1669,6 +1687,8 @@ interface BarViewProps {
   isFocusTarget?: boolean;
   /** When true, this milestone is the latest-dated one (project completion = red). */
   isLastMilestone?: boolean;
+  /** When true, render the crew initial chip (only when crews differ across the schedule). */
+  showCrewAvatar?: boolean;
   onHoverIn: () => void;
   onHoverOut: () => void;
   onBeginDrag: (mode: 'move' | 'resize', evt: any) => void;
@@ -1684,7 +1704,7 @@ interface BarViewProps {
 
 function BarView({
   bar, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
-  dimmed, isFocusTarget, isLastMilestone,
+  dimmed, isFocusTarget, isLastMilestone, showCrewAvatar,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
@@ -1963,16 +1983,21 @@ function BarView({
           pointerEvents="none"
         />
       )}
-      {/* Task 2 label: name · Nd (+ ✓ when done). White, 11pt semi-bold. */}
-      <View style={styles.barLabel}>
-        <Text
-          style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {(bar.task.title || 'Task')} · {bar.duration}d{bar.task.status === 'done' ? ' ✓' : ''}
-        </Text>
-      </View>
+      {/* Bar label: "name · Nd" (+ ✓ when done), white 11pt semi-bold. Rendered
+          only when the bar is wide enough to hold readable text (full/name modes).
+          Narrower bars stay clean — the grid row + hover tooltip carry the name,
+          which also removes the old inside+outside double-label on short bars. */}
+      {(barLabelResult.mode === 'full' || barLabelResult.mode === 'name') && (
+        <View style={styles.barLabel}>
+          <Text
+            style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {(bar.task.title || 'Task')} · {bar.duration}d{bar.task.status === 'done' ? ' ✓' : ''}
+          </Text>
+        </View>
+      )}
       {/* Resize handle visual — subtle indicator on hover, no colored bar. */}
       <View
         style={{
@@ -1996,30 +2021,15 @@ function BarView({
       </View>
     </View>
 
-    {/* Outside label — narrow bars: name floats right in muted color */}
-    {barLabelResult.outsideText !== '' && (
-      <View
-        style={{
-          position: 'absolute',
-          left: bar.x + bar.w,
-          top: bar.y + (BAR_HEIGHT - 20) / 2,
-          height: 20,
-          justifyContent: 'center',
-          paddingLeft: 4,
-          zIndex: 2,
-        }}
-        pointerEvents="none"
-      >
-        <Text style={styles.barOutsideName} numberOfLines={1}>
-          {barLabelResult.outsideText}
-        </Text>
-      </View>
-    )}
+    {/* (Removed) The narrow-bar "outside" name label used to float right of the
+        bar here, but it duplicated both the grid row name and the inside label
+        and collided with the crew chip — the core of the "messy" short bars. The
+        grid row + hover tooltip carry the full name for narrow bars now. */}
 
     {/* --- Resource avatar: 18px circle with crew's first initial.
         Floats at the right end of each bar when the task has a crew assigned.
         Skip on hover state — the link handle and chips take that slot. --- */}
-    {!isHovered && (() => {
+    {showCrewAvatar && !isHovered && (() => {
       const crewInitial = (bar.task.crew ?? '').trim().charAt(0).toUpperCase();
       if (!crewInitial) return null;
       return (
@@ -2446,11 +2456,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 8,
-  },
-  barOutsideName: {
-    fontSize: 10,
-    color: Colors.textMuted,
-    marginLeft: 6,
   },
 
   tooltip: {
