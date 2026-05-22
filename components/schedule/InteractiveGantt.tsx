@@ -364,8 +364,16 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 
   // --- Marching ants animation (Task 4) ------------------------------------
   // Calm 1.4s linear loop animating strokeDashoffset 0 → -7 (matches the
-  // "4 3" dash period of 7). useNativeDriver: true for smooth 60fps on
-  // native. Loop is skipped entirely when reduce-motion is enabled.
+  // "4 3" dash period of 7). Loop is skipped entirely when reduce-motion
+  // is enabled.
+  //
+  // useNativeDriver MUST be false here: strokeDashoffset is an SVG prop,
+  // and the native animated driver only supports a whitelist of layout/
+  // transform/opacity props — it cannot drive SVG attributes. Setting it
+  // true throws "property strokeDashoffset is not supported by native
+  // animated module" (or silently freezes the dashes). The JS driver
+  // updates the value each frame, which react-native-svg picks up. (The
+  // pre-redesign code correctly used false here too.)
   const dashOffset = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (reduceMotion) return;
@@ -374,7 +382,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         toValue: -7,
         duration: 1400,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     );
     loop.start();
