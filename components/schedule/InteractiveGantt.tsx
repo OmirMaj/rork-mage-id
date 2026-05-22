@@ -44,7 +44,7 @@ import {
   Pressable,
   AccessibilityInfo,
 } from 'react-native';
-import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect } from 'react-native-svg';
+import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -871,6 +871,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             const isCritical = cpm.perTask.get(t.id)?.isCritical;
             const isHovered = hoverTaskId === t.id;
             const phaseColor = colorForTask(t);
+            // Task 5: focused row tint — #eff6ff background + #1e40af bold name.
+            // Skip in compact (gutter is hidden) and phone (gutter is compressed;
+            // the tint would conflict with gutterPhone background color).
+            const isFocusedRow = !compact && !isPhone && focusedTaskId === t.id;
             if (isPhone) {
               // Phone: single-line compressed row. "T1 Pour foundation" so the
               // 90px column still resolves the visual mapping bar → name even
@@ -914,6 +918,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   styles.gutterRow,
                   { height: ROW_HEIGHT },
                   isHovered && styles.gutterRowHover,
+                  // Task 5: blue tint when this row is the focused task.
+                  isFocusedRow && styles.gutterRowFocused,
                 ]}
               >
                 <Text style={styles.gutterIndex}>{i + 1}</Text>
@@ -921,7 +927,13 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 <View style={styles.gutterTextCol}>
                   <View style={styles.gutterTitleRow}>
                     <Text
-                      style={[styles.gutterName, isCritical && styles.gutterNameCritical]}
+                      style={[
+                        styles.gutterName,
+                        isCritical && styles.gutterNameCritical,
+                        // Task 5: override color+weight when row is focused.
+                        // Applied after critical so focused-critical stays consistent.
+                        isFocusedRow && !isCritical && styles.gutterNameFocused,
+                      ]}
                       numberOfLines={1}
                     >
                       {t.title || 'Untitled'}
@@ -1093,6 +1105,64 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 
                 {/* Today line/label rendered as positioned Views below, not in SVG. */}
               </Svg>
+
+              {/* --- Selection decorations: dashed ring + circle handles (Task 5) ---
+                  Rendered in a dedicated SVG layer so coordinates match the arrow
+                  layer above (both use the same timeline-local origin). We use the
+                  same SVG layer approach so z-index sits above dependency arrows but
+                  below the interactive bar Views. Only drawn for the focused task bar.
+                  The spec's "date-range tooltip" is intentionally NOT a second hover
+                  card here — the existing rich hover card already fires for focused-at-
+                  rest bars via hoverTaskId. We add only the small dark pill, and only
+                  while the focused bar is being dragged (live feedback during move). */}
+              {focusedTaskId != null && (() => {
+                const focusedBar = barById.get(focusedTaskId);
+                if (!focusedBar || focusedBar.isMilestone || focusedBar.task.isSummary) return null;
+                const ringX = focusedBar.x - 2;
+                const ringY = focusedBar.y + (BAR_HEIGHT - 20) / 2 - 2;
+                const ringW = focusedBar.w + 4;
+                const ringH = 20 + 4;
+                const barMidY = focusedBar.y + (BAR_HEIGHT - 20) / 2 + 10;
+                return (
+                  <Svg
+                    width={timelineWidth}
+                    height={gridHeight}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                  >
+                    {/* Dashed selection ring ~2px outside the bar */}
+                    <SvgRect
+                      x={ringX}
+                      y={ringY}
+                      width={ringW}
+                      height={ringH}
+                      rx={6}
+                      fill="none"
+                      stroke="#2563eb"
+                      strokeWidth={1.5}
+                      strokeDasharray="3 2"
+                    />
+                    {/* Left edge handle */}
+                    <SvgCircle
+                      cx={focusedBar.x}
+                      cy={barMidY}
+                      r={4}
+                      fill="#fff"
+                      stroke="#2563eb"
+                      strokeWidth={1.5}
+                    />
+                    {/* Right edge handle */}
+                    <SvgCircle
+                      cx={focusedBar.x + focusedBar.w}
+                      cy={barMidY}
+                      r={4}
+                      fill="#fff"
+                      stroke="#2563eb"
+                      strokeWidth={1.5}
+                    />
+                  </Svg>
+                );
+              })()}
 
               {/* --- Baseline ghost bars (Phase 5) --- */}
               {/* Rendered BEHIND planned bars so they show through as a dashed
@@ -1450,8 +1520,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 );
               })()}
 
-              {/* --- Drag tooltip (floats by bar) --- */}
-              {dragState && (() => {
+              {/* --- Drag tooltip (floats by bar) ---
+                  Shown for non-focused dragging bars. For the focused bar we show
+                  the compact selection pill below instead (Task 5). */}
+              {dragState && dragState.taskId !== focusedTaskId && (() => {
                 const bar = barById.get(dragState.taskId);
                 if (!bar) return null;
                 const startDate = addDays(projectStartDate, dragState.currentStart - 1);
@@ -1474,6 +1546,46 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       {dragState.mode === 'resize' && deltaDur !== 0 && (
                         <Text style={styles.tooltipDelta}> ({deltaDur > 0 ? '+' : ''}{deltaDur}d dur)</Text>
                       )}
+                    </Text>
+                  </View>
+                );
+              })()}
+
+              {/* --- Selection drag pill (Task 5): small dark pill above the focused
+                  bar while it is being dragged. Replaces the generic tooltip above
+                  for the focused bar case. We show "May 19 → May 26 · 6d" without
+                  the title/delta lines — the dashed ring already signals "this is
+                  the selected task". Clamped so it never clips past the timeline. */}
+              {dragState && focusedTaskId != null && dragState.taskId === focusedTaskId && (() => {
+                const bar = barById.get(dragState.taskId);
+                if (!bar || bar.isMilestone || bar.task.isSummary) return null;
+                const startDate = addDays(projectStartDate, dragState.currentStart - 1);
+                const finishDate = addDays(
+                  projectStartDate,
+                  dragState.currentStart + Math.max(0, dragState.currentDuration - 1) - 1,
+                );
+                const startLabel = fmtShort(startDate);
+                const endLabel = fmtShort(finishDate);
+                const dur = Math.max(0, dragState.currentDuration);
+                // Estimate pill width at ~11px/char. Clamp so right edge doesn't clip.
+                const pillW = (startLabel + endLabel + ` · ${dur}d`).length * 7 + 16;
+                const clampedLeft = Math.max(4, Math.min(timelineWidth - pillW - 4, bar.x));
+                return (
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: clampedLeft,
+                      top: bar.y - 22,
+                      backgroundColor: '#111827',
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                      borderRadius: 4,
+                      zIndex: 20,
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '500' }}>
+                      {startLabel} → {endLabel} · {dur}d
                     </Text>
                   </View>
                 );
@@ -2155,6 +2267,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   gutterRowHover: {
     backgroundColor: t.accent + '0A',
+  },
+  // Task 5: selected row tint — #eff6ff background, blue-950 name + bold.
+  // Only applied in desktop (full-gutter) mode; compact and phone skip it.
+  gutterRowFocused: {
+    backgroundColor: '#eff6ff',
+  },
+  gutterNameFocused: {
+    color: '#1e40af',
+    fontWeight: '600' as const,
   },
   gutterIndex: {
     fontSize: Type.caption2.fontSize,
