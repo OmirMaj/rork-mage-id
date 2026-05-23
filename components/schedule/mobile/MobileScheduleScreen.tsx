@@ -10,6 +10,7 @@ import { Type } from '@/constants/typography';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { ScheduleTask } from '@/types';
 import { buildScheduleFromTasks, createId } from '@/utils/scheduleEngine';
+import { runCpm } from '@/utils/cpm';
 import EmptyState from '@/components/EmptyState';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
 import { WeekStrip } from './WeekStrip';
@@ -54,14 +55,17 @@ export function MobileScheduleScreen() {
     if (!selectedProject) return;
     const name = activeSchedule?.name ?? `${selectedProject.name} Schedule`;
     // Mobile Pro is a MANUAL scheduler — startDay is user-authoritative (drag +
-    // steppers). Passing criticalPathDays makes buildScheduleFromTasks skip its
-    // forward-pass resolver (recalculateStartDays), so (a) manual positions stick
-    // even for tasks with predecessors, and (b) day-0 tasks aren't clamped to
-    // day-1. We pass the latest task end as the project-finish approximation.
-    const criticalPathDays = nextTasks.reduce((m, t) => Math.max(m, (t.startDay ?? 0) + Math.max(1, t.durationDays || 1)), 0);
-    const next = buildScheduleFromTasks(name, selectedProject.id, nextTasks, activeSchedule?.baseline ?? null, {
+    // steppers). Run CPM ONLY to refresh critical-path flags (which tasks sit on
+    // the longest dependency chain) + the engine-true project finish, then keep
+    // each task's manual startDay. Passing criticalPathDays makes
+    // buildScheduleFromTasks skip its forward-pass resolver, so manual positions
+    // stick even for dependent tasks and day-0 isn't clamped to day-1.
+    const cpm = runCpm(nextTasks);
+    const critical = new Set(cpm.criticalPath);
+    const flagged = nextTasks.map((t) => (critical.has(t.id) !== !!t.isCriticalPath ? { ...t, isCriticalPath: critical.has(t.id) } : t));
+    const next = buildScheduleFromTasks(name, selectedProject.id, flagged, activeSchedule?.baseline ?? null, {
       startDate: activeSchedule?.startDate ?? startDate,
-      criticalPathDays,
+      criticalPathDays: cpm.projectFinish,
     });
     updateProject(selectedProject.id, {
       schedule: { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() },
