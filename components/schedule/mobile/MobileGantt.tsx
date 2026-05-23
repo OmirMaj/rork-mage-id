@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -39,28 +39,32 @@ function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0,
 // (changes startDay); a quick tap opens the task. Drag state is local so only
 // this bar re-renders mid-drag, and the reschedule commits once on release.
 // Quick swipes still scroll the timeline (activateAfterLongPress yields first).
-function GanttBar({ task, x, w, top, color, done, onPress, onReschedule }: {
+function GanttBar({ task, x, w, top, color, done, onPress, onReschedule, onDragChange }: {
   task: ScheduleTask; x: number; w: number; top: number; color: string; done: boolean;
-  onPress: () => void; onReschedule: (deltaDays: number) => void;
+  onPress: (t: ScheduleTask) => void; onReschedule: (t: ScheduleTask, deltaDays: number) => void;
+  onDragChange: (id: string | null) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const [dragDays, setDragDays] = useState<number | null>(null);
   const stepRef = useRef(0);
 
+  // Callbacks are STABLE refs from the parent, so this gesture is NOT recreated
+  // when the parent re-renders on drag start (draggingId change) — the active
+  // pan stays intact. onDragChange lets the parent hide this task's stale arrows.
   const gesture = useMemo(() => {
-    const tap = Gesture.Tap().maxDistance(12).onEnd((_e, ok) => { if (ok) onPress(); });
+    const tap = Gesture.Tap().maxDistance(12).onEnd((_e, ok) => { if (ok) onPress(task); });
     const pan = Gesture.Pan()
       .activateAfterLongPress(220)
-      .onStart(() => { stepRef.current = 0; if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDragDays(0); })
+      .onStart(() => { stepRef.current = 0; if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDragDays(0); onDragChange(task.id); })
       .onUpdate((e) => {
         const d = Math.round(e.translationX / DAY_W);
         if (d !== stepRef.current) { stepRef.current = d; if (Platform.OS !== 'web') void Haptics.selectionAsync(); }
         setDragDays(d);
       })
-      .onEnd((e) => { onReschedule(Math.round(e.translationX / DAY_W)); })
-      .onFinalize(() => setDragDays(null));
+      .onEnd((e) => { onReschedule(task, Math.round(e.translationX / DAY_W)); })
+      .onFinalize(() => { setDragDays(null); onDragChange(null); });
     return Gesture.Race(pan, tap);
-  }, [onPress, onReschedule]);
+  }, [task, onPress, onReschedule, onDragChange]);
 
   const dragging = dragDays !== null;
   const left = Math.max(0, x + (dragging ? (dragDays ?? 0) * DAY_W : 0));
@@ -82,6 +86,11 @@ export function MobileGantt({
 
   const baseMs = useMemo(() => startOfDayMs(startDate ? new Date(startDate) : new Date()), [startDate]);
   const todayIdx = Math.round((startOfDayMs(new Date()) - baseMs) / MS_DAY);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const handleReschedule = useCallback((t: ScheduleTask, delta: number) => {
+    const ns = Math.max(0, (t.startDay ?? 0) + delta);
+    if (ns !== (t.startDay ?? 0) && onUpdateTask) onUpdateTask({ ...t, startDay: ns });
+  }, [onUpdateTask]);
 
   // Ordered phases (first-seen) with rolled-up %.
   const phases = useMemo(() => {
@@ -128,7 +137,7 @@ export function MobileGantt({
   }, [rows]);
 
   const arrows = useMemo(() => {
-    const out: { id: string; d: string; critical: boolean }[] = [];
+    const out: { id: string; d: string; critical: boolean; from: string; to: string }[] = [];
     rows.forEach((r) => {
       if (r.kind !== 'task') return;
       const succ = barById.get(r.task.id);
@@ -144,7 +153,7 @@ export function MobileGantt({
           { x: succ.x, y: succ.yMid },
         );
         const crit = !!r.task.isCriticalPath;
-        out.push({ id: `${link.taskId}->${r.task.id}`, d, critical: crit });
+        out.push({ id: `${link.taskId}->${r.task.id}`, d, critical: crit, from: link.taskId, to: r.task.id });
       }
     });
     return out;
@@ -219,7 +228,7 @@ export function MobileGantt({
             {/* dependency arrows */}
             <Svg width={timelineW} height={contentH} style={StyleSheet.absoluteFill} pointerEvents="none">
               {arrows.map((a) => (
-                <Path key={a.id} d={a.d} stroke={a.critical ? colors.danger : colors.textMuted} strokeWidth={1.25} fill="none" opacity={0.65} />
+                <Path key={a.id} d={a.d} stroke={a.critical ? colors.danger : colors.textMuted} strokeWidth={1.25} fill="none" opacity={draggingId && (a.from === draggingId || a.to === draggingId) ? 0 : 0.65} />
               ))}
             </Svg>
             {/* bars (hold ~220ms then drag horizontally to reschedule) */}
@@ -239,11 +248,9 @@ export function MobileGantt({
                   top={HEADER_H + i * ROW_H + (ROW_H - 22) / 2}
                   color={color}
                   done={done}
-                  onPress={() => onPressTask(r.task)}
-                  onReschedule={(delta) => {
-                    const ns = Math.max(0, (r.task.startDay ?? 0) + delta);
-                    if (ns !== (r.task.startDay ?? 0) && onUpdateTask) onUpdateTask({ ...r.task, startDay: ns });
-                  }}
+                  onPress={onPressTask}
+                  onReschedule={handleReschedule}
+                  onDragChange={setDraggingId}
                 />
               );
             })}

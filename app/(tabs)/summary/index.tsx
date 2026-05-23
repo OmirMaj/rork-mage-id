@@ -104,6 +104,7 @@ export default function SummaryScreen() {
   }, [router]);
 
   const onAttention = useCallback((item: AttentionItem) => {
+    if (!item.route) return; // guard: never push an empty route into a dead-end
     if (item.params) router.push({ pathname: item.route, params: item.params } as any);
     else router.push(item.route as any);
   }, [router]);
