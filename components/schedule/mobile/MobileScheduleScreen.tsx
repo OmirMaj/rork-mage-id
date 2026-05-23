@@ -14,6 +14,7 @@ import EmptyState from '@/components/EmptyState';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
 import { WeekStrip } from './WeekStrip';
 import { MobileGantt } from './MobileGantt';
+import { MobileScheduleList } from './MobileScheduleList';
 import { TaskDetailSheet } from './TaskDetailSheet';
 import { ProgressTab } from './ProgressTab';
 import { TeamTab } from './TeamTab';
@@ -38,6 +39,7 @@ export function MobileScheduleScreen() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [detailTask, setDetailTask] = useState<ScheduleTask | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [scheduleView, setScheduleView] = useState<'list' | 'timeline'>('list');
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? projects[0] ?? null,
@@ -147,15 +149,42 @@ export function MobileScheduleScreen() {
             onAction={() => setShowAdd(true)}
           />
         ) : (
-          <MobileGantt
-            tasks={tasks}
-            startDate={startDate}
-            selectedDate={selectedDate}
-            collapsedPhases={collapsed}
-            onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
-            onPressTask={setDetailTask}
-            onAddTask={() => setShowAdd(true)}
-          />
+          <>
+            <View style={styles.viewToggle}>
+              {(['list', 'timeline'] as const).map((v) => (
+                <TouchableOpacity
+                  key={v}
+                  style={[styles.viewSeg, scheduleView === v ? styles.viewSegOn : null]}
+                  activeOpacity={0.8}
+                  onPress={() => setScheduleView(v)}
+                >
+                  <Text style={[styles.viewSegText, scheduleView === v ? { color: colors.accent } : null]}>
+                    {v === 'list' ? 'List' : 'Timeline'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {scheduleView === 'list' ? (
+              <MobileScheduleList
+                tasks={tasks}
+                startDate={startDate}
+                collapsedPhases={collapsed}
+                onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
+                onPressTask={setDetailTask}
+                onAddTask={() => setShowAdd(true)}
+              />
+            ) : (
+              <MobileGantt
+                tasks={tasks}
+                startDate={startDate}
+                selectedDate={selectedDate}
+                collapsedPhases={collapsed}
+                onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
+                onPressTask={setDetailTask}
+                onAddTask={() => setShowAdd(true)}
+              />
+            )}
+          </>
         )
       ) : tab === 'progress' ? (
         <ProgressTab tasks={tasks} startDate={startDate} />
@@ -189,4 +218,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   subtab: { paddingVertical: 10, marginRight: 22 },
   subtabText: { fontSize: 14, fontWeight: '700' as const, color: t.textMuted },
   subtabBar: { height: 2.5, borderRadius: 2, marginTop: 8 },
+  viewToggle: { flexDirection: 'row' as const, alignSelf: 'flex-start' as const, marginHorizontal: 16, marginTop: 12, marginBottom: 2, backgroundColor: t.surfaceAlt, borderRadius: 9, padding: 3, gap: 2 },
+  viewSeg: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 7 },
+  viewSegOn: { backgroundColor: t.surface },
+  viewSegText: { fontSize: 13, fontWeight: '700' as const, color: t.textMuted },
 });
