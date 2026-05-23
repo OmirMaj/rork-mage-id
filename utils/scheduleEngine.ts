@@ -279,6 +279,11 @@ export function buildScheduleFromTasks(
      *  forward-only resolver. Pass `cpm.projectFinish` to use the full
      *  CPM result. */
     criticalPathDays?: number;
+    /** Calendar anchor (yyyy-mm-dd). Preserved across rebuilds; defaults to
+     *  today only when the caller doesn't supply one. Without this, mobile-built
+     *  schedules had no startDate and the Summary dashboard's Today/Week
+     *  day-math fell back to project.createdAt (wrong). */
+    startDate?: string;
   },
 ): ProjectSchedule {
   // Gap E (audit) — Skip the legacy forward-pass-only resolver when the
@@ -371,6 +376,7 @@ export function buildScheduleFromTasks(
     id: createId('schedule'),
     name,
     projectId,
+    startDate: opts?.startDate ?? new Date().toISOString().slice(0, 10),
     workingDaysPerWeek: 5,
     bufferDays: 3,
     tasks: sortedTasks,

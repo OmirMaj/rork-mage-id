@@ -329,7 +329,11 @@ export default function ScheduleScreen() {
     console.log('[Schedule] Saving schedule', { projectId: project?.id, taskCount: schedule.tasks.length });
     if (project) {
       updateProject(project.id, {
-        schedule: { ...schedule, projectId: project.id, updatedAt: new Date().toISOString() },
+        // Preserve the existing schedule.startDate across rebuilds; fall back to
+        // the freshly-built one (today) only when none exists. Without this,
+        // editing a task would reset the project start to today and the Summary
+        // dashboard's Today/Week day-math would drift.
+        schedule: { ...schedule, projectId: project.id, startDate: project.schedule?.startDate ?? schedule.startDate, updatedAt: new Date().toISOString() },
         status: project.estimate ? 'estimated' : 'draft',
       });
       return;

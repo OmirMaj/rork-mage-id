@@ -476,6 +476,9 @@ export interface ScheduleTask {
   linkedEstimateItems?: string[];
   assignedSubId?: string;
   assignedSubName?: string;
+  /** Optional per-task checklist (sub-steps), e.g. Rebar / Formwork / Pour.
+   *  Rendered in the mobile task-detail sheet; persisted with the task. */
+  checklist?: { id: string; label: string; done: boolean }[];
   /**
    * WBS outline (MAGE calls this the "stack"). A task with a `parentId` rolls
    * up into its parent summary task. `outlineLevel` is 0 for top-level,

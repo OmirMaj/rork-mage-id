@@ -424,6 +424,8 @@ function ScheduleProScreenInner() {
       // column would silently vanish on the next keystroke.
       const withBaselines = {
         ...newSchedule,
+        // Preserve the project's existing start anchor across debounced rebuilds.
+        startDate: project.schedule?.startDate ?? newSchedule.startDate,
         baselines: baselinesRef.current,
         // Preserve schedule-level settings that buildScheduleFromTasks doesn't
         // know about — closures, critical threshold, resource pool, scenarios.
@@ -462,6 +464,7 @@ function ScheduleProScreenInner() {
           updateProject(project.id, {
             schedule: {
               ...newSchedule,
+              startDate: project.schedule?.startDate ?? newSchedule.startDate,
               baselines: baselinesRef.current,
               nonWorkingDates: project.schedule?.nonWorkingDates,
               criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
