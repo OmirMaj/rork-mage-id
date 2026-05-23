@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
@@ -23,11 +23,15 @@ interface MobileGanttProps {
   onUpdateTask?: (task: ScheduleTask) => void;
 }
 
-const DAY_W = 26;
+const DAY_W = 26;       // 'day' zoom: full-width column
+const WEEK_DAY_W = 12;  // 'week' zoom: compact column
+const FIT_MIN_W = 6;    // 'fit' zoom: floor so bars stay tappable
 const ROW_H = 40;
 const HEADER_H = 44;
 const LEFT_W = 150;
 const MS_DAY = 24 * 60 * 60 * 1000;
+
+type Zoom = 'day' | 'week' | 'fit';
 
 type Row =
   | { kind: 'phase'; phase: string; pct: number }
@@ -39,13 +43,21 @@ function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0,
 // (changes startDay); a quick tap opens the task. Drag state is local so only
 // this bar re-renders mid-drag, and the reschedule commits once on release.
 // Quick swipes still scroll the timeline (activateAfterLongPress yields first).
-function GanttBar({ task, x, w, top, color, done, onPress, onReschedule, onDragChange }: {
-  task: ScheduleTask; x: number; w: number; top: number; color: string; done: boolean;
+//
+// Positioning is COLUMN-based: dragging snaps to whole columns (dragCols), and
+// the on-screen offset is column-quantized (dragCols * dayW). On release we hand
+// the raw pixel translation to dragToStartDay, which converts column movement
+// back into a calendar-day startDay; onReschedule still takes a delta in
+// *calendar days* so its contract (and onUpdateTask) is unchanged. This keeps
+// drag correct under weekday-only mode and every zoom level.
+function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, dragToStartDay, onDragChange }: {
+  task: ScheduleTask; x: number; w: number; top: number; dayW: number; color: string; done: boolean;
   onPress: (t: ScheduleTask) => void; onReschedule: (t: ScheduleTask, deltaDays: number) => void;
+  dragToStartDay: (currentStartDay: number, translationX: number) => number;
   onDragChange: (id: string | null) => void;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const [dragDays, setDragDays] = useState<number | null>(null);
+  const [dragCols, setDragCols] = useState<number | null>(null);
   const stepRef = useRef(0);
 
   // Callbacks are STABLE refs from the parent, so this gesture is NOT recreated
@@ -55,19 +67,19 @@ function GanttBar({ task, x, w, top, color, done, onPress, onReschedule, onDragC
     const tap = Gesture.Tap().maxDistance(12).onEnd((_e, ok) => { if (ok) onPress(task); });
     const pan = Gesture.Pan()
       .activateAfterLongPress(220)
-      .onStart(() => { stepRef.current = 0; if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDragDays(0); onDragChange(task.id); })
+      .onStart(() => { stepRef.current = 0; if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDragCols(0); onDragChange(task.id); })
       .onUpdate((e) => {
-        const d = Math.round(e.translationX / DAY_W);
-        if (d !== stepRef.current) { stepRef.current = d; if (Platform.OS !== 'web') void Haptics.selectionAsync(); }
-        setDragDays(d);
+        const c = Math.round(e.translationX / dayW);
+        if (c !== stepRef.current) { stepRef.current = c; if (Platform.OS !== 'web') void Haptics.selectionAsync(); }
+        setDragCols(c);
       })
-      .onEnd((e) => { onReschedule(task, Math.round(e.translationX / DAY_W)); })
-      .onFinalize(() => { setDragDays(null); onDragChange(null); });
+      .onEnd((e) => { onReschedule(task, dragToStartDay(task.startDay ?? 0, e.translationX) - (task.startDay ?? 0)); })
+      .onFinalize(() => { setDragCols(null); onDragChange(null); });
     return Gesture.Race(pan, tap);
-  }, [task, onPress, onReschedule, onDragChange]);
+  }, [task, dayW, onPress, onReschedule, dragToStartDay, onDragChange]);
 
-  const dragging = dragDays !== null;
-  const left = Math.max(0, x + (dragging ? (dragDays ?? 0) * DAY_W : 0));
+  const dragging = dragCols !== null;
+  const left = Math.max(0, x + (dragging ? (dragCols ?? 0) * dayW : 0));
 
   return (
     <GestureDetector gesture={gesture}>
@@ -87,10 +99,19 @@ export function MobileGantt({
   const baseMs = useMemo(() => startOfDayMs(startDate ? new Date(startDate) : new Date()), [startDate]);
   const todayIdx = Math.round((startOfDayMs(new Date()) - baseMs) / MS_DAY);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<Zoom>('day');
+  const [weekdayOnly, setWeekdayOnly] = useState<boolean>(false);
+  const [viewportW, setViewportW] = useState<number>(0);
   const handleReschedule = useCallback((t: ScheduleTask, delta: number) => {
     const ns = Math.max(0, (t.startDay ?? 0) + delta);
     if (ns !== (t.startDay ?? 0) && onUpdateTask) onUpdateTask({ ...t, startDay: ns });
   }, [onUpdateTask]);
+
+  // True when calendar day-offset `d` (from baseMs) lands on Sat/Sun.
+  const isWeekendOffset = useCallback((d: number): boolean => {
+    const dow = new Date(baseMs + d * MS_DAY).getDay(); // 0=Sun .. 6=Sat
+    return dow === 0 || dow === 6;
+  }, [baseMs]);
 
   // Ordered phases (first-seen) with rolled-up %.
   const phases = useMemo(() => {
@@ -121,20 +142,70 @@ export function MobileGantt({
 
   const maxDay = useMemo(() => tasks.reduce((m, t) => Math.max(m, (t.startDay ?? 0) + Math.max(1, t.durationDays || 1)), 7), [tasks]);
   const numDays = maxDay + 2;
-  const timelineW = numDays * DAY_W;
+
+  // --- COLUMN ABSTRACTION ---------------------------------------------------
+  // Every horizontal position flows through here so nothing drifts when zoom or
+  // weekday-only changes. A "column" is a rendered timeline slot; a "day" is a
+  // calendar day-offset from baseMs. In weekday-only mode weekend days collapse
+  // out, so columns != days.
+
+  // colOf(d): index of the column at/just-before calendar day-offset d.
+  //   normal: identity. weekday-only: count of weekdays in [0, d).
+  const colOf = useCallback((dayOffset: number): number => {
+    if (!weekdayOnly) return dayOffset;
+    const upper = Math.max(0, Math.floor(dayOffset));
+    let cols = 0;
+    for (let d = 0; d < upper; d++) if (!isWeekendOffset(d)) cols++;
+    return cols;
+  }, [weekdayOnly, isWeekendOffset]);
+
+  // colToDay(col): inverse of colOf — the calendar day-offset of the col-th
+  // visible column (in weekday mode, the col-th weekday from baseMs).
+  const colToDay = useCallback((col: number): number => {
+    if (!weekdayOnly) return Math.max(0, col);
+    const target = Math.max(0, col);
+    let seen = 0;
+    let d = 0;
+    // Guard the loop so a pathological drag can't spin forever.
+    for (; d < numDays + 366; d++) {
+      if (!isWeekendOffset(d)) { if (seen === target) return d; seen++; }
+    }
+    return d;
+  }, [weekdayOnly, isWeekendOffset, numDays]);
+
+  const totalCols = useMemo(() => colOf(numDays), [colOf, numDays]);
+  const dayW = useMemo(() => {
+    if (zoom === 'day') return DAY_W;
+    if (zoom === 'week') return WEEK_DAY_W;
+    return Math.max(FIT_MIN_W, Math.floor(viewportW / Math.max(1, totalCols)));
+  }, [zoom, viewportW, totalCols]);
+
+  const dayToX = useCallback((dayOffset: number): number => colOf(dayOffset) * dayW, [colOf, dayW]);
+
+  // Convert a live pixel drag into a new calendar startDay: move in columns, then
+  // map the resulting column back to a calendar day-offset (clamped to >= 0).
+  const dragToStartDay = useCallback((currentStartDay: number, translationX: number): number => {
+    const targetCol = Math.max(0, colOf(currentStartDay) + Math.round(translationX / dayW));
+    return colToDay(targetCol);
+  }, [colOf, colToDay, dayW]);
+
+  const timelineW = totalCols * dayW;
   const contentH = HEADER_H + rows.length * ROW_H;
 
-  // Bar geometry per task id (for arrows).
+  // Bar geometry per task id (for arrows). x/width both go through dayToX so the
+  // span stays correct when weekend columns are hidden.
   const barById = useMemo(() => {
     const m = new Map<string, { x: number; w: number; yMid: number }>();
     rows.forEach((r, i) => {
       if (r.kind !== 'task') return;
-      const x = (r.task.startDay ?? 0) * DAY_W;
-      const w = Math.max(DAY_W * 0.6, Math.max(1, r.task.durationDays || 1) * DAY_W - 3);
+      const startDay = r.task.startDay ?? 0;
+      const x = dayToX(startDay);
+      const endX = dayToX(startDay + Math.max(1, r.task.durationDays || 1));
+      const w = Math.max(dayW * 0.6, endX - x - 3);
       m.set(r.task.id, { x, w, yMid: HEADER_H + i * ROW_H + ROW_H / 2 });
     });
     return m;
-  }, [rows]);
+  }, [rows, dayToX, dayW]);
 
   const arrows = useMemo(() => {
     const out: { id: string; d: string; critical: boolean; from: string; to: string }[] = [];
@@ -163,13 +234,47 @@ export function MobileGantt({
     const ticks: { x: number; label: string }[] = [];
     for (let d = 0; d < numDays; d += 7) {
       const dt = new Date(baseMs + d * MS_DAY);
-      ticks.push({ x: d * DAY_W, label: `${dt.getMonth() + 1}/${dt.getDate()}` });
+      ticks.push({ x: dayToX(d), label: `${dt.getMonth() + 1}/${dt.getDate()}` });
     }
     return ticks;
-  }, [numDays, baseMs]);
+  }, [numDays, baseMs, dayToX]);
+
+  const zoomOptions: { key: Zoom; label: string }[] = [
+    { key: 'day', label: 'Day' },
+    { key: 'week', label: 'Week' },
+    { key: 'fit', label: 'Fit' },
+  ];
 
   return (
     <ScrollView style={styles.outer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+      {/* controls — zoom segmented + weekday-only toggle (reduce horizontal scroll) */}
+      <View style={styles.controls}>
+        <View style={styles.segment}>
+          {zoomOptions.map((opt) => {
+            const active = zoom === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.segBtn, active ? styles.segBtnActive : null]}
+                activeOpacity={0.7}
+                onPress={() => setZoom(opt.key)}
+                testID={`mobile-gantt-zoom-${opt.key}`}
+              >
+                <Text style={[styles.segText, active ? styles.segTextActive : null]}>{opt.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <TouchableOpacity
+          style={[styles.chip, weekdayOnly ? styles.chipActive : null]}
+          activeOpacity={0.7}
+          onPress={() => setWeekdayOnly((v) => !v)}
+          testID="mobile-gantt-weekday-only"
+        >
+          <Text style={[styles.chipText, weekdayOnly ? styles.chipTextActive : null]}>M–F</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={{ flexDirection: 'row' }}>
         {/* LEFT — frozen WBS column */}
         <View style={{ width: LEFT_W }}>
@@ -200,7 +305,11 @@ export function MobileGantt({
         </View>
 
         {/* RIGHT — horizontally-scrollable timeline (vertical scroll handled by outer) */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          onLayout={(e: LayoutChangeEvent) => setViewportW(e.nativeEvent.layout.width)}
+        >
           <View style={{ width: timelineW, height: contentH }}>
             {/* long-press empty timeline → add a task at that day */}
             {onLongPressEmpty && (
@@ -208,7 +317,7 @@ export function MobileGantt({
                 style={StyleSheet.absoluteFill}
                 delayLongPress={350}
                 onLongPress={(e) => {
-                  const day = Math.max(0, Math.floor(e.nativeEvent.locationX / DAY_W));
+                  const day = colToDay(Math.max(0, Math.round(e.nativeEvent.locationX / dayW)));
                   const iso = new Date(baseMs + day * MS_DAY).toISOString().slice(0, 10);
                   if (Platform.OS !== 'web') void Haptics.selectionAsync();
                   onLongPressEmpty(iso);
@@ -221,9 +330,9 @@ export function MobileGantt({
                 <Text key={i} style={[styles.weekTick, { left: t.x + 4 }]}>{t.label}</Text>
               ))}
             </View>
-            {/* today line */}
-            {todayIdx >= 0 && todayIdx < numDays && (
-              <View style={[styles.todayLine, { left: todayIdx * DAY_W + DAY_W / 2, height: contentH }]} />
+            {/* today line — hidden in weekday-only mode if today is a weekend */}
+            {todayIdx >= 0 && todayIdx < numDays && !(weekdayOnly && isWeekendOffset(todayIdx)) && (
+              <View style={[styles.todayLine, { left: dayToX(todayIdx) + dayW / 2, height: contentH }]} />
             )}
             {/* dependency arrows */}
             <Svg width={timelineW} height={contentH} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -246,10 +355,12 @@ export function MobileGantt({
                   x={g.x}
                   w={g.w}
                   top={HEADER_H + i * ROW_H + (ROW_H - 22) / 2}
+                  dayW={dayW}
                   color={color}
                   done={done}
                   onPress={onPressTask}
                   onReschedule={handleReschedule}
+                  dragToStartDay={dragToStartDay}
                   onDragChange={setDraggingId}
                 />
               );
@@ -263,6 +374,16 @@ export function MobileGantt({
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   outer: { flex: 1, backgroundColor: t.bg },
+  controls: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 10, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 },
+  segment: { flexDirection: 'row' as const, backgroundColor: t.surfaceAlt, borderRadius: 8, padding: 2, borderWidth: 1, borderColor: t.line },
+  segBtn: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 6 },
+  segBtnActive: { backgroundColor: t.accent },
+  segText: { fontSize: 12, fontWeight: '700' as const, color: t.textMuted },
+  segTextActive: { color: '#FFFFFF' },
+  chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt },
+  chipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  chipText: { fontSize: 12, fontWeight: '700' as const, color: t.textMuted },
+  chipTextActive: { color: '#FFFFFF' },
   leftHdr: { fontSize: 9.5, fontWeight: '800' as const, color: t.textMuted, letterSpacing: 0.6 },
   lrow: { height: ROW_H, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 7, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: t.line },
   phaseRow: { backgroundColor: t.surfaceAlt },
