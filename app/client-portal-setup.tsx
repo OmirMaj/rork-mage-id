@@ -280,8 +280,13 @@ function ClientPortalSetupScreenInner() {
   // the path id when no hash is present. This is what the GC copies
   // and shares — fits in SMS, doesn't get truncated, always works.
   const portalLink = useMemo(() => {
-    return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId);
-  }, [portal.portalId]);
+    return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, undefined, portal.accessToken);
+  }, [portal.portalId, portal.accessToken]);
+
+  // The decision access token is set server-side (DB trigger) on the next sync
+  // after enabling. Until it lands, the share link can't authorize decisions —
+  // so Copy/Share guard on it rather than hand out a token-less link.
+  const linkPending = portal.enabled && !portal.accessToken;
 
   // The full base64-hash URL is kept around as a backup for clients
   // whose snapshot cache hasn't propagated yet (e.g., right after
@@ -352,8 +357,8 @@ function ClientPortalSetupScreenInner() {
   // portal HTML falls back to fetching the snapshot from
   // `portal_snapshots` when the hash is missing.
   const buildShortInviteLink = useCallback((invite?: ClientPortalInvite) => {
-    return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id);
-  }, [portal.portalId]);
+    return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id, portal.accessToken);
+  }, [portal.portalId, portal.accessToken]);
 
   // (Plain-text email body is now built inline in handleEmailInvite as
   // a fallback when Resend is unavailable — see below.)
@@ -448,6 +453,10 @@ function ClientPortalSetupScreenInner() {
     // web the Alert fired before the write actually happened (or
     // silently failed in non-secure contexts) and the user saw "Copied"
     // over an empty clipboard.
+    if (linkPending) {
+      Alert.alert('Finalizing secure link', 'Your portal’s secure link is still syncing — try again in a moment.');
+      return;
+    }
     const ok = await copyToClipboard(portalLink);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert(
@@ -456,7 +465,7 @@ function ClientPortalSetupScreenInner() {
         ? 'Portal link copied to clipboard.'
         : 'Could not copy the link. Long-press to select the URL above and copy manually.',
     );
-  }, [portalLink]);
+  }, [portalLink, linkPending]);
 
   const handleShare = useCallback(() => {
     // Open the Send-by-Email/Text modal on every platform. We no longer

@@ -904,10 +904,17 @@ export function buildShortPortalUrl(
   baseUrl: string,
   portalId: string,
   inviteId?: string,
+  accessToken?: string,
 ): string {
+  // accessToken (`?t=`) is the server-managed gate for client decisions
+  // (sign/selection). It travels ONLY in the share link — never in the portal
+  // snapshot — so fetching the snapshot by portalId cannot leak it.
   const base = `${baseUrl}/${portalId}`;
-  const query = inviteId ? `?inviteId=${encodeURIComponent(inviteId)}` : '';
-  return `${base}${query}`;
+  const params = new URLSearchParams();
+  if (inviteId) params.set('inviteId', inviteId);
+  if (accessToken) params.set('t', accessToken);
+  const q = params.toString();
+  return q ? `${base}?${q}` : base;
 }
 
 // Rough sanity check — URL fragments over ~8KB start to make SMS clients unhappy.

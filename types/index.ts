@@ -1981,6 +1981,10 @@ export interface ClientPortalSettings {
   enabled: boolean;
   portalId: string;
   passcode?: string;
+  /** Server-managed 192-bit token gating client decisions (sign/selection).
+   *  Set by a DB trigger, backfilled for existing portals; travels only in the
+   *  share link's ?t= param, never in the snapshot. */
+  accessToken?: string;
   requirePasscode?: boolean;
   showSchedule: boolean;
   showChangeOrders: boolean;
