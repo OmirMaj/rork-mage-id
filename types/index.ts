@@ -1900,6 +1900,21 @@ export interface DrawingPin {
   updatedAt: string;
 }
 
+// Living Floor Plan — a rectangular zone drawn on a PlanSheet, linked to the
+// schedule task(s) whose work happens in that area. Rect is in NORMALIZED plan
+// coords (0–1 of the plan image) so it scales to any render size.
+export interface PlanZone {
+  id: string;
+  projectId: string;
+  planSheetId: string;
+  x: number; y: number; w: number; h: number; // normalized 0–1
+  label: string;
+  linkedTaskIds: string[];
+  color?: string;            // optional override; default derives from active trade
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
  * Freehand / shape annotation on a plan sheet. Coords normalized 0..1.
  */
