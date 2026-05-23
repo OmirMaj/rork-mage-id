@@ -138,7 +138,7 @@ export function MobileGantt({
                 : r.task.status === 'in_progress'
                   ? <CircleDot size={15} color={getPhaseColor(r.task.phase || 'Other')} />
                   : <Circle size={15} color={colors.textMuted} />}
-              <Text style={[styles.taskName, r.task.isCriticalPath ? { color: colors.danger } : null]} numberOfLines={1}>{r.task.title}</Text>
+              <Text style={[styles.taskName, r.task.status === 'done' ? styles.taskNameDone : null]} numberOfLines={1}>{r.task.title}</Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={styles.addRow} activeOpacity={0.7} onPress={onAddTask} testID="mobile-gantt-add">
@@ -170,8 +170,10 @@ export function MobileGantt({
             {rows.map((r, i) => {
               if (r.kind !== 'task') return <View key={`pg-${i}`} style={{ height: ROW_H }} />;
               const g = barById.get(r.task.id)!;
-              const color = r.task.isCriticalPath ? colors.danger : getPhaseColor(r.task.phase || 'Other');
               const done = r.task.status === 'done';
+              // Red is reserved for ACTIVE critical work; a completed task isn't
+              // "at risk", so done bars use the (de-emphasized) phase color.
+              const color = !done && r.task.isCriticalPath ? colors.danger : getPhaseColor(r.task.phase || 'Other');
               return (
                 <TouchableOpacity
                   key={r.task.id}
@@ -204,6 +206,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   phaseName: { flex: 1, fontSize: 12, fontWeight: '800' as const, color: t.text },
   phasePct: { fontSize: 11, fontWeight: '700' as const, color: t.textMuted },
   taskName: { flex: 1, fontSize: 12.5, fontWeight: '600' as const, color: t.text },
+  taskNameDone: { color: t.textMuted, textDecorationLine: 'line-through' as const },
   addRow: { height: ROW_H, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 7, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: t.line },
   addText: { fontSize: 12, fontWeight: '700' as const, color: t.accent },
   weekTick: { position: 'absolute' as const, bottom: 6, fontSize: 9.5, fontWeight: '700' as const, color: t.textMuted },
