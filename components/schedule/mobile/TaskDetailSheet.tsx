@@ -97,7 +97,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
   const shiftDuration = (delta: number) => { haptic(); onUpdateTask({ ...task, durationDays: Math.max(1, (task.durationDays || 1) + delta) }); };
   const toggleMilestone = (v: boolean) => { haptic(); onUpdateTask({ ...task, isMilestone: v }); };
   const commitTitle = () => { const v = title.trim(); if (v && v !== task.title) onUpdateTask({ ...task, title: v }); else if (!v) setTitle(task.title); };
-  const commitCrew = () => { if (crew.trim() !== (task.crew || '')) onUpdateTask({ ...task, crew: crew.trim() }); };
+  const commitCrew = () => { const seed = (task.crew || task.assignedSubName || '').trim(); if (crew.trim() !== seed) onUpdateTask({ ...task, crew: crew.trim() }); };
   const commitNotes = () => { if (notes !== (task.notes || '')) onUpdateTask({ ...task, notes }); };
 
   const toggleChecklist = (id: string) =>

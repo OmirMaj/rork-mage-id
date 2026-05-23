@@ -213,7 +213,7 @@ export function MobileGantt({
               ))}
             </View>
             {/* today line */}
-            {todayIdx >= 0 && todayIdx <= numDays && (
+            {todayIdx >= 0 && todayIdx < numDays && (
               <View style={[styles.todayLine, { left: todayIdx * DAY_W + DAY_W / 2, height: contentH }]} />
             )}
             {/* dependency arrows */}

@@ -44,7 +44,12 @@ export function PercentSlider({ value, onChange, onCommit, color, trackColor }: 
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e: GestureResponderEvent) => setFromPageX.current(e.nativeEvent.pageX),
+      onPanResponderGrant: (e: GestureResponderEvent) => {
+        // Re-measure on grab so the % is correct even if layout shifted or the
+        // slide-up modal was mid-animation when onLayout first fired.
+        const pageX = e.nativeEvent.pageX;
+        containerRef.current?.measureInWindow((x, _y, w) => { x0Ref.current = x; widthRef.current = w; setFromPageX.current(pageX); });
+      },
       onPanResponderMove: (e: GestureResponderEvent) => setFromPageX.current(e.nativeEvent.pageX),
       onPanResponderRelease: () => onCommitRef.current?.(lastRef.current),
     }),

@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Bell, MoreHorizontal, ChevronDown, FolderOpen } from 'lucide-react-native';
+import { Bell, ChevronDown, FolderOpen } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -53,8 +53,15 @@ export function MobileScheduleScreen() {
   const saveTasks = useCallback((nextTasks: ScheduleTask[]) => {
     if (!selectedProject) return;
     const name = activeSchedule?.name ?? `${selectedProject.name} Schedule`;
+    // Mobile Pro is a MANUAL scheduler — startDay is user-authoritative (drag +
+    // steppers). Passing criticalPathDays makes buildScheduleFromTasks skip its
+    // forward-pass resolver (recalculateStartDays), so (a) manual positions stick
+    // even for tasks with predecessors, and (b) day-0 tasks aren't clamped to
+    // day-1. We pass the latest task end as the project-finish approximation.
+    const criticalPathDays = nextTasks.reduce((m, t) => Math.max(m, (t.startDay ?? 0) + Math.max(1, t.durationDays || 1)), 0);
     const next = buildScheduleFromTasks(name, selectedProject.id, nextTasks, activeSchedule?.baseline ?? null, {
       startDate: activeSchedule?.startDate ?? startDate,
+      criticalPathDays,
     });
     updateProject(selectedProject.id, {
       schedule: { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() },
@@ -134,9 +141,6 @@ export function MobileScheduleScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications-inbox' as never)} accessibilityLabel="Notifications">
           <Bell size={19} color={colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push({ pathname: '/schedule-pro', params: { id: selectedProject.id } } as never)} accessibilityLabel="More">
-          <MoreHorizontal size={19} color={colors.text} />
         </TouchableOpacity>
       </View>
 
