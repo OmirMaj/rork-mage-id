@@ -12,6 +12,10 @@ import {
   analyzeScheduleRisk, getCachedResult, setCachedResult,
   type ScheduleRiskResult,
 } from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useRouter } from 'expo-router';
 import type { ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -33,6 +37,8 @@ const TWO_HOURS = 2 * 60 * 60 * 1000;
 export default React.memo(function AIScheduleRisk({ schedule, projectId, weatherData }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
+  const router = useRouter();
   const [result, setResult] = useState<ScheduleRiskResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
@@ -40,7 +46,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
 
   const cacheKey = `risk_${projectId}`;
 
-  const loadOrAnalyze = useCallback(async (forceRefresh = false) => {
+  const loadOrAnalyze = useCallback(async (forceRefresh = false, showAlertOnBlock = false) => {
     if (isLoading) return;
 
     if (!forceRefresh && !hasLoaded) {
@@ -53,9 +59,16 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       }
     }
 
+    const limit = await checkAILimit(tier, 'smart', 'scheduleBuilder');
+    if (!limit.allowed) {
+      if (showAlertOnBlock) showAILimitAlert({ limit, router });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const data = await analyzeScheduleRisk(schedule, weatherData);
+      await recordAIUsage('smart', 'scheduleBuilder');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const now = new Date().toISOString();
       setResult(data);
@@ -67,7 +80,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, schedule, weatherData, cacheKey, hasLoaded]);
+  }, [isLoading, schedule, weatherData, cacheKey, hasLoaded, tier, router]);
 
   React.useEffect(() => {
     if (!hasLoaded && schedule.tasks.length > 0) {
@@ -77,7 +90,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
 
   if (!hasLoaded && !isLoading) {
     return (
-      <TouchableOpacity style={styles.initCard} onPress={() => loadOrAnalyze()}>
+      <TouchableOpacity style={styles.initCard} onPress={() => loadOrAnalyze(false, true)}>
         <Sparkles size={18} color={themeColors.accent} />
         <Text style={styles.initText}>Tap to run AI Risk Analysis</Text>
       </TouchableOpacity>
@@ -111,7 +124,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
           <Text style={styles.headerTitle}>AI Risk Forecast</Text>
         </View>
         <TouchableOpacity
-          onPress={() => loadOrAnalyze(true)}
+          onPress={() => loadOrAnalyze(true, true)}
           disabled={isLoading}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >

@@ -9,6 +9,10 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { analyzeChangeOrderImpact, type ChangeOrderImpactResult } from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useRouter } from 'expo-router';
 import type { ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -26,16 +30,26 @@ function formatCurrency(n: number): string {
 export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
+  const router = useRouter();
   const [result, setResult] = useState<ChangeOrderImpactResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
 
   const handleAnalyze = useCallback(async () => {
     if (isLoading || !changeDescription.trim()) return;
+
+    const limit = await checkAILimit(tier, 'fast', 'changeOrderImpact');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return;
+    }
+
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const data = await analyzeChangeOrderImpact(changeDescription, lineItems, schedule);
+      await recordAIUsage('fast', 'changeOrderImpact');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
       setIsExpanded(true);
@@ -44,7 +58,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, changeDescription, lineItems, schedule]);
+  }, [isLoading, changeDescription, lineItems, schedule, tier, router]);
 
   if (!result) {
     return (

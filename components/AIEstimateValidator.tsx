@@ -9,6 +9,10 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { validateEstimate, type EstimateValidationResult } from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useRouter } from 'expo-router';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -33,12 +37,21 @@ const ISSUE_ICONS = {
 export default React.memo(function AIEstimateValidator(props: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
+  const router = useRouter();
   const [result, setResult] = useState<EstimateValidationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleValidate = useCallback(async () => {
     if (isLoading) return;
+
+    const limit = await checkAILimit(tier, 'smart', 'estimateValidation');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return;
+    }
+
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -52,6 +65,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
         props.hasContingency,
         props.location,
       );
+      await recordAIUsage('smart', 'estimateValidation');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
       setIsExpanded(true);
@@ -60,7 +74,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, props]);
+  }, [isLoading, props, tier, router]);
 
   if (!result) {
     return (

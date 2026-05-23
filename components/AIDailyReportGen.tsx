@@ -9,6 +9,10 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { generateDailyReport, type DailyReportGenResult } from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useRouter } from 'expo-router';
 import type { ScheduleTask } from '@/types';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
@@ -22,14 +26,24 @@ interface Props {
 
 export default React.memo(function AIDailyReportGen({ projectName, tasks, weatherStr, onGenerated }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     if (isLoading) return;
+
+    const limit = await checkAILimit(tier, 'fast', 'dailyReport');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return;
+    }
+
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const result = await generateDailyReport(projectName, tasks, weatherStr);
+      await recordAIUsage('fast', 'dailyReport');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onGenerated(result);
     } catch (err) {
@@ -37,7 +51,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, projectName, tasks, weatherStr, onGenerated]);
+  }, [isLoading, projectName, tasks, weatherStr, onGenerated, tier, router]);
 
   return (
     <TouchableOpacity style={styles.btn} onPress={handleGenerate} disabled={isLoading}>
