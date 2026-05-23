@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform } from 'react-native';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import { CheckCircle2, CircleDot, Circle, Plus, ChevronDown, ChevronRight } from 'lucide-react-native';
@@ -19,6 +20,7 @@ interface MobileGanttProps {
   onPressTask: (task: ScheduleTask) => void;
   onAddTask: () => void;
   onLongPressEmpty?: (iso: string) => void;
+  onUpdateTask?: (task: ScheduleTask) => void;
 }
 
 const DAY_W = 26;
@@ -33,8 +35,47 @@ type Row =
 
 function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
 
+// One draggable gantt bar. Hold ~220ms then drag horizontally to reschedule
+// (changes startDay); a quick tap opens the task. Drag state is local so only
+// this bar re-renders mid-drag, and the reschedule commits once on release.
+// Quick swipes still scroll the timeline (activateAfterLongPress yields first).
+function GanttBar({ task, x, w, top, color, done, onPress, onReschedule }: {
+  task: ScheduleTask; x: number; w: number; top: number; color: string; done: boolean;
+  onPress: () => void; onReschedule: (deltaDays: number) => void;
+}) {
+  const styles = useThemedStyles(makeStyles);
+  const [dragDays, setDragDays] = useState<number | null>(null);
+  const stepRef = useRef(0);
+
+  const gesture = useMemo(() => {
+    const tap = Gesture.Tap().maxDistance(12).onEnd((_e, ok) => { if (ok) onPress(); });
+    const pan = Gesture.Pan()
+      .activateAfterLongPress(220)
+      .onStart(() => { stepRef.current = 0; if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDragDays(0); })
+      .onUpdate((e) => {
+        const d = Math.round(e.translationX / DAY_W);
+        if (d !== stepRef.current) { stepRef.current = d; if (Platform.OS !== 'web') void Haptics.selectionAsync(); }
+        setDragDays(d);
+      })
+      .onEnd((e) => { onReschedule(Math.round(e.translationX / DAY_W)); })
+      .onFinalize(() => setDragDays(null));
+    return Gesture.Race(pan, tap);
+  }, [onPress, onReschedule]);
+
+  const dragging = dragDays !== null;
+  const left = Math.max(0, x + (dragging ? (dragDays ?? 0) * DAY_W : 0));
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <View style={[styles.bar, { left, width: w, top, backgroundColor: color, opacity: done ? 0.5 : 1, zIndex: dragging ? 30 : 1 }, dragging ? styles.barDragging : null]}>
+        {w > 46 && <Text style={styles.barText} numberOfLines={1}>{done ? '✓ ' : ''}{task.title}</Text>}
+      </View>
+    </GestureDetector>
+  );
+}
+
 export function MobileGantt({
-  tasks, startDate, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onLongPressEmpty,
+  tasks, startDate, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onLongPressEmpty, onUpdateTask,
 }: MobileGanttProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -181,7 +222,7 @@ export function MobileGantt({
                 <Path key={a.id} d={a.d} stroke={a.critical ? colors.danger : colors.textMuted} strokeWidth={1.25} fill="none" opacity={0.65} />
               ))}
             </Svg>
-            {/* bars */}
+            {/* bars (hold ~220ms then drag horizontally to reschedule) */}
             {rows.map((r, i) => {
               if (r.kind !== 'task') return <View key={`pg-${i}`} style={{ height: ROW_H }} />;
               const g = barById.get(r.task.id)!;
@@ -190,18 +231,20 @@ export function MobileGantt({
               // "at risk", so done bars use the (de-emphasized) phase color.
               const color = !done && r.task.isCriticalPath ? colors.danger : getPhaseColor(r.task.phase || 'Other');
               return (
-                <TouchableOpacity
+                <GanttBar
                   key={r.task.id}
-                  activeOpacity={0.8}
+                  task={r.task}
+                  x={g.x}
+                  w={g.w}
+                  top={HEADER_H + i * ROW_H + (ROW_H - 22) / 2}
+                  color={color}
+                  done={done}
                   onPress={() => onPressTask(r.task)}
-                  style={[styles.bar, { left: g.x, width: g.w, top: HEADER_H + i * ROW_H + (ROW_H - 22) / 2, backgroundColor: color, opacity: done ? 0.5 : 1 }]}
-                >
-                  {g.w > 46 && (
-                    <Text style={styles.barText} numberOfLines={1}>
-                      {done ? '✓ ' : ''}{r.task.title}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                  onReschedule={(delta) => {
+                    const ns = Math.max(0, (r.task.startDay ?? 0) + delta);
+                    if (ns !== (r.task.startDay ?? 0) && onUpdateTask) onUpdateTask({ ...r.task, startDay: ns });
+                  }}
+                />
               );
             })}
           </View>
@@ -227,5 +270,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   weekTick: { position: 'absolute' as const, bottom: 6, fontSize: 9.5, fontWeight: '700' as const, color: t.textMuted },
   todayLine: { position: 'absolute' as const, top: 0, width: 2, backgroundColor: t.accent, opacity: 0.7 },
   bar: { position: 'absolute' as const, height: 22, borderRadius: 6, justifyContent: 'center' as const, paddingHorizontal: 7 },
+  barDragging: { transform: [{ scale: 1.06 }], shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   barText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' as const },
 });

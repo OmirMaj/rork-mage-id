@@ -197,6 +197,7 @@ export function MobileScheduleScreen() {
                 onPressTask={setDetailTask}
                 onAddTask={() => setShowAdd(true)}
                 onLongPressEmpty={openAddAt}
+                onUpdateTask={onUpdateTask}
               />
             )}
           </>
