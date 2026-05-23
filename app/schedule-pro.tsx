@@ -29,11 +29,11 @@
 //     Phase 7 — snapshot-URL pattern already proven with the client portal.
 
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus } from 'lucide-react-native';
+import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon } from 'lucide-react-native';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -62,6 +62,8 @@ import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
 import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
 import { getSimulatedForecast } from '@/utils/weatherService';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
+import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
+import { PlanZoneEditor } from '@/components/schedule/mobile/PlanZoneEditor';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
 import { resolveCalendarForTask } from '@/utils/scheduleResourceCalendars';
@@ -98,7 +100,7 @@ const GRID_BREAKPOINT = 900;
 // means the gantt gets ~30px of width — useless.
 const SPLIT_BREAKPOINT = 1600;
 
-type PaneMode = 'grid' | 'split' | 'gantt' | 'resources';
+type PaneMode = 'grid' | 'split' | 'gantt' | 'resources' | 'living';
 
 export default function ScheduleProScreen() {
   const { colors: themeColors } = useTheme();
@@ -132,7 +134,15 @@ function ScheduleProScreenInner() {
   const { canAccess } = useTierAccess();
   const { user } = useAuth();
 
-  const { projects, updateProject, getInvoicesForProject } = useProjects();
+  const {
+    projects,
+    updateProject,
+    getInvoicesForProject,
+    getPlanSheetsForProject,
+    getPlanZonesForProject,
+    getPinsForPlan,
+    getPhotosForProject,
+  } = useProjects();
 
   const project = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
@@ -178,6 +188,7 @@ function ScheduleProScreenInner() {
   // with defaults" flow. Opens from the SchedulerHeader's "+ Add Task"
   // button (and any other onAddTask caller).
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showLivingPlanEditor, setShowLivingPlanEditor] = useState(false);
 
   // Named baselines captured over the life of the schedule. Persisted into
   // `project.schedule.baselines` so variance comparisons survive reloads;
@@ -1275,6 +1286,12 @@ function ScheduleProScreenInner() {
               // the Grid/Split/Gantt buttons.
               onPress={() => setPaneMode(paneMode === 'resources' ? 'gantt' : 'resources')}
             />
+            <PaneBtn
+              icon={MapIcon}
+              label="Living Plan"
+              active={paneMode === 'living'}
+              onPress={() => setPaneMode(paneMode === 'living' ? 'gantt' : 'living')}
+            />
           </View>
 
           {/* AI first — the headline value-prop. Highlighted so it stands out.
@@ -1356,7 +1373,34 @@ function ScheduleProScreenInner() {
           active tab content) replaces the old manual paneMode grid/gantt/split
           rendering. Resource swimlanes are a separate mode that lives outside
           the tab shell since they are a different axis entirely. */}
-      {paneMode === 'resources' ? (
+      {paneMode === 'living' ? (() => {
+        const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
+        const firstSheet = planSheets[0] ?? null;
+        const zones = getPlanZonesForProject(project.id).filter(
+          (z) => firstSheet ? z.planSheetId === firstSheet.id : false,
+        );
+        const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
+        const photos = getPhotosForProject(project.id);
+        const photoUriById = (photoId: string) => photos.find((p) => p.id === photoId)?.uri;
+        return (
+          <View style={styles.body}>
+            <View style={styles.paneFull}>
+              <LivingFloorPlan
+                project={project}
+                planSheetId={firstSheet?.id ?? ''}
+                zones={zones}
+                pins={pins}
+                photoUriById={photoUriById}
+                imageUri={firstSheet?.imageUri ?? ''}
+                imageW={firstSheet?.width}
+                imageH={firstSheet?.height}
+                onEdit={() => setShowLivingPlanEditor(true)}
+                onAddPlan={() => router.push('/plans' as never)}
+              />
+            </View>
+          </View>
+        );
+      })() : paneMode === 'resources' ? (
         <View style={styles.body}>
           <View style={styles.paneFull}>
             <ResourceSwimlanes
@@ -1572,6 +1616,25 @@ function ScheduleProScreenInner() {
         tasks={workingTasks}
         defaultStartDate={prefillStart}
       />
+
+      {/* Living Plan zone editor (full-screen modal) */}
+      {showLivingPlanEditor && (() => {
+        const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
+        const firstSheet = planSheets[0] ?? null;
+        if (!firstSheet) return null;
+        return (
+          <Modal visible animationType="slide" onRequestClose={() => setShowLivingPlanEditor(false)}>
+            <PlanZoneEditor
+              project={project}
+              planSheetId={firstSheet.id}
+              imageUri={firstSheet.imageUri}
+              imageW={firstSheet.width}
+              imageH={firstSheet.height}
+              onClose={() => setShowLivingPlanEditor(false)}
+            />
+          </Modal>
+        );
+      })()}
     </View>
   );
 }
