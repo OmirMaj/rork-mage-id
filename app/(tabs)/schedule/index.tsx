@@ -81,6 +81,7 @@ import GanttChart from '@/components/schedule/GanttChart';
 import TodayView from '@/components/schedule/TodayView';
 import LookaheadView from '@/components/schedule/LookaheadView';
 import VerticalGantt from '@/components/schedule/VerticalGantt';
+import { MobileScheduleScreen } from '@/components/schedule/mobile/MobileScheduleScreen';
 import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
@@ -130,7 +131,7 @@ const EMPTY_DRAFT: TaskDraft = {
   assignedSubId: '', assignedSubName: '',
 };
 
-export default function ScheduleScreen() {
+function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
@@ -3609,3 +3610,11 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
     backgroundColor: themeColors.line,
   },
 });
+
+// Route entry: phones get the new mobile-native Schedule Pro; web/tablet keep
+// the full desktop schedule screen. Thin wrapper so the heavy desktop component
+// only mounts off-phone (no conditional hooks in either screen).
+export default function ScheduleTabRoute() {
+  const layout = useResponsiveLayout();
+  return layout.isPhone ? <MobileScheduleScreen /> : <ScheduleScreen />;
+}
