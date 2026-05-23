@@ -3151,8 +3151,10 @@
 
     fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/rpc/portal_choose_selection',
       { method: 'POST', headers: headers, body: JSON.stringify({
-          p_portal_id: api.portalId, p_category_id: selCat.id, p_option_id: selOpt.id }) })
-    .then(function () {
+          p_portal_id: api.portalId, p_category_id: selCat.id, p_option_id: selOpt.id,
+          p_access_token: (new URLSearchParams(window.location.search).get('t') || null) }) })
+    .then(function (r) {
+      if (!r.ok) throw new Error('selection_denied');
       var totalCost = selOpt ? selOpt.total : null;
       var overBudget = !!(selCat && totalCost && totalCost > (selCat.budget * 1.05));
       notifyEvent('selection_chosen', {
@@ -3169,7 +3171,10 @@
     })
     .catch(function (err) {
       target.style.opacity = '1';
-      alert('Could not save your pick — check your connection and try again.');
+      var msg = (err && /denied/.test(String(err.message)))
+        ? 'To make selections, ask your contractor to re-send your portal link (it carries a secure access code).'
+        : 'Could not save your pick — check your connection and try again.';
+      alert(msg);
       console.error(err);
     });
   }
@@ -3270,6 +3275,7 @@
         p_contract_id: contractId,
         p_signer_name: typedName,
         p_passcode: (data && data.passcode) || null,
+        p_access_token: (new URLSearchParams(window.location.search).get('t') || null),
       }),
     })
     .then(function (r) {
@@ -3292,7 +3298,10 @@
     .catch(function (err) {
       target.disabled = false;
       target.textContent = 'Sign & make binding';
-      alert('Could not sign — check your connection and try again.');
+      var msg = (err && /Sign failed: 4/.test(String(err.message)))
+        ? 'To sign, ask your contractor to re-send your portal link — it carries a secure access code required to make this binding.'
+        : 'Could not sign — check your connection and try again.';
+      alert(msg);
       console.error(err);
     });
   });
