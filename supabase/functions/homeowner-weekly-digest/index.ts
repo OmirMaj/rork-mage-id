@@ -35,6 +35,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // the app sends so this digest matches sub-portal invites, contract
 // sends, payment receipts, COI warnings, and the morning brief.
 import { wrapEmailHtml, resendSend, isEmailUnsubscribed } from '../_shared/email.ts';
+import { isValidCron, hasAuthenticatedUser } from '../_shared/cronAuth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -443,6 +444,7 @@ async function sendForProject(
 // ── Entry point ────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  if (!(await isValidCron(req)) && !hasAuthenticatedUser(req)) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'POST only' }, 405);
   if (!SUPABASE_SERVICE_ROLE_KEY) return jsonResponse({ success: false, error: 'SUPABASE_SERVICE_ROLE_KEY not set' }, 500);
 

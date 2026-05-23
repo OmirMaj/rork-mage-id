@@ -20,6 +20,7 @@
 // skips if found. So re-running the cron doesn't duplicate sends.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { isValidCron } from "../_shared/cronAuth.ts";
 import {
   wrapEmailHtml,
   emailStatCard,
@@ -309,6 +310,7 @@ async function processGc(gc: ProfileRow): Promise<{ id: string; status: 'sent' |
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
+  if (!(await isValidCron(req))) return jsonResponse({ success: false, error: "unauthorized" }, 401);
   if (req.method !== "POST") return jsonResponse({ ok: false, error: 'method_not_allowed' }, 405);
 
   try {

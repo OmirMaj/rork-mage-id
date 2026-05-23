@@ -40,6 +40,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // the morning digest matches sub-portal invites, contract sends, payment
 // receipts, COI warnings, and the homeowner weekly digest.
 import { wrapEmailHtml, resendSend } from '../_shared/email.ts';
+import { isValidCron, hasAuthenticatedUser } from '../_shared/cronAuth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -349,6 +350,7 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  if (!(await isValidCron(req)) && !hasAuthenticatedUser(req)) return jsonResponse({ error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ error: 'Use POST' }, 405);
 
   let body: { userId?: string; all?: boolean };

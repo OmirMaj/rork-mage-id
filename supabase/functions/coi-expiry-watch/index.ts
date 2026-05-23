@@ -30,6 +30,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // the COI warning matches sub-portal invites, contract sends, payment
 // receipts, the morning brief, and the homeowner weekly digest.
 import { wrapEmailHtml, resendSend } from '../_shared/email.ts';
+import { isValidCron } from '../_shared/cronAuth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -252,6 +253,7 @@ async function processForUser(client: SupabaseClient, userId: string, profile: P
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  if (!(await isValidCron(req))) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'POST only' }, 405);
   if (!SUPABASE_SERVICE_ROLE_KEY) return jsonResponse({ success: false, error: 'service role key missing' }, 500);
 

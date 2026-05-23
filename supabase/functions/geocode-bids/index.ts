@@ -24,6 +24,7 @@
 //     under a week and stay caught up on new arrivals after.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { isValidCron } from '../_shared/cronAuth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -77,6 +78,7 @@ async function geocodeViaNominatim(city: string, state: string): Promise<Coords 
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (!(await isValidCron(req))) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''

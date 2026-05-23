@@ -31,6 +31,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // receipts, the morning brief, the homeowner weekly digest, and COI
 // warnings.
 import { wrapEmailHtml, resendSend, emailButton, fmtMoney, isEmailUnsubscribed } from '../_shared/email.ts';
+import { isValidCron } from '../_shared/cronAuth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -357,6 +358,7 @@ async function processInvoice(
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  if (!(await isValidCron(req))) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'POST only' }, 405);
   if (!SUPABASE_SERVICE_ROLE_KEY) return jsonResponse({ success: false, error: 'service role key missing' }, 500);
 

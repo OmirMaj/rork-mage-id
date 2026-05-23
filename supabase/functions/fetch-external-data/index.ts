@@ -23,6 +23,7 @@
 //      coords from city_coords cache when we already know them.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { isValidCron } from '../_shared/cronAuth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -149,6 +150,7 @@ async function fetchSamPage(apiKey: string, postedFrom: string, postedTo: string
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (!(await isValidCron(req))) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   try {
     console.log('=== Starting data fetch cycle ===')
