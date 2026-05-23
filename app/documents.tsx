@@ -199,13 +199,23 @@ export default function DocumentsScreen() {
   const handleDocPress = useCallback((doc: ProjectDocument) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Route to the document's home screen so the user can see / edit /
-    // sign there. The aggregator screen stays read-only.
+    // sign there. The aggregator screen stays read-only. COI vault and
+    // permits are global lists (no id needed); AIA + submittal screens are
+    // keyed by id, so we thread the underlying entity's params through —
+    // routing param-less landed the user on a blank screen (dead-end).
     if (doc.type === 'coi') router.push('/coi-vault' as never);
     else if (doc.type === 'permit') router.push('/permits' as never);
-    else if (doc.type === 'aia_billing') router.push('/aia-pay-app' as never);
-    else if (doc.id.startsWith('submittal-')) router.push('/submittal' as never);
-    else router.push(`/project-detail?id=${doc.projectId}` as never);
-  }, [router]);
+    else if (doc.type === 'aia_billing') {
+      // aia-pay-app is invoice-keyed. Resolve the pay app's invoiceId;
+      // fall back to the project so an unlinked pay app still goes somewhere.
+      const payApp = aiaPayApps.find((a) => 'aia-' + a.id === doc.id);
+      if (payApp?.invoiceId) router.push(`/aia-pay-app?invoiceId=${payApp.invoiceId}` as never);
+      else router.push(`/project-detail?id=${doc.projectId}` as never);
+    } else if (doc.id.startsWith('submittal-')) {
+      const submittalId = doc.id.slice('submittal-'.length);
+      router.push(`/submittal?projectId=${doc.projectId}&submittalId=${submittalId}` as never);
+    } else router.push(`/project-detail?id=${doc.projectId}` as never);
+  }, [router, aiaPayApps]);
 
   const filters = [
     { id: 'all', label: 'All' },
