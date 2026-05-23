@@ -40,6 +40,7 @@ export function MobileScheduleScreen() {
   const [detailTask, setDetailTask] = useState<ScheduleTask | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [scheduleView, setScheduleView] = useState<'list' | 'timeline'>('list');
+  const [addPrefillDate, setAddPrefillDate] = useState<string | undefined>(undefined);
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? projects[0] ?? null,
@@ -88,7 +89,18 @@ export function MobileScheduleScreen() {
     };
     saveTasks([...tasks, newTask]);
     setShowAdd(false);
+    setAddPrefillDate(undefined);
   }, [tasks, saveTasks, startDate]);
+
+  const onDeleteTask = useCallback((id: string) => {
+    saveTasks(tasks.filter((t) => t.id !== id));
+    setDetailTask(null);
+  }, [tasks, saveTasks]);
+
+  const openAddAt = useCallback((iso: string) => {
+    setAddPrefillDate(iso);
+    setShowAdd(true);
+  }, []);
 
   const cycleProject = useCallback(() => {
     if (projects.length < 2 || !selectedProject) return;
@@ -172,6 +184,8 @@ export function MobileScheduleScreen() {
                 onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
                 onPressTask={setDetailTask}
                 onAddTask={() => setShowAdd(true)}
+                onUpdateTask={onUpdateTask}
+                onDeleteTask={onDeleteTask}
               />
             ) : (
               <MobileGantt
@@ -182,6 +196,7 @@ export function MobileScheduleScreen() {
                 onTogglePhase={(p) => setCollapsed((c) => ({ ...c, [p]: !c[p] }))}
                 onPressTask={setDetailTask}
                 onAddTask={() => setShowAdd(true)}
+                onLongPressEmpty={openAddAt}
               />
             )}
           </>
@@ -201,8 +216,9 @@ export function MobileScheduleScreen() {
         startDate={startDate}
         onClose={() => setDetailTask(null)}
         onUpdateTask={onUpdateTask}
+        onDeleteTask={onDeleteTask}
       />
-      <AddTaskModal visible={showAdd} onCancel={() => setShowAdd(false)} onCreate={onCreate} tasks={tasks} />
+      <AddTaskModal visible={showAdd} onCancel={() => { setShowAdd(false); setAddPrefillDate(undefined); }} onCreate={onCreate} tasks={tasks} defaultStartDate={addPrefillDate} />
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import { CheckCircle2, CircleDot, Circle, Plus, ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -17,6 +18,7 @@ interface MobileGanttProps {
   onTogglePhase: (phase: string) => void;
   onPressTask: (task: ScheduleTask) => void;
   onAddTask: () => void;
+  onLongPressEmpty?: (iso: string) => void;
 }
 
 const DAY_W = 26;
@@ -32,7 +34,7 @@ type Row =
 function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
 
 export function MobileGantt({
-  tasks, startDate, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask,
+  tasks, startDate, selectedDate, collapsedPhases, onTogglePhase, onPressTask, onAddTask, onLongPressEmpty,
 }: MobileGanttProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -150,6 +152,19 @@ export function MobileGantt({
         {/* RIGHT — horizontally-scrollable timeline (vertical scroll handled by outer) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={{ width: timelineW, height: contentH }}>
+            {/* long-press empty timeline → add a task at that day */}
+            {onLongPressEmpty && (
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                delayLongPress={350}
+                onLongPress={(e) => {
+                  const day = Math.max(0, Math.floor(e.nativeEvent.locationX / DAY_W));
+                  const iso = new Date(baseMs + day * MS_DAY).toISOString().slice(0, 10);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  onLongPressEmpty(iso);
+                }}
+              />
+            )}
             {/* week ticks header */}
             <View style={{ height: HEADER_H }}>
               {weekTicks.map((t, i) => (
