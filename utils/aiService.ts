@@ -1,7 +1,6 @@
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { checkAILimit, recordAIUsage, type SubscriptionTierKey, type RequestTier } from '@/utils/aiRateLimiter';
 import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage } from '@/types';
 import { getLanguageMeta } from '@/utils/portalLanguages';
 
@@ -689,30 +688,6 @@ export const weeklySummarySchema = z.object({
 });
 
 export type WeeklySummaryResult = z.infer<typeof weeklySummarySchema>;
-
-export async function rateLimitedGenerate<T extends z.ZodType>(
-  subscriptionTier: SubscriptionTierKey,
-  requestTier: RequestTier,
-  messages: { role: 'user' | 'assistant'; content: string }[],
-  schema: T,
-): Promise<{ success: true; data: z.infer<T> } | { success: false; data: null; error: string }> {
-  try {
-    const limit = await checkAILimit(subscriptionTier, requestTier);
-    if (!limit.allowed) {
-      return { success: false, data: null, error: limit.message ?? 'Rate limit reached.' };
-    }
-    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
-    const aiResult = await mageAI({ prompt, schema, tier: 'fast' });
-    if (!aiResult.success) {
-      return { success: false, data: null, error: aiResult.error || 'AI analysis unavailable right now. Please try again.' };
-    }
-    await recordAIUsage(requestTier);
-    return { success: true, data: aiResult.data };
-  } catch (err) {
-    console.error('[AI] Generation failed:', err);
-    return { success: false, data: null, error: 'AI analysis unavailable right now. Please try again.' };
-  }
-}
 
 export async function generateWeeklySummary(projects: Project[]): Promise<WeeklySummaryResult> {
   console.log('[AI Weekly] Generating summary for', projects.length, 'projects');
