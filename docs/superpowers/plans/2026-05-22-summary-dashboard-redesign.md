@@ -18,7 +18,7 @@
 
 ## File Structure
 
-- **Create** `utils/summaryRollup.ts` — pure functions: `computeTodayTasks`, `computeWeekLoad`, `aggregateAttention`, `projectColor`, `chipInitials` + their exported types. No React, no imports beyond `@/types`.
+- **Create** `utils/summaryBriefing.ts` — pure functions: `computeTodayTasks`, `computeWeekLoad`, `aggregateAttention`, `projectColor`, `chipInitials` + their exported types. No React, no imports beyond `@/types`. (NOTE: `utils/summaryRollup.ts` already exists — it's the unrelated WBS summary-task rollup; do **not** touch it.)
 - **Create** `components/summary/BriefingHero.tsx` — date line + greeting + status pills + `•••` button.
 - **Create** `components/summary/TodayOnSite.tsx` — Today card (list + empty).
 - **Create** `components/summary/WeekAheadStrip.tsx` — 7-day bar chart, today highlight, ◆ markers.
