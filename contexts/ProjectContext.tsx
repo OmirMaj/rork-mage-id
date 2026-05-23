@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -37,6 +37,7 @@ const DRAWING_PINS_KEY = 'tertiary_drawing_pins';
 const PLAN_CALIBRATIONS_KEY = 'tertiary_plan_calibrations';
 const PLAN_SHEETS_KEY = 'tertiary_plan_sheets';
 const PLAN_MARKUPS_KEY = 'tertiary_plan_markups';
+const PLAN_ZONES_KEY = 'tertiary_plan_zones';
 const PERMITS_KEY = 'tertiary_permits';
 const AIA_PAY_APPS_KEY = 'tertiary_aia_pay_apps';
 const SUB_PORTAL_LINKS_KEY = 'tertiary_sub_portal_links';
@@ -166,6 +167,12 @@ type FieldDataValue = {
   deleteDrawingPin: (id: string) => void;
   getPinsForPlan: (planSheetId: string) => DrawingPin[];
   getPinsForPhoto: (photoId: string) => DrawingPin[];
+  planZones: PlanZone[];
+  addPlanZone: (zone: Omit<PlanZone, 'id' | 'createdAt' | 'updatedAt'>) => PlanZone;
+  updatePlanZone: (id: string, patch: Partial<PlanZone>) => void;
+  deletePlanZone: (id: string) => void;
+  getPlanZonesForPlan: (planSheetId: string) => PlanZone[];
+  getPlanZonesForProject: (projectId: string) => PlanZone[];
   planMarkups: PlanMarkup[];
   addPlanMarkup: (markup: Omit<PlanMarkup, 'id' | 'createdAt'>) => PlanMarkup;
   deletePlanMarkup: (id: string) => void;
@@ -2917,12 +2924,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // storage for now. Matches the portal-messages pattern above.
   const [planSheets, setPlanSheets] = useState<PlanSheet[]>([]);
   const [drawingPins, setDrawingPins] = useState<DrawingPin[]>([]);
+  const [planZones, setPlanZones] = useState<PlanZone[]>([]);
   const [planMarkups, setPlanMarkups] = useState<PlanMarkup[]>([]);
   const [planCalibrations, setPlanCalibrations] = useState<PlanCalibration[]>([]);
 
   useEffect(() => {
     void loadLocal<PlanSheet[]>(PLAN_SHEETS_KEY, []).then(setPlanSheets);
     void loadLocal<DrawingPin[]>(DRAWING_PINS_KEY, []).then(setDrawingPins);
+    void loadLocal<PlanZone[]>(PLAN_ZONES_KEY, []).then(setPlanZones);
     void loadLocal<PlanMarkup[]>(PLAN_MARKUPS_KEY, []).then(setPlanMarkups);
     void loadLocal<PlanCalibration[]>(PLAN_CALIBRATIONS_KEY, []).then(setPlanCalibrations);
   }, []);
@@ -2934,6 +2943,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const persistDrawingPins = useCallback((list: DrawingPin[]) => {
     setDrawingPins(list);
     void saveLocal(DRAWING_PINS_KEY, list);
+  }, []);
+  const persistPlanZones = useCallback((list: PlanZone[]) => {
+    setPlanZones(list);
+    void saveLocal(PLAN_ZONES_KEY, list);
   }, []);
   const persistPlanMarkups = useCallback((list: PlanMarkup[]) => {
     setPlanMarkups(list);
@@ -3098,6 +3111,24 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     drawingPins.filter(p => p.linkedPhotoId === photoId),
     [drawingPins]);
 
+  const addPlanZone = useCallback((zone: Omit<PlanZone, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const fresh: PlanZone = { ...zone, id: generateUUID(), createdAt: now, updatedAt: now };
+    persistPlanZones([fresh, ...planZones]);
+    return fresh;
+  }, [planZones, persistPlanZones]);
+
+  const updatePlanZone = useCallback((id: string, patch: Partial<PlanZone>) => {
+    persistPlanZones(planZones.map((z) => (z.id === id ? { ...z, ...patch, updatedAt: new Date().toISOString() } : z)));
+  }, [planZones, persistPlanZones]);
+
+  const deletePlanZone = useCallback((id: string) => {
+    persistPlanZones(planZones.filter((z) => z.id !== id));
+  }, [planZones, persistPlanZones]);
+
+  const getPlanZonesForPlan = useCallback((planSheetId: string) => planZones.filter((z) => z.planSheetId === planSheetId), [planZones]);
+  const getPlanZonesForProject = useCallback((projectId: string) => planZones.filter((z) => z.projectId === projectId), [planZones]);
+
   const addPlanMarkup = useCallback((markup: Omit<PlanMarkup, 'id' | 'createdAt'>) => {
     const fresh: PlanMarkup = {
       ...markup,
@@ -3193,9 +3224,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
+    planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 
   const preconData = useMemo<PreconDataValue>(() => ({
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
