@@ -286,7 +286,7 @@ function LivingFloorPlanContainer({
   );
   const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
   const photos = getPhotosForProject(project.id);
-  const photoUriById = (photoId: string) => photos.find((p) => p.id === photoId)?.uri;
+  const photoById = (photoId: string) => { const p = photos.find((ph) => ph.id === photoId); return p ? { uri: p.uri, createdAt: p.createdAt } : undefined; };
 
   return (
     <LivingFloorPlan
@@ -294,7 +294,7 @@ function LivingFloorPlanContainer({
       planSheetId={firstSheet?.id ?? ''}
       zones={zones}
       pins={pins}
-      photoUriById={photoUriById}
+      photoById={photoById}
       imageUri={firstSheet?.imageUri ?? ''}
       imageW={firstSheet?.width}
       imageH={firstSheet?.height}

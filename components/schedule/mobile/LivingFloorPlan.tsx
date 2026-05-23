@@ -19,7 +19,7 @@ interface LivingFloorPlanProps {
   planSheetId: string;
   zones: PlanZone[];
   pins: DrawingPin[];                 // pins on this plan sheet (for photo→zone)
-  photoUriById: (photoId: string) => string | undefined;
+  photoById: (photoId: string) => { uri: string; createdAt: string } | undefined;
   imageUri: string;
   imageW?: number; imageH?: number;
   readOnly?: boolean;
@@ -27,7 +27,7 @@ interface LivingFloorPlanProps {
   onAddPlan?: () => void;
 }
 
-export function LivingFloorPlan({ project, planSheetId, zones, pins, photoUriById, imageUri, imageW, imageH, readOnly, onEdit, onAddPlan }: LivingFloorPlanProps) {
+export function LivingFloorPlan({ project, planSheetId, zones, pins, photoById, imageUri, imageW, imageH, readOnly, onEdit, onAddPlan }: LivingFloorPlanProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -54,12 +54,16 @@ export function LivingFloorPlan({ project, planSheetId, zones, pins, photoUriByI
   }
 
   const linkedTasksFor = (z: PlanZone): ScheduleTask[] => z.linkedTaskIds.map((id) => taskById.get(id)).filter(Boolean) as ScheduleTask[];
+  const cutoffMs = baseMs + dayIndex * MS_DAY;
   const photosInZone = (z: PlanZone): string[] => {
     const W = imageW || 1, H = imageH || 1;
     return pins
       .filter((p) => p.linkedPhotoId && p.planSheetId === planSheetId)
       .filter((p) => { const px = p.x > 1 ? p.x / W : p.x; const py = p.y > 1 ? p.y / H : p.y; return px >= z.x && px <= z.x + z.w && py >= z.y && py <= z.y + z.h; })
-      .map((p) => photoUriById(p.linkedPhotoId!)).filter(Boolean) as string[];
+      .map((p) => photoById(p.linkedPhotoId!))
+      .filter((ph): ph is { uri: string; createdAt: string } => ph !== undefined && new Date(ph.createdAt).getTime() <= cutoffMs)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map((ph) => ph.uri);
   };
 
   return (
@@ -81,8 +85,7 @@ export function LivingFloorPlan({ project, planSheetId, zones, pins, photoUriByI
                   left: z.x * size.w, top: z.y * size.h, width: z.w * size.w, height: z.h * size.h,
                   borderColor: st.status === 'not_started' ? colors.textMuted : phaseColor,
                   borderStyle: st.status === 'not_started' ? 'dashed' : 'solid',
-                  backgroundColor: phaseColor, // opacity applied via style below
-                }, { opacity: 1 }]}>
+                }]}>
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: phaseColor, opacity: fillOpacity, borderRadius: 4 }]} />
                 <Text style={styles.zoneLabel} numberOfLines={1}>{z.label}</Text>
               </TouchableOpacity>
