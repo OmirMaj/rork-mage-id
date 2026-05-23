@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronDown, FolderOpen } from 'lucide-react-native';
@@ -8,7 +8,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { useProjects } from '@/contexts/ProjectContext';
-import type { ScheduleTask } from '@/types';
+import type { Project, ScheduleTask } from '@/types';
 import { buildScheduleFromTasks, createId } from '@/utils/scheduleEngine';
 import { runCpm } from '@/utils/cpm';
 import EmptyState from '@/components/EmptyState';
@@ -20,6 +20,8 @@ import { TaskDetailSheet } from './TaskDetailSheet';
 import { ProgressTab } from './ProgressTab';
 import { TeamTab } from './TeamTab';
 import { FourDComingSoon } from './FourDComingSoon';
+import { LivingFloorPlan } from './LivingFloorPlan';
+import { PlanZoneEditor } from './PlanZoneEditor';
 
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
 const MS_DAY = 24 * 60 * 60 * 1000;
@@ -30,7 +32,11 @@ const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', '4D Model'
 export function MobileScheduleScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projects, updateProject } = useProjects();
+  const {
+    projects,
+    updateProject,
+    getPlanSheetsForProject,
+  } = useProjects();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
@@ -42,6 +48,7 @@ export function MobileScheduleScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [scheduleView, setScheduleView] = useState<'list' | 'timeline'>('list');
   const [addPrefillDate, setAddPrefillDate] = useState<string | undefined>(undefined);
+  const [showZoneEditor, setShowZoneEditor] = useState(false);
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? projects[0] ?? null,
@@ -215,7 +222,7 @@ export function MobileScheduleScreen() {
       ) : tab === 'team' ? (
         <TeamTab tasks={tasks} onPressTask={setDetailTask} />
       ) : (
-        <ScrollView contentContainerStyle={{ paddingTop: 12 }}><FourDComingSoon /></ScrollView>
+        <LivingFloorPlanContainer project={selectedProject} onShowEditor={() => setShowZoneEditor(true)} />
       )}
 
       <TaskDetailSheet
@@ -228,7 +235,72 @@ export function MobileScheduleScreen() {
         onDeleteTask={onDeleteTask}
       />
       <AddTaskModal visible={showAdd} onCancel={() => { setShowAdd(false); setAddPrefillDate(undefined); }} onCreate={onCreate} tasks={tasks} defaultStartDate={addPrefillDate} />
+
+      {/* Living Floor Plan zone editor (full-screen modal) */}
+      <Modal visible={showZoneEditor} animationType="slide" onRequestClose={() => setShowZoneEditor(false)}>
+        {(() => {
+          const planSheets = getPlanSheetsForProject(selectedProject.id).filter((s) => !s.superseded);
+          const firstSheet = planSheets[0] ?? null;
+          if (!firstSheet) return null;
+          return (
+            <PlanZoneEditor
+              project={selectedProject}
+              planSheetId={firstSheet.id}
+              imageUri={firstSheet.imageUri}
+              imageW={firstSheet.width}
+              imageH={firstSheet.height}
+              onClose={() => setShowZoneEditor(false)}
+            />
+          );
+        })()}
+      </Modal>
     </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Living Floor Plan container — resolves the first non-superseded plan sheet
+// for the project and wires the LivingFloorPlan component.
+// ---------------------------------------------------------------------------
+
+function LivingFloorPlanContainer({
+  project,
+  onShowEditor,
+}: {
+  project: Project;
+  onShowEditor: () => void;
+}) {
+  const router = useRouter();
+  const {
+    getPlanSheetsForProject,
+    getPlanZonesForProject,
+    getPinsForPlan,
+    getPhotosForProject,
+  } = useProjects();
+
+  const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
+  const firstSheet = planSheets[0] ?? null;
+
+  const zones = getPlanZonesForProject(project.id).filter(
+    (z) => firstSheet ? z.planSheetId === firstSheet.id : false,
+  );
+  const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
+  const photos = getPhotosForProject(project.id);
+  const photoUriById = (photoId: string) => photos.find((p) => p.id === photoId)?.uri;
+
+  return (
+    <LivingFloorPlan
+      project={project}
+      planSheetId={firstSheet?.id ?? ''}
+      zones={zones}
+      pins={pins}
+      photoUriById={photoUriById}
+      imageUri={firstSheet?.imageUri ?? ''}
+      imageW={firstSheet?.width}
+      imageH={firstSheet?.height}
+      onEdit={onShowEditor}
+      onAddPlan={() => router.push('/plans' as never)}
+    />
   );
 }
 
