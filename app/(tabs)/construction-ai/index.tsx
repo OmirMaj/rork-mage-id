@@ -30,6 +30,7 @@ import {
   Gavel, MapPin, Hammer, AlertTriangle, CheckCircle, Sparkles,
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp, Zap,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
+  RefreshCw, PlusCircle, Flag, ChevronRight, FileText,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
@@ -41,6 +42,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useProjects } from '@/contexts/ProjectContext';
+import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf } from '@/utils/permitRoadmap';
+import type { RoadmapPermit, RoadmapInspection, PermitType } from '@/types';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -153,6 +157,39 @@ async function bumpTodayUsage(userId: string | null | undefined): Promise<number
   } catch { return 0; }
 }
 
+// ── Roadmap usage RPC (mirrors code-check pattern) ──────────────────────
+async function getRoadmapTodayUsage(userId: string | null | undefined): Promise<number> {
+  if (!userId) return 0;
+  try {
+    const { data } = await supabase.rpc('ai_usage_daily_get', {
+      p_user_id: userId,
+      p_feature: 'ai_permit_roadmap',
+    });
+    return typeof data === 'number' ? data : 0;
+  } catch { return 0; }
+}
+
+async function bumpRoadmapTodayUsage(userId: string | null | undefined): Promise<number> {
+  if (!userId) return 0;
+  try {
+    const { data } = await supabase.rpc('ai_usage_daily_increment', {
+      p_user_id: userId,
+      p_feature: 'ai_permit_roadmap',
+    });
+    return typeof data === 'number' ? data : 0;
+  } catch { return 0; }
+}
+
+// ── Permit type mapping for Add-to-Permits (Task 6) ─────────────────────
+const PERMIT_TYPE_MAP: Record<string, PermitType> = {
+  electrical: 'electrical', plumbing: 'plumbing', mechanical: 'mechanical', hvac: 'mechanical',
+  building: 'building', structural: 'building', demolition: 'demolition', demo: 'demolition',
+  grading: 'grading', fire: 'fire', occupancy: 'occupancy', zoning: 'other',
+};
+function toPermitType(t: string): PermitType {
+  return PERMIT_TYPE_MAP[t.trim().toLowerCase()] ?? 'other';
+}
+
 export default function ConstructionAITab() {
   const { canAccess } = useTierAccess();
   const [showPaywall, setShowPaywall] = useState(false);
@@ -189,14 +226,18 @@ export default function ConstructionAITab() {
       </View>
     );
   }
-  return <CodeCheckScreenInner />;
+  return <ConstructionAIScreenInner />;
 }
 
-function CodeCheckScreenInner() {
+function ConstructionAIScreenInner() {
   const insets = useSafeAreaInsets();
   const { tier } = useTierAccess();
   const { user } = useAuth();
 
+  // ── Mode toggle ─────────────────────────────────────────────────────
+  const [mode, setMode] = useState<'code' | 'roadmap'>('code');
+
+  // ── Code-Check state ─────────────────────────────────────────────────
   const [location, setLocation] = useState<string>('');
   const [category, setCategory] = useState<CategoryKey>('residential');
   const [scenario, setScenario] = useState<string>('');
@@ -206,6 +247,84 @@ function CodeCheckScreenInner() {
   const [overLimit, setOverLimit] = useState(false);
 
   const dailyCap = useMemo(() => FEATURE_LIMITS.ai_code_check_daily[tier], [tier]);
+
+  // ── Roadmap state ────────────────────────────────────────────────────
+  const {
+    projects,
+    getPermitRoadmapForProject,
+    savePermitRoadmap,
+    updatePermitRoadmap,
+    addPermit,
+  } = useProjects();
+
+  const [roadmapProjectId, setRoadmapProjectId] = useState<string | null>(projects[0]?.id ?? null);
+  const [roadmapLoading, setRoadmapLoading] = useState(false);
+  const [roadmapOverLimit, setRoadmapOverLimit] = useState(false);
+  const roadmapDailyCap = useMemo(() => FEATURE_LIMITS.ai_permit_roadmap_daily[tier], [tier]);
+
+  const roadmapProject = projects.find((p) => p.id === roadmapProjectId) ?? null;
+  const roadmap = roadmapProject ? getPermitRoadmapForProject(roadmapProject.id) : undefined;
+  const roadmapTasks = roadmapProject?.schedule?.tasks ?? [];
+  const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
+  const flags = roadmap ? roadmapFlags(roadmap, roadmapTasks, roadmapStartDate) : [];
+  const scopeStale = roadmap && roadmapProject ? roadmap.scopeHash !== scopeHashOf(roadmapProject) : false;
+
+  const runGenerateRoadmap = useCallback(async (isRegen: boolean) => {
+    if (!roadmapProject) return;
+    const used = await getRoadmapTodayUsage(user?.id);
+    if (used >= roadmapDailyCap) {
+      setRoadmapOverLimit(true);
+      return;
+    }
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRoadmapLoading(true);
+    const res = await generateRoadmap(roadmapProject);
+    setRoadmapLoading(false);
+    if (!res.ok) {
+      Alert.alert('Roadmap failed', res.error);
+      return;
+    }
+    // On regen: carry over status by title
+    let newRoadmap = res.roadmap;
+    if (isRegen && roadmap) {
+      const priorPermits = roadmap.permits;
+      const priorInsps = roadmap.inspections;
+      newRoadmap = {
+        ...newRoadmap,
+        permits: newRoadmap.permits.map((p) => {
+          const prior = priorPermits.find((x) => x.title === p.title);
+          return prior ? { ...p, status: prior.status, linkedPermitId: prior.linkedPermitId } : p;
+        }),
+        inspections: newRoadmap.inspections.map((i) => {
+          const prior = priorInsps.find((x) => x.title === i.title);
+          return prior ? { ...i, status: prior.status } : i;
+        }),
+      };
+    }
+    savePermitRoadmap(newRoadmap);
+    void bumpRoadmapTodayUsage(user?.id);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap]);
+
+  const onAddToPermits = useCallback((p: RoadmapPermit) => {
+    if (!roadmapProject || !roadmap || p.linkedPermitId) return;
+    const created = addPermit({
+      projectId: roadmapProject.id,
+      projectName: roadmapProject.name,
+      type: toPermitType(p.type),
+      jurisdiction: roadmapProject.location || '',
+      status: 'applied',
+      appliedDate: new Date().toISOString(),
+      fee: 0,
+      notes: p.description,
+    });
+    updatePermitRoadmap(roadmap.id, {
+      permits: roadmap.permits.map((x) =>
+        x.id === p.id ? { ...x, linkedPermitId: created.id, status: 'applied' } : x,
+      ),
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [roadmapProject, roadmap, addPermit, updatePermitRoadmap]);
 
   const canSubmit = location.trim().length > 0 && scenario.trim().length > 10 && !loading;
 
@@ -277,6 +396,17 @@ Be specific to the cited location if possible. If the location is not in the US,
     );
   }
 
+  if (roadmapOverLimit) {
+    return (
+      <Paywall
+        visible={true}
+        feature={`Roadmap Daily Limit (${roadmapDailyCap}/day on ${tier})`}
+        requiredTier={tier === 'free' ? 'pro' : 'business'}
+        onClose={() => setRoadmapOverLimit(false)}
+      />
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen
@@ -289,130 +419,461 @@ Be specific to the cited location if possible. If the location is not in the US,
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.hero}>
-            <View style={styles.heroIconWrap}>
-              <Gavel size={28} color={Colors.primary} />
-            </View>
-            <Text style={styles.heroTitle}>Construction AI</Text>
-            <Text style={styles.heroSubtitle}>
-              Describe your project and Construction AI flags the likely codes, permits and common violations to watch for.
-            </Text>
-          </View>
-
-          <Text style={styles.label}>Location (city, state)</Text>
-          <View style={styles.inputRow}>
-            <MapPin size={16} color={Colors.textMuted} />
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="e.g. Brooklyn, NY"
-              placeholderTextColor={Colors.textMuted}
-              style={styles.input}
-              testID="code-check-location"
-            />
-          </View>
-
-          <Text style={styles.label}>Category</Text>
-          <View style={styles.chipWrap}>
-            {CATEGORIES.map((c) => {
-              const active = c.key === category;
-              return (
-                <TouchableOpacity
-                  key={c.key}
-                  onPress={() => setCategory(c.key)}
-                  activeOpacity={0.8}
-                  style={[styles.chip, active && styles.chipActive]}
-                  testID={`code-check-cat-${c.key}`}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.presetHeader}>
-            <Zap size={14} color={Colors.primary} />
-            <Text style={styles.presetHeaderText}>Popular questions</Text>
-          </View>
-          <View style={styles.presetList}>
-            {presets.map((q) => (
-              <TouchableOpacity
-                key={q}
-                onPress={() => {
-                  setScenario(q);
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                }}
-                activeOpacity={0.7}
-                style={[
-                  styles.presetPill,
-                  scenario === q && styles.presetPillActive,
-                ]}
-                testID={`code-check-preset-${q.slice(0, 20)}`}
-              >
-                <Text style={[
-                  styles.presetPillText,
-                  scenario === q && styles.presetPillTextActive,
-                ]} numberOfLines={2}>
-                  {q}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>Describe the work</Text>
-          <TextInput
-            value={scenario}
-            onChangeText={setScenario}
-            placeholder="Tap a popular question above, or write your own (e.g. converting a garage into a livable bedroom with a new egress window)."
-            placeholderTextColor={Colors.textMuted}
-            style={styles.textArea}
-            multiline
-            numberOfLines={5}
-            textAlignVertical="top"
-            testID="code-check-scenario"
-          />
-
+        {/* ── Mode toggle ── */}
+        <View style={styles.modeToggleBar}>
           <TouchableOpacity
-            style={[styles.runBtn, !canSubmit && styles.runBtnDisabled]}
-            onPress={runCheck}
-            disabled={!canSubmit}
-            activeOpacity={0.85}
-            testID="code-check-run"
+            style={[styles.modeToggleBtn, mode === 'code' && styles.modeToggleBtnActive]}
+            onPress={() => setMode('code')}
+            activeOpacity={0.8}
+            testID="mode-toggle-code"
           >
-            <Sparkles size={18} color="#FFF" />
-            <Text style={styles.runBtnText}>Run Code Check</Text>
+            <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]}>Code Check</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeToggleBtn, mode === 'roadmap' && styles.modeToggleBtnActive]}
+            onPress={() => setMode('roadmap')}
+            activeOpacity={0.8}
+            testID="mode-toggle-roadmap"
+          >
+            <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]}>Project Roadmap</Text>
+          </TouchableOpacity>
+        </View>
 
-          <Text style={styles.quotaText}>
-            {dailyCap === Infinity ? 'Unlimited code checks today' : `Daily limit: ${dailyCap} checks`}
-          </Text>
+        {mode === 'code' ? (
+          <ScrollView
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.hero}>
+              <View style={styles.heroIconWrap}>
+                <Gavel size={28} color={Colors.primary} />
+              </View>
+              <Text style={styles.heroTitle}>Construction AI</Text>
+              <Text style={styles.heroSubtitle}>
+                Describe your project and Construction AI flags the likely codes, permits and common violations to watch for.
+              </Text>
+            </View>
 
-          {result && !resultOpen ? (
+            <Text style={styles.label}>Location (city, state)</Text>
+            <View style={styles.inputRow}>
+              <MapPin size={16} color={Colors.textMuted} />
+              <TextInput
+                value={location}
+                onChangeText={setLocation}
+                placeholder="e.g. Brooklyn, NY"
+                placeholderTextColor={Colors.textMuted}
+                style={styles.input}
+                testID="code-check-location"
+              />
+            </View>
+
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.chipWrap}>
+              {CATEGORIES.map((c) => {
+                const active = c.key === category;
+                return (
+                  <TouchableOpacity
+                    key={c.key}
+                    onPress={() => setCategory(c.key)}
+                    activeOpacity={0.8}
+                    style={[styles.chip, active && styles.chipActive]}
+                    testID={`code-check-cat-${c.key}`}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.presetHeader}>
+              <Zap size={14} color={Colors.primary} />
+              <Text style={styles.presetHeaderText}>Popular questions</Text>
+            </View>
+            <View style={styles.presetList}>
+              {presets.map((q) => (
+                <TouchableOpacity
+                  key={q}
+                  onPress={() => {
+                    setScenario(q);
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  }}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.presetPill,
+                    scenario === q && styles.presetPillActive,
+                  ]}
+                  testID={`code-check-preset-${q.slice(0, 20)}`}
+                >
+                  <Text style={[
+                    styles.presetPillText,
+                    scenario === q && styles.presetPillTextActive,
+                  ]} numberOfLines={2}>
+                    {q}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Describe the work</Text>
+            <TextInput
+              value={scenario}
+              onChangeText={setScenario}
+              placeholder="Tap a popular question above, or write your own (e.g. converting a garage into a livable bedroom with a new egress window)."
+              placeholderTextColor={Colors.textMuted}
+              style={styles.textArea}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              testID="code-check-scenario"
+            />
+
             <TouchableOpacity
-              style={styles.reopenBtn}
-              onPress={() => setResultOpen(true)}
-              activeOpacity={0.8}
-              testID="code-check-reopen"
+              style={[styles.runBtn, !canSubmit && styles.runBtnDisabled]}
+              onPress={runCheck}
+              disabled={!canSubmit}
+              activeOpacity={0.85}
+              testID="code-check-run"
             >
-              <BookOpen size={16} color={Colors.primary} />
-              <Text style={styles.reopenText}>View last result</Text>
+              <Sparkles size={18} color="#FFF" />
+              <Text style={styles.runBtnText}>Run Code Check</Text>
             </TouchableOpacity>
-          ) : null}
-        </ScrollView>
+
+            <Text style={styles.quotaText}>
+              {dailyCap === Infinity ? 'Unlimited code checks today' : `Daily limit: ${dailyCap} checks`}
+            </Text>
+
+            {result && !resultOpen ? (
+              <TouchableOpacity
+                style={styles.reopenBtn}
+                onPress={() => setResultOpen(true)}
+                activeOpacity={0.8}
+                testID="code-check-reopen"
+              >
+                <BookOpen size={16} color={Colors.primary} />
+                <Text style={styles.reopenText}>View last result</Text>
+              </TouchableOpacity>
+            ) : null}
+          </ScrollView>
+        ) : (
+          /* ── Project Roadmap mode ── */
+          <ScrollView
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.hero}>
+              <View style={styles.heroIconWrap}>
+                <FileText size={28} color={Colors.primary} />
+              </View>
+              <Text style={styles.heroTitle}>Project Roadmap</Text>
+              <Text style={styles.heroSubtitle}>
+                AI generates a sequenced permit and inspection roadmap from your project's scope and schedule.
+              </Text>
+            </View>
+
+            {/* Project picker */}
+            <Text style={styles.label}>Project</Text>
+            {projects.length === 0 ? (
+              <Text style={[styles.quotaText, { textAlign: 'left' as const }]}>No projects yet — create one first.</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row' as const, gap: 8 }}>
+                  {projects.map((p) => {
+                    const active = p.id === roadmapProjectId;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        onPress={() => setRoadmapProjectId(p.id)}
+                        activeOpacity={0.8}
+                        style={[styles.chip, active && styles.chipActive]}
+                        testID={`roadmap-project-${p.id}`}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{p.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
+
+            {roadmapProject && !roadmap ? (
+              /* Generate button (no roadmap yet) */
+              <>
+                <TouchableOpacity
+                  style={styles.runBtn}
+                  onPress={() => runGenerateRoadmap(false)}
+                  disabled={roadmapLoading}
+                  activeOpacity={0.85}
+                  testID="roadmap-generate"
+                >
+                  <Sparkles size={18} color="#FFF" />
+                  <Text style={styles.runBtnText}>Generate Roadmap</Text>
+                </TouchableOpacity>
+                <Text style={styles.quotaText}>
+                  {roadmapDailyCap === Infinity ? 'Unlimited roadmaps today' : `Daily limit: ${roadmapDailyCap} generations`}
+                </Text>
+              </>
+            ) : null}
+
+            {roadmap && roadmapProject ? (
+              <>
+                {/* Flags banner */}
+                {flags.length > 0 ? (
+                  <View style={styles.flagsBanner}>
+                    <Flag size={14} color={Colors.error} />
+                    <View style={{ flex: 1, gap: 4 }}>
+                      {flags.map((f) => (
+                        <Text
+                          key={f.itemId}
+                          style={[styles.flagText, f.severity === 'high' && styles.flagTextHigh]}
+                        >
+                          {f.message}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* Regenerate button */}
+                <TouchableOpacity
+                  style={[styles.regenBtn, scopeStale && styles.regenBtnHighlighted]}
+                  onPress={() => runGenerateRoadmap(true)}
+                  disabled={roadmapLoading}
+                  activeOpacity={0.85}
+                  testID="roadmap-regenerate"
+                >
+                  <RefreshCw size={16} color={scopeStale ? '#FFF' : Colors.primary} />
+                  <Text style={[styles.regenBtnText, scopeStale && styles.regenBtnTextHighlighted]}>
+                    {scopeStale ? 'Regenerate (scope changed)' : 'Regenerate'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Permits section */}
+                <Text style={styles.roadmapSectionTitle}>Permits</Text>
+                {roadmap.permits.map((p) => (
+                  <RoadmapPermitRow
+                    key={p.id}
+                    permit={p}
+                    onCycleStatus={() => {
+                      const next: RoadmapPermit['status'][] = ['needed', 'applied', 'approved'];
+                      const idx = next.indexOf(p.status);
+                      const nextStatus = next[(idx + 1) % next.length];
+                      updatePermitRoadmap(roadmap.id, {
+                        permits: roadmap.permits.map((x) => x.id === p.id ? { ...x, status: nextStatus } : x),
+                      });
+                    }}
+                    onAddToPermits={() => onAddToPermits(p)}
+                  />
+                ))}
+
+                {/* Inspections section */}
+                <Text style={styles.roadmapSectionTitle}>Inspections</Text>
+                {roadmap.inspections.map((insp) => {
+                  const gatingTask = insp.gatesTaskId
+                    ? roadmapTasks.find((t) => t.id === insp.gatesTaskId)
+                    : null;
+                  const gatingLabel = gatingTask?.title ?? insp.gatesTaskHint ?? '—';
+                  const bookBy = bookByDate(insp, roadmapTasks, roadmapStartDate);
+                  return (
+                    <RoadmapInspectionRow
+                      key={insp.id}
+                      inspection={insp}
+                      gatingLabel={gatingLabel}
+                      bookBy={bookBy}
+                      onCycleStatus={() => {
+                        const next: RoadmapInspection['status'][] = ['pending', 'scheduled', 'passed'];
+                        const idx = next.indexOf(insp.status);
+                        const nextStatus = next[(idx + 1) % next.length];
+                        updatePermitRoadmap(roadmap.id, {
+                          inspections: roadmap.inspections.map((x) => x.id === insp.id ? { ...x, status: nextStatus } : x),
+                        });
+                      }}
+                    />
+                  );
+                })}
+              </>
+            ) : null}
+          </ScrollView>
+        )}
       </KeyboardAvoidingView>
 
       <LoadingModal visible={loading} />
+      <RoadmapLoadingModal visible={roadmapLoading} />
       <ResultModal
         visible={resultOpen && !!result}
         result={result}
         onClose={() => setResultOpen(false)}
       />
     </View>
+  );
+}
+
+// ── Roadmap row components ─────────────────────────────────────────────
+
+const PERMIT_STATUS_COLORS: Record<RoadmapPermit['status'], string> = {
+  needed: Colors.warning,
+  applied: Colors.info,
+  approved: Colors.success,
+};
+
+function RoadmapPermitRow({
+  permit,
+  onCycleStatus,
+  onAddToPermits,
+}: {
+  permit: RoadmapPermit;
+  onCycleStatus: () => void;
+  onAddToPermits: () => void;
+}) {
+  return (
+    <View style={styles.roadmapRow}>
+      <View style={styles.roadmapRowHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.roadmapRowTitle}>{permit.title}</Text>
+          <Text style={styles.roadmapRowMeta}>
+            {permit.whoPulls.toUpperCase()} pulls · {permit.leadTimeDays}d lead
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={onCycleStatus}
+          activeOpacity={0.8}
+          style={[styles.statusChip, { backgroundColor: PERMIT_STATUS_COLORS[permit.status] + '22', borderColor: PERMIT_STATUS_COLORS[permit.status] + '55' }]}
+          testID={`permit-status-${permit.id}`}
+        >
+          <Text style={[styles.statusChipText, { color: PERMIT_STATUS_COLORS[permit.status] }]}>
+            {permit.status}
+          </Text>
+          <ChevronRight size={10} color={PERMIT_STATUS_COLORS[permit.status]} />
+        </TouchableOpacity>
+      </View>
+      {permit.description ? (
+        <Text style={styles.roadmapRowDesc} numberOfLines={2}>{permit.description}</Text>
+      ) : null}
+      {!permit.linkedPermitId ? (
+        <TouchableOpacity
+          onPress={onAddToPermits}
+          activeOpacity={0.8}
+          style={styles.addToPermitsBtn}
+          testID={`add-to-permits-${permit.id}`}
+        >
+          <PlusCircle size={13} color={Colors.primary} />
+          <Text style={styles.addToPermitsBtnText}>Add to Permits</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.linkedBadge}>
+          <CheckCircle size={12} color={Colors.success} />
+          <Text style={styles.linkedBadgeText}>Added to Permits</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const INSP_STATUS_COLORS: Record<RoadmapInspection['status'], string> = {
+  pending: Colors.textMuted,
+  scheduled: Colors.warning,
+  passed: Colors.success,
+};
+
+function RoadmapInspectionRow({
+  inspection,
+  gatingLabel,
+  bookBy,
+  onCycleStatus,
+}: {
+  inspection: RoadmapInspection;
+  gatingLabel: string;
+  bookBy: Date | null;
+  onCycleStatus: () => void;
+}) {
+  const bookByStr = bookBy
+    ? bookBy.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '—';
+  return (
+    <View style={styles.roadmapRow}>
+      <View style={styles.roadmapRowHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.roadmapRowTitle}>{inspection.title}</Text>
+          <Text style={styles.roadmapRowMeta}>
+            Gates: {gatingLabel} · Book by: {bookByStr}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={onCycleStatus}
+          activeOpacity={0.8}
+          style={[styles.statusChip, { backgroundColor: INSP_STATUS_COLORS[inspection.status] + '22', borderColor: INSP_STATUS_COLORS[inspection.status] + '55' }]}
+          testID={`insp-status-${inspection.id}`}
+        >
+          <Text style={[styles.statusChipText, { color: INSP_STATUS_COLORS[inspection.status] }]}>
+            {inspection.status}
+          </Text>
+          <ChevronRight size={10} color={INSP_STATUS_COLORS[inspection.status]} />
+        </TouchableOpacity>
+      </View>
+      {inspection.description ? (
+        <Text style={styles.roadmapRowDesc} numberOfLines={2}>{inspection.description}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+// ── Roadmap loading modal ─────────────────────────────────────────────
+const ROADMAP_LOADING_STEPS = [
+  'Reading project scope…',
+  'Mapping permit requirements…',
+  'Sequencing inspections…',
+  'Calculating book-by dates…',
+  'Finalizing roadmap…',
+];
+
+function RoadmapLoadingModal({ visible }: { visible: boolean }) {
+  const spin = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const [stepIdx, setStepIdx] = useState(0);
+
+  useEffect(() => {
+    if (!visible) { setStepIdx(0); return; }
+    const spinLoop = Animated.loop(
+      Animated.timing(spin, { toValue: 1, duration: 1600, easing: Easing.linear, useNativeDriver: true }),
+    );
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    spinLoop.start();
+    pulseLoop.start();
+    const interval = setInterval(() => setStepIdx((i) => (i + 1) % ROADMAP_LOADING_STEPS.length), 1500);
+    return () => { spinLoop.stop(); pulseLoop.stop(); clearInterval(interval); spin.setValue(0); pulse.setValue(0); };
+  }, [visible, spin, pulse]);
+
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.loadingBackdrop}>
+        <View style={styles.loadingCard}>
+          <View style={styles.loadingIconStack}>
+            <Animated.View style={[styles.loadingPulse, { transform: [{ scale }], opacity }]} />
+            <Animated.View style={{ transform: [{ rotate }] }}>
+              <FileText size={44} color={Colors.primary} />
+            </Animated.View>
+          </View>
+          <Text style={styles.loadingTitle}>Generating Roadmap</Text>
+          <Text style={styles.loadingStep}>{ROADMAP_LOADING_STEPS[stepIdx]}</Text>
+          <View style={styles.loadingDots}>
+            {ROADMAP_LOADING_STEPS.map((_, i) => (
+              <View key={i} style={[styles.loadingDot, i <= stepIdx && styles.loadingDotActive]} />
+            ))}
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -939,5 +1400,167 @@ const styles = StyleSheet.create({
   },
   lockedCtaText: {
     fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF',
+  },
+
+  // ── Mode toggle ─────────────────────────────────────────────────────
+  modeToggleBar: {
+    flexDirection: 'row' as const,
+    margin: 16,
+    marginBottom: 0,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: Tokens.radius.lg,
+    padding: 3,
+    gap: 3,
+  },
+  modeToggleBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: Tokens.radius.card,
+  },
+  modeToggleBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  modeToggleText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  modeToggleTextActive: {
+    color: '#FFF',
+  },
+
+  // ── Project Roadmap ─────────────────────────────────────────────────
+  flagsBanner: {
+    flexDirection: 'row' as const,
+    gap: 10,
+    backgroundColor: Colors.errorLight,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: Colors.error + '44',
+    padding: 12,
+    marginBottom: 12,
+    alignItems: 'flex-start' as const,
+  },
+  flagText: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.warning,
+    lineHeight: 18,
+  },
+  flagTextHigh: {
+    color: Colors.error,
+    fontWeight: '600' as const,
+  },
+  regenBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary + '55',
+    borderRadius: Tokens.radius.card,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: Colors.primary + '0A',
+  },
+  regenBtnHighlighted: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  regenBtnText: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  regenBtnTextHighlighted: {
+    color: '#FFF',
+  },
+  roadmapSectionTitle: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  roadmapRow: {
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    padding: 12,
+    marginBottom: 8,
+    gap: 6,
+  },
+  roadmapRowHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  roadmapRowTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  roadmapRowMeta: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textMuted,
+  },
+  roadmapRowDesc: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  statusChip: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusChipText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600' as const,
+    textTransform: 'capitalize' as const,
+  },
+  addToPermitsBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    alignSelf: 'flex-start' as const,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+  },
+  addToPermitsBtnText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  linkedBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    alignSelf: 'flex-start' as const,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.successLight,
+  },
+  linkedBadgeText: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.successDark,
+    fontWeight: '600' as const,
   },
 });
