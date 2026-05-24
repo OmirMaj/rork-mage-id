@@ -24,7 +24,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, KeyboardAvoidingView, Modal, Animated, Easing,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Gavel, MapPin, Hammer, AlertTriangle, CheckCircle, Sparkles,
@@ -273,6 +273,7 @@ function ConstructionAIScreenInner() {
   const insets = useSafeAreaInsets();
   const { tier } = useTierAccess();
   const { user } = useAuth();
+  const router = useRouter();
 
   // ── Mode toggle ─────────────────────────────────────────────────────
   const [mode, setMode] = useState<'code' | 'roadmap' | 'plan'>('code');
@@ -429,7 +430,10 @@ function ConstructionAIScreenInner() {
       status: 'applied',
       appliedDate: new Date().toISOString(),
       fee: 0,
-      notes: p.description,
+      // Carry the roadmap's descriptive name as the first line of notes (the
+      // permits tracker has no dedicated title column), with the "why" below it.
+      // The Permits card surfaces the first line as the permit's name.
+      notes: p.description ? `${p.title}\n${p.description}` : p.title,
     });
     updatePermitRoadmap(roadmap.id, {
       permits: roadmap.permits.map((x) =>
@@ -827,6 +831,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                           });
                         }}
                         onAddToPermits={() => onAddToPermits(p)}
+                        onOpenInTracker={() => router.push('/permits')}
                       />
                     ))}
 
@@ -1032,10 +1037,12 @@ function RoadmapPermitRow({
   permit,
   onCycleStatus,
   onAddToPermits,
+  onOpenInTracker,
 }: {
   permit: RoadmapPermit;
   onCycleStatus: () => void;
   onAddToPermits: () => void;
+  onOpenInTracker: () => void;
 }) {
   return (
     <View style={styles.roadmapRow}>
@@ -1072,10 +1079,17 @@ function RoadmapPermitRow({
           <Text style={styles.addToPermitsBtnText}>Add to Permits</Text>
         </TouchableOpacity>
       ) : (
-        <View style={styles.linkedBadge}>
+        <TouchableOpacity
+          onPress={onOpenInTracker}
+          activeOpacity={0.7}
+          style={styles.linkedBadge}
+          testID={`open-permit-${permit.id}`}
+        >
           <CheckCircle size={12} color={Colors.success} />
           <Text style={styles.linkedBadgeText}>Added to Permits</Text>
-        </View>
+          <Text style={styles.linkedBadgeLink}>View</Text>
+          <ChevronRight size={11} color={Colors.primary} />
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -1901,6 +1915,12 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     color: Colors.successDark,
     fontWeight: '600' as const,
+  },
+  linkedBadgeLink: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.primary,
+    fontWeight: '700' as const,
+    marginLeft: 2,
   },
 
   // ── Plan Review ─────────────────────────────────────────────────────

@@ -85,6 +85,14 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
           </View>
         </View>
 
+        {/* Descriptive name — first line of notes. Roadmap "Add to Permits"
+            stores the permit's specific name here (the tracker has no title
+            column), so cards show e.g. "200A panel upgrade" not just "Electrical". */}
+        {(() => {
+          const name = (permit.notes ?? '').split('\n')[0].trim();
+          return name ? <Text style={styles.permitName} numberOfLines={2}>{name}</Text> : null;
+        })()}
+
         {permit.permitNumber && (
           <Text style={styles.permitNumber}>#{permit.permitNumber}</Text>
         )}
@@ -981,6 +989,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     elevation: 2,
   },
   permitCardInner: { padding: 14, gap: 4 },
+  permitName: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 2 },
   permitHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   permitTypeDot: { width: 8, height: 8, borderRadius: 4 },
   permitType: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, flex: 1 },
