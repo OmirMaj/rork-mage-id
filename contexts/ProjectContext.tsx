@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -38,6 +38,7 @@ const PLAN_CALIBRATIONS_KEY = 'tertiary_plan_calibrations';
 const PLAN_SHEETS_KEY = 'tertiary_plan_sheets';
 const PLAN_MARKUPS_KEY = 'tertiary_plan_markups';
 const PLAN_ZONES_KEY = 'tertiary_plan_zones';
+const PLAN_REVIEWS_KEY = 'tertiary_plan_reviews';
 const PLAN_ROADMAPS_KEY = 'tertiary_plan_roadmaps';
 const PERMITS_KEY = 'tertiary_permits';
 const AIA_PAY_APPS_KEY = 'tertiary_aia_pay_apps';
@@ -174,6 +175,11 @@ type FieldDataValue = {
   deletePlanZone: (id: string) => void;
   getPlanZonesForPlan: (planSheetId: string) => PlanZone[];
   getPlanZonesForProject: (projectId: string) => PlanZone[];
+  planReviews: PlanReview[];
+  getPlanReviewForSheet: (planSheetId: string) => PlanReview | null;
+  savePlanReview: (review: PlanReview) => void;
+  updatePlanReview: (id: string, patch: Partial<PlanReview>) => void;
+  deletePlanReview: (id: string) => void;
   planMarkups: PlanMarkup[];
   addPlanMarkup: (markup: Omit<PlanMarkup, 'id' | 'createdAt'>) => PlanMarkup;
   deletePlanMarkup: (id: string) => void;
@@ -2931,6 +2937,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [planSheets, setPlanSheets] = useState<PlanSheet[]>([]);
   const [drawingPins, setDrawingPins] = useState<DrawingPin[]>([]);
   const [planZones, setPlanZones] = useState<PlanZone[]>([]);
+  const [planReviews, setPlanReviews] = useState<PlanReview[]>([]);
   const [planMarkups, setPlanMarkups] = useState<PlanMarkup[]>([]);
   const [planCalibrations, setPlanCalibrations] = useState<PlanCalibration[]>([]);
   const [permitRoadmaps, setPermitRoadmaps] = useState<PermitRoadmap[]>([]);
@@ -2939,6 +2946,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     void loadLocal<PlanSheet[]>(PLAN_SHEETS_KEY, []).then(setPlanSheets);
     void loadLocal<DrawingPin[]>(DRAWING_PINS_KEY, []).then(setDrawingPins);
     void loadLocal<PlanZone[]>(PLAN_ZONES_KEY, []).then(setPlanZones);
+    void loadLocal<PlanReview[]>(PLAN_REVIEWS_KEY, []).then(setPlanReviews);
     void loadLocal<PlanMarkup[]>(PLAN_MARKUPS_KEY, []).then(setPlanMarkups);
     void loadLocal<PlanCalibration[]>(PLAN_CALIBRATIONS_KEY, []).then(setPlanCalibrations);
     void loadLocal<PermitRoadmap[]>(PLAN_ROADMAPS_KEY, []).then(setPermitRoadmaps);
@@ -2955,6 +2963,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const persistPlanZones = useCallback((list: PlanZone[]) => {
     setPlanZones(list);
     void saveLocal(PLAN_ZONES_KEY, list);
+  }, []);
+  const persistPlanReviews = useCallback((list: PlanReview[]) => {
+    setPlanReviews(list);
+    void saveLocal(PLAN_REVIEWS_KEY, list);
   }, []);
   const persistPlanMarkups = useCallback((list: PlanMarkup[]) => {
     setPlanMarkups(list);
@@ -3141,6 +3153,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const getPlanZonesForPlan = useCallback((planSheetId: string) => planZones.filter((z) => z.planSheetId === planSheetId), [planZones]);
   const getPlanZonesForProject = useCallback((projectId: string) => planZones.filter((z) => z.projectId === projectId), [planZones]);
 
+  const getPlanReviewForSheet = useCallback((planSheetId: string): PlanReview | null =>
+    planReviews.find((r) => r.planSheetId === planSheetId) ?? null, [planReviews]);
+
+  const savePlanReview = useCallback((review: PlanReview) => {
+    // upsert one review per plan sheet
+    persistPlanReviews([review, ...planReviews.filter((r) => r.planSheetId !== review.planSheetId)]);
+  }, [planReviews, persistPlanReviews]);
+
+  const updatePlanReview = useCallback((id: string, patch: Partial<PlanReview>) => {
+    persistPlanReviews(planReviews.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, [planReviews, persistPlanReviews]);
+
+  const deletePlanReview = useCallback((id: string) => {
+    persistPlanReviews(planReviews.filter((r) => r.id !== id));
+  }, [planReviews, persistPlanReviews]);
+
   const addPlanMarkup = useCallback((markup: Omit<PlanMarkup, 'id' | 'createdAt'>) => {
     const fresh: PlanMarkup = {
       ...markup,
@@ -3250,10 +3278,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject,
+    planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
     permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap,
-  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
+  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
 
   const preconData = useMemo<PreconDataValue>(() => ({
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
