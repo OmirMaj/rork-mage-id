@@ -391,7 +391,7 @@ function ConstructionAIScreenInner() {
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRoadmapLoading(true);
-    const res = await generateRoadmap(roadmapProject);
+    const res = await generateRoadmap(roadmapProject, { forceFresh: isRegen });
     setRoadmapLoading(false);
     if (!res.ok) {
       Alert.alert('Roadmap failed', res.error);

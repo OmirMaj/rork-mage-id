@@ -69,11 +69,19 @@ export function roadmapFlags(roadmap: PermitRoadmap, tasks: ScheduleTask[], star
   return out;
 }
 
-export async function generateRoadmap(project: Project): Promise<{ ok: true; roadmap: PermitRoadmap; cached: boolean } | { ok: false; error: string }> {
+export async function generateRoadmap(
+  project: Project,
+  opts?: { forceFresh?: boolean },
+): Promise<{ ok: true; roadmap: PermitRoadmap; cached: boolean } | { ok: false; error: string }> {
   const tasks = project.schedule?.tasks ?? [];
   const taskList = tasks.map((t) => `- ${t.title} [${t.phase || 'General'}] day ${t.startDay ?? 0}`).join('\n');
   const prompt = `You are a construction permitting expert. For this project, list the PERMITS required (inferred from the scope) and the INSPECTIONS required, sequenced to the schedule.\n\nLOCATION: ${project.location || 'unknown'}\nPROJECT TYPE: ${project.type || 'unknown'}\nSCOPE (estimate line items): ${scopeSummary(project) || '(none — infer from project type)'}\nSCHEDULE TASKS:\n${taskList || '(no schedule)'}\n\nFor each permit: type, title, description (tie to the scope), whoPulls (gc/sub/owner), leadTimeDays (typical issuance lead).\nFor each inspection: type, title, description, gatesTaskHint (the schedule task/phase keyword this inspection must precede, e.g. "Drywall"), leadTimeDays (book-ahead lead).\nReturn ONLY JSON matching the schema.`;
-  const res = await mageAISmart(prompt, roadmapSchema, `roadmap::${project.id}::${scopeHashOf(project)}`);
+  // Cache key carries a version tag (`v2`) so the model-hint fix invalidates any
+  // stale empty roadmaps cached under the old key. Regenerate forces a fresh call
+  // (no cacheKey → mageAI skips the cache read/write) so "Regenerate" always
+  // re-runs the model instead of returning a cached result.
+  const cacheKey = opts?.forceFresh ? undefined : `roadmap::v2::${project.id}::${scopeHashOf(project)}`;
+  const res = await mageAISmart(prompt, roadmapSchema, cacheKey);
   if (!res.success) return { ok: false, error: res.error || 'Roadmap unavailable right now.' };
   const data = res.data as z.infer<typeof roadmapSchema>;
   const roadmap: PermitRoadmap = {
