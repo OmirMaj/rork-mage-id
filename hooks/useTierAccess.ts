@@ -103,6 +103,7 @@ export const FEATURE_LIMITS = {
   post_community_bid:     { free: 2, pro: 8,        business: 25,       enterprise: 50 },
   ai_code_check_daily:    { free: 3, pro: 15,       business: 50,       enterprise: Infinity },
   ai_permit_roadmap_daily: { free: 2, pro: 15,       business: 50,       enterprise: Infinity },
+  ai_plan_review_daily:    { free: 0, pro: 10,       business: 30,       enterprise: 60 },
 } as const;
 
 function tierMeetsRequirement(
