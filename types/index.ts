@@ -2919,6 +2919,41 @@ export type SpecialInspectionCategory =
   | 'smoke_control'     // smoke control system
   | 'special_cases';    // anything covered by approved alternative
 
+export interface RoadmapPermit {
+  id: string;
+  type: string;            // AI label: electrical | structural | plumbing | building | mechanical | demolition | zoning | other
+  title: string;
+  description: string;
+  whoPulls: 'gc' | 'sub' | 'owner';
+  leadTimeDays: number;
+  status: 'needed' | 'applied' | 'approved';
+  linkedPermitId?: string;
+}
+export interface RoadmapInspection {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  gatesTaskHint: string;
+  gatesTaskId?: string;
+  leadTimeDays: number;
+  status: 'pending' | 'scheduled' | 'passed';
+}
+export interface PermitRoadmap {
+  id: string;
+  projectId: string;
+  generatedAt: string;
+  scopeHash: string;
+  permits: RoadmapPermit[];
+  inspections: RoadmapInspection[];
+}
+export interface RoadmapFlag {
+  kind: 'permit' | 'inspection';
+  itemId: string;
+  message: string;
+  severity: 'high' | 'med';
+}
+
 export interface Permit {
   id: string;
   projectId: string;
