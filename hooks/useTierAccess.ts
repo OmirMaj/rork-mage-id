@@ -102,6 +102,7 @@ export const FEATURE_LIMITS = {
   post_homeowner_request: { free: 2, pro: Infinity, business: Infinity, enterprise: Infinity },
   post_community_bid:     { free: 2, pro: 8,        business: 25,       enterprise: 50 },
   ai_code_check_daily:    { free: 3, pro: 15,       business: 50,       enterprise: Infinity },
+  ai_permit_roadmap_daily: { free: 2, pro: 15,       business: 50,       enterprise: Infinity },
 } as const;
 
 function tierMeetsRequirement(
