@@ -30,7 +30,7 @@ import {
   Gavel, MapPin, Hammer, AlertTriangle, CheckCircle, Sparkles,
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp, Zap,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
-  RefreshCw, PlusCircle, Flag, ChevronRight, FileText,
+  RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
@@ -44,7 +44,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf } from '@/utils/permitRoadmap';
-import type { RoadmapPermit, RoadmapInspection, PermitType } from '@/types';
+import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
+import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
 
 // Each category gets a distinct, semantically-correct icon. Audit found
 // 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
@@ -180,6 +181,45 @@ async function bumpRoadmapTodayUsage(userId: string | null | undefined): Promise
   } catch { return 0; }
 }
 
+// ── Plan Review constants / helpers (mirrors roadmap + code-check) ───────
+const SEVERITY_COLORS: Record<CodeFinding['severity'], string> = { high: '#FF3B30', med: '#FF9500', low: '#34C759' };
+const SEVERITY_LABEL: Record<CodeFinding['severity'], string> = { high: 'High', med: 'Medium', low: 'Low' };
+const CONFIDENCE_LABEL: Record<CodeFinding['confidence'], string> = { high: 'High confidence', med: 'Medium confidence', low: 'Low confidence' };
+const FINDING_STATUS_LABEL: Record<CodeFinding['status'], string> = { open: 'Open', resolved: 'Resolved', dismissed: 'Dismissed' };
+const SEVERITY_ORDER: CodeFinding['severity'][] = ['high', 'med', 'low'];
+const CODE_CATEGORIES: CodeFinding['category'][] = ['egress', 'stairs', 'width', 'height', 'fire', 'ada', 'guards', 'other'];
+
+function normalizeCategory(c?: string): CodeFinding['category'] {
+  const v = (c ?? '').toLowerCase() as CodeFinding['category'];
+  return CODE_CATEGORIES.includes(v) ? v : 'other';
+}
+function normalizeLevel(s?: string): 'high' | 'med' | 'low' {
+  const v = (s ?? '').toLowerCase();
+  return v === 'high' || v === 'low' ? v : 'med';
+}
+
+async function getPlanReviewTodayUsage(userId: string | null | undefined): Promise<number> {
+  if (!userId) return 0;
+  try {
+    const { data } = await supabase.rpc('ai_usage_daily_get', {
+      p_user_id: userId,
+      p_feature: 'ai_plan_review',
+    });
+    return typeof data === 'number' ? data : 0;
+  } catch { return 0; }
+}
+
+async function bumpPlanReviewTodayUsage(userId: string | null | undefined): Promise<number> {
+  if (!userId) return 0;
+  try {
+    const { data } = await supabase.rpc('ai_usage_daily_increment', {
+      p_user_id: userId,
+      p_feature: 'ai_plan_review',
+    });
+    return typeof data === 'number' ? data : 0;
+  } catch { return 0; }
+}
+
 // ── Permit type mapping for Add-to-Permits (Task 6) ─────────────────────
 const PERMIT_TYPE_MAP: Record<string, PermitType> = {
   electrical: 'electrical', plumbing: 'plumbing', mechanical: 'mechanical', hvac: 'mechanical',
@@ -235,7 +275,7 @@ function ConstructionAIScreenInner() {
   const { user } = useAuth();
 
   // ── Mode toggle ─────────────────────────────────────────────────────
-  const [mode, setMode] = useState<'code' | 'roadmap'>('code');
+  const [mode, setMode] = useState<'code' | 'roadmap' | 'plan'>('code');
 
   // ── Code-Check state ─────────────────────────────────────────────────
   const [location, setLocation] = useState<string>('');
@@ -255,6 +295,10 @@ function ConstructionAIScreenInner() {
     savePermitRoadmap,
     updatePermitRoadmap,
     addPermit,
+    getPlanSheetsForProject,
+    getPlanReviewForSheet,
+    savePlanReview,
+    updatePlanReview,
   } = useProjects();
 
   const [roadmapProjectId, setRoadmapProjectId] = useState<string | null>(projects[0]?.id ?? null);
@@ -268,6 +312,57 @@ function ConstructionAIScreenInner() {
   const roadmapStartDate = roadmapProject?.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
   const flags = roadmap ? roadmapFlags(roadmap, roadmapTasks, roadmapStartDate) : [];
   const scopeStale = roadmap && roadmapProject ? roadmap.scopeHash !== scopeHashOf(roadmapProject) : false;
+
+  // ── Plan Review state ────────────────────────────────────────────────
+  const [planProjectId, setPlanProjectId] = useState<string | null>(projects[0]?.id ?? null);
+  const [planSheetId, setPlanSheetId] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planOverLimit, setPlanOverLimit] = useState(false);
+  const planProject = projects.find((p) => p.id === planProjectId) ?? null;
+  const planSheets = planProjectId ? getPlanSheetsForProject(planProjectId) : [];
+  const planSheet = planSheets.find((s) => s.id === planSheetId) ?? null;
+  const existingReview = planSheetId ? getPlanReviewForSheet(planSheetId) : null;
+  const planDailyCap = useMemo(() => FEATURE_LIMITS.ai_plan_review_daily[tier], [tier]);
+
+  const runPlanReview = useCallback(async () => {
+    if (!planProject || !planSheet) return;
+    const used = await getPlanReviewTodayUsage(user?.id);
+    if (used >= planDailyCap) { setPlanOverLimit(true); return; }
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPlanLoading(true);
+    try {
+      const { base64, mimeType } = await imageUriToBase64(planSheet.imageUri);
+      const res = await reviewPlanCode({ imageBase64: base64, mimeType, location: planProject.location, projectType: planProject.type });
+      const prior = getPlanReviewForSheet(planSheet.id);
+      const priorStatusByRef = new globalThis.Map((prior?.findings ?? []).map((f) => [f.codeRef, f.status] as const));
+      const reviewId = prior?.id ?? `plan-review-${planSheet.id}-${Date.now()}`;
+      const findings: CodeFinding[] = res.findings.map((f, i) => {
+        const codeRef = (f.codeRef ?? '').trim() || 'IRC/IBC (general)';
+        return {
+          id: `${reviewId}-${i}`,
+          category: normalizeCategory(f.category),
+          codeRef,
+          requirement: (f.requirement ?? '').trim(),
+          observed: (f.observed ?? '').trim(),
+          severity: normalizeLevel(f.severity),
+          confidence: normalizeLevel(f.confidence),
+          status: priorStatusByRef.get(codeRef) ?? 'open',
+        };
+      });
+      savePlanReview({ id: reviewId, projectId: planProject.id, planSheetId: planSheet.id, reviewedAt: new Date().toISOString(), findings });
+      void bumpPlanReviewTodayUsage(user?.id);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Plan review failed', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setPlanLoading(false);
+    }
+  }, [planProject, planSheet, planDailyCap, user?.id, getPlanReviewForSheet, savePlanReview]);
+
+  const cycleFindingStatus = useCallback((review: PlanReview, findingId: string) => {
+    const next: Record<CodeFinding['status'], CodeFinding['status']> = { open: 'resolved', resolved: 'dismissed', dismissed: 'open' };
+    updatePlanReview(review.id, { findings: review.findings.map((f) => (f.id === findingId ? { ...f, status: next[f.status] } : f)) });
+  }, [updatePlanReview]);
 
   const runGenerateRoadmap = useCallback(async (isRegen: boolean) => {
     if (!roadmapProject) return;
@@ -407,6 +502,17 @@ Be specific to the cited location if possible. If the location is not in the US,
     );
   }
 
+  if (planOverLimit) {
+    return (
+      <Paywall
+        visible={true}
+        feature={`Plan Review Daily Limit (${planDailyCap}/day on ${tier})`}
+        requiredTier={tier === 'free' ? 'pro' : 'business'}
+        onClose={() => setPlanOverLimit(false)}
+      />
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen
@@ -438,6 +544,15 @@ Be specific to the cited location if possible. If the location is not in the US,
           >
             <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} />
             <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]}>Project Roadmap</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeToggleBtn, mode === 'plan' && styles.modeToggleBtnActive]}
+            onPress={() => setMode('plan')}
+            activeOpacity={0.8}
+            testID="mode-toggle-plan"
+          >
+            <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]}>Plan Review</Text>
           </TouchableOpacity>
         </View>
 
@@ -557,7 +672,7 @@ Be specific to the cited location if possible. If the location is not in the US,
               </TouchableOpacity>
             ) : null}
           </ScrollView>
-        ) : (
+        ) : mode === 'roadmap' ? (
           /* ── Project Roadmap mode ── */
           <ScrollView
             contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
@@ -696,7 +811,151 @@ Be specific to the cited location if possible. If the location is not in the US,
               </>
             ) : null}
           </ScrollView>
-        )}
+        ) : mode === 'plan' ? (
+          /* ── Plan Review mode ── */
+          <ScrollView
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.hero}>
+              <View style={styles.heroIconWrap}>
+                <ShieldCheck size={28} color={Colors.primary} />
+              </View>
+              <Text style={styles.heroTitle}>Plan Review</Text>
+              <Text style={styles.heroSubtitle}>
+                AI scans a floor plan or drawing for likely building-code issues — egress, stairs, clearances, fire and ADA.
+              </Text>
+            </View>
+
+            {/* Disclaimer banner (always visible) */}
+            <View style={styles.planDisclaimer}>
+              <AlertTriangle size={14} color="#FF9500" />
+              <Text style={styles.planDisclaimerText}>{PLAN_REVIEW_DISCLAIMER}</Text>
+            </View>
+
+            {/* Project picker */}
+            <Text style={styles.label}>Project</Text>
+            {projects.length === 0 ? (
+              <Text style={[styles.quotaText, { textAlign: 'left' as const }]}>No projects yet — create one first.</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row' as const, gap: 8 }}>
+                  {projects.map((p) => {
+                    const active = p.id === planProjectId;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        onPress={() => { setPlanProjectId(p.id); setPlanSheetId(null); }}
+                        activeOpacity={0.8}
+                        style={[styles.chip, active && styles.chipActive]}
+                        testID={`plan-project-${p.id}`}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{p.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
+
+            {planProject ? (
+              planSheets.length === 0 ? (
+                <Text style={[styles.quotaText, { textAlign: 'left' as const }]}>
+                  Upload a floor plan or drawing for this project first.
+                </Text>
+              ) : (
+                <>
+                  {/* Plan-sheet picker */}
+                  <Text style={styles.label}>Plan sheet</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row' as const, gap: 8 }}>
+                      {planSheets.map((s) => {
+                        const active = s.id === planSheetId;
+                        return (
+                          <TouchableOpacity
+                            key={s.id}
+                            onPress={() => setPlanSheetId(s.id)}
+                            activeOpacity={0.8}
+                            style={[styles.chip, active && styles.chipActive]}
+                            testID={`plan-sheet-${s.id}`}
+                          >
+                            <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                              {s.sheetNumber ? `${s.sheetNumber} · ${s.name}` : s.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+
+                  {/* Run button */}
+                  <TouchableOpacity
+                    style={[styles.runBtn, (planLoading || !planSheet) && styles.runBtnDisabled]}
+                    onPress={runPlanReview}
+                    disabled={planLoading || !planSheet}
+                    activeOpacity={0.85}
+                    testID="run-plan-review"
+                  >
+                    <Sparkles size={18} color="#FFF" />
+                    <Text style={styles.runBtnText}>
+                      {planLoading ? 'Reviewing…' : existingReview ? 'Re-review for code' : 'Review for code'}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.quotaText}>
+                    {planDailyCap === Infinity ? 'Unlimited plan reviews today' : `Daily limit: ${planDailyCap} reviews`}
+                  </Text>
+
+                  {/* Results */}
+                  {existingReview && !planLoading ? (
+                    existingReview.findings.length === 0 ? (
+                      <Text style={[styles.quotaText, { textAlign: 'left' as const, marginTop: 16 }]}>
+                        No likely code issues found — still verify with your AHJ.
+                      </Text>
+                    ) : (
+                      <View style={styles.findingsWrap}>
+                        {SEVERITY_ORDER.map((sev) => {
+                          const group = existingReview.findings.filter((f) => f.severity === sev);
+                          if (group.length === 0) return null;
+                          return (
+                            <View key={sev} style={styles.severityGroup}>
+                              <View style={styles.severityHeaderRow}>
+                                <View style={[styles.severityDot, { backgroundColor: SEVERITY_COLORS[sev] }]} />
+                                <Text style={styles.severityHeaderText}>{`${SEVERITY_LABEL[sev]} · ${group.length}`}</Text>
+                              </View>
+                              {group.map((f) => (
+                                <View key={f.id} style={[styles.findingCard, f.status !== 'open' && styles.findingCardMuted]}>
+                                  <View style={styles.findingTopRow}>
+                                    <Text style={styles.findingCodeRef}>{f.codeRef}</Text>
+                                    <Text style={styles.findingConfidence}>{CONFIDENCE_LABEL[f.confidence]}</Text>
+                                  </View>
+                                  {f.requirement ? (
+                                    <Text style={styles.findingRequirement}>{f.requirement}</Text>
+                                  ) : null}
+                                  {f.observed ? (
+                                    <Text style={styles.findingObserved}>{`Observed: ${f.observed}`}</Text>
+                                  ) : null}
+                                  <TouchableOpacity
+                                    onPress={() => cycleFindingStatus(existingReview, f.id)}
+                                    activeOpacity={0.8}
+                                    style={styles.findingStatusBtn}
+                                    testID={`finding-status-${f.id}`}
+                                  >
+                                    <Text style={styles.findingStatusText}>{FINDING_STATUS_LABEL[f.status]}</Text>
+                                    <ChevronRight size={10} color={Colors.primary} />
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )
+                  ) : null}
+                </>
+              )
+            ) : null}
+          </ScrollView>
+        ) : null}
       </KeyboardAvoidingView>
 
       <LoadingModal visible={loading} />
@@ -1562,5 +1821,104 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     color: Colors.successDark,
     fontWeight: '600' as const,
+  },
+
+  // ── Plan Review ─────────────────────────────────────────────────────
+  planDisclaimer: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 8,
+    backgroundColor: '#FF950022',
+    borderWidth: 1,
+    borderColor: '#FF9500',
+    borderRadius: Tokens.radius.card,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  planDisclaimerText: {
+    flex: 1,
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+  },
+  findingsWrap: {
+    marginTop: 16,
+    gap: 16,
+  },
+  severityGroup: {
+    gap: 8,
+  },
+  severityHeaderRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  severityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  severityHeaderText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+  },
+  findingCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    padding: 12,
+    gap: 6,
+  },
+  findingCardMuted: {
+    opacity: 0.55,
+  },
+  findingTopRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    gap: 8,
+  },
+  findingCodeRef: {
+    flex: 1,
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  findingConfidence: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+  },
+  findingRequirement: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.text,
+    lineHeight: 18,
+  },
+  findingObserved: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  findingStatusBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    alignSelf: 'flex-start' as const,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    marginTop: 2,
+  },
+  findingStatusText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.primary,
   },
 });
