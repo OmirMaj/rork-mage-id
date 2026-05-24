@@ -313,6 +313,24 @@ function ConstructionAIScreenInner() {
   const flags = roadmap ? roadmapFlags(roadmap, roadmapTasks, roadmapStartDate) : [];
   const scopeStale = roadmap && roadmapProject ? roadmap.scopeHash !== scopeHashOf(roadmapProject) : false;
 
+  // What the project is missing for a richer roadmap — surfaced when results
+  // come back empty (or proactively before generating) so the GC knows what to add.
+  const roadmapMissing = useMemo(() => {
+    if (!roadmapProject) return [] as string[];
+    const m: string[] = [];
+    if (!roadmapProject.linkedEstimate?.items?.length) {
+      m.push('Add an estimate — the AI infers required permits from your scope line items.');
+    }
+    if (!roadmapProject.schedule?.tasks?.length) {
+      m.push('Build a schedule — inspections get sequenced to tasks with book-by dates.');
+    }
+    if (!roadmapProject.location) {
+      m.push('Set the project location — permit rules and lead times are jurisdiction-specific.');
+    }
+    return m;
+  }, [roadmapProject]);
+  const roadmapEmpty = !!roadmap && roadmap.permits.length === 0 && roadmap.inspections.length === 0;
+
   // ── Plan Review state ────────────────────────────────────────────────
   const [planProjectId, setPlanProjectId] = useState<string | null>(projects[0]?.id ?? null);
   const [planSheetId, setPlanSheetId] = useState<string | null>(null);
@@ -729,6 +747,14 @@ Be specific to the cited location if possible. If the location is not in the US,
                 <Text style={styles.quotaText}>
                   {roadmapDailyCap === Infinity ? 'Unlimited roadmaps today' : `Daily limit: ${roadmapDailyCap} generations`}
                 </Text>
+                {roadmapMissing.length > 0 ? (
+                  <View style={styles.missingCard}>
+                    <Text style={styles.missingSubtitle}>For a fuller roadmap, add:</Text>
+                    {roadmapMissing.map((m) => (
+                      <Text key={m} style={styles.missingItem}>{`•  ${m}`}</Text>
+                    ))}
+                  </View>
+                ) : null}
               </>
             ) : null}
 
@@ -765,49 +791,74 @@ Be specific to the cited location if possible. If the location is not in the US,
                   </Text>
                 </TouchableOpacity>
 
-                {/* Permits section */}
-                <Text style={styles.roadmapSectionTitle}>Permits</Text>
-                {roadmap.permits.map((p) => (
-                  <RoadmapPermitRow
-                    key={p.id}
-                    permit={p}
-                    onCycleStatus={() => {
-                      const next: RoadmapPermit['status'][] = ['needed', 'applied', 'approved'];
-                      const idx = next.indexOf(p.status);
-                      const nextStatus = next[(idx + 1) % next.length];
-                      updatePermitRoadmap(roadmap.id, {
-                        permits: roadmap.permits.map((x) => x.id === p.id ? { ...x, status: nextStatus } : x),
-                      });
-                    }}
-                    onAddToPermits={() => onAddToPermits(p)}
-                  />
-                ))}
+                {roadmapEmpty ? (
+                  /* AI returned nothing — tell the GC what's missing */
+                  <View style={styles.missingCard}>
+                    <Text style={styles.missingTitle}>No permits or inspections generated</Text>
+                    {roadmapMissing.length > 0 ? (
+                      <>
+                        <Text style={styles.missingSubtitle}>Add the following, then tap Regenerate:</Text>
+                        {roadmapMissing.map((m) => (
+                          <Text key={m} style={styles.missingItem}>{`•  ${m}`}</Text>
+                        ))}
+                      </>
+                    ) : (
+                      <Text style={styles.missingSubtitle}>
+                        The AI couldn&apos;t infer items from the current scope. Tap Regenerate to try again, or add more detail to the estimate and schedule.
+                      </Text>
+                    )}
+                  </View>
+                ) : (
+                  <>
+                    {/* Permits section */}
+                    <Text style={styles.roadmapSectionTitle}>Permits</Text>
+                    {roadmap.permits.length === 0 ? (
+                      <Text style={styles.roadmapEmptyNote}>No permits inferred — add an estimate scope, then Regenerate.</Text>
+                    ) : roadmap.permits.map((p) => (
+                      <RoadmapPermitRow
+                        key={p.id}
+                        permit={p}
+                        onCycleStatus={() => {
+                          const next: RoadmapPermit['status'][] = ['needed', 'applied', 'approved'];
+                          const idx = next.indexOf(p.status);
+                          const nextStatus = next[(idx + 1) % next.length];
+                          updatePermitRoadmap(roadmap.id, {
+                            permits: roadmap.permits.map((x) => x.id === p.id ? { ...x, status: nextStatus } : x),
+                          });
+                        }}
+                        onAddToPermits={() => onAddToPermits(p)}
+                      />
+                    ))}
 
-                {/* Inspections section */}
-                <Text style={styles.roadmapSectionTitle}>Inspections</Text>
-                {roadmap.inspections.map((insp) => {
-                  const gatingTask = insp.gatesTaskId
-                    ? roadmapTasks.find((t) => t.id === insp.gatesTaskId)
-                    : null;
-                  const gatingLabel = gatingTask?.title ?? insp.gatesTaskHint ?? '—';
-                  const bookBy = bookByDate(insp, roadmapTasks, roadmapStartDate);
-                  return (
-                    <RoadmapInspectionRow
-                      key={insp.id}
-                      inspection={insp}
-                      gatingLabel={gatingLabel}
-                      bookBy={bookBy}
-                      onCycleStatus={() => {
-                        const next: RoadmapInspection['status'][] = ['pending', 'scheduled', 'passed'];
-                        const idx = next.indexOf(insp.status);
-                        const nextStatus = next[(idx + 1) % next.length];
-                        updatePermitRoadmap(roadmap.id, {
-                          inspections: roadmap.inspections.map((x) => x.id === insp.id ? { ...x, status: nextStatus } : x),
-                        });
-                      }}
-                    />
-                  );
-                })}
+                    {/* Inspections section */}
+                    <Text style={styles.roadmapSectionTitle}>Inspections</Text>
+                    {roadmap.inspections.length === 0 ? (
+                      <Text style={styles.roadmapEmptyNote}>No inspections inferred — add a schedule, then Regenerate.</Text>
+                    ) : roadmap.inspections.map((insp) => {
+                      const gatingTask = insp.gatesTaskId
+                        ? roadmapTasks.find((t) => t.id === insp.gatesTaskId)
+                        : null;
+                      const gatingLabel = gatingTask?.title ?? insp.gatesTaskHint ?? '—';
+                      const bookBy = bookByDate(insp, roadmapTasks, roadmapStartDate);
+                      return (
+                        <RoadmapInspectionRow
+                          key={insp.id}
+                          inspection={insp}
+                          gatingLabel={gatingLabel}
+                          bookBy={bookBy}
+                          onCycleStatus={() => {
+                            const next: RoadmapInspection['status'][] = ['pending', 'scheduled', 'passed'];
+                            const idx = next.indexOf(insp.status);
+                            const nextStatus = next[(idx + 1) % next.length];
+                            updatePermitRoadmap(roadmap.id, {
+                              inspections: roadmap.inspections.map((x) => x.id === insp.id ? { ...x, status: nextStatus } : x),
+                            });
+                          }}
+                        />
+                      );
+                    })}
+                  </>
+                )}
               </>
             ) : null}
           </ScrollView>
@@ -1746,6 +1797,35 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
     marginTop: 12,
     marginBottom: 8,
+  },
+  roadmapEmptyNote: {
+    fontSize: Type.bodyCompact.fontSize,
+    color: Colors.textMuted,
+    fontStyle: 'italic' as const,
+    marginBottom: 8,
+  },
+  missingCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    padding: 14,
+    gap: 6,
+    marginTop: 12,
+  },
+  missingTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  missingSubtitle: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.textMuted,
+  },
+  missingItem: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.text,
+    lineHeight: 19,
   },
   roadmapRow: {
     backgroundColor: Colors.surface,
