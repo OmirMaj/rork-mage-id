@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -38,6 +38,7 @@ const PLAN_CALIBRATIONS_KEY = 'tertiary_plan_calibrations';
 const PLAN_SHEETS_KEY = 'tertiary_plan_sheets';
 const PLAN_MARKUPS_KEY = 'tertiary_plan_markups';
 const PLAN_ZONES_KEY = 'tertiary_plan_zones';
+const PLAN_ROADMAPS_KEY = 'tertiary_plan_roadmaps';
 const PERMITS_KEY = 'tertiary_permits';
 const AIA_PAY_APPS_KEY = 'tertiary_aia_pay_apps';
 const SUB_PORTAL_LINKS_KEY = 'tertiary_sub_portal_links';
@@ -180,6 +181,11 @@ type FieldDataValue = {
   planCalibrations: PlanCalibration[];
   upsertPlanCalibration: (cal: Omit<PlanCalibration, 'id' | 'createdAt'>) => PlanCalibration;
   getCalibrationForPlan: (planSheetId: string) => PlanCalibration | undefined;
+  permitRoadmaps: PermitRoadmap[];
+  getPermitRoadmapForProject: (projectId: string) => PermitRoadmap | undefined;
+  savePermitRoadmap: (roadmap: PermitRoadmap) => void;
+  updatePermitRoadmap: (id: string, patch: Partial<PermitRoadmap>) => void;
+  deletePermitRoadmap: (id: string) => void;
 };
 
 type PreconDataValue = {
@@ -2927,6 +2933,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [planZones, setPlanZones] = useState<PlanZone[]>([]);
   const [planMarkups, setPlanMarkups] = useState<PlanMarkup[]>([]);
   const [planCalibrations, setPlanCalibrations] = useState<PlanCalibration[]>([]);
+  const [permitRoadmaps, setPermitRoadmaps] = useState<PermitRoadmap[]>([]);
 
   useEffect(() => {
     void loadLocal<PlanSheet[]>(PLAN_SHEETS_KEY, []).then(setPlanSheets);
@@ -2934,6 +2941,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     void loadLocal<PlanZone[]>(PLAN_ZONES_KEY, []).then(setPlanZones);
     void loadLocal<PlanMarkup[]>(PLAN_MARKUPS_KEY, []).then(setPlanMarkups);
     void loadLocal<PlanCalibration[]>(PLAN_CALIBRATIONS_KEY, []).then(setPlanCalibrations);
+    void loadLocal<PermitRoadmap[]>(PLAN_ROADMAPS_KEY, []).then(setPermitRoadmaps);
   }, []);
 
   const persistPlanSheets = useCallback((list: PlanSheet[]) => {
@@ -2955,6 +2963,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const persistPlanCalibrations = useCallback((list: PlanCalibration[]) => {
     setPlanCalibrations(list);
     void saveLocal(PLAN_CALIBRATIONS_KEY, list);
+  }, []);
+  const persistPermitRoadmaps = useCallback((list: PermitRoadmap[]) => {
+    setPermitRoadmaps(list);
+    void saveLocal(PLAN_ROADMAPS_KEY, list);
   }, []);
 
   const addPlanSheet = useCallback((sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -3196,6 +3208,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     planCalibrations.find(c => c.planSheetId === planSheetId),
     [planCalibrations]);
 
+  const getPermitRoadmapForProject = useCallback((projectId: string) =>
+    permitRoadmaps.find((r) => r.projectId === projectId),
+    [permitRoadmaps]);
+  const savePermitRoadmap = useCallback((roadmap: PermitRoadmap) => {
+    persistPermitRoadmaps([roadmap, ...permitRoadmaps.filter((r) => r.projectId !== roadmap.projectId)]);
+  }, [permitRoadmaps, persistPermitRoadmaps]);
+  const updatePermitRoadmap = useCallback((id: string, patch: Partial<PermitRoadmap>) => {
+    persistPermitRoadmaps(permitRoadmaps.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, [permitRoadmaps, persistPermitRoadmaps]);
+  const deletePermitRoadmap = useCallback((id: string) => {
+    persistPermitRoadmaps(permitRoadmaps.filter((r) => r.id !== id));
+  }, [permitRoadmaps, persistPermitRoadmaps]);
+
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
   // ── Bucket memos ─────────────────────────────────────────────────────────────
@@ -3227,7 +3252,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+    permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap,
+  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
 
   const preconData = useMemo<PreconDataValue>(() => ({
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
