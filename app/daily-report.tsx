@@ -156,9 +156,16 @@ export default function DailyReportScreen() {
   // documents bucket so it shows up in the shared-drive view.
   const [saveToProjectFiles, setSaveToProjectFiles] = useState(true);
 
-  const todayStr = useMemo(() => {
-    return new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  }, []);
+  // The hero card date must reflect the report being viewed/edited — i.e.
+  // the user-picked `reportDate` (which hydrates from an existing draft and
+  // is editable via the date picker), NOT an unconditional "today". Pre-fix
+  // this was hardcoded to `new Date()`, so opening a backfilled report
+  // showed the correct date in the top bar but "today" in the hero card —
+  // two different dates on the same screen. Bound to `reportDate` now so
+  // both stay in sync.
+  const reportDateStr = useMemo(() => {
+    return new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }, [reportDate]);
 
   // "Day 35 of 103" — the project's calendar day relative to the schedule's
   // start date and total planned duration. Surfacing this on every DFR
@@ -979,7 +986,7 @@ export default function DailyReportScreen() {
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>Daily Field Report</Text>
             <Text style={styles.heroProject}>{project.name}</Text>
-            <Text style={styles.heroDate}>{todayStr}</Text>
+            <Text style={styles.heroDate}>{reportDateStr}</Text>
             {projectDayInfo && (
               <View style={styles.heroDayRow}>
                 <CalendarDays size={13} color={themeColors.textMuted} />
@@ -2213,7 +2220,11 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexWrap: 'wrap' as const,
     gap: 10,
     paddingHorizontal: 16,
-    marginTop: -6,
+    // Sits cleanly BELOW the hero card. The hero card has no bottom
+    // margin, so this positive top margin is the only gap between them.
+    // (Was -6, which pulled the progress pill / "Copy from…" button up
+    // over the card's rounded bottom corners and the Saved badge.)
+    marginTop: 12,
     marginBottom: 12,
   },
   progressPill: {
