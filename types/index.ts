@@ -1915,6 +1915,32 @@ export interface PlanZone {
   updatedAt: string;
 }
 
+// ── Plan Code Red-Line (Construction AI — A) ─────────────────────────────
+export type CodeFindingCategory =
+  | 'egress' | 'stairs' | 'width' | 'height' | 'fire' | 'ada' | 'guards' | 'other';
+export type CodeFindingSeverity = 'high' | 'med' | 'low';
+export type CodeFindingConfidence = 'high' | 'med' | 'low';
+export type CodeFindingStatus = 'open' | 'resolved' | 'dismissed';
+
+export interface CodeFinding {
+  id: string;
+  category: CodeFindingCategory;
+  codeRef: string;           // e.g. "IRC R311.7.5" / "IBC 1011.5"
+  requirement: string;       // what code requires
+  observed: string;          // what the drawing shows that conflicts
+  severity: CodeFindingSeverity;
+  confidence: CodeFindingConfidence;
+  status: CodeFindingStatus;
+}
+
+export interface PlanReview {
+  id: string;
+  projectId: string;
+  planSheetId: string;       // one review per plan sheet (upsert)
+  reviewedAt: string;        // ISO timestamp
+  findings: CodeFinding[];
+}
+
 /**
  * Freehand / shape annotation on a plan sheet. Coords normalized 0..1.
  */
