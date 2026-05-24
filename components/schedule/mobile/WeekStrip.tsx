@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -41,8 +42,17 @@ export function WeekStrip({ selectedDate, onSelectDate, weekStart }: WeekStripPr
     });
   }, [weekStart, selectedDate]);
 
+  const shiftWeek = (delta: number) => {
+    const d = startOfDay(selectedDate);
+    d.setDate(d.getDate() + delta * 7);
+    onSelectDate(d);
+  };
+
   return (
     <View style={styles.wrap}>
+      <TouchableOpacity onPress={() => shiftWeek(-1)} style={styles.navBtn} activeOpacity={0.6} accessibilityRole="button" accessibilityLabel="Previous week">
+        <ChevronLeft size={18} color={colors.textMuted} />
+      </TouchableOpacity>
       <Text style={styles.month}>{MONTHS[days[0].getMonth()]}</Text>
       <View style={styles.row}>
         {days.map((d, i) => {
@@ -74,13 +84,17 @@ export function WeekStrip({ selectedDate, onSelectDate, weekStart }: WeekStripPr
           );
         })}
       </View>
+      <TouchableOpacity onPress={() => shiftWeek(1)} style={styles.navBtn} activeOpacity={0.6} accessibilityRole="button" accessibilityLabel="Next week">
+        <ChevronRight size={18} color={colors.textMuted} />
+      </TouchableOpacity>
     </View>
   );
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
-  wrap: { flexDirection: 'row' as const, alignItems: 'center' as const, paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
-  month: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, width: 30, letterSpacing: 0.5 },
+  wrap: { flexDirection: 'row' as const, alignItems: 'center' as const, paddingHorizontal: 8, paddingVertical: 8, gap: 4 },
+  navBtn: { width: 22, height: 38, alignItems: 'center' as const, justifyContent: 'center' as const },
+  month: { fontSize: 11, fontWeight: '800' as const, color: t.textMuted, width: 24, letterSpacing: 0.5 },
   row: { flexDirection: 'row' as const, flex: 1, justifyContent: 'space-between' as const },
   cell: { alignItems: 'center' as const, gap: 5, flex: 1 },
   dow: { fontSize: 10, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.3 },

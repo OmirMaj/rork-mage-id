@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platform, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -192,6 +192,19 @@ export function MobileGantt({
   const timelineW = totalCols * dayW;
   const contentH = HEADER_H + rows.length * ROW_H;
 
+  // Selected-day index (from the WeekStrip). The timeline scrolls to it so
+  // tapping a day in the strip actually moves the gantt to that day.
+  const hScrollRef = useRef<ScrollView>(null);
+  const selIdx = useMemo(() => Math.round((startOfDayMs(selectedDate) - baseMs) / MS_DAY), [selectedDate, baseMs]);
+  useEffect(() => {
+    if (viewportW <= 0) return;
+    const clamped = Math.max(0, Math.min(numDays, selIdx));
+    const x = dayToX(clamped);
+    const maxX = Math.max(0, timelineW - viewportW);
+    const target = Math.min(maxX, Math.max(0, x - viewportW / 2 + dayW / 2));
+    hScrollRef.current?.scrollTo({ x: target, animated: true });
+  }, [selIdx, dayW, viewportW, numDays, timelineW, dayToX]);
+
   // Bar geometry per task id (for arrows). x/width both go through dayToX so the
   // span stays correct when weekend columns are hidden.
   const barById = useMemo(() => {
@@ -306,6 +319,7 @@ export function MobileGantt({
 
         {/* RIGHT — horizontally-scrollable timeline (vertical scroll handled by outer) */}
         <ScrollView
+          ref={hScrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
           onLayout={(e: LayoutChangeEvent) => setViewportW(e.nativeEvent.layout.width)}
@@ -330,6 +344,10 @@ export function MobileGantt({
                 <Text key={i} style={[styles.weekTick, { left: t.x + 4 }]}>{t.label}</Text>
               ))}
             </View>
+            {/* selected-day band — highlights the day picked in the WeekStrip */}
+            {selIdx >= 0 && selIdx < numDays && !(weekdayOnly && isWeekendOffset(selIdx)) && (
+              <View style={[styles.selectedBand, { left: dayToX(selIdx), width: dayW, height: contentH }]} />
+            )}
             {/* today line — hidden in weekday-only mode if today is a weekend */}
             {todayIdx >= 0 && todayIdx < numDays && !(weekdayOnly && isWeekendOffset(todayIdx)) && (
               <View style={[styles.todayLine, { left: dayToX(todayIdx) + dayW / 2, height: contentH }]} />
@@ -397,6 +415,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   addText: { fontSize: 12, fontWeight: '700' as const, color: t.accent },
   weekTick: { position: 'absolute' as const, bottom: 6, fontSize: 9.5, fontWeight: '700' as const, color: t.textMuted },
   todayLine: { position: 'absolute' as const, top: 0, width: 2, backgroundColor: t.accent, opacity: 0.7 },
+  selectedBand: { position: 'absolute' as const, top: 0, backgroundColor: t.accent, opacity: 0.1 },
   bar: { position: 'absolute' as const, height: 22, borderRadius: 6, justifyContent: 'center' as const, paddingHorizontal: 7 },
   barDragging: { transform: [{ scale: 1.06 }], shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   barText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' as const },
