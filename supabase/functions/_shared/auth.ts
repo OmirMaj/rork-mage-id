@@ -286,6 +286,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     // server-side ceiling. AsyncStorage on-device can be wiped by a
     // determined user; this stops the abuse.
     ai_text: 150,
+    plan_code_review: 0,
   },
   pro: {
     analyze_drawings: 15,
@@ -293,6 +294,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     convert_pdf: 50,       // legacy per-call counter, kept for back-compat
     takeoff_pages: 30,     // NEW — page-metered takeoff quota
     ai_text: 900,
+    plan_code_review: 10,
   },
   business: {
     analyze_drawings: 50,
@@ -300,6 +302,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     convert_pdf: 150,
     takeoff_pages: 100,
     ai_text: 2400,
+    plan_code_review: 30,
   },
   enterprise: {
     analyze_drawings: 100,
@@ -307,5 +310,6 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     convert_pdf: 300,
     takeoff_pages: 300,
     ai_text: 4500,
+    plan_code_review: 60,
   },
 };
