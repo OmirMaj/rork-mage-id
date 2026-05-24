@@ -302,7 +302,7 @@ function ConstructionAIScreenInner() {
       };
     }
     savePermitRoadmap(newRoadmap);
-    void bumpRoadmapTodayUsage(user?.id);
+    if (!res.cached) void bumpRoadmapTodayUsage(user?.id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [roadmapProject, user?.id, roadmapDailyCap, roadmap, savePermitRoadmap]);
 
@@ -772,9 +772,9 @@ function RoadmapPermitRow({
 }
 
 const INSP_STATUS_COLORS: Record<RoadmapInspection['status'], string> = {
-  pending: Colors.textMuted,
-  scheduled: Colors.warning,
-  passed: Colors.success,
+  pending: '#8E8E93',
+  scheduled: '#FF9500',
+  passed: '#34C759',
 };
 
 function RoadmapInspectionRow({

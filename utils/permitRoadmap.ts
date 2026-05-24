@@ -69,7 +69,7 @@ export function roadmapFlags(roadmap: PermitRoadmap, tasks: ScheduleTask[], star
   return out;
 }
 
-export async function generateRoadmap(project: Project): Promise<{ ok: true; roadmap: PermitRoadmap } | { ok: false; error: string }> {
+export async function generateRoadmap(project: Project): Promise<{ ok: true; roadmap: PermitRoadmap; cached: boolean } | { ok: false; error: string }> {
   const tasks = project.schedule?.tasks ?? [];
   const taskList = tasks.map((t) => `- ${t.title} [${t.phase || 'General'}] day ${t.startDay ?? 0}`).join('\n');
   const prompt = `You are a construction permitting expert. For this project, list the PERMITS required (inferred from the scope) and the INSPECTIONS required, sequenced to the schedule.\n\nLOCATION: ${project.location || 'unknown'}\nPROJECT TYPE: ${project.type || 'unknown'}\nSCOPE (estimate line items): ${scopeSummary(project) || '(none — infer from project type)'}\nSCHEDULE TASKS:\n${taskList || '(no schedule)'}\n\nFor each permit: type, title, description (tie to the scope), whoPulls (gc/sub/owner), leadTimeDays (typical issuance lead).\nFor each inspection: type, title, description, gatesTaskHint (the schedule task/phase keyword this inspection must precede, e.g. "Drywall"), leadTimeDays (book-ahead lead).\nReturn ONLY JSON matching the schema.`;
@@ -87,5 +87,5 @@ export async function generateRoadmap(project: Project): Promise<{ ok: true; roa
       return { ...i, id: createId('rmi'), status: 'pending' as const, gatesTaskId: t?.id };
     }),
   };
-  return { ok: true, roadmap };
+  return { ok: true, roadmap, cached: res.cached ?? false };
 }
