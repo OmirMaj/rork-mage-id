@@ -520,12 +520,24 @@ function deriveHintFromZod(schema: any, depth = 0): unknown {
     return deriveHintFromZod(def.innerType ?? def.type, depth + 1);
   }
   if (t === 'ZodDefault' || t === 'default') {
-    // If the schema has a default, use that — it's already a valid example.
+    // Use the default as the example ONLY if it carries useful structure.
+    // An EMPTY-array / EMPTY-object default — e.g. `z.array(z.object({...})).default([])`
+    // — is useless (worse: harmful) as a model hint: it hides the element shape
+    // and tells the model the expected output is `[]`, biasing it toward
+    // returning an empty list. That was the "Project Roadmap came back with no
+    // permits/inspections" bug — the derived hint was `{permits:[],inspections:[]}`.
+    // In that case, fall through to derive the shape from the inner type so the
+    // model sees a real example element.
+    let dv: unknown;
     if (typeof def.defaultValue === 'function') {
-      try { return def.defaultValue(); } catch { /* ignore */ }
-    } else if (def.defaultValue !== undefined) {
-      return def.defaultValue;
+      try { dv = def.defaultValue(); } catch { dv = undefined; }
+    } else {
+      dv = def.defaultValue;
     }
+    const isEmptyContainer =
+      (Array.isArray(dv) && dv.length === 0) ||
+      (dv != null && typeof dv === 'object' && !Array.isArray(dv) && Object.keys(dv as object).length === 0);
+    if (dv !== undefined && !isEmptyContainer) return dv;
     return deriveHintFromZod(def.innerType, depth + 1);
   }
   if (t === 'ZodPipe' || t === 'pipe') return deriveHintFromZod(def.in ?? def.left, depth + 1);
