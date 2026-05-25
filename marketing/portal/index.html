@@ -2608,44 +2608,47 @@
     var sections = data.sections || {};
     var events = [];
 
-    // Photos — most recent uploads bubble up
+    // Photos — most recent uploads bubble up.
+    // Payload emits { url, caption, timestamp } (see portalSnapshot.ts).
     (sections.photos || []).forEach(function (p) {
-      var ts = p.timestamp || p.createdAt || p.uploadedAt;
+      var ts = p.timestamp;
       if (!ts) return;
       events.push({
         kind: 'photo',
         ts: ts,
-        title: 'Photo added' + (p.caption ? ': ' + p.caption : ''),
-        body: p.locationLabel || p.location || '',
+        title: 'Photo added',
+        body: p.caption || '',
         thumbUrl: p.url,
       });
     });
 
-    // Daily reports
+    // Daily reports — payload emits { date, workPerformed }.
     (sections.dailyReports || []).forEach(function (d) {
       events.push({
         kind: 'dfr',
-        ts: d.date || d.createdAt,
+        ts: d.date,
         title: 'Daily report',
-        body: (d.workSummary || d.summary || '').slice(0, 140),
+        body: (d.workPerformed || '').slice(0, 140),
       });
     });
 
-    // Change orders — surfaces approval state
+    // Change orders — surfaces approval state.
+    // Payload emits { number, description, changeAmount, status, dateSubmitted }.
     (sections.changeOrders || []).forEach(function (c) {
       var label = c.status === 'approved' ? 'Change order approved'
                 : c.status === 'submitted' ? 'Change order sent for approval'
                 : 'Change order ' + (c.status || 'updated');
       events.push({
         kind: 'co',
-        ts: c.updatedAt || c.createdAt || c.dateSubmitted,
+        ts: c.dateSubmitted,
         title: label + ' #' + (c.number || ''),
         body: (c.description || '').slice(0, 140),
         amount: c.changeAmount,
       });
     });
 
-    // Invoices — submission events
+    // Invoices — submission events.
+    // Payload emits { number, total, status, dueDate, dateSubmitted }.
     (sections.invoices || []).forEach(function (i) {
       var label = i.status === 'paid' ? 'Invoice paid'
                 : i.status === 'sent' ? 'Invoice sent'
