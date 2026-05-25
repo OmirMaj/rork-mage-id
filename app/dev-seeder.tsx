@@ -444,6 +444,7 @@ export default function DevSeederScreen() {
             quantity: 1,
             total: o.total,
             highlights: [],
+            productUrl: '',
             isChosen: false,
           }));
           await saveCuratedOptions(cat.id, options);

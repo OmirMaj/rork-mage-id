@@ -267,6 +267,7 @@ const aiOptionSchema = z.object({
   leadTimeDays: z.number().nullable().optional(),
   supplier:    z.string().nullable().optional(),
   highlights:  z.array(z.string()).default([]),
+  productUrl:  z.string().default(''),
 });
 
 const aiCurationSchema = z.object({
@@ -293,6 +294,8 @@ export interface CuratedOption {
   leadTimeDays?: number;
   supplier?: string;
   highlights: string[];
+  productUrl: string;
+  imageUrl?: string | null;
 }
 
 export async function curateSelectionsAI(input: CurateInput): Promise<{ options: CuratedOption[]; notes: string }> {
@@ -313,6 +316,7 @@ For each option give:
   • quantity     — ${qty}
   • leadTimeDays — typical lead time in days (null if available off the shelf)
   • supplier     — where to buy: Home Depot, Lowe's, Build.com, Wayfair, supplier showroom, etc.
+  • productUrl   — a real product or search-results page URL at the named supplier for THIS exact item (e.g. a Home Depot, Lowe's, Build.com, or Wayfair product/search URL). Best effort; prefer a direct product page.
   • highlights   — 2-4 short bullet attributes the homeowner cares about (warranty, finish, soft-close, durability, etc.)
 
 Pick brands the homeowner has heard of. Don't invent fake products. Spread the price range — the budget option should feel like a real budget option, the premium should feel premium.`,
@@ -337,6 +341,7 @@ Pick brands the homeowner has heard of. Don't invent fake products. Spread the p
     leadTimeDays: o.leadTimeDays ?? undefined,
     supplier: o.supplier ?? undefined,
     highlights: o.highlights ?? [],
+    productUrl: o.productUrl || '',
   })).filter((o: CuratedOption) => o.productName !== 'Untitled option');
 
   return { options, notes: aiRes.data.notes ?? '' };
@@ -360,6 +365,8 @@ export async function saveCuratedOptions(categoryId: string, options: CuratedOpt
     total: o.total,
     lead_time_days: o.leadTimeDays ?? null,
     supplier:       o.supplier      ?? null,
+    image_url:   o.imageUrl   ?? null,
+    product_url: o.productUrl ?? null,
     highlights: o.highlights,
     is_chosen: false,
   }));
