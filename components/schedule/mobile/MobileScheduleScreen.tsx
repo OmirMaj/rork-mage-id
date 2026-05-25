@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Bell, ChevronDown, FolderOpen, CalendarDays } from 'lucide-react-native';
+import { Bell, ChevronDown, FolderOpen, CalendarDays, Download } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -18,6 +18,8 @@ import { MobileGantt } from './MobileGantt';
 import { MobileScheduleList } from './MobileScheduleList';
 import { TaskDetailSheet } from './TaskDetailSheet';
 import { MonthCalendarSheet } from './MonthCalendarSheet';
+import { ExportCenterSheet } from './ExportCenterSheet';
+import { exportScheduleIcal } from '@/utils/scheduleExportIcal';
 import { ProgressTab } from './ProgressTab';
 import { TeamTab } from './TeamTab';
 import { FourDComingSoon } from './FourDComingSoon';
@@ -59,6 +61,12 @@ export function MobileScheduleScreen() {
   const activeSchedule = selectedProject?.schedule ?? null;
   const tasks = useMemo(() => activeSchedule?.tasks ?? [], [activeSchedule]);
   const startDate = activeSchedule?.startDate ?? new Date().toISOString().slice(0, 10);
+
+  const [showExport, setShowExport] = useState(false);
+  const reportCpm = useMemo(
+    () => runCpm(tasks, { scheduleStartDate: startDate, workingDaysPerWeek: activeSchedule?.workingDaysPerWeek, nonWorkingDates: activeSchedule?.nonWorkingDates }),
+    [tasks, startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates],
+  );
 
   const saveTasks = useCallback((nextTasks: ScheduleTask[]) => {
     if (!selectedProject) return;
@@ -155,6 +163,9 @@ export function MobileScheduleScreen() {
         <TouchableOpacity style={styles.iconBtn} onPress={() => setShowCalendar(true)} accessibilityLabel="Jump to date" testID="open-calendar">
           <CalendarDays size={19} color={colors.text} />
         </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => setShowExport(true)} accessibilityLabel="Export schedule" testID="open-export" disabled={tasks.length === 0}>
+          <Download size={19} color={tasks.length === 0 ? colors.textMuted : colors.text} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications-inbox' as never)} accessibilityLabel="Notifications">
           <Bell size={19} color={colors.text} />
         </TouchableOpacity>
@@ -248,6 +259,18 @@ export function MobileScheduleScreen() {
         startDateIso={startDate}
         onSelect={setSelectedDate}
         onClose={() => setShowCalendar(false)}
+      />
+
+      <ExportCenterSheet
+        visible={showExport}
+        onClose={() => setShowExport(false)}
+        project={selectedProject}
+        tasks={tasks}
+        startDateIso={startDate}
+        cpm={reportCpm}
+        baseline={activeSchedule?.baseline ?? null}
+        nonWorkingDates={activeSchedule?.nonWorkingDates}
+        onExportIcal={() => { void exportScheduleIcal({ project: selectedProject }); }}
       />
 
       {/* Living Floor Plan zone editor (full-screen modal) */}
