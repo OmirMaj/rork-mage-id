@@ -585,13 +585,20 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
 
   // Punch List (only open / in-progress items are useful to clients)
   if (portal.showPunchList && punchItems.length) {
-    sections.punchList = punchItems.map(p => ({
-      id: p.id,
-      title: p.description,
-      status: p.status,
-      priority: p.priority,
-      location: p.location,
-    }));
+    // Exclude completed work ('closed'); only surface actionable items
+    // (open, in-progress, ready-for-review) to the client portal.
+    const activePunch = punchItems.filter(
+      p => p.status === 'open' || p.status === 'in_progress' || p.status === 'ready_for_review'
+    );
+    if (activePunch.length) {
+      sections.punchList = activePunch.map(p => ({
+        id: p.id,
+        title: p.description,
+        status: p.status,
+        priority: p.priority,
+        location: p.location,
+      }));
+    }
   }
 
   // RFIs
