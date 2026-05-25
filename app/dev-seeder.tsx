@@ -1,9 +1,13 @@
 // app/dev-seeder.tsx — Owner-only demo data seeder.
 //
-// Press "Load demo project" and the screen seeds a realistic-looking
-// construction project (estimates, photos, RFIs, invoices, daily
-// reports, punch items, change orders) so App Store screenshots and
-// internal demos don't have to start from a blank state.
+// Press "Load demo project" and the screen seeds a fully-populated
+// "marquee" construction project (estimate + schedule w/ baseline,
+// photos, RFIs, invoices, daily reports, punch items, change orders,
+// permits + inspection roadmap, plan sheet + code review + zones,
+// warranties, submittals, AIA pay app, equipment, COIs, commitments,
+// subs/contacts, client-portal thread, selections WITH product photos)
+// so App Store screenshots and internal demos show every feature loaded
+// instead of starting from a blank state.
 //
 // Gated to OWNER_EMAILS only (see utils/owner.ts). Regular users hitting
 // /dev-seeder get bounced back to home — they don't need to see this.
@@ -29,11 +33,18 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { isOwner } from '@/utils/owner';
 import { generateUUID } from '@/utils/generateId';
 import { nailIt } from '@/components/animations/NailItToast';
-import type { Project, Invoice, DailyFieldReport, PunchItem, ProjectPhoto, ChangeOrder, PhotoMarkup } from '@/types';
+import type {
+  Project, Invoice, DailyFieldReport, PunchItem, ProjectPhoto, ChangeOrder, PhotoMarkup,
+  LinkedEstimate, ProjectSchedule, ScheduleTask,
+  Permit, CodeFinding, Equipment,
+  PortalMessage, Subcontractor, Contact,
+} from '@/types';
 // Wave 1-5 engines — seeded so screenshots show every feature loaded
 // with realistic-looking data instead of empty states.
 import { saveContract } from '@/utils/contractEngine';
 import { saveSelectionCategory, saveCuratedOptions, chooseSelectionOption, fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import type { CuratedOption } from '@/utils/selectionsEngine';
+import { resolveSelectionImage } from '@/utils/ogImage';
 import { saveLienWaiver } from '@/utils/lienWaiverEngine';
 import { saveCloseoutBinder, DEFAULT_MAINTENANCE } from '@/utils/closeoutBinderEngine';
 import { Type } from '@/constants/typography';
@@ -49,6 +60,14 @@ export default function DevSeederScreen() {
     projects, addProject, deleteProject,
     addInvoice, addDailyReport, addPunchItem,
     addProjectPhoto, addRFI, addChangeOrder,
+    // Marquee sub-collections (added in the full-demo upgrade).
+    addPermit, savePermitRoadmap,
+    addPlanSheet, savePlanReview, addPlanZone,
+    addWarranty, addWarrantyClaim,
+    addSubmittal,
+    addAIAPayApp, addEquipment, addCOI,
+    addPortalMessage, addCommitment,
+    addSubcontractor, addContact,
   } = useProjects();
 
   const [seeding, setSeeding] = useState<boolean>(false);
@@ -70,42 +89,172 @@ export default function DevSeederScreen() {
       const isoNow = now.toISOString();
       const dayMs = 24 * 60 * 60 * 1000;
       const isoDaysAgo = (n: number) => new Date(now.getTime() - n * dayMs).toISOString();
+      // YYYY-MM-DD helper for fields that want a date (not a timestamp).
+      const dateDaysAgo = (n: number) => isoDaysAgo(n).slice(0, 10);
 
-      // 1. The project itself — a 3,200 sf full-gut renovation in Brooklyn.
-      // High-end finishes, mid-build, decent activity across all surfaces.
+      // Project started ~70 days ago and is ~45% complete. Schedule Day 1
+      // anchors to that start so the Gantt, EVM, and lookahead all read as
+      // a live mid-build job rather than something that hasn't begun.
+      const PROJECT_START_DAYS_AGO = 70;
+      const scheduleStartDate = dateDaysAgo(PROJECT_START_DAYS_AGO);
+      const GRAND_TOTAL = 1_412_400; // marquee contract value (~$1.4M)
+
+      // ─── Linked estimate (trade line items) ──────────────────────────
+      // A real Schedule-of-Values-ish breakdown so the budget tile, job
+      // cost, and AIA pay app all have line items to chew on. materialId
+      // is a stable string so commitments / bid packages could reference
+      // it later. Two items left as allowances (tile + lighting) to show
+      // the allowance → firm-price story.
+      const estItem = (
+        materialId: string, name: string, category: string, csiDivision: string,
+        unit: string, quantity: number, unitPrice: number, isAllowance?: boolean,
+      ) => ({
+        materialId, name, category, unit, quantity, unitPrice,
+        bulkPrice: unitPrice, markup: 21, usesBulk: false,
+        lineTotal: Math.round(quantity * unitPrice), supplier: '', csiDivision,
+        ...(isAllowance ? { isAllowance: true } : {}),
+      });
+      const linkedEstimateItems = [
+        estItem('li-gen', 'General conditions & supervision', 'General', '01', 'mo', 12, 9_500),
+        estItem('li-site', 'Site work, excavation & utilities', 'Sitework', '31', 'ls', 1, 142_000),
+        estItem('li-concrete', 'Foundation & flatwork (concrete)', 'Concrete', '03', 'cy', 320, 480),
+        estItem('li-steel', 'Structural steel & timber frame', 'Structural', '05', 'ls', 1, 198_000),
+        estItem('li-frame', 'Rough carpentry & framing', 'Carpentry', '06', 'ls', 1, 156_000),
+        estItem('li-envelope', 'Roofing, windows & exterior envelope', 'Envelope', '07', 'ls', 1, 168_000),
+        estItem('li-mep', 'MEP rough-in (HVAC / plumbing / electrical)', 'MEP', '23', 'ls', 1, 214_000),
+        estItem('li-drywall', 'Insulation & drywall', 'Finishes', '09', 'sf', 4200, 9.5),
+        estItem('li-millwork', 'Custom millwork & cabinetry', 'Finishes', '06', 'ls', 1, 132_000),
+        estItem('li-floor', 'Hardwood & stone flooring', 'Finishes', '09', 'sf', 4200, 22),
+        estItem('li-tile', 'Tile allowance (baths + kitchen)', 'Finishes', '09', 'ls', 1, 48_000, true),
+        estItem('li-light', 'Lighting fixtures allowance', 'Electrical', '26', 'ls', 1, 36_000, true),
+        estItem('li-pool', 'Infinity pool & deck', 'Sitework', '13', 'ls', 1, 124_000),
+      ];
+      const estBaseTotal = linkedEstimateItems.reduce((s, i) => s + i.lineTotal, 0);
+      const linkedEstimate: LinkedEstimate = {
+        id: generateUUID(),
+        items: linkedEstimateItems,
+        globalMarkup: 21,
+        baseTotal: estBaseTotal,
+        markupTotal: Math.round(estBaseTotal * 0.21),
+        grandTotal: Math.round(estBaseTotal * 1.21),
+        createdAt: isoDaysAgo(PROJECT_START_DAYS_AGO + 14),
+      };
+
+      // ─── Schedule (Gantt + EVM + variance) ───────────────────────────
+      // ~45%-complete build. startDay offsets are from scheduleStartDate.
+      // progress set per-task; a few tasks flagged isCriticalPath with
+      // dependencies; a baseline is captured so variance/EVM render.
+      // Upcoming milestones land in the next 1-2 weeks.
+      const mkTask = (
+        id: string, title: string, phase: string, startDay: number, durationDays: number,
+        progress: number, crew: string, deps: string[], opts?: Partial<ScheduleTask>,
+      ): ScheduleTask => ({
+        id, title, phase, startDay, durationDays, progress, crew,
+        crewSize: opts?.crewSize ?? 4,
+        dependencies: deps,
+        notes: opts?.notes ?? '',
+        status: progress >= 100 ? 'done' : progress > 0 ? 'in_progress' : 'not_started',
+        isMilestone: opts?.isMilestone,
+        isCriticalPath: opts?.isCriticalPath,
+        isWeatherSensitive: opts?.isWeatherSensitive,
+        ...opts,
+      });
+      // ~70-day-elapsed build. Tasks before "today" (day 70) are done /
+      // in-progress; tasks after are upcoming. Critical path runs through
+      // the structural spine: site → foundation → steel → framing → dry-in.
+      const scheduleTasks: ScheduleTask[] = [
+        mkTask('t-permit', 'Permitting & approvals', 'Pre-Construction', 0, 18, 100, 'Office', [], { isCriticalPath: true }),
+        mkTask('t-site', 'Site work & excavation', 'Sitework', 14, 16, 100, 'Earthworks', ['t-permit'], { isCriticalPath: true, isWeatherSensitive: true }),
+        mkTask('t-found', 'Foundation & slab', 'Foundation', 28, 18, 100, 'Concrete', ['t-site'], { isCriticalPath: true, isWeatherSensitive: true }),
+        mkTask('t-steel', 'Structural steel & timber', 'Structure', 44, 16, 80, 'Steel', ['t-found'], { isCriticalPath: true }),
+        mkTask('t-frame', 'Rough framing', 'Structure', 56, 22, 55, 'Carpentry', ['t-steel'], { isCriticalPath: true }),
+        mkTask('t-dryin', 'Roof & dry-in', 'Envelope', 74, 14, 20, 'Roofing', ['t-frame'], { isCriticalPath: true, isWeatherSensitive: true }),
+        mkTask('t-mep', 'MEP rough-in', 'MEP', 80, 24, 10, 'MEP', ['t-frame']),
+        mkTask('t-window', 'Windows & exterior doors', 'Envelope', 82, 10, 0, 'Glazing', ['t-dryin'], { isMilestone: false }),
+        mkTask('t-insul', 'Insulation & drywall', 'Finishes', 104, 20, 0, 'Drywall', ['t-mep']),
+        mkTask('t-millwork', 'Custom millwork & cabinetry', 'Finishes', 124, 26, 0, 'Millwork', ['t-insul']),
+        mkTask('t-floor', 'Flooring & tile', 'Finishes', 132, 22, 0, 'Tile', ['t-insul']),
+        mkTask('t-pool', 'Infinity pool & deck', 'Sitework', 120, 30, 0, 'Pool', ['t-frame'], { isWeatherSensitive: true }),
+        mkTask('t-final', 'Final finishes & punch', 'Closeout', 150, 18, 0, 'GC', ['t-millwork', 't-floor']),
+        mkTask('t-co', 'Certificate of Occupancy', 'Closeout', 168, 1, 0, 'Office', ['t-final'], { isMilestone: true, isCriticalPath: true }),
+      ];
+      const totalDuration = Math.max(...scheduleTasks.map(t => t.startDay + t.durationDays));
+      const schedule: ProjectSchedule = {
+        id: generateUUID(),
+        name: 'Master Schedule',
+        projectId,
+        startDate: scheduleStartDate,
+        workingDaysPerWeek: 5,
+        bufferDays: 10,
+        tasks: scheduleTasks,
+        totalDurationDays: totalDuration,
+        criticalPathDays: totalDuration,
+        laborAlignmentScore: 86,
+        healthScore: 82,
+        riskItems: [
+          { id: generateUUID(), title: 'Steel delivery on critical path', detail: 'Fabricator confirmed but any slip pushes framing and every successor.', severity: 'high' },
+          { id: generateUUID(), title: 'Window lead time', detail: 'European glazing package quoted 12-week lead — verify against dry-in date.', severity: 'medium' },
+        ],
+        // Captured baseline so variance + EVM render. Most tasks track the
+        // plan; a couple drifted a few days to make variance non-zero.
+        baseline: {
+          savedAt: isoDaysAgo(PROJECT_START_DAYS_AGO - 2),
+          tasks: scheduleTasks.map(t => ({
+            id: t.id,
+            startDay: t.startDay,
+            // Nudge a few downstream tasks so baseline ≠ current (variance).
+            endDay: t.startDay + t.durationDays + (['t-frame', 't-dryin', 't-mep'].includes(t.id) ? -4 : 0),
+          })),
+        },
+        updatedAt: isoNow,
+      };
+
+      // 1. The project itself — a ~4,200 sf high-end whole-home build in
+      // Austin. Luxury finishes, mid-build (~45%), heavy activity across
+      // every surface so EVERY screen has something real to render.
       const project = {
         id: projectId,
-        name: 'The Henderson Residence',
-        type: 'renovation',
-        location: '124 Park Slope, Brooklyn NY 11215',
-        squareFootage: 3200,
-        quality: 'premium',
-        description: 'Full-gut renovation of a 3-story brownstone. New mechanicals, custom millwork throughout, designer kitchen + 4 baths.',
-        createdAt: isoDaysAgo(45),
+        name: 'The Westlake Residence',
+        type: 'new_construction',
+        location: '3401 Crystal Creek Dr, Austin TX 78746',
+        squareFootage: 4200,
+        quality: 'luxury',
+        description: 'Ground-up custom whole-home build — 4,200 sf modern hill-country residence. Steel + timber frame, full smart-home, chef\'s kitchen, spa primary suite, infinity pool deck, 4 beds / 5.5 baths.',
+        primaryContact: {
+          name: 'Daniel & Sofia Marchetti',
+          phone: '(512) 555-0147',
+          email: 'sofia.marchetti@example.com',
+        },
+        leadSource: 'referral',
+        createdAt: isoDaysAgo(PROJECT_START_DAYS_AGO),
         updatedAt: isoNow,
         estimate: {
-          materialTotal: 184_500,
-          laborTotal: 142_000,
-          permits: 8_500,
-          overhead: 33_500,
-          contingency: 18_400,
-          taxAmount: 32_660,
-          totalCost: 419_560,
-          markupPercent: 22,
-          markupAmount: 92_303,
-          grandTotal: 511_863,
-          pricePerSqFt: 159.96,
-          estimatedDuration: '5-6 months',
-          bulkSavingsTotal: 14_780,
+          materialTotal: 512_000,
+          laborTotal: 384_000,
+          permits: 24_500,
+          overhead: 96_000,
+          contingency: 58_000,
+          taxAmount: 88_400,
+          totalCost: 1_162_900,
+          markupPercent: 21,
+          markupAmount: 244_209,
+          grandTotal: GRAND_TOTAL,
+          pricePerSqFt: 336.29,
+          estimatedDuration: '11-12 months',
+          bulkSavingsTotal: 38_600,
           materials: [],
         },
         status: 'in_progress',
         // Open-book contract mode so the portal shows the real cost
         // breakdown — useful for the "Open Book / GMP" screenshot.
         contractMode: 'open_book',
+        contractorFeePercent: 21,
+        // Marquee estimate + schedule (built as typed consts above so the
+        // budget reads, and so the Gantt / EVM / variance all render).
+        linkedEstimate,
+        schedule,
         // Pre-populated client portal: homeowner invited, all sections
-        // toggled on, language set to Spanish so screenshots can show
-        // the multi-language portal in action.
+        // toggled on.
         clientPortal: {
           enabled: true,
           portalId: `portal-${projectId.slice(0, 8)}-demo`,
@@ -118,17 +267,17 @@ export default function DevSeederScreen() {
           showPunchList: true,
           showRFIs: true,
           showDocuments: false,
-          welcomeMessage: 'Welcome! This is your live project portal. Let me know if anything looks off.',
+          welcomeMessage: 'Welcome to your live build portal! Everything — schedule, budget, photos, selections — updates here in real time. Message us any time.',
           coApprovalEnabled: true,
           clientCanSetBudget: false,
           homeownerLanguage: 'en',
           invites: [
             {
               id: generateUUID(),
-              email: 'lhenderson@example.com',
-              name: 'Linda Henderson',
-              createdAt: isoDaysAgo(40),
-              viewedAt: isoDaysAgo(2),
+              email: 'sofia.marchetti@example.com',
+              name: 'Sofia Marchetti',
+              createdAt: isoDaysAgo(64),
+              viewedAt: isoDaysAgo(1),
             },
           ],
         },
@@ -346,86 +495,91 @@ export default function DevSeederScreen() {
       const contractPromise = saveContract({
         projectId,
         version: 1,
-        title: 'Cooper-Henderson Renovation Agreement',
-        contractValue: 511_863,
+        title: 'Marchetti Residence — Construction Agreement',
+        contractValue: GRAND_TOTAL,
         scopeText:
-          'Full-gut renovation of three-story brownstone. New mechanicals, custom millwork, designer kitchen, four bathrooms.',
-        termsText: 'Standard residential contract terms. Payment per milestone schedule below. Either party may terminate for material breach with 30 days notice.',
+          'Ground-up construction of a 4,200 sf custom hill-country residence. Steel + timber frame, full smart-home, chef\'s kitchen, spa primary suite, infinity pool deck, 4 beds / 5.5 baths.',
+        termsText: 'Open-book cost-plus with a 21% fee. Payment per milestone schedule below. Either party may terminate for material breach with 30 days notice.',
         warrantyText: 'Twelve-month workmanship warranty from date of substantial completion. Manufacturer warranties pass through to homeowner where applicable.',
-        startDate: isoDaysAgo(45),
-        durationDays: 165,
+        startDate: isoDaysAgo(PROJECT_START_DAYS_AGO),
+        durationDays: 350,
         paymentSchedule: [
-          { id: generateUUID(), label: 'Deposit', trigger: 'on_signing', amount: 76_780, percent: 15, status: 'paid', paidAt: isoDaysAgo(38) },
-          { id: generateUUID(), label: 'Foundation pour complete', trigger: 'on_milestone', amount: 76_780, percent: 15, status: 'paid', paidAt: isoDaysAgo(28) },
-          { id: generateUUID(), label: 'Framing complete', trigger: 'on_milestone', amount: 102_372, percent: 20, status: 'invoiced', invoicedAt: isoDaysAgo(14) },
-          { id: generateUUID(), label: 'Mechanicals + drywall complete', trigger: 'on_milestone', amount: 102_372, percent: 20, status: 'pending' },
-          { id: generateUUID(), label: 'Substantial completion', trigger: 'on_milestone', amount: 102_372, percent: 20, status: 'pending' },
-          { id: generateUUID(), label: 'Final + punch list', trigger: 'on_final', amount: 51_187, percent: 10, status: 'pending' },
+          { id: generateUUID(), label: 'Deposit', trigger: 'on_signing', amount: 211_860, percent: 15, status: 'paid', paidAt: isoDaysAgo(72) },
+          { id: generateUUID(), label: 'Foundation complete', trigger: 'on_milestone', amount: 211_860, percent: 15, status: 'paid', paidAt: isoDaysAgo(40) },
+          { id: generateUUID(), label: 'Structure complete', trigger: 'on_milestone', amount: 282_480, percent: 20, status: 'invoiced', invoicedAt: isoDaysAgo(6) },
+          { id: generateUUID(), label: 'Dry-in + MEP rough complete', trigger: 'on_milestone', amount: 282_480, percent: 20, status: 'pending' },
+          { id: generateUUID(), label: 'Substantial completion', trigger: 'on_milestone', amount: 282_480, percent: 20, status: 'pending' },
+          { id: generateUUID(), label: 'Final + punch list', trigger: 'on_final', amount: 141_240, percent: 10, status: 'pending' },
         ],
-        // Allowances — these will auto-create matching SelectionCategory
-        // rows when the contract is "sent," but here we seed them
-        // explicitly below for screenshot purposes.
+        // Allowances — mirror the selection categories seeded below so the
+        // allowance → selection → (over-allowance) CO story reads end-to-end.
         allowances: [
-          { id: generateUUID(), category: 'Kitchen Tile', amount: 8_500, description: 'Backsplash + island surround' },
-          { id: generateUUID(), category: 'Bathroom Tile', amount: 12_000, description: 'Primary + 2 hall baths' },
+          { id: generateUUID(), category: 'Kitchen Faucet', amount: 1_800, description: 'Pro-style pull-down' },
+          { id: generateUUID(), category: 'Bathroom Tile', amount: 12_000, description: 'Primary + hall baths' },
           { id: generateUUID(), category: 'Lighting Fixtures', amount: 6_500, description: 'Whole house, owner-selected' },
           { id: generateUUID(), category: 'Plumbing Fixtures', amount: 9_800, description: 'Faucets, sinks, toilets' },
-          { id: generateUUID(), category: 'Hardwood Flooring', amount: 14_200, description: 'Living + dining + bedrooms' },
+          { id: generateUUID(), category: 'Hardwood Flooring', amount: 14_200, description: 'Main level + bedrooms' },
         ],
-        gcSignature: { name: 'Marcus Henderson', role: 'gc', signedAt: isoDaysAgo(40) },
-        homeownerSignature: { name: 'Linda Henderson', role: 'homeowner', signedAt: isoDaysAgo(38) },
-        signedAt: isoDaysAgo(38),
+        gcSignature: { name: 'Westlake Builders LLC', role: 'gc', signedAt: isoDaysAgo(72) },
+        homeownerSignature: { name: 'Daniel Marchetti', role: 'homeowner', signedAt: isoDaysAgo(71) },
+        signedAt: isoDaysAgo(71),
         status: 'signed',
       });
 
       // 9. Selection Categories — five, with chosen options spanning
       //    budget / on-target / premium tiers. ONE category is over
-      //    allowance to demonstrate the "Draft Change Order" CTA.
-      const selSeeds = [
+      //    allowance to demonstrate the "Draft Change Order" CTA. Each
+      //    option carries a real product `url` (and a `query` fallback) so
+      //    the seeder can resolve a product PHOTO via resolveSelectionImage
+      //    — this is what showcases the new image-rich selections feature.
+      type SelOpt = { product: string; brand: string; total: number; isChosen: boolean; url?: string; query?: string };
+      const selSeeds: { name: string; budget: number; brief: string; options: SelOpt[] }[] = [
         {
-          name: 'Kitchen Tile', budget: 8500, brief: 'Modern, light, easy to clean',
+          name: 'Kitchen Faucet', budget: 1800, brief: 'Pull-down, polished nickel, pro-style',
           options: [
-            { product: 'White subway 3x6', brand: 'American Olean', total: 6_400, isChosen: false },
-            { product: 'Calacatta 12x24 porcelain', brand: 'Ann Sacks', total: 8_300, isChosen: true },  // on-target chosen
-            { product: 'Hand-cut Moroccan zellige', brand: 'Cle Tile', total: 14_900, isChosen: false },
+            { product: 'Purist pull-down', brand: 'Kohler', total: 950, isChosen: false, url: 'https://www.build.com/kohler-k-7505/s1116339', query: 'kohler purist kitchen faucet polished nickel' },
+            { product: 'Litze pull-down', brand: 'Brizo', total: 1_650, isChosen: true, url: 'https://www.build.com/brizo-63043lf/s1389765', query: 'brizo litze kitchen faucet nickel' }, // on-target chosen
+            { product: 'Waterstone Gantry', brand: 'Waterstone', total: 2_400, isChosen: false, url: 'https://www.build.com/waterstone-5600/s1452210', query: 'waterstone gantry kitchen faucet' },
           ],
         },
         {
           name: 'Bathroom Tile', budget: 12000, brief: 'Spa feel, marble or marble-look',
           options: [
-            { product: 'Carrara honed 12x24', brand: 'Daltile', total: 9_200, isChosen: false },
-            { product: 'Statuario polished hex', brand: 'Ann Sacks', total: 11_800, isChosen: false },
-            { product: 'Calacatta gold herringbone', brand: 'Walker Zanger', total: 16_400, isChosen: true }, // OVER allowance — triggers CO CTA
+            { product: 'Carrara honed 12x24', brand: 'Daltile', total: 9_200, isChosen: false, url: 'https://www.homedepot.com/b/Flooring-Tile/Carrara/N-5yc1vZar5tZ1z141sd', query: 'carrara marble tile 12x24 honed' },
+            { product: 'Statuario polished hex', brand: 'Ann Sacks', total: 11_800, isChosen: false, query: 'statuario marble hexagon tile' },
+            { product: 'Calacatta gold herringbone', brand: 'Walker Zanger', total: 16_400, isChosen: true, query: 'calacatta gold herringbone marble tile' }, // OVER allowance — triggers CO CTA
           ],
         },
         {
-          name: 'Lighting Fixtures', budget: 6500, brief: 'Warm, dimmable, mid-century',
+          name: 'Lighting Fixtures', budget: 6500, brief: 'Warm, dimmable, modern organic',
           options: [
-            { product: 'Schoolhouse + Rejuvenation mix', brand: 'Schoolhouse', total: 4_800, isChosen: true },  // budget chosen
-            { product: 'Hudson Valley brass family', brand: 'Hudson Valley', total: 6_700, isChosen: false },
-            { product: 'Apparatus + Roll & Hill', brand: 'Apparatus', total: 11_400, isChosen: false },
+            { product: 'Cedar & Moss pendant set', brand: 'Cedar & Moss', total: 4_800, isChosen: true, url: 'https://www.cedarandmoss.com/products/alto-pendant', query: 'modern brass pendant light' }, // budget chosen
+            { product: 'Hudson Valley brass family', brand: 'Hudson Valley', total: 6_700, isChosen: false, query: 'hudson valley brass chandelier' },
+            { product: 'Apparatus + Roll & Hill', brand: 'Apparatus', total: 11_400, isChosen: false, query: 'apparatus studio modern chandelier' },
           ],
         },
         {
           name: 'Plumbing Fixtures', budget: 9800, brief: 'Polished nickel, classic',
           options: [
-            { product: 'Kohler Artifacts complete', brand: 'Kohler', total: 8_400, isChosen: false },
-            { product: 'Waterworks Henry collection', brand: 'Waterworks', total: 9_700, isChosen: true },  // on-target
-            { product: 'Lefroy Brooks heritage', brand: 'Lefroy Brooks', total: 14_200, isChosen: false },
+            { product: 'Kohler Artifacts complete', brand: 'Kohler', total: 8_400, isChosen: false, query: 'kohler artifacts faucet polished nickel' },
+            { product: 'Waterworks Henry collection', brand: 'Waterworks', total: 9_700, isChosen: true, query: 'waterworks henry faucet nickel' },  // on-target
+            { product: 'Lefroy Brooks heritage', brand: 'Lefroy Brooks', total: 14_200, isChosen: false, query: 'lefroy brooks heritage faucet' },
           ],
         },
         {
           name: 'Hardwood Flooring', budget: 14200, brief: 'White oak, wide plank, matte finish',
           options: [
-            { product: '4-inch white oak Natural', brand: 'Carlisle', total: 11_800, isChosen: false },
-            { product: '7-inch white oak Pickled', brand: 'Carlisle', total: 13_900, isChosen: false },
-            { product: '8-inch rift+quartered Custom', brand: 'Carlisle', total: 17_600, isChosen: false },  // none chosen — pending pick
+            { product: '4-inch white oak Natural', brand: 'Carlisle', total: 11_800, isChosen: false, query: 'white oak wide plank flooring matte' },
+            { product: '7-inch white oak Pickled', brand: 'Carlisle', total: 13_900, isChosen: false, query: 'white oak pickled wide plank floor' },
+            { product: '8-inch rift+quartered Custom', brand: 'Carlisle', total: 17_600, isChosen: false, query: 'rift quartered white oak floor' },  // none chosen — pending pick
           ],
         },
       ];
 
       const selectionsPromise = (async () => {
-        // 1) Save each category + its options.
+        // 1) Save each category + its options. Resolve a product photo per
+        //    option first (best-effort; null when og-image / Supabase isn't
+        //    reachable — the save still proceeds photo-less).
         for (const s of selSeeds) {
           const cat = await saveSelectionCategory({
             projectId,
@@ -434,19 +588,25 @@ export default function DevSeederScreen() {
             styleBrief: s.brief,
           });
           if (!cat) continue;
-          const options = s.options.map(o => ({
-            categoryId: cat.id,
-            productName: o.product,
-            brand: o.brand,
-            description: '',
-            unitPrice: o.total,
-            unit: 'lump',
-            quantity: 1,
-            total: o.total,
-            highlights: [],
-            productUrl: '',
-            isChosen: false,
-          }));
+          const options: CuratedOption[] = [];
+          for (const o of s.options) {
+            let imageUrl: string | null = null;
+            try {
+              imageUrl = await resolveSelectionImage({ url: o.url, query: o.query });
+            } catch { imageUrl = null; }
+            options.push({
+              productName: o.product,
+              brand: o.brand,
+              description: '',
+              unitPrice: o.total,
+              unit: 'lump',
+              quantity: 1,
+              total: o.total,
+              highlights: [],
+              productUrl: o.url ?? '',
+              imageUrl,
+            });
+          }
           await saveCuratedOptions(cat.id, options);
         }
         // 2) Re-fetch so we know the persisted option ids, then mark
@@ -503,7 +663,7 @@ export default function DevSeederScreen() {
         finalizedAt: isoDaysAgo(3),
         sentAt: isoDaysAgo(2),
         notes:
-          'Linda + Marcus — thanks for trusting us with the brownstone. Everything you need to maintain the place is in here. Call any time, especially in the first year while warranties are live.\n\n— The Henderson Build team',
+          'Daniel + Sofia — congratulations on the new home. Everything you need to maintain it is in here. Call any time, especially in the first year while warranties are live.\n\n— The Westlake build team',
         maintenanceSchedule: [
           ...DEFAULT_MAINTENANCE,
           { id: generateUUID(), task: 'Marble countertop reseal', frequency: 'Annual', notes: 'Use pH-neutral stone sealer. Test with water bead.' },
@@ -518,6 +678,392 @@ export default function DevSeederScreen() {
         contractPromise, selectionsPromise, waiversPromise, binderPromise,
       ]);
 
+      // ─── Marquee sub-collections ───────────────────────────────────
+      // Every block is guarded in its own try/catch so one bad domain
+      // can't break the rest of the seed. All reference `projectId` and
+      // run AFTER addProject above. Dates anchor to the same "today".
+      const portalId = `portal-${projectId.slice(0, 8)}-demo`;
+
+      // 12. Permits — building / electrical / plumbing / mechanical,
+      //     mixed statuses, with inspection dates.
+      try {
+        const permitSeeds: { type: Permit['type']; status: Permit['status']; jurisdiction: string; fee: number; appliedAgo: number; approvedAgo?: number; inspectionAgo?: number; phase: string; notes: string }[] = [
+          { type: 'building', status: 'approved', jurisdiction: 'City of Austin DSD', fee: 14_200, appliedAgo: 66, approvedAgo: 52, phase: 'Foundation', notes: 'Master building permit — issued.' },
+          { type: 'electrical', status: 'inspection_passed', jurisdiction: 'City of Austin DSD', fee: 3_400, appliedAgo: 40, approvedAgo: 30, inspectionAgo: 6, phase: 'Rough-in', notes: 'Rough electrical inspection passed.' },
+          { type: 'plumbing', status: 'inspection_scheduled', jurisdiction: 'City of Austin DSD', fee: 2_900, appliedAgo: 38, approvedAgo: 28, inspectionAgo: -4, phase: 'Rough-in', notes: 'Top-out inspection scheduled.' },
+          { type: 'mechanical', status: 'under_review', jurisdiction: 'City of Austin DSD', fee: 2_600, appliedAgo: 10, phase: 'Rough-in', notes: 'HVAC permit in plan review.' },
+        ];
+        for (const p of permitSeeds) {
+          addPermit({
+            projectId,
+            projectName: project.name,
+            type: p.type,
+            permitNumber: p.status === 'under_review' ? undefined : `${p.type.slice(0, 3).toUpperCase()}-2026-${Math.floor(1000 + Math.random() * 8999)}`,
+            jurisdiction: p.jurisdiction,
+            status: p.status,
+            appliedDate: dateDaysAgo(p.appliedAgo),
+            approvedDate: p.approvedAgo != null ? dateDaysAgo(p.approvedAgo) : undefined,
+            inspectionDate: p.inspectionAgo != null ? dateDaysAgo(p.inspectionAgo) : undefined,
+            inspectionNotes: p.inspectionAgo != null ? 'Inspector on site; see report.' : undefined,
+            fee: p.fee,
+            phase: p.phase,
+            notes: p.notes,
+          });
+        }
+      } catch (err) { console.warn('[DevSeeder] permits block failed:', err); }
+
+      // 13. Permit & Inspection Roadmap — RoadmapPermit + RoadmapInspection
+      //     items with a status mix; gatesTaskHint matches schedule phases.
+      try {
+        savePermitRoadmap({
+          id: generateUUID(),
+          projectId,
+          generatedAt: isoDaysAgo(60),
+          scopeHash: `demo-${projectId.slice(0, 8)}`,
+          permits: [
+            { id: generateUUID(), type: 'building', title: 'Master building permit', description: 'Full new-construction building permit for the residence.', whoPulls: 'gc', leadTimeDays: 21, status: 'approved' },
+            { id: generateUUID(), type: 'electrical', title: 'Electrical permit', description: 'Service + rough + final electrical.', whoPulls: 'sub', leadTimeDays: 7, status: 'approved' },
+            { id: generateUUID(), type: 'plumbing', title: 'Plumbing permit', description: 'Water, sewer, gas rough + top-out.', whoPulls: 'sub', leadTimeDays: 7, status: 'applied' },
+            { id: generateUUID(), type: 'mechanical', title: 'Mechanical / HVAC permit', description: 'Two-zone HVAC + ERV.', whoPulls: 'sub', leadTimeDays: 7, status: 'needed' },
+          ],
+          inspections: [
+            { id: generateUUID(), type: 'foundation', title: 'Foundation / pre-pour inspection', description: 'Rebar + forms before concrete.', gatesTaskHint: 'Foundation & slab', leadTimeDays: 2, status: 'passed' },
+            { id: generateUUID(), type: 'framing', title: 'Framing inspection', description: 'Structure + shear before cover.', gatesTaskHint: 'Rough framing', leadTimeDays: 2, status: 'scheduled' },
+            { id: generateUUID(), type: 'rough_mep', title: 'Rough MEP inspection', description: 'Electrical, plumbing, mechanical rough before insulation.', gatesTaskHint: 'MEP rough-in', leadTimeDays: 2, status: 'pending' },
+            { id: generateUUID(), type: 'final', title: 'Final / CO inspection', description: 'Certificate of Occupancy walk.', gatesTaskHint: 'Certificate of Occupancy', leadTimeDays: 3, status: 'pending' },
+          ],
+        });
+      } catch (err) { console.warn('[DevSeeder] permit roadmap block failed:', err); }
+
+      // 14. Plan sheet + Plan Review (code findings) + Plan zones.
+      //     addPlanSheet returns the sheet so review + zones can link to it.
+      try {
+        const planSheet = addPlanSheet({
+          projectId,
+          name: 'A-201 Main Level Floor Plan',
+          sheetNumber: 'A-201',
+          imageUri: 'https://picsum.photos/seed/mage-plan-a201/1400/1000',
+          pageNumber: 1,
+          width: 1400,
+          height: 1000,
+        });
+
+        // Plan Review — ~4 code findings across severities / categories /
+        // statuses so the red-line review screen renders fully.
+        const findings: CodeFinding[] = [
+          { id: generateUUID(), category: 'egress', codeRef: 'IRC R310.2.1', requirement: 'Emergency escape opening min 5.7 sf, sill ≤ 44".', observed: 'Bedroom 3 window sill scales to 48" — exceeds max.', severity: 'high', confidence: 'high', status: 'open' },
+          { id: generateUUID(), category: 'stairs', codeRef: 'IRC R311.7.5', requirement: 'Riser ≤ 7-3/4", tread ≥ 10".', observed: 'Main stair riser noted 7-7/8" on section A.', severity: 'med', confidence: 'med', status: 'open' },
+          { id: generateUUID(), category: 'guards', codeRef: 'IRC R312.1.2', requirement: 'Guard height ≥ 36" where drop > 30".', observed: 'Pool-deck guard appears 34" on elevation.', severity: 'med', confidence: 'low', status: 'resolved' },
+          { id: generateUUID(), category: 'ada', codeRef: 'ANSI A117.1', requirement: 'Clear floor space at primary bath fixtures.', observed: 'Confirmed adequate after layout revision.', severity: 'low', confidence: 'high', status: 'dismissed' },
+        ];
+        savePlanReview({
+          id: generateUUID(),
+          projectId,
+          planSheetId: planSheet.id,
+          reviewedAt: isoDaysAgo(20),
+          findings,
+        });
+
+        // Plan zones (Living Floor Plan) — 3 rectangles linked to tasks.
+        addPlanZone({ projectId, planSheetId: planSheet.id, x: 0.06, y: 0.10, w: 0.40, h: 0.34, label: 'Chef\'s Kitchen', linkedTaskIds: ['t-millwork', 't-mep'], color: '#F97316' });
+        addPlanZone({ projectId, planSheetId: planSheet.id, x: 0.52, y: 0.10, w: 0.42, h: 0.40, label: 'Great Room', linkedTaskIds: ['t-frame', 't-floor'], color: '#3B82F6' });
+        addPlanZone({ projectId, planSheetId: planSheet.id, x: 0.10, y: 0.52, w: 0.38, h: 0.40, label: 'Primary Suite', linkedTaskIds: ['t-insul', 't-floor'], color: '#10B981' });
+      } catch (err) { console.warn('[DevSeeder] plan sheet / review / zones block failed:', err); }
+
+      // 15. Warranties — 2, plus one claim on the first.
+      try {
+        const roofWarranty = addWarranty({
+          projectId,
+          projectName: project.name,
+          title: 'Standing-seam metal roof — 40yr',
+          category: 'roofing',
+          description: 'Manufacturer + workmanship warranty on the standing-seam roof assembly.',
+          provider: 'Hill Country Roofing / Drexel Metals',
+          startDate: dateDaysAgo(20),
+          durationMonths: 480,
+          endDate: dateDaysAgo(20 - 480 * 30),
+          coverageDetails: 'Material 40yr, finish 30yr, workmanship 10yr.',
+        });
+        addWarranty({
+          projectId,
+          projectName: project.name,
+          title: 'HVAC system — 10yr parts',
+          category: 'hvac',
+          description: 'Two-zone variable-speed system + ERV.',
+          provider: 'Trane / Lone Star Mechanical',
+          startDate: dateDaysAgo(5),
+          durationMonths: 120,
+          endDate: dateDaysAgo(5 - 120 * 30),
+          coverageDetails: 'Compressor + parts 10yr with registration.',
+        });
+        if (roofWarranty?.id) {
+          addWarrantyClaim(roofWarranty.id, {
+            date: dateDaysAgo(8),
+            description: 'Minor flashing drip noted at the south valley after heavy rain.',
+            resolution: 'Re-sealed valley flashing; re-tested under hose. No interior damage.',
+            resolvedAt: dateDaysAgo(6),
+            cost: 0,
+          });
+        }
+      } catch (err) { console.warn('[DevSeeder] warranties block failed:', err); }
+
+      // 16. Submittals — 3. One carries multiple review cycles inline
+      //     (addReviewCycle reads context state that won't yet include a
+      //     freshly-seeded submittal, so cycles are seeded on the record).
+      try {
+        addSubmittal({
+          projectId,
+          title: 'Structural steel shop drawings',
+          specSection: '05 12 00',
+          submittedBy: 'Lone Star Steel Fab',
+          submittedDate: dateDaysAgo(40),
+          requiredDate: dateDaysAgo(26),
+          currentStatus: 'approved_as_noted',
+          attachments: [],
+          reviewCycles: [
+            { cycleNumber: 1, sentDate: dateDaysAgo(40), returnDate: dateDaysAgo(34), reviewer: 'SEOR — Watershed Engineering', status: 'revise_resubmit', comments: 'Revise moment connection at GL-3; confirm anchor embed.' },
+            { cycleNumber: 2, sentDate: dateDaysAgo(32), returnDate: dateDaysAgo(27), reviewer: 'SEOR — Watershed Engineering', status: 'approved_as_noted', comments: 'Approved as noted. Field-verify embed depth.' },
+          ],
+        });
+        addSubmittal({
+          projectId,
+          title: 'Window & door schedule (European tilt-turn)',
+          specSection: '08 50 00',
+          submittedBy: 'Glasswerks ATX',
+          submittedDate: dateDaysAgo(18),
+          requiredDate: dateDaysAgo(-3),
+          currentStatus: 'in_review',
+          attachments: [],
+          reviewCycles: [
+            { cycleNumber: 1, sentDate: dateDaysAgo(18), reviewer: 'Architect — Studio Meridian', status: 'in_review' },
+          ],
+        });
+        addSubmittal({
+          projectId,
+          title: 'Engineered hardwood — white oak',
+          specSection: '09 64 00',
+          submittedBy: 'Austin Hardwoods',
+          submittedDate: dateDaysAgo(9),
+          requiredDate: dateDaysAgo(-12),
+          currentStatus: 'pending',
+          attachments: [],
+          reviewCycles: [],
+        });
+      } catch (err) { console.warn('[DevSeeder] submittals block failed:', err); }
+
+      // 17. AIA G702/G703 pay application — one, with SOV lines + totals.
+      try {
+        const sovDefs: { itemNo: string; description: string; scheduledValue: number; pctComplete: number }[] = [
+          { itemNo: '01', description: 'General conditions', scheduledValue: 114_000, pctComplete: 58 },
+          { itemNo: '02', description: 'Site work & excavation', scheduledValue: 142_000, pctComplete: 100 },
+          { itemNo: '03', description: 'Foundation & flatwork', scheduledValue: 153_600, pctComplete: 100 },
+          { itemNo: '05', description: 'Structural steel & timber', scheduledValue: 198_000, pctComplete: 80 },
+          { itemNo: '06', description: 'Rough framing', scheduledValue: 156_000, pctComplete: 55 },
+          { itemNo: '07', description: 'Roofing & envelope', scheduledValue: 168_000, pctComplete: 20 },
+          { itemNo: '23', description: 'MEP rough-in', scheduledValue: 214_000, pctComplete: 10 },
+        ];
+        const retPct = 10;
+        const lines = sovDefs.map((s) => {
+          const completed = Math.round(s.scheduledValue * (s.pctComplete / 100));
+          const thisPeriod = Math.round(completed * 0.35);
+          return {
+            id: generateUUID(),
+            itemNo: s.itemNo,
+            description: s.description,
+            scheduledValue: s.scheduledValue,
+            fromPreviousApp: completed - thisPeriod,
+            thisPeriod,
+            materialsPresentlyStored: 0,
+            retainagePercent: retPct,
+          };
+        });
+        const totalScheduledValue = lines.reduce((sum, l) => sum + l.scheduledValue, 0);
+        const totalCompletedAndStored = lines.reduce((sum, l) => sum + l.fromPreviousApp + l.thisPeriod + l.materialsPresentlyStored, 0);
+        const totalRetainage = Math.round(totalCompletedAndStored * (retPct / 100));
+        const totalEarnedLessRetainage = totalCompletedAndStored - totalRetainage;
+        const lessPreviousCertificates = Math.round(totalEarnedLessRetainage * 0.7);
+        addAIAPayApp({
+          id: generateUUID(),
+          projectId,
+          applicationNumber: 4,
+          applicationDate: dateDaysAgo(2),
+          periodTo: dateDaysAgo(2),
+          contractDate: dateDaysAgo(PROJECT_START_DAYS_AGO),
+          ownerName: 'Daniel & Sofia Marchetti',
+          contractorName: 'Westlake Builders LLC',
+          architectName: 'Studio Meridian Architecture',
+          projectName: project.name,
+          projectLocation: project.location,
+          contractForDescription: 'New custom residence — ground-up construction',
+          originalContractSum: GRAND_TOTAL,
+          netChangeByCO: 18_650,
+          contractSumToDate: GRAND_TOTAL + 18_650,
+          retainagePercent: retPct,
+          lessPreviousCertificates,
+          lines,
+          notes: 'Application No. 4 — period ending this week.',
+          totals: {
+            totalScheduledValue,
+            totalCompletedAndStored,
+            totalRetainage,
+            totalEarnedLessRetainage,
+            currentPaymentDue: totalEarnedLessRetainage - lessPreviousCertificates,
+            balanceToFinish: totalScheduledValue - totalCompletedAndStored,
+            percentComplete: Math.round((totalCompletedAndStored / totalScheduledValue) * 100),
+          },
+          savedAt: isoNow,
+        });
+      } catch (err) { console.warn('[DevSeeder] AIA pay app block failed:', err); }
+
+      // 18. Subcontractors / contacts (referenced by COIs + commitments).
+      const subSteelId = generateUUID();
+      const subMepId = generateUUID();
+      try {
+        const subDefs: { id: string; company: string; contact: string; trade: Subcontractor['trade']; phone: string; email: string }[] = [
+          { id: subSteelId, company: 'Lone Star Steel Fab', contact: 'Ray Tucker', trade: 'General', phone: '(512) 555-0188', email: 'ray@lonestarsteel.example.com' },
+          { id: subMepId, company: 'Lone Star Mechanical', contact: 'Priya Nadeem', trade: 'HVAC', phone: '(512) 555-0211', email: 'priya@lsmech.example.com' },
+        ];
+        for (const s of subDefs) {
+          addSubcontractor({
+            id: s.id,
+            companyName: s.company,
+            contactName: s.contact,
+            phone: s.phone,
+            email: s.email,
+            address: 'Austin, TX',
+            trade: s.trade,
+            licenseNumber: `TX-${Math.floor(100000 + Math.random() * 899999)}`,
+            licenseExpiry: dateDaysAgo(-300),
+            coiExpiry: dateDaysAgo(-180),
+            w9OnFile: true,
+            bidHistory: [],
+            assignedProjects: [projectId],
+            notes: '',
+            createdAt: isoDaysAgo(60),
+            updatedAt: isoNow,
+          });
+        }
+        const contactDefs: { first: string; last: string; company: string; role: Contact['role']; email: string; phone: string }[] = [
+          { first: 'Elena', last: 'Reyes', company: 'Studio Meridian Architecture', role: 'Architect', email: 'elena@studiomeridian.example.com', phone: '(512) 555-0102' },
+          { first: 'Marcus', last: 'Webb', company: 'Watershed Engineering', role: 'Engineer', email: 'mwebb@watershed.example.com', phone: '(512) 555-0133' },
+        ];
+        for (const c of contactDefs) {
+          addContact({
+            id: generateUUID(),
+            firstName: c.first,
+            lastName: c.last,
+            companyName: c.company,
+            role: c.role,
+            email: c.email,
+            phone: c.phone,
+            address: 'Austin, TX',
+            notes: '',
+            linkedProjectIds: [projectId],
+            createdAt: isoDaysAgo(62),
+            updatedAt: isoNow,
+          });
+        }
+      } catch (err) { console.warn('[DevSeeder] subs / contacts block failed:', err); }
+
+      // 19. Equipment — 2 (owned + rented).
+      try {
+        const equipDefs: { name: string; type: Equipment['type']; category: Equipment['category']; make: string; model: string; rate: number; status: Equipment['status'] }[] = [
+          { name: 'Tower crane', type: 'rented', category: 'lifting', make: 'Potain', model: 'MDT 219', rate: 1_250, status: 'in_use' },
+          { name: 'Skid steer', type: 'owned', category: 'excavation', make: 'Bobcat', model: 'S770', rate: 320, status: 'in_use' },
+        ];
+        for (const e of equipDefs) {
+          addEquipment({
+            name: e.name,
+            type: e.type,
+            category: e.category,
+            make: e.make,
+            model: e.model,
+            year: 2023,
+            dailyRate: e.rate,
+            currentProjectId: projectId,
+            maintenanceSchedule: [],
+            utilizationLog: [
+              { id: generateUUID(), equipmentId: 'pending', projectId, date: dateDaysAgo(7), hoursUsed: 8, operatorName: 'Site crew' },
+              { id: generateUUID(), equipmentId: 'pending', projectId, date: dateDaysAgo(3), hoursUsed: 6, operatorName: 'Site crew' },
+            ],
+            status: e.status,
+          });
+        }
+      } catch (err) { console.warn('[DevSeeder] equipment block failed:', err); }
+
+      // 20. COIs — 2, tied to the seeded subs.
+      try {
+        const coiDefs: { subId: string }[] = [{ subId: subSteelId }, { subId: subMepId }];
+        for (const c of coiDefs) {
+          addCOI({
+            id: generateUUID(),
+            subcontractorId: c.subId,
+            projectId,
+            fileUri: 'https://picsum.photos/seed/mage-coi/800/1000',
+            uploadedAt: isoDaysAgo(30),
+            validation: {
+              validatedAt: isoDaysAgo(30),
+              overallStatus: 'pass',
+              issues: [],
+              confidence: 96,
+            },
+            coverages: [
+              { type: 'general_liability', carrierName: 'Travelers', eachOccurrence: 1_000_000, generalAggregate: 2_000_000, effectiveDate: dateDaysAgo(180), expiresAt: dateDaysAgo(-185) },
+              { type: 'workers_comp', carrierName: 'Texas Mutual', eachOccurrence: 1_000_000, effectiveDate: dateDaysAgo(180), expiresAt: dateDaysAgo(-185) },
+            ],
+            notes: 'On file; verified against carrier.',
+          });
+        }
+      } catch (err) { console.warn('[DevSeeder] COIs block failed:', err); }
+
+      // 21. Client portal thread — 4 messages, alternating gc / homeowner.
+      try {
+        const thread: { authorType: PortalMessage['authorType']; authorName: string; body: string; agoDays: number }[] = [
+          { authorType: 'gc', authorName: 'Westlake Builders', body: 'Steel is topped out and framing is moving fast — we\'re tracking right around 45% complete. Photos posted to your gallery.', agoDays: 9 },
+          { authorType: 'client', authorName: 'Sofia Marchetti', body: 'It looks incredible! Quick question — can we still change the kitchen faucet selection or is that locked?', agoDays: 8 },
+          { authorType: 'gc', authorName: 'Westlake Builders', body: 'Still open! I added a few curated options under Selections → Kitchen Faucet. Pick whenever you\'re ready; it\'s within allowance.', agoDays: 8 },
+          { authorType: 'client', authorName: 'Daniel Marchetti', body: 'Perfect, we\'ll review tonight. Thanks for keeping the portal so up to date — makes this so much less stressful.', agoDays: 2 },
+        ];
+        for (const m of thread) {
+          addPortalMessage({
+            projectId,
+            portalId,
+            authorType: m.authorType,
+            authorName: m.authorName,
+            body: m.body,
+            readByGc: m.authorType === 'gc' || m.agoDays > 3,
+            readByClient: m.authorType === 'client' || m.agoDays > 3,
+          });
+        }
+      } catch (err) { console.warn('[DevSeeder] portal thread block failed:', err); }
+
+      // 22. Commitments — 2 signed subcontracts for job costing.
+      try {
+        const commitDefs: { number: string; vendor: string; subId?: string; desc: string; amount: number; phase: string; csi: string }[] = [
+          { number: 'SC-01', vendor: 'Lone Star Steel Fab', subId: subSteelId, desc: 'Structural steel & timber package', amount: 192_500, phase: 'Structure', csi: '05' },
+          { number: 'SC-02', vendor: 'Lone Star Mechanical', subId: subMepId, desc: 'HVAC + ERV mechanical package', amount: 88_400, phase: 'MEP', csi: '23' },
+        ];
+        for (const c of commitDefs) {
+          addCommitment({
+            id: generateUUID(),
+            projectId,
+            number: c.number,
+            type: 'subcontract',
+            subcontractorId: c.subId,
+            vendorName: c.vendor,
+            description: c.desc,
+            amount: c.amount,
+            signedDate: dateDaysAgo(48),
+            phase: c.phase,
+            csiDivision: c.csi,
+            status: 'active',
+            notes: '',
+            createdAt: isoDaysAgo(48),
+            updatedAt: isoNow,
+          });
+        }
+      } catch (err) { console.warn('[DevSeeder] commitments block failed:', err); }
+
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       nailIt('Demo project loaded');
       router.replace({ pathname: '/project-detail' as any, params: { id: projectId } });
@@ -527,7 +1073,7 @@ export default function DevSeederScreen() {
     } finally {
       setSeeding(false);
     }
-  }, [seeding, addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, router]);
+  }, [seeding, addProject, addInvoice, addDailyReport, addPunchItem, addProjectPhoto, addRFI, addChangeOrder, addPermit, savePermitRoadmap, addPlanSheet, savePlanReview, addPlanZone, addWarranty, addWarrantyClaim, addSubmittal, addAIAPayApp, addEquipment, addCOI, addPortalMessage, addCommitment, addSubcontractor, addContact, router]);
 
   const wipeAllProjects = useCallback(() => {
     Alert.alert(
@@ -580,21 +1126,20 @@ export default function DevSeederScreen() {
           </View>
           <Text style={styles.cardTitle}>Load demo project</Text>
           <Text style={styles.cardSub}>
-            Creates &ldquo;The Henderson Residence&rdquo; — a 3,200 sf brownstone renovation with everything populated:
+            Creates &ldquo;The Westlake Residence&rdquo; — a ~$1.4M, 4,200 sf luxury whole-home build, ~45% complete, with literally everything populated:
           </Text>
           <View style={styles.bulletList}>
-            <Text style={styles.bullet}>• Estimate ($511K) + 5 invoices (mixed paid/partial/sent)</Text>
-            <Text style={styles.bullet}>• 8 daily field reports + AI homeowner summary published</Text>
-            <Text style={styles.bullet}>• 4 RFIs · 6 punch items · 1 approved change order</Text>
+            <Text style={styles.bullet}>• $1.4M estimate (trade line items) + schedule w/ baseline (EVM/variance)</Text>
+            <Text style={styles.bullet}>• 5 invoices · 8 daily reports · 4 RFIs · 6 punch items · 1 change order</Text>
             <Text style={styles.bullet}>• 8 site photos · 1 with markup overlay</Text>
-            <Text style={styles.bullet}>• Signed contract · 6 payment milestones · 5 allowances</Text>
-            <Text style={styles.bullet}>• 5 selection categories with chosen options (1 over allowance)</Text>
-            <Text style={styles.bullet}>• 4 lien waivers (received / signed / requested)</Text>
-            <Text style={styles.bullet}>• Closeout binder DELIVERED · custom note · maintenance schedule</Text>
-            <Text style={styles.bullet}>• Open-book / GMP mode · client portal pre-configured</Text>
+            <Text style={styles.bullet}>• Signed contract · 6 milestones · 5 selection categories (with photos)</Text>
+            <Text style={styles.bullet}>• 4 permits + permit/inspection roadmap · plan sheet + code review + zones</Text>
+            <Text style={styles.bullet}>• 2 warranties (+claim) · 3 submittals · AIA pay app · 2 equipment · 2 COIs</Text>
+            <Text style={styles.bullet}>• 4 lien waivers · 2 commitments · 2 subs + 2 contacts · 4 portal messages</Text>
+            <Text style={styles.bullet}>• Closeout binder DELIVERED · open-book mode · client portal pre-configured</Text>
           </View>
           <Text style={styles.cardSubFine}>
-            Every screen will have something realistic to render. Drop into project-detail and the Money tile group lights up with status badges. Perfect for App Store screenshots.
+            Every screen will have something realistic to render. Drop into project-detail and every tile group lights up with status badges. Perfect for App Store screenshots.
           </Text>
           <TouchableOpacity
             style={[styles.cta, seeding && { opacity: 0.6 }]}
