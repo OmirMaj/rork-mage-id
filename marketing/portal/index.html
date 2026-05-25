@@ -900,6 +900,34 @@
     margin-top: 3px;
     font-weight: 700;
   }
+  /* Overall % complete bar + next-milestone line (header roll-up). */
+  .gantt-overall { margin-bottom: 14px; }
+  .gantt-overall-top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .gantt-next-milestone {
+    font-size: 12px; color: var(--text-muted, #8B9099);
+    margin-top: 8px; font-weight: 600;
+  }
+  .gantt-next-milestone strong { color: var(--text, #0B0D10); }
+  /* This week / Next week look-ahead — two columns above the Gantt. */
+  .gantt-lookahead {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 560px) { .gantt-lookahead { grid-template-columns: 1fr; } }
+  .gantt-lookahead-col {
+    background: var(--cream-2, #FAF7F0);
+    border: 1px solid var(--bone-2, #F1EAD9);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .gantt-lookahead-col .gantt-phase-header { margin-top: 0; }
+  .gantt-lookahead-empty {
+    font-size: 13px; color: var(--text-muted, #8B9099);
+    font-style: italic; padding: 4px 0;
+  }
   /* Month ruler — top of the timeline. Each month is positioned
      proportionally to the project length, so a 6-month project shows
      6 month labels evenly spaced. */
@@ -2856,6 +2884,35 @@
       phaseGroups[phase].push(t);
     });
 
+    // ── Header roll-up (computed client-side; no payload change) ──
+    // Overall % complete = duration-weighted average of task progress.
+    // No isSummary flag is emitted, so every task counts.
+    var weightedNum = 0, weightedDen = 0;
+    tasks.forEach(function (t) {
+      var dur = Math.max(0, t.durationDays || 0);
+      var prog = Math.max(0, Math.min(100, t.progress || 0));
+      weightedNum += prog * dur;
+      weightedDen += dur;
+    });
+    var overallPct = weightedDen > 0 ? Math.round(weightedNum / weightedDen) : 0;
+
+    // Calendar offset of "today" from the project start (day 1 = startDate).
+    var todayMid = new Date();
+    todayMid.setHours(0, 0, 0, 0);
+    var todayOffset = Math.round((todayMid - projectStart) / 86400000) + 1;
+
+    // Next milestone = milestone task with the smallest startDay whose
+    // calendar date is today or later. Date = startDate + (startDay - 1) days.
+    var nextMilestone = null;
+    tasks.forEach(function (t) {
+      if (!t.isMilestone) return;
+      var sd = t.startDay || 0;
+      var msDate = new Date(projectStart.getTime() + (sd - 1) * 86400000);
+      if (sd >= todayOffset && (!nextMilestone || sd < nextMilestone.startDay)) {
+        nextMilestone = { startDay: sd, title: t.title, date: msDate };
+      }
+    });
+
     // Header summary card
     var headerHtml =
       '<div class="gantt-header">' +
@@ -2868,7 +2925,21 @@
         '<div class="gantt-header-right">' +
           '<div class="gantt-stat"><span class="gantt-stat-value">' + tasks.length + '</span><span class="gantt-stat-label">Tasks</span></div>' +
           '<div class="gantt-stat"><span class="gantt-stat-value">' + maxEndDay + '</span><span class="gantt-stat-label">Working days</span></div>' +
+          (nextMilestone
+            ? '<div class="gantt-stat"><span class="gantt-stat-value">' + esc(fmtDayShort(nextMilestone.date)) + '</span><span class="gantt-stat-label">Next milestone</span></div>'
+            : '') +
         '</div>' +
+      '</div>' +
+      // Overall % complete bar (reuses the task-progress fill styling).
+      '<div class="gantt-overall">' +
+        '<div class="gantt-overall-top">' +
+          '<span class="gantt-header-label">Overall progress</span>' +
+          '<span class="gantt-stat-value">' + overallPct + '%</span>' +
+        '</div>' +
+        '<div class="task-progress"><div class="task-progress-fill ' + (overallPct >= 100 ? 'done' : '') + '" style="width:' + overallPct + '%"></div></div>' +
+        (nextMilestone
+          ? '<div class="gantt-next-milestone">Next milestone: <strong>' + esc(nextMilestone.title) + '</strong> · ' + esc(fmtDayShort(nextMilestone.date)) + '</div>'
+          : '') +
       '</div>';
 
     // Month ruler
@@ -2932,9 +3003,44 @@
         phaseHtml;
     }).join('');
 
+    // ── "This week / Next week" look-ahead (computed client-side) ──
+    // Each task occupies a calendar window [startDay, startDay + dur - 1]
+    // (day-offsets from startDate, day 1 = startDate). A task lands in a
+    // column if its window overlaps that column's day range.
+    function tasksInRange(rangeStart, rangeEnd) {
+      var hits = [];
+      tasks.forEach(function (t) {
+        var winStart = t.startDay || 0;
+        var winEnd = winStart + Math.max(1, t.durationDays || 0) - 1;
+        if (winStart <= rangeEnd && winEnd >= rangeStart) hits.push(t);
+      });
+      return hits.slice(0, 6);
+    }
+    function lookaheadColumn(label, rangeStart, rangeEnd) {
+      var hits = tasksInRange(rangeStart, rangeEnd);
+      var items = hits.length
+        ? hits.map(function (t) {
+            return '<div class="gantt-task-name">' +
+                     '<span class="gantt-task-title">' + esc(t.title) + '</span>' +
+                     (t.phase ? '<span class="gantt-task-meta">' + esc(t.phase) + '</span>' : '') +
+                   '</div>';
+          }).join('')
+        : '<div class="gantt-lookahead-empty">Nothing scheduled.</div>';
+      return '<div class="gantt-lookahead-col">' +
+               '<div class="gantt-phase-header">' + esc(label) + ' <span class="gantt-phase-count">' + hits.length + '</span></div>' +
+               items +
+             '</div>';
+    }
+    var lookaheadHtml =
+      '<div class="gantt-lookahead">' +
+        lookaheadColumn('This week', todayOffset, todayOffset + 6) +
+        lookaheadColumn('Next week', todayOffset + 7, todayOffset + 13) +
+      '</div>';
+
     var ganttHtml =
       '<div class="gantt-container">' +
         headerHtml +
+        lookaheadHtml +
         rulerHtml +
         '<div class="gantt-tasks">' + tasksHtml + '</div>' +
         '<div class="gantt-legend">' +
