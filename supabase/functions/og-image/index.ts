@@ -43,7 +43,22 @@ function extractOgImage(html: string, baseUrl: string): string | null {
   try { return new URL(img, baseUrl).toString(); } catch { return null; }
 }
 
+// SSRF guard: refuse to fetch localhost / private / link-local / metadata hosts.
+// The Deno edge runtime can't easily pre-resolve DNS, so this is a literal
+// host/IP denylist — the pragmatic mitigation for an authed Pro+ URL fetcher.
+function isPublicHost(u: string): boolean {
+  try {
+    const h = new URL(u).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (h === "localhost" || h.endsWith(".internal") || h.endsWith(".local")) return false;
+    if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(h)) return false;       // loopback / private / link-local (incl. cloud metadata 169.254.169.254)
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return false;                     // 172.16.0.0/12
+    if (h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return false; // IPv6 loopback / ULA / link-local
+    return true;
+  } catch { return false; }
+}
+
 async function fetchOgImage(url: string): Promise<string | null> {
+  if (!isPublicHost(url)) return null;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
