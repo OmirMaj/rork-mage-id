@@ -283,9 +283,28 @@ function ClientPortalSetupScreenInner() {
     return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, undefined, portal.accessToken);
   }, [portal.portalId, portal.accessToken]);
 
-  // The decision access token is set server-side (DB trigger) on the next sync
-  // after enabling. Until it lands, the share link can't authorize decisions —
-  // so Copy/Share guard on it rather than hand out a token-less link.
+  // The decision access token gates the share link. A DB trigger sets one
+  // server-side, but the local-first optimistic write never reads it back, so
+  // `accessToken` stayed undefined on the client forever — leaving Copy/Share
+  // permanently blocked by `linkPending`. Fix: generate the token on the CLIENT
+  // when the (persisted) portal is enabled but has no token. The trigger only
+  // sets when empty, so it preserves ours. Keyed on the PERSISTED portal (not
+  // the local `portal` whose DEFAULT_PORTAL.enabled is true) so we never
+  // accidentally enable a portal on mere screen visit. Auto-heals portals
+  // enabled before this fix.
+  const tokenHealRef = useRef(false);
+  useEffect(() => {
+    const persisted = project?.clientPortal;
+    if (!id || !persisted?.enabled || persisted.accessToken || tokenHealRef.current) return;
+    tokenHealRef.current = true;
+    const token = (generateUUID() + generateUUID()).replace(/-/g, '');
+    setPortal(p => ({ ...p, accessToken: token }));
+    updateProject(id, { clientPortal: { ...persisted, accessToken: token } });
+  }, [id, project?.clientPortal, updateProject]);
+
+  // The decision access token must be present for the share link to authorize
+  // client decisions. The heal effect above generates it; until it lands the
+  // first time, Copy/Share guard rather than hand out a token-less link.
   const linkPending = portal.enabled && !portal.accessToken;
 
   // The full base64-hash URL is kept around as a backup for clients
