@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform, Modal,
+  ActivityIndicator, Alert, Platform, Modal, Image,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ import {
   saveSelectionOption, chooseSelectionOption, curateSelectionsAI,
   saveCuratedOptions, summarizeAllowances,
 } from '@/utils/selectionsEngine';
+import { resolveSelectionImage } from '@/utils/ogImage';
 import { formatMoney } from '@/utils/formatters';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import type { SelectionCategory, SelectionOption } from '@/types';
@@ -93,7 +94,13 @@ export default function SelectionsScreen() {
         Alert.alert('No options', 'AI didn\'t return any options. Try a more specific style brief.');
         return;
       }
-      const ok = await saveCuratedOptions(cat.id, options);
+      // Resolve a product photo for each option (og:image from the AI's product
+      // link, Pexels keyword fallback). Non-fatal — null just leaves it photo-less.
+      const withImages = await Promise.all(options.map(async (o) => ({
+        ...o,
+        imageUrl: await resolveSelectionImage({ url: o.productUrl, query: `${o.brand} ${o.productName} ${cat.category}`.trim() }),
+      })));
+      const ok = await saveCuratedOptions(cat.id, withImages);
       if (!ok) {
         Alert.alert('Save failed', 'Generated options but could not save them.');
         return;
@@ -105,6 +112,23 @@ export default function SelectionsScreen() {
     } finally {
       setCurating(null);
     }
+  }, [refresh]);
+
+  // Manual override: GC pastes a product URL and we pull its og:image.
+  // iOS-only (Alert.prompt is iOS-only); other platforms re-curate to refresh.
+  const onSetOptionPhoto = useCallback((option: SelectionOption, category: string) => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Paste a link', 'Setting a photo from a link is available on iOS. On other platforms, re-curate to refresh photos.');
+      return;
+    }
+    Alert.prompt('Set photo from link', "Paste the product page URL — we'll pull its photo.", async (url?: string) => {
+      if (!url || !url.trim()) return;
+      const imageUrl = await resolveSelectionImage({ url: url.trim() });
+      if (!imageUrl) { Alert.alert('No image found', "Couldn't find a photo at that link."); return; }
+      await saveSelectionOption({ id: option.id, categoryId: option.categoryId, productName: option.productName, unitPrice: option.unitPrice, productUrl: url.trim(), imageUrl });
+      void Haptics.selectionAsync();
+      await refresh();
+    }, 'plain-text');
   }, [refresh]);
 
   const handleChoose = useCallback(async (categoryId: string, option: SelectionOption) => {
@@ -242,6 +266,7 @@ export default function SelectionsScreen() {
             onChoose={(opt) => handleChoose(cat.id, opt)}
             onDelete={() => handleDelete(cat)}
             onDraftCO={() => handleDraftCOForOverage(cat)}
+            onSetOptionPhoto={onSetOptionPhoto}
           />
         ))}
       </ScrollView>
@@ -275,13 +300,14 @@ function SummaryStat({ label, value, accent }: { label: string; value: string; a
   );
 }
 
-function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraftCO }: {
+function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraftCO, onSetOptionPhoto }: {
   category: SelectionCategory;
   curating: boolean;
   onCurate: () => void;
   onChoose: (opt: SelectionOption) => void;
   onDelete: () => void;
   onDraftCO: () => void;
+  onSetOptionPhoto: (option: SelectionOption, category: string) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -349,6 +375,7 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
               option={o}
               budget={category.budget}
               onPress={() => onChoose(o)}
+              onSetPhoto={() => onSetOptionPhoto(o, category.category)}
             />
           ))}
           {!isChosen && !isExceeded && (
@@ -363,7 +390,7 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
   );
 }
 
-function OptionRow({ option, budget, onPress }: { option: SelectionOption; budget: number; onPress: () => void }) {
+function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionOption; budget: number; onPress: () => void; onSetPhoto: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const overBudget = budget > 0 && option.total > budget;
@@ -376,8 +403,12 @@ function OptionRow({ option, budget, onPress }: { option: SelectionOption; budge
     <TouchableOpacity
       style={[styles.opt, option.isChosen && styles.optChosen, overBudget && !option.isChosen && styles.optOver]}
       onPress={onPress}
+      onLongPress={onSetPhoto}
       activeOpacity={0.85}
     >
+      {option.imageUrl ? (
+        <Image source={{ uri: option.imageUrl }} style={styles.optImage} resizeMode="cover" />
+      ) : null}
       <View style={styles.optHead}>
         <View style={[styles.tierPill, { backgroundColor: tierColor + '15' }]}>
           <Text style={[styles.tierPillText, { color: tierColor }]}>{tier}</Text>
@@ -588,6 +619,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg, borderRadius: Tokens.radius.card, padding: 12,
     borderWidth: 1.5, borderColor: t.line, gap: 6,
   },
+  optImage: { width: '100%', height: 130, borderRadius: 10, marginBottom: 8, backgroundColor: t.surfaceAlt },
   optChosen: { borderColor: t.success, backgroundColor: t.success + '08' },
   optOver:   { borderColor: Colors.warning + '60' },
   optHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
