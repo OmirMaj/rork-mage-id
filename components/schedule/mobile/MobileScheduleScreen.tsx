@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Bell, ChevronDown, FolderOpen } from 'lucide-react-native';
+import { Bell, ChevronDown, FolderOpen, CalendarDays } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -17,6 +17,7 @@ import { WeekStrip } from './WeekStrip';
 import { MobileGantt } from './MobileGantt';
 import { MobileScheduleList } from './MobileScheduleList';
 import { TaskDetailSheet } from './TaskDetailSheet';
+import { MonthCalendarSheet } from './MonthCalendarSheet';
 import { ProgressTab } from './ProgressTab';
 import { TeamTab } from './TeamTab';
 import { FourDComingSoon } from './FourDComingSoon';
@@ -49,6 +50,7 @@ export function MobileScheduleScreen() {
   const [scheduleView, setScheduleView] = useState<'list' | 'timeline'>('list');
   const [addPrefillDate, setAddPrefillDate] = useState<string | undefined>(undefined);
   const [showZoneEditor, setShowZoneEditor] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? projects[0] ?? null,
@@ -150,6 +152,9 @@ export function MobileScheduleScreen() {
           </View>
           {!!selectedProject.location && <Text style={styles.loc} numberOfLines={1}>{selectedProject.location}</Text>}
         </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => setShowCalendar(true)} accessibilityLabel="Jump to date" testID="open-calendar">
+          <CalendarDays size={19} color={colors.text} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications-inbox' as never)} accessibilityLabel="Notifications">
           <Bell size={19} color={colors.text} />
         </TouchableOpacity>
@@ -235,6 +240,15 @@ export function MobileScheduleScreen() {
         onDeleteTask={onDeleteTask}
       />
       <AddTaskModal visible={showAdd} onCancel={() => { setShowAdd(false); setAddPrefillDate(undefined); }} onCreate={onCreate} tasks={tasks} defaultStartDate={addPrefillDate} />
+
+      <MonthCalendarSheet
+        visible={showCalendar}
+        selectedDate={selectedDate}
+        tasks={tasks}
+        startDateIso={startDate}
+        onSelect={setSelectedDate}
+        onClose={() => setShowCalendar(false)}
+      />
 
       {/* Living Floor Plan zone editor (full-screen modal) */}
       <Modal visible={showZoneEditor} animationType="slide" onRequestClose={() => setShowZoneEditor(false)}>
