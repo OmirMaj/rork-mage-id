@@ -1,0 +1,200 @@
+<h2>The full export — every section, fully populated</h2>
+<p class="subtitle">This is the real density: 24 tasks, full critical path, risk register, 3-week look-ahead, baseline variance, phase roll-ups. This is what one exported A3/Arch-D page looks like. Tell me what to add or cut.</p>
+
+<style>
+  .R{background:#fff;color:#111;border-radius:5px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.25);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:9px;line-height:1.3}
+  .R .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #FF9500;padding-bottom:8px}
+  .R .eb{font-size:8px;font-weight:800;letter-spacing:2px;color:#FF9500;text-transform:uppercase}
+  .R h3.t{font-size:19px;margin:3px 0 1px}
+  .R .s{font-size:9px;color:#777}
+  .R .meta{text-align:right;font-size:9px;color:#555;line-height:1.55}.R .meta b{color:#111}
+  .K{display:flex;gap:6px;margin:11px 0}
+  .K .c{flex:1;border:1px solid #eee;border-top:3px solid #007AFF;border-radius:5px;padding:6px 7px}
+  .K .c.g{border-top-color:#137333}.K .c.r{border-top-color:#C2260F}.K .c.a{border-top-color:#FF9500}
+  .K .n{font-size:15px;font-weight:800}.K .l{font-size:6.5px;color:#777;text-transform:uppercase;letter-spacing:.3px}
+  .K .dd{font-size:6.5px;font-weight:700;margin-top:1px}.K .dd.r{color:#C2260F}.K .dd.g{color:#137333}
+  .cols{display:flex;gap:10px;margin-top:4px}.cols>div{flex:1}
+  .sh{font-size:8px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#999;margin:10px 0 4px}
+  .cp .r{display:flex;justify-content:space-between;padding:2.5px 0;border-bottom:1px solid #f4f4f4}
+  .cp .dt{color:#888;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cp .r.crit span:first-child{color:#C2260F;font-weight:600}
+  .risk{background:#FFF6F5;border:1px solid #F3D6D2;border-radius:5px;padding:7px}
+  .risk .i{display:flex;gap:5px;padding:2px 0;align-items:baseline}
+  .tag{font-size:6px;font-weight:800;color:#fff;border-radius:3px;padding:1px 4px;white-space:nowrap}
+  .tag.hi{background:#C2260F}.tag.md{background:#FF9500}.tag.lo{background:#8E8E93}.tag.in{background:#7A5AF8}
+  .la .wk{margin-bottom:5px}.la .wk b{display:block;font-size:7.5px;color:#007AFF;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+  .la .x{font-size:7.5px;padding:1px 0;color:#333}.la .x .w{color:#999}
+  table.G{width:100%;border-collapse:collapse;margin-top:4px}
+  table.G th{font-size:6.5px;color:#888;text-transform:uppercase;letter-spacing:.3px;text-align:left;border-bottom:1.5px solid #ccc;padding:3px 4px}
+  table.G td{font-size:8px;padding:2.5px 4px;border-bottom:1px solid #f4f4f4;vertical-align:middle}
+  table.G td.n{text-align:right;font-variant-numeric:tabular-nums}
+  table.G tr.ph td{background:#f4f6f8;font-weight:800;font-size:7px;text-transform:uppercase;letter-spacing:.4px;color:#555;padding:3px 4px}
+  .tl{position:relative;height:10px;background:repeating-linear-gradient(to right,transparent 0 calc(7.14% - 1px),#f3f3f3 calc(7.14% - 1px) 7.14%);border-radius:2px}
+  .bl{position:absolute;height:3px;background:#999;opacity:.55;top:8px;border-radius:2px}
+  .bar{position:absolute;height:10px;background:#E5F0FF;border:1px solid #007AFF;border-radius:2px;top:0}
+  .bar.c{background:#FFDDDA;border-color:#FF3B30}.bar.s{background:#111;border:0;height:5px;top:3px}
+  .ms{position:absolute;width:7px;height:7px;background:#007AFF;transform:rotate(45deg);top:2px}
+  .prog{position:absolute;height:10px;background:#007AFF;opacity:.8;top:0;border-radius:2px}
+  .vb{color:#C2260F;font-weight:700}.vg{color:#137333;font-weight:700}
+  .axis{display:flex;justify-content:space-between;font-size:6px;color:#aaa;margin-top:1px}
+  .ph2{display:flex;align-items:center;gap:6px;font-size:8px;padding:1.5px 0}
+  .ph2 .b{flex:1;height:6px;background:#eee;border-radius:3px;overflow:hidden}.ph2 .f{height:6px;background:#007AFF}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:7px;color:#666;margin-top:8px;border-top:1px solid #eee;padding-top:6px}
+  .sw{display:inline-block;width:12px;height:7px;border-radius:2px;margin-right:3px;vertical-align:middle}
+</style>
+
+<div class="mockup">
+  <div class="mockup-header">Preview — MAGE Schedule · PM Status Report · A3 landscape · fully populated</div>
+  <div class="mockup-body" style="background:#e9ebee;padding:14px">
+   <div class="R">
+    <div class="hd">
+      <div><div class="eb">MAGE Schedule · PM Status Report</div><h3 class="t">The Henderson Residence</h3>
+        <div class="s">124 Park Slope, Brooklyn NY 11215 · GC: MAGE Construction · PM: O. Majeed · Job #HEN-204</div></div>
+      <div class="meta"><div>Report: <b>May 24, 2026</b> · Data date: <b>May 24</b></div>
+        <div>Start: <b>May 23</b> · Contract finish: <b>Aug 28</b> · Forecast: <b style="color:#C2260F">Sep 1 (+4d)</b></div>
+        <div>24 tasks · 6 phases · 100-day span</div></div>
+    </div>
+
+    <div class="K">
+      <div class="c g"><div class="n">42%</div><div class="l">Complete</div><div class="dd">8 of 24 done</div></div>
+      <div class="c r"><div class="n">Sep 1</div><div class="l">Forecast finish</div><div class="dd r">+4d vs contract</div></div>
+      <div class="c a"><div class="n">0.94</div><div class="l">SPI</div><div class="dd r">SV −5.1 days</div></div>
+      <div class="c"><div class="n">7</div><div class="l">Critical tasks</div><div class="dd">29% of work</div></div>
+      <div class="c r"><div class="n">0d</div><div class="l">Min total float</div><div class="dd r">5 tasks at 0</div></div>
+      <div class="c r"><div class="n">3</div><div class="l">Behind baseline</div><div class="dd r">worst +4d</div></div>
+      <div class="c a"><div class="n">1</div><div class="l">Overdue</div><div class="dd r">Waterproofing</div></div>
+      <div class="c"><div class="n">2</div><div class="l">Unstaffed / unbooked</div><div class="dd">Drywall, Rough insp</div></div>
+    </div>
+
+    <div class="cols">
+      <div>
+        <div class="sh">Critical path (driving chain → Sep 1)</div>
+        <div class="cp">
+          <div class="r crit"><span>Waterproofing</span><span class="dt">May 27 → 30</span></div>
+          <div class="r crit"><span>Framing Walls</span><span class="dt">May 26 → Jun 2</span></div>
+          <div class="r crit"><span>Sheathing</span><span class="dt">Jun 2 → 4</span></div>
+          <div class="r crit"><span>Rough Electrical</span><span class="dt">Jun 3 → 9</span></div>
+          <div class="r crit"><span>◆ Rough Inspection</span><span class="dt">Jun 9</span></div>
+          <div class="r crit"><span>Insulation → Drywall</span><span class="dt">Jun 10 → 20</span></div>
+          <div class="r crit"><span>Tape → Paint → Finishes</span><span class="dt">Jun 20 → Aug 28</span></div>
+          <div class="r crit"><span>◆ Substantial Completion</span><span class="dt vb">Sep 1</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="sh">Risk &amp; alerts</div>
+        <div class="risk">
+          <div class="i"><span class="tag hi">OVERDUE</span><span>Waterproofing due May 22 · 60% · blocks Framing</span></div>
+          <div class="i"><span class="tag hi">0 FLOAT</span><span>Rough Electrical — any slip moves the finish</span></div>
+          <div class="i"><span class="tag hi">0 FLOAT</span><span>Drywall (+4d) is the biggest finish driver</span></div>
+          <div class="i"><span class="tag md">2d FLOAT</span><span>HVAC Ductwork &amp; Roof Framing near-critical</span></div>
+          <div class="i"><span class="tag in">INSPECTION</span><span>Rough inspection Jun 9 not booked · book by Jun 4</span></div>
+          <div class="i"><span class="tag lo">UNSTAFFED</span><span>Drywall — no crew assigned</span></div>
+          <div class="i"><span class="tag md">PROCURE</span><span>Countertops — 3-wk lead, order by Jun 27</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="sh">3-week look-ahead</div>
+        <div class="la">
+          <div class="wk"><b>This week · May 24–30</b>
+            <div class="x">Framing Walls <span class="w">· Crew A · 5/26–6/2</span></div>
+            <div class="x">Waterproofing <span class="w">· SealPro · finish 5/30</span></div>
+            <div class="x">HVAC Ductwork <span class="w">· MechCo · 6/1–6/6</span></div></div>
+          <div class="wk"><b>Next week · May 31–Jun 6</b>
+            <div class="x">Sheathing <span class="w">· Crew A · 6/2–6/4</span></div>
+            <div class="x">Plumbing Rough <span class="w">· FlowCo · 6/2–6/6</span></div>
+            <div class="x">Rough Electrical <span class="w">· Sparks · 6/3–6/9</span></div></div>
+          <div class="wk"><b>+2 weeks · Jun 7–13</b>
+            <div class="x">◆ Rough Inspection <span class="w">· Jun 9 (book it)</span></div>
+            <div class="x">Insulation <span class="w">· InsulCo · 6/10–6/12</span></div>
+            <div class="x">Drywall starts <span class="w">· TBD · 6/12</span></div></div>
+        </div>
+        <div class="sh">Upcoming milestones</div>
+        <div class="cp">
+          <div class="r"><span>◆ Framing complete</span><span class="dt vg">Jun 2 · on time</span></div>
+          <div class="r"><span>◆ Dry-in</span><span class="dt vb">Jun 20 · +4d</span></div>
+          <div class="r"><span>◆ Substantial completion</span><span class="dt vb">Sep 1 · +4d</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sh">Gantt — current vs baseline (▤ baseline · ▮ critical · ◆ milestone)</div>
+    <table class="G">
+      <colgroup><col style="width:18px"><col style="width:130px"><col style="width:70px"><col style="width:42px"><col style="width:42px"><col style="width:42px"><col style="width:26px"><col style="width:34px"><col style="width:34px"><col style="width:28px"><col></colgroup>
+      <tr><th>#</th><th>Task</th><th>Crew</th><th>Start</th><th>Finish</th><th>BL Fin</th><th>Δ</th><th>TF</th><th>FF</th><th>%</th><th>Timeline</th></tr>
+      <tr class="ph"><td></td><td colspan="10">Site Work — 90%</td></tr>
+      <tr><td class="n">1</td><td>Demolition</td><td>Crew A</td><td>5/23</td><td>5/26</td><td>5/26</td><td>0d</td><td class="n">0</td><td class="n">0</td><td class="n">100%</td><td><div class="tl"><div class="bar" style="left:0;width:4%"></div><div class="prog" style="left:0;width:4%"></div></div></td></tr>
+      <tr><td class="n">2</td><td>Excavation</td><td>EarthCo</td><td>5/27</td><td>5/29</td><td>5/29</td><td>0d</td><td class="n">1</td><td class="n">0</td><td class="n">100%</td><td><div class="tl"><div class="bar" style="left:4%;width:3%"></div><div class="prog" style="left:4%;width:3%"></div></div></td></tr>
+      <tr><td class="n">3</td><td>Waterproofing</td><td>SealPro</td><td>5/27</td><td>5/30</td><td>5/28</td><td class="vb">+2d</td><td class="n">0</td><td class="n">0</td><td class="n">60%</td><td><div class="tl"><div class="bl" style="left:4%;width:3%"></div><div class="bar c" style="left:4%;width:4%"></div><div class="prog" style="left:4%;width:2.4%"></div></div></td></tr>
+      <tr><td class="n">4</td><td>Foundation Repair</td><td>EarthCo</td><td>5/30</td><td>6/2</td><td>6/1</td><td class="vb">+1d</td><td class="n">1</td><td class="n">1</td><td class="n">30%</td><td><div class="tl"><div class="bl" style="left:7%;width:3%"></div><div class="bar" style="left:7%;width:4%"></div><div class="prog" style="left:7%;width:1.2%"></div></div></td></tr>
+      <tr class="ph"><td></td><td colspan="10">Framing — 35%</td></tr>
+      <tr><td class="n">5</td><td>Framing Walls</td><td>Crew A</td><td>5/26</td><td>6/2</td><td>5/31</td><td class="vb">+2d</td><td class="n">0</td><td class="n">0</td><td class="n">20%</td><td><div class="tl"><div class="bl" style="left:3%;width:6%"></div><div class="bar c" style="left:3%;width:8%"></div><div class="prog" style="left:3%;width:1.6%"></div></div></td></tr>
+      <tr><td class="n">6</td><td>Sheathing</td><td>Crew A</td><td>6/2</td><td>6/4</td><td>6/3</td><td class="vb">+1d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:10%;width:2%"></div><div class="bar c" style="left:10%;width:3%"></div></div></td></tr>
+      <tr><td class="n">7</td><td>Roof Framing</td><td>RoofCo</td><td>6/3</td><td>6/6</td><td>6/5</td><td class="vb">+1d</td><td class="n">2</td><td class="n">2</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:11%;width:3%"></div><div class="bar" style="left:11%;width:4%"></div></div></td></tr>
+      <tr class="ph"><td></td><td colspan="10">MEP Rough — 10%</td></tr>
+      <tr><td class="n">8</td><td>Plumbing Rough</td><td>FlowCo</td><td>6/2</td><td>6/6</td><td>6/5</td><td class="vb">+1d</td><td class="n">1</td><td class="n">1</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:10%;width:4%"></div><div class="bar" style="left:10%;width:5%"></div></div></td></tr>
+      <tr><td class="n">9</td><td>HVAC Ductwork</td><td>MechCo</td><td>6/1</td><td>6/6</td><td>6/6</td><td>0d</td><td class="n">2</td><td class="n">2</td><td class="n">10%</td><td><div class="tl"><div class="bl" style="left:9%;width:5%"></div><div class="bar" style="left:9%;width:6%"></div><div class="prog" style="left:9%;width:0.6%"></div></div></td></tr>
+      <tr><td class="n">10</td><td>Rough Electrical</td><td>Sparks</td><td>6/3</td><td>6/9</td><td>6/7</td><td class="vb">+2d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:11%;width:5%"></div><div class="bar c" style="left:11%;width:7%"></div></div></td></tr>
+      <tr><td class="n">11</td><td>◆ Rough Inspection</td><td>City</td><td>6/9</td><td>6/9</td><td>6/7</td><td class="vb">+2d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="ms" style="left:18%"></div></div></td></tr>
+      <tr class="ph"><td></td><td colspan="10">Insulation &amp; Drywall — 0%</td></tr>
+      <tr><td class="n">12</td><td>Insulation</td><td>InsulCo</td><td>6/10</td><td>6/12</td><td>6/10</td><td class="vb">+2d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:17%;width:2%"></div><div class="bar c" style="left:18%;width:3%"></div></div></td></tr>
+      <tr><td class="n">13</td><td>Drywall</td><td style="color:#C2260F">TBD</td><td>6/12</td><td>6/20</td><td>6/16</td><td class="vb">+4d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:19%;width:7%"></div><div class="bar c" style="left:20%;width:9%"></div></div></td></tr>
+      <tr><td class="n">14</td><td>Tape &amp; Finish</td><td>DryCo</td><td>6/20</td><td>6/24</td><td>6/20</td><td class="vb">+4d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:27%;width:4%"></div><div class="bar c" style="left:29%;width:5%"></div></div></td></tr>
+      <tr class="ph"><td></td><td colspan="10">Finishes — 0%</td></tr>
+      <tr><td class="n">15</td><td>Prime &amp; Paint</td><td>PaintPro</td><td>6/24</td><td>6/30</td><td>6/26</td><td class="vb">+4d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:31%;width:5%"></div><div class="bar c" style="left:33%;width:7%"></div></div></td></tr>
+      <tr><td class="n">16</td><td>Flooring</td><td>FloorCo</td><td>6/30</td><td>7/6</td><td>7/2</td><td class="vb">+4d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:38%;width:6%"></div><div class="bar c" style="left:40%;width:7%"></div></div></td></tr>
+      <tr><td class="n">17</td><td>Trim &amp; Millwork</td><td>TrimCo</td><td>7/6</td><td>7/12</td><td>7/8</td><td class="vb">+4d</td><td class="n">3</td><td class="n">3</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:45%;width:6%"></div><div class="bar" style="left:47%;width:7%"></div></div></td></tr>
+      <tr><td class="n">18</td><td>Cabinets</td><td>CabCo</td><td>7/10</td><td>7/16</td><td>7/12</td><td class="vb">+4d</td><td class="n">2</td><td class="n">2</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:48%;width:6%"></div><div class="bar" style="left:50%;width:7%"></div></div></td></tr>
+      <tr><td class="n">19</td><td>Countertops</td><td>StoneCo</td><td>7/18</td><td>7/22</td><td>7/18</td><td class="vb">+4d</td><td class="n">4</td><td class="n">4</td><td class="n">0%</td><td><div class="tl"><div class="bl" style="left:56%;width:4%"></div><div class="bar" style="left:58%;width:5%"></div></div></td></tr>
+      <tr class="ph"><td></td><td colspan="10">Fixtures &amp; Closeout — 0%</td></tr>
+      <tr><td class="n">20</td><td>Plumbing Fixtures</td><td>FlowCo</td><td>7/22</td><td>7/26</td><td>7/22</td><td class="vb">+4d</td><td class="n">4</td><td class="n">4</td><td class="n">0%</td><td><div class="tl"><div class="bar" style="left:63%;width:5%"></div></div></td></tr>
+      <tr><td class="n">21</td><td>Electrical Fixtures</td><td>Sparks</td><td>7/22</td><td>7/25</td><td>7/22</td><td class="vb">+4d</td><td class="n">5</td><td class="n">5</td><td class="n">0%</td><td><div class="tl"><div class="bar" style="left:63%;width:4%"></div></div></td></tr>
+      <tr><td class="n">22</td><td>Punch List</td><td>Crew A</td><td>8/20</td><td>8/26</td><td>8/22</td><td class="vb">+4d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bar c" style="left:88%;width:7%"></div></div></td></tr>
+      <tr><td class="n">23</td><td>Final Cleanup</td><td>CleanCo</td><td>8/27</td><td>8/28</td><td>8/26</td><td class="vb">+4d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="bar c" style="left:95%;width:3%"></div></div></td></tr>
+      <tr><td class="n">24</td><td>◆ Substantial Completion</td><td>—</td><td>9/1</td><td>9/1</td><td>8/28</td><td class="vb">+4d</td><td class="n">0</td><td class="n">0</td><td class="n">0%</td><td><div class="tl"><div class="ms c" style="left:99%;background:#FF3B30"></div></div></td></tr>
+    </table>
+    <div class="axis"><span>May 23</span><span>Jun 9</span><span>Jun 30</span><span>Jul 21</span><span>Aug 11</span><span>Sep 1</span></div>
+
+    <div class="cols" style="margin-top:8px">
+      <div>
+        <div class="sh">Biggest slippages vs baseline "Contract"</div>
+        <div class="cp">
+          <div class="r"><span><span class="vb">+4d</span> Drywall</span><span class="dt">drives the finish</span></div>
+          <div class="r"><span><span class="vb">+2d</span> Framing Walls</span><span class="dt">weather (2 lost days)</span></div>
+          <div class="r"><span><span class="vb">+2d</span> Rough Electrical</span><span class="dt">follows framing</span></div>
+          <div class="r"><span><span class="vb">+2d</span> Waterproofing</span><span class="dt">material delivery</span></div>
+          <div class="r"><span><span class="vb">+2d</span> Insulation</span><span class="dt">follows drywall start</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="sh">Progress by phase</div>
+        <div class="ph2"><span style="width:96px">Site Work</span><span class="b"><span class="f" style="width:90%"></span></span><span>90%</span></div>
+        <div class="ph2"><span style="width:96px">Framing</span><span class="b"><span class="f" style="width:35%"></span></span><span>35%</span></div>
+        <div class="ph2"><span style="width:96px">MEP Rough</span><span class="b"><span class="f" style="width:10%;background:#FF9500"></span></span><span>10%</span></div>
+        <div class="ph2"><span style="width:96px">Insul/Drywall</span><span class="b"><span class="f" style="width:0%"></span></span><span>0%</span></div>
+        <div class="ph2"><span style="width:96px">Finishes</span><span class="b"><span class="f" style="width:0%"></span></span><span>0%</span></div>
+        <div class="ph2"><span style="width:96px">Closeout</span><span class="b"><span class="f" style="width:0%"></span></span><span>0%</span></div>
+      </div>
+      <div>
+        <div class="sh">Weather &amp; closures (this period)</div>
+        <div class="cp">
+          <div class="r"><span>Rain day — May 28</span><span class="dt">framing lost 1d</span></div>
+          <div class="r"><span>Rain day — May 30</span><span class="dt">framing lost 1d</span></div>
+          <div class="r"><span>Holiday — Jul 4</span><span class="dt">non-work</span></div>
+          <div class="r"><span>Calendar</span><span class="dt">Mon–Fri, 8 holidays</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div><span class="sw" style="background:#E5F0FF;border:1px solid #007AFF"></span>On-time</div>
+      <div><span class="sw" style="background:#FFDDDA;border:1px solid #FF3B30"></span>Critical</div>
+      <div><span class="sw" style="background:#999;opacity:.55;height:3px"></span>Baseline</div>
+      <div><span class="sw" style="background:#007AFF;width:7px;height:7px;transform:rotate(45deg)"></span>Milestone</div>
+      <div>TF = total float · FF = free float · Δ = finish vs baseline</div>
+      <div style="margin-left:auto;color:#aaa">Generated by MAGE ID · May 24, 2026 · vs baseline "Contract"</div>
+    </div>
+   </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:14px"><b>This is the density target.</b> Everything above comes from data we already compute (CPM, float, baseline, % complete, calendar/weather). Tell me: anything to <b>add</b> (predecessor IDs column? cost/earned-value row? submittal log?) or <b>cut</b> to make it cleaner?</p>
