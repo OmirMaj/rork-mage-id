@@ -1,4 +1,4 @@
-import { qboFetch, qboHash as _qboHash, svc, type QboConnectionRow } from "../qbo.ts";
+import { qboFetch, svc, type QboConnectionRow } from "../qbo.ts";
 
 interface MageProjectRow {
   id: string; user_id: string;

@@ -1,13 +1,14 @@
 import { qboFetch, svc, type QboConnectionRow } from "../qbo.ts";
 
-interface LinkedEstimateItem { id: string; name: string; qboItemId?: string }
+interface LinkedEstimateItem { materialId: string; name: string; qboItemId?: string }
 interface ProjectRow { id: string; linked_estimate: { items?: LinkedEstimateItem[] } | null }
 
-/** Object IDs for items are encoded as "<projectId>::<itemId>" since items
- *  don't live in their own table — they're embedded in projects.linked_estimate.items. */
+/** Object IDs for items are encoded as "<projectId>::<materialId>" since items
+ *  don't live in their own table — they're embedded in projects.linked_estimate.items[]
+ *  and keyed by `materialId` (NOT `id`). */
 export async function upsertItem(conn: QboConnectionRow, encodedId: string, userId: string): Promise<void> {
-  const [projectId, itemId] = encodedId.split('::');
-  if (!projectId || !itemId) throw new Error(`bad item id ${encodedId}`);
+  const [projectId, materialId] = encodedId.split('::');
+  if (!projectId || !materialId) throw new Error(`bad item id ${encodedId}`);
 
   const s = svc();
   const { data: row, error } = await s
@@ -16,8 +17,8 @@ export async function upsertItem(conn: QboConnectionRow, encodedId: string, user
   if (!row) throw new Error('project not found');
   const project = row as ProjectRow;
   const items = project.linked_estimate?.items ?? [];
-  const item  = items.find(i => i.id === itemId);
-  if (!item) throw new Error(`item ${itemId} not found`);
+  const item  = items.find(i => i.materialId === materialId);
+  if (!item) throw new Error(`item ${materialId} not found`);
   if (item.qboItemId) return; // already linked
 
   // Look up the QBO default "Services" income account once.
@@ -29,7 +30,7 @@ export async function upsertItem(conn: QboConnectionRow, encodedId: string, user
   const qboItemId = r?.Item?.Id;
   if (!qboItemId) throw new Error('QBO did not return an Item.Id');
 
-  const nextItems = items.map(i => i.id === itemId ? { ...i, qboItemId } : i);
+  const nextItems = items.map(i => i.materialId === materialId ? { ...i, qboItemId } : i);
   const nextEstimate = { ...(project.linked_estimate ?? {}), items: nextItems };
   await s.from('projects').update({ linked_estimate: nextEstimate }).eq('id', projectId);
 }
