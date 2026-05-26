@@ -1,7 +1,7 @@
 import { qboFetch, svc, type QboConnectionRow } from "../qbo.ts";
 
 interface LinkedEstimateItem { materialId: string; name: string; qboItemId?: string }
-interface ProjectRow { id: string; linked_estimate: { items?: LinkedEstimateItem[] } | null }
+interface MageProjectRow { id: string; linked_estimate: { items?: LinkedEstimateItem[] } | null }
 
 /** Object IDs for items are encoded as "<projectId>::<materialId>" since items
  *  don't live in their own table — they're embedded in projects.linked_estimate.items[]
@@ -15,7 +15,7 @@ export async function upsertItem(conn: QboConnectionRow, encodedId: string, user
     .from('projects').select('id,linked_estimate').eq('id', projectId).eq('user_id', userId).maybeSingle();
   if (error) throw new Error(`project read: ${error.message}`);
   if (!row) throw new Error('project not found');
-  const project = row as ProjectRow;
+  const project = row as MageProjectRow;
   const items = project.linked_estimate?.items ?? [];
   const item  = items.find(i => i.materialId === materialId);
   if (!item) throw new Error(`item ${materialId} not found`);
@@ -32,5 +32,9 @@ export async function upsertItem(conn: QboConnectionRow, encodedId: string, user
 
   const nextItems = items.map(i => i.materialId === materialId ? { ...i, qboItemId } : i);
   const nextEstimate = { ...(project.linked_estimate ?? {}), items: nextItems };
-  await s.from('projects').update({ linked_estimate: nextEstimate }).eq('id', projectId);
+  const { error: updateErr } = await s.from('projects')
+    .update({ linked_estimate: nextEstimate })
+    .eq('id', projectId)
+    .eq('user_id', userId);
+  if (updateErr) throw new Error(`project update: ${updateErr.message}`);
 }

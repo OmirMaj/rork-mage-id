@@ -23,8 +23,12 @@ serve(async (req) => {
   if (!body?.kind || !body?.op || !body?.objectId) return json({ success: false, error: 'Missing kind/op/objectId' }, 400);
 
   const conn = await loadConnection(auth.userId);
-  if (!conn || conn.status === 'disconnected') return json({ success: false, error: 'QuickBooks not connected' }, 409);
-  if (conn.status === 'reauth_required')        return json({ success: false, error: 'Reconnect QuickBooks' }, 409);
+  if (!conn || conn.status === 'disconnected' || conn.status === 'connecting' || conn.status === 'error') {
+    return json({ success: false, error: 'QuickBooks not connected' }, 409);
+  }
+  if (conn.status === 'reauth_required') {
+    return json({ success: false, error: 'Reconnect QuickBooks' }, 409);
+  }
 
   try {
     if (body.op === 'upsert') {

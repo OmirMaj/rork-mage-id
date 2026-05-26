@@ -31,5 +31,9 @@ export async function upsertCustomer(conn: QboConnectionRow, projectId: string, 
   const newId = r?.Customer?.Id ?? p.qbo_customer_id;
   if (!newId) throw new Error('QBO did not return a Customer.Id');
 
-  await s.from('projects').update({ qbo_customer_id: newId, qbo_synced_at: new Date().toISOString() }).eq('id', projectId);
+  const { error: updateErr } = await s.from('projects')
+    .update({ qbo_customer_id: newId, qbo_synced_at: new Date().toISOString() })
+    .eq('id', projectId)
+    .eq('user_id', userId);
+  if (updateErr) throw new Error(`project update: ${updateErr.message}`);
 }
