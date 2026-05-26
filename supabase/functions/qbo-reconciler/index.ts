@@ -10,7 +10,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { isValidCron } from "../_shared/cronAuth.ts";
-import { loadConnection, qboFetch, svc, type QboConnectionRow } from "../_shared/qbo.ts";
+import { qboFetch, svc, type QboConnectionRow } from "../_shared/qbo.ts";
 import { upsertInvoice } from "../_shared/qbo-mapping/invoice.ts";
 
 const json = (b: unknown, s = 200) =>
@@ -94,7 +94,7 @@ serve(async (req) => {
 
       const updated = q?.QueryResponse?.Invoice ?? [];
       for (const qInv of updated) {
-        if (qInv.Balance > 0) continue; // not fully paid yet
+        if (qInv.Balance > 0 || qInv.TotalAmt === 0) continue; // not fully paid yet (or voided)
 
         // Find the matching local invoice by qbo_id.
         const { data: m } = await s
@@ -105,7 +105,7 @@ serve(async (req) => {
           .maybeSingle();
         if (!m) continue;
 
-        const localInv = m as { id: string; payments?: { id: string; source?: string }[] } | null;
+        const localInv = m as { id: string; payments?: { id: string; source?: string }[] };
         const payments = localInv?.payments ?? [];
 
         // Skip if we already have a QBO-sourced payment (prevents re-processing
@@ -134,7 +134,7 @@ serve(async (req) => {
             amount_paid: qInv.TotalAmt,
             status: "paid",
           })
-          .eq("id", localInv!.id)
+          .eq("id", localInv.id)
           .eq("user_id", row.user_id);
 
         pulled++;
