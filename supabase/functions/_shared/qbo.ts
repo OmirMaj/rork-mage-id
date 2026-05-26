@@ -25,6 +25,8 @@ export interface QboConnectionRow {
   access_expires_at: string;
   company_name: string | null;
   status: 'connecting' | 'connected' | 'reauth_required' | 'error' | 'disconnected';
+  last_sync_at: string | null;
+  last_error: string | null;
 }
 
 export function svc() {

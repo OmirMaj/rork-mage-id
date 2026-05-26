@@ -23,23 +23,19 @@ serve(async (req) => {
   const conn = await loadConnection(auth.userId);
   if (!conn) return json({ success: true, status: "disconnected" });
 
-  // Count invoices by qbo_sync_status for the user.
+  // Count invoices by qbo_sync_status for the user (parallel, single round-trip).
   const s = svc();
-  const { count: errorCount } = await s
-    .from("invoices")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", auth.userId)
-    .eq("qbo_sync_status", "error");
-  const { count: pendingCount } = await s
-    .from("invoices")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", auth.userId)
-    .eq("qbo_sync_status", "pending");
-  const { count: syncedCount } = await s
-    .from("invoices")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", auth.userId)
-    .eq("qbo_sync_status", "synced");
+  const [
+    { count: syncedCount, error: e1 },
+    { count: pendingCount, error: e2 },
+    { count: errorCount, error: e3 },
+  ] = await Promise.all([
+    s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).eq("qbo_sync_status", "synced"),
+    s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).eq("qbo_sync_status", "pending"),
+    s.from("invoices").select("*", { count: "exact", head: true }).eq("user_id", auth.userId).eq("qbo_sync_status", "error"),
+  ]);
+  const firstError = e1 ?? e2 ?? e3;
+  if (firstError) throw new Error(`Invoice count query failed: ${firstError.message}`);
 
   return json({
     success: true,
@@ -47,7 +43,7 @@ serve(async (req) => {
     realmId: conn.realm_id,
     environment: conn.environment,
     companyName: conn.company_name,
-    lastSyncAt: (conn as { last_sync_at?: string | null }).last_sync_at ?? null,
+    lastSyncAt: conn.last_sync_at,
     counts: {
       synced: syncedCount ?? 0,
       pending: pendingCount ?? 0,
