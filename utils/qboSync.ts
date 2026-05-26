@@ -11,8 +11,23 @@ export interface QboStatus {
   counts?: { synced: number; pending: number; error: number };
 }
 
-/** Start the OAuth flow. Opens an in-app browser to Intuit, then auto-completes
- *  the callback when the browser returns with code/realmId/state. */
+/** Start the OAuth flow. Opens an in-app browser to Intuit. The completion
+ *  path depends on whether iOS intercepts the HTTPS callback URL:
+ *
+ *  A) iOS intercepts (Universal Links configured): openAuthSessionAsync
+ *     returns `{type: 'success', url: 'https://app.mageid.app/...?code=...'}`.
+ *     We parse the params and call completeQuickBooksCallback() ourselves.
+ *
+ *  B) iOS does NOT intercept (current state — no Universal Links):
+ *     the in-app browser navigates to app.mageid.app/integrations/qbo/callback,
+ *     where the web build's callback page completes the OAuth via JS and
+ *     then deep-links back to `rork-app://qbo-setup`. iOS catches that
+ *     custom scheme, closes the browser session, and returns
+ *     `{type: 'success', url: 'rork-app://qbo-setup'}`. The URL has no
+ *     code/realmId/state — we fall through and let the caller's polling
+ *     loop confirm the connection.
+ *
+ *  Both paths converge on `{ok: true}` plus a polling step in qbo-setup. */
 export async function connectQuickBooks(): Promise<{ ok: boolean; companyName?: string | null; error?: string }> {
   const { data, error } = await supabase.functions.invoke<{ success: boolean; authorizeUrl?: string; error?: string }>(
     'qbo-connect-start', { body: {} },
@@ -22,8 +37,9 @@ export async function connectQuickBooks(): Promise<{ ok: boolean; companyName?: 
   }
   try {
     if (Platform.OS === 'web') {
-      // Web build redirects to Intuit; the /integrations/qbo/callback page (TODO)
-      // will need to call completeQuickBooksCallback. Native handles the round-trip below.
+      // On web, redirect in the SAME tab. The /integrations/qbo/callback
+      // route in this same app will pick up the redirect and complete the
+      // OAuth via completeQuickBooksCallback().
       window.location.href = data.authorizeUrl;
       return { ok: true };
     }
@@ -31,29 +47,43 @@ export async function connectQuickBooks(): Promise<{ ok: boolean; companyName?: 
       data.authorizeUrl,
       'https://app.mageid.app/integrations/qbo/callback',
     );
-    if (result.type !== 'success' || !result.url) {
-      return { ok: false, error: result.type === 'cancel' ? 'Cancelled' : 'Connection did not complete.' };
+    if (result.type === 'cancel') {
+      return { ok: false, error: 'Cancelled' };
     }
-    // Parse query params from the returned URL.
-    const url = new URL(result.url);
-    const code = url.searchParams.get('code');
-    const realmId = url.searchParams.get('realmId');
-    const state = url.searchParams.get('state');
-    if (!code || !realmId || !state) {
-      return { ok: false, error: 'Callback URL missing code/realmId/state.' };
+    // Path A: iOS intercepted the HTTPS callback (Universal Links) — try
+    // the native token exchange. Best-effort: if the web page already
+    // consumed the code, this fails silently and the caller's polling
+    // loop will confirm the connection.
+    if (result.type === 'success' && result.url) {
+      try {
+        const url = new URL(result.url);
+        const code = url.searchParams.get('code');
+        const realmId = url.searchParams.get('realmId');
+        const state = url.searchParams.get('state');
+        if (code && realmId && state) {
+          const finish = await completeQuickBooksCallback({ code, realmId, state });
+          if (finish.ok) return { ok: true, companyName: finish.companyName };
+        }
+      } catch { /* fall through to polling */ }
     }
-    const finish = await completeQuickBooksCallback({ code, realmId, state });
-    if (!finish.ok) return { ok: false, error: finish.error ?? 'Token exchange failed.' };
-    return { ok: true, companyName: finish.companyName };
+    // Path B: dismiss / success-without-code — the web callback page already
+    // saved the connection OR the user closed the browser early. Either way,
+    // the caller's polling loop is the source of truth. Treat as ok so the
+    // poll runs.
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Browser could not open.' };
   }
 }
 
-/** Complete the callback (called from the web build's /integrations/qbo/callback route).
- *  TODO(QBO-web): web OAuth is not in v1 — there is no app/integrations/qbo/callback
- *  handler yet. Native OAuth completes via WebBrowser.openAuthSessionAsync (the redirect
- *  URL never needs to be served). Wire this when web OAuth is scoped. */
+/** Complete the OAuth callback by posting code/realmId/state to the
+ *  qbo-connect-callback edge function. The edge fn validates the signed
+ *  state HMAC, exchanges the code for tokens at Intuit, persists them, and
+ *  returns the company name for display.
+ *
+ *  Trust root: the signed state token (NOT a user JWT). The edge fn has
+ *  verify_jwt=false so this call works from an unauthenticated browser
+ *  (e.g., the in-app browser inside ASWebAuthenticationSession). */
 export async function completeQuickBooksCallback(opts: { code: string; realmId: string; state: string; environment?: 'sandbox' | 'production' }): Promise<{ ok: boolean; companyName?: string | null; error?: string }> {
   const { data, error } = await supabase.functions.invoke<{ success: boolean; companyName?: string | null; error?: string }>(
     'qbo-connect-callback', { body: opts },

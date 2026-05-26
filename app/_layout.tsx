@@ -911,6 +911,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="integrations/qbo/callback"
+        options={{
+          title: "QuickBooks Connection",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="dev-seeder"
         options={{
           title: "Demo Seeder",
