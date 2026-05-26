@@ -11,10 +11,9 @@ export interface QboStatus {
   counts?: { synced: number; pending: number; error: number };
 }
 
-/** Start the OAuth flow. Opens an in-app browser to Intuit; the redirect
- *  URL is handled by the web build (or a deep link). Resolves once the
- *  browser closes; caller should refetch status to confirm. */
-export async function connectQuickBooks(): Promise<{ ok: boolean; error?: string }> {
+/** Start the OAuth flow. Opens an in-app browser to Intuit, then auto-completes
+ *  the callback when the browser returns with code/realmId/state. */
+export async function connectQuickBooks(): Promise<{ ok: boolean; companyName?: string | null; error?: string }> {
   const { data, error } = await supabase.functions.invoke<{ success: boolean; authorizeUrl?: string; error?: string }>(
     'qbo-connect-start', { body: {} },
   );
@@ -23,11 +22,29 @@ export async function connectQuickBooks(): Promise<{ ok: boolean; error?: string
   }
   try {
     if (Platform.OS === 'web') {
+      // Web build redirects to Intuit; the /integrations/qbo/callback page (TODO)
+      // will need to call completeQuickBooksCallback. Native handles the round-trip below.
       window.location.href = data.authorizeUrl;
-    } else {
-      await WebBrowser.openAuthSessionAsync(data.authorizeUrl, 'https://app.mageid.app/integrations/qbo/callback');
+      return { ok: true };
     }
-    return { ok: true };
+    const result = await WebBrowser.openAuthSessionAsync(
+      data.authorizeUrl,
+      'https://app.mageid.app/integrations/qbo/callback',
+    );
+    if (result.type !== 'success' || !result.url) {
+      return { ok: false, error: result.type === 'cancel' ? 'Cancelled' : 'Connection did not complete.' };
+    }
+    // Parse query params from the returned URL.
+    const url = new URL(result.url);
+    const code = url.searchParams.get('code');
+    const realmId = url.searchParams.get('realmId');
+    const state = url.searchParams.get('state');
+    if (!code || !realmId || !state) {
+      return { ok: false, error: 'Callback URL missing code/realmId/state.' };
+    }
+    const finish = await completeQuickBooksCallback({ code, realmId, state });
+    if (!finish.ok) return { ok: false, error: finish.error ?? 'Token exchange failed.' };
+    return { ok: true, companyName: finish.companyName };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Browser could not open.' };
   }

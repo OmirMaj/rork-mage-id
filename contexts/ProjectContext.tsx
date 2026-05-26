@@ -1463,6 +1463,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         line_items: invoice.lineItems, subtotal: invoice.subtotal, tax_rate: invoice.taxRate,
         tax_amount: invoice.taxAmount, total_due: invoice.totalDue, amount_paid: invoice.amountPaid,
         status: invoice.status, payments: invoice.payments, created_at: invoice.createdAt, updated_at: invoice.updatedAt,
+        qbo_sync_status: 'pending',
       });
       void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', invoice.id));
     }
@@ -1470,6 +1471,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
     const now = new Date().toISOString();
+    // Capture previous invoice state BEFORE mapping, so we can detect new payments.
+    const prev = invoices.find(i => i.id === id);
     const updated = invoices.map(inv => {
       if (inv.id !== id) return inv;
       const next = { ...inv, ...updates, updatedAt: now } as Invoice;
@@ -1498,9 +1501,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           id, notes: inv.notes, line_items: inv.lineItems, subtotal: inv.subtotal, tax_rate: inv.taxRate,
           tax_amount: inv.taxAmount, total_due: inv.totalDue, amount_paid: inv.amountPaid,
           status: inv.status, payments: inv.payments, updated_at: now,
+          qbo_sync_status: 'pending',
         });
       }
       void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', id));
+      // Detect newly-added MAGE-sourced payments and fire a payment sync for each.
+      if (prev && updates.payments) {
+        const prevIds = new Set(prev.payments.map(p => p.id));
+        const newMagePayments = updates.payments.filter((p: { id: string; source?: string; qboId?: string }) =>
+          !prevIds.has(p.id) && p.source !== 'qbo' && !p.qboId
+        );
+        for (const np of newMagePayments) {
+          const paymentId = np.id;
+          void import('@/utils/qboSync').then(m => m.triggerQboSync('payment', 'upsert', `${id}::${paymentId}`));
+        }
+      }
     }
   }, [invoices, saveInvoicesMutation, canSync]);
 

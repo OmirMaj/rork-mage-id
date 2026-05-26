@@ -46,7 +46,7 @@ serve(async (req) => {
         .select("id,qbo_retry_count")
         .eq("user_id", row.user_id)
         .or("qbo_sync_status.eq.pending,qbo_sync_status.eq.error")
-        .lt("qbo_synced_at", cutoff)
+        .or(`qbo_synced_at.is.null,qbo_synced_at.lt.${cutoff}`)
         .lt("qbo_retry_count", 5)
         .limit(50);
 

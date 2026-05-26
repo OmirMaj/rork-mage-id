@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier } from "../_shared/auth.ts";
-import { loadConnection } from "../_shared/qbo.ts";
+import { loadConnection, svc } from "../_shared/qbo.ts";
 import { upsertCustomer } from "../_shared/qbo-mapping/customer.ts";
 import { upsertItem }      from "../_shared/qbo-mapping/item.ts";
 import { upsertInvoice }   from "../_shared/qbo-mapping/invoice.ts";
@@ -44,6 +44,17 @@ serve(async (req) => {
     return json({ success: true });
   } catch (e) {
     console.error('[qbo-sync] failed', e);
-    return json({ success: false, error: String((e as Error).message ?? e) }, 500);
+    const errMsg = String((e as Error).message ?? e).slice(0, 500);
+    // For invoice pushes that failed, mark the row so the reconciler can retry.
+    if (body.kind === 'invoice') {
+      try {
+        const s = svc();
+        await s.from('invoices').update({
+          qbo_sync_status: 'error',
+          qbo_error: errMsg,
+        }).eq('id', body.objectId).eq('user_id', auth.userId);
+      } catch { /* secondary failure — swallow */ }
+    }
+    return json({ success: false, error: errMsg }, 500);
   }
 });
