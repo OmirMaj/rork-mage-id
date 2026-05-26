@@ -33,7 +33,10 @@ export async function connectQuickBooks(): Promise<{ ok: boolean; error?: string
   }
 }
 
-/** Complete the callback (called from the web build's /integrations/qbo/callback route). */
+/** Complete the callback (called from the web build's /integrations/qbo/callback route).
+ *  TODO(QBO-web): web OAuth is not in v1 — there is no app/integrations/qbo/callback
+ *  handler yet. Native OAuth completes via WebBrowser.openAuthSessionAsync (the redirect
+ *  URL never needs to be served). Wire this when web OAuth is scoped. */
 export async function completeQuickBooksCallback(opts: { code: string; realmId: string; state: string; environment?: 'sandbox' | 'production' }): Promise<{ ok: boolean; companyName?: string | null; error?: string }> {
   const { data, error } = await supabase.functions.invoke<{ success: boolean; companyName?: string | null; error?: string }>(
     'qbo-connect-callback', { body: opts },

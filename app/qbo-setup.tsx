@@ -8,7 +8,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
-import { connectQuickBooks, fetchQboStatus, triggerQboSync, type QboStatus } from '@/utils/qboSync';
+import { connectQuickBooks, fetchQboStatus, type QboStatus } from '@/utils/qboSync';
 
 export default function QboSetupScreen() {
   const router = useRouter();
@@ -32,17 +32,27 @@ export default function QboSetupScreen() {
     setBusy(true);
     const r = await connectQuickBooks();
     setBusy(false);
-    if (!r.ok) Alert.alert('Connect failed', r.error ?? 'Try again.');
-    else await refresh();
+    if (!r.ok) {
+      Alert.alert('Connect failed', r.error ?? 'Try again.');
+      return;
+    }
+    // Server write happens AFTER browser closes. Poll briefly.
+    for (let i = 0; i < 5; i++) {
+      await new Promise(res => setTimeout(res, 1000));
+      const s = await fetchQboStatus();
+      if (s.status === 'connected' || s.status === 'reauth_required' || s.status === 'error') {
+        setStatus(s);
+        return;
+      }
+    }
+    await refresh();
   }, [busy, refresh]);
 
-  const onSyncNow = useCallback(async () => {
+  const onRefreshStatus = useCallback(async () => {
     if (busy) return;
     setBusy(true);
-    // Push everything pending/error for the current user via the reconciler.
-    await triggerQboSync('invoice', 'upsert', '*'); // placeholder; real impl reads the user's pending rows via the reconciler
-    setBusy(false);
     await refresh();
+    setBusy(false);
   }, [busy, refresh]);
 
   return (
@@ -69,7 +79,22 @@ export default function QboSetupScreen() {
               <AlertTriangle size={20} color={colors.danger} />
               <Text style={styles.cardTitle}>Reconnect QuickBooks</Text>
               <Text style={styles.cardSub}>Your QuickBooks session expired. Tap to reconnect — your existing links to QBO records will be preserved.</Text>
-              <TouchableOpacity style={styles.primary} onPress={onConnect} testID="qbo-connect"><Text style={styles.primaryText}>Reconnect</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} onPress={onConnect} disabled={busy} testID="qbo-connect">
+                <Text style={styles.primaryText}>{busy ? 'Opening…' : 'Reconnect'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : status.status === 'error' || status.status === 'connecting' ? (
+            <View style={[styles.card, styles.cardWarn]}>
+              <AlertTriangle size={20} color={colors.danger} />
+              <Text style={styles.cardTitle}>{status.status === 'connecting' ? 'Connecting…' : 'Connection Error'}</Text>
+              <Text style={styles.cardSub}>{status.status === 'connecting'
+                ? 'OAuth in progress. Come back in a moment.'
+                : 'Something went wrong with your QuickBooks connection. Try reconnecting.'}</Text>
+              {status.status === 'error' && (
+                <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onConnect} testID="qbo-connect">
+                  <Text style={styles.primaryText}>{busy ? 'Opening…' : 'Retry'}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <>
@@ -83,9 +108,9 @@ export default function QboSetupScreen() {
                 <Stat label="Pending" value={status.counts?.pending ?? 0} styles={styles} />
                 <Stat label="Errors" value={status.counts?.error ?? 0} bad styles={styles} />
               </View>
-              <TouchableOpacity style={styles.primary} onPress={onSyncNow} disabled={busy} testID="qbo-sync-now">
+              <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} onPress={onRefreshStatus} disabled={busy} testID="qbo-refresh-status">
                 <RefreshCw size={16} color="#FFFFFF" />
-                <Text style={styles.primaryText}>{busy ? 'Syncing…' : 'Sync now'}</Text>
+                <Text style={styles.primaryText}>{busy ? 'Refreshing…' : 'Refresh status'}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -96,7 +121,7 @@ export default function QboSetupScreen() {
 
 function Stat({ label, value, good, bad, styles }: { label: string; value: number; good?: boolean; bad?: boolean; styles: ReturnType<typeof makeStyles> }) {
   return (
-    <View style={[styles.stat, good && styles.statGood, bad && styles.statBad]}>
+    <View style={[styles.stat, good && styles.statGood, bad && styles.statBad]} accessible accessibilityLabel={`${value} ${label}`}>
       <Text style={styles.statVal}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
