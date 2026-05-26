@@ -7,7 +7,8 @@ export async function upsertPaymentForInvoice(conn: QboConnectionRow, encodedId:
   if (!invoiceId || !paymentId) throw new Error(`bad payment id ${encodedId}`);
 
   const s = svc();
-  const { data: row } = await s.from('invoices').select('id,project_id,user_id,qbo_id,payments').eq('id', invoiceId).eq('user_id', userId).maybeSingle();
+  const { data: row, error } = await s.from('invoices').select('id,project_id,user_id,qbo_id,payments').eq('id', invoiceId).eq('user_id', userId).maybeSingle();
+  if (error) throw new Error(`invoice read: ${error.message}`);
   if (!row) throw new Error('invoice not found');
   const inv = row as { id: string; project_id: string; user_id: string; qbo_id: string | null; payments: InvoicePaymentBlob[] };
   const pay = inv.payments.find(p => p.id === paymentId);

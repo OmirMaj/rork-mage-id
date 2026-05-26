@@ -27,22 +27,22 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
     if (!customerId) throw new Error('Could not establish QBO Customer for project');
   }
 
-  // Build Line[] — each line maps to an Item via its sourceEstimateItemId.
-  // If the line has no item yet, lazily push the item.
+  // Read linked_estimate once before the loop. Re-read inside the loop only after a lazy upsertItem.
+  const { data: pjBaseRow } = await s.from('projects').select('linked_estimate').eq('id', inv.project_id).eq('user_id', userId).maybeSingle();
+  let linkedItems = ((pjBaseRow as { linked_estimate?: { items?: { materialId: string; qboItemId?: string }[] } } | null)?.linked_estimate?.items) ?? [];
   const { upsertItem } = await import("./item.ts");
-  const lines = [];
+  const lines: Array<Record<string, unknown>> = [];
   for (const li of inv.line_items) {
     if (li.sourceEstimateItemId) {
-      // Look up the qboItemId in the project's linked_estimate.items
-      const { data: pjRow } = await s.from('projects').select('linked_estimate').eq('id', inv.project_id).eq('user_id', userId).maybeSingle();
-      const items = ((pjRow as { linked_estimate?: { items?: { materialId: string; qboItemId?: string }[] } } | null)?.linked_estimate?.items) ?? [];
-      let qboItemId = items.find(i => i.materialId === li.sourceEstimateItemId)?.qboItemId;
+      let qboItemId = linkedItems.find(i => i.materialId === li.sourceEstimateItemId)?.qboItemId;
       if (!qboItemId) {
         await upsertItem(conn, `${inv.project_id}::${li.sourceEstimateItemId}`, userId);
+        // Re-read ONLY when we just pushed a new item.
         const { data: pjRow2 } = await s.from('projects').select('linked_estimate').eq('id', inv.project_id).eq('user_id', userId).maybeSingle();
-        const items2 = ((pjRow2 as { linked_estimate?: { items?: { materialId: string; qboItemId?: string }[] } } | null)?.linked_estimate?.items) ?? [];
-        qboItemId = items2.find(i => i.materialId === li.sourceEstimateItemId)?.qboItemId;
+        linkedItems = ((pjRow2 as { linked_estimate?: { items?: { materialId: string; qboItemId?: string }[] } } | null)?.linked_estimate?.items) ?? [];
+        qboItemId = linkedItems.find(i => i.materialId === li.sourceEstimateItemId)?.qboItemId;
       }
+      if (!qboItemId) throw new Error(`Could not establish QBO Item for line ${li.sourceEstimateItemId} on invoice ${invoiceId}`);
       lines.push({
         DetailType: 'SalesItemLineDetail',
         Amount: li.total,
@@ -50,7 +50,6 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
         SalesItemLineDetail: { ItemRef: { value: qboItemId }, Qty: li.quantity, UnitPrice: li.unitPrice },
       });
     } else {
-      // No estimate item — fall back to a description-only line.
       lines.push({
         DetailType: 'DescriptionOnly',
         Amount: li.total,
@@ -70,7 +69,7 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
   if (inv.qbo_id) Object.assign(body, { Id: inv.qbo_id, sparse: true, SyncToken: '0' });
 
   // Idempotency check.
-  const hash = await qboHash({ body, customerId });
+  const hash = await qboHash(body);
   if (inv.qbo_id && inv.qbo_hash === hash) return; // no drift
 
   const path = inv.qbo_id ? '/invoice?operation=update' : '/invoice';
