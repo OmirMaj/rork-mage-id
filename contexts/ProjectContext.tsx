@@ -1323,7 +1323,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     saveProjectsMutation.mutate(updated);
     syncProjectToSupabase(project, 'upsert');
     geocodeIfNeeded(project);
-  }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
+    if (canSync && userId) {
+      void import('@/utils/qboSync').then(m => m.triggerQboSync('project', 'upsert', project.id));
+    }
+  }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded, canSync, userId]);
 
   const updateProject = useCallback((id: string, updates: Partial<Project>) => {
     const prior = projects.find(p => p.id === id);
@@ -1461,6 +1464,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         tax_amount: invoice.taxAmount, total_due: invoice.totalDue, amount_paid: invoice.amountPaid,
         status: invoice.status, payments: invoice.payments, created_at: invoice.createdAt, updated_at: invoice.updatedAt,
       });
+      void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', invoice.id));
     }
   }, [invoices, saveInvoicesMutation, canSync, userId]);
 
@@ -1496,6 +1500,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           status: inv.status, payments: inv.payments, updated_at: now,
         });
       }
+      void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', id));
     }
   }, [invoices, saveInvoicesMutation, canSync]);
 
