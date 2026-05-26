@@ -22,6 +22,8 @@
 //   INTUIT_CLIENT_SECRET
 //   INTUIT_REDIRECT_URI   (optional — default: https://app.mageid.app/integrations/qbo/callback)
 //   INTUIT_STATE_SECRET   (optional — falls back to INTUIT_CLIENT_SECRET)
+//   INTUIT_ENVIRONMENT    (optional — 'sandbox' | 'production'; default 'production'.
+//                          Set to 'sandbox' when using development keys against a sandbox company.)
 //   SUPABASE_URL          (auto-injected)
 //   SUPABASE_SERVICE_ROLE_KEY (auto-injected)
 
@@ -31,6 +33,11 @@ import { verifyState, saveTokens, TOKEN_ENDPOINT, qboApiBase, parseQboError } fr
 const CLIENT_ID     = Deno.env.get("INTUIT_CLIENT_ID")     || "";
 const CLIENT_SECRET = Deno.env.get("INTUIT_CLIENT_SECRET") || "";
 const REDIRECT_URI  = Deno.env.get("INTUIT_REDIRECT_URI")  || "https://app.mageid.app/integrations/qbo/callback";
+// Development keys can only authenticate against sandbox companies and must
+// hit sandbox-quickbooks.api.intuit.com. Production keys hit the real API.
+// The pairing is set once per deployment via INTUIT_ENVIRONMENT.
+const DEFAULT_ENV: "sandbox" | "production" =
+  (Deno.env.get("INTUIT_ENVIRONMENT") === "sandbox" ? "sandbox" : "production");
 
 // Callback does NOT need auth headers from the app — trust root is the signed state.
 const CORS = {
@@ -107,7 +114,7 @@ serve(async (req) => {
   // ── 2. Fetch company name for display (best-effort) ──────────────────────
   let companyName: string | null = null;
   try {
-    const base = qboApiBase(body.environment ?? "production");
+    const base = qboApiBase(body.environment ?? DEFAULT_ENV);
 
     const infoCtrl  = new AbortController();
     const infoTimer = setTimeout(() => infoCtrl.abort(), 15_000);
@@ -137,7 +144,7 @@ serve(async (req) => {
   // ── 3. Persist tokens ────────────────────────────────────────────────────
   await saveTokens(verified.userId, {
     realm_id:          body.realmId,
-    environment:       body.environment ?? "production",
+    environment:       body.environment ?? DEFAULT_ENV,
     access_token:      tok.access_token,
     refresh_token:     tok.refresh_token,
     access_expires_at: new Date(Date.now() + (tok.expires_in - 30) * 1000).toISOString(),
