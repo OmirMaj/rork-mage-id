@@ -64,6 +64,12 @@ async function fetchOgImage(url: string): Promise<string | null> {
   try {
     const r = await fetch(url, { headers: { "User-Agent": UA, "Accept": "text/html,application/xhtml+xml" }, redirect: "follow", signal: ctrl.signal });
     if (!r.ok) return null;
+    // SSRF redirect guard: the initial host passed isPublicHost, but redirect:"follow"
+    // could have chased a 30x to an internal host (cloud metadata, localhost, etc.).
+    // Re-validate the FINAL landed URL. This catches the redirect leak without
+    // breaking legit product-page redirects (Deno's redirect:"manual" yields an
+    // opaqueredirect we can't introspect, so we follow-then-validate instead).
+    if (r.url && !isPublicHost(r.url)) return null;
     const ct = r.headers.get("content-type") ?? "";
     if (!ct.includes("text/html") && !ct.includes("xml")) return null;
     const html = await r.text();
