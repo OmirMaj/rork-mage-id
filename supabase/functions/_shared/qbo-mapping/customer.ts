@@ -24,7 +24,12 @@ export async function upsertCustomer(conn: QboConnectionRow, projectId: string, 
     PrimaryPhone: p.primary_contact?.phone ? { FreeFormNumber: p.primary_contact.phone } : undefined,
     BillAddr: p.location ? { Line1: p.location } : undefined,
   };
-  if (p.qbo_customer_id) Object.assign(body, { Id: p.qbo_customer_id, sparse: true, SyncToken: '0' });
+  if (p.qbo_customer_id) {
+    // QBO requires the CURRENT SyncToken for sparse updates. Fetch it via GET first.
+    const current = await qboFetch(conn, `/customer/${encodeURIComponent(p.qbo_customer_id)}`, { method: 'GET' }) as { Customer?: { SyncToken?: string } };
+    const syncToken = current?.Customer?.SyncToken ?? '0';
+    Object.assign(body, { Id: p.qbo_customer_id, sparse: true, SyncToken: syncToken });
+  }
 
   const path = p.qbo_customer_id ? '/customer?operation=update' : '/customer';
   const r = await qboFetch(conn, path, { method: 'POST', body: JSON.stringify(body) }) as { Customer?: { Id?: string } };

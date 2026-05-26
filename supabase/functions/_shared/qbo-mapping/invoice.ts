@@ -66,11 +66,16 @@ export async function upsertInvoice(conn: QboConnectionRow, invoiceId: string, u
     PrivateNote: inv.notes ?? undefined,
     Line: lines,
   };
-  if (inv.qbo_id) Object.assign(body, { Id: inv.qbo_id, sparse: true, SyncToken: '0' });
-
-  // Idempotency check.
+  // Compute hash BEFORE adding SyncToken (the token is a concurrency tag, not content).
   const hash = await qboHash(body);
   if (inv.qbo_id && inv.qbo_hash === hash) return; // no drift
+
+  if (inv.qbo_id) {
+    // QBO requires the CURRENT SyncToken for sparse updates. Fetch it via GET first.
+    const current = await qboFetch(conn, `/invoice/${encodeURIComponent(inv.qbo_id)}`, { method: 'GET' }) as { Invoice?: { SyncToken?: string } };
+    const syncToken = current?.Invoice?.SyncToken ?? '0';
+    Object.assign(body, { Id: inv.qbo_id, sparse: true, SyncToken: syncToken });
+  }
 
   const path = inv.qbo_id ? '/invoice?operation=update' : '/invoice';
   const r = await qboFetch(conn, path, { method: 'POST', body: JSON.stringify(body) }) as { Invoice?: { Id?: string } };

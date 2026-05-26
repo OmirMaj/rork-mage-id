@@ -26,7 +26,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY (auto-injected)
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { verifyState, saveTokens, TOKEN_ENDPOINT, qboApiBase } from "../_shared/qbo.ts";
+import { verifyState, saveTokens, TOKEN_ENDPOINT, qboApiBase, parseQboError } from "../_shared/qbo.ts";
 
 const CLIENT_ID     = Deno.env.get("INTUIT_CLIENT_ID")     || "";
 const CLIENT_SECRET = Deno.env.get("INTUIT_CLIENT_SECRET") || "";
@@ -99,7 +99,7 @@ serve(async (req) => {
 
   if (!r.ok) {
     const text = await r.text().catch(() => "");
-    return json({ success: false, error: `Intuit token exchange ${r.status}: ${text.slice(0, 200)}` }, 502);
+    return json({ success: false, error: `Intuit token exchange ${r.status}: ${parseQboError(text)}` }, 502);
   }
 
   const tok = await r.json() as { access_token: string; refresh_token: string; expires_in: number };
