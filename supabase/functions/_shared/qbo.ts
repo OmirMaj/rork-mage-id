@@ -61,27 +61,42 @@ export async function ensureFreshAccess(conn: QboConnectionRow): Promise<QboConn
 
 /** Exchange the refresh token for a new access (+refresh) token. */
 export async function refreshAccessToken(conn: QboConnectionRow): Promise<QboConnectionRow> {
+  if (!INTUIT_CLIENT_ID || !INTUIT_CLIENT_SECRET) {
+    throw new Error("Intuit OAuth not configured: set INTUIT_CLIENT_ID and INTUIT_CLIENT_SECRET in Supabase secrets.");
+  }
   const basic = btoa(`${INTUIT_CLIENT_ID}:${INTUIT_CLIENT_SECRET}`);
-  const r = await fetch(TOKEN_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${basic}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Accept': 'application/json',
-    },
-    body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(conn.refresh_token)}`,
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  let r: Response;
+  try {
+    r = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basic}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(conn.refresh_token)}`,
+      signal: ctrl.signal,
+    });
+  } finally { clearTimeout(timer); }
   if (!r.ok) {
     const text = await r.text().catch(() => '');
-    // invalid_grant => the user must re-auth.
+    // invalid_grant => the user must re-auth, BUT only if our refresh_token
+    // is still the one of record. Under concurrent refresh, two callers can
+    // race: the second sees invalid_grant because the first already rotated
+    // the token. Don't clobber the freshly-stored tokens.
     if (/invalid_grant/i.test(text)) {
-      await saveTokens(conn.user_id, {
-        access_token: conn.access_token,
-        refresh_token: conn.refresh_token,
-        access_expires_at: conn.access_expires_at,
-        status: 'reauth_required',
-        last_error: 'QuickBooks needs to be reconnected (refresh token expired).',
-      });
+      const current = await loadConnection(conn.user_id);
+      if (!current || current.refresh_token === conn.refresh_token) {
+        await saveTokens(conn.user_id, {
+          access_token: conn.access_token,
+          refresh_token: conn.refresh_token,
+          access_expires_at: conn.access_expires_at,
+          status: 'reauth_required',
+          last_error: 'QuickBooks needs to be reconnected (refresh token expired).',
+        });
+      }
     }
     throw new Error(`Intuit token refresh ${r.status}: ${text.slice(0, 300)}`);
   }
@@ -106,15 +121,22 @@ export async function refreshAccessToken(conn: QboConnectionRow): Promise<QboCon
 export async function qboFetch(conn: QboConnectionRow, path: string, init: RequestInit = {}): Promise<unknown> {
   let live = await ensureFreshAccess(conn);
   const url = `${qboApiBase(live.environment)}/v3/company/${encodeURIComponent(live.realm_id)}${path}`;
-  const doFetch = (c: QboConnectionRow) => fetch(url, {
-    ...init,
-    headers: {
-      ...(init.headers ?? {}),
-      'Authorization': `Bearer ${c.access_token}`,
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    },
-  });
+  const doFetch = async (c: QboConnectionRow): Promise<Response> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15_000);
+    try {
+      return await fetch(url, {
+        ...init,
+        headers: {
+          ...(init.headers ?? {}),
+          'Authorization': `Bearer ${c.access_token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        signal: ctrl.signal,
+      });
+    } finally { clearTimeout(timer); }
+  };
   let res = await doFetch(live);
   if (res.status === 401) {
     live = await refreshAccessToken(live);
@@ -159,7 +181,10 @@ function stableStringify(v: unknown): string {
 }
 
 /** State signing for the OAuth start→callback handoff (HMAC-SHA256). */
-const STATE_SECRET = Deno.env.get("INTUIT_STATE_SECRET") || INTUIT_CLIENT_SECRET; // re-uses client secret if no dedicated state secret is set.
+// State HMAC secret. PREFER setting INTUIT_STATE_SECRET to a dedicated 32-byte
+// random value so rotating the OAuth client secret doesn't invalidate
+// in-flight OAuth state tokens (which would confuse users mid-connect).
+const STATE_SECRET = Deno.env.get("INTUIT_STATE_SECRET") || INTUIT_CLIENT_SECRET;
 const STATE_TTL_MS = 10 * 60_000;
 export async function signState(userId: string): Promise<string> {
   const exp = Date.now() + STATE_TTL_MS;
@@ -175,10 +200,20 @@ export async function verifyState(state: string): Promise<{ userId: string } | n
     const [userId, expStr, hex] = decoded.split('|');
     if (!userId || !expStr || !hex) return null;
     if (Date.now() > Number(expStr)) return null;
-    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(STATE_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const sigBuf = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${userId}|${expStr}`));
-    const expectHex = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    if (expectHex !== hex) return null;
-    return { userId };
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(STATE_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+    // Decode incoming hex signature to bytes for constant-time verify().
+    const pairs = hex.match(/.{2}/g);
+    if (!pairs || pairs.length * 2 !== hex.length) return null;
+    const sig = new Uint8Array(pairs.map(b => parseInt(b, 16)));
+    const ok = await crypto.subtle.verify(
+      'HMAC', key, sig, new TextEncoder().encode(`${userId}|${expStr}`),
+    );
+    return ok ? { userId } : null;
   } catch { return null; }
 }
