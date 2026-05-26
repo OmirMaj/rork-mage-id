@@ -26,7 +26,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY (auto-injected)
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { verifyState, saveTokens, TOKEN_ENDPOINT } from "../_shared/qbo.ts";
+import { verifyState, saveTokens, TOKEN_ENDPOINT, qboApiBase } from "../_shared/qbo.ts";
 
 const CLIENT_ID     = Deno.env.get("INTUIT_CLIENT_ID")     || "";
 const CLIENT_SECRET = Deno.env.get("INTUIT_CLIENT_SECRET") || "";
@@ -107,10 +107,7 @@ serve(async (req) => {
   // ── 2. Fetch company name for display (best-effort) ──────────────────────
   let companyName: string | null = null;
   try {
-    const env  = body.environment ?? "production";
-    const base = env === "sandbox"
-      ? "https://sandbox-quickbooks.api.intuit.com"
-      : "https://quickbooks.api.intuit.com";
+    const base = qboApiBase(body.environment ?? "production");
 
     const infoCtrl  = new AbortController();
     const infoTimer = setTimeout(() => infoCtrl.abort(), 15_000);
@@ -128,6 +125,9 @@ serve(async (req) => {
       if (info.ok) {
         const j = await info.json();
         companyName = j?.CompanyInfo?.CompanyName ?? null;
+      } else {
+        // Non-fatal: realm or scope mismatch surfaces here. Log for ops; user-facing flow still completes.
+        console.warn(`[qbo-connect-callback] companyinfo ${info.status} for realm ${body.realmId}`);
       }
     } finally {
       clearTimeout(infoTimer);
