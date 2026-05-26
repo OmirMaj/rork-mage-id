@@ -10,6 +10,9 @@ alter table public.invoices        add column if not exists qbo_id           tex
 alter table public.invoices        add column if not exists qbo_hash         text;
 alter table public.invoices        add column if not exists qbo_synced_at    timestamptz;
 alter table public.invoices        add column if not exists qbo_sync_status  text;
+alter table public.invoices drop constraint if exists invoices_qbo_sync_status_check;
+alter table public.invoices add  constraint invoices_qbo_sync_status_check
+  check (qbo_sync_status is null or qbo_sync_status in ('pending','synced','error'));
 alter table public.invoices        add column if not exists qbo_error        text;
 alter table public.invoices        add column if not exists qbo_retry_count  int default 0;
 
