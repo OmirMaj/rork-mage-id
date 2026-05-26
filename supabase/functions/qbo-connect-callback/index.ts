@@ -40,9 +40,13 @@ const DEFAULT_ENV: "sandbox" | "production" =
   (Deno.env.get("INTUIT_ENVIRONMENT") === "sandbox" ? "sandbox" : "production");
 
 // Callback does NOT need auth headers from the app — trust root is the signed state.
+// BUT — the Supabase JS client ALWAYS sends apikey/authorization/x-client-info
+// headers regardless of whether the edge fn validates them. CORS preflight must
+// allow those headers or the browser blocks the actual POST. (We just ignore them
+// inside the handler.)
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 

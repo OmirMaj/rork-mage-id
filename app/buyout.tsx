@@ -278,28 +278,28 @@ export default function BuyoutScreen() {
 
               <View style={styles.kpiTile}>
                 <View style={styles.kpiTileTopRow}>
-                  <Text style={styles.kpiLabel}>Buyout {kpi.savingsToDate >= 0 ? 'savings' : 'overrun'}</Text>
+                  <Text style={styles.kpiLabel} numberOfLines={1}>{kpi.savingsToDate >= 0 ? 'Savings' : 'Overrun'}</Text>
                   {kpi.savingsToDate >= 0
                     ? <TrendingUp size={14} color={themeColors.success} />
                     : <TrendingDown size={14} color={themeColors.danger} />}
                 </View>
-                <Text style={[styles.kpiNum, { color: kpi.savingsToDate >= 0 ? themeColors.success : themeColors.danger }]}>
+                <Text style={[styles.kpiNum, { color: kpi.savingsToDate >= 0 ? themeColors.success : themeColors.danger }]} numberOfLines={1} adjustsFontSizeToFit>
                   {kpi.savingsToDate >= 0 ? '+' : ''}{formatMoney(kpi.savingsToDate)}
                 </Text>
-                <Text style={styles.kpiSub}>vs. estimate carry across awarded packages</Text>
+                <Text style={styles.kpiSub} numberOfLines={2}>vs. estimate</Text>
               </View>
 
               <View style={styles.kpiTile}>
                 <View style={styles.kpiTileTopRow}>
-                  <Text style={styles.kpiLabel}>Packages</Text>
+                  <Text style={styles.kpiLabel} numberOfLines={1}>Packages</Text>
                 </View>
                 <Text style={styles.kpiNum}>{kpi.awarded}<Text style={styles.kpiNumSecondary}> / {kpi.total}</Text></Text>
                 <View style={styles.kpiPaceRow}>
                   <View style={[styles.pacePill, { backgroundColor: '#FF6A1A22' }]}>
-                    <Text style={[styles.pacePillText, { color: themeColors.accent }]}>{kpi.open} open</Text>
+                    <Text style={[styles.pacePillText, { color: themeColors.accent }]} numberOfLines={1}>{kpi.open} open</Text>
                   </View>
                   <View style={[styles.pacePill, { backgroundColor: '#0D6CB122' }]}>
-                    <Text style={[styles.pacePillText, { color: '#0D6CB1' }]}>{kpi.leveling} leveling</Text>
+                    <Text style={[styles.pacePillText, { color: '#0D6CB1' }]} numberOfLines={1}>{kpi.leveling} lvl</Text>
                   </View>
                 </View>
               </View>
@@ -509,8 +509,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' },
 
-  kpiBand: { flexDirection: 'row', gap: 10, paddingHorizontal: 12, paddingTop: 6 },
-  kpiTile: { flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: t.line, gap: 6 },
+  kpiBand: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 6 },
+  kpiTile: { flex: 1, minWidth: 0, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, padding: 12, borderWidth: 1, borderColor: t.line, gap: 6 },
   kpiTileTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 18 },
   kpiLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   kpiNum: { fontSize: Type.title1.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
@@ -520,8 +520,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: t.accent, borderRadius: 2 },
   kpiAlert: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.danger, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.sm },
   kpiAlertText: { fontSize: 10, fontWeight: '700' as const, color: '#FFF', textTransform: 'uppercase', letterSpacing: 0.5 },
-  kpiPaceRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
-  pacePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
+  kpiPaceRow: { flexDirection: 'row', gap: 4, marginTop: 2, flexWrap: 'wrap' as const },
+  pacePill: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.sm, flexShrink: 0 },
   pacePillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
 
   section: { padding: 16, paddingBottom: 8 },

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react-native';
+import { ChevronLeft, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Users, Package, FileText, DollarSign, Shield, Zap, RefreshCcw } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -66,14 +66,47 @@ export default function QboSetupScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
         {loading ? <ActivityIndicator color={colors.accent} /> :
           (!status || status.status === 'disconnected') ? (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Connect QuickBooks Online</Text>
-              <Text style={styles.cardSub}>One-tap OAuth. Your invoices, payments, and customers will sync live from MAGE to QuickBooks.</Text>
-              <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onConnect} testID="qbo-connect">
-                <ExternalLink size={16} color="#FFFFFF" />
-                <Text style={styles.primaryText}>{busy ? 'Opening…' : 'Connect QuickBooks'}</Text>
-              </TouchableOpacity>
-            </View>
+            <>
+              {/* Hero */}
+              <View style={styles.hero}>
+                <View style={styles.heroBadge}>
+                  <View style={styles.qboMark}><Text style={styles.qboMarkText}>qb</Text></View>
+                  <Text style={styles.heroPill}>QUICKBOOKS ONLINE</Text>
+                </View>
+                <Text style={styles.heroTitle}>Live 2-way sync with QuickBooks</Text>
+                <Text style={styles.heroSub}>
+                  Stop double-entering invoices. MAGE pushes new customers, invoices, items, and payments to your books in seconds — and pulls QuickBooks-side payments back automatically.
+                </Text>
+                <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onConnect} testID="qbo-connect">
+                  <ExternalLink size={16} color="#FFFFFF" />
+                  <Text style={styles.primaryText}>{busy ? 'Opening…' : 'Connect QuickBooks'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.heroHint}>One-tap OAuth · about 30 seconds</Text>
+              </View>
+
+              {/* What gets synced */}
+              <Text style={styles.sectionLabel}>What gets synced</Text>
+              <View style={styles.syncList}>
+                <SyncRow Icon={Users}    title="Customers"  sub="Each MAGE project becomes a QuickBooks Customer" styles={styles} colors={colors} />
+                <SyncRow Icon={Package}  title="Items"      sub="Estimate line items become Service items in QBO" styles={styles} colors={colors} />
+                <SyncRow Icon={FileText} title="Invoices"   sub="MAGE invoices appear with line-item detail" styles={styles} colors={colors} />
+                <SyncRow Icon={DollarSign} title="Payments" sub="Two-way — payments flow both directions automatically" styles={styles} colors={colors} />
+              </View>
+
+              {/* How it works */}
+              <Text style={styles.sectionLabel}>How it works</Text>
+              <View style={styles.stepsCard}>
+                <StepRow num={1} title="Connect once"    sub="Sign in to Intuit, pick your QuickBooks company, approve access. We never see your password." styles={styles} colors={colors} last={false} />
+                <StepRow num={2} title="Work in MAGE"    sub="Create projects and invoices like you normally would. Every save pushes to QuickBooks behind the scenes." styles={styles} colors={colors} last={false} />
+                <StepRow num={3} title="Reconcile auto"  sub="A background job runs every 30 minutes to retry anything that failed and flow QBO-side payments back to MAGE." styles={styles} colors={colors} last={true} />
+              </View>
+
+              {/* Trust footer */}
+              <View style={styles.trustRow}>
+                <Shield size={14} color={colors.textMuted} />
+                <Text style={styles.trustText}>OAuth 2.0 via Intuit · MAGE never stores your QuickBooks password</Text>
+              </View>
+            </>
           ) : status.status === 'reauth_required' ? (
             <View style={[styles.card, styles.cardWarn]}>
               <AlertTriangle size={20} color={colors.danger} />
@@ -128,6 +161,33 @@ function Stat({ label, value, good, bad, styles }: { label: string; value: numbe
   );
 }
 
+function SyncRow({ Icon, title, sub, styles, colors }: { Icon: React.ComponentType<{ size?: number; color?: string }>; title: string; sub: string; styles: ReturnType<typeof makeStyles>; colors: ThemeColors }) {
+  return (
+    <View style={styles.syncRow}>
+      <View style={styles.syncIcon}><Icon size={18} color={colors.accent} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.syncTitle}>{title}</Text>
+        <Text style={styles.syncSub}>{sub}</Text>
+      </View>
+    </View>
+  );
+}
+
+function StepRow({ num, title, sub, last, styles, colors }: { num: number; title: string; sub: string; last: boolean; styles: ReturnType<typeof makeStyles>; colors: ThemeColors }) {
+  return (
+    <View style={styles.stepRow}>
+      <View style={styles.stepNumWrap}>
+        <View style={styles.stepNumCircle}><Text style={styles.stepNumText}>{num}</Text></View>
+        {!last ? <View style={styles.stepLine} /> : null}
+      </View>
+      <View style={{ flex: 1, paddingBottom: last ? 0 : 14 }}>
+        <Text style={styles.stepTitle}>{title}</Text>
+        <Text style={styles.stepSub}>{sub}</Text>
+      </View>
+    </View>
+  );
+}
+
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: t.line },
@@ -146,4 +206,175 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   statBad: { borderLeftWidth: 3, borderLeftColor: t.danger },
   statVal: { fontSize: 22, fontWeight: '800' as const, color: t.text },
   statLabel: { fontSize: 11, fontWeight: '700' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+
+  // Disconnected-state premium UI
+  hero: {
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.card,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: t.line,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  heroBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 4,
+  },
+  qboMark: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#2CA01C', // Intuit QuickBooks green
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  qboMarkText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900' as const,
+    letterSpacing: -0.5,
+  },
+  heroPill: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    color: t.textMuted,
+    letterSpacing: 1,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: t.text,
+    textAlign: 'center' as const,
+    letterSpacing: -0.5,
+    marginTop: 2,
+  },
+  heroSub: {
+    fontSize: Type.subhead.fontSize,
+    color: t.textMuted,
+    textAlign: 'center' as const,
+    lineHeight: 21,
+    paddingHorizontal: 4,
+  },
+  heroHint: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    marginTop: 6,
+  },
+
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '800' as const,
+    color: t.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 1,
+    marginTop: 8,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+
+  syncList: {
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: t.line,
+    marginBottom: 18,
+    overflow: 'hidden' as const,
+  },
+  syncRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: t.line,
+  },
+  syncIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: t.surfaceAlt,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  syncTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: t.text,
+    marginBottom: 1,
+  },
+  syncSub: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textMuted,
+    lineHeight: 18,
+  },
+
+  stepsCard: {
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: t.line,
+    padding: 16,
+    marginBottom: 18,
+  },
+  stepRow: {
+    flexDirection: 'row' as const,
+    gap: 12,
+    alignItems: 'flex-start' as const,
+  },
+  stepNumWrap: {
+    alignItems: 'center' as const,
+    width: 28,
+  },
+  stepNumCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: t.accent,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  stepNumText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800' as const,
+  },
+  stepLine: {
+    flex: 1,
+    width: 2,
+    backgroundColor: t.line,
+    marginTop: 4,
+    marginBottom: 4,
+    minHeight: 18,
+  },
+  stepTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: t.text,
+    marginBottom: 2,
+  },
+  stepSub: {
+    fontSize: Type.footnote.fontSize,
+    color: t.textMuted,
+    lineHeight: 19,
+  },
+
+  trustRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    marginTop: 4,
+    paddingHorizontal: 12,
+  },
+  trustText: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    textAlign: 'center' as const,
+    flexShrink: 1,
+  },
 });
