@@ -230,6 +230,9 @@ export interface Project {
    * are NOT stored here — they read from their source tables live.
    */
   handoverChecklist?: Record<string, string>;
+  // QuickBooks 2-way sync — Phase 1.
+  qboCustomerId?: string;
+  qboSyncedAt?: string;
 }
 
 // ─── Project Contract ───────────────────────────────────────────────
@@ -1108,6 +1111,13 @@ export interface Invoice {
   payLinkId?: string;
   createdAt: string;
   updatedAt: string;
+  // QuickBooks 2-way sync — Phase 1.
+  qboId?: string;
+  qboHash?: string;
+  qboSyncedAt?: string;
+  qboSyncStatus?: 'pending' | 'synced' | 'error';
+  qboError?: string;
+  qboRetryCount?: number;
 }
 
 // AIA G702/G703 progress pay application saved against a project. The portal
@@ -3401,4 +3411,21 @@ export interface TakeoffResult {
   /** Rolled-up confidence on the entire takeoff. */
   confidenceOverall: TakeoffConfidence;
   confidenceExplanation: string;
+}
+
+// ─── QuickBooks Online 2-way sync — Phase 1 ─────────────────────────────────
+
+export interface QboConnection {
+  userId: string;
+  realmId: string;
+  environment: 'sandbox' | 'production';
+  companyName: string | null;
+  status: 'connecting' | 'connected' | 'reauth_required' | 'error' | 'disconnected';
+  lastSyncAt: string | null;
+  lastError: string | null;
+}
+
+export interface QboPaymentBlob {
+  qboId?: string;
+  source?: 'mage' | 'qbo';
 }
