@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette, ExternalLink } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -939,6 +939,25 @@ export default function SettingsScreen() {
               <Wallet size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Payments dashboard</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionHeader}>INTEGRATIONS</Text>
+        <Text style={styles.sectionSubtext}>
+          Connect third-party services. QuickBooks Online syncs your invoices, payments, and customers in real time.
+        </Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/qbo-setup' as any)}
+            activeOpacity={0.7}
+            testID="qbo-setup-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
+              <ExternalLink size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Connect QuickBooks</Text>
             <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>

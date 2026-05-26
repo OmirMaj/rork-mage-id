@@ -904,6 +904,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="qbo-setup"
+        options={{
+          title: "QuickBooks",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="dev-seeder"
         options={{
           title: "Demo Seeder",
