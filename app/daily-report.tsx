@@ -39,6 +39,8 @@ import { nailIt } from '@/components/animations/NailItToast';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -1004,6 +1006,12 @@ export default function DailyReportScreen() {
             )}
           </View>
 
+          {existingReport && (
+            <View style={{ paddingHorizontal: 16 }}>
+              <PortalStatusPill portalState={existingReport.portalState} itemUpdatedAt={existingReport.updatedAt} />
+            </View>
+          )}
+
           {/* Progress + carry-forward toolbar — sits between the hero and
               the section forms. Progress pill on the left tells the GC how
               close they are to a sendable report; "Copy from <last>" pill
@@ -1534,6 +1542,20 @@ export default function DailyReportScreen() {
               </View>
             )}
           </View>
+
+          {existingReport && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+              <SendToClientButton
+                kind="daily_report"
+                itemId={existingReport.id}
+                projectId={existingReport.projectId}
+                portalState={existingReport.portalState}
+                itemUpdatedAt={existingReport.updatedAt}
+                canSend={workPerformed.trim().length > 0 || manpower.length > 0}
+                canSendReason={workPerformed.trim().length === 0 && manpower.length === 0 ? 'Add work performed or crew before sending.' : undefined}
+              />
+            </View>
+          )}
         </ScrollView>
 
         {/* Bottom save bar removed — Save Draft + Submit now live in the

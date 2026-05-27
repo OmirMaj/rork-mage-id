@@ -1045,6 +1045,41 @@ function ClientPortalSetupScreenInner() {
           </TouchableOpacity>
         </View>
 
+        {/* Auto-share */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>AUTO-SHARE WITH CLIENT</Text>
+          <Text style={styles.sectionSubtitle}>
+            When ON, new items of that type are shared with your client the moment you save them.
+            When OFF, new items go to your Outbox as Drafts — tap Send to share each one.
+          </Text>
+          <View style={styles.togglesCard}>
+            {([
+              ['Daily reports as I save them', 'dailyReports'],
+              ['Photos as I upload them', 'photos'],
+              ['Selection categories as I curate them', 'selections'],
+              ['Warranty docs as I add them', 'warranties'],
+            ] as const).map(([label, key], index, arr) => {
+              const enabled = (portal.autoShare?.[key] ?? true) === true;
+              return (
+                <View key={key} style={[styles.toggleRow, index < arr.length - 1 && styles.toggleRowBorder]}>
+                  <Text style={[styles.toggleLabel, { flex: 1 }]}>{label}</Text>
+                  <Switch
+                    value={enabled}
+                    onValueChange={(v) => {
+                      setPortal(p => ({
+                        ...p,
+                        autoShare: { ...(p.autoShare ?? {}), [key]: v },
+                      }));
+                    }}
+                    trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                    thumbColor="#FFF"
+                  />
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Permissions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What Clients Can See</Text>

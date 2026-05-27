@@ -18,6 +18,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import type { Warranty, WarrantyCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'general', label: 'General' },
@@ -298,6 +300,27 @@ export default function WarrantiesScreen() {
 
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={"#9AA3AD"} multiline />
+
+                {editingId && (() => {
+                  const editingWarranty = list.find(w => w.id === editingId);
+                  if (!editingWarranty) return null;
+                  return (
+                    <>
+                      <View style={{ marginTop: 12 }}>
+                        <PortalStatusPill portalState={editingWarranty.portalState} itemUpdatedAt={editingWarranty.updatedAt} />
+                      </View>
+                      <SendToClientButton
+                        kind="warranty"
+                        itemId={editingWarranty.id}
+                        projectId={editingWarranty.projectId}
+                        portalState={editingWarranty.portalState}
+                        itemUpdatedAt={editingWarranty.updatedAt}
+                        canSend={title.trim().length > 0}
+                        canSendReason={title.trim().length === 0 ? 'Add a warranty title before sending.' : undefined}
+                      />
+                    </>
+                  );
+                })()}
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowForm(false)}>

@@ -63,6 +63,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { buildPortalSnapshot } from '@/utils/portalSnapshot';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 const ESTIMATE_REASON_LABEL: Record<EstimateChangeReason, string> = {
   manual: 'Manual save',
@@ -3862,6 +3864,19 @@ export default function ProjectDetailScreen() {
               <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
             </TouchableOpacity>
           )}
+          {lightboxPhoto && project && (
+            <View style={styles.lightboxPortalActions} onStartShouldSetResponder={() => true}>
+              <PortalStatusPill portalState={lightboxPhoto.portalState} itemUpdatedAt={lightboxPhoto.timestamp} />
+              <SendToClientButton
+                kind="photo"
+                itemId={lightboxPhoto.id}
+                projectId={project.id}
+                portalState={lightboxPhoto.portalState}
+                itemUpdatedAt={lightboxPhoto.timestamp}
+                canSend={true}
+              />
+            </View>
+          )}
         </Pressable>
       </Modal>
 
@@ -4182,12 +4197,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   lightboxImage: { width: '100%', height: '100%' },
   lightboxClose: { position: 'absolute' as const, top: 50, right: 20, padding: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: Tokens.radius["2xl"] },
   lightboxMarkupBtn: {
-    position: 'absolute' as const, bottom: 60, alignSelf: 'center' as const,
+    position: 'absolute' as const, bottom: 120, alignSelf: 'center' as const,
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
     paddingHorizontal: 18, paddingVertical: 12, borderRadius: Tokens.radius.full,
     backgroundColor: 'rgba(255,106,26,0.95)',
   },
   lightboxMarkupBtnText: { color: themeColors.surface, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
+  lightboxPortalActions: {
+    position: 'absolute' as const, bottom: 16, left: 16, right: 16,
+    gap: 8,
+  },
   portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
   portalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, marginBottom: 2 },
   portalDesc: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
