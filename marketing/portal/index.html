@@ -3179,7 +3179,7 @@
       }).join('');
       var hasChosen = !!chosen;
       return '' +
-        '<div class="sel-cat" data-has-chosen="' + (hasChosen ? '1' : '0') + '">' +
+        '<div class="sel-cat" data-has-chosen="' + (hasChosen ? '1' : '0') + '" data-item-id="' + esc(c.id) + '">' +
           '<div class="sel-cat-head">' +
             '<div>' +
               '<div class="sel-cat-name">' + esc(c.category) + '</div>' +
@@ -3622,7 +3622,7 @@
         : '';
       var detailHtml = '<span class="invoice-detail-hint">View details ' + icn(ICONS.chevronR, 12) + '</span>';
       return (
-        '<div class="invoice-card '+(isPaid ? 'paid' : 'unpaid')+'" data-invoice="'+esc(i.id)+'">' +
+        '<div class="invoice-card '+(isPaid ? 'paid' : 'unpaid')+'" data-invoice="'+esc(i.id)+'" data-item-id="'+esc(i.id)+'">' +
           '<div class="row-main">' +
             '<div class="invoice-num">' +
               '<strong>Invoice #'+esc(i.number)+'</strong>' +
@@ -3659,7 +3659,7 @@
       var due = a.currentPaymentDue || 0;
       var canPay = !!a.payLinkUrl && due > 0;
       return (
-        '<div class="aia-card" data-aia="'+esc(a.id)+'">' +
+        '<div class="aia-card" data-aia="'+esc(a.id)+'" data-item-id="'+esc(a.id)+'">' +
           '<div class="row-main">' +
             '<div class="aia-num-block">' +
               '<span class="aia-num-eyebrow">G702 / G703 · App</span>' +
@@ -3733,7 +3733,7 @@
         );
       }
       return (
-        '<div class="row co-row">' +
+        '<div class="row co-row" data-item-id="'+esc(c.id)+'">' +
           '<div class="row-main">' +
             '<div class="row-title">CO #'+esc(c.number)+' — '+esc(c.description || '')+'</div>' +
             '<div class="row-meta">'+fmtDate(c.dateSubmitted)+' · '+sign+fmtMoney(Math.abs(amt))+'</div>' +
@@ -3842,7 +3842,7 @@
     if (!drs || !drs.length) return emptyState('No daily reports shared.');
     return drs.map(function (d) {
       return (
-        '<div class="dfr-card">' +
+        '<div class="dfr-card" data-item-id="'+esc(d.id)+'">' +
           '<div class="dfr-head">' +
             '<div class="dfr-date">'+fmtDate(d.date)+'</div>' +
             (d.weather ? '<div class="dfr-weather">'+esc(d.weather)+'</div>' : '') +
@@ -3879,7 +3879,7 @@
     if (!rfis || !rfis.length) return emptyState('No RFIs shared.');
     return rfis.map(function (r) {
       return (
-        '<div class="row">' +
+        '<div class="row" data-item-id="'+esc(r.id)+'">' +
           '<div class="row-main">' +
             '<div class="row-title">RFI #'+esc(r.number)+' — '+esc(r.subject || '')+'</div>' +
             '<div class="row-meta">Submitted '+fmtDate(r.dateSubmitted)+'</div>' +
@@ -5201,6 +5201,47 @@
     wireActivityReactions(data);
 
     document.getElementById('portal').style.display = 'block';
+
+    // PortalSend Phase 1 — beacon visible item IDs to MAGE so the builder
+    // sees a "Viewed" timestamp on each item they sent. Fire-and-forget;
+    // failures never affect the portal render.
+    (function markViewed() {
+      try {
+        var api = data && data.portalApi;
+        var portalId = api && api.portalId;
+        // Access token is in the ?t= query param (same source used by
+        // portal_sign_contract / portal_choose_selection).
+        var accessToken = new URLSearchParams(window.location.search).get('t');
+        if (!portalId || !accessToken) return;
+
+        // Collect rendered item IDs from data-item-id attributes added to
+        // each item card/row inside its section container. Sections use
+        // id="sec-<sectionId>" so we can scope the querySelectorAll.
+        var items = [];
+        var collect = function (kind, sectionId) {
+          var sec = document.getElementById('sec-' + sectionId);
+          if (!sec) return;
+          sec.querySelectorAll('[data-item-id]').forEach(function (el) {
+            var itemId = el.getAttribute('data-item-id');
+            if (itemId) items.push({ kind: kind, id: itemId });
+          });
+        };
+        collect('change_order',  'changeOrders');
+        collect('invoice',       'invoices');
+        collect('aia_pay_app',   'paymentApps');
+        collect('rfi',           'rfis');
+        collect('daily_report',  'dailyReports');
+        collect('selection',     'selections');
+        // photos, submittals, warranties: no UUIDs surfaced in this snapshot
+        if (!items.length) return;
+
+        fetch('https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/portal-mark-viewed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ portalId: portalId, accessToken: accessToken, items: items }),
+        }).catch(function () { /* fire-and-forget; UX unaffected if it fails */ });
+      } catch (_e) { /* never block the portal render */ }
+    })();
   }
 
   function renderDecisionBanner(data, sections) {
