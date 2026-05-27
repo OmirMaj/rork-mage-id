@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, PlanZone, PlanReview, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance, PermitRoadmap, SendableItemKind, PortalState } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -276,6 +276,9 @@ type CrossDomainValue = {
   updateDailyReport: (id: string, updates: Partial<DailyFieldReport>) => void;
   convertLeadToProject: (leadId: string) => string | null;
   awardBidPackage: (packageId: string, bidId: string) => string | null;
+  sendToClientPortal: (args: { kind: SendableItemKind; itemId: string; projectId: string }) => Promise<void>;
+  recallFromClientPortal: (args: { kind: SendableItemKind; itemId: string; projectId: string }) => Promise<void>;
+  batchSendToClientPortal: (args: { items: { kind: SendableItemKind; itemId: string }[]; projectId: string }) => Promise<{ sent: number }>;
 };
 
 const CoreDataContext = createContext<CoreDataValue | null>(null);
@@ -2139,6 +2142,186 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     return commitmentId;
   }, [bidPackages, bidPackageBids, commitments, projects, saveCommitmentsMutation, saveBidPackagesMutation, saveBidPackageBidsMutation, saveProjectsMutation, syncProjectToSupabase, canSync]);
 
+  // ── Client Portal Send / Recall / Batch ───────────────────────────────────
+  //
+  // These actions mutate per-item portalState + write a notification row to
+  // portal_messages. The supabaseWrite offline queue handles network failures
+  // — the optimistic local mutation always lands; the server sync flushes
+  // when connectivity returns.
+  //
+  // Snapshot capture: we serialize the item to a JSON string capped at 32KB
+  // and stash it on portalState.lastSentSnapshot. portalSnapshot.ts reads
+  // this when present, so edits after Send never reach the client.
+
+  const MAX_SNAPSHOT_BYTES = 32_000;
+
+  const captureSnapshot = (item: unknown): string => {
+    try {
+      const raw = JSON.stringify(item);
+      return raw.length > MAX_SNAPSHOT_BYTES ? raw.slice(0, MAX_SNAPSHOT_BYTES) : raw;
+    } catch { return ''; }
+  };
+
+  const itemTypeLabel: Record<SendableItemKind, string> = {
+    change_order: 'Change Order', invoice: 'Invoice', aia_pay_app: 'AIA Pay Application',
+    rfi: 'RFI', submittal: 'Submittal',
+    daily_report: 'Daily Report', photo: 'Photo', selection: 'Selection', warranty: 'Warranty',
+  };
+
+  const tableForKind: Record<SendableItemKind, string> = {
+    change_order: 'change_orders', invoice: 'invoices', aia_pay_app: 'aia_pay_apps',
+    rfi: 'rfis', submittal: 'submittals',
+    daily_report: 'daily_reports', photo: 'photos',
+    selection: 'selection_categories', warranty: 'warranties',
+  };
+
+  const findItemByKindAndId = useCallback(
+    (kind: SendableItemKind, itemId: string): unknown => {
+      switch (kind) {
+        case 'change_order': return changeOrders.find(i => i.id === itemId);
+        case 'invoice':      return invoices.find(i => i.id === itemId);
+        case 'aia_pay_app':  return aiaPayApps.find(i => i.id === itemId);
+        case 'rfi':          return rfis.find(i => i.id === itemId);
+        case 'submittal':    return submittals.find(i => i.id === itemId);
+        case 'daily_report': return dailyReports.find(i => i.id === itemId);
+        case 'photo':        return projectPhotos.find(i => i.id === itemId);
+        case 'selection':    return undefined; // managed outside ProjectContext via selectionsEngine
+        case 'warranty':     return warranties.find(i => i.id === itemId);
+      }
+    },
+    [changeOrders, invoices, aiaPayApps, rfis, submittals, dailyReports, projectPhotos, warranties],
+  );
+
+  const updateItemPortalState = useCallback(
+    (kind: SendableItemKind, itemId: string, next: PortalState) => {
+      const setNext = <T extends { id: string; portalState?: PortalState }>(list: T[]): T[] =>
+        list.map(i => i.id === itemId ? { ...i, portalState: next } : i);
+      switch (kind) {
+        case 'change_order': setChangeOrders(setNext); break;
+        case 'invoice':      setInvoices(setNext); break;
+        case 'aia_pay_app':  setAiaPayApps(setNext); break;
+        case 'rfi':          setRfis(setNext); break;
+        case 'submittal':    setSubmittals(setNext); break;
+        case 'daily_report': setDailyReports(setNext); break;
+        case 'photo':        setProjectPhotos(setNext); break;
+        case 'selection':    break; // no-op — managed outside ProjectContext
+        case 'warranty':     setWarranties(setNext); break;
+      }
+    },
+    [setChangeOrders, setInvoices, setAiaPayApps, setRfis, setSubmittals, setDailyReports, setProjectPhotos, setWarranties],
+  );
+
+  const sendToClientPortal = useCallback(async ({ kind, itemId, projectId }: { kind: SendableItemKind; itemId: string; projectId: string }): Promise<void> => {
+    const item = findItemByKindAndId(kind, itemId);
+    if (!item) throw new Error(`Item not found: ${kind}/${itemId}`);
+
+    const prevVersion = (item as { portalState?: PortalState }).portalState?.sentVersion ?? 0;
+    const nextPortalState: PortalState = {
+      status: 'sent',
+      sentAt: new Date().toISOString(),
+      sentVersion: prevVersion + 1,
+      lastSentSnapshot: captureSnapshot(item),
+      // viewedAt cleared on re-send. New sends have no viewedAt.
+    };
+
+    updateItemPortalState(kind, itemId, nextPortalState);
+
+    if (canSync && userId) {
+      void supabaseWrite(tableForKind[kind], 'update', {
+        id: itemId,
+        portal_state: nextPortalState,
+        updated_at: new Date().toISOString(),
+      });
+      void supabaseWrite('portal_messages', 'insert', {
+        project_id: projectId,
+        author_type: 'gc',
+        body: `📋 New ${itemTypeLabel[kind]} from your builder. Tap to review.`,
+        meta: { kind, itemId, sentVersion: nextPortalState.sentVersion },
+        created_at: new Date().toISOString(),
+      });
+    }
+  }, [canSync, userId, findItemByKindAndId, updateItemPortalState]);
+
+  const recallFromClientPortal = useCallback(async ({ kind, itemId, projectId }: { kind: SendableItemKind; itemId: string; projectId: string }): Promise<void> => {
+    const item = findItemByKindAndId(kind, itemId);
+    if (!item) throw new Error(`Item not found: ${kind}/${itemId}`);
+
+    const prev = (item as { portalState?: PortalState }).portalState;
+    const nextPortalState: PortalState = {
+      ...prev,
+      status: 'recalled',
+    };
+    updateItemPortalState(kind, itemId, nextPortalState);
+
+    if (canSync && userId) {
+      void supabaseWrite(tableForKind[kind], 'update', {
+        id: itemId,
+        portal_state: nextPortalState,
+        updated_at: new Date().toISOString(),
+      });
+      void supabaseWrite('portal_messages', 'insert', {
+        project_id: projectId,
+        author_type: 'gc',
+        body: `Your builder removed a previously shared ${itemTypeLabel[kind]} — please disregard.`,
+        meta: { kind, itemId, recall: true },
+        created_at: new Date().toISOString(),
+      });
+    }
+  }, [canSync, userId, findItemByKindAndId, updateItemPortalState]);
+
+  const batchSendToClientPortal = useCallback(async (
+    { items, projectId }: { items: { kind: SendableItemKind; itemId: string }[]; projectId: string },
+  ): Promise<{ sent: number }> => {
+    if (!items.length) return { sent: 0 };
+
+    // Mutate each item's local state + queue the per-row table updates.
+    // CRITICAL: do NOT call sendToClientPortal in a loop — that would
+    // create N portal_messages rows. Inline the mutations here, then write
+    // exactly ONE consolidated portal_messages summary row at the end.
+    const nowIso = new Date().toISOString();
+    for (const { kind, itemId } of items) {
+      const item = findItemByKindAndId(kind, itemId);
+      if (!item) continue;
+      const prevVersion = (item as { portalState?: PortalState }).portalState?.sentVersion ?? 0;
+      const next: PortalState = {
+        status: 'sent',
+        sentAt: nowIso,
+        sentVersion: prevVersion + 1,
+        lastSentSnapshot: captureSnapshot(item),
+      };
+      updateItemPortalState(kind, itemId, next);
+      if (canSync && userId) {
+        void supabaseWrite(tableForKind[kind], 'update', {
+          id: itemId,
+          portal_state: next,
+          updated_at: nowIso,
+        });
+      }
+    }
+
+    // Build a consolidated summary message: "3 new updates from your builder:
+    // 1 Change Order, 1 RFI, 1 Daily Report"
+    if (canSync && userId) {
+      const counts: Partial<Record<SendableItemKind, number>> = {};
+      for (const { kind } of items) counts[kind] = (counts[kind] ?? 0) + 1;
+      const parts: string[] = [];
+      for (const k of Object.keys(counts) as SendableItemKind[]) {
+        const n = counts[k]!;
+        parts.push(`${n} ${itemTypeLabel[k]}${n === 1 ? '' : 's'}`);
+      }
+      const body = `${items.length} new update${items.length === 1 ? '' : 's'} from your builder: ${parts.join(', ')}`;
+      void supabaseWrite('portal_messages', 'insert', {
+        project_id: projectId,
+        author_type: 'gc',
+        body,
+        meta: { batch: true, count: items.length },
+        created_at: nowIso,
+      });
+    }
+
+    return { sent: items.length };
+  }, [canSync, userId, findItemByKindAndId, updateItemPortalState]);
+
   const addSubcontractor = useCallback((sub: Subcontractor) => {
     const updated = [sub, ...subcontractors];
     setSubcontractors(updated);
@@ -3329,7 +3512,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const crossDomain = useMemo<CrossDomainValue>(() => ({
     updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage,
-  }), [updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage]);
+    sendToClientPortal, recallFromClientPortal, batchSendToClientPortal,
+  }), [updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage, sendToClientPortal, recallFromClientPortal, batchSendToClientPortal]);
 
   return (
     <StableActionsContext.Provider value={stableActions}>
