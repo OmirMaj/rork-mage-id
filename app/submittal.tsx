@@ -25,6 +25,8 @@ import { parseSubmittalFromTranscript, pickIfEmpty } from '@/utils/voiceFormPars
 import type { SubmittalStatus } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 function getStatusColor(t: ThemeColors, status: SubmittalStatus): string {
   switch (status) {
@@ -312,6 +314,10 @@ function SubmittalScreenInner() {
           </View>
         )}
 
+        {existingSubmittal && (
+          <PortalStatusPill portalState={existingSubmittal.portalState} itemUpdatedAt={existingSubmittal.updatedAt} />
+        )}
+
         <InlineVoiceFill
           title="Dictate this submittal"
           contextLine={project?.name ? `for ${project.name}` : undefined}
@@ -461,6 +467,18 @@ function SubmittalScreenInner() {
               </View>
             )}
           </>
+        )}
+
+        {existingSubmittal && (
+          <SendToClientButton
+            kind="submittal"
+            itemId={existingSubmittal.id}
+            projectId={existingSubmittal.projectId}
+            portalState={existingSubmittal.portalState}
+            itemUpdatedAt={existingSubmittal.updatedAt}
+            canSend={existingSubmittal.title.trim().length > 0}
+            canSendReason={existingSubmittal.title.trim().length === 0 ? 'Add a title before sending.' : undefined}
+          />
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">

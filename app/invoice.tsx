@@ -43,6 +43,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import type { InvoiceLineItem, Invoice, InvoiceStatus, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 // Happy-path lifecycle for an invoice. partially_paid + overdue map back to
 // "Sent" in the visual since the invoice is mid-flight to "Paid"; the
@@ -897,6 +899,9 @@ function InvoiceInner() {
                 </Text>
               </View>
             )}
+            {existingInvoice && (
+              <PortalStatusPill portalState={existingInvoice.portalState} itemUpdatedAt={existingInvoice.updatedAt} />
+            )}
           </View>
 
           {existingInvoice && (
@@ -1350,6 +1355,18 @@ function InvoiceInner() {
             </TouchableOpacity>
           )}
         </ScrollView>
+
+        {existingInvoice && (
+          <SendToClientButton
+            kind="invoice"
+            itemId={existingInvoice.id}
+            projectId={existingInvoice.projectId}
+            portalState={existingInvoice.portalState}
+            itemUpdatedAt={existingInvoice.updatedAt}
+            canSend={lineItems.length > 0 && totalDue > 0}
+            canSendReason={lineItems.length === 0 || totalDue <= 0 ? 'Add line items and a total amount before sending.' : undefined}
+          />
+        )}
 
         {!isLocked && (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>

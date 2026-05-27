@@ -39,6 +39,8 @@ import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import type { SavedAIAPayApp } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 export default function AIAPayAppScreen() {
   const router = useRouter();
@@ -542,6 +544,9 @@ function AIAPayAppScreenInner() {
               <Text style={styles.heroLabel}>G702 · G703</Text>
               <Text style={styles.heroTitle}>Pay Application #{app.applicationNumber}</Text>
               <Text style={styles.heroSub}>{project.name}</Text>
+              {savedForThisAppNumber && (
+                <PortalStatusPill portalState={savedForThisAppNumber.portalState} itemUpdatedAt={savedForThisAppNumber.savedAt} />
+              )}
             </View>
             <View style={styles.progressBadge}>
               <Text style={styles.progressBadgeNum}>{totals.percentComplete.toFixed(0)}%</Text>
@@ -773,6 +778,18 @@ function AIAPayAppScreenInner() {
           )}
         </View>
       </ScrollView>
+
+      {savedForThisAppNumber && (
+        <SendToClientButton
+          kind="aia_pay_app"
+          itemId={savedForThisAppNumber.id}
+          projectId={savedForThisAppNumber.projectId}
+          portalState={savedForThisAppNumber.portalState}
+          itemUpdatedAt={savedForThisAppNumber.savedAt}
+          canSend={app.lines.length > 0}
+          canSendReason={app.lines.length === 0 ? 'Add schedule of values lines before sending.' : undefined}
+        />
+      )}
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.bottomBarRow}>

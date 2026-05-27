@@ -24,6 +24,8 @@ import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
 import type { RFIStatus, RFIPriority } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -417,6 +419,10 @@ function RFIScreenInner() {
           </View>
         )}
 
+        {existingRFI && (
+          <PortalStatusPill portalState={existingRFI.portalState} itemUpdatedAt={existingRFI.updatedAt} />
+        )}
+
         <InlineVoiceFill
           title="Dictate this RFI"
           contextLine={project?.name ? `for ${project.name}` : undefined}
@@ -614,6 +620,18 @@ function RFIScreenInner() {
               </View>
             )}
           </>
+        )}
+
+        {existingRFI && (
+          <SendToClientButton
+            kind="rfi"
+            itemId={existingRFI.id}
+            projectId={existingRFI.projectId}
+            portalState={existingRFI.portalState}
+            itemUpdatedAt={existingRFI.updatedAt}
+            canSend={existingRFI.question.trim().length > 0}
+            canSendReason={existingRFI.question.trim().length === 0 ? 'Add a question before sending.' : undefined}
+          />
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="rfi-save">

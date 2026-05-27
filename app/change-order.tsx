@@ -30,6 +30,8 @@ import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import { generateG714PDF, type G714Data, type CCDPaymentBasis } from '@/utils/aiaForms';
 import type { ChangeOrderLineItem, ChangeOrder, ChangeOrderStatus } from '@/types';
+import { PortalStatusPill } from '@/components/PortalStatusPill';
+import { SendToClientButton } from '@/components/SendToClientButton';
 
 // Pipeline stages — happy path through the CO lifecycle. Side branches
 // (rejected, revised, void) live outside this visual; the user can still
@@ -511,6 +513,9 @@ function ChangeOrderInner() {
                 </Text>
               </View>
             )}
+            {existingCO && (
+              <PortalStatusPill portalState={existingCO.portalState} itemUpdatedAt={existingCO.updatedAt} />
+            )}
           </View>
 
           {existingCO && (
@@ -807,6 +812,18 @@ function ChangeOrderInner() {
               </Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {existingCO && (
+          <SendToClientButton
+            kind="change_order"
+            itemId={existingCO.id}
+            projectId={existingCO.projectId}
+            portalState={existingCO.portalState}
+            itemUpdatedAt={existingCO.updatedAt}
+            canSend={lineItems.length > 0}
+            canSendReason={lineItems.length === 0 ? 'Add at least one line item before sending.' : undefined}
+          />
         )}
 
         {!isLocked && (
