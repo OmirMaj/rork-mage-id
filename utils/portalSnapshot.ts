@@ -818,6 +818,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       const cb = opts.closeoutBinder;
       if (!cb || (cb.status !== 'finalized' && cb.status !== 'sent')) return undefined;
       const chosenSelections = (opts.selections ?? [])
+        .filter(c => isShared(c.portalState))
         .map(c => ({ category: c.category, chosen: (c.options ?? []).find(o => o.isChosen) }))
         .filter((x): x is { category: string; chosen: NonNullable<typeof x.chosen> } => !!x.chosen)
         .map(x => ({
@@ -828,7 +829,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           supplier: x.chosen.supplier || undefined,
         }));
       const warrantyList = (opts.warranties ?? [])
-        .filter(w => w.projectId === project.id)
+        .filter(w => isShared(w.portalState) && w.projectId === project.id)
         .map(w => ({
           title: w.title ?? w.category ?? 'Item',
           provider: w.provider || undefined,
@@ -866,34 +867,35 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       needsSignature: !opts.contract.homeownerSignature && opts.contract.status === 'sent',
     } : undefined,
     // Selections — every category with at least 1 option, plus the chosen
-    // one (if any). Skip pending categories.
-    selections: opts.selections && opts.selections.length > 0
-      ? opts.selections
-          .filter(c => (c.options ?? []).length > 0)
-          .map(c => ({
-            id: c.id,
-            category: c.category,
-            styleBrief: c.styleBrief,
-            budget: c.budget,
-            status: c.status,
-            options: (c.options ?? []).map(o => ({
-              id: o.id,
-              productName: o.productName,
-              brand: o.brand,
-              description: o.description,
-              unitPrice: o.unitPrice,
-              unit: o.unit,
-              quantity: o.quantity,
-              total: o.total,
-              leadTimeDays: o.leadTimeDays,
-              supplier: o.supplier,
-              productUrl: o.productUrl,
-              imageUrl: o.imageUrl,
-              highlights: o.highlights,
-              isChosen: o.isChosen,
-            })),
-          }))
-      : undefined,
+    // one (if any). Skip pending categories and non-shared items.
+    selections: (() => {
+      const visible = (opts.selections ?? [])
+        .filter(c => isShared(c.portalState) && (c.options ?? []).length > 0)
+        .map(c => ({
+          id: c.id,
+          category: c.category,
+          styleBrief: c.styleBrief,
+          budget: c.budget,
+          status: c.status,
+          options: (c.options ?? []).map(o => ({
+            id: o.id,
+            productName: o.productName,
+            brand: o.brand,
+            description: o.description,
+            unitPrice: o.unitPrice,
+            unit: o.unit,
+            quantity: o.quantity,
+            total: o.total,
+            leadTimeDays: o.leadTimeDays,
+            supplier: o.supplier,
+            productUrl: o.productUrl,
+            imageUrl: o.imageUrl,
+            highlights: o.highlights,
+            isChosen: o.isChosen,
+          })),
+        }));
+      return visible.length > 0 ? visible : undefined;
+    })(),
     messages: trimmedMessages,
     company: {
       name: settings?.branding?.companyName ?? 'MAGE ID',
