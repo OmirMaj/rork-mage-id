@@ -3228,7 +3228,7 @@ export default function ProjectDetailScreen() {
                       testID="client-outbox-entry"
                     >
                       <Send size={14} color={themeColors.accent} />
-                      <Text style={styles.portalMessagesText}>{`Client Outbox · ${outboxCount} draft${outboxCount === 1 ? '' : 's'}`}</Text>
+                      <Text style={styles.portalMessagesText}>{`Client Outbox · ${outboxCount} item${outboxCount === 1 ? '' : 's'} to review`}</Text>
                       <Text style={styles.portalMessagesOpen}>Open ›</Text>
                     </TouchableOpacity>
                   ) : null}

@@ -133,7 +133,7 @@ export default function ClientOutboxScreen() {
       'photo',
       p => ({
         title: 'Photo',
-        subtitle: (p as { caption?: string }).caption || (p as { timestamp?: string }).timestamp || '',
+        subtitle: p.location || p.tag || (p.timestamp ? new Date(p.timestamp).toLocaleDateString() : ''),
       }),
       p => (p as { timestamp?: string }).timestamp,
     );
@@ -175,7 +175,7 @@ export default function ClientOutboxScreen() {
       case 'rfi':          return `/rfi?id=${id}&projectId=${pid}`;
       case 'submittal':    return `/submittal?id=${id}&projectId=${pid}`;
       case 'daily_report': return `/daily-report?id=${id}&projectId=${pid}`;
-      case 'photo':        return `/project-detail?id=${pid}&focusPhoto=${id}`;
+      case 'photo':        return `/project-detail?id=${pid}&tile=photos`;
       case 'selection':    return `/selections?projectId=${pid}`;
       case 'warranty':     return `/warranties?id=${id}&projectId=${pid}`;
     }
