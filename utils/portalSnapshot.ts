@@ -662,7 +662,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // from the schedule if present.
   let heroPhotoUrl: string | undefined;
   if (portal.showPhotos && photos.length) {
-    const sorted = [...photos].sort((a, b) => {
+    const sorted = [...photos.filter(p => isShared(p.portalState))].sort((a, b) => {
       const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
       const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
       return tb - ta;
