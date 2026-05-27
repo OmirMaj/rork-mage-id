@@ -10,10 +10,32 @@
 import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
-  SavedAIAPayApp,
+  SavedAIAPayApp, PortalState,
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+
+/**
+ * Per-item visibility gate. Undefined `portalState` is grandfathered as Sent
+ * so existing client portals don't lose items overnight when this feature
+ * ships. Explicit 'sent' status is also visible. 'draft' and 'recalled' hide.
+ */
+function isShared(s?: PortalState): boolean {
+  return s == null || s.status === 'sent';
+}
+
+/**
+ * Returns the per-item serializable payload. If `lastSentSnapshot` is set
+ * (post-Send), we render that exact snapshot — edits-after-send never leak.
+ * Falls back to the live serializer for grandfathered items.
+ */
+function renderSerialized<T>(item: T & { portalState?: PortalState }, serialize: (i: T) => unknown): unknown {
+  const snap = item.portalState?.lastSentSnapshot;
+  if (snap) {
+    try { return JSON.parse(snap); } catch { /* malformed snapshot → fall through */ }
+  }
+  return serialize(item);
+}
 
 // v7 adds (Wave 5):
 // - language: the homeowner's chosen language code ('en' / 'es' / 'pt' /
@@ -449,138 +471,153 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
 
   // Invoices — v2 includes line items + payment terms so the portal can show
   // a real invoice detail drawer (clickable rows, "Pay Now" CTA, breakdown).
-  if (portal.showInvoices && invoices.length) {
-    sections.invoices = invoices.map(i => {
-      const total = i.totalDue ?? 0;
-      const amountPaid = i.amountPaid ?? 0;
-      const balance = Math.max(0, total - amountPaid);
-      const lineItems = (i.lineItems ?? []).slice(0, maxInvoiceLines).map(li => ({
-        name: li.name ?? '',
-        description: li.description || undefined,
-        quantity: li.quantity ?? 0,
-        unit: li.unit ?? '',
-        unitPrice: li.unitPrice ?? 0,
-        total: li.total ?? 0,
-      }));
-      return {
-        id: i.id,
-        number: i.number,
-        total,
-        status: i.status,
-        dueDate: i.dueDate,
-        dateSubmitted: i.issueDate,
-        balance,
-        payLinkUrl: i.payLinkUrl,
-        amountPaid,
-        issueDate: i.issueDate,
-        lineItems,
-        retentionPercent: i.retentionPercent,
-        retentionAmount: i.retentionAmount,
-        taxAmount: i.taxAmount,
-        subtotal: i.subtotal,
-        paymentTerms: i.paymentTerms,
-        notes: i.notes || undefined,
-      };
-    });
+  if (portal.showInvoices) {
+    const visibleInvoices = invoices.filter(i => isShared(i.portalState));
+    if (visibleInvoices.length) {
+      sections.invoices = visibleInvoices.map(i => renderSerialized(i, (inv) => {
+        const total = inv.totalDue ?? 0;
+        const amountPaid = inv.amountPaid ?? 0;
+        const balance = Math.max(0, total - amountPaid);
+        const lineItems = (inv.lineItems ?? []).slice(0, maxInvoiceLines).map(li => ({
+          name: li.name ?? '',
+          description: li.description || undefined,
+          quantity: li.quantity ?? 0,
+          unit: li.unit ?? '',
+          unitPrice: li.unitPrice ?? 0,
+          total: li.total ?? 0,
+        }));
+        return {
+          id: inv.id,
+          number: inv.number,
+          total,
+          status: inv.status,
+          dueDate: inv.dueDate,
+          dateSubmitted: inv.issueDate,
+          balance,
+          payLinkUrl: inv.payLinkUrl,
+          amountPaid,
+          issueDate: inv.issueDate,
+          lineItems,
+          retentionPercent: inv.retentionPercent,
+          retentionAmount: inv.retentionAmount,
+          taxAmount: inv.taxAmount,
+          subtotal: inv.subtotal,
+          paymentTerms: inv.paymentTerms,
+          notes: inv.notes || undefined,
+        };
+      })) as PortalSnapshot['sections']['invoices'];
+    }
   }
 
   // AIA G702/G703 pay applications — surfaced as a dedicated portal section
   // so the client/architect/lender can pull a printable PDF from the portal
   // without bouncing back through email.
-  if (portal.showInvoices && aiaPayApps.length) {
-    const sorted = [...aiaPayApps].sort((a, b) => b.applicationNumber - a.applicationNumber);
-    sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => ({
-      id: a.id,
-      applicationNumber: a.applicationNumber,
-      applicationDate: a.applicationDate,
-      periodTo: a.periodTo,
-      ownerName: a.ownerName || undefined,
-      architectName: a.architectName || undefined,
-      contractorName: a.contractorName || undefined,
-      contractSumToDate: a.contractSumToDate,
-      retainagePercent: a.retainagePercent,
-      lessPreviousCertificates: a.lessPreviousCertificates,
-      currentPaymentDue: a.totals.currentPaymentDue,
-      totalCompletedAndStored: a.totals.totalCompletedAndStored,
-      totalRetainage: a.totals.totalRetainage,
-      totalEarnedLessRetainage: a.totals.totalEarnedLessRetainage,
-      balanceToFinish: a.totals.balanceToFinish,
-      percentComplete: a.totals.percentComplete,
-      payLinkUrl: a.payLinkUrl,
-      lines: a.lines.map(l => ({
-        itemNo: l.itemNo,
-        description: l.description,
-        scheduledValue: l.scheduledValue,
-        fromPreviousApp: l.fromPreviousApp,
-        thisPeriod: l.thisPeriod,
-        materialsPresentlyStored: l.materialsPresentlyStored,
-        retainagePercent: l.retainagePercent,
-      })),
-    }));
+  if (portal.showInvoices) {
+    const visibleAIA = aiaPayApps.filter(a => isShared(a.portalState));
+    if (visibleAIA.length) {
+      const sorted = [...visibleAIA].sort((a, b) => b.applicationNumber - a.applicationNumber);
+      sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => renderSerialized(a, (app) => ({
+        id: app.id,
+        applicationNumber: app.applicationNumber,
+        applicationDate: app.applicationDate,
+        periodTo: app.periodTo,
+        ownerName: app.ownerName || undefined,
+        architectName: app.architectName || undefined,
+        contractorName: app.contractorName || undefined,
+        contractSumToDate: app.contractSumToDate,
+        retainagePercent: app.retainagePercent,
+        lessPreviousCertificates: app.lessPreviousCertificates,
+        currentPaymentDue: app.totals.currentPaymentDue,
+        totalCompletedAndStored: app.totals.totalCompletedAndStored,
+        totalRetainage: app.totals.totalRetainage,
+        totalEarnedLessRetainage: app.totals.totalEarnedLessRetainage,
+        balanceToFinish: app.totals.balanceToFinish,
+        percentComplete: app.totals.percentComplete,
+        payLinkUrl: app.payLinkUrl,
+        lines: app.lines.map(l => ({
+          itemNo: l.itemNo,
+          description: l.description,
+          scheduledValue: l.scheduledValue,
+          fromPreviousApp: l.fromPreviousApp,
+          thisPeriod: l.thisPeriod,
+          materialsPresentlyStored: l.materialsPresentlyStored,
+          retainagePercent: l.retainagePercent,
+        })),
+      }))) as PortalSnapshot['sections']['aiaPayApps'];
+    }
   }
 
   // Change Orders
-  if (portal.showChangeOrders && changeOrders.length) {
-    sections.changeOrders = changeOrders.map(c => ({
-      id: c.id,
-      number: c.number,
-      description: c.description ?? c.reason ?? '',
-      changeAmount: c.changeAmount ?? 0,
-      status: c.status,
-      dateSubmitted: c.date,
-    }));
+  if (portal.showChangeOrders) {
+    const visibleCOs = changeOrders.filter(c => isShared(c.portalState));
+    if (visibleCOs.length) {
+      sections.changeOrders = visibleCOs.map(c => renderSerialized(c, (co) => ({
+        id: co.id,
+        number: co.number,
+        description: co.description ?? co.reason ?? '',
+        changeAmount: co.changeAmount ?? 0,
+        status: co.status,
+        dateSubmitted: co.date,
+      }))) as PortalSnapshot['sections']['changeOrders'];
+    }
   }
 
   // Photos (limit to prevent URL bloat — newest first)
-  if (portal.showPhotos && photos.length) {
-    const sorted = [...photos].sort((a, b) => {
-      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return tb - ta;
-    });
-    sections.photos = sorted.slice(0, maxPhotos).map(p => ({
-      url: p.uri ?? '',
-      caption: p.tag ?? p.location,
-      timestamp: p.timestamp,
-      markup: (p.markup ?? []).length > 0
-        ? p.markup!.map(m => ({
-            type: m.type,
-            color: m.color,
-            points: m.points,
-            text: m.text,
-          }))
-        : undefined,
-    })).filter(p => p.url);
+  if (portal.showPhotos) {
+    const visiblePhotos = photos.filter(p => isShared(p.portalState));
+    if (visiblePhotos.length) {
+      const sorted = [...visiblePhotos].sort((a, b) => {
+        const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return tb - ta;
+      });
+      sections.photos = (sorted.slice(0, maxPhotos).map(p => renderSerialized(p, (photo) => ({
+        url: photo.uri ?? '',
+        caption: photo.tag ?? photo.location,
+        timestamp: photo.timestamp,
+        markup: (photo.markup ?? []).length > 0
+          ? photo.markup!.map(m => ({
+              type: m.type,
+              color: m.color,
+              points: m.points,
+              text: m.text,
+            }))
+          : undefined,
+      }))) as PortalSnapshot['sections']['photos'])?.filter(p => p != null && (p as { url?: string }).url);
+    }
   }
 
   // Daily Reports (limit — most recent first)
-  if (portal.showDailyReports && dailyReports.length) {
-    const sorted = [...dailyReports].sort((a, b) => {
-      const ta = a.date ? new Date(a.date).getTime() : 0;
-      const tb = b.date ? new Date(b.date).getTime() : 0;
-      return tb - ta;
-    });
-    sections.dailyReports = sorted.slice(0, maxDailyReports).map(d => {
-      const totalManHours = (d.manpower ?? []).reduce(
-        (s, m) => s + ((m.hoursWorked ?? 0) * (m.headcount ?? 1)),
-        0,
-      );
-      const totalManpower = (d.manpower ?? []).reduce(
-        (s, m) => s + (m.headcount ?? 0),
-        0,
-      );
-      const weather = d.weather
-        ? `${d.weather.conditions ?? ''} ${d.weather.temperature ?? ''}`.trim() || undefined
-        : undefined;
-      return {
-        id: d.id,
-        date: d.date,
-        weather,
-        totalManpower,
-        totalManHours,
-        workPerformed: d.workPerformed,
-      };
-    });
+  if (portal.showDailyReports) {
+    const visibleDFRs = dailyReports.filter(d => isShared(d.portalState));
+    if (visibleDFRs.length) {
+      const sorted = [...visibleDFRs].sort((a, b) => {
+        const ta = a.date ? new Date(a.date).getTime() : 0;
+        const tb = b.date ? new Date(b.date).getTime() : 0;
+        return tb - ta;
+      });
+      sections.dailyReports = sorted.slice(0, maxDailyReports).map(d => renderSerialized(d, (dfr) => {
+        const totalManHours = (dfr.manpower ?? []).reduce(
+          (s, m) => s + ((m.hoursWorked ?? 0) * (m.headcount ?? 1)),
+          0,
+        );
+        const totalManpower = (dfr.manpower ?? []).reduce(
+          (s, m) => s + (m.headcount ?? 0),
+          0,
+        );
+        const weather = dfr.weather
+          ? `${dfr.weather.conditions ?? ''} ${dfr.weather.temperature ?? ''}`.trim() || undefined
+          : undefined;
+        return {
+          id: dfr.id,
+          date: dfr.date,
+          weather,
+          totalManpower,
+          totalManHours,
+          workPerformed: dfr.workPerformed,
+        };
+      })) as PortalSnapshot['sections']['dailyReports'];
+    }
   }
 
   // Punch List (only open / in-progress items are useful to clients)
@@ -602,14 +639,17 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   }
 
   // RFIs
-  if (portal.showRFIs && rfis.length) {
-    sections.rfis = rfis.map(r => ({
-      id: r.id,
-      number: r.number,
-      subject: r.subject ?? r.question ?? '',
-      status: r.status,
-      dateSubmitted: r.dateSubmitted,
-    }));
+  if (portal.showRFIs) {
+    const visibleRFIs = rfis.filter(r => isShared(r.portalState));
+    if (visibleRFIs.length) {
+      sections.rfis = visibleRFIs.map(r => renderSerialized(r, (rfi) => ({
+        id: rfi.id,
+        number: rfi.number,
+        subject: rfi.subject ?? rfi.question ?? '',
+        status: rfi.status,
+        dateSubmitted: rfi.dateSubmitted,
+      }))) as PortalSnapshot['sections']['rfis'];
+    }
   }
 
   // Documents — stub for now; wire up when documents model is finalized
