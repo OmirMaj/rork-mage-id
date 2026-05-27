@@ -17,7 +17,7 @@ import {
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
   Clock, Lock,
 } from 'lucide-react-native';
-import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision } from '@/types';
+import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
@@ -163,7 +163,7 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -188,6 +188,7 @@ export default function ProjectDetailScreen() {
   const projectSubmittals = useMemo(() => getSubmittalsForProject(id ?? ''), [id, getSubmittalsForProject]);
   const projectOACMeetings = useMemo(() => (getOACMeetingsForProject?.(id ?? '') ?? []), [id, getOACMeetingsForProject]);
   const projectWarranties = useMemo(() => getWarrantiesForProject(id ?? ''), [id, getWarrantiesForProject]);
+  const projectAIAPayApps = useMemo(() => getAIAPayAppsForProject(id ?? ''), [id, getAIAPayAppsForProject]);
   const projectPlans = useMemo(() => getPlanSheetsForProject(id ?? ''), [id, getPlanSheetsForProject]);
   const projectPermits = useMemo(() => getPermitsForProject(id ?? ''), [id, getPermitsForProject]);
 
@@ -353,6 +354,43 @@ export default function ProjectDetailScreen() {
   // depend on it unconditionally — moving them below the `if (!project)` early
   // return would violate rules of hooks.
   const estimate = useMemo(() => project?.estimate, [project]);
+
+  // Count of Outbox-worthy items (drafts + recalled + unsent edits) for this project.
+  // Drives the entry-row badge shown in the Client Portal section of the tile grid.
+  const outboxCount = useMemo(() => {
+    if (!project) return 0;
+    const pid = project.id;
+    const isDraft = (s?: PortalState) => s?.status === 'draft' || s?.status === 'recalled';
+    const isUnsentEdit = (s?: PortalState, updatedAt?: string) =>
+      s?.status === 'sent' && s.sentAt != null && updatedAt != null &&
+      new Date(updatedAt).getTime() > new Date(s.sentAt).getTime();
+    const inProject = <T extends { projectId: string; portalState?: PortalState; updatedAt?: string }>(arr: T[]) =>
+      arr.filter(x => x.projectId === pid && (isDraft(x.portalState) || isUnsentEdit(x.portalState, x.updatedAt))).length;
+    const photoCount = projectPhotos.filter(p => {
+      const ps = p.portalState;
+      if (!ps) return false;
+      if (isDraft(ps)) return true;
+      if (ps.status === 'sent' && ps.sentAt) {
+        const ts = (p as { timestamp?: string }).timestamp;
+        return ts != null && new Date(ts).getTime() > new Date(ps.sentAt).getTime();
+      }
+      return false;
+    }).length;
+    return (
+      inProject(changeOrders) +
+      inProject(projectInvoices) +
+      inProject(projectAIAPayApps as { projectId: string; portalState?: PortalState; updatedAt?: string; savedAt?: string }[]) +
+      inProject(projectRFIs as { projectId: string; portalState?: PortalState; updatedAt?: string }[]) +
+      inProject(projectSubmittals as { projectId: string; portalState?: PortalState; updatedAt?: string }[]) +
+      inProject(dailyReports) +
+      photoCount +
+      inProject(projectWarranties)
+    );
+  }, [
+    project, changeOrders, projectInvoices, projectAIAPayApps,
+    projectRFIs, projectSubmittals, dailyReports, projectPhotos, projectWarranties,
+  ]);
+
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     linkedEstimate: true,
     materials: true,
@@ -3179,6 +3217,21 @@ export default function ProjectDetailScreen() {
                       );
                     })}
                   </View>
+
+                  {/* Client Outbox: batch-send drafts/unsent edits. Hidden when
+                      nothing is pending so the portal section stays clean. */}
+                  {outboxCount > 0 ? (
+                    <TouchableOpacity
+                      style={styles.portalMessagesRow}
+                      onPress={() => navigateFromTile({ pathname: '/client-outbox', params: { projectId: id ?? '' } })}
+                      activeOpacity={0.7}
+                      testID="client-outbox-entry"
+                    >
+                      <Send size={14} color={themeColors.accent} />
+                      <Text style={styles.portalMessagesText}>{`Client Outbox · ${outboxCount} draft${outboxCount === 1 ? '' : 's'}`}</Text>
+                      <Text style={styles.portalMessagesOpen}>Open ›</Text>
+                    </TouchableOpacity>
+                  ) : null}
 
                   {/* Quick entry into the messaging thread. MUST go through
                       navigateFromTile, not router.push — this section

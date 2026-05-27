@@ -995,6 +995,7 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen name="project-scope" options={{ headerShown: false }} />
+      <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
     </Stack>
   );
 }
