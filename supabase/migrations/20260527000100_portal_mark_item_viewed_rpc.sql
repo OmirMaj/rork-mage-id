@@ -47,7 +47,10 @@ begin
   execute q;
 end $$;
 
--- Service-role-only grant: the edge fn calls via service role key.
--- Anon/authenticated callers have no path to this function.
+-- Defense in depth: SECURITY DEFINER functions are PUBLIC-executable by
+-- default. Revoke from public so only service_role (used by the
+-- portal-mark-viewed edge fn) can invoke. Matches the pattern used by
+-- portal_sign_contract, portal_choose_selection, verify_cron_secret.
+revoke all on function public.portal_mark_item_viewed(text, text, text, timestamptz) from public;
 grant execute on function public.portal_mark_item_viewed(text, text, text, timestamptz)
   to service_role;
