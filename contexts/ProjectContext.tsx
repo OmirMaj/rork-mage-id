@@ -2279,6 +2279,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // create N portal_messages rows. Inline the mutations here, then write
     // exactly ONE consolidated portal_messages summary row at the end.
     const nowIso = new Date().toISOString();
+    let sent = 0;
+    const counts: Partial<Record<SendableItemKind, number>> = {};
     for (const { kind, itemId } of items) {
       const item = findItemByKindAndId(kind, itemId);
       if (!item) continue;
@@ -2297,29 +2299,29 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           updated_at: nowIso,
         });
       }
+      counts[kind] = (counts[kind] ?? 0) + 1;
+      sent++;
     }
 
     // Build a consolidated summary message: "3 new updates from your builder:
     // 1 Change Order, 1 RFI, 1 Daily Report"
     if (canSync && userId) {
-      const counts: Partial<Record<SendableItemKind, number>> = {};
-      for (const { kind } of items) counts[kind] = (counts[kind] ?? 0) + 1;
       const parts: string[] = [];
       for (const k of Object.keys(counts) as SendableItemKind[]) {
         const n = counts[k]!;
         parts.push(`${n} ${itemTypeLabel[k]}${n === 1 ? '' : 's'}`);
       }
-      const body = `${items.length} new update${items.length === 1 ? '' : 's'} from your builder: ${parts.join(', ')}`;
+      const body = `${sent} new update${sent === 1 ? '' : 's'} from your builder: ${parts.join(', ')}`;
       void supabaseWrite('portal_messages', 'insert', {
         project_id: projectId,
         author_type: 'gc',
         body,
-        meta: { batch: true, count: items.length },
+        meta: { batch: true, count: sent },
         created_at: nowIso,
       });
     }
 
-    return { sent: items.length };
+    return { sent };
   }, [canSync, userId, findItemByKindAndId, updateItemPortalState]);
 
   const addSubcontractor = useCallback((sub: Subcontractor) => {
