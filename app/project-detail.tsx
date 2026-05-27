@@ -366,6 +366,10 @@ export default function ProjectDetailScreen() {
       new Date(updatedAt).getTime() > new Date(s.sentAt).getTime();
     const inProject = <T extends { projectId: string; portalState?: PortalState; updatedAt?: string }>(arr: T[]) =>
       arr.filter(x => x.projectId === pid && (isDraft(x.portalState) || isUnsentEdit(x.portalState, x.updatedAt))).length;
+    // AIA pay apps use savedAt (not updatedAt) as their modification timestamp.
+    const aiaCount = projectAIAPayApps.filter(a =>
+      a.projectId === pid && (isDraft(a.portalState) || isUnsentEdit(a.portalState, a.savedAt))
+    ).length;
     const photoCount = projectPhotos.filter(p => {
       const ps = p.portalState;
       if (!ps) return false;
@@ -379,7 +383,7 @@ export default function ProjectDetailScreen() {
     return (
       inProject(changeOrders) +
       inProject(projectInvoices) +
-      inProject(projectAIAPayApps as { projectId: string; portalState?: PortalState; updatedAt?: string; savedAt?: string }[]) +
+      aiaCount +
       inProject(projectRFIs as { projectId: string; portalState?: PortalState; updatedAt?: string }[]) +
       inProject(projectSubmittals as { projectId: string; portalState?: PortalState; updatedAt?: string }[]) +
       inProject(dailyReports) +

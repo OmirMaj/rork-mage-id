@@ -2276,21 +2276,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
     updateItemPortalState(kind, itemId, nextPortalState);
 
+    const proj = projects.find(p => p.id === projectId);
+    const portalId = proj?.clientPortal?.portalId;
+
     if (canSync && userId) {
       void supabaseWrite(tableForKind[kind], 'update', {
         id: itemId,
         portal_state: nextPortalState,
         updated_at: new Date().toISOString(),
       });
-      void supabaseWrite('portal_messages', 'insert', {
-        project_id: projectId,
-        author_type: 'gc',
-        body: `📋 New ${itemTypeLabel[kind]} from your builder. Tap to review.`,
-        meta: { kind, itemId, sentVersion: nextPortalState.sentVersion },
-        created_at: new Date().toISOString(),
-      });
+      if (portalId) {
+        void supabaseWrite('portal_messages', 'insert', {
+          portal_id: portalId,
+          project_id: projectId,
+          author_type: 'gc',
+          body: `📋 New ${itemTypeLabel[kind]} from your builder. Tap to review.`,
+          created_at: new Date().toISOString(),
+        });
+      }
     }
-  }, [canSync, userId, findItemByKindAndId, updateItemPortalState]);
+  }, [canSync, userId, projects, findItemByKindAndId, updateItemPortalState]);
 
   const recallFromClientPortal = useCallback(async ({ kind, itemId, projectId }: { kind: SendableItemKind; itemId: string; projectId: string }): Promise<void> => {
     const item = findItemByKindAndId(kind, itemId);
@@ -2303,21 +2308,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     };
     updateItemPortalState(kind, itemId, nextPortalState);
 
+    const proj = projects.find(p => p.id === projectId);
+    const portalId = proj?.clientPortal?.portalId;
+
     if (canSync && userId) {
       void supabaseWrite(tableForKind[kind], 'update', {
         id: itemId,
         portal_state: nextPortalState,
         updated_at: new Date().toISOString(),
       });
-      void supabaseWrite('portal_messages', 'insert', {
-        project_id: projectId,
-        author_type: 'gc',
-        body: `Your builder removed a previously shared ${itemTypeLabel[kind]} — please disregard.`,
-        meta: { kind, itemId, recall: true },
-        created_at: new Date().toISOString(),
-      });
+      if (portalId) {
+        void supabaseWrite('portal_messages', 'insert', {
+          portal_id: portalId,
+          project_id: projectId,
+          author_type: 'gc',
+          body: `Your builder removed a previously shared ${itemTypeLabel[kind]} — please disregard.`,
+          created_at: new Date().toISOString(),
+        });
+      }
     }
-  }, [canSync, userId, findItemByKindAndId, updateItemPortalState]);
+  }, [canSync, userId, projects, findItemByKindAndId, updateItemPortalState]);
 
   const batchSendToClientPortal = useCallback(async (
     { items, projectId }: { items: { kind: SendableItemKind; itemId: string }[]; projectId: string },
@@ -2355,7 +2365,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
     // Build a consolidated summary message: "3 new updates from your builder:
     // 1 Change Order, 1 RFI, 1 Daily Report"
-    if (canSync && userId) {
+    const proj = projects.find(p => p.id === projectId);
+    const portalId = proj?.clientPortal?.portalId;
+
+    if (canSync && userId && portalId) {
       const parts: string[] = [];
       for (const k of Object.keys(counts) as SendableItemKind[]) {
         const n = counts[k]!;
@@ -2363,16 +2376,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       }
       const body = `${sent} new update${sent === 1 ? '' : 's'} from your builder: ${parts.join(', ')}`;
       void supabaseWrite('portal_messages', 'insert', {
+        portal_id: portalId,
         project_id: projectId,
         author_type: 'gc',
         body,
-        meta: { batch: true, count: sent },
         created_at: nowIso,
       });
     }
 
     return { sent };
-  }, [canSync, userId, findItemByKindAndId, updateItemPortalState]);
+  }, [canSync, userId, projects, findItemByKindAndId, updateItemPortalState]);
 
   const addSubcontractor = useCallback((sub: Subcontractor) => {
     const updated = [sub, ...subcontractors];
