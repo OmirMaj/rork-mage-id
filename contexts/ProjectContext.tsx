@@ -1429,6 +1429,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         change_amount: finalCo.changeAmount, new_contract_total: finalCo.newContractTotal, status: finalCo.status,
         approvers: finalCo.approvers, approval_mode: finalCo.approvalMode, approval_deadline_days: finalCo.approvalDeadlineDays,
         audit_trail: finalCo.auditTrail, revision: finalCo.revision, created_at: finalCo.createdAt, updated_at: finalCo.updatedAt,
+        portal_state: finalCo.portalState,
       });
     }
   }, [changeOrders, saveChangeOrdersMutation, canSync, userId, initialPortalState]);
@@ -1510,7 +1511,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         line_items: finalInvoice.lineItems, subtotal: finalInvoice.subtotal, tax_rate: finalInvoice.taxRate,
         tax_amount: finalInvoice.taxAmount, total_due: finalInvoice.totalDue, amount_paid: finalInvoice.amountPaid,
         status: finalInvoice.status, payments: finalInvoice.payments, created_at: finalInvoice.createdAt, updated_at: finalInvoice.updatedAt,
-        qbo_sync_status: 'pending',
+        qbo_sync_status: 'pending', portal_state: finalInvoice.portalState,
       });
       void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', finalInvoice.id));
     }
@@ -1729,6 +1730,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         homeowner_summary_generated_at: finalReport.homeownerSummaryGeneratedAt ?? null,
         homeowner_summary_published: finalReport.homeownerSummaryPublished ?? false,
         created_at: finalReport.createdAt, updated_at: finalReport.updatedAt,
+        portal_state: finalReport.portalState,
       });
     }
   }, [dailyReports, saveDailyReportsMutation, canSync, userId, propagateProgressFromDFR, initialPortalState]);
@@ -2469,6 +2471,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         timestamp: finalPhoto.timestamp, location: finalPhoto.location, tag: finalPhoto.tag,
         linked_task_id: finalPhoto.linkedTaskId, linked_task_name: finalPhoto.linkedTaskName,
         markup: finalPhoto.markup, created_at: finalPhoto.createdAt,
+        portal_state: finalPhoto.portalState,
       });
     }
   }, [projectPhotos, savePhotosMutation, canSync, userId, initialPortalState]);
@@ -2620,7 +2623,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         assigned_to: newRfi.assignedTo, date_submitted: newRfi.dateSubmitted, date_required: newRfi.dateRequired,
         status: newRfi.status, priority: newRfi.priority, linked_drawing: newRfi.linkedDrawing,
         linked_task_id: newRfi.linkedTaskId, attachments: newRfi.attachments,
-        created_at: now, updated_at: now,
+        created_at: now, updated_at: now, portal_state: newRfi.portalState,
       });
     }
     return newRfi;
@@ -2737,6 +2740,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     snapshot_totals: (a as unknown as { snapshotTotals?: unknown }).snapshotTotals ?? null,
     created_at: (a as unknown as { createdAt?: string }).createdAt ?? new Date().toISOString(),
     updated_at: (a as unknown as { updatedAt?: string }).updatedAt ?? new Date().toISOString(),
+    portal_state: a.portalState ?? null,
   }), [userId]);
 
   const addAIAPayApp = useCallback((app: SavedAIAPayApp) => {
@@ -2830,6 +2834,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         submitted_date: newSub.submittedDate, required_date: newSub.requiredDate,
         review_cycles: newSub.reviewCycles, current_status: newSub.currentStatus,
         attachments: newSub.attachments, created_at: now, updated_at: now,
+        portal_state: newSub.portalState,
       });
     }
   }, [submittals, saveSubmittalsMutation, canSync, userId, initialPortalState]);
@@ -3098,6 +3103,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     reminder_days: w.reminderDays ?? null,
     created_at: w.createdAt,
     updated_at: w.updatedAt,
+    portal_state: w.portalState ?? null,
   }), [userId]);
 
   const addWarranty = useCallback((w: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'claims'> & { id?: string; status?: Warranty['status']; claims?: WarrantyClaim[] }) => {
