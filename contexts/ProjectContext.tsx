@@ -1378,20 +1378,60 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     updateProject(projectId, { collaborators: (project.collaborators ?? []).filter(c => c.id !== collabId) });
   }, [projects, updateProject]);
 
+  // ─── Portal-state default helper ───────────────────────────────────────────
+  // Tier 1 (CO / Invoice / AIA Pay App / RFI / Submittal): always Draft —
+  //   explicit Send required before the client can see it.
+  // Tier 2 (Daily Report / Photo / Warranty): Sent unless the project's
+  //   per-type autoShare toggle is explicitly false. Undefined = true
+  //   (preserves existing behaviour — items created before the portal toggle
+  //   was introduced continue to appear in the portal automatically).
+  // Selection is deferred — its state lives outside ProjectContext (T5 notes).
+  const initialPortalState = useCallback(
+    (kind: SendableItemKind, projectId: string): PortalState => {
+      // Tier 1 — always Draft
+      if (
+        kind === 'change_order' || kind === 'invoice' || kind === 'aia_pay_app' ||
+        kind === 'rfi' || kind === 'submittal'
+      ) {
+        return { status: 'draft' };
+      }
+      // Tier 2 — Sent unless the per-project autoShare toggle for this type
+      // is explicitly set to false. Undefined/missing = true.
+      const proj = projects.find(p => p.id === projectId);
+      const auto = proj?.clientPortal?.autoShare ?? {};
+      const enabledFor: Record<Exclude<SendableItemKind, 'change_order' | 'invoice' | 'aia_pay_app' | 'rfi' | 'submittal'>, boolean> = {
+        daily_report: auto.dailyReports !== false,
+        photo:        auto.photos       !== false,
+        selection:    auto.selections   !== false,
+        warranty:     auto.warranties   !== false,
+      };
+      const enabled = (enabledFor as Record<string, boolean | undefined>)[kind] ?? true;
+      if (enabled) {
+        return { status: 'sent', sentAt: new Date().toISOString(), sentVersion: 1 };
+      }
+      return { status: 'draft' };
+    },
+    [projects],
+  );
+
   const addChangeOrder = useCallback((co: ChangeOrder) => {
-    const updated = [co, ...changeOrders];
+    const finalCo: ChangeOrder = {
+      ...co,
+      portalState: co.portalState ?? initialPortalState('change_order', co.projectId),
+    };
+    const updated = [finalCo, ...changeOrders];
     setChangeOrders(updated);
     saveChangeOrdersMutation.mutate(updated);
     if (canSync) {
       void supabaseWrite('change_orders', 'insert', {
-        id: co.id, user_id: userId, project_id: co.projectId, number: co.number, date: co.date,
-        description: co.description, reason: co.reason, line_items: co.lineItems, original_contract_value: co.originalContractValue,
-        change_amount: co.changeAmount, new_contract_total: co.newContractTotal, status: co.status,
-        approvers: co.approvers, approval_mode: co.approvalMode, approval_deadline_days: co.approvalDeadlineDays,
-        audit_trail: co.auditTrail, revision: co.revision, created_at: co.createdAt, updated_at: co.updatedAt,
+        id: finalCo.id, user_id: userId, project_id: finalCo.projectId, number: finalCo.number, date: finalCo.date,
+        description: finalCo.description, reason: finalCo.reason, line_items: finalCo.lineItems, original_contract_value: finalCo.originalContractValue,
+        change_amount: finalCo.changeAmount, new_contract_total: finalCo.newContractTotal, status: finalCo.status,
+        approvers: finalCo.approvers, approval_mode: finalCo.approvalMode, approval_deadline_days: finalCo.approvalDeadlineDays,
+        audit_trail: finalCo.auditTrail, revision: finalCo.revision, created_at: finalCo.createdAt, updated_at: finalCo.updatedAt,
       });
     }
-  }, [changeOrders, saveChangeOrdersMutation, canSync, userId]);
+  }, [changeOrders, saveChangeOrdersMutation, canSync, userId, initialPortalState]);
 
   const updateChangeOrder = useCallback((id: string, updates: Partial<ChangeOrder>) => {
     const now = new Date().toISOString();
@@ -1455,22 +1495,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, [changeOrders]);
 
   const addInvoice = useCallback((invoice: Invoice) => {
-    const updated = [invoice, ...invoices];
+    const finalInvoice: Invoice = {
+      ...invoice,
+      portalState: invoice.portalState ?? initialPortalState('invoice', invoice.projectId),
+    };
+    const updated = [finalInvoice, ...invoices];
     setInvoices(updated);
     saveInvoicesMutation.mutate(updated);
     if (canSync) {
       void supabaseWrite('invoices', 'insert', {
-        id: invoice.id, user_id: userId, project_id: invoice.projectId, number: invoice.number,
-        type: invoice.type, progress_percent: invoice.progressPercent, issue_date: invoice.issueDate,
-        due_date: invoice.dueDate, payment_terms: invoice.paymentTerms, notes: invoice.notes,
-        line_items: invoice.lineItems, subtotal: invoice.subtotal, tax_rate: invoice.taxRate,
-        tax_amount: invoice.taxAmount, total_due: invoice.totalDue, amount_paid: invoice.amountPaid,
-        status: invoice.status, payments: invoice.payments, created_at: invoice.createdAt, updated_at: invoice.updatedAt,
+        id: finalInvoice.id, user_id: userId, project_id: finalInvoice.projectId, number: finalInvoice.number,
+        type: finalInvoice.type, progress_percent: finalInvoice.progressPercent, issue_date: finalInvoice.issueDate,
+        due_date: finalInvoice.dueDate, payment_terms: finalInvoice.paymentTerms, notes: finalInvoice.notes,
+        line_items: finalInvoice.lineItems, subtotal: finalInvoice.subtotal, tax_rate: finalInvoice.taxRate,
+        tax_amount: finalInvoice.taxAmount, total_due: finalInvoice.totalDue, amount_paid: finalInvoice.amountPaid,
+        status: finalInvoice.status, payments: finalInvoice.payments, created_at: finalInvoice.createdAt, updated_at: finalInvoice.updatedAt,
         qbo_sync_status: 'pending',
       });
-      void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', invoice.id));
+      void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', finalInvoice.id));
     }
-  }, [invoices, saveInvoicesMutation, canSync, userId]);
+  }, [invoices, saveInvoicesMutation, canSync, userId, initialPortalState]);
 
   const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
     const now = new Date().toISOString();
@@ -1667,23 +1711,27 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, [projects, updateProject]);
 
   const addDailyReport = useCallback((report: DailyFieldReport) => {
-    const updated = [report, ...dailyReports];
+    const finalReport: DailyFieldReport = {
+      ...report,
+      portalState: report.portalState ?? initialPortalState('daily_report', report.projectId),
+    };
+    const updated = [finalReport, ...dailyReports];
     setDailyReports(updated);
     saveDailyReportsMutation.mutate(updated);
-    propagateProgressFromDFR(report);
+    propagateProgressFromDFR(finalReport);
     if (canSync) {
       void supabaseWrite('daily_reports', 'insert', {
-        id: report.id, user_id: userId, project_id: report.projectId, date: report.date,
-        weather: report.weather, manpower: report.manpower, work_performed: report.workPerformed,
-        materials_delivered: report.materialsDelivered, issues_and_delays: report.issuesAndDelays,
-        photos: report.photos, status: report.status,
-        homeowner_summary: report.homeownerSummary ?? null,
-        homeowner_summary_generated_at: report.homeownerSummaryGeneratedAt ?? null,
-        homeowner_summary_published: report.homeownerSummaryPublished ?? false,
-        created_at: report.createdAt, updated_at: report.updatedAt,
+        id: finalReport.id, user_id: userId, project_id: finalReport.projectId, date: finalReport.date,
+        weather: finalReport.weather, manpower: finalReport.manpower, work_performed: finalReport.workPerformed,
+        materials_delivered: finalReport.materialsDelivered, issues_and_delays: finalReport.issuesAndDelays,
+        photos: finalReport.photos, status: finalReport.status,
+        homeowner_summary: finalReport.homeownerSummary ?? null,
+        homeowner_summary_generated_at: finalReport.homeownerSummaryGeneratedAt ?? null,
+        homeowner_summary_published: finalReport.homeownerSummaryPublished ?? false,
+        created_at: finalReport.createdAt, updated_at: finalReport.updatedAt,
       });
     }
-  }, [dailyReports, saveDailyReportsMutation, canSync, userId, propagateProgressFromDFR]);
+  }, [dailyReports, saveDailyReportsMutation, canSync, userId, propagateProgressFromDFR, initialPortalState]);
 
   const updateDailyReport = useCallback((id: string, updates: Partial<DailyFieldReport>) => {
     const now = new Date().toISOString();
@@ -2408,18 +2456,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const getPunchItemsForProject = useCallback((projectId: string) => punchItems.filter(pi => pi.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [punchItems]);
 
   const addProjectPhoto = useCallback((photo: ProjectPhoto) => {
-    const updated = [photo, ...projectPhotos];
+    const finalPhoto: ProjectPhoto = {
+      ...photo,
+      portalState: photo.portalState ?? initialPortalState('photo', photo.projectId),
+    };
+    const updated = [finalPhoto, ...projectPhotos];
     setProjectPhotos(updated);
     savePhotosMutation.mutate(updated);
     if (canSync) {
       void supabaseWrite('photos', 'insert', {
-        id: photo.id, user_id: userId, project_id: photo.projectId, uri: photo.uri,
-        timestamp: photo.timestamp, location: photo.location, tag: photo.tag,
-        linked_task_id: photo.linkedTaskId, linked_task_name: photo.linkedTaskName,
-        markup: photo.markup, created_at: photo.createdAt,
+        id: finalPhoto.id, user_id: userId, project_id: finalPhoto.projectId, uri: finalPhoto.uri,
+        timestamp: finalPhoto.timestamp, location: finalPhoto.location, tag: finalPhoto.tag,
+        linked_task_id: finalPhoto.linkedTaskId, linked_task_name: finalPhoto.linkedTaskName,
+        markup: finalPhoto.markup, created_at: finalPhoto.createdAt,
       });
     }
-  }, [projectPhotos, savePhotosMutation, canSync, userId]);
+  }, [projectPhotos, savePhotosMutation, canSync, userId, initialPortalState]);
 
   const deleteProjectPhoto = useCallback((id: string) => {
     const updated = projectPhotos.filter(p => p.id !== id);
@@ -2550,7 +2602,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const projectRfis = rfis.filter(r => r.projectId === rfi.projectId);
     const nextNumber = projectRfis.length > 0 ? Math.max(...projectRfis.map(r => r.number)) + 1 : 1;
     const now = new Date().toISOString();
-    const newRfi: RFI = { ...rfi, id: generateUUID(), number: nextNumber, createdAt: now, updatedAt: now };
+    const newRfi: RFI = {
+      ...rfi,
+      id: generateUUID(),
+      number: nextNumber,
+      createdAt: now,
+      updatedAt: now,
+      portalState: rfi.portalState ?? initialPortalState('rfi', rfi.projectId),
+    };
     const updated = [newRfi, ...rfis];
     setRfis(updated);
     saveRfisMutation.mutate(updated);
@@ -2565,7 +2624,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       });
     }
     return newRfi;
-  }, [rfis, saveRfisMutation, canSync, userId]);
+  }, [rfis, saveRfisMutation, canSync, userId, initialPortalState]);
 
   const updateRFI = useCallback((id: string, updates: Partial<RFI>) => {
     const now = new Date().toISOString();
@@ -2681,16 +2740,20 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }), [userId]);
 
   const addAIAPayApp = useCallback((app: SavedAIAPayApp) => {
-    const dedup = aiaPayApps.filter(a => !(a.projectId === app.projectId && a.applicationNumber === app.applicationNumber));
-    const updated = [app, ...dedup];
+    const finalApp: SavedAIAPayApp = {
+      ...app,
+      portalState: app.portalState ?? initialPortalState('aia_pay_app', app.projectId),
+    };
+    const dedup = aiaPayApps.filter(a => !(a.projectId === finalApp.projectId && a.applicationNumber === finalApp.applicationNumber));
+    const updated = [finalApp, ...dedup];
     setAiaPayApps(updated);
     saveAiaPayAppsMutation.mutate(updated);
     // Upsert: app screen always saves as new ID per draft so insert is correct;
     // if the user re-saves the same id (rare), the table PK guards from dupes
     // and Supabase will return a 409 we ignore.
-    if (canSync && userId) void supabaseWrite('aia_pay_apps', 'insert', aiaPayAppToRow(app));
-    return app;
-  }, [aiaPayApps, saveAiaPayAppsMutation, canSync, userId, aiaPayAppToRow]);
+    if (canSync && userId) void supabaseWrite('aia_pay_apps', 'insert', aiaPayAppToRow(finalApp));
+    return finalApp;
+  }, [aiaPayApps, saveAiaPayAppsMutation, canSync, userId, aiaPayAppToRow, initialPortalState]);
 
   const deleteAIAPayApp = useCallback((id: string) => {
     const updated = aiaPayApps.filter(a => a.id !== id);
@@ -2749,7 +2812,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const projectSubs = submittals.filter(s => s.projectId === sub.projectId);
     const nextNumber = projectSubs.length > 0 ? Math.max(...projectSubs.map(s => s.number)) + 1 : 1;
     const now = new Date().toISOString();
-    const newSub: Submittal = { ...sub, id: generateUUID(), number: nextNumber, createdAt: now, updatedAt: now };
+    const newSub: Submittal = {
+      ...sub,
+      id: generateUUID(),
+      number: nextNumber,
+      createdAt: now,
+      updatedAt: now,
+      portalState: sub.portalState ?? initialPortalState('submittal', sub.projectId),
+    };
     const updated = [newSub, ...submittals];
     setSubmittals(updated);
     saveSubmittalsMutation.mutate(updated);
@@ -2762,7 +2832,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         attachments: newSub.attachments, created_at: now, updated_at: now,
       });
     }
-  }, [submittals, saveSubmittalsMutation, canSync, userId]);
+  }, [submittals, saveSubmittalsMutation, canSync, userId, initialPortalState]);
 
   const updateSubmittal = useCallback((id: string, updates: Partial<Submittal>) => {
     const now = new Date().toISOString();
@@ -3038,12 +3108,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       status: w.status ?? 'active',
       claims: w.claims ?? [],
       ...w,
+      portalState: w.portalState ?? initialPortalState('warranty', w.projectId),
     } as Warranty;
     fresh.status = computeWarrantyStatus(fresh);
     persistWarranties([fresh, ...warranties]);
     if (canSync && userId) void supabaseWrite('warranties', 'insert', warrantyToRow(fresh));
     return fresh;
-  }, [warranties, persistWarranties, computeWarrantyStatus, canSync, userId, warrantyToRow]);
+  }, [warranties, persistWarranties, computeWarrantyStatus, canSync, userId, warrantyToRow, initialPortalState]);
 
   const updateWarranty = useCallback((id: string, updates: Partial<Warranty>) => {
     const now = new Date().toISOString();
