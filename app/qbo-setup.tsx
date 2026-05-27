@@ -1,14 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Users, Package, FileText, DollarSign, Shield, Zap, RefreshCcw } from 'lucide-react-native';
+import { ChevronLeft, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Users, Package, FileText, DollarSign, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { connectQuickBooks, fetchQboStatus, type QboStatus } from '@/utils/qboSync';
+import { QboSuccessCheckmark } from '@/components/QboSuccessCheckmark';
 
 export default function QboSetupScreen() {
   const router = useRouter();
@@ -18,6 +19,12 @@ export default function QboSetupScreen() {
   const [status, setStatus] = useState<QboStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Briefly show the animated celebration when the status transitions from
+  // not-connected to connected during this screen visit. Doesn't fire on
+  // already-connected screen reloads (we'd see the same green check every
+  // time, which would feel like dunking on the user).
+  const [celebrate, setCelebrate] = useState(false);
+  const prevStatusRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -26,6 +33,18 @@ export default function QboSetupScreen() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  // Detect "just connected" moment from polling.
+  useEffect(() => {
+    const cur = status?.status ?? null;
+    if (cur === 'connected' && prevStatusRef.current && prevStatusRef.current !== 'connected') {
+      setCelebrate(true);
+      const t = setTimeout(() => setCelebrate(false), 2800);
+      prevStatusRef.current = cur;
+      return () => clearTimeout(t);
+    }
+    prevStatusRef.current = cur;
+  }, [status?.status]);
 
   const onConnect = useCallback(async () => {
     if (busy) return;
@@ -131,6 +150,15 @@ export default function QboSetupScreen() {
             </View>
           ) : (
             <>
+              {celebrate ? (
+                <View style={styles.celebrateHero}>
+                  <QboSuccessCheckmark size={88} color={colors.success} />
+                  <Text style={styles.celebrateTitle}>Connected!</Text>
+                  <Text style={styles.celebrateSub}>
+                    {status.companyName ? `MAGE is now linked to ${status.companyName}.` : 'MAGE is now linked to your QuickBooks Online account.'}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.card}>
                 <View style={styles.row}><CheckCircle2 size={18} color={colors.success} /><Text style={styles.cardTitle}>Connected · {status.companyName ?? 'QuickBooks Online'}</Text></View>
                 <Text style={styles.cardSub}>Realm {status.realmId} · {status.environment}</Text>
@@ -376,5 +404,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textMuted,
     textAlign: 'center' as const,
     flexShrink: 1,
+  },
+
+  // Just-connected celebration (transient, fades after ~2.8s).
+  celebrateHero: {
+    alignItems: 'center' as const,
+    paddingTop: 8,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  celebrateTitle: {
+    fontSize: 24,
+    fontWeight: '800' as const,
+    color: t.text,
+    letterSpacing: -0.5,
+  },
+  celebrateSub: {
+    fontSize: Type.subhead.fontSize,
+    color: t.textMuted,
+    textAlign: 'center' as const,
+    lineHeight: 21,
+    paddingHorizontal: 16,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Switch, Modal, Dimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +22,8 @@ import SignaturePad from '@/components/SignaturePad';
 import Tutorial from '@/components/Tutorial';
 import Paywall from '@/components/Paywall';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { fetchQboStatus, type QboStatus } from '@/utils/qboSync';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -84,6 +85,21 @@ export default function SettingsScreen() {
   const [aiLimit, setAiLimit] = useState(10);
   const [aiSmartUsed, setAiSmartUsed] = useState(0);
   const [aiSmartLimit, setAiSmartLimit] = useState(3);
+
+  // QuickBooks connection state — surfaced as a live "Connected · Company"
+  // pill on the Integrations row so the user doesn't have to drill in to
+  // check. Refetched on every screen focus so it stays in sync after the
+  // user returns from /qbo-setup.
+  const [qboStatus, setQboStatus] = useState<QboStatus | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void fetchQboStatus().then((s) => { if (!cancelled) setQboStatus(s); }).catch(() => { /* silent */ });
+      return () => { cancelled = true; };
+    }, []),
+  );
+  const qboConnected = qboStatus?.status === 'connected';
+  const qboReauth = qboStatus?.status === 'reauth_required' || qboStatus?.status === 'error';
   // Monthly takeoff page quota (separate from the daily AI request
   // counter above — takeoffs are page-metered server-side; the daily
   // counter only tracks text AI requests).
@@ -954,10 +970,29 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="qbo-setup-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <ExternalLink size={14} color="#fff" />
+            <View style={[
+              styles.iconWrap,
+              { backgroundColor: qboConnected ? '#2CA01C' : qboReauth ? themeColors.danger : themeColors.accent },
+            ]}>
+              {qboConnected ? <Check size={14} color="#fff" /> : <ExternalLink size={14} color="#fff" />}
             </View>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Connect QuickBooks</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>
+                {qboConnected ? 'QuickBooks Online' : qboReauth ? 'Reconnect QuickBooks' : 'Connect QuickBooks'}
+              </Text>
+              {qboConnected ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#2CA01C' }} />
+                  <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted }}>
+                    Connected{qboStatus?.companyName ? ` · ${qboStatus.companyName}` : ''}
+                  </Text>
+                </View>
+              ) : qboReauth ? (
+                <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.danger, marginTop: 2 }}>
+                  Reconnect required
+                </Text>
+              ) : null}
+            </View>
             <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>

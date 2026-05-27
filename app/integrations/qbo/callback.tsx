@@ -27,13 +27,14 @@ import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react-native";
+import { AlertTriangle, ExternalLink } from "lucide-react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
 import type { ThemeColors } from "@/constants/colors";
 import { Tokens } from "@/constants/designTokens";
 import { Type } from "@/constants/typography";
 import { completeQuickBooksCallback } from "@/utils/qboSync";
+import { QboSuccessCheckmark } from "@/components/QboSuccessCheckmark";
 
 type Status = "pending" | "success" | "error";
 
@@ -114,7 +115,7 @@ export default function QboCallbackScreen() {
         )}
         {status === "success" && (
           <>
-            <CheckCircle2 size={64} color={colors.success} />
+            <QboSuccessCheckmark size={96} color={colors.success} />
             <Text style={styles.title}>Connected!</Text>
             <Text style={styles.subtitle}>
               {companyName ? `MAGE is now linked to ${companyName}.` : "MAGE is now linked to your QuickBooks Online account."}

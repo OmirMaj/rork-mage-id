@@ -328,12 +328,18 @@ function RootLayoutNav() {
     const inOnboardingPaywall = (segments[0] as string) === 'onboarding-paywall';
     const inResetPassword = segments[0] === 'reset-password';
     const inPrequalForm = segments[0] === 'prequal-form';
+    // OAuth callback pages: Intuit (and other providers) redirect users here
+    // from an in-app browser session. The web build has no MAGE session in
+    // that browser context — auth-walling these routes was bouncing users to
+    // /login mid-OAuth, breaking the QuickBooks Connect flow. The callback
+    // page authenticates via a signed state HMAC, not the user's JWT.
+    const inIntegrationsCallback = segments[0] === 'integrations';
 
     // Public magic-link destinations: never redirect away from these, even
     // when the user is unauthenticated. The prequal-form route is opened by
     // subcontractors via a tokenized email link; if we redirect to /login
     // before the token is consumed, the link is dead on arrival.
-    if (inResetPassword || inPrequalForm) return;
+    if (inResetPassword || inPrequalForm || inIntegrationsCallback) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
