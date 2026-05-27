@@ -387,6 +387,8 @@ export interface SelectionCategory {
   createdAt: string;
   updatedAt: string;
   options?: SelectionOption[];   // populated when fetched with options
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 export interface ProjectTargetBudget {
@@ -1044,6 +1046,8 @@ export interface ChangeOrder {
   revision?: number;
   createdAt: string;
   updatedAt: string;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 export interface InvoiceLineItem {
@@ -1118,6 +1122,8 @@ export interface Invoice {
   qboSyncStatus?: 'pending' | 'synced' | 'error';
   qboError?: string;
   qboRetryCount?: number;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 // AIA G702/G703 progress pay application saved against a project. The portal
@@ -1194,6 +1200,8 @@ export interface SavedAIAPayApp {
   payLinkId?: string;
 
   savedAt: string;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 export interface ManpowerEntry {
@@ -1299,6 +1307,8 @@ export interface DailyFieldReport {
   homeownerSummaryPublished?: boolean;
   createdAt: string;
   updatedAt: string;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 export type SubTrade =
@@ -1828,6 +1838,8 @@ export interface ProjectPhoto {
   /** Reverse-geocoded address when online, else "<lat>, <lng>". */
   locationLabel?: string;
   createdAt: string;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 export interface PhotoMarkup {
@@ -2097,6 +2109,19 @@ export interface ClientPortalSettings {
      *  double-sends if the cron is retried. */
     lastSentAt?: string;
   };
+  /**
+   * Per-type auto-share defaults for Tier 2 items. When true, new items
+   * of that type default to portalState.status='sent' on creation
+   * (preserves current behavior). When false, new items default to
+   * 'draft' and require explicit Send — joining Tier 1's workflow.
+   * Undefined behaves as `true` (backward compat).
+   */
+  autoShare?: {
+    dailyReports?: boolean;
+    photos?: boolean;
+    selections?: boolean;
+    warranties?: boolean;
+  };
 }
 
 /** Supported languages for the homeowner portal. ISO 639-1. */
@@ -2290,6 +2315,8 @@ export interface RFI {
   shareToken?: string;
   createdAt: string;
   updatedAt: string;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 export type SubmittalStatus = 'pending' | 'in_review' | 'approved' | 'approved_as_noted' | 'revise_resubmit' | 'rejected';
@@ -2319,6 +2346,8 @@ export interface Submittal {
   shareToken?: string;
   createdAt: string;
   updatedAt: string;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 export interface EarnedValueMetrics {
@@ -3089,6 +3118,8 @@ export interface Warranty {
   reminderDays?: number;
   createdAt: string;
   updatedAt: string;
+  // Client portal send/recall lifecycle — Phase 1.
+  portalState?: PortalState;
 }
 
 // ============================================================================
@@ -3424,6 +3455,42 @@ export interface QboConnection {
   lastSyncAt: string | null;
   lastError: string | null;
 }
+
+// ─── Send-to-Client Portal — Phase 1 ─────────────────────────────────────────
+
+/**
+ * Per-item visibility + lifecycle state for the client portal.
+ * `undefined` is treated as Sent by the snapshot filter (backward
+ * compat — existing items pre-this-feature shouldn't disappear from
+ * active client portals). New items get an explicit default per tier
+ * (see Tier 1 / Tier 2 docs in the design spec).
+ */
+export interface PortalState {
+  status: 'draft' | 'sent' | 'recalled';
+  /** ISO timestamp of the most recent successful Send action. */
+  sentAt?: string;
+  /** First-view timestamp written by portal-mark-viewed edge fn. */
+  viewedAt?: string;
+  /** Increments on every Send. Used to detect unsent edits + clear
+   *  viewedAt on re-send so the client should re-view the new
+   *  revision. */
+  sentVersion?: number;
+  /** JSON snapshot of the item at last Send (capped at ~32KB).
+   *  The portal renders THIS, not live state — so edits-after-send
+   *  never leak to the client. */
+  lastSentSnapshot?: string;
+}
+
+/**
+ * Union of every item kind that participates in the Send-to-Client
+ * workflow. Used by SendToClientButton, ProjectContext send/recall
+ * actions, the Outbox screen, and the portal-mark-viewed edge fn.
+ * Adding a new kind here is the first step for Phase 2 extensibility.
+ */
+export type SendableItemKind =
+  | 'change_order' | 'invoice' | 'aia_pay_app'
+  | 'rfi' | 'submittal'
+  | 'daily_report' | 'photo' | 'selection' | 'warranty';
 
 export interface QboPaymentBlob {
   qboId?: string;
