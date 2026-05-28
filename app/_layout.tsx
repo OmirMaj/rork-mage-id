@@ -52,6 +52,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/login': 'Sign in',
     '/signup': 'Create account',
     '/onboarding': 'Welcome',
+    '/persona-select': 'Welcome',
     '/onboarding-paywall': 'Subscribe',
     '/paywall': 'Subscribe',
     '/reset-password': 'Reset password',
@@ -316,7 +317,7 @@ function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { hasSeenOnboarding, isLoading: projectLoading, projects } = useProjects();
+  const { hasSeenOnboarding, userRole, isLoading: projectLoading, projects } = useProjects();
   const { tier } = useSubscription();
   const paywallGateRanRef = useRef(false);
 
@@ -325,6 +326,7 @@ function RootLayoutNav() {
 
     const inAuth = segments[0] === 'login' || segments[0] === 'signup';
     const inOnboarding = segments[0] === 'onboarding';
+    const inPersonaSelect = (segments[0] as string) === 'persona-select';
     const inOnboardingPaywall = (segments[0] as string) === 'onboarding-paywall';
     const inResetPassword = segments[0] === 'reset-password';
     const inPrequalForm = segments[0] === 'prequal-form';
@@ -347,7 +349,20 @@ function RootLayoutNav() {
       return;
     }
 
-    if (isAuthenticated && !hasSeenOnboarding && !inOnboarding && !inOnboardingPaywall) {
+    // Persona gate — runs BEFORE the onboarding gate. New users have to
+    // pick a marketplace persona (contractor / client / both) before
+    // entering the onboarding flow, because the onboarding question and
+    // the home tab bar are persona-specific. Existing users (pre-this-
+    // migration) were grandfathered as 'contractor' via the DB migration,
+    // so they never hit this redirect. `userRole === null` after the
+    // query resolves means the user has not yet picked.
+    if (isAuthenticated && userRole === null && !inPersonaSelect && !inOnboardingPaywall) {
+      console.log('[Layout] No persona set — redirecting to /persona-select');
+      router.replace('/persona-select' as never);
+      return;
+    }
+
+    if (isAuthenticated && userRole !== null && !hasSeenOnboarding && !inOnboarding && !inOnboardingPaywall && !inPersonaSelect) {
       console.log('[Layout] First launch — redirecting to onboarding');
       router.replace('/onboarding');
       return;
@@ -401,7 +416,7 @@ function RootLayoutNav() {
         }
       })();
     }
-  }, [isAuthenticated, hasSeenOnboarding, authLoading, projectLoading, segments, router, tier, projects]);
+  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, tier, projects]);
 
   // Audit-2026-05-21 W1 (HIGH): per-route document.title on web.
   //
@@ -477,6 +492,13 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="onboarding"
+        options={{
+          headerShown: false,
+          animation: 'fade',
+        }}
+      />
+      <Stack.Screen
+        name="persona-select"
         options={{
           headerShown: false,
           animation: 'fade',

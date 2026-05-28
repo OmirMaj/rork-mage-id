@@ -8,10 +8,12 @@ import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
 import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
+import type { UserRole } from '@/utils/onboardingProfile';
 
 const PROJECTS_KEY = 'buildwise_projects';
 const SETTINGS_KEY = 'buildwise_settings';
 const ONBOARDING_KEY = 'buildwise_onboarding_complete';
+const USER_ROLE_KEY = 'buildwise_user_role';
 const LEADS_KEY = 'tertiary_leads';
 const BID_PACKAGES_KEY = 'tertiary_bid_packages';
 const BID_PACKAGE_BIDS_KEY = 'tertiary_bid_package_bids';
@@ -90,6 +92,10 @@ type CoreDataValue = {
   projects: Project[];
   settings: AppSettings;
   hasSeenOnboarding: boolean | null;
+  /** Marketplace persona. `null` while the profile query is still hydrating
+   *  on cold boot; `undefined`-as-stored-value means the user has not yet
+   *  picked one (route them to /persona-select). */
+  userRole: UserRole | null;
   isLoading: boolean;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
@@ -268,6 +274,11 @@ type DocsDataValue = {
 
 type StableActionsValue = {
   completeOnboarding: () => Promise<void>;
+  /** Set or change the user's marketplace persona. Writes to AsyncStorage
+   *  immediately (so the root layout's gate stops bouncing them to
+   *  /persona-select) and mirrors to `public.profiles.user_role` server-side
+   *  when online. */
+  setUserRole: (role: UserRole) => Promise<void>;
 };
 
 type CrossDomainValue = {
@@ -298,6 +309,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  const [userRole, setUserRoleState] = useState<UserRole | null>(null);
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [bidPackages, setBidPackages] = useState<BidPackage[]>([]);
@@ -992,6 +1004,42 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(['onboarding', userId], true);
     if (canSync) {
       try { await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', userId); } catch { /* ok */ }
+    }
+  }, [queryClient, userId, canSync]);
+
+  // ── Marketplace persona (user_role) ─────────────────────────────────────
+  // Same pattern as the onboarding query: read from Supabase first when
+  // online, fall back to the AsyncStorage mirror. The mirror is what lets
+  // the root layout's routing gate make a decision before the network
+  // resolves on cold boot — without it, every cold boot would briefly flash
+  // /persona-select while we wait for the profile fetch.
+  const userRoleQuery = useQuery({
+    queryKey: ['user_role', userId],
+    queryFn: async (): Promise<UserRole | null> => {
+      if (canSync) {
+        try {
+          const { data } = await supabase.from('profiles').select('user_role').eq('id', userId).single();
+          const remote = (data?.user_role ?? null) as UserRole | null;
+          if (remote) {
+            await AsyncStorage.setItem(USER_ROLE_KEY, remote);
+            return remote;
+          }
+        } catch { /* fallback */ }
+      }
+      const stored = await AsyncStorage.getItem(USER_ROLE_KEY);
+      if (stored === 'contractor' || stored === 'client' || stored === 'both') return stored;
+      return null;
+    },
+  });
+
+  useEffect(() => { if (userRoleQuery.data !== undefined) setUserRoleState(userRoleQuery.data); }, [userRoleQuery.data]);
+
+  const setUserRole = useCallback(async (role: UserRole) => {
+    await AsyncStorage.setItem(USER_ROLE_KEY, role);
+    setUserRoleState(role);
+    queryClient.setQueryData(['user_role', userId], role);
+    if (canSync) {
+      try { await supabase.from('profiles').update({ user_role: role }).eq('id', userId); } catch { /* ok */ }
     }
   }, [queryClient, userId, canSync]);
 
@@ -3548,14 +3596,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   // ── Bucket memos ─────────────────────────────────────────────────────────────
   const coreData = useMemo<CoreDataValue>(() => ({
-    projects: sortedProjects, settings, hasSeenOnboarding,
-    isLoading: projectsQuery.isLoading || settingsQuery.isLoading || onboardingQuery.isLoading,
+    projects: sortedProjects, settings, hasSeenOnboarding, userRole,
+    isLoading: projectsQuery.isLoading || settingsQuery.isLoading || onboardingQuery.isLoading || userRoleQuery.isLoading,
     addProject, updateProject, deleteProject, getProject, updateSettings,
     addCollaborator, removeCollaborator,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
+  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
     changeOrders, addChangeOrder, getChangeOrdersForProject,
@@ -3600,7 +3648,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const stableActions = useMemo<StableActionsValue>(() => ({
     completeOnboarding,
-  }), [completeOnboarding]);
+    setUserRole,
+  }), [completeOnboarding, setUserRole]);
 
   const crossDomain = useMemo<CrossDomainValue>(() => ({
     updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage,

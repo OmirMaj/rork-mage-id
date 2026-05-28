@@ -25,7 +25,7 @@ const AUTH_PASSWORD_KEY = 'mageid_auth_password';
 // layer — adding a new tertiary_* prefix without listing it here is how
 // cross-tenant leaks happen.
 const LOCAL_USER_CACHE_KEYS = [
-  'buildwise_projects', 'buildwise_settings',
+  'buildwise_projects', 'buildwise_settings', 'buildwise_user_role',
   'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
   'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
   'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
