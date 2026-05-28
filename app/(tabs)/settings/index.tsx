@@ -5,12 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette, ExternalLink } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCoreData } from '@/contexts/ProjectContext';
+import { USER_ROLE_LABELS } from '@/utils/onboardingProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -76,7 +77,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { settings, updateSettings, projects, deleteProject } = useCoreData();
+  const { settings, updateSettings, projects, deleteProject, userRole } = useCoreData();
   const { user, logout, deleteAccount, isAuthenticated } = useAuth();
   const { tier } = useSubscription();
   const { colors: themeColors } = useTheme();
@@ -481,6 +482,33 @@ export default function SettingsScreen() {
         ) : (
           <Text style={styles.largeTitle}>Settings</Text>
         )}
+
+        {/* Account type — marketplace persona. Lets a user flip between
+            the contractor experience and the property-owner experience
+            without resigning up. Routes to /persona-select which re-runs
+            the same picker as first-time onboarding. */}
+        <Text style={styles.sectionHeader}>ACCOUNT TYPE</Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/persona-select' as never)}
+            activeOpacity={0.7}
+            testID="settings-persona-row"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
+              <Repeat size={14} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>
+                {userRole ? USER_ROLE_LABELS[userRole] : 'Not set'}
+              </Text>
+              <Text style={{ fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 }}>
+                Switch between contractor and property-owner views
+              </Text>
+            </View>
+            <ChevronRight size={18} color={themeColors.textMuted} />
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionHeader}>AI USAGE</Text>
         <View style={styles.group}>

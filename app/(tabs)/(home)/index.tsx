@@ -62,6 +62,7 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import PageHeader from '@/components/PageHeader';
 import ProjectRow from '@/components/ProjectRow';
 import { useTheme } from '@/contexts/ThemeContext';
+import ClientHome from '@/components/ClientHome';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -82,7 +83,7 @@ export default function HomeScreen() {
   const { navigateTo } = useEntityNavigation();
   const { openSearch } = useSearch();
   const projectCtx = useProjects();
-  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices, settings } = projectCtx;
+  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices, settings, userRole } = projectCtx;
   const { user } = useAuth();
   // "Try a sample project" — un-gated as of the explainability refresh.
   // Original design had this owner-only because we worried users would
@@ -500,6 +501,19 @@ export default function HomeScreen() {
   }
 
 
+
+  // Persona branch — clients see a marketplace-shaped hub (post RFP →
+  // bids → award → track), not the contractor operations dashboard.
+  // 'both' falls through to the contractor view by design (user can
+  // switch personas from Settings). Placed AFTER all hooks have fired
+  // so we don't violate the rules of hooks; the contractor-specific
+  // hook work is wasted for client renders but the cost is small
+  // (mostly cached query reads + AsyncStorage). If this becomes a real
+  // perf issue, split HomeScreen into two sibling components — one for
+  // each persona — and dispatch at the route level.
+  if (userRole === 'client') {
+    return <ClientHome />;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>

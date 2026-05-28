@@ -38,7 +38,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ArrowRight, HardHat, Home, Repeat } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
-import { useProjects, useProjectActions } from '@/contexts/ProjectContext';
+import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
 import {
   USER_ROLE_LABELS,
   USER_ROLE_BLURB,
@@ -75,8 +75,8 @@ const ROLES: UserRole[] = ['contractor', 'client', 'both'];
 export default function PersonaSelectScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { hasSeenOnboarding } = useProjects();
-  const { setUserRole } = useProjectActions();
+  const { hasSeenOnboarding } = useCoreData();
+  const { setUserRole, completeOnboarding } = useProjectActions();
 
   const [submitting, setSubmitting] = useState<UserRole | null>(null);
 
@@ -131,11 +131,23 @@ export default function PersonaSelectScreen() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await setUserRole(role);
-      // If onboarding is already done (user came here to *change* persona
-      // from Settings), drop them straight on home — don't re-run the
-      // size-band question. Otherwise continue into the existing onboarding
-      // flow which captures size-band + auto-seeds a sample project.
+
+      // Routing after pick has three paths:
+      //   1. Existing user changing persona from Settings (hasSeenOnboarding
+      //      is true): drop straight on home — they've seen onboarding once,
+      //      we don't re-prompt for trade size.
+      //   2. NEW client persona: skip the contractor-specific "how big is
+      //      your typical job?" onboarding entirely — that question is
+      //      meaningless for property owners, and the auto-seeded "Sample
+      //      Henderson Residence" with materials breakdown would be more
+      //      confusing than empty state on the client home (which has its
+      //      own zero state + Post a Project CTA).
+      //   3. NEW contractor or 'both': continue into the existing
+      //      onboarding for size-band capture + sample seed.
       if (hasSeenOnboarding) {
+        router.replace('/(tabs)/(home)' as never);
+      } else if (role === 'client') {
+        await completeOnboarding();
         router.replace('/(tabs)/(home)' as never);
       } else {
         router.replace('/onboarding' as never);
@@ -144,7 +156,7 @@ export default function PersonaSelectScreen() {
       console.warn('[persona-select] failed to set role:', err);
       setSubmitting(null);
     }
-  }, [hasSeenOnboarding, router, setUserRole, submitting]);
+  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, submitting]);
 
   return (
     <View style={styles.root}>

@@ -10,6 +10,7 @@ import {
   PenTool, Store, Clock,
 } from 'lucide-react-native';
 import { useSearch } from '@/contexts/SearchContext';
+import { useCoreData } from '@/contexts/ProjectContext';
 import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -94,6 +95,25 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECTIONS = ['PROJECT', 'FIELD OPS', 'FINANCIAL', 'CLIENT', 'MARKETPLACE', 'NETWORK', 'ACCOUNT'];
 
+// ─── Client-persona sidebar ──────────────────────────────────────────────
+// The full NAV_ITEMS list is contractor-shaped — 30+ destinations covering
+// estimating, scheduling, daily reports, AIA pay apps, RFIs, submittals,
+// subs, etc. A property owner posting renovations needs a much smaller
+// surface: post a project, see active RFPs, talk to awarded contractors,
+// manage account. Most contractor-side routes are not even authorized for
+// clients server-side (they're scoped by user_id on tables only contractors
+// populate), so showing them would just lead to dead ends.
+const CLIENT_NAV_ITEMS: NavItem[] = [
+  { key: 'home',          label: 'Home',           icon: Home,          route: '/(tabs)/(home)', section: 'PROPERTY OWNER' },
+  { key: 'my-rfps',       label: 'My Projects',    icon: Briefcase,     route: '/my-rfps',       section: 'PROPERTY OWNER' },
+  { key: 'post-rfp',      label: 'Post a Project', icon: FileText,      route: '/post-rfp',      section: 'PROPERTY OWNER' },
+
+  { key: 'messages',      label: 'Messages',       icon: MessageCircle, route: '/messages',      section: 'ACCOUNT' },
+  { key: 'notifications', label: 'Notifications',  icon: Bell,          route: '/notifications-inbox', section: 'ACCOUNT' },
+  { key: 'settings',      label: 'Settings',       icon: Settings,      route: '/(tabs)/settings', section: 'ACCOUNT' },
+];
+const CLIENT_SECTIONS = ['PROPERTY OWNER', 'ACCOUNT'];
+
 function isActiveRoute(pathname: string, navKey: string, route: string): boolean {
   if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
   // Plain "bids" is the scraped public-bids tab; make sure the mage-id
@@ -127,15 +147,24 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const { openSearch } = useSearch();
   const { canAccess } = useTierAccess();
   const { colors } = useTheme();
+  const { userRole } = useCoreData();
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const handleNav = useCallback((route: string) => {
     router.push(route as any);
   }, [router]);
 
-  const groupedItems = SECTIONS.map(section => ({
+  // Client persona renders a 6-item sidebar (Home / My Projects / Post /
+  // Messages / Notifications / Settings); contractor + 'both' get the full
+  // ~30-item operations sidebar. Falls back to contractor view when the
+  // role query is still hydrating so cold boot doesn't briefly flash an
+  // empty sidebar before settling.
+  const isClient = userRole === 'client';
+  const navItems = isClient ? CLIENT_NAV_ITEMS : NAV_ITEMS;
+  const sections = isClient ? CLIENT_SECTIONS : SECTIONS;
+  const groupedItems = sections.map(section => ({
     section,
-    items: NAV_ITEMS.filter(item => item.section === section),
+    items: navItems.filter(item => item.section === section),
   }));
 
   return (

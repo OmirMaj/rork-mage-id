@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useCoreData } from '@/contexts/ProjectContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import DesktopActionRail from '@/components/DesktopActionRail';
@@ -90,6 +91,14 @@ export default function TabLayout() {
   const layout = useResponsiveLayout();
   const { counts } = useSmartInbox();
   const { colors: themeColors } = useTheme();
+  const { userRole } = useCoreData();
+  // Property-owner / real-estate persona gets a stripped-down tab bar.
+  // The original product surface (Summary, Discover with public-bid search
+  // + supplier marketplace) is contractor-shaped — a client posting renovations
+  // does not want to see "MAGE ID Bids" or "Companies" or a financial summary.
+  // For MVP we collapse to two tabs: Home (the ClientHome hub) + Settings.
+  // 'both' falls through to the full contractor tab bar by design.
+  const isClient = userRole === 'client';
   const inboxBadge = counts.all > 0
     ? (counts.all > 99 ? '99+' : String(counts.all))
     : undefined;
@@ -111,11 +120,17 @@ export default function TabLayout() {
               tabBarStyle: { display: 'none' },
             }}
           >
-            <Tabs.Screen name="summary" options={{ title: 'Summary' }} />
-            <Tabs.Screen name="(home)" options={{ title: 'Your Projects' }} />
-            <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
+            {/* Client persona hides the contractor-only top-level tabs.
+                The DesktopSidebar (filtered separately by role) still gives
+                clients reachable nav for /my-rfps, /post-rfp, Settings.
+                Using `href: null` rather than conditional render so the
+                Tabs router keeps a stable screen registry across persona
+                switches (avoids "tab not found" routing flicker). */}
+            <Tabs.Screen name="summary" options={isClient ? { href: null } : { title: 'Summary' }} />
+            <Tabs.Screen name="(home)" options={{ title: isClient ? 'Home' : 'Your Projects' }} />
+            <Tabs.Screen name="discover" options={isClient ? { href: null } : { title: 'Discover' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-            <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
+            <Tabs.Screen name="mage-id-bids" options={isClient ? { href: null } : { title: 'MAGE ID Bids' }} />
             <Tabs.Screen name="construction-ai" options={{ href: null }} />
             <Tabs.Screen name="estimate" options={{ href: null }} />
             <Tabs.Screen name="materials" options={{ href: null }} />
@@ -164,9 +179,11 @@ export default function TabLayout() {
         },
       }}
     >
+      {/* Summary — financial overview, contractor-only. Clients have
+          no jobs-in-progress totals to summarize. */}
       <Tabs.Screen
         name="summary"
-        options={{
+        options={isClient ? { href: null } : {
           title: 'Summary',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={LayoutDashboard} color={color} focused={focused} />
@@ -176,7 +193,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="(home)"
         options={{
-          title: 'Your Projects',
+          // Clients see this tab labeled "Home" because it renders the
+          // property-owner hub (post a project, active RFPs, in-progress).
+          // Contractors keep the original "Your Projects" label.
+          title: isClient ? 'Home' : 'Your Projects',
           tabBarBadge: inboxBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
@@ -184,9 +204,12 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* Discover hosts public-bid search, supplier marketplace, hire — all
+          contractor-shaped. Hidden for clients; they reach their needs
+          (post RFP, review bids) from the Home hub. */}
       <Tabs.Screen
         name="discover"
-        options={{
+        options={isClient ? { href: null } : {
           title: 'Discover',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Compass} color={color} focused={focused} />
