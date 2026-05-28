@@ -12,6 +12,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { USER_ROLE_LABELS } from '@/utils/onboardingProfile';
+import {
+  loadClientSubState,
+  isClientTrialActive,
+  hasActiveClientSubscription as hasActiveClientSub,
+  type ClientSubState,
+} from '@/utils/clientPricing';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -96,6 +102,19 @@ export default function SettingsScreen() {
     useCallback(() => {
       let cancelled = false;
       void fetchQboStatus().then((s) => { if (!cancelled) setQboStatus(s); }).catch(() => { /* silent */ });
+      return () => { cancelled = true; };
+    }, []),
+  );
+
+  // Client subscription state — drives the subtitle on the ACCOUNT TYPE
+  // row so a client user can see "Pro · 12 days left in trial" without
+  // drilling in. Refetched on focus so a just-started trial reflects on
+  // the next return to Settings without a manual refresh.
+  const [clientSub, setClientSub] = useState<ClientSubState | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void loadClientSubState().then((s) => { if (!cancelled) setClientSub(s); }).catch(() => { /* silent */ });
       return () => { cancelled = true; };
     }, []),
   );
@@ -503,7 +522,21 @@ export default function SettingsScreen() {
                 {userRole ? USER_ROLE_LABELS[userRole] : 'Not set'}
               </Text>
               <Text style={{ fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 }}>
-                Switch between contractor and property-owner views
+                {(() => {
+                  // For clients on a subscription / trial, surface that
+                  // status here — it's the most reachable spot in the app
+                  // and reduces "what did I pay for?" support questions.
+                  // Contractors keep the original copy.
+                  if (userRole === 'client' && clientSub && hasActiveClientSub(clientSub)) {
+                    const tierLabel = clientSub.tier === 'client_pro' ? 'Pro' : 'Property Manager';
+                    if (isClientTrialActive(clientSub) && clientSub.trialEndsAt) {
+                      const days = Math.max(0, Math.ceil((new Date(clientSub.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                      return `${tierLabel} · ${days} day${days === 1 ? '' : 's'} left in trial`;
+                    }
+                    return `${tierLabel} subscription · Tap to switch persona`;
+                  }
+                  return 'Switch between contractor and property-owner views';
+                })()}
               </Text>
             </View>
             <ChevronRight size={18} color={themeColors.textMuted} />

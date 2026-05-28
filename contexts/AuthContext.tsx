@@ -26,6 +26,7 @@ const AUTH_PASSWORD_KEY = 'mageid_auth_password';
 // cross-tenant leaks happen.
 const LOCAL_USER_CACHE_KEYS = [
   'buildwise_projects', 'buildwise_settings', 'buildwise_user_role',
+  'mageid_client_rfp_credits_v1', 'mageid_client_sub_state_v1',
   'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
   'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
   'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',

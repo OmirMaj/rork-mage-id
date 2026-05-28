@@ -43,6 +43,7 @@ import { generateUUID } from '@/utils/generateId';
 import type { BidCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useClientPaywall } from '@/hooks/useClientPaywall';
 
 interface PickedAttachment {
   uri: string;
@@ -65,6 +66,11 @@ export default function PostRfpScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  // Client paywall gate — sits in front of the final submit. Subscribers
+  // breeze through; everyone else gets the modal asking them to pay per-
+  // post or start a trial. `ClientPaywallElement` must be rendered in JSX
+  // for gate() to be able to flip it open. See hooks/useClientPaywall.ts.
+  const { gate: gateClientPaywall, ClientPaywallElement } = useClientPaywall();
 
   const [title, setTitle]                 = useState('');
   const [category, setCategory]           = useState<BidCategory>('residential');
@@ -205,6 +211,13 @@ export default function PostRfpScreen() {
       return;
     }
 
+    // Paywall gate — opens the per-post fee modal (or subscription
+    // upsell). Returns true once the user has paid / subscribed, false
+    // if they dismissed. We do this BEFORE setSubmitting(true) so the
+    // submit button doesn't flash a spinner while the modal sits open.
+    const ok = await gateClientPaywall('rfp-post');
+    if (!ok) return;
+
     setSubmitting(true);
     try {
       const rfpId = generateUUID();
@@ -269,7 +282,7 @@ export default function PostRfpScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, user, attachments, title, address, category, budgetMin, budgetMax, deadline, scope, latLng, desiredStart, addressVerified, router]);
+  }, [validate, user, attachments, title, address, category, budgetMin, budgetMax, deadline, scope, latLng, desiredStart, addressVerified, router, gateClientPaywall]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -517,6 +530,10 @@ export default function PostRfpScreen() {
           By posting you agree this is a real project at a real address. Trolls and fake posts get accounts banned.
         </Text>
       </ScrollView>
+      {/* Client paywall modal — controlled by the gate hook above. Placed
+          at the root level so it overlays the rest of the screen when
+          gate('rfp-post') is awaiting a user decision. */}
+      {ClientPaywallElement}
     </View>
   );
 }
