@@ -602,6 +602,25 @@ export default function ProjectDetailScreen() {
     }
   }, [project, branding]);
 
+  // Copy the client-portal share link to the clipboard. The previous
+  // version of the inline portal section called Alert.alert('Copied', …)
+  // WITHOUT ever calling the clipboard API — users saw a "Copied" toast
+  // over an empty clipboard. This hooks the real clipboard util and
+  // gives a meaningful "Copy failed" path so silent failures can't
+  // recur. Used by both the dedicated Copy button and the tappable
+  // link pill.
+  const handleCopyPortalLink = useCallback(async () => {
+    const portalId = project?.clientPortal?.portalId;
+    if (!portalId) return;
+    const url = `https://mageid.app/portal/${portalId}`;
+    const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      ok ? 'Copied' : 'Copy failed',
+      ok ? 'Portal link copied to clipboard.' : 'Could not copy the link. Long-press the URL above to select it manually.',
+    );
+  }, [project?.clientPortal?.portalId]);
+
   const handleShareEmail = useCallback(async () => {
     if (!project) return;
     setShowShareModal(false);
@@ -3173,11 +3192,20 @@ export default function ProjectDetailScreen() {
               {project.clientPortal?.enabled ? (
                 <>
                   <View style={styles.portalLinkRow}>
-                    <View style={styles.portalLinkBox}>
+                    {/* Whole pill is tappable now — long-standing user
+                        feedback that tapping the link itself ought to
+                        copy, in addition to the explicit Copy button. */}
+                    <TouchableOpacity
+                      style={styles.portalLinkBox}
+                      onPress={handleCopyPortalLink}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Copy portal link"
+                    >
                       <Link size={12} color={themeColors.info} />
                       <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.portalCopyBtn} onPress={() => { Alert.alert('Copied', 'Portal link copied to clipboard.'); }} accessibilityRole="button" accessibilityLabel="Copy">
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.portalCopyBtn} onPress={handleCopyPortalLink} accessibilityRole="button" accessibilityLabel="Copy">
                       <Copy size={14} color={themeColors.accent} />
                     </TouchableOpacity>
                   </View>
