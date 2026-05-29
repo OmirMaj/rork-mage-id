@@ -20,6 +20,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, Image, ActivityIndicator, Animated, Easing,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -386,8 +387,19 @@ export default function PostRfpScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* KeyboardAvoidingView wraps both the ScrollView AND the bottom
+          action bar. On iOS, behavior="padding" pads the bottom by the
+          keyboard's height so the sticky bar lifts above it; on Android
+          we use "height" which resizes the layout. Without this the
+          keyboard covered the Continue button on the inner steps. */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={insets.top}
+      >
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -443,7 +455,7 @@ export default function PostRfpScreen() {
                     <Text style={[
                       styles.stepLabel,
                       active ? { color: themeColors.text, fontWeight: '800' } : null,
-                    ]} numberOfLines={1}>
+                    ]} numberOfLines={2}>
                       {s.label}
                     </Text>
                   </View>
@@ -558,6 +570,7 @@ export default function PostRfpScreen() {
           )}
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
 
       {/* Client paywall modal — controlled by the gate hook above. Placed
           at the root level so it overlays the rest of the screen when
@@ -1008,26 +1021,31 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   // ── Step indicator ───────────────────────────────────────────────────
   stepperCard: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'flex-start',
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: t.line,
-    paddingVertical: 12, paddingHorizontal: 14,
+    paddingVertical: 12, paddingHorizontal: 10,
   },
-  stepNode: { alignItems: 'center', gap: 6, width: 64 },
+  // flex:1 lets each node share the row evenly so labels get the
+  // breathing room they need. 2-line labels (numberOfLines={2}) catch
+  // the longer ones ("Project details", "Budget & timing") without
+  // truncating with an ellipsis.
+  stepNode: { flex: 1, alignItems: 'center', gap: 6, minWidth: 0 },
   stepDot: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: t.line + '70',
     alignItems: 'center', justifyContent: 'center',
   },
   stepLabel: {
     fontSize: 10, fontWeight: '700', color: t.textMuted,
-    textAlign: 'center', letterSpacing: 0.1,
+    textAlign: 'center', letterSpacing: 0.1, lineHeight: 13,
+    paddingHorizontal: 2,
   },
   stepLine: {
-    flex: 1, height: 0, borderTopWidth: 1.5,
+    width: 14, height: 0, borderTopWidth: 1.5,
     borderTopColor: t.line, borderStyle: 'dashed',
-    marginHorizontal: 2, marginTop: -16, // raise the line up to dot center
+    marginHorizontal: 0, marginTop: 14, // line sits at dot vertical center
   },
 
   // ── Body ─────────────────────────────────────────────────────────────
@@ -1078,18 +1096,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   verifiedText: { flex: 1, fontSize: 11.5, color: t.success, fontWeight: '700' },
 
-  // Work-type chips
+  // Work-type chips. Vertical stack (icon-over-label) rather than the
+  // horizontal layout in the mock — at a real phone width, horizontal
+  // chips truncate "Renovation" and "New Build" with an ellipsis.
+  // Stacking lets each label use the chip's full width.
   workTypeRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
   workTypeChip: {
-    flex: 1, paddingVertical: 10, paddingHorizontal: 6,
+    flex: 1, paddingVertical: 12, paddingHorizontal: 4,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
     borderWidth: 1.5, borderColor: t.line,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5,
+    flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 6,
+    minHeight: 64,
   },
   workTypeChipActive: { borderColor: t.accent, backgroundColor: t.accent + '0D' },
-  workTypeLabel: { fontSize: 12.5, fontWeight: '700', color: t.text },
+  workTypeLabel: {
+    fontSize: 12, fontWeight: '700', color: t.text,
+    textAlign: 'center', letterSpacing: -0.1,
+  },
 
   // Photo grid
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
@@ -1170,9 +1195,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.danger, lineHeight: 18 },
 
-  // ── Sticky bottom bar ────────────────────────────────────────────────
+  // ── Bottom action bar (lives inside KeyboardAvoidingView). Not
+  //     position: absolute anymore — KAV pads the bottom when the
+  //     keyboard opens, which lifts this bar above the keyboard via
+  //     normal flex layout. Absolute positioning would have escaped
+  //     the KAV's pad and stayed hidden behind the keyboard.
   bottomBar: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingTop: 10,
     backgroundColor: t.bg,
