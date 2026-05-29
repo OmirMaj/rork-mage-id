@@ -1,22 +1,21 @@
-// components/ClientHome.tsx — home dashboard for the property-owner / real-
-// estate-client persona. Renders inside the (home) tab when ProjectContext
-// reports userRole === 'client' (see app/(tabs)/(home)/index.tsx).
+// components/ClientHome.tsx — home hub for the property-owner / real-estate
+// persona. Renders inside the (home) tab when ProjectContext reports
+// userRole === 'client' (see app/(tabs)/(home)/index.tsx).
 //
-// The contractor home is dense with operations surfaces (estimate, schedule,
-// daily report, RFIs, change orders, AI briefings). The client home is the
-// opposite — a focused hub that answers four questions a property owner
-// actually has every time they open the app:
-//   1. Where do I start? → big "Post a Project" hero
-//   2. What's happening with my postings? → Active RFPs list with bid counts
-//   3. What's underway? → In-Progress (awarded) projects
-//   4. What needs my attention? → Empty for MVP, will be inbox/messages later
+// Visual direction: this surface is the first thing a real-estate operator
+// sees when they open the app. The contractor home is a tool; this one is
+// a *portfolio dashboard*. Time-aware greeting up top, live one-liner that
+// summarises what's moving, a gradient hero CTA with an embedded building
+// silhouette, animated stat tiles (Plus → Clock → Trophy → Sparkles), and
+// project cards that fill their hero void with a soft accent-tinted
+// blueprint gradient + Building silhouette when no photo is set, plus a
+// "Posted Xh ago" chip overlay so every card carries momentum.
 //
-// Data comes from the same `public_bids` + `bid_responses` tables as
-// /my-rfps — duplicated as its own query here so the hub can grow its own
-// derived stats (e.g. "ending soon", "no bids yet") without entangling
-// my-rfps's row shape.
+// Data still comes from `public_bids` + `bid_responses` — same shape
+// /my-rfps uses. Animations are RN's built-in Animated API (no reanimated
+// dependency) running on the native driver where possible.
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,12 +25,16 @@ import {
   ActivityIndicator,
   Image,
   RefreshControl,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Plus, Sparkles, MapPin, ChevronRight, Inbox, Trophy, Clock,
+  Plus, Sparkles, MapPin, ChevronRight, Building2, Trophy, Clock,
+  LayoutGrid, Sun, Moon, Sunrise, Sunset,
 } from 'lucide-react-native';
 
 import { Colors } from '@/constants/colors';
@@ -58,6 +61,70 @@ interface ClientRfpRow {
   awarded_at: string | null;
   response_count: number;
   unreviewed_count: number;
+}
+
+// Time-of-day greeting. Keeps the header personal without leaning on
+// per-user data we don't have yet (last login, weather, etc).
+function greetingFor(d: Date = new Date()): { text: string; Icon: React.ComponentType<any> } {
+  const h = d.getHours();
+  if (h < 6)  return { text: 'Working late', Icon: Moon };
+  if (h < 12) return { text: 'Good morning', Icon: Sunrise };
+  if (h < 17) return { text: 'Good afternoon', Icon: Sun };
+  if (h < 21) return { text: 'Good evening', Icon: Sunset };
+  return { text: 'Working late', Icon: Moon };
+}
+
+// Compact relative time. Used in the per-card "Posted Xh ago" chip plus
+// the activity micro-line. Kept inline so we don't pull date-fns just for
+// six branches.
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  if (d < 7) return `${d}d ago`;
+  const w = Math.floor(d / 7);
+  if (w < 4) return `${w}w ago`;
+  const mo = Math.floor(d / 30);
+  return `${mo}mo ago`;
+}
+
+// Tiny entrance wrapper — fade + 12px rise, native driver, no extra
+// packages. Stagger by passing `delay`. Reset by remounting (we don't try
+// to replay on data change; one-shot on initial render is the intent).
+function FadeRise({ delay = 0, children, style }: {
+  delay?: number;
+  children: React.ReactNode;
+  style?: any;
+}) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 380,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 380,
+        delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [opacity, translateY, delay]);
+  return (
+    <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>
+      {children}
+    </Animated.View>
+  );
 }
 
 export default function ClientHome() {
@@ -141,6 +208,25 @@ export default function ClientHome() {
     newBids: rfps.reduce((s, r) => s + r.unreviewed_count, 0),
   }), [rfps, partitioned.open.length, partitioned.awarded.length]);
 
+  // The "live one-liner" under the greeting. Composes from real numbers
+  // so it never lies. Empty state gets its own copy.
+  const subtitle = useMemo(() => {
+    if (totals.posted === 0) return 'Ready when you are — post your first project below.';
+    const parts: string[] = [];
+    if (totals.open > 0)    parts.push(`${totals.open} out for bid`);
+    if (totals.awarded > 0) parts.push(`${totals.awarded} in progress`);
+    if (totals.newBids > 0) parts.push(`${totals.newBids} new bid${totals.newBids === 1 ? '' : 's'}`);
+    if (parts.length === 0) return `${totals.posted} project${totals.posted === 1 ? '' : 's'} tracked`;
+    return parts.join('  ·  ');
+  }, [totals]);
+
+  const greeting = useMemo(() => greetingFor(), []);
+  const firstName = useMemo(() => {
+    const raw = (user?.name || '').trim();
+    if (!raw) return '';
+    return raw.split(/\s+/)[0];
+  }, [user?.name]);
+
   const handlePostProject = useCallback(() => {
     router.push('/post-rfp' as never);
   }, [router]);
@@ -150,6 +236,7 @@ export default function ClientHome() {
   }, [router]);
 
   const isEmpty = !isLoading && rfps.length === 0;
+  const GreetingIcon = greeting.Icon;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -164,57 +251,94 @@ export default function ClientHome() {
           />
         }
       >
-        {/* Header — mirrors the eyebrow/title pattern used in /my-rfps so
-            the two surfaces feel like the same product. No back button —
-            this is a tab root. */}
-        <View style={styles.header}>
-          <Text style={styles.eyebrow}>Property owner</Text>
-          <Text style={styles.title}>Your projects</Text>
-        </View>
-
-        {/* Hero CTA — the single most important action on this screen.
-            Big, branded, always visible. Stays even when the user has
-            existing RFPs because property owners typically have multiple
-            ongoing projects (a flipper has 3 houses; a PM has 50 units). */}
-        <TouchableOpacity
-          style={styles.heroCta}
-          onPress={handlePostProject}
-          activeOpacity={0.85}
-          testID="client-home-post-cta"
-        >
-          <View style={styles.heroCtaIcon}>
-            <Plus size={20} color="#FFF" strokeWidth={2.4} />
+        {/* Greeting — time-aware glyph + first name + live subtitle.
+            Replaces the "PROPERTY OWNER / Your projects" eyebrow which
+            felt institutional. Personal but not gimmicky. */}
+        <FadeRise delay={0}>
+          <View style={styles.header}>
+            <View style={styles.greetingRow}>
+              <View style={styles.greetingIconWrap}>
+                <GreetingIcon size={14} color={themeColors.accent} strokeWidth={2.4} />
+              </View>
+              <Text style={styles.greetingEyebrow}>
+                {greeting.text}{firstName ? `, ${firstName}` : ''}
+              </Text>
+            </View>
+            <Text style={styles.title}>Your portfolio</Text>
+            <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroCtaTitle}>Post a project</Text>
-            <Text style={styles.heroCtaBody}>
-              Describe what you want done. Verified contractors near you will bid.
-            </Text>
-          </View>
-          <ChevronRight size={18} color="#FFF" />
-        </TouchableOpacity>
+        </FadeRise>
 
-        {/* Stats strip — same look as /my-rfps so the visual language stays
-            consistent when users tap from hub → list. Hidden when the user
-            has zero RFPs (no stats to show). */}
+        {/* Hero CTA — gradient fill, decorative Building silhouette in
+            the bottom-right, soft outer glow. The single most-tapped
+            affordance on this screen. */}
+        <FadeRise delay={80}>
+          <TouchableOpacity
+            onPress={handlePostProject}
+            activeOpacity={0.9}
+            testID="client-home-post-cta"
+          >
+            <LinearGradient
+              colors={[themeColors.accent, '#E04E0E', '#C73E00']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroCta}
+            >
+              {/* Decorative bg — a stylised multi-unit building, signals
+                  real-estate without being a literal home icon. */}
+              <View style={styles.heroCtaBg} pointerEvents="none">
+                <Building2 size={140} color="rgba(255,255,255,0.12)" strokeWidth={1.2} />
+              </View>
+              <View style={styles.heroCtaIcon}>
+                <Plus size={20} color="#FFF" strokeWidth={2.6} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroCtaTitle}>Post a project</Text>
+                <Text style={styles.heroCtaBody}>
+                  From a kitchen remodel to a full gut — verified contractors will bid on your scope.
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#FFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </FadeRise>
+
+        {/* Stats tiles — icon + value + label + accent bar. The bar lights
+            up when value > 0 so the eye can scan "what's live" in a half-
+            second. Hidden when there are no projects (nothing to count). */}
         {rfps.length > 0 && (
-          <View style={styles.statsRow}>
-            <Stat label="Posted" value={String(totals.posted)} />
-            <View style={styles.statDivider} />
-            <Stat label="Open" value={String(totals.open)} />
-            <View style={styles.statDivider} />
-            <Stat
-              label="Awarded"
-              value={String(totals.awarded)}
-              accent={totals.awarded > 0 ? themeColors.success : undefined}
-            />
-            <View style={styles.statDivider} />
-            <Stat
-              label="New bids"
-              value={String(totals.newBids)}
-              accent={totals.newBids > 0 ? themeColors.accent : undefined}
-            />
-          </View>
+          <FadeRise delay={140}>
+            <View style={styles.statsRow}>
+              <StatTile
+                icon={LayoutGrid}
+                label="Posted"
+                value={totals.posted}
+                accent={themeColors.text}
+                lit={totals.posted > 0}
+              />
+              <StatTile
+                icon={Clock}
+                label="Open"
+                value={totals.open}
+                accent={themeColors.accent}
+                lit={totals.open > 0}
+              />
+              <StatTile
+                icon={Trophy}
+                label="Awarded"
+                value={totals.awarded}
+                accent={themeColors.success}
+                lit={totals.awarded > 0}
+              />
+              <StatTile
+                icon={Sparkles}
+                label="New bids"
+                value={totals.newBids}
+                accent={themeColors.accent}
+                lit={totals.newBids > 0}
+              />
+            </View>
+          </FadeRise>
         )}
 
         {isLoading && rfps.length === 0 && (
@@ -224,63 +348,74 @@ export default function ClientHome() {
           </View>
         )}
 
-        {/* Empty state — first-impression copy. Same recipe as /my-rfps
+        {/* Empty state — first impression copy. Same recipe as /my-rfps
             but tightened: the hero CTA above is already the call to
             action, so we keep this purely informational. */}
         {isEmpty && (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconWrap}>
-              <Sparkles size={28} color={themeColors.accent} />
+          <FadeRise delay={200}>
+            <View style={styles.emptyCard}>
+              <View style={styles.emptyIconWrap}>
+                <Sparkles size={28} color={themeColors.accent} />
+              </View>
+              <Text style={styles.emptyTitle}>Welcome to MAGE ID</Text>
+              <Text style={styles.emptyBody}>
+                Post your scope and verified contractors near the property send you bids.
+                Compare side-by-side, pick the build you like, and track the work — one app, your whole portfolio.
+              </Text>
             </View>
-            <Text style={styles.emptyTitle}>Welcome to MAGE ID</Text>
-            <Text style={styles.emptyBody}>
-              When you post a project, verified contractors get notified and send you bids.
-              Compare side-by-side, pick the one you like, and track the work — all in one place.
-            </Text>
-          </View>
+          </FadeRise>
         )}
 
         {/* Active RFPs — only RFPs that are open AND not yet awarded.
-            Sorted newest first by the query. */}
+            Sorted newest first by the query. Staggered entrance so the
+            list lands as a wave, not a slam. */}
         {partitioned.open.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Active RFPs</Text>
-              <Text style={styles.sectionCount}>{partitioned.open.length}</Text>
-            </View>
-            {partitioned.open.map(r => (
-              <RfpCard
-                key={r.id}
-                row={r}
-                onPress={() => handleOpenRfp(r.id)}
-                accent={themeColors.accent}
-                styles={styles}
-                themeColors={themeColors}
-              />
+            <FadeRise delay={200}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>Out for bid</Text>
+                <View style={styles.sectionCountPill}>
+                  <Text style={styles.sectionCountText}>{partitioned.open.length}</Text>
+                </View>
+              </View>
+            </FadeRise>
+            {partitioned.open.map((r, i) => (
+              <FadeRise key={r.id} delay={240 + i * 60}>
+                <RfpCard
+                  row={r}
+                  onPress={() => handleOpenRfp(r.id)}
+                  accent={themeColors.accent}
+                  styles={styles}
+                  themeColors={themeColors}
+                />
+              </FadeRise>
             ))}
           </View>
         )}
 
-        {/* In Progress — RFPs that have been awarded. These should
-            eventually link into the awarded project's portal, but for
-            this commit they still link to the responses-review screen
-            which shows the awarded bid + lets the user message the
-            contractor. */}
+        {/* In Progress — RFPs that have been awarded. */}
         {partitioned.awarded.length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>In progress</Text>
-              <Text style={styles.sectionCount}>{partitioned.awarded.length}</Text>
-            </View>
-            {partitioned.awarded.map(r => (
-              <RfpCard
-                key={r.id}
-                row={r}
-                onPress={() => handleOpenRfp(r.id)}
-                accent={themeColors.success}
-                styles={styles}
-                themeColors={themeColors}
-              />
+            <FadeRise delay={240}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitle}>In progress</Text>
+                <View style={[styles.sectionCountPill, { backgroundColor: themeColors.success + '20' }]}>
+                  <Text style={[styles.sectionCountText, { color: themeColors.success }]}>
+                    {partitioned.awarded.length}
+                  </Text>
+                </View>
+              </View>
+            </FadeRise>
+            {partitioned.awarded.map((r, i) => (
+              <FadeRise key={r.id} delay={280 + i * 60}>
+                <RfpCard
+                  row={r}
+                  onPress={() => handleOpenRfp(r.id)}
+                  accent={themeColors.success}
+                  styles={styles}
+                  themeColors={themeColors}
+                />
+              </FadeRise>
             ))}
           </View>
         )}
@@ -291,12 +426,28 @@ export default function ClientHome() {
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+  accent,
+  lit,
+}: {
+  icon: React.ComponentType<any>;
+  label: string;
+  value: number;
+  accent: string;
+  lit: boolean;
+}) {
   const styles = useThemedStyles(makeStyles);
   return (
-    <View style={styles.statItem}>
-      <Text style={[styles.statValue, accent ? { color: accent } : null]}>{value}</Text>
+    <View style={styles.statTile}>
+      <View style={[styles.statIconWrap, lit ? { backgroundColor: accent + '18' } : null]}>
+        <Icon size={14} color={lit ? accent : styles.statIconWrap.borderColor || '#999'} strokeWidth={2.2} />
+      </View>
+      <Text style={[styles.statValue, lit ? { color: accent } : null]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+      <View style={[styles.statAccentBar, lit ? { backgroundColor: accent } : null]} />
     </View>
   );
 }
@@ -317,43 +468,74 @@ function RfpCard({
   const heroPhoto = (row.photo_urls && row.photo_urls.length > 0) ? row.photo_urls[0] : null;
   const isAwarded = !!row.awarded_response_id;
   const isOpen = row.status === 'open' && !isAwarded;
+  const posted = timeAgo(row.posted_date);
+
   return (
     <TouchableOpacity
       style={styles.rfpCard}
       onPress={onPress}
-      activeOpacity={0.85}
+      activeOpacity={0.88}
       accessibilityLabel={`${row.title}, ${row.response_count} bids${row.unreviewed_count > 0 ? `, ${row.unreviewed_count} new` : ''}`}
       accessibilityRole="button"
     >
-      {heroPhoto ? (
-        <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
-      ) : (
-        <View style={[styles.rfpHero, styles.rfpHeroPlaceholder]}>
-          <Inbox size={24} color={themeColors.textMuted} />
+      {/* Hero — photo if we have one, otherwise a soft accent-tinted
+          gradient with a Building2 silhouette. The void in the old design
+          looked unfinished; here it carries identity. */}
+      <View style={styles.rfpHeroWrap}>
+        {heroPhoto ? (
+          <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={[themeColors.accent + '1A', themeColors.accent + '08', themeColors.accent + '12']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.rfpHero, styles.rfpHeroPlaceholder]}
+          >
+            <Building2 size={64} color={themeColors.accent + '55'} strokeWidth={1.3} />
+          </LinearGradient>
+        )}
+        {/* Timestamp chip — bottom-left, always visible, glass background
+            so it reads on both photos and the placeholder gradient. */}
+        <View style={[
+          styles.rfpTimestampChip,
+          heroPhoto ? styles.rfpTimestampChipDark : styles.rfpTimestampChipLight,
+        ]}>
+          <Clock size={10} color={heroPhoto ? '#FFF' : themeColors.textSecondary} strokeWidth={2.4} />
+          <Text style={[
+            styles.rfpTimestampText,
+            heroPhoto ? { color: '#FFF' } : { color: themeColors.textSecondary },
+          ]}>
+            {posted}
+          </Text>
         </View>
-      )}
+        {/* Status pill — top-right, mirrors the live state. */}
+        {(isAwarded || isOpen) && (
+          <View style={[
+            styles.rfpStatusPillFloating,
+            { backgroundColor: isAwarded ? themeColors.success : accent },
+          ]}>
+            {isAwarded ? (
+              <Trophy size={10} color="#FFF" strokeWidth={2.4} />
+            ) : (
+              <Clock size={10} color="#FFF" strokeWidth={2.4} />
+            )}
+            <Text style={styles.rfpStatusPillFloatingText}>
+              {isAwarded ? 'AWARDED' : 'OPEN'}
+            </Text>
+          </View>
+        )}
+      </View>
+
       <View style={styles.rfpBody}>
-        <View style={styles.rfpHead}>
-          <Text style={styles.rfpTitle} numberOfLines={2}>{row.title}</Text>
-          {isAwarded && (
-            <View style={[styles.statusPill, { backgroundColor: themeColors.success + '20' }]}>
-              <Trophy size={10} color={themeColors.success} />
-              <Text style={[styles.statusPillText, { color: themeColors.success }]}>AWARDED</Text>
-            </View>
-          )}
-          {isOpen && (
-            <View style={[styles.statusPill, { backgroundColor: accent + '20' }]}>
-              <Clock size={10} color={accent} />
-              <Text style={[styles.statusPillText, { color: accent }]}>OPEN</Text>
-            </View>
-          )}
-        </View>
+        <Text style={styles.rfpTitle} numberOfLines={2}>{row.title}</Text>
+
         <View style={styles.rfpMeta}>
           <MapPin size={11} color={themeColors.textMuted} />
           <Text style={styles.rfpMetaText} numberOfLines={1}>
             {[row.city, row.state].filter(Boolean).join(', ') || 'Address pending'}
           </Text>
         </View>
+
         {(row.budget_min || row.budget_max) && (
           <Text style={styles.rfpBudget}>
             Budget: {row.budget_min ? formatMoney(row.budget_min) : '?'}
@@ -361,10 +543,24 @@ function RfpCard({
             {row.budget_max ? formatMoney(row.budget_max) : '?'}
           </Text>
         )}
+
+        {/* Activity micro-line — reads like a feed entry. Tightens the
+            "marketplace pulse" feel without lying about numbers. */}
+        <Text style={styles.rfpActivity} numberOfLines={1}>
+          {row.response_count === 0
+            ? 'Awaiting first bid'
+            : `${row.response_count} bid${row.response_count === 1 ? '' : 's'} in`}
+          {row.unreviewed_count > 0 ? `  ·  ${row.unreviewed_count} need review` : ''}
+        </Text>
+
         <View style={styles.rfpFoot}>
           <View style={styles.rfpResponseChip}>
-            <Text style={styles.rfpResponseChipText}>
-              {row.response_count} bid{row.response_count === 1 ? '' : 's'}
+            <Sparkles size={11} color={row.unreviewed_count > 0 ? accent : themeColors.textMuted} strokeWidth={2.2} />
+            <Text style={[
+              styles.rfpResponseChipText,
+              row.unreviewed_count > 0 ? { color: accent } : null,
+            ]}>
+              {row.unreviewed_count > 0 ? 'Review bids' : 'View details'}
             </Text>
             {row.unreviewed_count > 0 && (
               <View style={[styles.unreadDot, { backgroundColor: accent }]}>
@@ -382,48 +578,67 @@ function RfpCard({
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
 
-  header: {
-    marginBottom: 14,
+  // ── Greeting header ─────────────────────────────────────────────────
+  header: { marginBottom: 16 },
+  greetingRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
+  greetingIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: t.accent + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  eyebrow: {
-    fontSize: Type.caption2.fontSize,
+  greetingEyebrow: {
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700',
     color: t.accent,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   title: {
     fontSize: Type.title1.fontSize,
     fontWeight: '800',
     color: t.text,
-    letterSpacing: -0.6,
+    letterSpacing: -0.7,
+  },
+  subtitle: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600',
+    color: t.textSecondary,
     marginTop: 4,
+    lineHeight: 19,
   },
 
-  // ── Hero CTA: the single most-tapped affordance for the persona.
-  //    Branded fill (accent), white iconography, generous height. Big
-  //    enough to read at-a-glance, restrained enough not to compete with
-  //    actual project cards below.
+  // ── Hero CTA: gradient fill, embedded silhouette, soft glow. The single
+  //    most-tapped affordance for this persona.
   heroCta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: t.accent,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderRadius: Tokens.radius.lg,
-    marginBottom: 16,
+    marginBottom: 18,
     shadowColor: t.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    elevation: 6,
+    overflow: 'hidden',
+  },
+  heroCtaBg: {
+    position: 'absolute',
+    right: -28,
+    bottom: -34,
+    transform: [{ rotate: '-8deg' }],
   },
   heroCtaIcon: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: Tokens.radius.md,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -436,39 +651,61 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroCtaBody: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.86)',
+    color: 'rgba(255,255,255,0.92)',
     marginTop: 2,
     lineHeight: 17,
   },
 
-  // ── Stats strip (4 cells) — same visual language as /my-rfps so
-  //    transitions between hub and list don't feel like different apps.
+  // ── Stat tiles: 4 cards in a row, each with icon + value + label + a
+  //    thin accent bar that lights up when value > 0.
   statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 8,
+    marginBottom: 18,
+  },
+  statTile: {
+    flex: 1,
     backgroundColor: Colors.card,
-    borderRadius: Tokens.radius.lg,
-    padding: 16,
+    borderRadius: Tokens.radius.md,
+    paddingTop: 12,
+    paddingBottom: 0,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: t.line,
-    marginBottom: 14,
+    alignItems: 'center',
+    overflow: 'hidden',
   },
-  statItem: { flex: 1, alignItems: 'center' },
+  statIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: t.line + '60',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    borderColor: t.textMuted,
+  },
   statValue: {
-    fontSize: Type.title2.fontSize,
+    fontSize: 22,
     fontWeight: '800',
-    color: t.text,
+    color: t.textMuted,
     letterSpacing: -0.5,
+    lineHeight: 26,
   },
   statLabel: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '700',
+    fontSize: 9.5,
+    fontWeight: '800',
     color: t.textMuted,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginTop: 4,
+    letterSpacing: 0.7,
+    marginTop: 2,
+    marginBottom: 8,
   },
-  statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: t.line, marginVertical: 6 },
+  statAccentBar: {
+    height: 3,
+    width: '100%',
+    backgroundColor: 'transparent',
+  },
 
   loadingCard: {
     flexDirection: 'row',
@@ -512,15 +749,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     maxWidth: 340,
   },
 
-  // ── Section grouping: "Active RFPs" + "In progress" reuse the same
-  //    head bar; the count chip on the right hints at length without
-  //    forcing the user to scan.
-  section: { marginTop: 18 },
+  // ── Section grouping
+  section: { marginTop: 8 },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
+    marginTop: 6,
   },
   sectionTitle: {
     fontSize: Type.subheadline.fontSize,
@@ -528,58 +764,98 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.text,
     letterSpacing: -0.2,
   },
-  sectionCount: {
-    fontSize: Type.caption1.fontSize,
-    fontWeight: '700',
-    color: t.textMuted,
-    letterSpacing: 0.4,
+  sectionCountPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.accent + '18',
+    minWidth: 26,
+    alignItems: 'center',
+  },
+  sectionCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: t.accent,
+    letterSpacing: 0.3,
   },
 
-  // ── RFP cards — same shape as /my-rfps so users see continuity when
-  //    they go from hub → drill-down. Photo on top, body below, footer
-  //    with bid count + chevron.
+  // ── RFP cards
   rfpCard: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: t.line,
-    marginBottom: 12,
+    marginBottom: 14,
   },
+  rfpHeroWrap: { position: 'relative' },
   rfpHero: { width: '100%', height: 140, backgroundColor: t.bg },
   rfpHeroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  rfpBody: { padding: 14, gap: 6 },
-  rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  rfpTitle: {
-    flex: 1,
-    fontSize: Type.subhead.fontSize,
-    fontWeight: '700',
-    color: t.text,
-    lineHeight: 21,
-  },
-  statusPill: {
+  rfpTimestampChip: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: Tokens.radius.full,
   },
-  statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
-  rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  rfpTimestampChipDark: { backgroundColor: 'rgba(0,0,0,0.55)' },
+  rfpTimestampChipLight: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: t.line,
+  },
+  rfpTimestampText: { fontSize: 10.5, fontWeight: '700', letterSpacing: 0.2 },
+  rfpStatusPillFloating: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Tokens.radius.full,
+  },
+  rfpStatusPillFloatingText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFF',
+    letterSpacing: 0.6,
+  },
+
+  rfpBody: { padding: 14, gap: 5 },
+  rfpTitle: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '800',
+    color: t.text,
+    lineHeight: 21,
+    letterSpacing: -0.2,
+  },
+  rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   rfpMetaText: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
     color: t.textMuted,
     fontWeight: '600',
   },
-  rfpBudget: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
+  rfpBudget: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '700', marginTop: 2 },
+  rfpActivity: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600',
+    color: t.textSecondary,
+    marginTop: 4,
+    letterSpacing: 0.1,
+  },
   rfpFoot: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 6,
-    paddingTop: 8,
+    marginTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: t.line,
   },
@@ -595,6 +871,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.full,
     minWidth: 18,
     alignItems: 'center',
+    marginLeft: 4,
   },
   unreadDotText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
 });
