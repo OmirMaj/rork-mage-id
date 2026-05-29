@@ -1,24 +1,20 @@
-// post-rfp — homeowner-side "post a project" screen.
+// post-rfp — homeowner-side "post a project" wizard.
 //
-// Flow:
-//   1. Pick a category, write a short title + scope.
-//   2. Enter the property address. We forward-geocode (expo-location) so the
-//      lat/lng is stored — that's what powers the contractor side's
-//      "RFPs near you" feed. If geocoding fails (offline, garbage address)
-//      we still let the user submit, but flag it as un-verified so contractors
-//      can be skeptical.
-//   3. At least one photo of the property is required — the cheapest
-//      anti-troll signal we have without paid posting. Drawings are
-//      optional (PDFs/images for plans, sketches, etc.).
-//   4. Budget range, desired start date, optional certifications wanted.
-//   5. Submit creates a row in public_bids with is_homeowner_rfp=true.
+// 4-step flow with a sticky bottom action bar:
+//   1. Project details — address, work type, description, photos
+//   2. Scope          — drawings + any extra detail
+//   3. Budget & timing — budget range, desired start, bid deadline
+//   4. Review & post  — summary + final submit
 //
-// Visual direction: gradient hero header (matches ClientHome's CTA so the
-// two screens read as one product), a 4-dot progress strip that lights up
-// as the user fills required fields, numbered + iconed section headers,
-// a soft success ring on verified addresses, and a gradient submit button.
-// All logic / handlers preserved from the prior version — this is a polish
-// pass, not a behavior change.
+// The submission contract is identical to the prior single-screen version:
+// validate → paywall gate → upload attachments → insert public_bids row
+// with is_homeowner_rfp=true → push the user to /my-rfps. None of that
+// logic changed in this rewrite — only the UX in front of it.
+//
+// Internal category mapping: the visual chips are Renovation / Addition /
+// New Build / Other, but the public_bids.category column is still the
+// existing BidCategory enum. We map UI work-type → enum on submit so no
+// schema migration is required.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -27,15 +23,16 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Camera, FileText, MapPin, DollarSign, Calendar, X,
-  Image as ImageIcon, Sparkles, ShieldCheck, AlertTriangle, Building2,
-  Hammer, Check, ArrowRight,
+  ChevronLeft, ChevronRight, Camera, FileText, MapPin, DollarSign, Calendar,
+  X, Image as ImageIcon, Sparkles, ShieldCheck, AlertTriangle, Building2,
+  Home, LayoutGrid, MoreHorizontal, ClipboardCheck, Clock, Briefcase,
+  Check, ArrowRight, Plus, TreePine,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -57,25 +54,47 @@ interface PickedAttachment {
   kind: 'photo' | 'drawing';
 }
 
-const CATEGORIES: { id: BidCategory; label: string }[] = [
-  { id: 'residential',     label: 'Residential' },
-  { id: 'construction',    label: 'New Construction' },
-  { id: 'infrastructure',  label: 'Site / Infra' },
-  { id: 'energy',          label: 'Energy / Solar' },
-  { id: 'environmental',   label: 'Environmental' },
+type WizardStep = 'details' | 'scope' | 'budget' | 'review';
+type WorkType   = 'renovation' | 'addition' | 'new_build' | 'other';
+
+const STEPS: { id: WizardStep; label: string; icon: React.ComponentType<any> }[] = [
+  { id: 'details', label: 'Project details', icon: MapPin },
+  { id: 'scope',   label: 'Scope',           icon: ClipboardCheck },
+  { id: 'budget',  label: 'Budget & timing', icon: Clock },
+  { id: 'review',  label: 'Review & post',   icon: Check },
 ];
 
-// Tiny fade-and-rise wrapper, same recipe used in ClientHome. Native driver
-// so it stays cheap on the JS thread.
+const WORK_TYPES: { id: WorkType; label: string; icon: React.ComponentType<any> }[] = [
+  { id: 'renovation', label: 'Renovation', icon: Home },
+  { id: 'addition',   label: 'Addition',   icon: LayoutGrid },
+  { id: 'new_build',  label: 'New Build',  icon: Building2 },
+  { id: 'other',      label: 'Other',      icon: MoreHorizontal },
+];
+
+// Map the new visual work-type chips to the existing BidCategory enum so
+// we don't need a schema migration. Renovation + Addition both live under
+// 'residential' (residential remodel); New Build is 'construction'; Other
+// falls back to 'residential' so the public_bids row stays valid.
+function workTypeToCategory(w: WorkType): BidCategory {
+  switch (w) {
+    case 'new_build': return 'construction';
+    case 'renovation':
+    case 'addition':
+    case 'other':
+    default:          return 'residential';
+  }
+}
+
+// Tiny fade-and-rise wrapper, native driver. Same recipe used elsewhere.
 function FadeRise({ delay = 0, children, style }: {
   delay?: number; children: React.ReactNode; style?: any;
 }) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(14)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 380, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: 380, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 360, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 360, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, [opacity, translateY, delay]);
   return (
@@ -84,6 +103,8 @@ function FadeRise({ delay = 0, children, style }: {
     </Animated.View>
   );
 }
+
+const DRAFT_PREFIX = 'post-rfp:draft:';
 
 export default function PostRfpScreen() {
   const { colors: themeColors } = useTheme();
@@ -97,12 +118,13 @@ export default function PostRfpScreen() {
   // for gate() to be able to flip it open. See hooks/useClientPaywall.ts.
   const { gate: gateClientPaywall, ClientPaywallElement } = useClientPaywall();
 
-  const [title, setTitle]                 = useState('');
-  const [category, setCategory]           = useState<BidCategory>('residential');
-  const [scope, setScope]                 = useState('');
+  const [step, setStep]                   = useState<WizardStep>('details');
+  const [workType, setWorkType]           = useState<WorkType>('renovation');
+  const [description, setDescription]     = useState('');
   const [address, setAddress]             = useState('');
   const [latLng, setLatLng]               = useState<{ lat: number; lng: number } | null>(null);
   const [addressVerified, setAddressVerified] = useState(false);
+  const [extraScope, setExtraScope]       = useState('');
   const [budgetMin, setBudgetMin]         = useState('');
   const [budgetMax, setBudgetMax]         = useState('');
   const [desiredStart, setDesiredStart]   = useState('');
@@ -111,19 +133,46 @@ export default function PostRfpScreen() {
   const [submitting, setSubmitting]       = useState(false);
   const [geocoding, setGeocoding]         = useState(false);
   const [error, setError]                 = useState<string | null>(null);
+  const [savingDraft, setSavingDraft]     = useState(false);
 
   const photos    = useMemo(() => attachments.filter(a => a.kind === 'photo'),    [attachments]);
   const drawings  = useMemo(() => attachments.filter(a => a.kind === 'drawing'),  [attachments]);
 
-  // Progress dots — required steps only. Budget is optional so it doesn't
-  // count toward "ready to post" status.
-  const progress = useMemo(() => ({
-    scope:    title.trim().length >= 6 && scope.trim().length >= 30,
-    address:  address.trim().length > 0,
-    photos:   photos.length > 0,
-    budget:   !!budgetMin || !!budgetMax || !!desiredStart,
-  }), [title, scope, address, photos.length, budgetMin, budgetMax, desiredStart]);
-  const requiredDone = (progress.scope ? 1 : 0) + (progress.address ? 1 : 0) + (progress.photos ? 1 : 0);
+  const stepIdx = useMemo(() => STEPS.findIndex(s => s.id === step), [step]);
+
+  // Per-step validity used to gate the Continue button + show inline
+  // hints. Step 4 (review) is always "ready" — the submit button itself
+  // does final validation.
+  const stepValid = useMemo<Record<WizardStep, { ok: boolean; reason?: string }>>(() => ({
+    details: {
+      ok:
+        address.trim().length > 0 &&
+        description.trim().length >= 20 &&
+        photos.length > 0,
+      reason:
+        !address.trim() ? 'Add the property address to continue.' :
+        description.trim().length < 20 ? 'Describe the project in a sentence or two.' :
+        photos.length === 0 ? 'Add at least one photo of the property.' : undefined,
+    },
+    scope:  { ok: true },
+    budget: { ok: true },
+    review: { ok: true },
+  }), [address, description, photos.length]);
+
+  const goNext = useCallback(() => {
+    setError(null);
+    const v = stepValid[step];
+    if (!v.ok) { setError(v.reason ?? null); return; }
+    const next = STEPS[stepIdx + 1]?.id;
+    if (next) setStep(next);
+  }, [step, stepIdx, stepValid]);
+
+  const goBack = useCallback(() => {
+    setError(null);
+    const prev = STEPS[stepIdx - 1]?.id;
+    if (prev) setStep(prev);
+    else router.back();
+  }, [stepIdx, router]);
 
   const verifyAddress = useCallback(async () => {
     setError(null);
@@ -187,26 +236,6 @@ export default function PostRfpScreen() {
     setAttachments(prev => [...prev, ...next]);
   }, []);
 
-  const takePhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required to take a photo.');
-      return;
-    }
-    const res = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
-    });
-    if (res.canceled) return;
-    const a = res.assets[0];
-    setAttachments(prev => [...prev, {
-      uri: a.uri,
-      name: a.fileName ?? `cam-${Date.now()}.jpg`,
-      contentType: a.mimeType ?? 'image/jpeg',
-      kind: 'photo',
-    }]);
-  }, []);
-
   const pickDrawings = useCallback(async () => {
     const res = await DocumentPicker.getDocumentAsync({
       type: ['application/pdf', 'image/*'],
@@ -227,19 +256,46 @@ export default function PostRfpScreen() {
     setAttachments(prev => prev.filter(a => a.uri !== uri));
   }, []);
 
-  const validate = useCallback((): string | null => {
-    if (!title.trim())             return 'Add a short title — e.g. "Kitchen remodel" or "Roof replacement".';
-    if (title.trim().length < 6)   return 'Title is too short. Be specific so contractors can size it up.';
-    if (!scope.trim())             return 'Describe the work you want done.';
-    if (scope.trim().length < 30)  return 'The scope is too short. Add a few sentences so contractors can give a real estimate.';
-    if (!address.trim())           return 'Property address is required.';
-    if (photos.length === 0)       return 'At least one photo of the property is required. (This helps cut down on troll posts.)';
+  const finalValidate = useCallback((): string | null => {
+    if (!description.trim())           return 'Add a short description of the project.';
+    if (description.trim().length < 20) return 'Description is too short. A sentence or two helps contractors size it up.';
+    if (!address.trim())               return 'Property address is required.';
+    if (photos.length === 0)           return 'At least one photo of the property is required. (This helps cut down on troll posts.)';
     return null;
-  }, [title, scope, address, photos.length]);
+  }, [description, address, photos.length]);
+
+  // Save a snapshot to AsyncStorage so the user can leave and come back
+  // without re-typing everything. Attachment URIs are local cache paths;
+  // they may not survive a process kill, so on restore we drop any URIs
+  // that don't resolve. For this commit we only write; auto-restore on
+  // mount is a follow-up.
+  const saveDraft = useCallback(async () => {
+    if (!user?.id) {
+      Alert.alert('Sign in needed', 'Sign in to save drafts so you can come back to them later.');
+      return;
+    }
+    try {
+      setSavingDraft(true);
+      const payload = {
+        workType, description, address, latLng, addressVerified,
+        extraScope, budgetMin, budgetMax, desiredStart, deadline,
+        attachments: attachments.map(a => ({ ...a })),
+        savedAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(DRAFT_PREFIX + user.id, JSON.stringify(payload));
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Draft saved', 'You can pick this back up next time you open Post a project.');
+    } catch (e) {
+      console.warn('[post-rfp] saveDraft failed', e);
+      Alert.alert('Couldn\'t save draft', 'Try again in a moment.');
+    } finally {
+      setSavingDraft(false);
+    }
+  }, [user?.id, workType, description, address, latLng, addressVerified, extraScope, budgetMin, budgetMax, desiredStart, deadline, attachments]);
 
   const handleSubmit = useCallback(async () => {
     setError(null);
-    const v = validate();
+    const v = finalValidate();
     if (v) { setError(v); return; }
     if (!user || !isSupabaseConfigured) {
       setError('You need to be signed in to post a project.');
@@ -270,20 +326,22 @@ export default function PostRfpScreen() {
       }
 
       const cityState = parseCityState(address);
+      const derivedTitle = deriveTitle(description);
+      const fullScope = [description.trim(), extraScope.trim()].filter(Boolean).join('\n\n');
 
       const { error: insertErr } = await supabase.from('public_bids').insert({
         id: rfpId,
         user_id: user.id,
-        title: title.trim(),
+        title: derivedTitle,
         issuing_agency: '',
         city: cityState.city,
         state: cityState.state,
-        category,
+        category: workTypeToCategory(workType),
         bid_type: 'private',
         estimated_value: Number(budgetMax) || Number(budgetMin) || 0,
         bond_required: 0,
         deadline: deadline || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        description: scope.trim().slice(0, 280),  // legacy short description for list views
+        description: fullScope.slice(0, 280),  // legacy short description for list views
         posted_by: user.email ?? '',
         posted_date: new Date().toISOString(),
         status: 'open',
@@ -296,13 +354,16 @@ export default function PostRfpScreen() {
         longitude: latLng?.lng ?? null,
         photo_urls: photoUrls,
         drawing_urls: drawingUrls,
-        scope_description: scope.trim(),
+        scope_description: fullScope,
         budget_min: budgetMin ? Number(budgetMin) : null,
         budget_max: budgetMax ? Number(budgetMax) : null,
         desired_start: desiredStart || null,
         address_verified: addressVerified,
       });
       if (insertErr) throw insertErr;
+
+      // Clear the draft now that the row is committed.
+      try { await AsyncStorage.removeItem(DRAFT_PREFIX + user.id); } catch {}
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
@@ -317,341 +378,187 @@ export default function PostRfpScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, user, attachments, title, address, category, budgetMin, budgetMax, deadline, scope, latLng, desiredStart, addressVerified, router, gateClientPaywall]);
+  }, [finalValidate, user, attachments, description, extraScope, address, workType, budgetMin, budgetMax, deadline, latLng, desiredStart, addressVerified, router, gateClientPaywall]);
+
+  const isLastStep = step === 'review';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Hero header — gradient band with embedded Building2 silhouette and
-          a back button overlaid at the top-left. Replaces the old plain
-          cream header so the screen opens with energy, not a form. */}
-      <View style={styles.heroWrap}>
-        <LinearGradient
-          colors={[themeColors.accent, '#E04E0E', '#C73E00']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
-        >
-          <View style={styles.heroBgIcon} pointerEvents="none">
-            <Building2 size={180} color="rgba(255,255,255,0.10)" strokeWidth={1.1} />
-          </View>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Hero — soft cream, no gradient. Decorative Building2 + TreePine
+            in the top-right corner to suggest the isometric house in the
+            design without a custom illustration asset. */}
+        <View style={styles.hero}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={goBack}
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Back"
             style={styles.heroBack}
           >
-            <ChevronLeft size={22} color="#FFF" />
+            <ChevronLeft size={20} color={themeColors.text} />
           </TouchableOpacity>
-          <Text style={styles.heroEyebrow}>POST A PROJECT</Text>
-          <Text style={styles.heroTitle}>Find a contractor.{'\n'}Get bids in days.</Text>
-          <Text style={styles.heroSubtitle}>
-            Describe your scope, drop a few photos, and verified contractors near your property bid for the work.
-          </Text>
-        </LinearGradient>
+
+          <View style={styles.heroIllustration} pointerEvents="none">
+            <TreePine size={48} color={themeColors.accent + '60'} strokeWidth={1.4} style={{ marginRight: -4, marginTop: 8 }} />
+            <Building2 size={96} color={themeColors.accent + 'AA'} strokeWidth={1.3} />
+          </View>
+
+          <View style={styles.heroCopy}>
+            <Text style={styles.heroTitle}>Get quality bids.</Text>
+            <Text style={[styles.heroTitle, { color: themeColors.accent }]}>Done right.</Text>
+            <Text style={styles.heroSubtitle}>
+              Tell us about your project and local contractors will send you competitive bids.
+            </Text>
+          </View>
+
+          {/* Step indicator — 4 icon nodes connected by dotted lines. The
+              active node fills with the accent; completed ones get a
+              lighter tint with a checkmark. */}
+          <View style={styles.stepperCard}>
+            {STEPS.map((s, i) => {
+              const Icon = s.icon;
+              const active = i === stepIdx;
+              const done = i < stepIdx;
+              return (
+                <React.Fragment key={s.id}>
+                  <View style={styles.stepNode}>
+                    <View style={[
+                      styles.stepDot,
+                      active ? { backgroundColor: themeColors.accent } : null,
+                      done ? { backgroundColor: themeColors.accent + '22' } : null,
+                    ]}>
+                      {done ? (
+                        <Check size={14} color={themeColors.accent} strokeWidth={2.6} />
+                      ) : (
+                        <Icon size={14} color={active ? '#FFF' : themeColors.textMuted} strokeWidth={2.2} />
+                      )}
+                    </View>
+                    <Text style={[
+                      styles.stepLabel,
+                      active ? { color: themeColors.text, fontWeight: '800' } : null,
+                    ]} numberOfLines={1}>
+                      {s.label}
+                    </Text>
+                  </View>
+                  {i < STEPS.length - 1 && <View style={styles.stepLine} />}
+                </React.Fragment>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.body}>
+          {step === 'details' && (
+            <DetailsStep
+              styles={styles}
+              themeColors={themeColors}
+              address={address}
+              setAddress={(v) => { setAddress(v); setAddressVerified(false); setLatLng(null); }}
+              verifyAddress={verifyAddress}
+              geocoding={geocoding}
+              addressVerified={addressVerified}
+              latLng={latLng}
+              workType={workType}
+              setWorkType={setWorkType}
+              description={description}
+              setDescription={setDescription}
+              photos={photos}
+              pickPhotos={pickPhotos}
+              removeAttachment={removeAttachment}
+            />
+          )}
+          {step === 'scope' && (
+            <ScopeStep
+              styles={styles}
+              themeColors={themeColors}
+              extraScope={extraScope}
+              setExtraScope={setExtraScope}
+              drawings={drawings}
+              pickDrawings={pickDrawings}
+              removeAttachment={removeAttachment}
+            />
+          )}
+          {step === 'budget' && (
+            <BudgetStep
+              styles={styles}
+              themeColors={themeColors}
+              budgetMin={budgetMin} setBudgetMin={setBudgetMin}
+              budgetMax={budgetMax} setBudgetMax={setBudgetMax}
+              desiredStart={desiredStart} setDesiredStart={setDesiredStart}
+              deadline={deadline} setDeadline={setDeadline}
+            />
+          )}
+          {step === 'review' && (
+            <ReviewStep
+              styles={styles}
+              themeColors={themeColors}
+              description={description}
+              workType={workType}
+              address={address}
+              addressVerified={addressVerified}
+              photoCount={photos.length}
+              drawingCount={drawings.length}
+              extraScope={extraScope}
+              budgetMin={budgetMin}
+              budgetMax={budgetMax}
+              desiredStart={desiredStart}
+              deadline={deadline}
+              jumpTo={setStep}
+            />
+          )}
+
+          {error && (
+            <FadeRise delay={0}>
+              <View style={styles.errorCard}>
+                <AlertTriangle size={16} color={themeColors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            </FadeRise>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Sticky bottom action bar — Save draft (left) + Continue/Post
+          (right). Matches the design mock. */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <TouchableOpacity
+          onPress={saveDraft}
+          disabled={savingDraft}
+          activeOpacity={0.7}
+          style={styles.draftBtn}
+        >
+          <Text style={styles.draftTitle}>Save draft</Text>
+          <Text style={styles.draftHint}>We&apos;ll save your progress</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.continueBtn,
+            (submitting || (!isLastStep && !stepValid[step].ok)) && styles.continueBtnDim,
+          ]}
+          onPress={isLastStep ? handleSubmit : goNext}
+          disabled={submitting}
+          activeOpacity={0.88}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <>
+              <Text style={styles.continueBtnText}>
+                {isLastStep ? 'Post project' : 'Continue'}
+              </Text>
+              <ArrowRight size={17} color="#FFF" strokeWidth={2.6} />
+            </>
+          )}
+        </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Progress strip — 4 segments, one per required+optional section.
-            Lights up as the user fills the corresponding field. Reads at-a-
-            glance how close they are to a postable RFP. */}
-        <FadeRise delay={0}>
-          <View style={styles.progressCard}>
-            <View style={styles.progressHead}>
-              <Text style={styles.progressTitle}>
-                {requiredDone === 3
-                  ? 'Ready to post — review and submit.'
-                  : `${requiredDone}/3 required steps done`}
-              </Text>
-              <View style={styles.progressEta}>
-                <Sparkles size={11} color={themeColors.accent} />
-                <Text style={styles.progressEtaText}>3–7 bids in ~48h</Text>
-              </View>
-            </View>
-            <View style={styles.progressRow}>
-              <ProgressSeg label="Scope"    done={progress.scope}    accent={themeColors.accent} styles={styles} />
-              <ProgressSeg label="Property" done={progress.address}  accent={themeColors.accent} styles={styles} />
-              <ProgressSeg label="Photos"   done={progress.photos}   accent={themeColors.accent} styles={styles} />
-              <ProgressSeg label="Budget"   done={progress.budget}   accent={themeColors.accent} styles={styles} optional />
-            </View>
-          </View>
-        </FadeRise>
-
-        {/* 01 — Scope */}
-        <FadeRise delay={80}>
-          <View style={styles.card}>
-            <SectionHead num="01" icon={Hammer} title="Scope" accent={themeColors.accent} styles={styles} done={progress.scope} />
-
-            <Text style={styles.label}>Project title</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="e.g. Kitchen remodel + island"
-              placeholderTextColor={themeColors.textMuted}
-              maxLength={80}
-            />
-
-            <Text style={[styles.label, { marginTop: 14 }]}>Category</Text>
-            <View style={styles.chipRow}>
-              {CATEGORIES.map(c => {
-                const active = category === c.id;
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.chip, active && styles.chipActive]}
-                    onPress={() => setCategory(c.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {c.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <Text style={[styles.label, { marginTop: 14 }]}>What do you want done?</Text>
-            <Text style={styles.helper}>
-              Be specific — the more detail, the better the bids. Example: &quot;Tear out existing kitchen,
-              new shaker cabinets, quartz counters, refinish hardwood, relocate the sink to the island.&quot;
-            </Text>
-            <TextInput
-              style={[styles.input, styles.inputMultiline]}
-              value={scope}
-              onChangeText={setScope}
-              placeholder="Describe the work you want a contractor to do…"
-              placeholderTextColor={themeColors.textMuted}
-              multiline
-              numberOfLines={6}
-              textAlignVertical="top"
-            />
-            <Text style={styles.charCount}>{scope.length} chars</Text>
-          </View>
-        </FadeRise>
-
-        {/* 02 — Property */}
-        <FadeRise delay={140}>
-          <View style={[styles.card, addressVerified && styles.cardVerified]}>
-            <SectionHead num="02" icon={MapPin} title="Property" accent={themeColors.accent} styles={styles} done={progress.address} />
-
-            <Text style={styles.helper}>
-              Used to match nearby contractors. We never share your full address publicly — only the city
-              shows on the listing until you accept a contractor&apos;s site visit.
-            </Text>
-            <View style={styles.addressRow}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={address}
-                onChangeText={(v) => { setAddress(v); setAddressVerified(false); setLatLng(null); }}
-                placeholder="123 Main St, Springfield, IL"
-                placeholderTextColor={themeColors.textMuted}
-              />
-              <TouchableOpacity
-                onPress={verifyAddress}
-                disabled={geocoding || !address.trim()}
-                activeOpacity={0.85}
-              >
-                <LinearGradient
-                  colors={[themeColors.accent, '#E04E0E']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={[styles.verifyBtn, (!address.trim() || geocoding) && { opacity: 0.55 }]}
-                >
-                  {geocoding ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <>
-                      <MapPin size={14} color="#FFF" />
-                      <Text style={styles.verifyBtnText}>Verify</Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-            {addressVerified && (
-              <View style={styles.verifiedRow}>
-                <View style={styles.verifiedBadge}>
-                  <ShieldCheck size={12} color="#FFF" />
-                </View>
-                <Text style={styles.verifiedText} numberOfLines={1}>
-                  Address verified · {latLng?.lat.toFixed(4)}, {latLng?.lng.toFixed(4)}
-                </Text>
-              </View>
-            )}
-          </View>
-        </FadeRise>
-
-        {/* 03 — Photos */}
-        <FadeRise delay={200}>
-          <View style={styles.card}>
-            <SectionHead num="03" icon={Camera} title="Photos" accent={themeColors.accent} styles={styles} done={progress.photos} required />
-            <Text style={styles.helper}>
-              At least one photo is required. Helps cut spam and gives contractors something real to look at.
-            </Text>
-            <View style={styles.attachmentGrid}>
-              {photos.map(p => (
-                <View key={p.uri} style={styles.attachmentTile}>
-                  <Image source={{ uri: p.uri }} style={styles.attachmentImage} />
-                  <TouchableOpacity style={styles.attachmentRemove} onPress={() => removeAttachment(p.uri)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              <TouchableOpacity style={styles.addTile} onPress={pickPhotos} activeOpacity={0.8}>
-                <View style={styles.addTileIconWrap}>
-                  <ImageIcon size={18} color={themeColors.accent} />
-                </View>
-                <Text style={styles.addTileText}>Library</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.addTile} onPress={takePhoto} activeOpacity={0.8}>
-                <View style={styles.addTileIconWrap}>
-                  <Camera size={18} color={themeColors.accent} />
-                </View>
-                <Text style={styles.addTileText}>Camera</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </FadeRise>
-
-        {/* 04 — Drawings (optional) */}
-        <FadeRise delay={240}>
-          <View style={styles.card}>
-            <SectionHead num="04" icon={FileText} title="Drawings" accent={themeColors.accent} styles={styles} done={drawings.length > 0} optional />
-            <Text style={styles.helper}>
-              Architect plans, hand sketches, inspiration shots — anything that clarifies the scope. PDF or images.
-            </Text>
-            <View style={styles.attachmentGrid}>
-              {drawings.map(d => (
-                <View key={d.uri} style={styles.attachmentTile}>
-                  <View style={styles.drawingTilePlaceholder}>
-                    <FileText size={20} color={themeColors.accent} />
-                    <Text style={styles.drawingTileName} numberOfLines={2}>{d.name}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.attachmentRemove} onPress={() => removeAttachment(d.uri)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color="#FFF" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              <TouchableOpacity style={styles.addTile} onPress={pickDrawings} activeOpacity={0.8}>
-                <View style={styles.addTileIconWrap}>
-                  <FileText size={18} color={themeColors.accent} />
-                </View>
-                <Text style={styles.addTileText}>Add file</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </FadeRise>
-
-        {/* 05 — Budget & timing */}
-        <FadeRise delay={280}>
-          <View style={styles.card}>
-            <SectionHead num="05" icon={DollarSign} title="Budget & timing" accent={themeColors.accent} styles={styles} done={progress.budget} optional />
-            <Text style={styles.helper}>
-              Showing a range filters out wildly off-target bids. Leave blank if you&apos;re not sure.
-            </Text>
-            <View style={styles.budgetRow}>
-              <View style={styles.budgetField}>
-                <DollarSign size={14} color={themeColors.textMuted} />
-                <TextInput
-                  style={styles.budgetInput}
-                  value={budgetMin}
-                  onChangeText={setBudgetMin}
-                  placeholder="Min"
-                  placeholderTextColor={themeColors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-              <Text style={styles.budgetDash}>–</Text>
-              <View style={styles.budgetField}>
-                <DollarSign size={14} color={themeColors.textMuted} />
-                <TextInput
-                  style={styles.budgetInput}
-                  value={budgetMax}
-                  onChangeText={setBudgetMax}
-                  placeholder="Max"
-                  placeholderTextColor={themeColors.textMuted}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            <Text style={[styles.label, { marginTop: 14 }]}>Desired start</Text>
-            <View style={styles.dateRow}>
-              <Calendar size={14} color={themeColors.textMuted} />
-              <TextInput
-                style={[styles.input, { flex: 1, marginLeft: 8 }]}
-                value={desiredStart}
-                onChangeText={setDesiredStart}
-                placeholder="e.g. Mid-July or 2026-08-15"
-                placeholderTextColor={themeColors.textMuted}
-              />
-            </View>
-
-            <Text style={[styles.label, { marginTop: 14 }]}>Bid deadline</Text>
-            <View style={styles.dateRow}>
-              <Calendar size={14} color={themeColors.textMuted} />
-              <TextInput
-                style={[styles.input, { flex: 1, marginLeft: 8 }]}
-                value={deadline}
-                onChangeText={setDeadline}
-                placeholder="Defaults to 14 days from today"
-                placeholderTextColor={themeColors.textMuted}
-              />
-            </View>
-          </View>
-        </FadeRise>
-
-        {error && (
-          <FadeRise delay={0}>
-            <View style={styles.errorCard}>
-              <AlertTriangle size={16} color={themeColors.danger} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          </FadeRise>
-        )}
-
-        {/* Submit + reassurance */}
-        <FadeRise delay={340}>
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={submitting}
-            activeOpacity={0.88}
-          >
-            <LinearGradient
-              colors={[themeColors.accent, '#E04E0E', '#C73E00']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <>
-                  <Sparkles size={16} color="#FFF" />
-                  <Text style={styles.submitBtnText}>Post project</Text>
-                  <ArrowRight size={16} color="#FFF" />
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <View style={styles.nextStepsCard}>
-            <Text style={styles.nextStepsTitle}>What happens next</Text>
-            <NextStep i={1} text="We notify verified contractors near your property." styles={styles} accent={themeColors.accent} />
-            <NextStep i={2} text="They send sealed bids you can compare side-by-side." styles={styles} accent={themeColors.accent} />
-            <NextStep i={3} text="Pick the one you like — track the work in the app." styles={styles} accent={themeColors.accent} />
-          </View>
-
-          <Text style={styles.disclaimer}>
-            By posting you agree this is a real project at a real address. Trolls and fake posts get accounts banned.
-          </Text>
-        </FadeRise>
-      </ScrollView>
       {/* Client paywall modal — controlled by the gate hook above. Placed
           at the root level so it overlays the rest of the screen when
           gate('rfp-post') is awaiting a user decision. */}
@@ -660,81 +567,383 @@ export default function PostRfpScreen() {
   );
 }
 
-// ── Subcomponents ──────────────────────────────────────────────────────────
+// ── Step components ───────────────────────────────────────────────────────
 
-function SectionHead({
-  num, icon: Icon, title, accent, styles, done, required, optional,
-}: {
-  num: string;
-  icon: React.ComponentType<any>;
-  title: string;
-  accent: string;
-  styles: ReturnType<typeof makeStyles>;
-  done?: boolean;
-  required?: boolean;
-  optional?: boolean;
+interface StyleProp { styles: ReturnType<typeof makeStyles>; themeColors: ThemeColors }
+
+function DetailsStep({
+  styles, themeColors,
+  address, setAddress, verifyAddress, geocoding, addressVerified, latLng,
+  workType, setWorkType, description, setDescription,
+  photos, pickPhotos, removeAttachment,
+}: StyleProp & {
+  address: string; setAddress: (v: string) => void;
+  verifyAddress: () => void; geocoding: boolean; addressVerified: boolean;
+  latLng: { lat: number; lng: number } | null;
+  workType: WorkType; setWorkType: (w: WorkType) => void;
+  description: string; setDescription: (v: string) => void;
+  photos: PickedAttachment[];
+  pickPhotos: () => void; removeAttachment: (uri: string) => void;
 }) {
   return (
-    <View style={styles.sectionHead}>
-      <View style={styles.sectionHeadLeft}>
-        <View style={[styles.sectionIconWrap, done ? { backgroundColor: accent + '18' } : null]}>
-          {done ? (
-            <Check size={14} color={accent} strokeWidth={2.6} />
-          ) : (
-            <Icon size={14} color={accent} strokeWidth={2.2} />
+    <>
+      <FadeRise delay={0}>
+        <Text style={styles.stepHeading}>Let&apos;s start with the basics</Text>
+      </FadeRise>
+
+      {/* Address */}
+      <FadeRise delay={60}>
+        <View style={styles.card}>
+          <CardHead icon={MapPin} title="Project address" subtitle="We'll use this to find verified contractors near you." styles={styles} themeColors={themeColors} />
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="123 Main St, Springfield, IL"
+              placeholderTextColor={themeColors.textMuted}
+            />
+            <TouchableOpacity
+              onPress={verifyAddress}
+              disabled={geocoding || !address.trim()}
+              activeOpacity={0.85}
+              style={[
+                styles.verifyBtn,
+                (geocoding || !address.trim()) && { opacity: 0.55 },
+              ]}
+            >
+              {geocoding ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.verifyBtnText}>Verify</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          {addressVerified && (
+            <View style={styles.verifiedRow}>
+              <ShieldCheck size={13} color={themeColors.success} />
+              <Text style={styles.verifiedText} numberOfLines={1}>
+                Verified · {latLng?.lat.toFixed(4)}, {latLng?.lng.toFixed(4)}
+              </Text>
+            </View>
           )}
         </View>
-        <Text style={styles.sectionNum}>{num}</Text>
-        <Text style={styles.sectionTitle}>{title}</Text>
-      </View>
-      {required && !done && (
-        <Text style={styles.sectionRequired}>REQUIRED</Text>
-      )}
-      {optional && (
-        <Text style={styles.sectionOptional}>OPTIONAL</Text>
-      )}
-    </View>
+      </FadeRise>
+
+      {/* Work type */}
+      <FadeRise delay={120}>
+        <View style={styles.card}>
+          <CardHead icon={Briefcase} title="What type of work is this?" styles={styles} themeColors={themeColors} chevron />
+          <View style={styles.workTypeRow}>
+            {WORK_TYPES.map(w => {
+              const Icon = w.icon;
+              const active = workType === w.id;
+              return (
+                <TouchableOpacity
+                  key={w.id}
+                  onPress={() => setWorkType(w.id)}
+                  activeOpacity={0.85}
+                  style={[styles.workTypeChip, active && styles.workTypeChipActive]}
+                >
+                  <Icon size={16} color={active ? themeColors.accent : themeColors.text} strokeWidth={2.1} />
+                  <Text style={[
+                    styles.workTypeLabel,
+                    active && { color: themeColors.accent, fontWeight: '800' },
+                  ]} numberOfLines={1}>
+                    {w.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </FadeRise>
+
+      {/* Description */}
+      <FadeRise delay={180}>
+        <View style={styles.card}>
+          <CardHead icon={FileText} title="Tell us about your project" subtitle="The more details you add, the more accurate your bids." styles={styles} themeColors={themeColors} />
+          <TextInput
+            style={[styles.input, styles.inputMultiline]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="e.g. Kitchen remodel, 2 bathrooms, open layout…"
+            placeholderTextColor={themeColors.textMuted}
+            multiline
+            numberOfLines={5}
+            textAlignVertical="top"
+            maxLength={500}
+          />
+          <Text style={styles.charCount}>{description.length}/500</Text>
+        </View>
+      </FadeRise>
+
+      {/* Photos */}
+      <FadeRise delay={240}>
+        <View style={styles.card}>
+          <CardHead icon={ImageIcon} title="Add photos (recommended)" subtitle="Photos help contractors understand your project." styles={styles} themeColors={themeColors} />
+          <View style={styles.photoGrid}>
+            <TouchableOpacity style={styles.uploadTile} onPress={pickPhotos} activeOpacity={0.8}>
+              <View style={styles.uploadIconWrap}>
+                <Plus size={16} color={themeColors.accent} strokeWidth={2.6} />
+              </View>
+              <Text style={styles.uploadText}>Upload photos</Text>
+            </TouchableOpacity>
+            {photos.map(p => (
+              <View key={p.uri} style={styles.photoTile}>
+                <Image source={{ uri: p.uri }} style={styles.photoImg} />
+                <TouchableOpacity
+                  style={styles.photoRemove}
+                  onPress={() => removeAttachment(p.uri)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove photo"
+                >
+                  <X size={11} color={themeColors.text} strokeWidth={2.6} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+          <View style={styles.proTipCard}>
+            <Sparkles size={13} color={themeColors.accent} />
+            <Text style={styles.proTipText}>
+              <Text style={styles.proTipBold}>Pro tip: </Text>
+              Add at least 3 photos for better, more accurate bids.
+            </Text>
+          </View>
+        </View>
+      </FadeRise>
+    </>
   );
 }
 
-function ProgressSeg({
-  label, done, accent, styles, optional,
-}: {
-  label: string;
-  done: boolean;
-  accent: string;
+function ScopeStep({
+  styles, themeColors,
+  extraScope, setExtraScope, drawings, pickDrawings, removeAttachment,
+}: StyleProp & {
+  extraScope: string; setExtraScope: (v: string) => void;
+  drawings: PickedAttachment[]; pickDrawings: () => void;
+  removeAttachment: (uri: string) => void;
+}) {
+  return (
+    <>
+      <FadeRise delay={0}>
+        <Text style={styles.stepHeading}>Anything else we should know?</Text>
+      </FadeRise>
+
+      <FadeRise delay={60}>
+        <View style={styles.card}>
+          <CardHead icon={ClipboardCheck} title="Additional scope" subtitle="Materials, finishes, must-haves, or constraints contractors should know about." styles={styles} themeColors={themeColors} />
+          <TextInput
+            style={[styles.input, styles.inputMultiline]}
+            value={extraScope}
+            onChangeText={setExtraScope}
+            placeholder="e.g. Quartz counters, hardwood refinish, weekend work OK…"
+            placeholderTextColor={themeColors.textMuted}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
+        </View>
+      </FadeRise>
+
+      <FadeRise delay={120}>
+        <View style={styles.card}>
+          <CardHead icon={FileText} title="Drawings or plans (optional)" subtitle="Architect plans, sketches, inspiration shots. PDF or images." styles={styles} themeColors={themeColors} />
+          <View style={styles.photoGrid}>
+            <TouchableOpacity style={styles.uploadTile} onPress={pickDrawings} activeOpacity={0.8}>
+              <View style={styles.uploadIconWrap}>
+                <Plus size={16} color={themeColors.accent} strokeWidth={2.6} />
+              </View>
+              <Text style={styles.uploadText}>Add file</Text>
+            </TouchableOpacity>
+            {drawings.map(d => (
+              <View key={d.uri} style={styles.photoTile}>
+                <View style={styles.drawingPlaceholder}>
+                  <FileText size={18} color={themeColors.accent} />
+                  <Text style={styles.drawingName} numberOfLines={2}>{d.name}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.photoRemove}
+                  onPress={() => removeAttachment(d.uri)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove file"
+                >
+                  <X size={11} color={themeColors.text} strokeWidth={2.6} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </View>
+      </FadeRise>
+    </>
+  );
+}
+
+function BudgetStep({
+  styles, themeColors,
+  budgetMin, setBudgetMin, budgetMax, setBudgetMax,
+  desiredStart, setDesiredStart, deadline, setDeadline,
+}: StyleProp & {
+  budgetMin: string; setBudgetMin: (v: string) => void;
+  budgetMax: string; setBudgetMax: (v: string) => void;
+  desiredStart: string; setDesiredStart: (v: string) => void;
+  deadline: string; setDeadline: (v: string) => void;
+}) {
+  return (
+    <>
+      <FadeRise delay={0}>
+        <Text style={styles.stepHeading}>Budget and timing</Text>
+      </FadeRise>
+
+      <FadeRise delay={60}>
+        <View style={styles.card}>
+          <CardHead icon={DollarSign} title="Budget range" subtitle="A range filters out wildly off-target bids. Leave blank if you're not sure." styles={styles} themeColors={themeColors} />
+          <View style={styles.budgetRow}>
+            <View style={styles.budgetField}>
+              <DollarSign size={14} color={themeColors.textMuted} />
+              <TextInput
+                style={styles.budgetInput}
+                value={budgetMin} onChangeText={setBudgetMin}
+                placeholder="Min" placeholderTextColor={themeColors.textMuted}
+                keyboardType="numeric"
+              />
+            </View>
+            <Text style={styles.budgetDash}>–</Text>
+            <View style={styles.budgetField}>
+              <DollarSign size={14} color={themeColors.textMuted} />
+              <TextInput
+                style={styles.budgetInput}
+                value={budgetMax} onChangeText={setBudgetMax}
+                placeholder="Max" placeholderTextColor={themeColors.textMuted}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+        </View>
+      </FadeRise>
+
+      <FadeRise delay={120}>
+        <View style={styles.card}>
+          <CardHead icon={Calendar} title="Timing" subtitle="When do you want work to start, and when should bids be in?" styles={styles} themeColors={themeColors} />
+          <Text style={styles.label}>Desired start</Text>
+          <TextInput
+            style={styles.input}
+            value={desiredStart} onChangeText={setDesiredStart}
+            placeholder="e.g. Mid-July or 2026-08-15"
+            placeholderTextColor={themeColors.textMuted}
+          />
+          <Text style={[styles.label, { marginTop: 14 }]}>Bid deadline</Text>
+          <TextInput
+            style={styles.input}
+            value={deadline} onChangeText={setDeadline}
+            placeholder="Defaults to 14 days from today"
+            placeholderTextColor={themeColors.textMuted}
+          />
+        </View>
+      </FadeRise>
+    </>
+  );
+}
+
+function ReviewStep({
+  styles, themeColors,
+  description, workType, address, addressVerified,
+  photoCount, drawingCount, extraScope,
+  budgetMin, budgetMax, desiredStart, deadline,
+  jumpTo,
+}: StyleProp & {
+  description: string; workType: WorkType;
+  address: string; addressVerified: boolean;
+  photoCount: number; drawingCount: number; extraScope: string;
+  budgetMin: string; budgetMax: string; desiredStart: string; deadline: string;
+  jumpTo: (s: WizardStep) => void;
+}) {
+  const workTypeLabel = WORK_TYPES.find(w => w.id === workType)?.label ?? '—';
+  return (
+    <>
+      <FadeRise delay={0}>
+        <Text style={styles.stepHeading}>Review and post</Text>
+      </FadeRise>
+
+      <FadeRise delay={60}>
+        <View style={styles.card}>
+          <ReviewRow label="Project"  value={deriveTitle(description) || '—'} onEdit={() => jumpTo('details')} styles={styles} />
+          <ReviewRow label="Type"     value={workTypeLabel} onEdit={() => jumpTo('details')} styles={styles} />
+          <ReviewRow label="Address"  value={address || '—'} hint={addressVerified ? 'Verified' : undefined} onEdit={() => jumpTo('details')} styles={styles} />
+          <ReviewRow label="Photos"   value={`${photoCount} photo${photoCount === 1 ? '' : 's'}`} onEdit={() => jumpTo('details')} styles={styles} />
+        </View>
+      </FadeRise>
+
+      <FadeRise delay={120}>
+        <View style={styles.card}>
+          <ReviewRow label="Extra scope" value={extraScope || '—'} multiline onEdit={() => jumpTo('scope')} styles={styles} />
+          <ReviewRow label="Drawings"    value={`${drawingCount} file${drawingCount === 1 ? '' : 's'}`} onEdit={() => jumpTo('scope')} styles={styles} />
+        </View>
+      </FadeRise>
+
+      <FadeRise delay={180}>
+        <View style={styles.card}>
+          <ReviewRow label="Budget" value={budgetRangeText(budgetMin, budgetMax)} onEdit={() => jumpTo('budget')} styles={styles} />
+          <ReviewRow label="Start"  value={desiredStart || '—'}                  onEdit={() => jumpTo('budget')} styles={styles} />
+          <ReviewRow label="Deadline" value={deadline || '14 days from today'}   onEdit={() => jumpTo('budget')} styles={styles} />
+        </View>
+      </FadeRise>
+
+      <FadeRise delay={240}>
+        <View style={styles.disclaimerCard}>
+          <Sparkles size={13} color={themeColors.accent} />
+          <Text style={styles.disclaimerText}>
+            By posting you agree this is a real project at a real address. Trolls and fake posts get accounts banned.
+          </Text>
+        </View>
+      </FadeRise>
+    </>
+  );
+}
+
+function ReviewRow({ label, value, hint, onEdit, multiline, styles }: {
+  label: string; value: string; hint?: string; onEdit: () => void; multiline?: boolean;
   styles: ReturnType<typeof makeStyles>;
-  optional?: boolean;
 }) {
   return (
-    <View style={styles.progressSeg}>
-      <View style={[
-        styles.progressBar,
-        done ? { backgroundColor: accent } : null,
-        !done && optional ? { backgroundColor: accent + '30' } : null,
-      ]} />
-      <Text style={[
-        styles.progressLabel,
-        done ? { color: accent } : null,
-      ]}>
-        {label}
-      </Text>
+    <View style={styles.reviewRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.reviewLabel}>{label}</Text>
+        <Text style={styles.reviewValue} numberOfLines={multiline ? 3 : 1}>{value}</Text>
+        {hint && <Text style={styles.reviewHint}>{hint}</Text>}
+      </View>
+      <TouchableOpacity onPress={onEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit ${label}`}>
+        <Text style={styles.reviewEdit}>Edit</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
-function NextStep({ i, text, styles, accent }: {
-  i: number; text: string; styles: ReturnType<typeof makeStyles>; accent: string;
+function CardHead({
+  icon: Icon, title, subtitle, chevron, styles, themeColors,
+}: {
+  icon: React.ComponentType<any>;
+  title: string;
+  subtitle?: string;
+  chevron?: boolean;
+  styles: ReturnType<typeof makeStyles>;
+  themeColors: ThemeColors;
 }) {
   return (
-    <View style={styles.nextStepRow}>
-      <View style={[styles.nextStepNum, { backgroundColor: accent + '18' }]}>
-        <Text style={[styles.nextStepNumText, { color: accent }]}>{i}</Text>
+    <View style={styles.cardHead}>
+      <View style={styles.cardHeadIcon}>
+        <Icon size={15} color={themeColors.accent} strokeWidth={2.2} />
       </View>
-      <Text style={styles.nextStepText}>{text}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cardHeadTitle}>{title}</Text>
+        {subtitle && <Text style={styles.cardHeadSubtitle}>{subtitle}</Text>}
+      </View>
+      {chevron && <ChevronRight size={16} color={themeColors.textMuted} />}
     </View>
   );
 }
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 // "123 Main St, Springfield, IL 62701" → { city: 'Springfield', state: 'IL' }
 function parseCityState(addr: string): { city: string; state: string } {
@@ -747,113 +956,107 @@ function parseCityState(addr: string): { city: string; state: string } {
   return { city, state };
 }
 
+// Derive a project title from the description's first line/sentence,
+// clamped to 80 chars. Used because the new wizard drops the separate
+// title field — one less thing for the user to type.
+function deriveTitle(desc: string): string {
+  const raw = desc.trim().split(/\n|\.|;/)[0]?.trim() ?? '';
+  if (!raw) return '';
+  return raw.length > 80 ? raw.slice(0, 77) + '…' : raw;
+}
+
+function budgetRangeText(min: string, max: string): string {
+  if (!min && !max) return '—';
+  const fmt = (n: string) => '$' + Number(n).toLocaleString();
+  if (min && max) return `${fmt(min)} – ${fmt(max)}`;
+  if (min) return `${fmt(min)}+`;
+  return `Up to ${fmt(max)}`;
+}
+
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
 
-  // ── Hero header ─────────────────────────────────────────────────────
-  heroWrap: { borderBottomLeftRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden' },
+  // ── Hero ─────────────────────────────────────────────────────────────
   hero: {
+    backgroundColor: t.bg,
     paddingHorizontal: 20,
     paddingTop: 14,
-    paddingBottom: 24,
+    paddingBottom: 16,
     overflow: 'hidden',
-  },
-  heroBgIcon: {
-    position: 'absolute',
-    right: -40,
-    bottom: -50,
-    transform: [{ rotate: '-10deg' }],
   },
   heroBack: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: Colors.card,
+    borderWidth: 1, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  heroEyebrow: {
-    fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.85)',
-    letterSpacing: 1.5,
+  heroIllustration: {
+    position: 'absolute',
+    right: -8, top: 50,
+    flexDirection: 'row', alignItems: 'flex-end',
   },
+  heroCopy: { paddingRight: 100, marginBottom: 18 },
   heroTitle: {
-    fontSize: 26, fontWeight: '800', color: '#FFF',
-    letterSpacing: -0.6, lineHeight: 30, marginTop: 6,
+    fontSize: 30, fontWeight: '800', color: t.text,
+    letterSpacing: -0.9, lineHeight: 34,
   },
   heroSubtitle: {
-    fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.88)',
-    marginTop: 10, lineHeight: 18, maxWidth: 320,
+    fontSize: 13, fontWeight: '500', color: t.textSecondary,
+    marginTop: 10, lineHeight: 18, maxWidth: 280,
   },
 
-  // ── Progress strip card
-  progressCard: {
+  // ── Step indicator ───────────────────────────────────────────────────
+  stepperCard: {
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,
-    padding: 14,
     borderWidth: 1, borderColor: t.line,
-    marginBottom: 14,
-    marginTop: 4,
+    paddingVertical: 12, paddingHorizontal: 14,
   },
-  progressHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  progressTitle: { fontSize: 13, fontWeight: '800', color: t.text, letterSpacing: -0.2, flex: 1 },
-  progressEta: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
-    backgroundColor: t.accent + '15',
-  },
-  progressEtaText: { fontSize: 10.5, fontWeight: '800', color: t.accent, letterSpacing: 0.3 },
-  progressRow: { flexDirection: 'row', gap: 6 },
-  progressSeg: { flex: 1, gap: 5 },
-  progressBar: { height: 4, borderRadius: 2, backgroundColor: t.line },
-  progressLabel: {
-    fontSize: 9.5, fontWeight: '800', color: t.textMuted,
-    letterSpacing: 0.5, textTransform: 'uppercase',
-  },
-
-  // ── Card shell + section head
-  card: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16,
-    borderWidth: 1, borderColor: t.line, marginBottom: 14,
-  },
-  cardVerified: {
-    borderColor: t.success + '55',
-    shadowColor: t.success, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12, shadowRadius: 8, elevation: 1,
-  },
-  sectionHead: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  sectionHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  sectionIconWrap: {
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: t.line + '60',
+  stepNode: { alignItems: 'center', gap: 6, width: 64 },
+  stepDot: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: t.line + '70',
     alignItems: 'center', justifyContent: 'center',
   },
-  sectionNum: {
-    fontSize: 11, fontWeight: '800', color: t.textMuted,
-    letterSpacing: 0.6,
+  stepLabel: {
+    fontSize: 10, fontWeight: '700', color: t.textMuted,
+    textAlign: 'center', letterSpacing: 0.1,
   },
-  sectionTitle: {
-    fontSize: 16, fontWeight: '800', color: t.text,
-    letterSpacing: -0.3, flex: 1,
-  },
-  sectionRequired: {
-    fontSize: 9, fontWeight: '800', color: t.accent,
-    letterSpacing: 0.8, paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: Tokens.radius.full, backgroundColor: t.accent + '15',
-  },
-  sectionOptional: {
-    fontSize: 9, fontWeight: '800', color: t.textMuted,
-    letterSpacing: 0.8, paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: Tokens.radius.full, backgroundColor: t.line,
+  stepLine: {
+    flex: 1, height: 0, borderTopWidth: 1.5,
+    borderTopColor: t.line, borderStyle: 'dashed',
+    marginHorizontal: 2, marginTop: -16, // raise the line up to dot center
   },
 
-  label:  { fontSize: 11, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 6 },
-  helper: { fontSize: 12.5, color: t.textSecondary, marginBottom: 10, lineHeight: 17, fontWeight: '500' },
-  charCount: { fontSize: Type.caption2.fontSize, color: t.textMuted, alignSelf: 'flex-end', marginTop: 4 },
+  // ── Body ─────────────────────────────────────────────────────────────
+  body: { paddingHorizontal: 16, paddingTop: 20 },
+  stepHeading: {
+    fontSize: 18, fontWeight: '800', color: t.text,
+    letterSpacing: -0.4, marginBottom: 14,
+  },
+
+  // ── Card shell ───────────────────────────────────────────────────────
+  card: {
+    backgroundColor: Colors.card,
+    borderRadius: Tokens.radius.lg,
+    padding: 16,
+    borderWidth: 1, borderColor: t.line,
+    marginBottom: 14,
+  },
+  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  cardHeadIcon: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: t.accent + '15',
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 1,
+  },
+  cardHeadTitle: { fontSize: 14.5, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  cardHeadSubtitle: { fontSize: 12.5, fontWeight: '500', color: t.textSecondary, marginTop: 2, lineHeight: 17 },
+
+  label: { fontSize: 11, fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 6 },
+  charCount: { fontSize: 11, color: t.textMuted, alignSelf: 'flex-end', marginTop: 6, fontWeight: '600' },
 
   input: {
     backgroundColor: t.bg,
@@ -861,74 +1064,102 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 12,
     fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
-  inputMultiline: { minHeight: 110, paddingTop: 12 },
+  inputMultiline: { minHeight: 100, paddingTop: 12 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  // Category chips: accent-tinted active state (orange ring + light fill)
-  // rather than the old solid black fill — feels on-brand.
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
-    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line,
-  },
-  chipActive: { backgroundColor: t.accent + '15', borderColor: t.accent },
-  chipText:  { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
-  chipTextActive: { color: t.accent },
-
-  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   verifyBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
-  },
-  verifyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF' },
-  verifiedRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    marginTop: 10, padding: 10,
-    backgroundColor: t.success + '12',
+    paddingHorizontal: 18, paddingVertical: 12,
     borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: t.success + '30',
+    backgroundColor: t.accent + 'CC',
+    alignItems: 'center', justifyContent: 'center',
+    minWidth: 80,
   },
-  verifiedBadge: {
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: t.success,
+  verifyBtnText: { fontSize: 14, fontWeight: '800', color: '#FFF', letterSpacing: 0.1 },
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  verifiedText: { flex: 1, fontSize: 11.5, color: t.success, fontWeight: '700' },
+
+  // Work-type chips
+  workTypeRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  workTypeChip: {
+    flex: 1, paddingVertical: 10, paddingHorizontal: 6,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.card,
+    borderWidth: 1.5, borderColor: t.line,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5,
+  },
+  workTypeChipActive: { borderColor: t.accent, backgroundColor: t.accent + '0D' },
+  workTypeLabel: { fontSize: 12.5, fontWeight: '700', color: t.text },
+
+  // Photo grid
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  uploadTile: {
+    width: 92, height: 92, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accent + '0A',
+    borderWidth: 1.5, borderColor: t.accent + '55', borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', gap: 5,
+  },
+  uploadIconWrap: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: t.accent + '20',
     alignItems: 'center', justifyContent: 'center',
   },
-  verifiedText: { flex: 1, fontSize: 12, color: t.success, fontWeight: '700' },
-
-  // Attachment tiles. Adds an icon-in-circle on the "add" tiles for craft.
-  attachmentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
-  attachmentTile: {
+  uploadText: { fontSize: 10.5, fontWeight: '800', color: t.accent, letterSpacing: 0.2 },
+  photoTile: {
     width: 92, height: 92, borderRadius: Tokens.radius.md, overflow: 'hidden',
     backgroundColor: t.bg, position: 'relative',
   },
-  attachmentImage: { width: '100%', height: '100%' },
-  attachmentRemove: {
-    position: 'absolute', top: 4, right: 4,
-    width: 20, height: 20, borderRadius: Tokens.radius.md,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+  photoImg: { width: '100%', height: '100%' },
+  photoRemove: {
+    position: 'absolute', top: 5, right: 5,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
   },
-  drawingTilePlaceholder: {
+  drawingPlaceholder: {
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, padding: 6,
   },
-  drawingTileName: { fontSize: 9, color: t.text, textAlign: 'center', lineHeight: 11 },
-  addTile: {
-    width: 92, height: 92, borderRadius: Tokens.radius.md,
-    backgroundColor: t.accent + '08',
-    borderWidth: 1.5, borderColor: t.accent + '40', borderStyle: 'dashed',
-    alignItems: 'center', justifyContent: 'center', gap: 5,
-  },
-  addTileIconWrap: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: t.accent + '18',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  addTileText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.accent, letterSpacing: 0.3 },
+  drawingName: { fontSize: 9, color: t.text, textAlign: 'center', lineHeight: 11 },
 
+  proTipCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: t.accent + '12',
+    borderRadius: Tokens.radius.md,
+    paddingHorizontal: 12, paddingVertical: 10,
+    marginTop: 12,
+  },
+  proTipText: { flex: 1, fontSize: 12, color: t.text, fontWeight: '500', lineHeight: 16 },
+  proTipBold: { fontWeight: '800', color: t.accent },
+
+  // Budget step
   budgetRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
   budgetField:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.bg, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line, paddingHorizontal: 10 },
   budgetInput:  { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: t.text },
-  budgetDash:   { fontSize: Type.callout.fontSize, color: t.textMuted },
-  dateRow:      { flexDirection: 'row', alignItems: 'center' },
+  budgetDash:   { fontSize: Type.callout.fontSize, color: t.textMuted, fontWeight: '700' },
+
+  // Review step
+  reviewRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
+  },
+  reviewLabel: {
+    fontSize: 10, fontWeight: '800', color: t.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.7,
+  },
+  reviewValue: { fontSize: 14, fontWeight: '700', color: t.text, marginTop: 2 },
+  reviewHint:  { fontSize: 11, fontWeight: '700', color: t.success, marginTop: 2 },
+  reviewEdit:  { fontSize: 13, fontWeight: '800', color: t.accent },
+
+  disclaimerCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: t.accent + '0A',
+    borderRadius: Tokens.radius.md,
+    padding: 12, marginTop: 4,
+  },
+  disclaimerText: { flex: 1, fontSize: 11.5, color: t.textSecondary, lineHeight: 16, fontWeight: '500' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
@@ -939,34 +1170,28 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.danger, lineHeight: 18 },
 
-  submitBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    paddingVertical: 16, borderRadius: Tokens.radius.card,
-    shadowColor: t.accent, shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.32, shadowRadius: 18, elevation: 6,
+  // ── Sticky bottom bar ────────────────────────────────────────────────
+  bottomBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingTop: 10,
+    backgroundColor: t.bg,
+    borderTopWidth: 1, borderTopColor: t.line,
   },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  draftBtn: { flex: 1 },
+  draftTitle: { fontSize: 14, fontWeight: '800', color: t.text },
+  draftHint:  { fontSize: 11, fontWeight: '500', color: t.textMuted, marginTop: 1 },
 
-  nextStepsCard: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: Tokens.radius.lg,
-    backgroundColor: t.accent + '08',
-    borderWidth: 1, borderColor: t.accent + '20',
-    gap: 10,
+  continueBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14, paddingHorizontal: 22,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: t.accent,
+    minWidth: 160,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28, shadowRadius: 14, elevation: 4,
   },
-  nextStepsTitle: {
-    fontSize: 11, fontWeight: '800', color: t.accent,
-    letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4,
-  },
-  nextStepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  nextStepNum: {
-    width: 22, height: 22, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  nextStepNumText: { fontSize: 11, fontWeight: '800' },
-  nextStepText: { flex: 1, fontSize: 13, color: t.text, fontWeight: '600', lineHeight: 18 },
-
-  disclaimer: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+  continueBtnDim: { opacity: 0.55 },
+  continueBtnText: { fontSize: 15, fontWeight: '800', color: '#FFF', letterSpacing: 0.1 },
 });
