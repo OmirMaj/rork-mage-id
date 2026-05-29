@@ -77,8 +77,16 @@ function greetingFor(d: Date = new Date()): { text: string; Icon: React.Componen
 // Compact relative time. Used in the per-card "Posted Xh ago" chip plus
 // the activity micro-line. Kept inline so we don't pull date-fns just for
 // six branches.
+//
+// Boundary handling: at d=28-29, the old `w < 4` check let us fall through
+// to months even though `Math.floor(d/30)` is still 0 — producing the
+// awkward "0mo ago". We now explicitly cap weeks at 30 days and clamp
+// months to ≥1.
 function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '';
+  const ms = Date.now() - t;
+  if (ms < 0) return 'just now';
   const min = Math.floor(ms / 60000);
   if (min < 1) return 'just now';
   if (min < 60) return `${min}m ago`;
@@ -86,10 +94,10 @@ function timeAgo(iso: string): string {
   if (hr < 24) return `${hr}h ago`;
   const d = Math.floor(hr / 24);
   if (d < 7) return `${d}d ago`;
-  const w = Math.floor(d / 7);
-  if (w < 4) return `${w}w ago`;
+  if (d < 30) return `${Math.floor(d / 7)}w ago`;
   const mo = Math.floor(d / 30);
-  return `${mo}mo ago`;
+  if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(d / 365)}y ago`;
 }
 
 // Tiny entrance wrapper — fade + 12px rise, native driver, no extra
@@ -469,6 +477,12 @@ function RfpCard({
   const isAwarded = !!row.awarded_response_id;
   const isOpen = row.status === 'open' && !isAwarded;
   const posted = timeAgo(row.posted_date);
+  // Fall back to the gradient placeholder if the photo URL fails to load
+  // (broken link, expired signed URL, offline, etc.). Without this the
+  // Image silently renders nothing and the hero looks like a blank cream
+  // strip instead of the branded placeholder.
+  const [photoFailed, setPhotoFailed] = React.useState(false);
+  const showPhoto = !!heroPhoto && !photoFailed;
 
   return (
     <TouchableOpacity
@@ -482,8 +496,13 @@ function RfpCard({
           gradient with a Building2 silhouette. The void in the old design
           looked unfinished; here it carries identity. */}
       <View style={styles.rfpHeroWrap}>
-        {heroPhoto ? (
-          <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
+        {showPhoto ? (
+          <Image
+            source={{ uri: heroPhoto as string }}
+            style={styles.rfpHero}
+            resizeMode="cover"
+            onError={() => setPhotoFailed(true)}
+          />
         ) : (
           <LinearGradient
             colors={[themeColors.accent + '1A', themeColors.accent + '08', themeColors.accent + '12']}
@@ -498,12 +517,12 @@ function RfpCard({
             so it reads on both photos and the placeholder gradient. */}
         <View style={[
           styles.rfpTimestampChip,
-          heroPhoto ? styles.rfpTimestampChipDark : styles.rfpTimestampChipLight,
+          showPhoto ? styles.rfpTimestampChipDark : styles.rfpTimestampChipLight,
         ]}>
-          <Clock size={10} color={heroPhoto ? '#FFF' : themeColors.textSecondary} strokeWidth={2.4} />
+          <Clock size={10} color={showPhoto ? '#FFF' : themeColors.textSecondary} strokeWidth={2.4} />
           <Text style={[
             styles.rfpTimestampText,
-            heroPhoto ? { color: '#FFF' } : { color: themeColors.textSecondary },
+            showPhoto ? { color: '#FFF' } : { color: themeColors.textSecondary },
           ]}>
             {posted}
           </Text>
