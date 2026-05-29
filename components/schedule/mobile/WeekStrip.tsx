@@ -94,17 +94,26 @@ export function WeekStrip({ selectedDate, onSelectDate }: WeekStripProps) {
   // and the resting value when idle.
   const [centeredIdx, setCenteredIdx] = useState<number>(() => Math.max(0, selIdx));
 
+  // Centering math, with `contentContainerStyle.paddingHorizontal =
+  // (viewportW - CELL_W) / 2`:
+  //   cell i's center in content coords = P + i*CELL_W + CELL_W/2
+  //   viewport center in content coords = scrollOffset + viewportW/2
+  // Setting equal and solving collapses the padding out:
+  //   scrollOffset = i * CELL_W   (to center cell i)
+  //   centeredIdx  = round(scrollOffset / CELL_W)
+  // Earlier versions of this file dropped the padding term and ended up
+  // ~3 cells off — the tapped day landed at the right viewport edge
+  // instead of the center.
   useEffect(() => {
     if (selIdx < 0 || viewportW === 0) return;
-    const offset = selIdx * CELL_W - (viewportW / 2) + (CELL_W / 2);
-    listRef.current?.scrollToOffset({ offset: Math.max(0, offset), animated: true });
+    listRef.current?.scrollToOffset({ offset: Math.max(0, selIdx * CELL_W), animated: true });
     setCenteredIdx(selIdx);
   }, [selIdx, viewportW]);
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (viewportW === 0) return;
     const x = e.nativeEvent.contentOffset.x;
-    const idx = Math.round((x + viewportW / 2 - CELL_W / 2) / CELL_W);
+    const idx = Math.round(x / CELL_W);
     const clamped = Math.max(0, Math.min(days.length - 1, idx));
     if (clamped !== centeredIdx) setCenteredIdx(clamped);
   }, [viewportW, days.length, centeredIdx]);
