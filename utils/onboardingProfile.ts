@@ -19,9 +19,9 @@ const KEY = 'mage_onboarding_profile_v1';
 export type UserRole = 'contractor' | 'client' | 'both';
 
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
-  contractor: 'I run a construction business',
-  client: 'I own properties & hire contractors',
-  both: 'I do both',
+  contractor: 'Contractor',
+  client: 'Property Owner',
+  both: 'Both',
 };
 
 export const USER_ROLE_BLURB: Record<UserRole, string> = {
