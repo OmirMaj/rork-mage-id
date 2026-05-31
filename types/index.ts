@@ -1372,10 +1372,10 @@ export const LEAD_STAGE_LABELS: Record<LeadStage, string> = {
 export type LeadSource =
   | 'referral' | 'website' | 'houzz' | 'angi' | 'yelp' | 'thumbtack'
   | 'google' | 'facebook' | 'instagram' | 'walk_in' | 'repeat'
-  | 'sign' | 'truck' | 'other';
+  | 'sign' | 'truck' | 'mage_bids' | 'other';
 
 export const LEAD_SOURCES: LeadSource[] = [
-  'referral','website','houzz','angi','yelp','thumbtack','google','facebook','instagram','walk_in','repeat','sign','truck','other',
+  'referral','website','houzz','angi','yelp','thumbtack','google','facebook','instagram','walk_in','repeat','sign','truck','mage_bids','other',
 ];
 export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   referral: 'Referral',
@@ -1391,6 +1391,10 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   repeat: 'Repeat client',
   sign: 'Yard sign',
   truck: 'Truck signage',
+  // Leads sourced from the MAGE ID Bids marketplace (a contractor responding
+  // to a homeowner RFP). Tracked as its own channel so win-rate analytics can
+  // break out marketplace performance.
+  mage_bids: 'MAGE ID Bids',
   other: 'Other',
 };
 
@@ -2511,6 +2515,52 @@ export interface HomeownerBidResponse {
   submittedAt: string;
   respondedAt?: string;
   awardedProjectId?: string;
+}
+
+// ─────────────────────────────────────────────
+// Instant Bid — tiered (Good / Better / Best) proposal
+// ─────────────────────────────────────────────
+//
+// The keystone "this app gets me jobs" feature. A contractor browsing a
+// homeowner RFP taps once and the app drafts a professional Good/Better/Best
+// proposal (AI-assisted, heuristic fallback) with an illustrative monthly
+// financing line, ready to review and submit in seconds. The first contractor
+// to respond with a real, professional, tiered quote wins the disproportionate
+// share of jobs — this collapses a multi-step manual proposal into one tap.
+//
+// Persisted as JSON in bid_responses.estimate_breakdown (a jsonb column that
+// was previously unused), so it needs no schema change. bid_amount mirrors the
+// recommended ("Better") tier so the existing review/award screens — which read
+// bid_amount — keep working unchanged.
+
+export type ProposalTierKey = 'good' | 'better' | 'best';
+
+export interface ProposalTier {
+  key: ProposalTierKey;
+  /** Display name, e.g. "Essential", "Recommended", "Premium". */
+  label: string;
+  /** One-line positioning the homeowner reads first. */
+  tagline: string;
+  amount: number;
+  /** What's included at this tier — bullet points. */
+  inclusions: string[];
+  /** Illustrative "as low as $X/mo" line; null when financing is off. */
+  financingLine?: string | null;
+}
+
+export interface TieredProposal {
+  /** Schema marker so we can evolve the JSON safely. */
+  kind: 'tiered_proposal_v1';
+  tiers: ProposalTier[];
+  /** Which tier bid_amount mirrors + is shown as "recommended". */
+  recommendedTier: ProposalTierKey;
+  /** AI-drafted pitch message to the homeowner. */
+  message: string;
+  /** Modeling assumptions the contractor can edit before sending. */
+  assumptions: string[];
+  /** 'ai' when the LLM produced it, 'heuristic' on fallback. */
+  source: 'ai' | 'heuristic';
+  generatedAt: string;
 }
 
 export interface CompanyProfile {

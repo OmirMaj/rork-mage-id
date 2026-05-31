@@ -14,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Send, DollarSign, MessageSquare, Eye, Sparkles,
-  AlertTriangle, FileText,
+  AlertTriangle, FileText, Zap, Check, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -22,7 +22,11 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
+import { useProjects } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
+import type { TieredProposal, ProposalTierKey } from '@/types';
+import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -32,6 +36,12 @@ interface RfpRow {
   user_id: string;
   status: string;
   is_homeowner_rfp: boolean;
+  city: string | null;
+  state: string | null;
+  category: string | null;
+  scope_description: string | null;
+  budget_min: number | null;
+  budget_max: number | null;
 }
 
 export default function SubmitBidResponseScreen() {
@@ -41,6 +51,7 @@ export default function SubmitBidResponseScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { companies } = useCompanies();
+  const { settings, addLead } = useProjects();
   const { bidId } = useLocalSearchParams<{ bidId: string }>();
 
   // Only one company per user for now — first one wins (most apps have a single org).
@@ -53,18 +64,71 @@ export default function SubmitBidResponseScreen() {
   const [submitting, setSubmitting]           = useState(false);
   const [error, setError]                     = useState<string | null>(null);
 
+  // ── Instant Bid state ──
+  const [proposal, setProposal]         = useState<TieredProposal | null>(null);
+  const [selectedTier, setSelectedTier] = useState<ProposalTierKey>('better');
+  const [generating, setGenerating]     = useState(false);
+
   const { data: rfp, isLoading } = useQuery({
     queryKey: ['rfp-summary', bidId],
     enabled: !!bidId && isSupabaseConfigured,
     queryFn: async (): Promise<RfpRow | null> => {
       const { data, error: e } = await supabase
         .from('public_bids')
-        .select('id,title,user_id,status,is_homeowner_rfp')
+        .select('id,title,user_id,status,is_homeowner_rfp,city,state,category,scope_description,budget_min,budget_max')
         .eq('id', bidId).single();
       if (e) return null;
       return data;
     },
   });
+
+  // ⚡ Generate a Good/Better/Best draft from the RFP in one tap. Fills the
+  // amount/summary/message fields from the recommended tier so the contractor
+  // can review + tweak, then send. Speed-to-lead made literal.
+  const handleInstantBid = useCallback(async () => {
+    if (!rfp) return;
+    setError(null);
+    setGenerating(true);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const p = await generateInstantBid(
+        {
+          title: rfp.title,
+          city: rfp.city,
+          state: rfp.state,
+          scopeDescription: rfp.scope_description,
+          budgetMin: rfp.budget_min,
+          budgetMax: rfp.budget_max,
+          projectType: rfp.category,
+        },
+        { companyName: company?.companyName, financing: settings?.financing, contractorNote: message.trim() || undefined },
+      );
+      setProposal(p);
+      setSelectedTier(p.recommendedTier);
+      setViewSiteFirst(false);
+      const rec = recommendedTierOf(p);
+      setEstimateAmount(String(rec.amount));
+      setEstimateSummary(rec.inclusions.slice(0, 3).join(' · '));
+      setMessage(p.message);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn('[instant-bid] generation failed', e);
+      setError('Could not draft a bid right now. You can still fill it in manually below.');
+    } finally {
+      setGenerating(false);
+    }
+  }, [rfp, company, settings, message]);
+
+  // Picking a different tier re-fills the amount/summary from that tier.
+  const handlePickTier = useCallback((key: ProposalTierKey) => {
+    if (!proposal) return;
+    const tier = proposal.tiers.find(t => t.key === key);
+    if (!tier) return;
+    setSelectedTier(key);
+    setEstimateAmount(String(tier.amount));
+    setEstimateSummary(tier.inclusions.slice(0, 3).join(' · '));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [proposal]);
 
   const validate = useCallback((): string | null => {
     if (!viewSiteFirst) {
@@ -96,27 +160,62 @@ export default function SubmitBidResponseScreen() {
       const proposerEmail = company?.contactEmail ?? user.email ?? null;
       const proposerPhone = company?.phone ?? null;
 
+      // When the bid came from the Instant Bid generator we persist the full
+      // Good/Better/Best proposal in estimate_breakdown (a jsonb column that
+      // was previously unused — no schema change). bid_amount mirrors the
+      // selected tier so the existing review/award screens, which read
+      // bid_amount, keep working unchanged.
       const { error: insertErr } = await supabase.from('bid_responses').insert({
         bid_id: bidId,
         user_id: user.id,
         proposer_company_id: company?.id ?? null,
-        company_name: proposerName,            // legacy column name on existing table
+        company_name: proposerName,            // canonical column on the table
         proposer_email: proposerEmail,
         proposer_phone: proposerPhone,
         bid_amount: viewSiteFirst ? null : Number(estimateAmount),
         estimate_summary: viewSiteFirst ? 'Site visit requested before final estimate.' : estimateSummary.trim(),
+        estimate_breakdown: proposal ?? null,
         scope_description: message.trim(),
         view_site_requested: viewSiteFirst,
         status: 'submitted',
       });
       if (insertErr) throw insertErr;
 
+      // Auto-create a CRM lead so the contractor's pipeline + speed-to-lead
+      // metrics reflect marketplace activity. firstRespondedAt = now because
+      // responding to the RFP *is* the first response. This is what turns a
+      // portal bid into a tracked, win-rate-counted lead.
+      try {
+        addLead({
+          name: rfp.title,
+          source: 'mage_bids',
+          stage: viewSiteFirst ? 'qualified' : 'proposal',
+          address: [rfp.city, rfp.state].filter(Boolean).join(', ') || undefined,
+          projectType: rfp.category ?? undefined,
+          scope: rfp.scope_description ?? undefined,
+          budgetMin: rfp.budget_min ?? undefined,
+          budgetMax: rfp.budget_max ?? undefined,
+          firstRespondedAt: new Date().toISOString(),
+          touches: [{
+            id: `t-${Date.now()}`,
+            kind: 'note',
+            body: viewSiteFirst
+              ? 'Requested a site visit via MAGE ID Bids.'
+              : `Submitted ${proposal ? 'an Instant Bid' : 'a bid'} of ${formatMoney(Number(estimateAmount) || 0)} via MAGE ID Bids.`,
+            occurredAt: new Date().toISOString(),
+          }],
+        });
+      } catch (leadErr) {
+        // Lead creation is best-effort — never block the bid on it.
+        console.warn('[submit-bid-response] lead create failed', leadErr);
+      }
+
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Bid submitted',
         viewSiteFirst
-          ? 'The homeowner will see your site-visit request and reach out if they want to schedule.'
-          : 'The homeowner will review your estimate. You\'ll be notified if they shortlist or award you.',
+          ? 'The homeowner will see your site-visit request and reach out if they want to schedule. We added it to your Leads pipeline.'
+          : 'The homeowner will review your estimate. You\'ll be notified if they shortlist or award you. We added it to your Leads pipeline.',
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (e) {
@@ -126,7 +225,7 @@ export default function SubmitBidResponseScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, user, bidId, rfp, company, viewSiteFirst, estimateAmount, estimateSummary, message, router]);
+  }, [validate, user, bidId, rfp, company, viewSiteFirst, estimateAmount, estimateSummary, message, proposal, addLead, router]);
 
   if (isLoading || !rfp) {
     return (
@@ -156,6 +255,87 @@ export default function SubmitBidResponseScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ⚡ Instant Bid — one-tap AI-drafted Good/Better/Best proposal */}
+        <View style={styles.instantCard}>
+          <View style={styles.instantHead}>
+            <View style={styles.instantIcon}><Zap size={16} color="#FFF" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.instantTitle}>Instant Bid</Text>
+              <Text style={styles.instantSub}>
+                Draft a professional Good / Better / Best proposal in seconds. The first pro to respond wins the most jobs.
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.instantBtn, generating && styles.instantBtnDisabled]}
+            onPress={handleInstantBid}
+            disabled={generating}
+            activeOpacity={0.85}
+            testID="instant-bid-generate"
+          >
+            {generating ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Sparkles size={15} color="#FFF" />
+                <Text style={styles.instantBtnText}>{proposal ? 'Regenerate draft' : 'Draft my bid'}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Tier picker — appears once a draft exists */}
+        {proposal && !viewSiteFirst && (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Choose the option to send</Text>
+            <Text style={styles.helper}>
+              Offering a range lifts win-rates — the &quot;Recommended&quot; tier is pre-selected. Tap to switch.
+            </Text>
+            <View style={styles.tierList}>
+              {proposal.tiers.map(tier => {
+                const active = tier.key === selectedTier;
+                return (
+                  <TouchableOpacity
+                    key={tier.key}
+                    style={[styles.tierCard, active && styles.tierCardActive]}
+                    onPress={() => handlePickTier(tier.key)}
+                    activeOpacity={0.85}
+                    testID={`instant-bid-tier-${tier.key}`}
+                  >
+                    <View style={styles.tierTop}>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.tierLabelRow}>
+                          <Text style={[styles.tierLabel, active && { color: themeColors.accent }]}>{tier.label}</Text>
+                          {tier.key === proposal.recommendedTier && (
+                            <View style={styles.tierBadge}><Text style={styles.tierBadgeText}>RECOMMENDED</Text></View>
+                          )}
+                        </View>
+                        <Text style={styles.tierTagline}>{tier.tagline}</Text>
+                      </View>
+                      <View style={[styles.tierRadio, active && styles.tierRadioActive]}>
+                        {active && <Check size={12} color="#FFF" />}
+                      </View>
+                    </View>
+                    <Text style={styles.tierAmount}>{formatMoney(tier.amount)}</Text>
+                    {tier.financingLine ? <Text style={styles.tierFinancing}>{tier.financingLine}</Text> : null}
+                    <View style={styles.tierIncl}>
+                      {tier.inclusions.slice(0, 4).map((inc, i) => (
+                        <View key={i} style={styles.tierInclRow}>
+                          <CheckCircle2 size={11} color={themeColors.success} />
+                          <Text style={styles.tierInclText} numberOfLines={1}>{inc}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.tierNote}>
+              Drafted from the scope{(rfp.budget_min || rfp.budget_max) ? ' + your budget' : ''}. Review the numbers before sending — you can edit them below.
+            </Text>
+          </View>
+        )}
+
         {/* Site visit toggle */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Need to walk the site first?</Text>
@@ -339,4 +519,47 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
   disclaimer: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+
+  // ── Instant Bid ──
+  instantCard: {
+    borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 12,
+    backgroundColor: t.accent + '0E', borderWidth: 1, borderColor: t.accent + '33',
+  },
+  instantHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  instantIcon: {
+    width: 32, height: 32, borderRadius: 9, backgroundColor: t.accent,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  instantTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.2 },
+  instantSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 16, marginTop: 2 },
+  instantBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: t.accent,
+  },
+  instantBtnDisabled: { opacity: 0.6 },
+  instantBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+
+  tierList: { gap: 10, marginTop: 4 },
+  tierCard: {
+    backgroundColor: t.bg, borderRadius: Tokens.radius.md, padding: 12,
+    borderWidth: 1.5, borderColor: t.line,
+  },
+  tierCardActive: { borderColor: t.accent, backgroundColor: t.accent + '08' },
+  tierTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  tierLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  tierLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
+  tierBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: t.accent },
+  tierBadgeText: { fontSize: 8, fontWeight: '800', color: '#FFF', letterSpacing: 0.6 },
+  tierTagline: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 15 },
+  tierRadio: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: t.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  tierRadioActive: { backgroundColor: t.accent, borderColor: t.accent },
+  tierAmount: { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, marginTop: 8, letterSpacing: -0.4 },
+  tierFinancing: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700', marginTop: 2 },
+  tierIncl: { gap: 4, marginTop: 8 },
+  tierInclRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tierInclText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text },
+  tierNote: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 15 },
 });

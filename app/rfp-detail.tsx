@@ -88,9 +88,12 @@ export default function RfpDetailScreen() {
     enabled: !!bidId && !!user?.id && isSupabaseConfigured,
     queryFn: async () => {
       if (!user?.id) return null;
+      // Column is bid_amount on the table (estimate_amount doesn't exist —
+      // selecting it errored and silently suppressed the "you already bid"
+      // card). Verified against the live schema, May 2026.
       const { data } = await supabase
         .from('bid_responses')
-        .select('id,status,estimate_amount')
+        .select('id,status,bid_amount')
         .eq('bid_id', bidId)
         .eq('user_id', user.id)
         .maybeSingle();
@@ -402,7 +405,7 @@ export default function RfpDetailScreen() {
               <Text style={styles.responseTitle}>You submitted an estimate</Text>
             </View>
             <Text style={styles.responseDetail}>
-              {existingResponse.estimate_amount ? formatMoney(existingResponse.estimate_amount) : 'Pending review'}
+              {existingResponse.bid_amount ? formatMoney(existingResponse.bid_amount) : 'Pending review'}
               {' · '}
               <Text style={styles.responseStatus}>{existingResponse.status?.toUpperCase()}</Text>
             </Text>
