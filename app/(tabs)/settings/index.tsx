@@ -1078,6 +1078,18 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { flex: 1 }]}>Edit public profile</Text>
             <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/get-verified' as any)}
+            activeOpacity={0.7}
+            testID="get-verified-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
+              <ShieldCheck size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Get verified</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionHeader}>CONTACTS & EMAIL</Text>
