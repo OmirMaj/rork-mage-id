@@ -130,6 +130,10 @@ export default function PostRfpScreen() {
   const [budgetMax, setBudgetMax]         = useState('');
   const [desiredStart, setDesiredStart]   = useState('');
   const [deadline, setDeadline]           = useState('');
+  // Verified-only RFP: when on, only license-verified contractors are
+  // notified and may bid. The antidote to shared-lead blasting — fewer,
+  // higher-quality bids from vetted pros.
+  const [verifiedOnly, setVerifiedOnly]   = useState(false);
   const [attachments, setAttachments]     = useState<PickedAttachment[]>([]);
   const [submitting, setSubmitting]       = useState(false);
   const [geocoding, setGeocoding]         = useState(false);
@@ -360,6 +364,7 @@ export default function PostRfpScreen() {
         budget_max: budgetMax ? Number(budgetMax) : null,
         desired_start: desiredStart || null,
         address_verified: addressVerified,
+        verified_only: verifiedOnly,
       });
       if (insertErr) throw insertErr;
 
@@ -379,7 +384,7 @@ export default function PostRfpScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [finalValidate, user, attachments, description, extraScope, address, workType, budgetMin, budgetMax, deadline, latLng, desiredStart, addressVerified, router, gateClientPaywall]);
+  }, [finalValidate, user, attachments, description, extraScope, address, workType, budgetMin, budgetMax, deadline, latLng, desiredStart, addressVerified, verifiedOnly, router, gateClientPaywall]);
 
   const isLastStep = step === 'review';
 
@@ -505,6 +510,7 @@ export default function PostRfpScreen() {
               budgetMax={budgetMax} setBudgetMax={setBudgetMax}
               desiredStart={desiredStart} setDesiredStart={setDesiredStart}
               deadline={deadline} setDeadline={setDeadline}
+              verifiedOnly={verifiedOnly} setVerifiedOnly={setVerifiedOnly}
             />
           )}
           {step === 'review' && (
@@ -796,11 +802,13 @@ function BudgetStep({
   styles, themeColors,
   budgetMin, setBudgetMin, budgetMax, setBudgetMax,
   desiredStart, setDesiredStart, deadline, setDeadline,
+  verifiedOnly, setVerifiedOnly,
 }: StyleProp & {
   budgetMin: string; setBudgetMin: (v: string) => void;
   budgetMax: string; setBudgetMax: (v: string) => void;
   desiredStart: string; setDesiredStart: (v: string) => void;
   deadline: string; setDeadline: (v: string) => void;
+  verifiedOnly: boolean; setVerifiedOnly: (v: boolean) => void;
 }) {
   return (
     <>
@@ -853,6 +861,26 @@ function BudgetStep({
             placeholderTextColor={themeColors.textMuted}
           />
         </View>
+      </FadeRise>
+
+      <FadeRise delay={180}>
+        <TouchableOpacity
+          style={[styles.verifyToggle, verifiedOnly && styles.verifyToggleActive]}
+          onPress={() => setVerifiedOnly(!verifiedOnly)}
+          activeOpacity={0.85}
+          testID="post-rfp-verified-only"
+        >
+          <ShieldCheck size={20} color={verifiedOnly ? themeColors.success : themeColors.textMuted} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.verifyToggleTitle}>Verified pros only</Text>
+            <Text style={styles.verifyToggleSub}>
+              Only license-verified contractors get notified and can bid. Fewer bids, higher quality.
+            </Text>
+          </View>
+          <View style={[styles.verifyCheckbox, verifiedOnly && styles.verifyCheckboxOn]}>
+            {verifiedOnly && <Check size={14} color="#FFF" />}
+          </View>
+        </TouchableOpacity>
       </FadeRise>
     </>
   );
@@ -1056,6 +1084,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
 
   // ── Card shell ───────────────────────────────────────────────────────
+  verifyToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
+    padding: 16, borderWidth: 1.5, borderColor: t.line, marginBottom: 14,
+  },
+  verifyToggleActive: { borderColor: t.success, backgroundColor: t.success + '0C' },
+  verifyToggleTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text },
+  verifyToggleSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
+  verifyCheckbox: {
+    width: 26, height: 26, borderRadius: Tokens.radius.sm,
+    borderWidth: 1.5, borderColor: t.line, alignItems: 'center', justifyContent: 'center',
+  },
+  verifyCheckboxOn: { backgroundColor: t.success, borderColor: t.success },
   card: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,

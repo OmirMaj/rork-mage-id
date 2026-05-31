@@ -9,7 +9,7 @@
 // with a deterministic heuristic fallback, so this NEVER hard-fails (offline,
 // rate-limited, or AI error all degrade gracefully to a sendable draft).
 
-import { mageAI, type AIMessage } from '@/utils/mageAI';
+import { mageAI } from '@/utils/mageAI';
 import { illustrativeMonthly } from '@/utils/financing';
 import type {
   FinancingConfig,
@@ -114,23 +114,32 @@ function firstNumber(s: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Coerce a mageAI result into the plain text the model returned. mageAI
+ *  returns { success, data, raw } — for a no-schema call the text lands in
+ *  `raw` (or `data` when it's already a string). */
+function resultText(r: { success: boolean; data: unknown; raw?: string }): string | null {
+  if (!r.success) return null;
+  if (typeof r.raw === 'string' && r.raw.trim()) return r.raw.trim();
+  if (typeof r.data === 'string' && r.data.trim()) return r.data.trim();
+  return null;
+}
+
 /** Ask the AI for a rough order-of-magnitude midpoint. Returns null on any
  *  failure so the caller falls back to budget/heuristic. */
 async function aiMidpoint(rfp: InstantBidRfp): Promise<number | null> {
-  const msgs: AIMessage[] = [
-    {
-      role: 'system',
-      content:
-        'You are a residential construction estimator. Given a project, reply with ONLY a single US-dollar rough order-of-magnitude total cost as a plain integer (no words, no currency symbol, no range). If unsure, give your best single-number guess.',
-    },
-    {
-      role: 'user',
-      content: `Project: ${rfp.projectType || rfp.title}. Location: ${[rfp.city, rfp.state].filter(Boolean).join(', ') || 'US'}. Scope: ${rfp.scopeDescription || rfp.title}. ${rfp.budgetMin || rfp.budgetMax ? `Homeowner budget hint: ${rfp.budgetMin ?? '?'}-${rfp.budgetMax ?? '?'}.` : ''} Give one integer dollar total.`,
-    },
-  ];
+  const prompt =
+    'You are a residential construction estimator. Reply with ONLY a single US-dollar ' +
+    'rough order-of-magnitude total cost as a plain integer (no words, no currency symbol, ' +
+    'no range). If unsure, give your best single-number guess.\n\n' +
+    `Project: ${rfp.projectType || rfp.title}. ` +
+    `Location: ${[rfp.city, rfp.state].filter(Boolean).join(', ') || 'US'}. ` +
+    `Scope: ${rfp.scopeDescription || rfp.title}. ` +
+    `${rfp.budgetMin || rfp.budgetMax ? `Homeowner budget hint: ${rfp.budgetMin ?? '?'}-${rfp.budgetMax ?? '?'}. ` : ''}` +
+    'Give one integer dollar total.';
   try {
-    const out = await mageAI(msgs);
-    return firstNumber(out);
+    const r = await mageAI({ prompt, tier: 'fast', maxTokens: 24 });
+    const text = resultText(r);
+    return text ? firstNumber(text) : null;
   } catch (e) {
     console.warn('[instantBid] aiMidpoint failed', e);
     return null;
@@ -138,21 +147,20 @@ async function aiMidpoint(rfp: InstantBidRfp): Promise<number | null> {
 }
 
 async function aiMessage(rfp: InstantBidRfp, opts: InstantBidOptions): Promise<string | null> {
-  const msgs: AIMessage[] = [
-    {
-      role: 'system',
-      content:
-        'You are a friendly, concise residential general contractor writing a short, warm proposal cover message to a homeowner. 3-4 sentences. No markdown, no salutation like "Dear". Sound human and confident, not salesy.',
-    },
-    {
-      role: 'user',
-      content: `Project: "${rfp.title}". Location: ${[rfp.city, rfp.state].filter(Boolean).join(', ') || 'unspecified'}. Scope: ${rfp.scopeDescription || 'see request'}. Contractor: ${opts.companyName || 'a local GC'}.${opts.contractorNote ? ' Note to include: ' + opts.contractorNote : ''} Write the cover message.`,
-    },
-  ];
+  const prompt =
+    'You are a friendly, concise residential general contractor writing a short, warm ' +
+    'proposal cover message to a homeowner. 3-4 sentences. No markdown, no salutation like ' +
+    '"Dear". Sound human and confident, not salesy.\n\n' +
+    `Project: "${rfp.title}". ` +
+    `Location: ${[rfp.city, rfp.state].filter(Boolean).join(', ') || 'unspecified'}. ` +
+    `Scope: ${rfp.scopeDescription || 'see request'}. ` +
+    `Contractor: ${opts.companyName || 'a local GC'}.` +
+    `${opts.contractorNote ? ' Note to include: ' + opts.contractorNote : ''} ` +
+    'Write the cover message.';
   try {
-    const out = await mageAI(msgs);
-    const trimmed = out.trim();
-    return trimmed.length > 20 ? trimmed : null;
+    const r = await mageAI({ prompt, tier: 'fast', maxTokens: 220 });
+    const text = resultText(r);
+    return text && text.length > 20 ? text : null;
   } catch (e) {
     console.warn('[instantBid] aiMessage failed', e);
     return null;
