@@ -52,6 +52,9 @@ interface PublicBidRow {
   scope_description: string | null;
   budget_min: number | null;
   budget_max: number | null;
+  // When true, only verified contractors are notified. Counters the
+  // shared-lead-blast pattern by making verification valuable.
+  verified_only: boolean | null;
 }
 
 interface CompanyRow {
@@ -62,6 +65,11 @@ interface CompanyRow {
   service_radius_miles: number | null;
   service_origin_lat: number | null;
   service_origin_lng: number | null;
+}
+
+interface LicenseRow {
+  user_id: string | null;
+  expires_date: string | null;
 }
 
 // Haversine — returns miles between two lat/lng pairs.
@@ -109,6 +117,25 @@ serve(async (req) => {
     // with PostGIS when we cross 50k+.
     const all = await rest<CompanyRow[]>(`/companies?select=id,user_id,company_name,service_states,service_radius_miles,service_origin_lat,service_origin_lng`);
 
+    const verifiedOnly = rfp.verified_only === true;
+
+    // "Verified" = the contractor has at least one non-expired license on
+    // file. There is NO boolean verified flag in the schema — the source of
+    // truth is the contractor_licenses table (rows are created by MAGE ID
+    // staff after reviewing a "Get Verified" submission). Only compute this
+    // set when the RFP actually needs it.
+    const verifiedUserIds = new Set<string>();
+    if (verifiedOnly) {
+      const today = new Date().toISOString().slice(0, 10);
+      // expires_date null (no expiry) OR today-or-later → still valid.
+      const licenses = await rest<LicenseRow[]>(
+        `/contractor_licenses?select=user_id,expires_date&or=(expires_date.is.null,expires_date.gte.${today})`,
+      );
+      for (const l of licenses) {
+        if (l.user_id) verifiedUserIds.add(l.user_id);
+      }
+    }
+
     const matched: CompanyRow[] = [];
     for (const c of all) {
       // Skip companies without an owner — those are mock/seed entries.
@@ -116,6 +143,9 @@ serve(async (req) => {
       // Don't notify the homeowner themselves if they happen to also have
       // a company profile.
       if (c.user_id === rfp.user_id) continue;
+      // Verified-only RFPs: only fan out to contractors with a current
+      // (non-expired) license on file.
+      if (verifiedOnly && !verifiedUserIds.has(c.user_id)) continue;
 
       const states: string[] = Array.isArray(c.service_states) ? c.service_states : [];
       const stateMatch = states.length === 0 || (rfp.state ? states.includes(rfp.state) : true);

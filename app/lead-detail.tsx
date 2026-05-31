@@ -33,6 +33,7 @@ import {
 } from '@/types';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
+import ReferralPrompt from '@/components/ReferralPrompt';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseLeadFromTranscript, pickIfEmpty, titleCase } from '@/utils/voiceFormParsers';
 
@@ -59,7 +60,7 @@ export default function LeadDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { leadId, mode } = useLocalSearchParams<{ leadId?: string; mode?: string }>();
-  const { getLead, addLead, updateLead, deleteLead, addLeadTouch, convertLeadToProject } = useProjects();
+  const { getLead, addLead, updateLead, deleteLead, addLeadTouch, convertLeadToProject, settings } = useProjects();
 
   const isNew = mode === 'new' || !leadId;
   const existing = !isNew && leadId ? getLead(leadId) : null;
@@ -85,6 +86,9 @@ export default function LeadDetailScreen() {
   const [lostReason, setLostReason] = useState<string>(existing?.lostReason ?? '');
   const [showLostReasonModal, setShowLostReasonModal] = useState(false);
   const [pendingLostStage, setPendingLostStage] = useState(false);
+  // Referral prompt at the won-job moment (the emotional peak). Only fires
+  // on the transition INTO won, and only once per lead.
+  const [showReferralPrompt, setShowReferralPrompt] = useState(false);
 
   // Activity log inputs.
   const [touchKind, setTouchKind] = useState<LeadTouchKind>('call');
@@ -132,6 +136,11 @@ export default function LeadDetailScreen() {
       setPendingLostStage(true);
       setShowLostReasonModal(true);
       return;
+    }
+    // Fire the referral prompt on the transition INTO won (not when already
+    // won, so re-tapping the chip doesn't nag).
+    if (next === 'won' && stage !== 'won') {
+      setShowReferralPrompt(true);
     }
     setStage(next);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -466,6 +475,13 @@ export default function LeadDetailScreen() {
             'Emailed the proposal, attached the schedule and selections allowance',
             'Met at the house, walked the kitchen, took photos of the existing layout',
           ]}
+        />
+
+        <ReferralPrompt
+          visible={showReferralPrompt}
+          onClose={() => setShowReferralPrompt(false)}
+          jobName={existing?.name ?? name}
+          companyName={settings?.branding?.companyName}
         />
 
         {/* Lose-reason modal — fires when GC flips the stage to 'lost'.

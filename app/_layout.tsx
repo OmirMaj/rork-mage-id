@@ -682,6 +682,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="get-verified"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="sub-portal-setup"
         options={{
           title: "Sub Portal",

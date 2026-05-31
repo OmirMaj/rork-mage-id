@@ -40,7 +40,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { ArrowRight, Check, Ruler, DollarSign, Mic } from 'lucide-react-native';
+import { ArrowRight, Check, Ruler, DollarSign, Mic, Zap } from 'lucide-react-native';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -80,6 +80,11 @@ interface PreviewCard {
 // requiring a real product GIF. Copy intentionally short (2026 norm: 6-12
 // word headlines, ~15-25 word bodies).
 const PREVIEW_CARDS: PreviewCard[] = [
+  {
+    Icon: Zap,
+    title: 'Win more jobs with Instant Bid',
+    body: 'Tap once on a homeowner request — get a polished Good/Better/Best proposal with financing, ready to send in seconds.',
+  },
   {
     Icon: Ruler,
     title: 'AI takeoffs from a PDF',
