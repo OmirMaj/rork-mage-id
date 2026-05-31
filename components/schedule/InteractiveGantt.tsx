@@ -643,21 +643,22 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   }, [tasks]);
 
   // --- Dependency paths (Task 3 restyle) ----------------------------------------
-  // Arrows reveal for the "active" task — either the pinned focus (click/tap,
-  // focusedTaskId) or, on web, the bar/row currently under the cursor
-  // (hoverTaskId, set on both bar and gutter-row hover). This keeps the timeline
-  // clean at rest while making dependencies easy to see without a click. Only the
-  // one-hop neighbors of the active task are drawn (arrows where from === activeId
-  // OR to === activeId). Path geometry uses orthogonalArrowPath().
+  // ALL dependency arrows are drawn at all times so the task logic is visible
+  // at rest — that's what makes it read as a real schedule rather than a list
+  // of bars. Hover/focus doesn't gate visibility; it only *highlights*: when a
+  // task is active (pinned focus via click/tap, or the bar/row under the cursor
+  // on web), arrows connected to it render emphasized and the rest dim back so
+  // the active task's chain stands out. With nothing active, every arrow draws
+  // at full resting weight. Path geometry uses orthogonalArrowPath().
   const dependencyPaths = useMemo(() => {
-    // Pinned focus wins; otherwise fall back to the hovered bar/row. Native has
-    // no hover, so there hoverTaskId stays null and it remains tap-to-reveal.
+    // Pinned focus wins; otherwise the hovered bar/row. Native has no hover, so
+    // there hoverTaskId stays null and arrows simply all render at rest weight.
     const activeId = focusedTaskId ?? hoverTaskId;
-    if (activeId == null) return [];
     const out: {
       id: string;
       d: string;
       critical: boolean;
+      connected: boolean;  // touches the active task (pred or succ)
     }[] = [];
     for (const succ of bars) {
       const links = succ.task.dependencyLinks && succ.task.dependencyLinks.length > 0
@@ -666,19 +667,23 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       for (const link of links) {
         const pred = barById.get(link.taskId);
         if (!pred) continue;
-        // One-hop filter: only show arrows connected to the active bar.
-        if (pred.task.id !== activeId && succ.task.id !== activeId) continue;
         const criticalBoth = pred.isCritical && succ.isCritical;
+        const connected = activeId != null && (pred.task.id === activeId || succ.task.id === activeId);
         // Orthogonal path: pred right-edge → succ left-edge, both at bar midpoint Y.
         const d = orthogonalArrowPath(
           { x: pred.x + pred.w, y: pred.y + BAR_HEIGHT / 2 },
           { x: succ.x,          y: succ.y + BAR_HEIGHT / 2 },
         );
-        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth });
+        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, connected });
       }
     }
     return out;
   }, [bars, barById, focusedTaskId, hoverTaskId]);
+
+  // Is a task currently active (hovered/focused)? Drives the dim/emphasize
+  // treatment on the arrows below — when something is active, unconnected
+  // arrows fade back so the active chain reads clearly.
+  const hasActiveTask = (focusedTaskId ?? hoverTaskId) != null;
 
   // Crew avatars (the small initial chip at each bar's right edge) only earn
   // their visual cost when crews actually differ across the schedule. When every
@@ -1138,16 +1143,25 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 
                 {dependencyPaths.map(dep => {
                   const stroke = dep.critical ? '#b91c1c' : '#374151';
+                  // When a task is active, dim arrows NOT on its chain so the
+                  // connected ones pop. At rest (nothing active) every arrow is
+                  // fully visible. Connected arrows get the marching-ants
+                  // animation + a slightly heavier stroke; resting arrows are
+                  // solid so they stay clear without drawing the eye.
+                  const dimmed = hasActiveTask && !dep.connected;
+                  const emphasized = hasActiveTask && dep.connected;
+                  const animate = emphasized && !reduceMotion;
                   return (
                     <AnimatedPath
                       key={dep.id}
                       d={dep.d}
                       stroke={stroke}
-                      strokeWidth={1.25}
+                      strokeWidth={emphasized ? 1.75 : 1.25}
+                      strokeOpacity={dimmed ? 0.2 : 0.85}
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      strokeDasharray={reduceMotion ? undefined : '4 3'}
-                      strokeDashoffset={reduceMotion ? 0 : (dashOffset as unknown as number)}
+                      strokeDasharray={animate ? '4 3' : undefined}
+                      strokeDashoffset={animate ? (dashOffset as unknown as number) : 0}
                       fill="none"
                       markerEnd={`url(#${dep.critical ? 'gantt-head-crit' : 'gantt-head'})`}
                     />
