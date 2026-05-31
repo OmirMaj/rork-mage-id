@@ -52,6 +52,9 @@ interface PublicBidRow {
   scope_description: string | null;
   budget_min: number | null;
   budget_max: number | null;
+  // When true, only verified contractors are notified. Counters the
+  // shared-lead-blast pattern by making verification valuable.
+  verified_only: boolean | null;
 }
 
 interface CompanyRow {
@@ -62,6 +65,7 @@ interface CompanyRow {
   service_radius_miles: number | null;
   service_origin_lat: number | null;
   service_origin_lng: number | null;
+  license_verified: boolean | null;
 }
 
 // Haversine — returns miles between two lat/lng pairs.
@@ -107,7 +111,9 @@ serve(async (req) => {
   try {
     // Pull every company. With a few thousand rows this is fine; revisit
     // with PostGIS when we cross 50k+.
-    const all = await rest<CompanyRow[]>(`/companies?select=id,user_id,company_name,service_states,service_radius_miles,service_origin_lat,service_origin_lng`);
+    const all = await rest<CompanyRow[]>(`/companies?select=id,user_id,company_name,service_states,service_radius_miles,service_origin_lat,service_origin_lng,license_verified`);
+
+    const verifiedOnly = rfp.verified_only === true;
 
     const matched: CompanyRow[] = [];
     for (const c of all) {
@@ -116,6 +122,8 @@ serve(async (req) => {
       // Don't notify the homeowner themselves if they happen to also have
       // a company profile.
       if (c.user_id === rfp.user_id) continue;
+      // Verified-only RFPs: only fan out to license-verified contractors.
+      if (verifiedOnly && c.license_verified !== true) continue;
 
       const states: string[] = Array.isArray(c.service_states) ? c.service_states : [];
       const stateMatch = states.length === 0 || (rfp.state ? states.includes(rfp.state) : true);

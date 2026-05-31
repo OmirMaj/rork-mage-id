@@ -48,6 +48,7 @@ interface RfpRow {
   photo_urls: string[] | null;
   drawing_urls: string[] | null;
   address_verified: boolean;
+  verified_only: boolean | null;
   awarded_response_id: string | null;
   awarded_at: string | null;
 }
@@ -66,7 +67,7 @@ export default function RfpDetailScreen() {
     queryFn: async (): Promise<RfpRow | null> => {
       const { data, error } = await supabase
         .from('public_bids')
-        .select('id,user_id,title,city,state,status,category,posted_date,deadline,scope_description,photo_urls,drawing_urls,budget_min,budget_max,desired_start,address_verified,awarded_response_id,awarded_at')
+        .select('id,user_id,title,city,state,status,category,posted_date,deadline,scope_description,photo_urls,drawing_urls,budget_min,budget_max,desired_start,address_verified,verified_only,awarded_response_id,awarded_at')
         .eq('id', bidId)
         .eq('is_homeowner_rfp', true)
         .single();
@@ -228,6 +229,12 @@ export default function RfpDetailScreen() {
               <View style={[styles.pill, { backgroundColor: themeColors.accent + '20' }]}>
                 <Clock size={10} color={themeColors.accent} />
                 <Text style={[styles.pillText, { color: themeColors.accent }]}>OPEN FOR BIDS</Text>
+              </View>
+            )}
+            {rfp.verified_only && (
+              <View style={[styles.pill, { backgroundColor: themeColors.accent + '18' }]}>
+                <ShieldCheck size={10} color={themeColors.accent} />
+                <Text style={[styles.pillText, { color: themeColors.accent }]}>VERIFIED PROS ONLY</Text>
               </View>
             )}
             {rfp.address_verified && (
