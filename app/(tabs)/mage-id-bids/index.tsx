@@ -28,6 +28,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import BidHitScoreboard from '@/components/BidHitScoreboard';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -267,6 +268,9 @@ export default function MageIdBidsTabScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
         }
       >
+        {/* Contractor's marketplace win-rate — only renders once they've bid. */}
+        {mode === 'browse' && <BidHitScoreboard />}
+
         {isLoading && (
           // Skeleton RFP cards shaped like the real cards — image strip
           // up top + 2 text lines + footer. Premium-feel during fetch
