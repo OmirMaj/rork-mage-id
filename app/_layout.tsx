@@ -686,6 +686,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="import-pipeline"
+        options={{ headerShown: false, presentation: 'modal' }}
+      />
+      <Stack.Screen
         name="sub-portal-setup"
         options={{
           title: "Sub Portal",
