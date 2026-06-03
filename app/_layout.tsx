@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
+import { PropertyProvider } from "@/contexts/PropertyContext";
 import { BidsProvider } from "@/contexts/BidsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
@@ -690,6 +691,14 @@ function RootLayoutNav() {
         options={{ headerShown: false, presentation: 'modal' }}
       />
       <Stack.Screen
+        name="managed-property"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="work-order"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="sub-portal-setup"
         options={{
           title: "Sub Portal",
@@ -1105,6 +1114,7 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  <PropertyProvider>
                   <MaterialCartProvider>
                     <BidsProvider>
                       <CompaniesProvider>
@@ -1124,6 +1134,7 @@ export default Sentry.wrap(function RootLayout() {
                       </CompaniesProvider>
                     </BidsProvider>
                   </MaterialCartProvider>
+                  </PropertyProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>

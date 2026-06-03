@@ -63,6 +63,7 @@ import PageHeader from '@/components/PageHeader';
 import ProjectRow from '@/components/ProjectRow';
 import { useTheme } from '@/contexts/ThemeContext';
 import ClientHome from '@/components/ClientHome';
+import PropertyManagerHome from '@/components/PropertyManagerHome';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -513,6 +514,9 @@ export default function HomeScreen() {
   // each persona — and dispatch at the route level.
   if (userRole === 'client') {
     return <ClientHome />;
+  }
+  if (userRole === 'property_manager') {
+    return <PropertyManagerHome />;
   }
 
   return (

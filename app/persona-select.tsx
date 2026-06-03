@@ -36,7 +36,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { ArrowRight, HardHat, Home, Repeat } from 'lucide-react-native';
+import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
 import {
@@ -68,9 +68,10 @@ const ROLE_ICONS: Record<UserRole, React.ComponentType<{ size?: number; color?: 
   contractor: HardHat,
   client: Home,
   both: Repeat,
+  property_manager: Building2,
 };
 
-const ROLES: UserRole[] = ['contractor', 'client', 'both'];
+const ROLES: UserRole[] = ['contractor', 'client', 'both', 'property_manager'];
 
 export default function PersonaSelectScreen() {
   const insets = useSafeAreaInsets();
@@ -146,7 +147,10 @@ export default function PersonaSelectScreen() {
       //      onboarding for size-band capture + sample seed.
       if (hasSeenOnboarding) {
         router.replace('/(tabs)/(home)' as never);
-      } else if (role === 'client') {
+      } else if (role === 'client' || role === 'property_manager') {
+        // The contractor "how big is your typical job?" onboarding is
+        // meaningless for these personas — skip straight to their hub,
+        // which carries its own zero-state CTA.
         await completeOnboarding();
         router.replace('/(tabs)/(home)' as never);
       } else {

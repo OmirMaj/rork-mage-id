@@ -1027,7 +1027,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         } catch { /* fallback */ }
       }
       const stored = await AsyncStorage.getItem(USER_ROLE_KEY);
-      if (stored === 'contractor' || stored === 'client' || stored === 'both') return stored;
+      if (stored === 'contractor' || stored === 'client' || stored === 'both' || stored === 'property_manager') return stored;
       return null;
     },
   });
