@@ -452,6 +452,14 @@ export interface AIGeneratedTask {
   deps: string[];
   crew?: string;
   isMilestone?: boolean;
+  /** Exterior / weather-exposed task — flags it for the weather-aware
+   *  reschedule engine so a generated schedule arrives weather-ready. */
+  weatherSensitive?: boolean;
+  /** materialIds from the linked estimate this task executes. Set only when
+   *  the schedule is generated FROM an estimate, so earned value and cash
+   *  flow light up the moment the plan lands — the cost-linkage a bolt-on
+   *  estimator's scheduler can't produce. */
+  linkedEstimateItemIds?: string[];
 }
 
 export async function aiGenerateSchedule(description: string): Promise<{
@@ -509,6 +517,112 @@ ${description}`;
   return { tasks, summary: raw.summary || `Generated ${tasks.length} tasks`, cached: res.cached };
 }
 
+// ---------------------------------------------------------------------------
+// 7b) Estimate-aware generator — priced estimate → cost-linked schedule.
+// ---------------------------------------------------------------------------
+// Handoff's pitch is "durations pulled from the line items you priced," but
+// its schedule isn't wired to cost. This goes further: ground durations in the
+// priced scope AND map each task back to the estimate items it executes, so
+// the existing earned-value / cash-flow engine populates the instant the plan
+// is generated. That linkage is the moat — a single-player estimator can't
+// produce a schedule that already knows its budget.
+
+export interface ScheduleEstimateItemInput {
+  materialId: string;
+  name: string;
+  category: string;
+  quantity?: number;
+  lineTotal?: number;
+}
+
+export interface GenerateFromEstimateParams {
+  items: ScheduleEstimateItemInput[];
+  projectType?: string | null;
+  scopeDescription?: string | null;
+}
+
+export async function aiGenerateScheduleFromEstimate(params: GenerateFromEstimateParams): Promise<{
+  tasks: AIGeneratedTask[];
+  summary: string;
+  cached?: boolean;
+}> {
+  // Cap prompt size; number the items so the model can reference them and we
+  // can map the references back to materialIds.
+  const items = params.items.slice(0, 120);
+  if (items.length === 0) return { tasks: [], summary: 'No estimate items to schedule.' };
+
+  const itemLines = items.map((it, i) =>
+    `[${i + 1}] ${it.name}${it.category ? ` (${it.category})` : ''}` +
+    `${it.quantity ? ` — qty ${it.quantity}` : ''}` +
+    `${it.lineTotal ? ` — $${Math.round(it.lineTotal).toLocaleString()}` : ''}`,
+  ).join('\n');
+
+  const schemaHint = {
+    summary: 'one-line summary of the generated schedule',
+    tasks: [
+      {
+        alias: 'T1',
+        title: 'Foundation & slab',
+        phase: 'Foundation',
+        durationDays: 5,
+        crew: 'Concrete',
+        deps: [],
+        isMilestone: false,
+        weatherSensitive: true,
+        itemRefs: [1, 2],
+      },
+    ],
+  };
+
+  const prompt = `Generate a realistic construction schedule grounded in this PRICED estimate.
+Break the work into specific tasks using standard phases (Site, Foundation, Framing, MEP,
+Drywall, Finishes, Inspections, Closeout). Derive each task's duration from the SCOPE and
+QUANTITIES of the estimate line items it covers — larger quantities take longer. For every
+task set "itemRefs" to the estimate item NUMBERS it executes, so cost rolls up to the
+schedule. Every item number should be referenced by at least one task. Add inspection
+milestones at cover-up points (durationDays 0). Flag exterior / weather-exposed tasks with
+weatherSensitive=true. Use T1, T2… aliases and FS-only dependencies.
+
+${params.projectType ? `Project type: ${params.projectType}.\n` : ''}${params.scopeDescription ? `Scope: ${params.scopeDescription}.\n` : ''}Estimate line items:
+${itemLines}`;
+
+  const res = await mageAI({
+    prompt,
+    schemaHint,
+    tier: 'smart',
+    maxTokens: 4000,
+    cacheKey: `gen-est-${items.length}-${items.map(i => i.materialId).join('').slice(0, 60)}`,
+    cacheHours: 24,
+  });
+
+  if (!res.success || !res.data) {
+    return { tasks: [], summary: 'Generator failed.', cached: res.cached };
+  }
+  const raw = res.data as { summary?: string; tasks?: (AIGeneratedTask & { itemRefs?: number[] })[] };
+  const tasks: AIGeneratedTask[] = (raw.tasks ?? []).map(t => {
+    const refs = Array.isArray(t.itemRefs) ? t.itemRefs : [];
+    const linkedEstimateItemIds = refs
+      .map(n => items[n - 1]?.materialId)
+      .filter((x): x is string => !!x);
+    return {
+      alias: t.alias || '',
+      title: t.title || 'Task',
+      phase: t.phase || 'General',
+      durationDays: Math.max(0, Number(t.durationDays) || 1),
+      deps: Array.isArray(t.deps) ? t.deps : [],
+      crew: t.crew,
+      isMilestone: t.isMilestone || t.durationDays === 0,
+      weatherSensitive: !!t.weatherSensitive,
+      linkedEstimateItemIds: linkedEstimateItemIds.length > 0 ? linkedEstimateItemIds : undefined,
+    };
+  });
+  return {
+    tasks,
+    summary: raw.summary || `Generated ${tasks.length} tasks from ${items.length} estimate items`,
+    cached: res.cached,
+  };
+}
+
 // Convert generator output → real ScheduleTask[] with computed startDays.
 export function materializeGeneratedTasks(generated: AIGeneratedTask[]): ScheduleTask[] {
   const idByAlias = new Map<string, string>();
@@ -543,6 +657,10 @@ export function materializeGeneratedTasks(generated: AIGeneratedTask[]): Schedul
       notes: '',
       status: 'not_started',
       isMilestone: g.isMilestone || g.durationDays === 0,
+      isWeatherSensitive: g.weatherSensitive || undefined,
+      linkedEstimateItems: g.linkedEstimateItemIds && g.linkedEstimateItemIds.length > 0
+        ? g.linkedEstimateItemIds
+        : undefined,
       baselineStartDay: startDay,
       baselineEndDay: endDay,
     };

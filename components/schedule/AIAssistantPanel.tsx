@@ -35,10 +35,11 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { ScheduleTask } from '@/types';
+import type { ScheduleTask, LinkedEstimate } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 import {
   aiDetectRisks,
   aiOptimizeSchedule,
@@ -46,6 +47,7 @@ import {
   aiAskSchedule,
   aiLogAsBuilt,
   aiGenerateSchedule,
+  aiGenerateScheduleFromEstimate,
   aiBulkEdit,
   materializeGeneratedTasks,
   type AIRiskFinding,
@@ -75,6 +77,10 @@ export interface AIAssistantPanelProps {
   selectedIds?: Set<string>;
   /** Apply a batch of AI-proposed patches as one commit (undoable as a unit). */
   onApplyBulkPatches?: (patches: { taskId: string; patch: Partial<ScheduleTask> }[]) => void;
+  /** The project's linked estimate, if any. Enables one-tap "generate from my
+   *  estimate" — a cost-linked schedule whose earned value / cash flow
+   *  populate immediately. */
+  linkedEstimate?: LinkedEstimate | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +95,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const {
     visible, onClose, tasks, cpm, projectStartDate, todayDayNumber,
     onApplyPatch, onApplyBulkPatches, onReplaceAll, onFocusTasks, selectedIds,
+    linkedEstimate,
   } = props;
   const [mode, setMode] = useState<Mode>('home');
   const [busy, setBusy] = useState(false);
@@ -103,6 +110,10 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const [asBuiltPatches, setAsBuiltPatches] = useState<AIAsBuiltPatch[]>([]);
   const [genDraft, setGenDraft] = useState('');
   const [genPreview, setGenPreview] = useState<ScheduleTask[] | null>(null);
+  // Where the previewed schedule came from — drives the activation event so we
+  // can see whether contractors generate from a priced estimate (the moat) or
+  // free text.
+  const [genSource, setGenSource] = useState<'text' | 'estimate'>('text');
   const [bulkDraft, setBulkDraft] = useState('');
   const [bulkResult, setBulkResult] = useState<{
     summary: string;
@@ -258,18 +269,43 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     if (!genDraft.trim()) return;
     run(async () => {
       const res = await aiGenerateSchedule(genDraft.trim());
-      const materialized = materializeGeneratedTasks(res.tasks);
-      setGenPreview(materialized);
+      setGenSource('text');
+      setGenPreview(materializeGeneratedTasks(res.tasks));
     });
   }, [genDraft, run]);
 
+  // One-tap, estimate-grounded generation. Tasks come back cost-linked, so the
+  // earned-value and cash-flow panels populate the moment the plan is applied.
+  const handleGenerateFromEstimate = useCallback(() => {
+    if (!linkedEstimate || linkedEstimate.items.length === 0) return;
+    run(async () => {
+      const res = await aiGenerateScheduleFromEstimate({
+        items: linkedEstimate.items.map(it => ({
+          materialId: it.materialId,
+          name: it.name,
+          category: it.category,
+          quantity: it.quantity,
+          lineTotal: it.lineTotal,
+        })),
+      });
+      setGenSource('estimate');
+      setGenPreview(materializeGeneratedTasks(res.tasks));
+    });
+  }, [linkedEstimate, run]);
+
   const handleGenerateApply = useCallback(() => {
     if (!genPreview) return;
+    const costLinkedTasks = genPreview.filter(t => (t.linkedEstimateItems?.length ?? 0) > 0).length;
+    track(AnalyticsEvents.SCHEDULE_GENERATED, {
+      source: genSource,
+      task_count: genPreview.length,
+      cost_linked_tasks: costLinkedTasks,
+    });
     onReplaceAll(genPreview);
     setGenPreview(null);
     setGenDraft('');
     onClose();
-  }, [genPreview, onReplaceAll, onClose]);
+  }, [genPreview, genSource, onReplaceAll, onClose]);
 
   if (!visible) return null;
 
@@ -511,11 +547,29 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
 
           {mode === 'generate' && (
             <View>
+              {/* Cost-linked path — the differentiator. Only shown when the
+                  project has a priced estimate. Generates a schedule whose
+                  earned-value / cash-flow panels populate immediately. */}
+              {linkedEstimate && linkedEstimate.items.length > 0 && !genPreview && (
+                <QuickBtn
+                  icon={Wand2}
+                  title="Generate from my estimate"
+                  sub={`${linkedEstimate.items.length} item${linkedEstimate.items.length === 1 ? '' : 's'} · $${Math.round(linkedEstimate.grandTotal).toLocaleString()} → cost-loaded plan`}
+                  onPress={handleGenerateFromEstimate}
+                  featured
+                />
+              )}
               <View style={styles.emptyHint}>
                 <Text style={styles.emptyHintText}>
-                  Describe your project and AI will draft the full schedule. Try: {'\n'}
-                  "2500sqft two-story residential build, Dallas, break ground May 1, 4-month deadline" {'\n'}
-                  You'll see a preview before anything replaces your current plan.
+                  {linkedEstimate && linkedEstimate.items.length > 0
+                    ? 'Generate from your estimate above for a plan that’s already wired to cost — or describe the project in your own words below.'
+                    : 'Describe your project and AI will draft the full schedule. Try: '}
+                  {!(linkedEstimate && linkedEstimate.items.length > 0) && (
+                    <>
+                      {'\n'}"2500sqft two-story residential build, Dallas, break ground May 1, 4-month deadline"{'\n'}
+                      You'll see a preview before anything replaces your current plan.
+                    </>
+                  )}
                 </Text>
               </View>
               {genPreview && (
@@ -525,6 +579,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     Runs approximately{' '}
                     {Math.max(...genPreview.map(t => t.startDay + Math.max(0, t.durationDays - 1)))} days.
                   </Text>
+                  {genPreview.some(t => (t.linkedEstimateItems?.length ?? 0) > 0) && (
+                    <Text style={styles.cardSuggestion}>
+                      ✓ {genPreview.filter(t => (t.linkedEstimateItems?.length ?? 0) > 0).length} tasks cost-loaded — earned value & cash flow will populate on apply.
+                    </Text>
+                  )}
                   <View style={{ maxHeight: 220, marginTop: 8 }}>
                     <ScrollView>
                       {genPreview.slice(0, 50).map((t, i) => (

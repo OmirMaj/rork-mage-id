@@ -1574,6 +1574,7 @@ function ScheduleProScreenInner() {
         projectStartDate={projectStartDate}
         todayDayNumber={todayDayNumber}
         selectedIds={selectedIds}
+        linkedEstimate={project?.linkedEstimate ?? null}
         onApplyPatch={handleEdit}
         onApplyBulkPatches={(patches) => {
           // Batch a set of AI-proposed patches into one undoable commit.
