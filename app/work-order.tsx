@@ -106,10 +106,25 @@ export default function WorkOrderScreen() {
     if (!wo) return;
     updateWorkOrder(wo.id, { status: 'posted_for_bids' });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    // Reuse the marketplace RFP flow. (post-rfp doesn't accept prefill yet;
-    // the PM enters scope there. Tracked as a follow-up.)
-    router.push('/post-rfp' as never);
-  }, [wo, updateWorkOrder, router]);
+    // Reuse the marketplace RFP flow, pre-filled from this work order so the
+    // PM doesn't re-type scope/budget/address they already entered. The
+    // homeowner-RFP form treats every param as optional, so anything we
+    // don't have simply stays blank. Maintenance/repair work maps to the
+    // 'other' work-type chip; the property address seeds nearby-contractor
+    // matching (the PM still taps Verify to geocode it).
+    const description = [wo.title, wo.description].filter(Boolean).join(' — ');
+    const scope = wo.category ? `Trade: ${wo.category}` : '';
+    router.push({
+      pathname: '/post-rfp' as never,
+      params: {
+        prefillDescription: description,
+        prefillScope: scope,
+        prefillAddress: property?.address ?? '',
+        prefillBudgetMax: wo.budget != null ? String(wo.budget) : '',
+        prefillWorkType: 'other',
+      } as never,
+    });
+  }, [wo, property, updateWorkOrder, router]);
 
   const handleDelete = useCallback(() => {
     if (!wo) return;
