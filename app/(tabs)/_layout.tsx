@@ -92,13 +92,14 @@ export default function TabLayout() {
   const { counts } = useSmartInbox();
   const { colors: themeColors } = useTheme();
   const { userRole } = useCoreData();
-  // Property-owner / real-estate persona gets a stripped-down tab bar.
-  // The original product surface (Summary, Discover with public-bid search
-  // + supplier marketplace) is contractor-shaped — a client posting renovations
-  // does not want to see "MAGE ID Bids" or "Companies" or a financial summary.
-  // For MVP we collapse to two tabs: Home (the ClientHome hub) + Settings.
-  // 'both' falls through to the full contractor tab bar by design.
-  const isClient = userRole === 'client';
+  // Non-contractor personas get a stripped-down tab bar. The original
+  // product surface (Summary, Discover with public-bid search + supplier
+  // marketplace) is contractor-shaped — a property owner posting renovations,
+  // or a property manager running a maintenance portfolio, does not want to
+  // see "MAGE ID Bids" or "Companies" or a financial summary. We collapse to
+  // two tabs: Home (the persona's hub — ClientHome or PropertyManagerHome) +
+  // Settings. 'both' falls through to the full contractor tab bar by design.
+  const isMinimalPersona = userRole === 'client' || userRole === 'property_manager';
   const inboxBadge = counts.all > 0
     ? (counts.all > 99 ? '99+' : String(counts.all))
     : undefined;
@@ -126,11 +127,11 @@ export default function TabLayout() {
                 Using `href: null` rather than conditional render so the
                 Tabs router keeps a stable screen registry across persona
                 switches (avoids "tab not found" routing flicker). */}
-            <Tabs.Screen name="summary" options={isClient ? { href: null } : { title: 'Summary' }} />
-            <Tabs.Screen name="(home)" options={{ title: isClient ? 'Home' : 'Your Projects' }} />
-            <Tabs.Screen name="discover" options={isClient ? { href: null } : { title: 'Discover' }} />
+            <Tabs.Screen name="summary" options={isMinimalPersona ? { href: null } : { title: 'Summary' }} />
+            <Tabs.Screen name="(home)" options={{ title: isMinimalPersona ? 'Home' : 'Your Projects' }} />
+            <Tabs.Screen name="discover" options={isMinimalPersona ? { href: null } : { title: 'Discover' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-            <Tabs.Screen name="mage-id-bids" options={isClient ? { href: null } : { title: 'MAGE ID Bids' }} />
+            <Tabs.Screen name="mage-id-bids" options={isMinimalPersona ? { href: null } : { title: 'MAGE ID Bids' }} />
             <Tabs.Screen name="construction-ai" options={{ href: null }} />
             <Tabs.Screen name="estimate" options={{ href: null }} />
             <Tabs.Screen name="materials" options={{ href: null }} />
@@ -183,7 +184,7 @@ export default function TabLayout() {
           no jobs-in-progress totals to summarize. */}
       <Tabs.Screen
         name="summary"
-        options={isClient ? { href: null } : {
+        options={isMinimalPersona ? { href: null } : {
           title: 'Summary',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={LayoutDashboard} color={color} focused={focused} />
@@ -196,7 +197,7 @@ export default function TabLayout() {
           // Clients see this tab labeled "Home" because it renders the
           // property-owner hub (post a project, active RFPs, in-progress).
           // Contractors keep the original "Your Projects" label.
-          title: isClient ? 'Home' : 'Your Projects',
+          title: isMinimalPersona ? 'Home' : 'Your Projects',
           tabBarBadge: inboxBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
@@ -209,7 +210,7 @@ export default function TabLayout() {
           (post RFP, review bids) from the Home hub. */}
       <Tabs.Screen
         name="discover"
-        options={isClient ? { href: null } : {
+        options={isMinimalPersona ? { href: null } : {
           title: 'Discover',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Compass} color={color} focused={focused} />

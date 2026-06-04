@@ -27,6 +27,7 @@ import {
   View,
   Text,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   Animated,
   Easing,
@@ -34,13 +35,14 @@ import {
   Pressable,
   Dimensions,
   AccessibilityInfo,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { ArrowRight, Check, Ruler, DollarSign, Mic, Zap } from 'lucide-react-native';
+import { ArrowRight, Check, Ruler, DollarSign, Mic, Zap, Sparkles } from 'lucide-react-native';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -51,6 +53,8 @@ import {
   suggestedDemoFlavorForBand,
   type ProjectSizeBand,
 } from '@/utils/onboardingProfile';
+import { parseImportBlob, draftToLeadInput, type ImportedLeadDraft } from '@/utils/pipelineImport';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // ── Brand palette local to onboarding — kept hardcoded so the splash
 // looks identical regardless of any custom-primary the user has set
@@ -68,7 +72,12 @@ const BRAND = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type Step = 'splash' | 'preview' | 'routing';
+type Step = 'splash' | 'preview' | 'routing' | 'import';
+
+// Flavor of the auto-seeded sample project. Derived from the size band on
+// the routing step. Inferred from suggestedDemoFlavorForBand so we don't
+// have to re-name the union here.
+type DemoFlavor = ReturnType<typeof suggestedDemoFlavorForBand>;
 
 interface PreviewCard {
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -106,10 +115,21 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const projectCtx = useProjects();
-  const { completeOnboarding } = projectCtx;
+  const { completeOnboarding, addLead } = projectCtx;
   const { colors: themeColors } = useTheme();
 
   const [step, setStep] = useState<Step>('splash');
+
+  // ── Import-your-pipeline step state. The size band picked on the routing
+  // step is held here until the import step finishes, so we can seed a tuned
+  // demo project only when the user *skips* import (a real paste makes their
+  // own clients the populated state — no fake sample project needed).
+  const [pendingBand, setPendingBand] = useState<ProjectSizeBand | null>(null);
+  const [blob, setBlob] = useState('');
+  const [drafts, setDrafts] = useState<ImportedLeadDraft[]>([]);
+  const [parsed, setParsed] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importHint, setImportHint] = useState<string | null>(null);
 
   // Respect iOS Accessibility → Reduce Motion. When on, we cross-fade
   // instead of slide-up + stagger. Apple HIG mandates this; premium apps
@@ -168,6 +188,12 @@ export default function OnboardingScreen() {
     ]).start();
   }, [step, eyebrowOpacity, headlineOpacity, bodyOpacity, ctaOpacity, lift, reduceMotion]);
 
+  // Activation funnel — mark the top of the import step so we can compute
+  // viewed→completed. Fires once when the step first renders.
+  useEffect(() => {
+    if (step === 'import') track(AnalyticsEvents.ONBOARDING_IMPORT_VIEWED);
+  }, [step]);
+
   const handleStarted = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Animated.sequence([
@@ -187,24 +213,12 @@ export default function OnboardingScreen() {
     router.push('/login' as never);
   }, [router]);
 
-  const finishToHome = useCallback(async () => {
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await completeOnboarding();
-    router.replace('/(tabs)/(home)' as never);
-  }, [completeOnboarding, router]);
-
-  const handleBandPick = useCallback(async (band: ProjectSizeBand) => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await saveOnboardingProfile({
-      completedAt: new Date().toISOString(),
-      sizeBand: band,
-    });
-    // Auto-seed a sample project tuned to the band so the user lands on
-    // a populated home screen instead of an empty state. The dynamic
-    // require keeps demoSeed.ts out of the onboarding bundle until we
-    // actually need it.
+  // Seed a sample project tuned to the size band so a user who *doesn't*
+  // bring their own pipeline still lands on a populated home instead of an
+  // empty state. The dynamic require keeps demoSeed.ts out of the onboarding
+  // bundle until we actually need it. Non-fatal — empty state on failure.
+  const runDemoSeed = useCallback(async (flavor: DemoFlavor) => {
     try {
-      const flavor = suggestedDemoFlavorForBand(band);
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { seedDemoProject } = require('@/utils/demoSeed');
       await seedDemoProject({
@@ -218,37 +232,77 @@ export default function OnboardingScreen() {
         flavor,
       });
     } catch (e) {
-      // Non-fatal — user lands on home with empty state if seeding fails.
-      console.log('[onboarding] auto-seed skipped:', e);
+      console.warn('[onboarding] auto-seed skipped:', e);
     }
-    void finishToHome();
-  }, [finishToHome, projectCtx]);
+  }, [projectCtx]);
 
-  const handleSkip = useCallback(async () => {
-    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    // Even on Skip, seed a medium-sized sample project so the user
-    // lands on a populated home tab instead of an empty state. The
-    // strategic audit's "real onboarding seed" recommendation —
-    // tester sees in 10 seconds what the app does at month 3, not
-    // what an empty database looks like.
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { seedDemoProject } = require('@/utils/demoSeed');
-      await seedDemoProject({
-        addProject: projectCtx.addProject,
-        addInvoice: projectCtx.addInvoice,
-        addDailyReport: projectCtx.addDailyReport,
-        addPunchItem: projectCtx.addPunchItem,
-        addProjectPhoto: projectCtx.addProjectPhoto,
-        addRFI: projectCtx.addRFI,
-        addChangeOrder: projectCtx.addChangeOrder,
-        flavor: 'medium' as const,
-      });
-    } catch (e) {
-      console.log('[onboarding] skip-path auto-seed failed:', e);
+  // Single exit. `seedDemo` is true only when the user lands on home without
+  // having imported a real pipeline (skip paths) — see the routing/import
+  // handlers below.
+  const finishToHome = useCallback(async (opts?: { seedDemo?: boolean; band?: ProjectSizeBand | null }) => {
+    if (opts?.seedDemo) {
+      const flavor: DemoFlavor = opts.band ? suggestedDemoFlavorForBand(opts.band) : 'medium';
+      await runDemoSeed(flavor);
     }
-    void finishToHome();
-  }, [finishToHome, projectCtx]);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await completeOnboarding();
+    router.replace('/(tabs)/(home)' as never);
+  }, [runDemoSeed, completeOnboarding, router]);
+
+  const handleBandPick = useCallback(async (band: ProjectSizeBand) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await saveOnboardingProfile({
+      completedAt: new Date().toISOString(),
+      sizeBand: band,
+    });
+    // Don't seed yet — advance to the import step. If they paste a real
+    // pipeline there we skip the sample project entirely; if they skip
+    // import, finishToHome seeds a band-tuned demo so home isn't empty.
+    setPendingBand(band);
+    setStep('import');
+  }, []);
+
+  // ── Import step ──────────────────────────────────────────────────────
+  const handleParse = useCallback(() => {
+    const next = parseImportBlob(blob);
+    if (next.length === 0) {
+      setImportHint('Paste one client per line — name first, then phone, email, project, or budget in any order.');
+      return;
+    }
+    setImportHint(null);
+    setDrafts(next);
+    setParsed(true);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [blob]);
+
+  const handleImport = useCallback(async () => {
+    if (drafts.length === 0) return;
+    setImporting(true);
+    try {
+      for (const d of drafts) addLead(draftToLeadInput(d));
+      track(AnalyticsEvents.ONBOARDING_IMPORT_COMPLETED, { count: drafts.length });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Real pipeline imported → their clients ARE the populated state, so
+      // skip the demo seed.
+      await finishToHome({ seedDemo: false });
+    } finally {
+      setImporting(false);
+    }
+  }, [drafts, addLead, finishToHome]);
+
+  const handleImportSkip = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    track(AnalyticsEvents.ONBOARDING_IMPORT_SKIPPED);
+    void finishToHome({ seedDemo: true, band: pendingBand });
+  }, [finishToHome, pendingBand]);
+
+  // Top-bar Skip — bails out of the whole flow. Seeds a sample project so
+  // the user still lands on a populated home. `pendingBand` is null unless
+  // they'd already reached the import step, in which case we honor it.
+  const handleSkip = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    void finishToHome({ seedDemo: true, band: pendingBand });
+  }, [finishToHome, pendingBand]);
 
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
@@ -297,6 +351,7 @@ export default function OnboardingScreen() {
         <View style={[styles.stepDot, step === 'splash' && styles.stepDotActive]} />
         <View style={[styles.stepDot, step === 'preview' && styles.stepDotActive]} />
         <View style={[styles.stepDot, step === 'routing' && styles.stepDotActive]} />
+        <View style={[styles.stepDot, step === 'import' && styles.stepDotActive]} />
       </View>
 
       {/* Body — switches between splash and routing. Both use the same
@@ -485,6 +540,135 @@ export default function OnboardingScreen() {
           </Animated.View>
         </Animated.View>
       )}
+
+      {/* Import-your-pipeline — the "bring your own clients" cold-start play
+          lands right here in first-run. Paste a client column, tap once, and
+          land on home with a populated pipeline instead of an empty CRM —
+          each lead one tap from an Instant Bid. Reuses the shared parser
+          (utils/pipelineImport); only the brand-styled UI is local. */}
+      {step === 'import' && (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={insets.top + 72}
+        >
+          <Animated.View
+            style={[
+              styles.body,
+              { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+            ]}
+          >
+            <View style={{ flex: 1 }} />
+
+            <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
+              <Text style={styles.eyebrowDot}>●</Text>  bring your book of business
+            </Animated.Text>
+
+            <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
+              <Text style={styles.headlineRoman}>Bring your{' '}</Text>
+              <Text style={styles.headlineItalic}>clients{' '}</Text>
+              <Text style={styles.headlineRoman}>with you.</Text>
+            </Animated.Text>
+
+            {!parsed ? (
+              <Animated.View style={{ opacity: bodyOpacity }}>
+                <Text style={styles.lede}>
+                  Paste your client list — one per line. We&apos;ll read the name, phone,
+                  email, project, and budget in any order. Each becomes a lead, ready for
+                  an Instant Bid.
+                </Text>
+                <TextInput
+                  style={styles.pasteInput}
+                  value={blob}
+                  onChangeText={(v) => { setBlob(v); setImportHint(null); }}
+                  placeholder={'John Smith, 555-123-4567, kitchen remodel, $80,000\nJane Garcia, jane@email.com, bathroom reno\nPatel Family, 312-555-0199, ADU, 150k'}
+                  placeholderTextColor={BRAND.fog}
+                  multiline
+                  textAlignVertical="top"
+                  testID="onboarding-import-blob"
+                />
+                {!!importHint && <Text style={styles.importHint}>{importHint}</Text>}
+                <Pressable
+                  onPress={handleParse}
+                  disabled={!blob.trim()}
+                  style={({ pressed }) => [
+                    styles.ctaPrimary,
+                    styles.ctaWide,
+                    !blob.trim() && { opacity: 0.5 },
+                    pressed && { opacity: 0.92 },
+                  ]}
+                  accessibilityLabel="Review clients to import"
+                  accessibilityRole="button"
+                  testID="onboarding-import-review"
+                >
+                  <Text style={styles.ctaPrimaryText}>Review clients</Text>
+                  <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
+                </Pressable>
+                <TouchableOpacity
+                  onPress={handleImportSkip}
+                  hitSlop={8}
+                  style={styles.importSkip}
+                  testID="onboarding-import-skip"
+                >
+                  <Text style={styles.signInText}>
+                    <Text style={styles.signInLink}>Skip — I&apos;ll add them later</Text>
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            ) : (
+              <Animated.View style={{ opacity: bodyOpacity }}>
+                <View style={styles.confirmCard}>
+                  <View style={styles.confirmHeadRow}>
+                    <Sparkles size={16} color={BRAND.orange} />
+                    <Text style={styles.confirmCount}>
+                      {drafts.length} client{drafts.length === 1 ? '' : 's'} ready to import
+                    </Text>
+                  </View>
+                  <View style={styles.nameChipRow}>
+                    {drafts.slice(0, 6).map((d, i) => (
+                      <View key={`${d.raw}-${i}`} style={styles.nameChip}>
+                        <Text style={styles.nameChipText} numberOfLines={1}>{d.name}</Text>
+                      </View>
+                    ))}
+                    {drafts.length > 6 && (
+                      <View style={styles.nameChip}>
+                        <Text style={styles.nameChipText}>+{drafts.length - 6} more</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <Pressable
+                  onPress={handleImport}
+                  disabled={importing}
+                  style={({ pressed }) => [
+                    styles.ctaPrimary,
+                    styles.ctaWide,
+                    importing && { opacity: 0.6 },
+                    pressed && { opacity: 0.92 },
+                  ]}
+                  accessibilityLabel={`Import ${drafts.length} clients`}
+                  accessibilityRole="button"
+                  testID="onboarding-import-commit"
+                >
+                  <Check size={18} color={BRAND.ink} strokeWidth={2.6} />
+                  <Text style={styles.ctaPrimaryText}>
+                    Import {drafts.length} client{drafts.length === 1 ? '' : 's'}
+                  </Text>
+                </Pressable>
+                <TouchableOpacity
+                  onPress={() => setParsed(false)}
+                  hitSlop={8}
+                  style={styles.importSkip}
+                >
+                  <Text style={styles.signInText}>
+                    <Text style={styles.signInLink}>Back to edit</Text>
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      )}
     </View>
   );
 }
@@ -621,6 +805,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     color: BRAND.ink,
   },
+  // Full-width variant for the import step's CTAs (the paste box is
+  // full-bleed, so a flex-start button would look orphaned beside it).
+  ctaWide: {
+    alignSelf: 'stretch',
+    marginTop: 4,
+  },
 
   signInText: {
     fontSize: Type.footnote.fontSize,
@@ -716,8 +906,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
 
-// Suppress the "unused" warning for the Check icon — kept in the import
-// list so a follow-up can show "✓ Personalized" feedback after band pick.
-void Check;
+  // ── Import-your-pipeline step ───────────────────────────────────────
+  pasteInput: {
+    minHeight: 140,
+    backgroundColor: 'rgba(244,239,230,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,239,230,0.16)',
+    borderRadius: Tokens.radius.lg,
+    ...continuousCorners,
+    padding: 14,
+    fontSize: Type.bodyCompact.fontSize,
+    color: BRAND.cream,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  importHint: {
+    fontSize: Type.footnote.fontSize,
+    color: BRAND.orangeHot,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  importSkip: {
+    marginTop: 14,
+    alignSelf: 'center',
+  },
+  confirmCard: {
+    backgroundColor: 'rgba(244,239,230,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,239,230,0.12)',
+    borderRadius: Tokens.radius.lg,
+    ...continuousCorners,
+    padding: 16,
+    marginBottom: 16,
+  },
+  confirmHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  confirmCount: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '800',
+    color: BRAND.cream,
+    letterSpacing: -0.2,
+  },
+  nameChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  nameChip: {
+    backgroundColor: 'rgba(244,239,230,0.10)',
+    borderRadius: Tokens.radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: 170,
+  },
+  nameChipText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600',
+    color: BRAND.cream,
+  },
+});

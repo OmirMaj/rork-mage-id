@@ -20,7 +20,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Phone, Mail, MapPin, ChevronRight, MessageSquare, Calendar, Clock,
-  Trash2, Save, Sparkles, ArrowRight, Briefcase, Mic, X,
+  Trash2, Save, Sparkles, ArrowRight, Briefcase, Mic, X, Zap,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -34,6 +34,7 @@ import {
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import ReferralPrompt from '@/components/ReferralPrompt';
+import InstantBidProposalModal from '@/components/InstantBidProposalModal';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseLeadFromTranscript, pickIfEmpty, titleCase } from '@/utils/voiceFormParsers';
 
@@ -89,6 +90,9 @@ export default function LeadDetailScreen() {
   // Referral prompt at the won-job moment (the emotional peak). Only fires
   // on the transition INTO won, and only once per lead.
   const [showReferralPrompt, setShowReferralPrompt] = useState(false);
+  // Instant Bid proposal for this client — the day-one "aha" on the
+  // contractor's own book of business (no marketplace needed).
+  const [showProposal, setShowProposal] = useState(false);
 
   // Activity log inputs.
   const [touchKind, setTouchKind] = useState<LeadTouchKind>('call');
@@ -300,6 +304,15 @@ export default function LeadDetailScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {/* Instant Bid — the day-one aha on your own client. Available
+                until the deal's decided (won/lost). */}
+            {existing && stage !== 'won' && stage !== 'lost' && (
+              <TouchableOpacity style={styles.proposalBtn} onPress={() => setShowProposal(true)} activeOpacity={0.85} testID="lead-draft-proposal">
+                <Zap size={16} color="#FFF" />
+                <Text style={styles.proposalBtnText}>Draft Instant Bid proposal</Text>
+                <Sparkles size={13} color="#FFF" />
+              </TouchableOpacity>
+            )}
             {existing && stage === 'won' && !existing.convertedProjectId && (
               <TouchableOpacity style={styles.convertBtn} onPress={handleConvert} activeOpacity={0.85}>
                 <Briefcase size={16} color="#FFF" />
@@ -484,6 +497,12 @@ export default function LeadDetailScreen() {
           companyName={settings?.branding?.companyName}
         />
 
+        <InstantBidProposalModal
+          visible={showProposal}
+          onClose={() => setShowProposal(false)}
+          lead={existing ?? null}
+        />
+
         {/* Lose-reason modal — fires when GC flips the stage to 'lost'.
             Chip picker covers the five answers that actually drive
             "why are we losing" reporting. "Skip" still moves the stage
@@ -609,6 +628,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 14, borderRadius: Tokens.radius.card,
   },
   convertBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
+  proposalBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 12,
+    backgroundColor: t.accent,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
+  },
+  proposalBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   convertedBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 12,

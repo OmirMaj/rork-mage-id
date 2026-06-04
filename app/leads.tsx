@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import {
-  Plus, Phone, Mail, Clock, TrendingUp, Mic, Sparkles, ChevronRight,
+  Plus, Phone, Mail, Clock, TrendingUp, Mic, Sparkles, ChevronRight, Upload,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -32,6 +32,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCE_LABELS, type Lead, type LeadStage } from '@/types';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
+import ReactivationBanner from '@/components/ReactivationBanner';
 import { parseLeadFromTranscript } from '@/utils/voiceFormParsers';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
@@ -118,7 +119,23 @@ export default function LeadsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Pipeline', headerLargeTitle: false }} />
+      <Stack.Screen
+        options={{
+          title: 'Pipeline',
+          headerLargeTitle: false,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/import-pipeline' as never)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Import clients"
+              testID="leads-import"
+            >
+              <Upload size={20} color={themeColors.accent} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       {/* Native iOS header already accounts for the safe area (notch/
           dynamic island). Manual `insets.top + 8` was double-counting
           and producing a tall blank gap above the KPI strip. */}
@@ -153,8 +170,21 @@ export default function LeadsScreen() {
             <Text style={styles.emptyBannerBody}>
               Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
             </Text>
+            <TouchableOpacity
+              style={styles.emptyImportBtn}
+              onPress={() => router.push('/import-pipeline' as never)}
+              activeOpacity={0.85}
+              testID="leads-empty-import"
+            >
+              <Upload size={15} color="#FFF" />
+              <Text style={styles.emptyImportBtnText}>Import your existing clients</Text>
+            </TouchableOpacity>
           </View>
         )}
+
+        {/* Reactivation nudge — surfaces clients who've gone quiet so the
+            relationship (and platform) stays warm. Self-hides when none. */}
+        <ReactivationBanner />
 
         {/* Pipeline columns */}
         <ScrollView
@@ -330,6 +360,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   emptyBannerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
   emptyBannerBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
+  emptyImportBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 7,
+    backgroundColor: t.accent, paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: Tokens.radius.md, marginTop: 10, alignSelf: 'flex-start' as const,
+  },
+  emptyImportBtnText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
   card: {
     backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,

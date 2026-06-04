@@ -22,7 +22,7 @@ import {
   Alert, Platform, Image, ActivityIndicator, Animated, Easing,
   KeyboardAvoidingView,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -113,6 +113,27 @@ export default function PostRfpScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+
+  // Optional prefill — when another screen routes here with context already
+  // in hand (today: the Property Manager work-order "Post for bids" bridge),
+  // it passes the scope/budget/address as params so the homeowner-RFP form
+  // opens pre-filled instead of blank. Every key is optional; a plain
+  // /post-rfp with no params behaves exactly as before. Read once into the
+  // initial state below — we don't keep re-reading params on every render.
+  const prefill = useLocalSearchParams<{
+    prefillDescription?: string;
+    prefillScope?: string;
+    prefillAddress?: string;
+    prefillBudgetMin?: string;
+    prefillBudgetMax?: string;
+    prefillWorkType?: string;
+  }>();
+  const p1 = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v) ?? '';
+  const initialWorkType = ((): WorkType => {
+    const w = p1(prefill.prefillWorkType);
+    return WORK_TYPES.some(t => t.id === w) ? (w as WorkType) : 'renovation';
+  })();
+
   // Client paywall gate — sits in front of the final submit. Subscribers
   // breeze through; everyone else gets the modal asking them to pay per-
   // post or start a trial. `ClientPaywallElement` must be rendered in JSX
@@ -120,14 +141,14 @@ export default function PostRfpScreen() {
   const { gate: gateClientPaywall, ClientPaywallElement } = useClientPaywall();
 
   const [step, setStep]                   = useState<WizardStep>('details');
-  const [workType, setWorkType]           = useState<WorkType>('renovation');
-  const [description, setDescription]     = useState('');
-  const [address, setAddress]             = useState('');
+  const [workType, setWorkType]           = useState<WorkType>(initialWorkType);
+  const [description, setDescription]     = useState(() => p1(prefill.prefillDescription));
+  const [address, setAddress]             = useState(() => p1(prefill.prefillAddress));
   const [latLng, setLatLng]               = useState<{ lat: number; lng: number } | null>(null);
   const [addressVerified, setAddressVerified] = useState(false);
-  const [extraScope, setExtraScope]       = useState('');
-  const [budgetMin, setBudgetMin]         = useState('');
-  const [budgetMax, setBudgetMax]         = useState('');
+  const [extraScope, setExtraScope]       = useState(() => p1(prefill.prefillScope));
+  const [budgetMin, setBudgetMin]         = useState(() => p1(prefill.prefillBudgetMin));
+  const [budgetMax, setBudgetMax]         = useState(() => p1(prefill.prefillBudgetMax));
   const [desiredStart, setDesiredStart]   = useState('');
   const [deadline, setDeadline]           = useState('');
   // Verified-only RFP: when on, only license-verified contractors are

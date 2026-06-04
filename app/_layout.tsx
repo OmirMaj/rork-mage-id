@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
+import { PropertyProvider } from "@/contexts/PropertyContext";
 import { BidsProvider } from "@/contexts/BidsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
@@ -24,6 +25,7 @@ import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
+import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
 import { patchAlertForWeb } from "@/utils/webAlertPolyfill";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
@@ -241,6 +243,23 @@ function MagicLinkHandler() {
     });
     return () => sub.remove();
   }, []);
+  return null;
+}
+
+// Boots the PostHog HTTP transport once on mount (so anonymous events are
+// captured immediately), then keeps the analytics identity in lock-step with
+// auth: identify on login (merging the prior anonymous person), reset on
+// logout. Mounted inside AuthProvider so useAuth() is available.
+function AnalyticsManager() {
+  const { isAuthenticated, user } = useAuth();
+
+  useEffect(() => { void initAnalytics(); }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.id) void identifyAnalyticsUser(user.id);
+    else if (!isAuthenticated) void resetAnalyticsUser();
+  }, [isAuthenticated, user?.id]);
+
   return null;
 }
 
@@ -686,6 +705,18 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="import-pipeline"
+        options={{ headerShown: false, presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="managed-property"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="work-order"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="sub-portal-setup"
         options={{
           title: "Sub Portal",
@@ -1101,6 +1132,7 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  <PropertyProvider>
                   <MaterialCartProvider>
                     <BidsProvider>
                       <CompaniesProvider>
@@ -1108,6 +1140,7 @@ export default Sentry.wrap(function RootLayout() {
                           <NotificationProvider>
                             <SearchProvider>
                               <MagicLinkHandler />
+                              <AnalyticsManager />
                               <OfflineSyncManager />
                               <RootLayoutNav />
                               <UniversalSearch />
@@ -1120,6 +1153,7 @@ export default Sentry.wrap(function RootLayout() {
                       </CompaniesProvider>
                     </BidsProvider>
                   </MaterialCartProvider>
+                  </PropertyProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>

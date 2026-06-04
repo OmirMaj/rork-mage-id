@@ -1465,6 +1465,102 @@ export interface Lead {
 }
 
 // ─────────────────────────────────────────────
+// Property Manager — managed properties + work orders
+// ─────────────────────────────────────────────
+//
+// The recurring-demand engine. A property manager (the 'property_manager'
+// persona) maintains a portfolio of buildings/units they're responsible
+// for, and logs maintenance Work Orders against them. Work orders are the
+// repeat-business primitive: every leak, turnover, and HVAC service is a
+// fresh job that needs a contractor — structural demand a one-sided
+// contractor tool can't generate on its own.
+//
+// A WorkOrder bridges into the existing pipeline two ways (see
+// app/work-order.tsx): dispatch to a saved contractor from Contacts
+// (local, immediate), or post to the marketplace for competitive bids.
+//
+// v1 is local-first (AsyncStorage `tertiary_managed_properties` /
+// `tertiary_work_orders`, via contexts/PropertyContext.tsx); server sync
+// can follow once the persona is validated.
+
+/** A building / unit under management. Long-lived container that spawns
+ *  many work orders over its lifetime. */
+export interface ManagedProperty {
+  id: string;
+  /** Display name — "Maple Court Apartments", "123 Oak St Unit 4". */
+  name: string;
+  address?: string;
+  /** Free-text type — "Single-family rental", "12-unit multifamily",
+   *  "Office suite". Kept free-text (not an enum) so PMs aren't boxed in. */
+  propertyType?: string;
+  /** Number of units, for multifamily portfolios. */
+  units?: number;
+  /** Owner / point-of-contact name (the PM's client). */
+  ownerName?: string;
+  ownerPhone?: string;
+  ownerEmail?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WorkOrderStatus =
+  | 'open'              // logged, not yet actioned
+  | 'posted_for_bids'   // sent to the marketplace for contractor bids
+  | 'assigned'          // dispatched to a specific contractor
+  | 'in_progress'       // work underway
+  | 'done'              // completed
+  | 'cancelled';
+
+export const WORK_ORDER_STATUSES: WorkOrderStatus[] = [
+  'open', 'posted_for_bids', 'assigned', 'in_progress', 'done', 'cancelled',
+];
+
+export const WORK_ORDER_STATUS_LABELS: Record<WorkOrderStatus, string> = {
+  open: 'Open',
+  posted_for_bids: 'Out for bids',
+  assigned: 'Assigned',
+  in_progress: 'In progress',
+  done: 'Done',
+  cancelled: 'Cancelled',
+};
+
+export type WorkOrderPriority = 'low' | 'normal' | 'high' | 'emergency';
+
+export const WORK_ORDER_PRIORITIES: WorkOrderPriority[] = ['low', 'normal', 'high', 'emergency'];
+
+export const WORK_ORDER_PRIORITY_LABELS: Record<WorkOrderPriority, string> = {
+  low: 'Low',
+  normal: 'Normal',
+  high: 'High',
+  emergency: 'Emergency',
+};
+
+/** A maintenance / repair request against a managed property. */
+export interface WorkOrder {
+  id: string;
+  propertyId: string;
+  /** Short title — "Kitchen sink leak", "Unit 4 turnover paint". */
+  title: string;
+  description?: string;
+  /** Trade / category, free-text — "Plumbing", "HVAC", "General". */
+  category?: string;
+  priority: WorkOrderPriority;
+  status: WorkOrderStatus;
+  /** Optional budget the PM expects this to cost. */
+  budget?: number;
+  /** When dispatched to a contractor (status 'assigned'): which Contact. */
+  assignedContactId?: string;
+  assignedContactName?: string;
+  assignedAt?: string;
+  /** When bridged into the lead pipeline / marketplace, the created id. */
+  linkedLeadId?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─────────────────────────────────────────────
 // Buyout / Bid Packages
 // ─────────────────────────────────────────────
 //
