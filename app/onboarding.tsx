@@ -54,6 +54,7 @@ import {
   type ProjectSizeBand,
 } from '@/utils/onboardingProfile';
 import { parseImportBlob, draftToLeadInput, type ImportedLeadDraft } from '@/utils/pipelineImport';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 // ── Brand palette local to onboarding — kept hardcoded so the splash
 // looks identical regardless of any custom-primary the user has set
@@ -187,6 +188,12 @@ export default function OnboardingScreen() {
     ]).start();
   }, [step, eyebrowOpacity, headlineOpacity, bodyOpacity, ctaOpacity, lift, reduceMotion]);
 
+  // Activation funnel — mark the top of the import step so we can compute
+  // viewed→completed. Fires once when the step first renders.
+  useEffect(() => {
+    if (step === 'import') track(AnalyticsEvents.ONBOARDING_IMPORT_VIEWED);
+  }, [step]);
+
   const handleStarted = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Animated.sequence([
@@ -273,6 +280,7 @@ export default function OnboardingScreen() {
     setImporting(true);
     try {
       for (const d of drafts) addLead(draftToLeadInput(d));
+      track(AnalyticsEvents.ONBOARDING_IMPORT_COMPLETED, { count: drafts.length });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Real pipeline imported → their clients ARE the populated state, so
       // skip the demo seed.
@@ -284,6 +292,7 @@ export default function OnboardingScreen() {
 
   const handleImportSkip = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    track(AnalyticsEvents.ONBOARDING_IMPORT_SKIPPED);
     void finishToHome({ seedDemo: true, band: pendingBand });
   }, [finishToHome, pendingBand]);
 

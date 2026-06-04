@@ -55,4 +55,17 @@ export const AnalyticsEvents = {
   PAYWALL_DISMISSED: 'paywall_dismissed',
   SUBSCRIPTION_PURCHASE_STARTED: 'subscription_purchase_started',
   SUBSCRIPTION_PURCHASE_FAILED: 'subscription_purchase_failed',
+  // ── Activation funnel: import-your-pipeline during first-run ──
+  // The "contractor brings their own clients" cold-start bet. Fires from
+  // app/onboarding.tsx's import step.
+  // ONBOARDING_IMPORT_VIEWED fires when the import step is shown (only
+  //   contractor/both personas reach it — client/PM skip onboarding).
+  // ONBOARDING_IMPORT_COMPLETED fires after leads are committed; `count`
+  //   is how many clients they brought.
+  // ONBOARDING_IMPORT_SKIPPED fires from the in-step "add them later".
+  // Compute viewed→completed for the activation rate, and the count
+  // distribution for how much pipeline new users actually carry in.
+  ONBOARDING_IMPORT_VIEWED: 'onboarding_import_viewed',
+  ONBOARDING_IMPORT_COMPLETED: 'onboarding_import_completed',
+  ONBOARDING_IMPORT_SKIPPED: 'onboarding_import_skipped',
 } as const;
