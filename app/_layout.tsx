@@ -25,6 +25,7 @@ import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
+import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
 import { patchAlertForWeb } from "@/utils/webAlertPolyfill";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
@@ -242,6 +243,23 @@ function MagicLinkHandler() {
     });
     return () => sub.remove();
   }, []);
+  return null;
+}
+
+// Boots the PostHog HTTP transport once on mount (so anonymous events are
+// captured immediately), then keeps the analytics identity in lock-step with
+// auth: identify on login (merging the prior anonymous person), reset on
+// logout. Mounted inside AuthProvider so useAuth() is available.
+function AnalyticsManager() {
+  const { isAuthenticated, user } = useAuth();
+
+  useEffect(() => { void initAnalytics(); }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.id) void identifyAnalyticsUser(user.id);
+    else if (!isAuthenticated) void resetAnalyticsUser();
+  }, [isAuthenticated, user?.id]);
+
   return null;
 }
 
@@ -1122,6 +1140,7 @@ export default Sentry.wrap(function RootLayout() {
                           <NotificationProvider>
                             <SearchProvider>
                               <MagicLinkHandler />
+                              <AnalyticsManager />
                               <OfflineSyncManager />
                               <RootLayoutNav />
                               <UniversalSearch />
