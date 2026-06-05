@@ -2659,6 +2659,44 @@ export interface TieredProposal {
   generatedAt: string;
 }
 
+/**
+ * AI Scope Sheet (app/scope-sheet.tsx) — the inclusions / exclusions /
+ * clarifications / assumptions narrative that turns a priced estimate into a
+ * defensible scope of work. Drafted by AI from the estimate line items, then
+ * editable by the contractor before it goes into a proposal or contract.
+ *
+ * This attacks the #1 documented estimate-handoff failure: the estimator's
+ * narrative (what's in, what's out, what we assumed) lives only in their head
+ * and an email thread, so the PM inherits a number with no story. We persist
+ * it per-project so it's there at contract, buyout, and change-order time.
+ */
+export interface ScopeSheetItem {
+  text: string;
+  /** Trade / CSI grouping label for scanning, e.g. "Electrical", "Demolition". */
+  trade?: string;
+  /** Dispute-risk flag (mainly on exclusions/clarifications) so the GC sees
+   *  the landmines before signing. */
+  risk?: 'high' | 'medium' | 'low';
+  /** One-line "why this matters" shown on higher-risk items. */
+  note?: string;
+}
+
+export interface ScopeSheet {
+  kind: 'scope_sheet_v1';
+  projectId: string;
+  inclusions: ScopeSheetItem[];
+  exclusions: ScopeSheetItem[];
+  clarifications: ScopeSheetItem[];
+  assumptions: ScopeSheetItem[];
+  allowances: ScopeSheetItem[];
+  /** 'ai' when the model drafted it; 'heuristic' on the offline/failure fallback. */
+  source: 'ai' | 'heuristic';
+  /** Estimate grandTotal at draft time — lets the UI flag "estimate changed
+   *  since this was written, regenerate". */
+  estimateTotal: number;
+  generatedAt: string;
+}
+
 export interface CompanyProfile {
   id: string;
   companyName: string;

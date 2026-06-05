@@ -28,7 +28,7 @@ import {
   Search, X, ChevronRight, ChevronLeft, FolderPlus, Calculator, CalendarDays, FileText,
   Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
-  Wallet, MessageSquare, Ruler, Sparkles, Lock, type LucideIcon,
+  Wallet, MessageSquare, Ruler, Sparkles, Lock, FileCheck, type LucideIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -78,6 +78,7 @@ const OPTIONS: CreateOption[] = [
   { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', category: 'money', keywords: ['co'], scoped: true, tier: 'pro' },
   { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/bill-from-estimate', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'], scoped: true, extraParams: { type: 'progress' } },
   { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'], scoped: true },
+  { label: 'Scope Sheet', subtitle: 'AI inclusions & exclusions from your estimate', Icon: FileCheck, href: '/scope-sheet', category: 'docs', keywords: ['scope', 'inclusions', 'exclusions', 'clarifications', 'assumptions', 'sow'], scoped: true },
   { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', category: 'money', keywords: ['waiver', 'release'], scoped: true },
 
   // Documentation

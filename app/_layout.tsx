@@ -1025,6 +1025,15 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="scope-sheet"
+        options={{
+          title: "Scope Sheet",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
         name="connect-claude"
         options={{
           title: "Connect Claude",
