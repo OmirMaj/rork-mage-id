@@ -23,8 +23,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import {
-  ChevronLeft, MapPin, Pencil, Eraser, Camera, ClipboardList, X, Check,
-  Trash2, Undo2, Image as ImageIcon, Ruler,
+  ChevronLeft, ChevronRight, MapPin, Pencil, Eraser, Camera, ClipboardList, X, Check,
+  Trash2, Undo2, Image as ImageIcon, Ruler, FileText,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -85,6 +85,7 @@ function PlanViewerScreenInner() {
     getMarkupsForPlan, addPlanMarkup, deletePlanMarkup,
     getPhotosForProject, getPunchItemsForProject, addProjectPhoto,
     upsertPlanCalibration, getCalibrationForPlan,
+    addRFI, getRFIsForProject,
   } = useProjects();
 
   const sheet = sheetId ? getPlanSheet(sheetId) : null;
@@ -107,6 +108,53 @@ function PlanViewerScreenInner() {
   const projectPunch = useMemo(() => sheet ? getPunchItemsForProject(sheet.projectId) : [], [sheet, getPunchItemsForProject]);
   const selectedPin = selectedPinId ? pins.find(p => p.id === selectedPinId) ?? null : null;
   const calibration = useMemo(() => sheet ? getCalibrationForPlan(sheet.id) : undefined, [sheet, getCalibrationForPlan]);
+
+  // The RFI linked to the selected pin, if any — so the pin sheet can show
+  // "RFI #N" and a way back to it instead of offering to raise a duplicate.
+  const linkedRfi = useMemo(() => {
+    if (!selectedPin?.linkedRfiId || !sheet) return null;
+    const r = getRFIsForProject(sheet.projectId).find(x => x.id === selectedPin.linkedRfiId);
+    return r ? { id: r.id, number: r.number, subject: r.subject } : null;
+  }, [selectedPin?.linkedRfiId, sheet, getRFIsForProject]);
+
+  // Pin → RFI: create an open RFI anchored to this drawing location, link the
+  // pin both ways (kind:'rfi' + linkedRfiId), then open the RFI to finish and
+  // send. "Pin, ask, done."
+  const handleRaiseRfi = useCallback(() => {
+    if (!sheet || !selectedPin) return;
+    const sheetName = sheet.sheetNumber || sheet.name;
+    const label = selectedPin.label?.trim();
+    const now = new Date().toISOString();
+    const photoUri = selectedPin.linkedPhotoId
+      ? projectPhotos.find(p => p.id === selectedPin.linkedPhotoId)?.uri
+      : undefined;
+    const rfi = addRFI({
+      projectId: sheet.projectId,
+      subject: label ? `${sheetName}: ${label}` : `${sheetName} — RFI`,
+      question: label
+        ? `Regarding the marked location on ${sheetName}: ${label}. Please advise.`
+        : `Please clarify the marked location on ${sheetName}.`,
+      submittedBy: '',
+      assignedTo: '',
+      dateSubmitted: now,
+      dateRequired: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+      status: 'open',
+      priority: 'normal',
+      ballInCourt: 'gc',
+      linkedDrawing: sheetName,
+      attachments: photoUri ? [photoUri] : [],
+    });
+    updateDrawingPin(selectedPin.id, { linkedRfiId: rfi.id, kind: 'rfi' });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSelectedPinId(null);
+    router.push({ pathname: '/rfi' as never, params: { projectId: sheet.projectId, rfiId: rfi.id } as never });
+  }, [sheet, selectedPin, projectPhotos, addRFI, updateDrawingPin, router]);
+
+  const openLinkedRfi = useCallback(() => {
+    if (!sheet || !linkedRfi) return;
+    setSelectedPinId(null);
+    router.push({ pathname: '/rfi' as never, params: { projectId: sheet.projectId, rfiId: linkedRfi.id } as never });
+  }, [sheet, linkedRfi, router]);
 
   // Feet-per-normalized-unit (0–1) in each axis. We use the straight-line
   // distance between the two calibration points + a known real distance.
@@ -551,6 +599,9 @@ function PlanViewerScreenInner() {
         projectId={sheet.projectId}
         photos={projectPhotos}
         punchItems={projectPunch}
+        linkedRfi={linkedRfi}
+        onRaiseRfi={handleRaiseRfi}
+        onOpenRfi={openLinkedRfi}
         onClose={() => setSelectedPinId(null)}
         onUpdate={(updates) => {
           if (selectedPin) updateDrawingPin(selectedPin.id, updates);
@@ -633,17 +684,20 @@ function PlanViewerScreenInner() {
 // Pin detail / edit
 
 function PinDetailModal({
-  pin, projectId, photos, punchItems,
-  onClose, onUpdate, onDelete, onAddPhoto,
+  pin, projectId, photos, punchItems, linkedRfi,
+  onClose, onUpdate, onDelete, onAddPhoto, onRaiseRfi, onOpenRfi,
 }: {
   pin: DrawingPin | null;
   projectId: string;
   photos: { id: string; uri: string; tag?: string }[];
   punchItems: { id: string; description: string; location?: string; status: string }[];
+  linkedRfi: { id: string; number: number; subject: string } | null;
   onClose: () => void;
   onUpdate: (updates: Partial<DrawingPin>) => void;
   onDelete: () => void;
   onAddPhoto: () => void;
+  onRaiseRfi: () => void;
+  onOpenRfi: () => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -711,6 +765,21 @@ function PinDetailModal({
                   <Text style={styles.linkCellSub}>Link to open punch</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* RFI from this drawing location — Pin, Ask, Done. */}
+              {linkedRfi ? (
+                <TouchableOpacity style={styles.linkedRow} onPress={onOpenRfi} activeOpacity={0.8} testID="pin-open-rfi">
+                  <FileText size={14} color={PIN_COLORS.rfi} />
+                  <Text style={styles.linkedText} numberOfLines={1}>RFI #{linkedRfi.number}: {linkedRfi.subject}</Text>
+                  <ChevronRight size={16} color={themeColors.textSecondary} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.rfiBtn} onPress={onRaiseRfi} activeOpacity={0.85} testID="pin-raise-rfi">
+                  <FileText size={16} color={themeColors.accent} />
+                  <Text style={styles.rfiBtnText}>Raise RFI from this location</Text>
+                  <ChevronRight size={16} color={themeColors.accent} />
+                </TouchableOpacity>
+              )}
 
               {linkedPhoto && (
                 <View style={styles.linkedRow}>
@@ -916,6 +985,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   linkedThumb: { width: 36, height: 36, borderRadius: Tokens.radius.xs },
   linkedText: { flex: 1, color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+
+  rfiBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: t.accent + '12', padding: 12, borderRadius: Tokens.radius.md, marginTop: 8,
+    borderWidth: 1, borderColor: t.accent + '2A',
+  },
+  rfiBtnText: { flex: 1, color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '800' },
 
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
