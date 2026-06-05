@@ -446,6 +446,26 @@ export default function HomeScreen() {
     if (projects.length === 0) return null;
     return (
       <View style={styles.footerExtras}>
+        {/* Ask MAGE — whole-business conversational agent. Entry point lives
+            in the home AI section; opens the /ask chat. */}
+        <TouchableOpacity
+          onPress={() => router.push('/ask' as never)}
+          activeOpacity={0.85}
+          testID="home-ask-mage"
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg,
+            paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
+          }}
+        >
+          <Sparkles size={18} color="#FFF" strokeWidth={2.2} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: Colors.textOnAccent, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+              What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
+            </Text>
+          </View>
+        </TouchableOpacity>
         <View style={styles.aiBriefingWrap}>
           <TouchableOpacity
             style={styles.aiBriefingToggle}
@@ -475,7 +495,7 @@ export default function HomeScreen() {
         <QuickFieldUpdate />
       </View>
     );
-  }, [projects, invoices, tier, showAIBriefing, themeColors.accent, themeColors.textSecondary]);
+  }, [projects, invoices, tier, showAIBriefing, themeColors.accent, themeColors.textSecondary, router]);
 
   // Compose the footer: project list first (denseProjectList renders nothing
   // on phone widths since they use FlatList items), then secondary widgets.

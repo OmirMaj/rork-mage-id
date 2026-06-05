@@ -7,7 +7,7 @@ import {
   Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
   Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
-  PenTool, Store, Clock,
+  PenTool, Store, Clock, Sparkles,
 } from 'lucide-react-native';
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
@@ -79,6 +79,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'MARKETPLACE' },
 
   // ── NETWORK — people + AI assistant
+  { key: 'ask-mage',          label: 'Ask MAGE',         icon: Sparkles,        route: '/ask',                              section: 'NETWORK' },
   { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
   { key: 'leads',             label: 'Leads',            icon: TrendingUp,      route: '/leads',                            section: 'NETWORK' },
