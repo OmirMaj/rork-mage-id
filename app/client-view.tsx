@@ -416,8 +416,16 @@ export default function ClientViewScreen() {
   const contractValue = effectiveEstimateTotal(project);
   const invoicedTotal = invoices.reduce((s, i) => s + i.totalDue, 0);
   const paidTotal = invoices.reduce((s, i) => s + i.amountPaid, 0);
-  const coTotal = changeOrders.filter(c => c.status === 'approved').reduce((s, c) => s + c.changeAmount, 0);
+  const approvedCOs = changeOrders.filter(c => c.status === 'approved');
+  const coTotal = approvedCOs.reduce((s, c) => s + c.changeAmount, 0);
   const revisedContract = contractValue + coTotal;
+  // Financial-truth metrics tied to the estimate spine: what's paid, what's
+  // billed-but-unpaid, what's still to come, and the homeowner's remaining
+  // balance against the projected final (revised contract).
+  const outstanding = Math.max(0, invoicedTotal - paidTotal);
+  const notYetBilled = Math.max(0, revisedContract - invoicedTotal);
+  const balanceRemaining = Math.max(0, revisedContract - paidTotal);
+  const pctOf = (n: number) => (revisedContract > 0 ? Math.round((n / revisedContract) * 100) : 0);
 
   // Schedule metrics
   const tasks = project?.schedule?.tasks ?? [];
@@ -735,6 +743,8 @@ export default function ClientViewScreen() {
                   <Text style={styles.budgetLabelTotal}>Revised Contract</Text>
                   <Text style={styles.budgetValueTotal}>{formatMoney(revisedContract)}</Text>
                 </View>
+                <Text style={styles.budgetCaption}>Projected final cost — your contract plus any change orders you&apos;ve approved.</Text>
+
                 <View style={styles.budgetRow}>
                   <Text style={styles.budgetLabel}>Total Invoiced</Text>
                   <Text style={styles.budgetValue}>{formatMoney(invoicedTotal)}</Text>
@@ -743,15 +753,66 @@ export default function ClientViewScreen() {
                   <Text style={styles.budgetLabel}>Total Paid</Text>
                   <Text style={[styles.budgetValue, { color: themeColors.success }]}>{formatMoney(paidTotal)}</Text>
                 </View>
-                {/* Invoice progress bar */}
-                <View style={styles.invoiceProgressRow}>
-                  <View style={styles.invoiceProgressBar}>
-                    <View style={[styles.invoiceProgressFill, { width: revisedContract > 0 ? `${Math.min(100, (paidTotal / revisedContract) * 100)}%` as any : '0%' }]} />
+                {outstanding > 0 && (
+                  <View style={styles.budgetRow}>
+                    <Text style={styles.budgetLabel}>Invoiced, awaiting payment</Text>
+                    <Text style={[styles.budgetValue, { color: themeColors.accent }]}>{formatMoney(outstanding)}</Text>
                   </View>
-                  <Text style={styles.invoiceProgressPct}>
-                    {revisedContract > 0 ? Math.round((paidTotal / revisedContract) * 100) : 0}% paid
-                  </Text>
+                )}
+                <View style={[styles.budgetRow, styles.budgetRowTotal]}>
+                  <Text style={styles.budgetLabelTotal}>Balance Remaining</Text>
+                  <Text style={styles.budgetValueTotal}>{formatMoney(balanceRemaining)}</Text>
                 </View>
+
+                {/* Where your money stands — paid / due now / remaining, as one bar */}
+                <View style={styles.moneyBarWrap}>
+                  <View style={styles.moneyBar}>
+                    {revisedContract > 0 ? (
+                      <>
+                        {paidTotal > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.success, flexGrow: paidTotal }]} />}
+                        {outstanding > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.accent, flexGrow: outstanding }]} />}
+                        {notYetBilled > 0 && <View style={[styles.moneyBarSeg, { backgroundColor: themeColors.line, flexGrow: notYetBilled }]} />}
+                      </>
+                    ) : null}
+                  </View>
+                  <View style={styles.legendRow}>
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: themeColors.success }]} />
+                      <Text style={styles.legendText}>Paid {pctOf(paidTotal)}%</Text>
+                    </View>
+                    {outstanding > 0 && (
+                      <View style={styles.legendItem}>
+                        <View style={[styles.legendDot, { backgroundColor: themeColors.accent }]} />
+                        <Text style={styles.legendText}>Due now {pctOf(outstanding)}%</Text>
+                      </View>
+                    )}
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: themeColors.line }]} />
+                      <Text style={styles.legendText}>Remaining {pctOf(notYetBilled)}%</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* What changed the price — every approved change order, itemized,
+                    so the homeowner sees exactly why the number moved. */}
+                {approvedCOs.length > 0 && (
+                  <View style={styles.coBreakdown}>
+                    <Text style={styles.coBreakdownTitle}>What changed the price</Text>
+                    {approvedCOs.map(co => (
+                      <View key={co.id} style={styles.coLine}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.coLineLabel} numberOfLines={1}>
+                            CO #{co.number} · {co.description || co.reason || 'Change order'}
+                          </Text>
+                          {co.date ? <Text style={styles.coLineDate}>{co.date}</Text> : null}
+                        </View>
+                        <Text style={[styles.coLineAmount, { color: co.changeAmount >= 0 ? themeColors.danger : themeColors.success }]}>
+                          {co.changeAmount >= 0 ? '+' : ''}{formatMoney(co.changeAmount)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
                 {financingEnabledForPortal && project?.id && (
                   <View style={{ marginTop: 14 }}>
                     <TouchableOpacity
@@ -1304,6 +1365,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   invoiceProgressBar: { flex: 1, height: 8, backgroundColor: t.line, borderRadius: 4, overflow: 'hidden' },
   invoiceProgressFill: { height: '100%', backgroundColor: t.success, borderRadius: 4 },
   invoiceProgressPct: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textMuted },
+  budgetCaption: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginBottom: 8, lineHeight: 16 },
+  moneyBarWrap: { marginTop: 12 },
+  moneyBar: { flexDirection: 'row', height: 10, borderRadius: Tokens.radius.full, overflow: 'hidden', backgroundColor: t.line },
+  moneyBarSeg: { height: '100%' },
+  legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: Tokens.radius.full },
+  legendText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' },
+  coBreakdown: { marginTop: 14, borderTopWidth: 1, borderTopColor: t.line, paddingTop: 10 },
+  coBreakdownTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, letterSpacing: 0.6, marginBottom: 6 },
+  coLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
+  coLineLabel: { fontSize: Type.footnote.fontSize, color: t.text },
+  coLineDate: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 1 },
+  coLineAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   // List rows (invoices, COs, RFIs, punch)
   listRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.bg, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 4 },
