@@ -2024,6 +2024,28 @@ export default function ProjectDetailScreen() {
                     <ChevronRight size={16} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 )}
+                {/* Dispatch to the marketplace — post this project's scope so
+                    verified contractors bid. Reuses the homeowner-RFP pipeline
+                    (post → bid → award creates the job in the winner's account),
+                    prefilled from the project. */}
+                <TouchableOpacity
+                  style={styles.crossLinkBtn}
+                  onPress={() => navigateFromTile({
+                    pathname: '/post-rfp' as any,
+                    params: {
+                      prefillDescription: [project?.name, project?.description].filter(Boolean).join(' — '),
+                      prefillAddress: project?.location ?? '',
+                      prefillBudgetMax: heroTotal ? String(Math.round(heroTotal)) : '',
+                      prefillWorkType: 'other',
+                    },
+                  })}
+                  activeOpacity={0.7}
+                  testID="project-post-for-bids"
+                >
+                  <Hammer size={16} color={themeColors.accent} />
+                  <Text style={styles.crossLinkText}>Post this project for bids</Text>
+                  <ChevronRight size={16} color={themeColors.textMuted} />
+                </TouchableOpacity>
               </View>
             )}
           </View>
