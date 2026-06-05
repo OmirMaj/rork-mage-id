@@ -1025,6 +1025,15 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="connect-claude"
+        options={{
+          title: "Connect Claude",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
         name="client-update"
         options={{
           title: "Weekly Client Update",

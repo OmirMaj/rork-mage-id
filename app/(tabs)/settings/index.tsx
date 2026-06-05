@@ -1125,6 +1125,18 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
             <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/connect-claude' as any)}
+            activeOpacity={0.7}
+            testID="connect-claude-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.text }]}>
+              <Sparkles size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Connect Claude (AI assistant)</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
         </View>
 
         {isOwner(user?.email) && (
