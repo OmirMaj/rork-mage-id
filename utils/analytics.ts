@@ -68,4 +68,9 @@ export const AnalyticsEvents = {
   ONBOARDING_IMPORT_VIEWED: 'onboarding_import_viewed',
   ONBOARDING_IMPORT_COMPLETED: 'onboarding_import_completed',
   ONBOARDING_IMPORT_SKIPPED: 'onboarding_import_skipped',
+  // ── AI schedule generation ──
+  // Fires when a generated schedule is applied to a project. `source` is
+  // 'estimate' (cost-linked, the moat) or 'text'; `cost_linked_tasks` shows
+  // how many tasks landed wired to the estimate.
+  SCHEDULE_GENERATED: 'schedule_generated',
 } as const;
