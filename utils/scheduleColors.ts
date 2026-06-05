@@ -50,6 +50,28 @@ export function colorForTask(task: ScheduleTask): string {
   return Colors.tradeColors[tradeKeyForTask(task)];
 }
 
+/**
+ * Pick a legible label color for text sitting ON a trade-colored bar.
+ *
+ * Several trade fills are light — `finish` is #F4EFE6 (almost white), and
+ * `demo` (yellow), `electrical`/`plumbing` (cyan) and `landscaping` (green)
+ * are bright too — so the old always-white bar label was invisible/low-
+ * contrast on them. This returns near-black for light fills and white for
+ * dark ones, using the YIQ brightness heuristic with a 150 threshold that we
+ * hand-checked against every `tradeColors` entry (orange/red/brown/purple →
+ * white; cream/yellow/cyan/light-green → dark).
+ */
+export function barLabelColorFor(hex: string): string {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return '#FFFFFF';
+  const int = parseInt(m[1], 16);
+  const r = (int >> 16) & 255;
+  const g = (int >> 8) & 255;
+  const b = int & 255;
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 150 ? '#1F2937' : '#FFFFFF';
+}
+
 const TRADE_LABELS: Record<TradeKey, string> = {
   general: 'General',
   concrete: 'Concrete',
