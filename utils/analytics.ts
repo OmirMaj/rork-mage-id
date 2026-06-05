@@ -73,4 +73,9 @@ export const AnalyticsEvents = {
   // 'estimate' (cost-linked, the moat) or 'text'; `cost_linked_tasks` shows
   // how many tasks landed wired to the estimate.
   SCHEDULE_GENERATED: 'schedule_generated',
+  // ── Marketplace supply-side growth ──
+  // Fires when a GC shares an invite for a sub/contractor to join (free for
+  // subs). `source` says where the invite was triggered (e.g. 'subs'). Each
+  // accepted invite seeds the supply side of the marketplace.
+  CONTRACTOR_INVITE_SHARED: 'contractor_invite_shared',
 } as const;
