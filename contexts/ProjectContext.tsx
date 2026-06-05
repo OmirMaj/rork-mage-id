@@ -290,6 +290,7 @@ type CrossDomainValue = {
   sendToClientPortal: (args: { kind: SendableItemKind; itemId: string; projectId: string }) => Promise<void>;
   recallFromClientPortal: (args: { kind: SendableItemKind; itemId: string; projectId: string }) => Promise<void>;
   batchSendToClientPortal: (args: { items: { kind: SendableItemKind; itemId: string }[]; projectId: string }) => Promise<{ sent: number }>;
+  importData: (payload: { projects?: Project[]; contacts?: Contact[]; subcontractors?: Subcontractor[] }) => { projects: number; contacts: number; subcontractors: number };
 };
 
 const CoreDataContext = createContext<CoreDataValue | null>(null);
@@ -3651,10 +3652,74 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setUserRole,
   }), [completeOnboarding, setUserRole]);
 
+  // Non-destructive import (app/data-import.tsx). Merges records from a MAGE
+  // export BY ID — never overwrites or deletes existing rows, so re-importing
+  // the same file is a no-op and importing onto a populated account is safe.
+  // One functional-safe state update + one persist per collection (the per-item
+  // add* helpers capture a stale array in a batch loop, which would drop all
+  // but the last), plus per-new-item Supabase sync so imported rows survive the
+  // next remote refetch. Reuses the exact mappings from addContact /
+  // addSubcontractor / syncProjectToSupabase. v1 covers projects + the two
+  // "book of business" lists; child financial/field records follow once their
+  // add* paths expose a batch-safe, id-preserving sync.
+  const importData = useCallback((payload: { projects?: Project[]; contacts?: Contact[]; subcontractors?: Subcontractor[] }) => {
+    const result = { projects: 0, contacts: 0, subcontractors: 0 };
+
+    if (payload.projects?.length) {
+      const have = new Set(projects.map(p => p.id));
+      const add = payload.projects.filter(p => p.id && !have.has(p.id));
+      if (add.length) {
+        const merged = [...add, ...projects];
+        setProjects(merged);
+        saveProjectsMutation.mutate(merged);
+        add.forEach(p => syncProjectToSupabase(p, 'upsert'));
+        result.projects = add.length;
+      }
+    }
+
+    if (payload.contacts?.length) {
+      const have = new Set(contacts.map(c => c.id));
+      const add = payload.contacts.filter(c => c.id && !have.has(c.id));
+      if (add.length) {
+        const merged = [...add, ...contacts];
+        setContacts(merged);
+        saveContactsMutation.mutate(merged);
+        if (canSync) add.forEach(c => void supabaseWrite('contacts', 'insert', {
+          id: c.id, user_id: userId, first_name: c.firstName, last_name: c.lastName,
+          company_name: c.companyName, role: c.role, email: c.email,
+          secondary_email: c.secondaryEmail, phone: c.phone, address: c.address,
+          notes: c.notes, linked_project_ids: c.linkedProjectIds,
+          created_at: c.createdAt, updated_at: c.updatedAt,
+        }));
+        result.contacts = add.length;
+      }
+    }
+
+    if (payload.subcontractors?.length) {
+      const have = new Set(subcontractors.map(s => s.id));
+      const add = payload.subcontractors.filter(s => s.id && !have.has(s.id));
+      if (add.length) {
+        const merged = [...add, ...subcontractors];
+        setSubcontractors(merged);
+        saveSubsMutation.mutate(merged);
+        if (canSync) add.forEach(s => void supabaseWrite('subcontractors', 'insert', {
+          id: s.id, user_id: userId, company_name: s.companyName, contact_name: s.contactName,
+          phone: s.phone, email: s.email, address: s.address, trade: s.trade,
+          license_number: s.licenseNumber, license_expiry: s.licenseExpiry, coi_expiry: s.coiExpiry,
+          w9_on_file: s.w9OnFile, bid_history: s.bidHistory, assigned_projects: s.assignedProjects,
+          notes: s.notes, created_at: s.createdAt, updated_at: s.updatedAt,
+        }));
+        result.subcontractors = add.length;
+      }
+    }
+
+    return result;
+  }, [projects, contacts, subcontractors, saveProjectsMutation, saveContactsMutation, saveSubsMutation, syncProjectToSupabase, canSync, userId]);
+
   const crossDomain = useMemo<CrossDomainValue>(() => ({
     updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage,
-    sendToClientPortal, recallFromClientPortal, batchSendToClientPortal,
-  }), [updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage, sendToClientPortal, recallFromClientPortal, batchSendToClientPortal]);
+    sendToClientPortal, recallFromClientPortal, batchSendToClientPortal, importData,
+  }), [updateChangeOrder, addDailyReport, updateDailyReport, convertLeadToProject, awardBidPackage, sendToClientPortal, recallFromClientPortal, batchSendToClientPortal, importData]);
 
   return (
     <StableActionsContext.Provider value={stableActions}>
