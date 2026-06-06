@@ -3006,6 +3006,15 @@ export default function ProjectDetailScreen() {
                   </View>
                 </View>
                 <TouchableOpacity
+                  style={[styles.coAddBtn, { marginBottom: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/generative-setup' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-generative-setup"
+                >
+                  <Sparkles size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Set up project from estimate</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={styles.coAddBtn}
                   onPress={() => navigateFromTile({ pathname: '/budget-dashboard' as any, params: { projectId: id } })}
                   activeOpacity={0.7}

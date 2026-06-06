@@ -75,6 +75,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/cash-flow': 'Cash flow',
     '/job-costing': 'Job costing',
     '/living-estimate': 'Living estimate',
+    '/generative-setup': 'Set up project',
     '/contract': 'Contract',
     '/selections': 'Selections',
     '/closeout-binder': 'Closeout binder',
@@ -696,6 +697,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="living-estimate"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="generative-setup"
         options={{ headerShown: false }}
       />
       <Stack.Screen
