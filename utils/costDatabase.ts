@@ -98,7 +98,9 @@ export function buildCostDatabase(
       const cost = l.hasActual ? l.actual : l.hasCommitment ? l.committed : 0;
       if (cost <= 0) continue;
 
-      const trade = (l.csiDivision || l.category || 'Other').trim() || 'Other';
+      // Human category first (readable price-book labels); CSI division only
+      // as a fallback. Matches estimateActuals + jobCostEngine grouping.
+      const trade = (l.category || l.csiDivision || 'Other').trim() || 'Other';
       const unit = (l.unit || 'unit').trim() || 'unit';
       const key = `${trade.toLowerCase()}|${unit.toLowerCase()}`;
       const sample: CostSample = {
