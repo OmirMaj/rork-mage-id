@@ -77,6 +77,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/living-estimate': 'Living estimate',
     '/generative-setup': 'Set up project',
     '/margin-risk': 'Margin risk',
+    '/buyout-scope-gap': 'Scope-gap audit',
     '/contract': 'Contract',
     '/selections': 'Selections',
     '/closeout-binder': 'Closeout binder',
@@ -706,6 +707,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="margin-risk"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="buyout-scope-gap"
         options={{ headerShown: false }}
       />
       <Stack.Screen
