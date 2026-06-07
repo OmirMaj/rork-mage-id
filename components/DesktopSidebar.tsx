@@ -49,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'ask-mage',          label: 'Ask MAGE',         icon: Sparkles,        route: '/ask',                              section: 'WORKSPACE' },
   { key: 'margin-board',      label: 'Margin Board',     icon: Gauge,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-database',     label: 'Cost Database',    icon: Library,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: PenTool,         route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
 
   // ── FIND WORK — marketplace / bids / suppliers
   { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK' },
