@@ -185,7 +185,9 @@ export function computeEstimateActuals(
 
   const tradeMap = new Map<string, TradeRollup>();
   for (const l of lines) {
-    const trade = (l.csiDivision || l.category || 'Other').trim() || 'Other';
+    // Group/label by the human category (matches jobCostEngine's phase
+    // grouping); fall back to the CSI division only when no category is set.
+    const trade = (l.category || l.csiDivision || 'Other').trim() || 'Other';
     const r = tradeMap.get(trade) || { trade, bid: 0, committed: 0, actual: 0, lineCount: 0 };
     r.bid += l.bid;
     r.committed += l.committed;
