@@ -78,6 +78,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/generative-setup': 'Set up project',
     '/margin-risk': 'Margin risk',
     '/buyout-scope-gap': 'Scope-gap audit',
+    '/estimate-accuracy': 'Estimate accuracy',
     '/portfolio-margin': 'Margin board',
     '/contract': 'Contract',
     '/selections': 'Selections',
@@ -712,6 +713,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="buyout-scope-gap"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="estimate-accuracy"
         options={{ headerShown: false }}
       />
       <Stack.Screen
