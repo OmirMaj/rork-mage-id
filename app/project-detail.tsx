@@ -3023,6 +3023,15 @@ export default function ProjectDetailScreen() {
                   <BarChart3 size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Job Cost-to-Complete</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/living-estimate' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-living-estimate"
+                >
+                  <Activity size={16} color={themeColors.info} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Living Estimate · margin at completion</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>

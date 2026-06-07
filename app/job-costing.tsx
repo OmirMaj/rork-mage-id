@@ -22,7 +22,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
-  CheckCircle2, Clock, Calculator,
+  CheckCircle2, Clock, Calculator, Activity,
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import * as Haptics from 'expo-haptics';
@@ -193,6 +193,18 @@ function JobCostingInner() {
             Method: paid + remaining committed + uncommitted budget floor
           </Text>
         </View>
+
+        {/* Cross-link to the margin view of this same data */}
+        <TouchableOpacity
+          style={styles.marginLink}
+          onPress={() => router.push({ pathname: '/living-estimate', params: { projectId: project.id } } as any)}
+          activeOpacity={0.8}
+          testID="open-living-estimate"
+        >
+          <Activity size={16} color={themeColors.info} />
+          <Text style={styles.marginLinkText}>See this as projected margin at completion</Text>
+          <ChevronRight size={16} color={themeColors.textMuted} />
+        </TouchableOpacity>
 
         {/* Biggest variances call-out */}
         {summary.biggestVariances.length > 0 && (
@@ -695,6 +707,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   bannerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
   bannerSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 3 },
+  marginLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.card, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 16,
+  },
+  marginLinkText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
 
   // Sections
   section: {
