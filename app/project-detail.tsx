@@ -3077,6 +3077,15 @@ export default function ProjectDetailScreen() {
                   <ShieldCheck size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Confidence · price check</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/area-takeoff' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-area-takeoff"
+                >
+                  <PenTool size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Visual Takeoff · trace → priced line</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
