@@ -81,6 +81,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/estimate-accuracy': 'Estimate accuracy',
     '/estimate-confidence': 'Estimate confidence',
     '/cost-database': 'Cost database',
+    '/area-takeoff': 'Visual takeoff',
     '/portfolio-margin': 'Margin board',
     '/contract': 'Contract',
     '/selections': 'Selections',
@@ -727,6 +728,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="cost-database"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="area-takeoff"
         options={{ headerShown: false }}
       />
       <Stack.Screen
