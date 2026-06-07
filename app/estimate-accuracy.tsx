@@ -12,7 +12,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Scale, TrendingDown, TrendingUp, Info, ArrowRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Scale, TrendingDown, TrendingUp, Info, ArrowRight, Library } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -185,6 +185,17 @@ function EstimateAccuracyInner() {
             <LineCard key={l.materialId} line={l} hasActuals={report.hasActuals} t={t} styles={styles} />
           ))}
 
+          <TouchableOpacity
+            style={styles.crossLink}
+            onPress={() => router.push('/cost-database' as any)}
+            activeOpacity={0.7}
+            testID="estimate-accuracy-cost-db-link"
+          >
+            <Library size={16} color={t.accent} />
+            <Text style={styles.crossLinkText}>See your cost database — rates learned from every closed job</Text>
+            <ChevronRight size={16} color={t.textMuted} />
+          </TouchableOpacity>
+
           <Text style={styles.note}>
             Bid is the estimate&apos;s cost (pre-markup). Committed and actual are traced from signed
             subs/POs via their linked estimate items; actual is paid-to-date. Lines with no
@@ -309,5 +320,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   lineNumVal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   lineUnit: { fontSize: Type.caption2.fontSize, color: t.textSecondary },
 
+  crossLink: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    backgroundColor: t.accent + '12', borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.accent + '33', padding: 12, marginTop: 14,
+  },
+  crossLinkText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const },
+
   note: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 12 },
 });
+
