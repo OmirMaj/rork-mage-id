@@ -8,11 +8,12 @@
 // Pure aggregation over the engines already shipped (utils/livingEstimate +
 // utils/marginRiskScore); no new math, no network. Tap a row to drill in.
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ShieldAlert } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ChevronLeft, ChevronRight, TrendingDown, TrendingUp, ShieldAlert, BellRing } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -22,6 +23,10 @@ import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { computeLivingEstimate } from '@/utils/livingEstimate';
 import { computeMarginRisk, type RiskBand } from '@/utils/marginRiskScore';
+import {
+  computeCurrentBaselines, computeAlerts, countActionable,
+  MARGIN_ALERTS_BASELINE_KEY, type BaselineMap,
+} from '@/utils/marginAlerts';
 import { formatMoney } from '@/utils/jobCostEngine';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
@@ -69,6 +74,25 @@ function PortfolioMarginInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, changeOrders, commitments, invoices } = useProjects();
+
+  // Unread margin-alert count — what crossed since the user last acknowledged
+  // in the alerts inbox. Surfaced as a tappable banner so the board doubles as
+  // the entry point to triage.
+  const [acknowledged, setAcknowledged] = useState<BaselineMap>({});
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(MARGIN_ALERTS_BASELINE_KEY);
+        if (alive && raw) setAcknowledged(JSON.parse(raw) as BaselineMap);
+      } catch { /* first-sight */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+  const unreadAlerts = useMemo(() => {
+    const { baselines, names } = computeCurrentBaselines({ projects, changeOrders, commitments, invoices });
+    return countActionable(computeAlerts(baselines, names, acknowledged));
+  }, [projects, changeOrders, commitments, invoices, acknowledged]);
 
   const { rows, totalRevenue, totalMargin, blendedPct, atRisk } = useMemo(() => {
     const active = projects.filter(
@@ -147,6 +171,21 @@ function PortfolioMarginInner() {
             </View>
           </View>
 
+          {unreadAlerts > 0 && (
+            <TouchableOpacity
+              style={styles.alertsLink}
+              onPress={() => router.push('/margin-alerts' as any)}
+              activeOpacity={0.7}
+              testID="portfolio-margin-alerts-link"
+            >
+              <BellRing size={16} color={t.accent} />
+              <Text style={styles.alertsLinkText}>
+                <Text style={styles.alertsLinkStrong}>{unreadAlerts}</Text> margin alert{unreadAlerts === 1 ? '' : 's'} since you last looked
+              </Text>
+              <ChevronRight size={16} color={t.textMuted} />
+            </TouchableOpacity>
+          )}
+
           {atRisk > 0 && (
             <View style={styles.alertBanner}>
               <ShieldAlert size={16} color={t.danger} />
@@ -223,6 +262,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   kpiLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   kpiValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text },
   kpiSub: { fontSize: Type.caption1.fontSize, color: t.textMuted },
+
+  alertsLink: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    backgroundColor: t.accent + '12', borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.accent + '33',
+    padding: 12, marginBottom: 12,
+  },
+  alertsLinkText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const },
+  alertsLinkStrong: { fontWeight: '800' as const, color: t.accent },
 
   alertBanner: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
