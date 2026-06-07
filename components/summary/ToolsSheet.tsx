@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Inbox, FileDown, Wallet, UserPlus, Gavel } from 'lucide-react-native';
+import { Inbox, FileDown, Wallet, UserPlus, Gavel, Gauge } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
@@ -30,6 +30,7 @@ export function ToolsSheet({ visible, onClose, onNavigate }: ToolsSheetProps) {
         <View style={styles.handle} />
         <Text style={styles.title}>Tools</Text>
         <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
+          <NavRow Icon={Gauge} title="Margin board" subtitle="Every active job's projected margin + risk, ranked" onPress={() => onNavigate('/portfolio-margin')} testID="tools-margin-board" />
           <NavRow Icon={Inbox} title="Reports inbox" subtitle="Daily field reports waiting for review" onPress={() => onNavigate('/report-inbox')} testID="tools-report-inbox" />
           <NavRow Icon={FileDown} title="Reports" subtitle="WIP · Profit by project · A/R aging" onPress={() => onNavigate('/reports')} testID="tools-reports" />
           <NavRow Icon={Wallet} title="Cash flow" subtitle="Multi-week forecast across all projects" onPress={() => onNavigate('/cash-flow')} testID="tools-cash-flow" />

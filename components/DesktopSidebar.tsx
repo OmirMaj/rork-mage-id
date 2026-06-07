@@ -10,7 +10,7 @@ import {
   PenTool, Store, Clock, Sparkles, ChevronDown, ChevronRight,
   FolderKanban, ScrollText, UserPlus, Handshake, Bot, ListChecks,
   FileQuestion, FileCheck, Presentation, Truck, FileSignature, Banknote,
-  PieChart, LineChart, Coins,
+  PieChart, LineChart, Coins, Gauge,
 } from 'lucide-react-native';
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
@@ -47,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'WORKSPACE' },
   { key: 'home',              label: 'Projects',         icon: FolderKanban,    route: '/(tabs)/(home)',                   section: 'WORKSPACE' },
   { key: 'ask-mage',          label: 'Ask MAGE',         icon: Sparkles,        route: '/ask',                              section: 'WORKSPACE' },
+  { key: 'margin-board',      label: 'Margin Board',     icon: Gauge,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'job_costing' },
 
   // ── FIND WORK — marketplace / bids / suppliers
   { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK' },
