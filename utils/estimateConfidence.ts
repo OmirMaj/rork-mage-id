@@ -91,7 +91,8 @@ export function computeEstimateConfidence(
     const qty = it.quantity || 0;
     const lineTotal = it.lineTotal || 0;
     const bidUnit = qty > 0 ? lineTotal / qty : 0;
-    const trade = (it.csiDivision || it.category || 'Other').trim() || 'Other';
+    // Category-first so the lookup key matches the cost database's grouping.
+    const trade = (it.category || it.csiDivision || 'Other').trim() || 'Other';
     const unit = (it.unit || 'unit').trim() || 'unit';
 
     const entry = lookupRate(db, trade, unit);
