@@ -23,6 +23,7 @@ import { NailItToastHost } from "@/components/animations/NailItToast";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
 import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
@@ -83,6 +84,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/cost-database': 'Cost database',
     '/area-takeoff': 'Visual takeoff',
     '/portfolio-margin': 'Margin board',
+    '/margin-alerts': 'Margin alerts',
     '/contract': 'Contract',
     '/selections': 'Selections',
     '/closeout-binder': 'Closeout binder',
@@ -739,6 +741,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="margin-alerts"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="prequal-manager"
         options={{ headerShown: false }}
       />
@@ -1215,6 +1221,7 @@ export default Sentry.wrap(function RootLayout() {
                               <MagicLinkHandler />
                               <AnalyticsManager />
                               <OfflineSyncManager />
+                              <MarginAlertManager />
                               <RootLayoutNav />
                               <UniversalSearch />
                               <SearchHotkeyListener />
