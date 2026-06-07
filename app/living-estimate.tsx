@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import {
   ChevronLeft, TrendingUp, TrendingDown, AlertTriangle, ArrowRight,
-  Activity, Sparkles,
+  Activity, Sparkles, ShieldAlert,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -225,6 +225,16 @@ function LivingEstimateInner() {
                 ? ` ${snapshot.untracedCommitments} commitment${snapshot.untracedCommitments === 1 ? '' : 's'} aren't linked to estimate items, so their over/under-estimate variance lands in “Cost growth.”`
                 : ''}
             </Text>
+
+            <TouchableOpacity
+              style={styles.linkRow}
+              onPress={() => router.push({ pathname: '/margin-risk', params: { projectId: project.id } } as any)}
+              activeOpacity={0.8}
+            >
+              <ShieldAlert size={16} color={t.accent} />
+              <Text style={styles.linkRowText}>Score this project&apos;s margin risk</Text>
+              <ArrowRight size={16} color={t.accent} />
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.linkRow}

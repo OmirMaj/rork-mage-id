@@ -11,7 +11,7 @@ import * as Linking from 'expo-linking';
 import {
   DollarSign, Users, TrendingDown, MapPin,
   ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
-  Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
+  Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
@@ -3040,6 +3040,15 @@ export default function ProjectDetailScreen() {
                 >
                   <Activity size={16} color={themeColors.info} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Living Estimate · margin at completion</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/margin-risk' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-margin-risk"
+                >
+                  <ShieldAlert size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Margin Risk Score</Text>
                 </TouchableOpacity>
               </View>
             )}
