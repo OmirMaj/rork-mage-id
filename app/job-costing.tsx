@@ -31,6 +31,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
@@ -75,12 +76,13 @@ function JobCostingInner() {
     addCommitment, updateCommitment, deleteCommitment, subcontractors,
   } = useProjects();
 
+  const { receipts } = useMaterialReceipts();
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
-    return computeJobCost({ project, commitments, invoices, changeOrders });
-  }, [project, commitments, invoices, changeOrders]);
+    return computeJobCost({ project, commitments, invoices, changeOrders, receipts });
+  }, [project, commitments, invoices, changeOrders, receipts]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
@@ -643,6 +645,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <DetailRow label="Commitments" value={`${line.sources.commitments}`} />
             <DetailRow label="Invoices contributed" value={`${line.sources.invoices}`} />
             <DetailRow label="COs contributed" value={`${line.sources.changeOrders}`} />
+            {line.sources.receipts > 0 && <DetailRow label="Material receipts" value={`${line.sources.receipts}`} />}
 
             <Text style={styles.detailNote}>
               This phase is {((line.budget / Math.max(1, summary.budget)) * 100).toFixed(1)}% of

@@ -30,6 +30,7 @@ import type {
   Invoice,
   ChangeOrder,
   LinkedEstimate,
+  MaterialReceipt,
 } from '@/types';
 
 export interface JobCostLine {
@@ -49,8 +50,8 @@ export interface JobCostLine {
   burnRatio: number;
   /** Status classification for dashboard chips. */
   status: 'on_track' | 'warning' | 'over';
-  /** How many commitments, invoices, change orders contributed. */
-  sources: { commitments: number; invoices: number; changeOrders: number };
+  /** How many commitments, invoices, change orders, material receipts contributed. */
+  sources: { commitments: number; invoices: number; changeOrders: number; receipts: number };
 }
 
 export interface JobCostSummary {
@@ -123,6 +124,11 @@ export interface JobCostInput {
   commitments: Commitment[];
   invoices: Invoice[];
   changeOrders: ChangeOrder[];
+  /** Snapped supplier invoices. Their line totals count as ACTUAL material
+   *  spend, attributed to the phase of their linked PO commitment (or, when
+   *  unlinked, by each line's category). Additive — omit for the original
+   *  commitments+invoices-only actuals. */
+  receipts?: MaterialReceipt[];
 }
 
 /**
@@ -132,10 +138,11 @@ export interface JobCostInput {
  * wire it up from ProjectContext and re-run on every mutation. Results are
  * cheap to recompute because the input arrays are already in memory.
  */
-export function computeJobCost({ project, commitments, invoices, changeOrders }: JobCostInput): JobCostSummary {
+export function computeJobCost({ project, commitments, invoices, changeOrders, receipts = [] }: JobCostInput): JobCostSummary {
   const projectCommitments = commitments.filter(c => c.projectId === project.id && c.status !== 'draft');
   const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
   const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
+  const projectReceipts = receipts.filter(r => r.projectId === project.id);
 
   const estimate = project.linkedEstimate ?? null;
   const phases = new Map<string, JobCostLine>();
@@ -194,6 +201,30 @@ export function computeJobCost({ project, commitments, invoices, changeOrders }:
       existing.actual += (line.total || 0) * ratio;
       existing.sources.invoices += 1;
       phases.set(phase, existing);
+    }
+  }
+
+  // Material receipts — snapped supplier invoices count as ACTUAL material
+  // spend. A receipt linked to a PO commitment lands in that commitment's
+  // phase (the whole receipt); an unlinked receipt is split per line by the
+  // line's category → phase, so material cost shows up against the right scope.
+  for (const r of projectReceipts) {
+    const linked = r.commitmentId ? projectCommitments.find(c => c.id === r.commitmentId) : undefined;
+    if (linked) {
+      const phase = commitmentPhase(linked);
+      const existing = phases.get(phase) ?? emptyLine(phase);
+      existing.actual += r.lines.reduce((s, l) => s + (l.lineTotal || 0), 0);
+      existing.sources.receipts += 1;
+      phases.set(phase, existing);
+    } else {
+      for (const line of r.lines) {
+        const cat = (line.category || '').trim();
+        const phase = cat && phases.has(cat) ? cat : (cat || PHASE_UNCATEGORIZED);
+        const existing = phases.get(phase) ?? emptyLine(phase);
+        existing.actual += line.lineTotal || 0;
+        existing.sources.receipts += 1;
+        phases.set(phase, existing);
+      }
     }
   }
 
@@ -278,7 +309,7 @@ function emptyLine(phase: string): JobCostLine {
     variance: 0,
     burnRatio: 0,
     status: 'on_track',
-    sources: { commitments: 0, invoices: 0, changeOrders: 0 },
+    sources: { commitments: 0, invoices: 0, changeOrders: 0, receipts: 0 },
   };
 }
 
