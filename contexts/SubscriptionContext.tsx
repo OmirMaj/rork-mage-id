@@ -122,6 +122,11 @@ function tierFromCustomerInfo(info: CustomerInfo): SubscriptionTier {
   return 'free';
 }
 
+// NOTE: as of migration 20260608120000 the `subscriptions.tier` column is
+// server-authoritative — a DB trigger pins tier for non-service-role writers, so
+// the `tier` we send here is IGNORED by the server (it can't grant or downgrade).
+// Tier is granted only by the service-role revenuecat-webhook. We still upsert so
+// the row's `revenuecat_customer_id` stays linked; the tier field is harmless.
 async function syncTierToSupabase(userId: string, newTier: SubscriptionTier, rcCustomerId?: string): Promise<void> {
   if (!isSupabaseConfigured) return;
   try {
@@ -189,6 +194,28 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     },
     enabled: !!userId,
   });
+
+  // Identify the RevenueCat user AS our Supabase user, so RC's app_user_id is
+  // the Supabase user uuid. This is what lets the server-side revenuecat-webhook
+  // map RC purchase events straight to a subscriptions row by user_id — the
+  // trusted path that grants paid tiers now that clients can no longer self-grant
+  // (migration 20260608120000). RevenueCat's logIn aliases any prior anonymous
+  // purchases onto the identified id, so existing buyers aren't detached.
+  useEffect(() => {
+    if (!rcConfigured || !userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await Purchases.logIn(userId);
+        if (!cancelled) {
+          await queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
+        }
+      } catch (err) {
+        console.log('[RC] logIn failed:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId, queryClient]);
 
   useEffect(() => {
     let resolved: SubscriptionTier = 'free';
