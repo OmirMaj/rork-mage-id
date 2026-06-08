@@ -237,6 +237,18 @@ export default function PaywallScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Why MAGE — lead the conversion moment with the moat, not just the price grid.
+            Copy source: docs/positioning-playbook.md (every claim maps to a shipped feature). */}
+        <View style={styles.hero}>
+          <Text style={styles.heroEyebrow}>WHY MAGE</Text>
+          <Text style={styles.heroTitle}>The AI that makes you money — not just organizes your job.</Text>
+          <View style={styles.heroPoints}>
+            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> Your prices, <Text style={styles.heroStrong}>learned from your own jobs</Text> — not a generic catalog.</Text>
+            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> <Text style={styles.heroStrong}>Margin that defends itself</Text> — get warned before a job loses money.</Text>
+            <Text style={styles.heroPoint}><Text style={styles.heroDot}>›</Text> One connected loop — estimate → actuals — <Text style={styles.heroStrong}>on your phone</Text>.</Text>
+          </View>
+        </View>
+
         {/* 4-tier grid. Phone width forces 2x2 (each card ~48% wide); a
             wider screen pulls all four onto one row via flexWrap. Earlier
             iterations used a horizontal flex:1 row of 3 cards which would
@@ -694,6 +706,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
+  hero: {
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.panel,
+    borderWidth: 1,
+    borderColor: t.line,
+    padding: 16,
+    marginBottom: 16,
+    gap: 8,
+  },
+  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 0.8, color: t.accent },
+  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, lineHeight: 26 },
+  heroPoints: { gap: 6, marginTop: 2 },
+  heroPoint: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
+  heroDot: { color: t.accent, fontWeight: '800' as const },
+  heroStrong: { color: t.text, fontWeight: '700' as const },
   // 2x2 grid via flexWrap. Each card claims ~48% so two fit per row with
   // an 8px gap between. On a wide web layout the row gap stays the same;
   // we deliberately don't go to a 1x4 row because each card would shrink
