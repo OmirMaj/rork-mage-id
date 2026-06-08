@@ -27,7 +27,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Polygon as SvgPolygon, Polyline as SvgPolyline, Circle, Line } from 'react-native-svg';
 import {
   ChevronLeft, ImagePlus, Ruler, PenTool, Undo2, Trash2, Check, Library,
-  Square, Minus, Hash, Plus, FileImage, CheckCircle2,
+  Square, Minus, Hash, Plus, FileImage, CheckCircle2, Spline,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -95,6 +95,7 @@ function AreaTakeoffInner() {
   const [distanceInput, setDistanceInput] = useState('');
 
   const [drawPoints, setDrawPoints] = useState<NormPoint[]>([]);
+  const [freehand, setFreehand] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<string | null>(null);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
 
@@ -172,6 +173,8 @@ function AreaTakeoffInner() {
   }, [imgLayout]);
 
   const handleTap = useCallback((e: GestureResponderEvent) => {
+    // In freehand mode the path is built on grant+move; ignore the release tap.
+    if (freehand && mode === 'draw') return;
     const pt = toNorm(e.nativeEvent.locationX, e.nativeEvent.locationY);
     if (!pt) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -185,7 +188,32 @@ function AreaTakeoffInner() {
       setDrawPoints(prev => [...prev, pt]);
       setLastAdded(null);
     }
-  }, [mode, toNorm]);
+  }, [mode, toNorm, freehand]);
+
+  // Freehand lasso — trace an area/line in one drag instead of tapping corners.
+  const handleDrawGrant = useCallback((e: GestureResponderEvent) => {
+    if (!freehand || mode !== 'draw') return;
+    const pt = toNorm(e.nativeEvent.locationX, e.nativeEvent.locationY);
+    if (!pt) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setDrawPoints([pt]);
+    setLastAdded(null);
+  }, [freehand, mode, toNorm]);
+
+  const handleDrawMove = useCallback((e: GestureResponderEvent) => {
+    if (!freehand || mode !== 'draw' || !imgLayout) return;
+    const pt = toNorm(e.nativeEvent.locationX, e.nativeEvent.locationY);
+    if (!pt) return;
+    setDrawPoints(prev => {
+      const last = prev[prev.length - 1];
+      if (last) {
+        const dx = (pt.x - last.x) * imgLayout.w;
+        const dy = (pt.y - last.y) * imgLayout.h;
+        if (dx * dx + dy * dy < 25) return prev; // throttle: skip moves < ~5px
+      }
+      return [...prev, pt];
+    });
+  }, [freehand, mode, toNorm, imgLayout]);
 
   const confirmDistance = useCallback(() => {
     const ft = parseFloat(distanceInput);
@@ -334,8 +362,8 @@ function AreaTakeoffInner() {
           <Text style={styles.instruction}>
             {mode === 'calibrate'
               ? calibration ? 'Scale is set. Switch to draw.' : 'Tap two points a known distance apart (a door = 3 ft, a grid line, a dimension string).'
-              : kind === 'area' ? 'Tap around the area to trace it (3+ points).'
-                : kind === 'linear' ? 'Tap along the run to measure its length (2+ points).'
+              : kind === 'area' ? (freehand ? 'Drag to trace the area in one stroke.' : 'Tap around the area to trace it (3+ points), or switch to Freehand.')
+                : kind === 'linear' ? (freehand ? 'Drag along the run to measure it.' : 'Tap along the run to measure its length (2+ points), or switch to Freehand.')
                   : 'Tap each item to count it.'}
           </Text>
 
@@ -345,6 +373,9 @@ function AreaTakeoffInner() {
               style={styles.canvas}
               onLayout={onImageLayout}
               onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => freehand && mode === 'draw'}
+              onResponderGrant={handleDrawGrant}
+              onResponderMove={handleDrawMove}
               onResponderRelease={handleTap}
               testID="takeoff-canvas"
             >
@@ -376,6 +407,12 @@ function AreaTakeoffInner() {
             </View>
 
             <View style={styles.canvasTools}>
+              {mode === 'draw' && kind !== 'count' && (
+                <TouchableOpacity style={styles.toolBtn} onPress={() => { setFreehand(f => !f); setDrawPoints([]); setLastAdded(null); }} hitSlop={8} testID="takeoff-freehand">
+                  <Spline size={16} color={freehand ? t.accent : t.text} />
+                  <Text style={[styles.toolText, freehand && { color: t.accent }]}>{freehand ? 'Freehand' : 'Tap to place'}</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={styles.toolBtn} onPress={undoPoint} hitSlop={8} testID="takeoff-undo"><Undo2 size={16} color={t.text} /><Text style={styles.toolText}>Undo</Text></TouchableOpacity>
               <TouchableOpacity style={styles.toolBtn} onPress={clearPoints} hitSlop={8} testID="takeoff-clear"><Trash2 size={16} color={t.danger} /><Text style={[styles.toolText, { color: t.danger }]}>Clear</Text></TouchableOpacity>
             </View>
