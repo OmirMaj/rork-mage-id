@@ -12,6 +12,8 @@
 // homeowner-weekly-digest recap): accept isValidCron(req) OR a valid
 // authenticated user JWT via hasAuthenticatedUser(req).
 
+import { verifyUser } from "./verifyUser.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -38,24 +40,14 @@ export async function isValidCron(req: Request): Promise<boolean> {
 }
 
 /**
- * True when the request carries a decodable, unexpired authenticated user JWT.
- * The Supabase gateway already verified the signature for verify_jwt:false
- * functions when a user token is present; we only inspect the claims to
- * distinguish a signed-in app user (role 'authenticated') from anon/cron.
+ * True when the request carries a genuine, unexpired authenticated user JWT.
+ *
+ * These functions deploy verify_jwt:false, so the gateway does NOT verify the
+ * token signature — a bare claims decode would accept a forged
+ * `role:'authenticated'` token and let anyone trigger the dual-path (in-app)
+ * branch (e.g. mass digest emails). We therefore VERIFY the token against
+ * GoTrue (_shared/verifyUser) instead of trusting its claims. Async as a result.
  */
-export function hasAuthenticatedUser(req: Request): boolean {
-  const auth = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-  const bearer = auth.replace(/^Bearer\s+/i, "").trim();
-  const parts = bearer.split(".");
-  if (parts.length !== 3) return false;
-  try {
-    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4) b64 += "=";
-    const p = JSON.parse(atob(b64)) as { role?: string; sub?: string; exp?: number };
-    if (p.role !== "authenticated" || !p.sub) return false;
-    if (p.exp && p.exp * 1000 < Date.now()) return false;
-    return true;
-  } catch {
-    return false;
-  }
+export async function hasAuthenticatedUser(req: Request): Promise<boolean> {
+  return (await verifyUser(req)) !== null;
 }
