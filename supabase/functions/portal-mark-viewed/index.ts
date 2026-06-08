@@ -30,6 +30,19 @@ const json = (b: unknown, s = 200) =>
     headers: { ...CORS, "Content-Type": "application/json" },
   });
 
+// Constant-time compare for the portal access token — `!==` leaks a match's
+// prefix length via timing. Matches validate-portal-passcode's helper.
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    let _d = 0;
+    for (let i = 0; i < a.length; i++) _d |= a.charCodeAt(i) ^ 0;
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 type Kind =
   | "change_order"
   | "invoice"
@@ -100,7 +113,7 @@ serve(async (req) => {
   const portalAccessToken = (
     project as { client_portal?: { accessToken?: string } }
   ).client_portal?.accessToken;
-  if (!portalAccessToken || portalAccessToken !== body.accessToken) {
+  if (!portalAccessToken || !constantTimeEqual(portalAccessToken, body.accessToken)) {
     return json({ success: false, error: "invalid access token" }, 401);
   }
 
