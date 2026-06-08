@@ -2,11 +2,12 @@
 // Claude (or any MCP client) to a user's MAGE ID data via the `mcp` server.
 //
 // Auth: the app calls this with the signed-in user's Supabase JWT as the
-// Bearer token (plus the anon apikey). We decode the JWT to identify the user
-// (the gateway already verified its signature when verify_jwt is on for the
-// few functions that use it; here we keep verify_jwt:false and decode the
-// `sub`/`role` claims ourselves, matching _shared/auth.ts). All DB writes use
-// the service role so the raw token hash never touches the client.
+// Bearer token (plus the anon apikey). This function deploys verify_jwt:false,
+// so the gateway does NOT verify the token before we run — we must verify it
+// ourselves. We do that via _shared/verifyUser (GoTrue /auth/v1/user), NOT a
+// bare claims decode: minting an MCP token bound to a forge-able `sub` would
+// let anyone exfiltrate any victim's data. All DB writes use the service role
+// so the raw token hash never touches the client.
 //
 // Body: { action: "create" | "list" | "revoke", name?, id? }
 //   create -> returns { token } ONCE (raw value, unrecoverable after this)
@@ -15,6 +16,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { generateMcpToken, hashMcpToken, tokenPrefix } from "../_shared/mcpToken.ts";
+import { verifyUser } from "../_shared/verifyUser.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -29,20 +31,6 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...H, "Content-Type": "application/json" } });
 }
 
-interface JwtPayload { sub?: string; role?: string; email?: string; exp?: number }
-function decodeJwt(token: string): JwtPayload | null {
-  if (!token || token.length < 20) return null;
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    let b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4) b64 += "=";
-    return JSON.parse(atob(b64)) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
-
 function svcHeaders(extra: Record<string, string> = {}) {
   return { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, ...extra };
 }
@@ -51,17 +39,14 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: H });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  // Identify the caller from their Supabase session JWT.
-  const auth = req.headers.get("Authorization") || req.headers.get("authorization") || "";
-  const bearer = auth.replace(/^Bearer\s+/i, "").trim();
-  const payload = decodeJwt(bearer);
-  if (!payload || payload.role !== "authenticated" || !payload.sub) {
+  // Identify the caller by VERIFYING their Supabase session JWT against GoTrue
+  // (signature + expiry + user state). A bare claims decode would be forgeable
+  // and this endpoint mints data-access tokens — verification is mandatory.
+  const user = await verifyUser(req);
+  if (!user) {
     return json({ error: "Sign in is required." }, 401);
   }
-  if (payload.exp && payload.exp * 1000 < Date.now()) {
-    return json({ error: "Session expired. Sign in again." }, 401);
-  }
-  const userId = payload.sub;
+  const userId = user.id;
 
   let body: { action?: string; name?: string; id?: string } = {};
   try { body = await req.json(); } catch { /* empty body ok for list */ }
@@ -90,7 +75,7 @@ serve(async (req: Request) => {
     if (action === "revoke") {
       if (!body.id) return json({ error: "Missing token id." }, 400);
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/mcp_tokens?id=eq.${body.id}&user_id=eq.${userId}`,
+        `${SUPABASE_URL}/rest/v1/mcp_tokens?id=eq.${encodeURIComponent(body.id)}&user_id=eq.${encodeURIComponent(userId)}`,
         {
           method: "PATCH",
           headers: svcHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),

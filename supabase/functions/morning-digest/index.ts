@@ -350,7 +350,7 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
-  if (!(await isValidCron(req)) && !hasAuthenticatedUser(req)) return jsonResponse({ error: 'unauthorized' }, 401);
+  if (!(await isValidCron(req)) && !(await hasAuthenticatedUser(req))) return jsonResponse({ error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ error: 'Use POST' }, 405);
 
   let body: { userId?: string; all?: boolean };
