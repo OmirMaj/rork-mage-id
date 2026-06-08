@@ -61,8 +61,8 @@ WHAT'S INSIDE
 
 PRICING
 • Free — try every flow with sample data, ship one project to your client portal.
-• Pro ($24.99/mo) — owner-operator GC, all 8 stack tools, AI takeoff at Standard depth.
-• Business ($63.99/mo) — small office, unlimited projects, Pro Estimator AI depth, priority queue.
+• Pro ($29/mo) — owner-operator GC, all 8 stack tools, AI takeoff at Standard depth.
+• Business ($79/mo) — small office, unlimited projects, Pro Estimator AI depth, priority queue.
 
 No per-seat fees. No implementation cost. No sales call required. Cancel anytime in the App Store.
 
