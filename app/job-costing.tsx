@@ -22,7 +22,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
-  CheckCircle2, Clock, Calculator, Activity,
+  CheckCircle2, Clock, Calculator, Activity, Receipt,
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import * as Haptics from 'expo-haptics';
@@ -203,6 +203,18 @@ function JobCostingInner() {
         >
           <Activity size={16} color={themeColors.info} />
           <Text style={styles.marginLinkText}>See this as projected margin at completion</Text>
+          <ChevronRight size={16} color={themeColors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Snap a supplier invoice → costed line items that feed the price book */}
+        <TouchableOpacity
+          style={styles.marginLink}
+          onPress={() => router.push({ pathname: '/material-receipt', params: { projectId: project.id } } as any)}
+          activeOpacity={0.8}
+          testID="open-material-receipt"
+        >
+          <Receipt size={16} color={themeColors.accent} />
+          <Text style={styles.marginLinkText}>Snap a material receipt to log actual cost</Text>
           <ChevronRight size={16} color={themeColors.textMuted} />
         </TouchableOpacity>
 

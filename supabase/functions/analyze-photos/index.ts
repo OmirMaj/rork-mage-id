@@ -21,7 +21,7 @@
 //
 // Request body:
 // {
-//   task: 'punch' | 'dfr' | 'rfi' | 'triage';
+//   task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt';
 //   photoUrls: string[];        // 1..N publicly fetchable image URLs
 //   projectName?: string;
 //   projectType?: string;
@@ -49,7 +49,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface AnalyzePhotosRequest {
-  task: 'punch' | 'dfr' | 'rfi' | 'triage';
+  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt';
   /** EITHER photoUrls (server fetches) OR photos[].base64 inline.
    *  Client-side camera / library picks are file:// URIs that the
    *  server can't fetch — those callers send inline base64 instead. */
@@ -124,6 +124,52 @@ Return a JSON array (one entry per photo, same length as the input batch). Order
 
 Return JSON only — no preamble.`;
 
+const RECEIPT_PROMPT = `You are reading a SUPPLIER / MATERIAL invoice or receipt for a residential general contractor (lumber yard, supply house, big-box pro desk, plumbing/electrical supplier). Extract the purchase into structured JSON so it can be costed and fed into the GC's price book.
+
+Return a single JSON object (NOT an array) with:
+  - vendor: the supplier's business name (top of the receipt).
+  - receiptDate: the invoice/receipt date in YYYY-MM-DD if you can determine it, else the raw printed string.
+  - documentNumber: the invoice / order / receipt number, if printed.
+  - lines: an array, one per line item actually purchased, each with:
+      • description — the item as printed ("2x4x8 SPF #2 stud", "1/2in CDX plywood 4x8").
+      • category — your one-or-two-word trade/material bucket for cost grouping ("Framing", "Concrete", "Electrical", "Plumbing", "Drywall", "Roofing", "Finishes", "Hardware"). Best guess.
+      • quantity — numeric quantity purchased.
+      • unit — unit of measure as printed ("ea", "bf", "sheet", "cy", "lf", "box", "bag").
+      • unitPrice — price per single unit (NOT the extended total).
+      • lineTotal — the extended line total (quantity × unitPrice) if printed.
+  - subtotal: pre-tax subtotal if printed.
+  - tax: tax amount if printed.
+  - total: the grand total printed on the document.
+  - confidence: 0-100, how confident you are in this extraction overall (legibility, completeness).
+
+Rules:
+  - Numbers must be plain numbers — strip $ and thousands separators.
+  - Skip non-item rows (subtotal/tax/total lines, store address, payment method, loyalty messages) — those belong in the summary fields, not in lines.
+  - If a line shows only an extended total (no per-unit price), put it in lineTotal and leave unitPrice 0 — the app will back it out.
+  - If the image is not a material/supplier invoice, return { "vendor": "", "lines": [], "confidence": 0 }.
+
+Return JSON only — no preamble.`;
+
+interface ReceiptLineOut {
+  description: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+interface ReceiptOut {
+  vendor: string;
+  receiptDate: string;
+  documentNumber: string;
+  lines: ReceiptLineOut[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  confidence: number;
+}
+
 interface PunchItem {
   description: string;
   location: string;
@@ -193,8 +239,8 @@ serve(async (req) => {
   let body: AnalyzePhotosRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400); }
 
-  if (!body.task || !['punch', 'dfr', 'rfi', 'triage'].includes(body.task)) {
-    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", or "triage"' }, 400);
+  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt'].includes(body.task)) {
+    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", or "receipt"' }, 400);
   }
 
   // Monthly cap for this user. Increment first; if we exceeded, deny
@@ -281,9 +327,10 @@ serve(async (req) => {
   ].filter(Boolean).join('\n');
 
   const basePrompt =
-    body.task === 'punch' ? PUNCH_PROMPT :
-    body.task === 'dfr'   ? DFR_PROMPT :
-    body.task === 'rfi'   ? RFI_PROMPT :
+    body.task === 'punch'   ? PUNCH_PROMPT :
+    body.task === 'dfr'     ? DFR_PROMPT :
+    body.task === 'rfi'     ? RFI_PROMPT :
+    body.task === 'receipt' ? RECEIPT_PROMPT :
     TRIAGE_PROMPT;
   const prompt = ctxLine ? `${ctxLine}\n\n${basePrompt}` : basePrompt;
 
@@ -378,6 +425,35 @@ serve(async (req) => {
       };
     });
     return jsonResponse({ success: true, data: { entries } });
+  }
+
+  if (body.task === 'receipt') {
+    // Pass the parsed object through with light shaping — the client's
+    // normalizeExtraction does the authoritative number-coercion + total
+    // recompute, so here we only guarantee the shape exists.
+    const o = parsed as Record<string, unknown>;
+    const rawLines = Array.isArray(o.lines) ? o.lines : [];
+    const out: ReceiptOut = {
+      vendor: String(o.vendor ?? ''),
+      receiptDate: String(o.receiptDate ?? ''),
+      documentNumber: String(o.documentNumber ?? ''),
+      lines: rawLines.map((l): ReceiptLineOut => {
+        const r = (l ?? {}) as Record<string, unknown>;
+        return {
+          description: String(r.description ?? ''),
+          category: String(r.category ?? ''),
+          quantity: Number(r.quantity) || 0,
+          unit: String(r.unit ?? ''),
+          unitPrice: Number(r.unitPrice) || 0,
+          lineTotal: Number(r.lineTotal) || 0,
+        };
+      }),
+      subtotal: Number(o.subtotal) || 0,
+      tax: Number(o.tax) || 0,
+      total: Number(o.total) || 0,
+      confidence: Number(o.confidence) || 0,
+    };
+    return jsonResponse({ success: true, data: out });
   }
 
   // dfr task
