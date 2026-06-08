@@ -7,15 +7,15 @@ Drop these into **App Store Connect → My Apps → MAGE ID → Distribution →
 ## Subtitle (30 chars)
 
 ```
-GC ops, AI takeoff & pay apps
+AI that protects your margin
 ```
 
-(29 chars · 1 free)
+(28 chars · 2 free) — leads with the moat (margin defense), the one thing no competitor does.
 
 **Alternates** if you want to test:
-- `Plans, estimates, pay apps · AI` (31 — too long)
+- `Your prices. Your margin. AI.` (29)
+- `GC ops, AI takeoff & pay apps` (29 — prior subtitle)
 - `The GC's pocket back office` (27)
-- `One app for the whole job` (25)
 - `Built for builders, on iPhone` (29)
 
 ---
@@ -23,10 +23,10 @@ GC ops, AI takeoff & pay apps
 ## Promotional text (170 chars · updateable without re-submission)
 
 ```
-NEW · AI Drawing Analyzer turns a PDF of plans into a priced estimate in 60 seconds. Drop in. Tap analyze. Done. Free tier. iOS, Android, web — all synced.
+NEW · Your estimate now learns from every job you close — and warns you before a job loses money. The only GC app that prices from YOUR costs, not a generic catalog.
 ```
 
-(159 chars · 11 free)
+(162 chars · 8 free) — the moat as the freshest hook. This is the single highest-leverage field: it updates WITHOUT re-submitting the build, so keep it pointed at the differentiator.
 
 Use this slot for the freshest hook — change it whenever you ship something new. It's the ONLY editable field that updates without re-submitting the build.
 
@@ -39,7 +39,12 @@ MAGE ID is the operating system for general contractors — built for the reside
 
 Plans, estimates, daily reports, change orders, AIA pay applications, schedule, and a live homeowner portal — replaced a dozen apps with one that lives on your phone. Voice-driven everything. AI where it actually saves you hours. Built mobile-first because that's where the job is.
 
+THE DIFFERENCE — IT LEARNS WHAT YOUR JOBS REALLY COST
+Other apps price your bid off a generic catalog (Home Depot, regional averages). MAGE learns from your own closed jobs — every estimate gets sharper — and watches your margin live, warning you before a job loses money. Bid from your reality, not an AI's guess.
+
 WHAT'S INSIDE
+• Cost Database — your unit prices, learned from every job you close, so your next bid is priced from your reality.
+• Margin Intelligence — live projected margin, a per-job risk score, and alerts before one bleeds.
 • AI Drawing Analyzer — drop a PDF of plans, get a priced line-item estimate in 30–60 seconds, powered by Gemini Vision. Standard for fast turnarounds; Pro Estimator depth (Business tier) for ambiguous schedules.
 • AI Quantity Takeoff — measures linear feet, square feet, doors, windows, fixtures, and bulk materials right off the sheet. Edit, verify in the field, route into a buyout package.
 • AI Spec-Match — match takeoff callout codes against the architect's spec book in one tap.
@@ -78,17 +83,17 @@ Tap Help in Settings — direct line to a real person. Reply within 4 business h
 Built by a GC who got tired of switching between twelve tabs.
 ```
 
-(3,471 chars · 529 free)
+(~3,900 chars · ~100 free — re-verify the count in App Store Connect; `•`/`—`/`→` each count as one character there, not multiple bytes. Now leads with the moat: Cost Database + Margin Intelligence.)
 
 ---
 
 ## Keywords (100 chars · comma-separated)
 
 ```
-GC,contractor,AIA pay app,takeoff,estimate,schedule,RFI,punch list,daily report,blueprint,job cost
+GC,contractor,AIA pay app,takeoff,estimate,schedule,RFI,daily report,job cost,margin,cost database
 ```
 
-(99 chars · 1 free)
+(98 chars · 2 free) — swapped `blueprint` + `punch list` for high-intent differentiator terms `margin` and `cost database` (the moat); "plans"/"punch" are already indexed via the description.
 
 **Why these:** GC and contractor are the highest-intent terms. AIA pay app is unusually specific — anyone searching it is a high-intent buyer. Takeoff, estimate, schedule, RFI, punch list, daily report, blueprint, job cost cover every tool in the stack we replace. Skip generic words like "construction" — too competitive, and Apple already indexes the description for those.
 
