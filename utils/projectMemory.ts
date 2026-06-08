@@ -15,6 +15,7 @@
 // extraction/retrieval functions; only answerFromMemory does I/O (the AI call).
 
 import { mageAI } from '@/utils/mageAI';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import type { RFI, DailyFieldReport, ChangeOrder, Submittal, PunchItem } from '@/types';
 
 export type MemorySource = 'RFI' | 'Daily Report' | 'Change Order' | 'Submittal' | 'Punch Item';
@@ -153,6 +154,8 @@ export interface MemoryAnswer {
   usedRefs: string[];
   searched: number;
   matched: boolean;
+  /** True when the answer used server-side semantic (pgvector) retrieval. */
+  semantic?: boolean;
   errorKind?: string;
   fromCache?: boolean;
 }
@@ -192,4 +195,94 @@ export async function answerFromMemory(question: string, docs: MemoryDoc[]): Pro
   } catch (e) {
     return { answer: `MAGE hit an error: ${String((e as Error).message ?? e)}`, usedRefs: [], searched: docs.length, matched };
   }
+}
+
+// ── v2: server-side semantic retrieval (pgvector), with TF-IDF fallback ──────
+//
+// When the project-memory-embed / -search edge functions + pgvector migration
+// are deployed, retrieval becomes semantic (synonyms/paraphrase match). If they
+// aren't deployed (or fail, or return nothing), everything falls back to the v1
+// TF-IDF path above — so this is safe to ship before the backend is live.
+
+const MEMORY_EMBED_URL = `${SUPABASE_URL}/functions/v1/project-memory-embed`;
+const MEMORY_SEARCH_URL = `${SUPABASE_URL}/functions/v1/project-memory-search`;
+
+const MEMORY_PROMPT_PREFIX =
+  "You are MAGE, the assistant inside a construction contractor's app. Answer the user's " +
+  'question using ONLY the project records below. Be concise and concrete; cite the record ' +
+  'reference (e.g. "RFI #12", "CO #4", the daily-report date) for each fact. Lead with the ' +
+  "direct answer. If the records don't contain the answer, say so plainly rather than guessing.\n\n";
+
+interface MemoryMatch { doc_id: string; source: string; ref: string; content: string; similarity: number }
+
+async function authedPost(url: string, body: unknown): Promise<unknown | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const jwt = session?.access_token;
+    if (!jwt) return null;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${jwt}`, apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Best-effort: push a project's records to the embeddings index so semantic
+ * search has fresh vectors. Idempotent server-side (upsert). Fire-and-forget;
+ * failures are silent (the screen still works on TF-IDF).
+ */
+export async function syncMemoryEmbeddings(projectId: string, docs: MemoryDoc[]): Promise<void> {
+  if (!projectId || docs.length === 0) return;
+  const payload = docs.slice(0, 250).map(d => ({ doc_id: d.id, source: d.source, ref: d.ref, content: d.text }));
+  await authedPost(MEMORY_EMBED_URL, { projectId, docs: payload });
+}
+
+/**
+ * Answer using semantic (pgvector) retrieval when available, falling back to the
+ * v1 TF-IDF path on any failure/empty result. `docs` is still passed so the
+ * fallback works and so the "searched N records" count stays meaningful.
+ */
+export async function answerFromMemorySemantic(
+  question: string,
+  projectId: string,
+  docs: MemoryDoc[],
+): Promise<MemoryAnswer> {
+  const q = question.trim();
+  if (!projectId || docs.length === 0) return answerFromMemory(q, docs);
+
+  const res = (await authedPost(MEMORY_SEARCH_URL, { projectId, query: q, matchCount: 8 })) as
+    | { success?: boolean; matches?: MemoryMatch[] }
+    | null;
+  const matches = res && res.success && Array.isArray(res.matches) ? res.matches : null;
+
+  if (matches && matches.length > 0) {
+    const context = matches.map(m => `[${m.ref}] ${m.content}`).join('\n\n');
+    const prompt = MEMORY_PROMPT_PREFIX + `PROJECT RECORDS:\n${context}\n\nQUESTION: ${q}`;
+    try {
+      const ai = await mageAI({ prompt, tier: 'smart', maxTokens: 700 });
+      const text = typeof ai.data === 'string' && ai.data.trim() ? ai.data.trim() : (ai.raw?.trim() || '');
+      if (ai.success && text) {
+        return {
+          answer: text,
+          usedRefs: matches.map(m => m.ref),
+          searched: docs.length,
+          matched: true,
+          semantic: true,
+          errorKind: ai.errorKind,
+          fromCache: ai.fromCache,
+        };
+      }
+    } catch {
+      // fall through to TF-IDF
+    }
+  }
+
+  // Not deployed / no match / AI hiccup → v1 keyword path.
+  return answerFromMemory(q, docs);
 }
