@@ -17,8 +17,9 @@
 //
 // Pure function — no storage, no network. Derived live from ProjectContext data.
 
-import type { Project, Commitment } from '@/types';
+import type { Project, Commitment, MaterialReceipt } from '@/types';
 import { computeEstimateActuals } from '@/utils/estimateActuals';
+import { receiptToCostSamples } from '@/utils/materialReceipt';
 
 /** Blend constant: at n samples, personal weight = n/(n+K). K=3 ⇒ 50/50 at n=3. */
 const BLEND_K = 3;
@@ -79,10 +80,20 @@ function mean(xs: number[]): number {
 export function buildCostDatabase(
   projects: Project[],
   commitments: Commitment[],
+  /** Snapped supplier invoices. Their line-item unit prices feed the price book
+   *  as live `actual` material samples — additive; pass [] (default) for the
+   *  original closed-jobs-only behavior. */
+  receipts: MaterialReceipt[] = [],
 ): CostDatabase {
   const asOf = new Date().toISOString();
   const groups = new Map<string, CostSample[]>();
   const jobs = new Set<string>();
+
+  const pushSample = (key: string, s: CostSample) => {
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(s);
+    else groups.set(key, [s]);
+  };
 
   for (const project of projects) {
     if (!isClosed(project)) continue;
@@ -114,12 +125,25 @@ export function buildCostDatabase(
         basis: l.hasActual ? 'actual' : 'committed',
         closedAt,
       };
-      const bucket = groups.get(key);
-      if (bucket) bucket.push(sample);
-      else groups.set(key, [sample]);
+      pushSample(key, sample);
       contributed = true;
     }
     if (contributed) jobs.add(project.id);
+  }
+
+  // Fold in supplier-invoice samples — live material prices, available the day
+  // the GC snaps the receipt (no wait for project closeout). Keyed the same way
+  // (trade|unit) so a material that already has a closed-job history just gets
+  // more, fresher samples.
+  if (receipts.length > 0) {
+    const nameById = new Map(projects.map(p => [p.id, p.name]));
+    for (const receipt of receipts) {
+      const samples = receiptToCostSamples(receipt, nameById.get(receipt.projectId) ?? 'Project');
+      for (const s of samples) {
+        pushSample(`${s.trade.toLowerCase()}|${s.unit.toLowerCase()}`, s);
+        jobs.add(receipt.projectId);
+      }
+    }
   }
 
   const entries: CostBookEntry[] = [];

@@ -16,6 +16,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -51,10 +52,11 @@ function CostDatabaseInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, commitments } = useProjects();
+  const { receipts } = useMaterialReceipts();
 
   const db = useMemo(
-    () => buildCostDatabase(projects, commitments),
-    [projects, commitments],
+    () => buildCostDatabase(projects, commitments, receipts),
+    [projects, commitments, receipts],
   );
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
