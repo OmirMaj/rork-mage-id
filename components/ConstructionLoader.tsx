@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -32,6 +32,16 @@ interface ConstructionLoaderProps {
   size?: LoaderSize;
   /** Optional label rendered beneath the animation. Kept short; this isn't a toast. */
   label?: string;
+  /**
+   * Optional rotating labels for longer loads — perceived-progress narration.
+   * The loader advances through them one at a time (e.g. "Reading your costs…",
+   * "Pricing the scope…", "Almost there…") so a slow operation feels like it's
+   * making headway instead of hanging. Holds on the last entry. Takes priority
+   * over `label` when non-empty.
+   */
+  labels?: string[];
+  /** How long each rotating label is shown before advancing. Default 1400ms. */
+  labelIntervalMs?: number;
   /** Wrapper style override — e.g. flex:1 for full-screen centering. */
   style?: ViewStyle;
   /** Override colors if you need the loader on a non-default background. */
@@ -58,6 +68,8 @@ const BREATHE_DOWN_MS = 220;
 export default function ConstructionLoader({
   size = 'md',
   label,
+  labels,
+  labelIntervalMs = 1400,
   style,
   colorTop,
   colorMid,
@@ -66,6 +78,20 @@ export default function ConstructionLoader({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const dims = SIZE_MAP[size];
+
+  // Rotating-label state — advances through `labels` and holds on the last one.
+  const rotating = Array.isArray(labels) && labels.length > 0;
+  const [labelIdx, setLabelIdx] = useState(0);
+  useEffect(() => {
+    if (!rotating || labels!.length <= 1) return;
+    setLabelIdx(0);
+    const id = setInterval(() => {
+      setLabelIdx(i => (i < labels!.length - 1 ? i + 1 : i));
+    }, Math.max(400, labelIntervalMs));
+    return () => clearInterval(id);
+  }, [rotating, labels, labelIntervalMs]);
+
+  const shownLabel = rotating ? labels![Math.min(labelIdx, labels!.length - 1)] : label;
   const brick1 = useRef(new Animated.Value(0)).current; // base (bottom)
   const brick2 = useRef(new Animated.Value(0)).current; // middle
   const brick3 = useRef(new Animated.Value(0)).current; // top
@@ -157,7 +183,7 @@ export default function ConstructionLoader({
       style={[styles.container, style]}
       accessible
       accessibilityRole="progressbar"
-      accessibilityLabel={label ?? 'Loading'}
+      accessibilityLabel={shownLabel ?? 'Loading'}
       testID="construction-loader"
     >
       <View
@@ -212,9 +238,9 @@ export default function ConstructionLoader({
           ]}
         />
       </View>
-      {!!label && (
+      {!!shownLabel && (
         <Text style={[styles.label, { fontSize: dims.labelSize }]} numberOfLines={1}>
-          {label}
+          {shownLabel}
         </Text>
       )}
     </View>
