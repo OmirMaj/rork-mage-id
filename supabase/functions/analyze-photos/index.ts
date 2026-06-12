@@ -268,8 +268,8 @@ serve(async (req) => {
   let body: AnalyzePhotosRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400); }
 
-  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt'].includes(body.task)) {
-    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", or "receipt"' }, 400);
+  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms'].includes(body.task)) {
+    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", or "rooms"' }, 400);
   }
 
   // Monthly cap for this user. Increment first; if we exceeded, deny
