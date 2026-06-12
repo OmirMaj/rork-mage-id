@@ -78,6 +78,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/living-estimate': 'Living estimate',
     '/generative-setup': 'Set up project',
     '/margin-risk': 'Margin risk',
+    '/sub-scorecard': 'Sub scorecard',
     '/buyout-scope-gap': 'Scope-gap audit',
     '/estimate-accuracy': 'Estimate accuracy',
     '/estimate-confidence': 'Estimate confidence',
@@ -726,6 +727,10 @@ function RootLayoutNav() {
       <Stack.Screen
         name="margin-risk"
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="sub-scorecard"
+        options={{ title: 'Sub Scorecard' }}
       />
       <Stack.Screen
         name="buyout-scope-gap"
