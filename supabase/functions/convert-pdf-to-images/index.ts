@@ -178,6 +178,27 @@ serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    // IDOR guard (SECURITY). This function runs with the service role, so it
+    // must scope to the caller explicitly. Without these checks a paid user
+    // could pass another user's pdfStoragePath (read + DELETE their drawings)
+    // or another user's projectId (write PNGs into their plan folder).
+    //   - pdf-uploads is laid out as "<userId>/<uuid>.pdf"; require that prefix.
+    //   - the target project must belong to the caller.
+    if (!pdfStoragePath.startsWith(`${auth.userId}/`)) {
+      log('idor_blocked_path', { pdfStoragePath, userId: auth.userId });
+      return json({ success: false, error: 'forbidden: storage path not owned by caller' }, 403);
+    }
+    const { data: ownedProject, error: ownErr } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('user_id', auth.userId)
+      .maybeSingle();
+    if (ownErr || !ownedProject) {
+      log('idor_blocked_project', { projectId, userId: auth.userId });
+      return json({ success: false, error: 'forbidden: project not owned by caller' }, 403);
+    }
+
     // 1a. Download the PDF so we can count pages BEFORE running the cap
     //     check + paying Cloudconvert. pdf-lib parses metadata only — no
     //     rasterization — so this is fast (<200ms even on a 200-page set)
