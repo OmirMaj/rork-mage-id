@@ -13,9 +13,9 @@
 // desktop (React Native Web). Pure logic lives in utils/lastPlanner; per-project
 // constraints + commitments persist via hooks/useLastPlanner.
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, Modal, Share, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -23,6 +23,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, ChevronLeft as ChevLeft, Plus, X, Check,
   AlertTriangle, CircleCheck, Clock, Target, ListChecks, TrendingUp, TrendingDown,
+  Mail, Share2, Users,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -36,10 +37,15 @@ import EmptyState from '@/components/EmptyState';
 import { useLastPlanner } from '@/hooks/useLastPlanner';
 import {
   buildLookahead, buildWeeklyWorkPlan, computePpc, ppcBand, ppcHistory, ppcTrend,
-  varianceBreakdown, currentWeekStart, addWeeks, formatWeekRange,
+  varianceBreakdown, currentWeekStart, addWeeks, formatWeekRange, taskWindow,
   CONSTRAINT_LABELS, VARIANCE_LABELS,
   type Readiness, type ConstraintCategory, type VarianceReason,
 } from '@/utils/lastPlanner';
+import {
+  groupCommitmentsByCrew, buildCrewMessage, buildCrewEmailHtml, dispatchSubject,
+  type CommittedTaskInput, type CrewDispatchGroup,
+} from '@/utils/crewDispatch';
+import { sendEmail } from '@/utils/emailService';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -66,7 +72,8 @@ function LastPlannerInner() {
   const router = useRouter();
   const layout = useResponsiveLayout();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, getProject } = useProjects();
+  const { projects, getProject, getSubcontractor, settings } = useProjects();
+  const gcName = settings?.branding?.companyName?.trim() || undefined;
 
   const [projectId, setProjectId] = useState<string | null>(paramProjectId ?? null);
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
@@ -173,7 +180,10 @@ function LastPlannerInner() {
               tasks={tasks} startDate={startDate} weekStart={weekStart}
               setWeekStart={setWeekStart} constraints={lp.constraints} commitments={lp.commitments}
               onToggleCommit={(taskId, committed) => lp.setCommit(taskId, weekStart, committed)}
-              onReview={setReviewFor} t={t} styles={styles}
+              onReview={setReviewFor}
+              projectName={project.name} gcName={gcName}
+              getSub={getSubcontractor} dispatches={lp.dispatches} onDispatched={lp.markDispatched}
+              t={t} styles={styles}
             />
           )}
           {tab === 'reliability' && (
@@ -278,14 +288,67 @@ function LookaheadView({ tasks, startDate, constraints, onAddConstraint, onClear
 }
 
 // ── This Week (weekly work plan) ──
-function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, commitments, onToggleCommit, onReview, t, styles }: {
+function startLabelFor(task: ScheduleTask, startDate: string): string | undefined {
+  const win = taskWindow(task, startDate);
+  if (!win) return undefined;
+  return new Date(win.startMs).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, commitments, onToggleCommit, onReview, projectName, gcName, getSub, dispatches, onDispatched, t, styles }: {
   tasks: ScheduleTask[]; startDate: string; weekStart: string; setWeekStart: (w: string) => void;
   constraints: ReturnType<typeof useLastPlanner>['constraints']; commitments: ReturnType<typeof useLastPlanner>['commitments'];
-  onToggleCommit: (taskId: string, committed: boolean) => void; onReview: (task: ScheduleTask) => void; t: ThemeColors; styles: S;
+  onToggleCommit: (taskId: string, committed: boolean) => void; onReview: (task: ScheduleTask) => void;
+  projectName: string; gcName?: string;
+  getSub: (id: string) => { companyName?: string; contactName?: string; email?: string; phone?: string } | null;
+  dispatches: ReturnType<typeof useLastPlanner>['dispatches'];
+  onDispatched: (crewKey: string, weekStart: string, channel: 'email' | 'share') => void;
+  t: ThemeColors; styles: S;
 }) {
   const wwp = useMemo(() => buildWeeklyWorkPlan(tasks, startDate, weekStart, constraints, commitments), [tasks, startDate, weekStart, constraints, commitments]);
   const ppc = useMemo(() => computePpc(commitments, weekStart), [commitments, weekStart]);
   const committedCount = wwp.filter(e => e.committed).length;
+  const [sending, setSending] = useState<string | null>(null);
+
+  // Group committed tasks by crew for the "send the week" push.
+  const crews = useMemo<CrewDispatchGroup[]>(() => {
+    const committed: CommittedTaskInput[] = wwp
+      .filter(e => e.committed)
+      .map(e => ({
+        taskId: e.task.id, title: e.task.title,
+        assignedSubId: e.task.assignedSubId, assignedSubName: e.task.assignedSubName,
+        crew: e.task.crew, startLabel: startLabelFor(e.task, startDate),
+      }));
+    return groupCommitmentsByCrew(committed, getSub);
+  }, [wwp, startDate, getSub]);
+
+  const sentAtFor = useCallback((crewKey: string) =>
+    dispatches.find(d => d.crewKey === crewKey && d.weekStart === weekStart)?.sentAt,
+    [dispatches, weekStart]);
+
+  const handleSend = useCallback(async (g: CrewDispatchGroup) => {
+    const ctx = { projectName, weekRange: formatWeekRange(weekStart), gcName };
+    setSending(g.key);
+    try {
+      if (g.email) {
+        const res = await sendEmail({ to: g.email, subject: dispatchSubject(ctx), html: buildCrewEmailHtml(g, ctx), fromCompanyName: gcName });
+        if (res.success) {
+          onDispatched(g.key, weekStart, 'email');
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          Alert.alert('Could not email', res.error || 'Try again, or share instead.');
+        }
+      } else {
+        await Share.share({ message: buildCrewMessage(g, ctx) });
+        onDispatched(g.key, weekStart, 'share');
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch {
+      // Web/native share can reject (dismissed or unsupported) — surface the text to copy.
+      Alert.alert('Send manually', buildCrewMessage(g, ctx));
+    } finally {
+      setSending(null);
+    }
+  }, [projectName, weekStart, gcName, onDispatched]);
 
   return (
     <>
@@ -356,6 +419,48 @@ function WeekView({ tasks, startDate, weekStart, setWeekStart, constraints, comm
               </View>
             );
           })}
+
+          {/* Notify crews — push each crew their committed week (the field half of the loop). */}
+          {crews.length > 0 && (
+            <View style={styles.crewSection}>
+              <View style={styles.crewSectionHead}>
+                <Users size={15} color={t.accent} />
+                <Text style={styles.crewSectionTitle}>Send the week to your crews</Text>
+              </View>
+              {crews.map(g => {
+                const sentAt = sentAtFor(g.key);
+                const isUnassigned = g.key === 'unassigned';
+                return (
+                  <View key={g.key} style={styles.crewRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.crewName} numberOfLines={1}>{g.name}</Text>
+                      <Text style={styles.crewMeta} numberOfLines={1}>
+                        {g.tasks.length} task{g.tasks.length === 1 ? '' : 's'}
+                        {g.email ? ` · ${g.email}` : g.phone ? ` · ${g.phone}` : isUnassigned ? '' : ' · no contact'}
+                        {sentAt ? ` · sent ${new Date(sentAt).toLocaleDateString()}` : ''}
+                      </Text>
+                    </View>
+                    {isUnassigned ? (
+                      <View style={[styles.crewBtn, { borderColor: t.line }]}><Text style={[styles.crewBtnText, { color: t.textMuted }]}>Assign a sub</Text></View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.crewBtn, sentAt ? { borderColor: t.success } : { borderColor: t.accent, backgroundColor: t.accent }]}
+                        onPress={() => handleSend(g)}
+                        disabled={sending === g.key}
+                        activeOpacity={0.85}
+                      >
+                        {g.email ? <Mail size={13} color={sentAt ? t.success : Colors.textOnAccent} /> : <Share2 size={13} color={sentAt ? t.success : Colors.textOnAccent} />}
+                        <Text style={[styles.crewBtnText, { color: sentAt ? t.success : Colors.textOnAccent }]}>
+                          {sending === g.key ? 'Sending…' : sentAt ? 'Resend' : g.email ? 'Email' : 'Share'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+              <Text style={styles.crewHint}>Only the committed work goes out — each crew sees just their slice, not the whole schedule.</Text>
+            </View>
+          )}
         </>
       )}
     </>
@@ -638,4 +743,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   modalSaveText: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: Colors.textOnAccent },
   outcomeBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, borderWidth: 1.5, borderRadius: Tokens.radius.card, padding: 16 },
   outcomeText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+
+  crewSection: { marginTop: 14, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line, padding: 14 },
+  crewSectionHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 7, marginBottom: 10 },
+  crewSectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: t.text },
+  crewRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 9, borderTopWidth: 1, borderTopColor: t.line },
+  crewName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  crewMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 1 },
+  crewBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, borderWidth: 1.5, borderRadius: Tokens.radius.full, paddingHorizontal: 13, paddingVertical: 7 },
+  crewBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const },
+  crewHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginTop: 10 },
 });

@@ -20,6 +20,15 @@ const QK = ['last-planner'] as const;
 interface ProjectBucket {
   constraints: Constraint[];
   commitments: WeeklyCommitment[];
+  dispatches?: CrewDispatchRecord[];
+}
+
+/** Record of pushing a crew their committed week (for "sent" state). */
+export interface CrewDispatchRecord {
+  crewKey: string;
+  weekStart: string;
+  channel: 'email' | 'share';
+  sentAt: string;
 }
 type Store = Record<string, ProjectBucket>;
 
@@ -37,12 +46,12 @@ async function persist(store: Store): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY, JSON.stringify(store));
   } catch (err) {
-    console.log('[lastPlanner] persist failed:', err);
+    console.warn('[lastPlanner] persist failed:', err);
   }
 }
 
 function bucket(store: Store, projectId: string): ProjectBucket {
-  return store[projectId] ?? { constraints: [], commitments: [] };
+  return store[projectId] ?? { constraints: [], commitments: [], dispatches: [] };
 }
 
 export function useLastPlanner(projectId: string | null | undefined) {
@@ -71,6 +80,10 @@ export function useLastPlanner(projectId: string | null | undefined) {
   );
   const commitments = useMemo(
     () => (projectId ? bucket(store, projectId).commitments : []),
+    [store, projectId],
+  );
+  const dispatches = useMemo(
+    () => (projectId ? bucket(store, projectId).dispatches ?? [] : []),
     [store, projectId],
   );
 
@@ -125,10 +138,17 @@ export function useLastPlanner(projectId: string | null | undefined) {
     }));
   }, [apply]);
 
+  const markDispatched = useCallback((crewKey: string, weekStart: string, channel: 'email' | 'share') => {
+    apply(b => {
+      const rest = (b.dispatches ?? []).filter(d => !(d.crewKey === crewKey && d.weekStart === weekStart));
+      return { ...b, dispatches: [...rest, { crewKey, weekStart, channel, sentAt: new Date().toISOString() }] };
+    });
+  }, [apply]);
+
   return {
-    constraints, commitments,
+    constraints, commitments, dispatches,
     addConstraint, toggleConstraint, removeConstraint,
-    setCommit, reviewCommit,
+    setCommit, reviewCommit, markDispatched,
     isLoading,
   };
 }
