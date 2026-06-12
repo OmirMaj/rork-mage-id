@@ -81,6 +81,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/buyout-scope-gap': 'Scope-gap audit',
     '/estimate-accuracy': 'Estimate accuracy',
     '/estimate-confidence': 'Estimate confidence',
+    '/estimate-calibration': 'Estimate calibration',
     '/cost-database': 'Cost database',
     '/area-takeoff': 'Visual takeoff',
     '/portfolio-margin': 'Margin board',
@@ -737,6 +738,10 @@ function RootLayoutNav() {
       <Stack.Screen
         name="estimate-confidence"
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="estimate-calibration"
+        options={{ title: 'Estimate Calibration' }}
       />
       <Stack.Screen
         name="cost-database"

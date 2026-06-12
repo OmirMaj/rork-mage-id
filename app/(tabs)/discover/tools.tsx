@@ -278,6 +278,15 @@ export default function DiscoverToolsScreen() {
               />
               <Divider styles={styles} />
               <NavRow
+                Icon={TrendingUp}
+                title="Estimate Calibration"
+                subtitle="Where your bids run high or low — and the fix"
+                tone="warning"
+                onPress={() => router.push('/estimate-calibration' as never)}
+                testID="tools-estimate-calibration"
+              />
+              <Divider styles={styles} />
+              <NavRow
                 Icon={Banknote}
                 title="Payments"
                 subtitle="Client payment status & history"
