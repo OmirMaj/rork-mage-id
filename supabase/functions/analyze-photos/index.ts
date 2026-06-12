@@ -12,6 +12,9 @@
 //                 UI routes each photo to the right destination. The
 //                 game-changer: one snap-and-go flow instead of three
 //                 separate analyzers.
+//   - 'rooms'   → AI reads a floor-plan sheet and returns every room
+//                 (name, type, sqft, bbox) for the Plan Intelligence
+//                 room-by-room estimating flow.
 //
 // Modelled on the existing analyze-drawings function — same auth /
 // CORS / error shape, different prompt + schema per task.
@@ -21,7 +24,7 @@
 //
 // Request body:
 // {
-//   task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt';
+//   task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms';
 //   photoUrls: string[];        // 1..N publicly fetchable image URLs
 //   projectName?: string;
 //   projectType?: string;
@@ -49,7 +52,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface AnalyzePhotosRequest {
-  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt';
+  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms';
   /** EITHER photoUrls (server fetches) OR photos[].base64 inline.
    *  Client-side camera / library picks are file:// URIs that the
    *  server can't fetch — those callers send inline base64 instead. */
@@ -149,6 +152,32 @@ Rules:
   - If the image is not a material/supplier invoice, return { "vendor": "", "lines": [], "confidence": 0 }.
 
 Return JSON only — no preamble.`;
+
+const ROOMS_PROMPT = `You are an expert construction estimator reading a residential FLOOR PLAN sheet (architectural drawing). Identify every room and named space on the plan so the contractor can price the job room by room.
+
+Return a JSON object: { "rooms": [ ... ] } where each room has:
+  - name: the label on the plan ("Master Bedroom", "Kitchen", "Bath 2"). If unlabeled but clearly a room, infer a sensible name ("Bedroom 3"). ≤60 chars.
+  - type: best match from "kitchen", "bathroom", "bedroom", "living", "dining", "office", "garage", "laundry", "closet", "hallway", "basement", "deck", "other".
+  - approxSqft: your best estimate of the room's floor area in square feet. PREFER printed dimensions on the plan (e.g. "12'-0\\" x 14'-6\\"" → 174). If no dimensions are printed, estimate from the room's share of the overall plan and any scale notation. Must be > 0.
+  - bbox: { x, y, w, h } — the room's bounding box on THIS image, normalized 0..1 (x,y = top-left corner). Be as tight as you can.
+  - confidence: 0-100. Use ≥80 when dimensions are printed, 50-79 when estimating from proportions, <50 when guessing. Only include rooms at confidence ≥ 40.
+  - note: short observation that helps pricing (≤160 chars): printed dimensions, visible fixtures ("double vanity, tub + shower"), ceiling notes, anything unusual. Empty string if nothing.
+
+Rules:
+  - One entry per distinct room/space. Include garages, decks/patios, and large closets; skip wall thicknesses, dimension strings, and title-block text.
+  - If multiple plan pages are attached, set bbox relative to the page the room appears on and work page by page.
+  - If the image is NOT a floor plan (photo, elevation, detail sheet), return { "rooms": [] }.
+
+Return JSON only — no preamble.`;
+
+interface RoomOut {
+  name: string;
+  type: string;
+  approxSqft: number;
+  bbox: { x: number; y: number; w: number; h: number };
+  confidence: number;
+  note: string;
+}
 
 interface ReceiptLineOut {
   description: string;
@@ -331,6 +360,7 @@ serve(async (req) => {
     body.task === 'dfr'     ? DFR_PROMPT :
     body.task === 'rfi'     ? RFI_PROMPT :
     body.task === 'receipt' ? RECEIPT_PROMPT :
+    body.task === 'rooms'   ? ROOMS_PROMPT :
     TRIAGE_PROMPT;
   const prompt = ctxLine ? `${ctxLine}\n\n${basePrompt}` : basePrompt;
 
@@ -454,6 +484,33 @@ serve(async (req) => {
       confidence: Number(o.confidence) || 0,
     };
     return jsonResponse({ success: true, data: out });
+  }
+
+  if (body.task === 'rooms') {
+    // Accept either { rooms: [...] } or a bare array (Gemini drifts).
+    // Light shaping only — the client's planIntelligence.normalizeDetectedRooms
+    // does the authoritative clamping; we guarantee shape + the ≥40 confidence
+    // floor the prompt promised.
+    const container = parsed as Record<string, unknown>;
+    const rawRooms = Array.isArray(container?.rooms) ? container.rooms
+      : Array.isArray(parsed) ? (parsed as unknown[])
+      : [];
+    const clamp01 = (v: unknown) => Math.max(0, Math.min(1, Number(v) || 0));
+    const rooms: RoomOut[] = (rawRooms as unknown[])
+      .map((x): RoomOut => {
+        const r = (x ?? {}) as Record<string, unknown>;
+        const b = (r.bbox ?? {}) as Record<string, unknown>;
+        return {
+          name: String(r.name ?? '').slice(0, 60),
+          type: String(r.type ?? 'other'),
+          approxSqft: Number(r.approxSqft) || 0,
+          bbox: { x: clamp01(b.x), y: clamp01(b.y), w: clamp01(b.w), h: clamp01(b.h) },
+          confidence: Math.max(0, Math.min(100, Number(r.confidence) || 0)),
+          note: String(r.note ?? '').slice(0, 160),
+        };
+      })
+      .filter(r => r.name.length > 0 && r.approxSqft > 0 && r.confidence >= 40);
+    return jsonResponse({ success: true, data: { rooms } });
   }
 
   // dfr task
