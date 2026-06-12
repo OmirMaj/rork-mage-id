@@ -68,6 +68,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── PROJECT · OVERVIEW
   { key: 'estimate',          label: 'Estimate',         icon: Calculator,      route: '/(tabs)/discover/estimate',        section: 'OVERVIEW' },
   { key: 'schedule',          label: 'Schedule',         icon: CalendarDays,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
+  { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
   { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'OVERVIEW' },
   { key: 'weekly-snapshot',   label: 'Weekly Snapshot',  icon: TrendingUp,      route: '/weekly-snapshot',                  section: 'OVERVIEW' },
 

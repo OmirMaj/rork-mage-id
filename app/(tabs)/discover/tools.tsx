@@ -182,6 +182,15 @@ export default function DiscoverToolsScreen() {
         {hasProjects && (
           <Section title="FIELD" styles={styles}>
             <NavRow
+              Icon={ListChecks}
+              title="Last Planner"
+              subtitle="3-week lookahead, weekly commitments & PPC reliability"
+              tone="accent"
+              onPress={() => router.push('/last-planner' as never)}
+              testID="tools-last-planner"
+            />
+            <Divider styles={styles} />
+            <NavRow
               Icon={ClipboardList}
               title="Daily reports"
               subtitle="Voice-first DFRs with photo + GPS"
