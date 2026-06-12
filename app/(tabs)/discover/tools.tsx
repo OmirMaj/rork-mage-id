@@ -230,6 +230,15 @@ export default function DiscoverToolsScreen() {
 
         {/* Money — every cash-related workflow. */}
         <Section title="MONEY" styles={styles}>
+          <NavRow
+            Icon={Trophy}
+            title="Win Optimizer"
+            subtitle="The bid price that wins AND profits — learned from your own win/loss history"
+            tone="accent"
+            onPress={() => router.push('/win-optimizer' as never)}
+            testID="tools-win-optimizer"
+          />
+          <Divider styles={styles} />
           {hasProjects && (
             <>
               <NavRow

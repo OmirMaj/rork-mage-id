@@ -102,6 +102,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/buyout': 'Buyout',
     '/buyout-package': 'Bid package',
     '/bid-leveling': 'Bid leveling',
+    '/win-optimizer': 'Win optimizer',
     '/material-receipt': 'Material receipt',
     '/bill-from-estimate': 'Bill from estimate',
     '/client-messages': 'Client messages',
@@ -503,6 +504,7 @@ function RootLayoutNav() {
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
       <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
       <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling' }} />
+      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer' }} />
       <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
