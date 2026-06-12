@@ -29,7 +29,7 @@ import {
   Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
   Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
   PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
-  Ruler, ScanLine, HardHat,
+  Ruler, ScanLine, HardHat, ScanSearch,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -98,6 +98,15 @@ export default function DiscoverToolsScreen() {
             tone="accent"
             onPress={() => router.push('/takeoff' as never)}
             testID="tools-takeoff"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={ScanSearch}
+            title="Plan Intelligence"
+            subtitle="AI reads the floor plan room by room — and learns your prices every job"
+            tone="accent"
+            onPress={() => router.push('/plan-intelligence' as never)}
+            testID="tools-plan-intelligence"
           />
           <Divider styles={styles} />
           <NavRow

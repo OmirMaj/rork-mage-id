@@ -105,6 +105,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/win-optimizer': 'Win optimizer',
     '/smart-proposal': 'Smart proposal',
     '/material-receipt': 'Material receipt',
+    '/plan-intelligence': 'Plan intelligence',
     '/bill-from-estimate': 'Bill from estimate',
     '/client-messages': 'Client messages',
     '/client-portal-setup': 'Client portal',
@@ -508,6 +509,7 @@ function RootLayoutNav() {
       <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer' }} />
       <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal' }} />
       <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt' }} />
+      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />
