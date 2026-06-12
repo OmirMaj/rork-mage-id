@@ -239,6 +239,15 @@ export default function DiscoverToolsScreen() {
             testID="tools-win-optimizer"
           />
           <Divider styles={styles} />
+          <NavRow
+            Icon={FileSignature}
+            title="Smart Proposal"
+            subtitle="Good / better / best, priced to win — send, track, close"
+            tone="accent"
+            onPress={() => router.push('/smart-proposal' as never)}
+            testID="tools-smart-proposal"
+          />
+          <Divider styles={styles} />
           {hasProjects && (
             <>
               <NavRow
