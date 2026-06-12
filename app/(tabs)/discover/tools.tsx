@@ -298,6 +298,15 @@ export default function DiscoverToolsScreen() {
           />
           <Divider styles={styles} />
           <NavRow
+            Icon={Trophy}
+            title="Sub Scorecard"
+            subtitle="Who's actually good? Graded from your real job costs"
+            tone="accent"
+            onPress={() => router.push('/sub-scorecard' as never)}
+            testID="tools-sub-scorecard"
+          />
+          <Divider styles={styles} />
+          <NavRow
             Icon={FileDown}
             title="1099-NEC export"
             subtitle="Year-end CSV for your CPA — flags subs paid ≥ $600"
