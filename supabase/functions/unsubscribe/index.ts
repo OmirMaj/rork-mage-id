@@ -182,7 +182,15 @@ serve(async (req) => {
         return jsonResponse({ ok: true, action: 'resubscribed' });
       }
 
-      // Default action: unsubscribe.
+      // Default action: unsubscribe. SECURITY: require the signed token here
+      // too. Without it, anyone could POST {email, event_key:null} and globally
+      // suppress an arbitrary address (silently blocking all their invoices /
+      // receipts / COI warnings). Every List-Unsubscribe link we generate
+      // carries t=buildUnsubscribeToken(email) (see _shared/email.ts), so Gmail
+      // one-click and the static page both pass; only forged calls are blocked.
+      if (!token || !verifyUnsubscribeToken(email, token)) {
+        return jsonResponse({ ok: false, error: 'token_invalid' }, 400);
+      }
       const result = await recordUnsubscribe(email, eventKey ?? null, source);
       if (!result.ok) {
         console.error('[unsubscribe] failed', result.error);

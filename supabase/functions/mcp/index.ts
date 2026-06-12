@@ -72,8 +72,12 @@ function extractToken(req: Request, url: URL): string | null {
 
 async function userForToken(raw: string): Promise<string | null> {
   const hash = await hashMcpToken(raw);
+  // Reject revoked AND expired tokens. expires_at is set with a 1-year default
+  // at mint (migration mcp_token_expiry); a leaked token can no longer be used
+  // forever. Legacy rows with a NULL expires_at are grandfathered (never expire).
+  const nowIso = new Date().toISOString();
   const rows = await rest<{ id: string; user_id: string }>(
-    `mcp_tokens?token_hash=eq.${hash}&revoked_at=is.null&select=id,user_id&limit=1`,
+    `mcp_tokens?token_hash=eq.${hash}&revoked_at=is.null&or=(expires_at.is.null,expires_at.gt.${nowIso})&select=id,user_id&limit=1`,
   );
   if (!rows.length) return null;
   // Touch last_used_at (fire-and-forget; never blocks the response).
