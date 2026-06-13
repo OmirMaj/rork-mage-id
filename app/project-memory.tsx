@@ -6,7 +6,7 @@
 // leaves with the PM. Retrieval is client-side TF-IDF (utils/projectMemory); the
 // single AI call routes through the same mageAI relay, inheriting auth + caps.
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Platform, KeyboardAvoidingView,
@@ -22,7 +22,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import {
-  extractMemoryDocs, answerFromMemory, PROJECT_MEMORY_SUGGESTIONS,
+  extractMemoryDocs, answerFromMemorySemantic, syncMemoryEmbeddings, PROJECT_MEMORY_SUGGESTIONS,
 } from '@/utils/projectMemory';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -33,6 +33,7 @@ interface Turn {
   error?: boolean;
   refs?: string[];
   searched?: number;
+  semantic?: boolean;
 }
 
 export default function ProjectMemoryScreen() {
@@ -73,6 +74,12 @@ function ProjectMemoryInner() {
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
+  // Best-effort: keep the semantic index fresh when the screen opens / records
+  // change. No-op (silent) until the v2 embed function is deployed.
+  useEffect(() => {
+    if (projectId && docs.length > 0) void syncMemoryEmbeddings(projectId, docs);
+  }, [projectId, docs]);
+
   const ask = useCallback(async (question: string) => {
     const q = question.trim();
     if (!q || busy) return;
@@ -82,16 +89,16 @@ function ProjectMemoryInner() {
     setBusy(true);
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     try {
-      const res = await answerFromMemory(q, docs);
+      const res = await answerFromMemorySemantic(q, projectId ?? '', docs);
       setTurns(prev => [...prev, {
         role: 'assistant', text: res.answer, error: !!res.errorKind,
-        refs: res.matched ? res.usedRefs : undefined, searched: res.searched,
+        refs: res.matched ? res.usedRefs : undefined, searched: res.searched, semantic: res.semantic,
       }]);
     } finally {
       setBusy(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
-  }, [busy, docs]);
+  }, [busy, docs, projectId]);
 
   const empty = turns.length === 0;
 
@@ -153,7 +160,7 @@ function ProjectMemoryInner() {
                 </View>
                 {turn.role === 'assistant' && !turn.error && (turn.searched ?? 0) > 0 && (
                   <Text style={styles.cite}>
-                    Searched {turn.searched} record{turn.searched === 1 ? '' : 's'}
+                    {turn.semantic ? 'Semantic search · ' : 'Searched '}{turn.searched} record{turn.searched === 1 ? '' : 's'}
                     {turn.refs && turn.refs.length > 0 ? ` · ${turn.refs.slice(0, 4).join(', ')}` : ''}
                   </Text>
                 )}
