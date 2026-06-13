@@ -77,6 +77,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         router.push('/sub-portals');
         return;
       }
+      if (kind === 'margin_alert') {
+        // A single-job alert lands on that job's Margin Risk; a roll-up lands
+        // on the alerts inbox to triage.
+        router.push(projectId ? `/margin-risk?projectId=${projectId}` : '/margin-alerts');
+        return;
+      }
 
       if (conversationId) {
         router.push(`/messages?id=${conversationId}`);

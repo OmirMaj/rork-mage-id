@@ -27,7 +27,7 @@ Listen. Take notes on the SPECIFIC tools they name (QuickBooks Online, Buildertr
 ### Minute 5–10 · The cost surface
 Add up what they just told you. Out loud. With math.
 
-> "So that's [tool A] at $X/mo, [tool B] at $Y/mo, your office manager 4 hours a week chasing the rest of it… that's roughly $[total]/mo, plus 16 hours of admin time. MAGE Pro is $24.99. Before I show you a single feature, I want you to know that's the math we're up against."
+> "So that's [tool A] at $X/mo, [tool B] at $Y/mo, your office manager 4 hours a week chasing the rest of it… that's roughly $[total]/mo, plus 16 hours of admin time. MAGE Pro is $29. Before I show you a single feature, I want you to know that's the math we're up against."
 
 This is the moment the customer commits internally. The features below are confirmation, not persuasion.
 
@@ -63,12 +63,12 @@ Show ONE. Don't show all. The point is: their specific pain has a specific page.
 ### Minute 35–40 · Pricing + tier decision
 By now they should be primed for the upgrade. Show:
 
-- **Pro ($24.99/mo)** — owner-operator, 1-3 active projects, AI takeoff (Standard), 8 of the 8 stack tools.
-- **Business ($63.99/mo)** — small office, unlimited projects, AI takeoff (Pro Estimator depth, 5–10× richer reads), priority AI flows, custom branding.
+- **Pro ($29/mo)** — owner-operator, 1-3 active projects, AI takeoff (Standard), 8 of the 8 stack tools.
+- **Business ($79/mo)** — small office, unlimited projects, AI takeoff (Pro Estimator depth, 5–10× richer reads), priority AI flows, custom branding.
 
 Decision rule: "If you have an office manager OR more than 4 active projects OR you do bid-to-spec commercial work, Business pays for itself in one accurate takeoff. Otherwise Pro."
 
-Don't push. The customer paying $24.99 happily for 18 months is worth more than the customer who upgrades grudgingly and churns at month 3.
+Don't push. The customer paying $29 happily for 18 months is worth more than the customer who upgrades grudgingly and churns at month 3.
 
 ### Minute 40–45 · The 14-day check-in
 Set their expectations:

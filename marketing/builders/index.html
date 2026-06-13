@@ -352,7 +352,7 @@
           <div class="credit-name" id="credit-name">—</div>
           <div class="credit-meta" id="credit-meta"></div>
         </div>
-        <a class="credit-cta" id="credit-cta" href="https://mageid.app/contact">Get a quote</a>
+        <button class="credit-cta" id="credit-cta" type="button">Get a quote</button>
       </section>
 
       <footer class="footer">
@@ -363,6 +363,64 @@
   </div>
 
   <div class="lightbox" id="lightbox"><img id="lightbox-img" alt="" /></div>
+
+  <!-- Lead funnel — "Request a quote" form. Posts to the public-lead-intake
+       edge function; the lead lands in this contractor's MAGE ID Pipeline. -->
+  <style>
+    .credit-cta { border: none; cursor: pointer; font: inherit; }
+    .lead-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+    .lead-overlay.open { display: flex; }
+    .lead-modal { background: #fff; color: #1a1a1a; border-radius: 16px; max-width: 440px; width: 100%; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.3); max-height: 90vh; overflow: auto; }
+    .lead-modal h2 { margin: 0 0 4px; font-size: 22px; }
+    .lead-modal p.sub { margin: 0 0 18px; color: #666; font-size: 14px; line-height: 1.4; }
+    .lead-field { margin-bottom: 12px; }
+    .lead-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #333; }
+    .lead-field input, .lead-field textarea, .lead-field select { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid #d6d6d6; border-radius: 9px; font-size: 15px; font-family: inherit; background: #fff; color: #1a1a1a; }
+    .lead-field textarea { resize: vertical; min-height: 64px; }
+    .lead-row { display: flex; gap: 10px; }
+    .lead-row .lead-field { flex: 1; }
+    .lead-hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; }
+    .lead-actions { display: flex; gap: 10px; margin-top: 8px; }
+    .lead-btn { flex: 1; padding: 13px; border-radius: 10px; border: none; cursor: pointer; font-size: 15px; font-weight: 700; font-family: inherit; }
+    .lead-btn-primary { background: var(--amber, #d98b00); color: #fff; }
+    .lead-btn-primary:disabled { opacity: .6; cursor: default; }
+    .lead-btn-ghost { background: #f0f0f0; color: #333; }
+    .lead-msg { font-size: 14px; margin-top: 12px; min-height: 1em; }
+    .lead-msg.err { color: #c0392b; }
+    .lead-msg.ok { color: #1a7f3c; font-weight: 600; }
+  </style>
+  <div class="lead-overlay" id="lead-overlay" role="dialog" aria-modal="true" aria-label="Request a quote">
+    <div class="lead-modal">
+      <h2>Request a quote</h2>
+      <p class="sub" id="lead-sub">Tell us about your project and we&rsquo;ll be in touch.</p>
+      <form id="lead-form" novalidate>
+        <div class="lead-field"><label for="lf-name">Name*</label><input id="lf-name" required autocomplete="name" /></div>
+        <div class="lead-row">
+          <div class="lead-field"><label for="lf-email">Email</label><input id="lf-email" type="email" autocomplete="email" /></div>
+          <div class="lead-field"><label for="lf-phone">Phone</label><input id="lf-phone" type="tel" autocomplete="tel" /></div>
+        </div>
+        <div class="lead-field"><label for="lf-address">Project address</label><input id="lf-address" autocomplete="street-address" /></div>
+        <div class="lead-field"><label for="lf-scope">What do you need done?</label><textarea id="lf-scope" placeholder="Kitchen remodel, addition, new build&hellip;"></textarea></div>
+        <div class="lead-row">
+          <div class="lead-field"><label for="lf-budget">Budget</label><select id="lf-budget">
+            <option value="">&mdash;</option>
+            <option value="0-25000">Under $25k</option>
+            <option value="25000-75000">$25k&ndash;$75k</option>
+            <option value="75000-150000">$75k&ndash;$150k</option>
+            <option value="150000-500000">$150k&ndash;$500k</option>
+            <option value="500000-">$500k+</option>
+          </select></div>
+          <div class="lead-field"><label for="lf-timeline">Timeline</label><input id="lf-timeline" placeholder="ASAP, 3 months&hellip;" /></div>
+        </div>
+        <input class="lead-hp" id="lf-company-website" tabindex="-1" autocomplete="off" aria-hidden="true" placeholder="Company website" />
+        <div class="lead-actions">
+          <button type="button" class="lead-btn lead-btn-ghost" id="lead-cancel">Cancel</button>
+          <button type="submit" class="lead-btn lead-btn-primary" id="lead-submit">Send request</button>
+        </div>
+        <div class="lead-msg" id="lead-msg" role="status"></div>
+      </form>
+    </div>
+  </div>
 
 <script>
 (function () {
@@ -485,8 +543,63 @@
     if (company.email) creditMeta.push('<a href="mailto:' + esc(company.email) + '">' + esc(company.email) + '</a>');
     if (company.phone) creditMeta.push(esc(company.phone));
     document.getElementById('credit-meta').innerHTML = creditMeta.join(' · ');
-    var ctaHref = company.email ? 'mailto:' + company.email + '?subject=Project%20inquiry%20via%20portfolio' : 'https://mageid.app/contact';
-    document.getElementById('credit-cta').setAttribute('href', ctaHref);
+    // Lead funnel — "Get a quote" opens an in-page form that POSTs to the
+    // public-lead-intake edge function, landing a lead in this GC's Pipeline.
+    (function setupLeadForm() {
+      // TODO(deploy): if your Supabase project ref differs, update this host.
+      var INTAKE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/public-lead-intake';
+      // Company slug from the path (/builders/<slug>/<project>), else from name.
+      var parts = location.pathname.split('/').filter(Boolean);
+      var slug = (parts[0] === 'builders' && parts[1]) ? parts[1]
+        : (company.name || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+      var overlay = document.getElementById('lead-overlay');
+      var msg = document.getElementById('lead-msg');
+      var sub = document.getElementById('lead-sub');
+      if (company.name) sub.textContent = 'Tell ' + company.name + ' about your project and they’ll be in touch.';
+      function openModal() { msg.textContent = ''; msg.className = 'lead-msg'; overlay.classList.add('open'); }
+      function closeModal() { overlay.classList.remove('open'); }
+      document.getElementById('credit-cta').addEventListener('click', openModal);
+      document.getElementById('lead-cancel').addEventListener('click', closeModal);
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
+      document.getElementById('lead-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = document.getElementById('lf-name').value.trim();
+        var email = document.getElementById('lf-email').value.trim();
+        var phone = document.getElementById('lf-phone').value.trim();
+        if (!name) { msg.className = 'lead-msg err'; msg.textContent = 'Please enter your name.'; return; }
+        if (!email && !phone) { msg.className = 'lead-msg err'; msg.textContent = 'Add an email or phone so they can reply.'; return; }
+        var budget = document.getElementById('lf-budget').value, bmin = null, bmax = null;
+        if (budget) { var b = budget.split('-'); bmin = b[0] ? parseInt(b[0], 10) : null; bmax = b[1] ? parseInt(b[1], 10) : null; }
+        var btn = document.getElementById('lead-submit');
+        btn.disabled = true; btn.textContent = 'Sending…'; msg.className = 'lead-msg'; msg.textContent = '';
+        fetch(INTAKE_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            company_slug: slug, name: name, email: email, phone: phone,
+            address: document.getElementById('lf-address').value.trim(),
+            scope: document.getElementById('lf-scope').value.trim(),
+            timeline: document.getElementById('lf-timeline').value.trim(),
+            budget_min: bmin, budget_max: bmax,
+            source_project: (data && data.project && data.project.name) || '',
+            company_website: document.getElementById('lf-company-website').value
+          })
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; });
+        }).then(function (res) {
+          if (res.ok && res.j && res.j.ok !== false) {
+            msg.className = 'lead-msg ok';
+            msg.textContent = (res.j && res.j.message) || 'Thank you — your request was sent.';
+            document.getElementById('lead-form').reset();
+          } else {
+            msg.className = 'lead-msg err';
+            msg.textContent = (res.j && res.j.error) || 'Something went wrong. Please try again, or email directly.';
+          }
+        }).catch(function () {
+          msg.className = 'lead-msg err'; msg.textContent = 'Network error. Please try again.';
+        }).then(function () { btn.disabled = false; btn.textContent = 'Send request'; });
+      });
+    })();
     if (company.logoUri) {
       document.getElementById('credit-logo').innerHTML = '<img src="' + esc(company.logoUri) + '" alt="' + esc(company.name || '') + '"/>';
     } else {

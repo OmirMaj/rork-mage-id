@@ -26,7 +26,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, Sparkles, X, Save, Trophy, AlertTriangle, CheckCircle2,
-  Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown,
+  Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown, Scale,
 } from 'lucide-react-native';
 import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
@@ -499,6 +499,15 @@ export default function BuyoutPackageScreen() {
                   </>
                 )}
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.levelLinkBtn}
+                onPress={() => router.push({ pathname: '/bid-leveling', params: { packageId: pkg.id } })}
+                activeOpacity={0.85}
+              >
+                <Scale size={15} color={themeColors.accent} />
+                <Text style={styles.levelLinkBtnText}>Open leveling board</Text>
+                <ArrowRight size={14} color={themeColors.accent} />
+              </TouchableOpacity>
               {!!levelingResult?.summary && (
                 <View style={styles.levelingSummary}>
                   <View style={styles.levelingSummaryHead}>
@@ -781,6 +790,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.lg,
   },
   levelBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
+  levelLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: 8,
+    paddingVertical: 11,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: t.accent + '40',
+    backgroundColor: t.accent + '0F',
+  },
+  levelLinkBtnText: { color: t.accent, fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   levelingSummary: {
     marginTop: 12,
     backgroundColor: t.accent + '0F',

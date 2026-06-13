@@ -14,12 +14,21 @@
 //
 // We pass the actual fan-out off to the existing /notify dispatcher for
 // each matched contractor — that handles Expo Push + Resend + outbox
-// dedup. Trigger payload is just the public_bids row.
+// dedup.
 //
-// Request body: { record: <new public_bids row> }   (postgres trigger shape)
+// AUTH: deployed verify_jwt:false, so we gate in-code. The DB trigger
+// (public_bids_notify_nearby_fn) sends the shared x-cron-secret header; we
+// require it via isValidCron and reject everyone else. We also RE-READ the
+// RFP row from the DB by id under the service role rather than trusting the
+// caller-supplied `record` — otherwise a forged body could blast
+// attacker-controlled title/scope/budget (phishing) to the whole contractor
+// network.
+//
+// Request body: { record: { id } }   (postgres trigger shape)
 // Response: { success, matched_count }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { isValidCron } from "../_shared/cronAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY =
@@ -103,16 +112,31 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: "Server not configured" }, 500);
   }
 
-  let body: { record?: PublicBidRow };
+  // Gate to the DB trigger only — it carries the shared cron secret. A user/
+  // anon caller (or a forged request) is rejected before any fan-out.
+  if (!(await isValidCron(req))) {
+    return jsonResponse({ success: false, error: "unauthorized" }, 401);
+  }
+
+  let body: { record?: { id?: string } };
   try { body = await req.json(); }
   catch { return jsonResponse({ success: false, error: "Invalid JSON" }, 400); }
 
-  const rfp = body.record;
-  if (!rfp || !rfp.is_homeowner_rfp) {
-    return jsonResponse({ success: true, matched_count: 0 }); // not a homeowner RFP — no fan-out
+  const rfpId = body.record?.id;
+  if (!rfpId) {
+    return jsonResponse({ success: false, error: "Missing record.id" }, 400);
   }
 
   try {
+    // Re-read the RFP from the DB by id — never trust caller-supplied content.
+    const rfpRows = await rest<PublicBidRow[]>(
+      `/public_bids?id=eq.${encodeURIComponent(rfpId)}&select=id,user_id,is_homeowner_rfp,state,city,latitude,longitude,title,scope_description,budget_min,budget_max,verified_only&limit=1`,
+    );
+    const rfp = rfpRows[0];
+    if (!rfp || !rfp.is_homeowner_rfp) {
+      return jsonResponse({ success: true, matched_count: 0 }); // unknown id or not a homeowner RFP — no fan-out
+    }
+
     // Pull every company. With a few thousand rows this is fine; revisit
     // with PostGIS when we cross 50k+.
     const all = await rest<CompanyRow[]>(`/companies?select=id,user_id,company_name,service_states,service_radius_miles,service_origin_lat,service_origin_lng`);

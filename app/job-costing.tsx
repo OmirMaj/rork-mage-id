@@ -22,7 +22,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
-  CheckCircle2, Clock, Calculator,
+  CheckCircle2, Clock, Calculator, Activity, Receipt,
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +31,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
@@ -75,12 +76,13 @@ function JobCostingInner() {
     addCommitment, updateCommitment, deleteCommitment, subcontractors,
   } = useProjects();
 
+  const { receipts } = useMaterialReceipts();
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
-    return computeJobCost({ project, commitments, invoices, changeOrders });
-  }, [project, commitments, invoices, changeOrders]);
+    return computeJobCost({ project, commitments, invoices, changeOrders, receipts });
+  }, [project, commitments, invoices, changeOrders, receipts]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
@@ -193,6 +195,30 @@ function JobCostingInner() {
             Method: paid + remaining committed + uncommitted budget floor
           </Text>
         </View>
+
+        {/* Cross-link to the margin view of this same data */}
+        <TouchableOpacity
+          style={styles.marginLink}
+          onPress={() => router.push({ pathname: '/living-estimate', params: { projectId: project.id } } as any)}
+          activeOpacity={0.8}
+          testID="open-living-estimate"
+        >
+          <Activity size={16} color={themeColors.info} />
+          <Text style={styles.marginLinkText}>See this as projected margin at completion</Text>
+          <ChevronRight size={16} color={themeColors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Snap a supplier invoice → costed line items that feed the price book */}
+        <TouchableOpacity
+          style={styles.marginLink}
+          onPress={() => router.push({ pathname: '/material-receipt', params: { projectId: project.id } } as any)}
+          activeOpacity={0.8}
+          testID="open-material-receipt"
+        >
+          <Receipt size={16} color={themeColors.accent} />
+          <Text style={styles.marginLinkText}>Snap a material receipt to log actual cost</Text>
+          <ChevronRight size={16} color={themeColors.textMuted} />
+        </TouchableOpacity>
 
         {/* Biggest variances call-out */}
         {summary.biggestVariances.length > 0 && (
@@ -619,6 +645,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <DetailRow label="Commitments" value={`${line.sources.commitments}`} />
             <DetailRow label="Invoices contributed" value={`${line.sources.invoices}`} />
             <DetailRow label="COs contributed" value={`${line.sources.changeOrders}`} />
+            {line.sources.receipts > 0 && <DetailRow label="Material receipts" value={`${line.sources.receipts}`} />}
 
             <Text style={styles.detailNote}>
               This phase is {((line.budget / Math.max(1, summary.budget)) * 100).toFixed(1)}% of
@@ -695,6 +722,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   bannerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
   bannerSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 3 },
+  marginLink: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
+    borderRadius: Tokens.radius.card, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 16,
+  },
+  marginLinkText: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
 
   // Sections
   section: {

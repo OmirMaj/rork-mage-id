@@ -49,6 +49,7 @@ import {
   type ProjectContextOpts,
   type UnsubscribeOpts,
 } from "../_shared/email.ts";
+import { verifyUser, isServiceRoleToken } from "../_shared/verifyUser.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
@@ -212,28 +213,6 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
     return { ok: r.ok, resp };
   } catch (e) {
     return { ok: false, resp: { error: String(e) } };
-  }
-}
-
-// ─── JWT role inspection ─────────────────────────────────────────────
-// Decode the second segment (payload) of a JWT and check the role claim.
-// We don't verify the signature — the rate limit is downstream of an
-// already-verified JWT (Supabase verifies before invoking the function
-// when verify_jwt is on, and edge gateway still won't accept random
-// tokens). This is just a way to robustly identify anon vs. authed
-// callers without depending on env-var key matching.
-function jwtHasRole(token: string, expected: string): boolean {
-  if (!token || token.length < 20) return false;
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-  try {
-    // base64url → base64 → decode → JSON
-    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    while (b64.length % 4) b64 += '=';
-    const payload = JSON.parse(atob(b64));
-    return payload?.role === expected;
-  } catch {
-    return false;
   }
 }
 
@@ -944,15 +923,23 @@ serve(async (req) => {
     const body = await req.json() as NotifyRequest;
     if (!body || !body.event) return jsonResponse({ error: "Missing event" }, 400);
 
-    // Anon detection: inspect the JWT's `role` claim rather than comparing
-    // the raw token string to SUPABASE_ANON_KEY. The auto-injected env var
-    // can lag behind a key rotation, and we'd rather not depend on it.
-    // We accept the bearer (Authorization) OR the `apikey` header — Supabase
-    // clients send both; raw fetch callers may only send one.
+    // Privilege determination — FAIL-CLOSED. This function deploys
+    // verify_jwt:false, so the gateway doesn't verify tokens; we must not infer
+    // privilege from an unverified `role` claim (a forged role:'authenticated'
+    // token previously skipped the allowlist + rate limit and could blast any
+    // event to anyone). A caller is privileged (any event, no rate limit) ONLY
+    // if it proves it: holds the service-role key (trusted server-to-server,
+    // e.g. notify-nearby-contractors / award-rfp) OR presents a GoTrue-verified
+    // authenticated user JWT. Everything else — anon key only, or a forged
+    // token — is treated as anon and held to ANON_ALLOWED_EVENTS + the limiter.
     const auth = req.headers.get('Authorization') || req.headers.get('authorization') || '';
     const bearer = auth.replace(/^Bearer\s+/i, '').trim();
     const apikey = req.headers.get('apikey') || req.headers.get('Apikey') || '';
-    const isAnonCaller = jwtHasRole(bearer, 'anon') || jwtHasRole(apikey, 'anon');
+    const isPrivileged =
+      isServiceRoleToken(bearer) ||
+      isServiceRoleToken(apikey) ||
+      (await verifyUser(req)) !== null;
+    const isAnonCaller = !isPrivileged;
 
     const result = await dispatch(body, isAnonCaller);
     return jsonResponse({ success: true, result });

@@ -11,11 +11,11 @@ import * as Linking from 'expo-linking';
 import {
   DollarSign, Users, TrendingDown, MapPin,
   ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
-  Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
+  Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, ScanSearch, Layers, Scale, ShieldCheck,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
-  Clock, Lock,
+  Clock, Lock, BrainCircuit,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -2024,6 +2024,28 @@ export default function ProjectDetailScreen() {
                     <ChevronRight size={16} color={themeColors.textMuted} />
                   </TouchableOpacity>
                 )}
+                {/* Dispatch to the marketplace — post this project's scope so
+                    verified contractors bid. Reuses the homeowner-RFP pipeline
+                    (post → bid → award creates the job in the winner's account),
+                    prefilled from the project. */}
+                <TouchableOpacity
+                  style={styles.crossLinkBtn}
+                  onPress={() => navigateFromTile({
+                    pathname: '/post-rfp' as any,
+                    params: {
+                      prefillDescription: [project?.name, project?.description].filter(Boolean).join(' — '),
+                      prefillAddress: project?.location ?? '',
+                      prefillBudgetMax: heroTotal ? String(Math.round(heroTotal)) : '',
+                      prefillWorkType: 'other',
+                    },
+                  })}
+                  activeOpacity={0.7}
+                  testID="project-post-for-bids"
+                >
+                  <Hammer size={16} color={themeColors.accent} />
+                  <Text style={styles.crossLinkText}>Post this project for bids</Text>
+                  <ChevronRight size={16} color={themeColors.textMuted} />
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -2984,6 +3006,15 @@ export default function ProjectDetailScreen() {
                   </View>
                 </View>
                 <TouchableOpacity
+                  style={[styles.coAddBtn, { marginBottom: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/generative-setup' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-generative-setup"
+                >
+                  <Sparkles size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Set up project from estimate</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={styles.coAddBtn}
                   onPress={() => navigateFromTile({ pathname: '/budget-dashboard' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
@@ -3000,6 +3031,69 @@ export default function ProjectDetailScreen() {
                 >
                   <BarChart3 size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Job Cost-to-Complete</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/living-estimate' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-living-estimate"
+                >
+                  <Activity size={16} color={themeColors.info} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Living Estimate · margin at completion</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/margin-risk' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-margin-risk"
+                >
+                  <ShieldAlert size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Margin Risk Score</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/buyout-scope-gap' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-buyout-scope-gap"
+                >
+                  <ScanSearch size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Buyout Scope-Gap Audit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/estimate-accuracy' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-estimate-accuracy"
+                >
+                  <Scale size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Accuracy · bid vs actual</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/estimate-confidence' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-estimate-confidence"
+                >
+                  <ShieldCheck size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Confidence · price check</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/area-takeoff' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-area-takeoff"
+                >
+                  <PenTool size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Visual Takeoff · trace → priced line</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/project-memory' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-project-memory"
+                >
+                  <BrainCircuit size={16} color={themeColors.accent} />
+                  <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Project Memory · ask this job&apos;s history</Text>
                 </TouchableOpacity>
               </View>
             )}

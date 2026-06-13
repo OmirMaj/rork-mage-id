@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal,
-  Alert, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking,
+  Alert, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking, Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, Search, X, Phone, Mail, MapPin, Shield, FileText,
   AlertTriangle, CheckCircle, Clock, Trash2, Users, ShieldCheck, ChevronRight,
-  HardHat, ExternalLink, Upload,
+  HardHat, ExternalLink, Upload, UserPlus,
 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +23,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { getLicenseLookupTarget } from '@/utils/licenseBoardLookup';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -209,6 +210,22 @@ export default function SubsScreen() {
     setShowForm(true);
   }, [resetForm]);
 
+  // Invite-your-subs growth loop: free for subs to join, so every crew a GC
+  // runs seeds the supply side of the marketplace. Native share — no backend.
+  const handleInviteSubs = useCallback(async () => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    const message =
+      "Join my team on MAGE ID — it's free for subs. You'll get job invites, " +
+      'can post daily updates from the field, and keep your license & COI on file. ' +
+      'Download: https://mageid.app';
+    try {
+      await Share.share({ message, url: 'https://mageid.app' });
+      track(AnalyticsEvents.CONTRACTOR_INVITE_SHARED, { source: 'subs' });
+    } catch {
+      /* user cancelled — no-op */
+    }
+  }, []);
+
   const openEdit = useCallback((sub: Subcontractor) => {
     setEditingSub(sub);
     setCompanyName(sub.companyName);
@@ -365,7 +382,13 @@ export default function SubsScreen() {
           <View>
             <View style={styles.headerRow}>
               <Text style={styles.largeTitle}>Subs</Text>
-              <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color="#fff" /></TouchableOpacity>
+              <View style={styles.headerBtns}>
+                <TouchableOpacity style={styles.inviteBtn} onPress={handleInviteSubs} activeOpacity={0.8} testID="invite-subs" accessibilityRole="button" accessibilityLabel="Invite subs">
+                  <UserPlus size={15} color={Colors.primary} />
+                  <Text style={styles.inviteBtnText}>Invite</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color="#fff" /></TouchableOpacity>
+              </View>
             </View>
 
             <TouchableOpacity
@@ -786,6 +809,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, marginBottom: 16 },
   largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '14', borderWidth: 1, borderColor: Colors.primary + '33' },
+  inviteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.primary },
   addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   prequalBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

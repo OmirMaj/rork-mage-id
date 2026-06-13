@@ -29,7 +29,7 @@ import {
   Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
   Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
   PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
-  Ruler, ScanLine, HardHat,
+  Ruler, ScanLine, HardHat, ScanSearch,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -98,6 +98,15 @@ export default function DiscoverToolsScreen() {
             tone="accent"
             onPress={() => router.push('/takeoff' as never)}
             testID="tools-takeoff"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={ScanSearch}
+            title="Plan Intelligence"
+            subtitle="AI reads the floor plan room by room — and learns your prices every job"
+            tone="accent"
+            onPress={() => router.push('/plan-intelligence' as never)}
+            testID="tools-plan-intelligence"
           />
           <Divider styles={styles} />
           <NavRow
@@ -173,6 +182,15 @@ export default function DiscoverToolsScreen() {
         {hasProjects && (
           <Section title="FIELD" styles={styles}>
             <NavRow
+              Icon={ListChecks}
+              title="Last Planner"
+              subtitle="3-week lookahead, weekly commitments & PPC reliability"
+              tone="accent"
+              onPress={() => router.push('/last-planner' as never)}
+              testID="tools-last-planner"
+            />
+            <Divider styles={styles} />
+            <NavRow
               Icon={ClipboardList}
               title="Daily reports"
               subtitle="Voice-first DFRs with photo + GPS"
@@ -230,6 +248,24 @@ export default function DiscoverToolsScreen() {
 
         {/* Money — every cash-related workflow. */}
         <Section title="MONEY" styles={styles}>
+          <NavRow
+            Icon={Trophy}
+            title="Win Optimizer"
+            subtitle="The bid price that wins AND profits — learned from your own win/loss history"
+            tone="accent"
+            onPress={() => router.push('/win-optimizer' as never)}
+            testID="tools-win-optimizer"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={FileSignature}
+            title="Smart Proposal"
+            subtitle="Good / better / best, priced to win — send, track, close"
+            tone="accent"
+            onPress={() => router.push('/smart-proposal' as never)}
+            testID="tools-smart-proposal"
+          />
+          <Divider styles={styles} />
           {hasProjects && (
             <>
               <NavRow
@@ -248,6 +284,15 @@ export default function DiscoverToolsScreen() {
                 tone="success"
                 onPress={() => router.push('/budget-dashboard' as never)}
                 testID="tools-budget-dashboard"
+              />
+              <Divider styles={styles} />
+              <NavRow
+                Icon={TrendingUp}
+                title="Estimate Calibration"
+                subtitle="Where your bids run high or low — and the fix"
+                tone="warning"
+                onPress={() => router.push('/estimate-calibration' as never)}
+                testID="tools-estimate-calibration"
               />
               <Divider styles={styles} />
               <NavRow
@@ -295,6 +340,15 @@ export default function DiscoverToolsScreen() {
             tone="info"
             onPress={() => router.push('/buyout' as never)}
             testID="tools-buyout"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={Trophy}
+            title="Sub Scorecard"
+            subtitle="Who's actually good? Graded from your real job costs"
+            tone="accent"
+            onPress={() => router.push('/sub-scorecard' as never)}
+            testID="tools-sub-scorecard"
           />
           <Divider styles={styles} />
           <NavRow

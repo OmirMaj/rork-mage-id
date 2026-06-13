@@ -80,6 +80,26 @@ Deno.serve(async (req) => {
     return new Response('Missing scheduleId in body', { status: 400, headers: CORS });
   }
 
+  // OWNERSHIP (SECURITY). scheduleId == projectId and the caller supplies it.
+  // Without this check any authenticated user could mint a valid feed token for
+  // ANOTHER user's project (the token binds their own uid, so the HMAC passes)
+  // and read that project's entire schedule. Only the project owner may mint.
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+  const SERVICE_ROLE_KEY =
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/projects?id=eq.${encodeURIComponent(scheduleId)}&user_id=eq.${encodeURIComponent(userId)}&select=id`,
+      { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } },
+    );
+    const rows = r.ok ? await r.json() : [];
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return new Response('Forbidden: not your project', { status: 403, headers: CORS });
+    }
+  } catch {
+    return new Response('Ownership check failed', { status: 500, headers: CORS });
+  }
+
   const token = await signToken(scheduleId, userId);
 
   // Build the edge function base URL from the Supabase project URL.

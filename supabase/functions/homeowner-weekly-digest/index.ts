@@ -444,7 +444,7 @@ async function sendForProject(
 // ── Entry point ────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
-  if (!(await isValidCron(req)) && !hasAuthenticatedUser(req)) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
+  if (!(await isValidCron(req)) && !(await hasAuthenticatedUser(req))) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'POST only' }, 405);
   if (!SUPABASE_SERVICE_ROLE_KEY) return jsonResponse({ success: false, error: 'SUPABASE_SERVICE_ROLE_KEY not set' }, 500);
 

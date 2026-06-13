@@ -46,6 +46,34 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+// Abuse throttle. This endpoint is an open POST that sends a real email on
+// every call — without a limit it can be used to email-bomb any address (or
+// burn Resend quota). We reuse the atomic windowed `rate_limit_increment` RPC
+// (same one notify uses) keyed per-email (the bombing TARGET) and per-IP (the
+// SOURCE). Caps are per window (hourly). Fail-open on RPC error so a transient
+// counter glitch never blocks a legitimate sign-in.
+const MAGICLINK_EMAIL_CAP = 5;
+const MAGICLINK_IP_CAP = 20;
+
+async function rateLimitCount(scope: string): Promise<number | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/rate_limit_increment`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ p_scope: scope }),
+    });
+    if (!r.ok) return null;
+    const c = await r.json();
+    return typeof c === 'number' ? c : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
@@ -68,6 +96,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   if (!RESEND_API_KEY || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_URL) {
     return jsonResponse({ error: 'Server not configured.' }, 500);
+  }
+
+  // Throttle before doing any work (mint link / send email). Check both the
+  // target email and the source IP; trip on either. Generic 429 — don't reveal
+  // which limit fired or whether the account exists.
+  const clientIp = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
+  const [emailCount, ipCount] = await Promise.all([
+    rateLimitCount(`magiclink:email:${email}`),
+    rateLimitCount(`magiclink:ip:${clientIp}`),
+  ]);
+  if (
+    (emailCount !== null && emailCount > MAGICLINK_EMAIL_CAP) ||
+    (ipCount !== null && ipCount > MAGICLINK_IP_CAP)
+  ) {
+    return jsonResponse({ error: 'Too many sign-in requests. Please wait a few minutes and try again.' }, 429);
   }
 
   // Mint the magic link without triggering Supabase's built-in email.

@@ -23,6 +23,7 @@ import { NailItToastHost } from "@/components/animations/NailItToast";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import MarginAlertManager from "@/components/MarginAlertManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
 import { initAnalytics, identifyAnalyticsUser, resetAnalyticsUser } from "@/utils/posthog";
@@ -74,6 +75,19 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/budget-dashboard': 'Budget dashboard',
     '/cash-flow': 'Cash flow',
     '/job-costing': 'Job costing',
+    '/living-estimate': 'Living estimate',
+    '/generative-setup': 'Set up project',
+    '/margin-risk': 'Margin risk',
+    '/sub-scorecard': 'Sub scorecard',
+    '/buyout-scope-gap': 'Scope-gap audit',
+    '/estimate-accuracy': 'Estimate accuracy',
+    '/estimate-confidence': 'Estimate confidence',
+    '/estimate-calibration': 'Estimate calibration',
+    '/cost-database': 'Cost database',
+    '/area-takeoff': 'Visual takeoff',
+    '/project-memory': 'Project memory',
+    '/portfolio-margin': 'Margin board',
+    '/margin-alerts': 'Margin alerts',
     '/contract': 'Contract',
     '/selections': 'Selections',
     '/closeout-binder': 'Closeout binder',
@@ -90,6 +104,12 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/contacts': 'Contacts',
     '/buyout': 'Buyout',
     '/buyout-package': 'Bid package',
+    '/bid-leveling': 'Bid leveling',
+    '/win-optimizer': 'Win optimizer',
+    '/smart-proposal': 'Smart proposal',
+    '/material-receipt': 'Material receipt',
+    '/last-planner': 'Last Planner',
+    '/plan-intelligence': 'Plan intelligence',
     '/bill-from-estimate': 'Bill from estimate',
     '/client-messages': 'Client messages',
     '/client-portal-setup': 'Client portal',
@@ -484,10 +504,17 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
       <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
+      <Stack.Screen name="bid-leveling" options={{ title: 'Bid Leveling' }} />
+      <Stack.Screen name="win-optimizer" options={{ title: 'Win Optimizer' }} />
+      <Stack.Screen name="smart-proposal" options={{ title: 'Smart Proposal' }} />
+      <Stack.Screen name="material-receipt" options={{ title: 'Material Receipt' }} />
+      <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
+      <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />
@@ -690,6 +717,58 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="job-costing"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="living-estimate"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="generative-setup"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="margin-risk"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="sub-scorecard"
+        options={{ title: 'Sub Scorecard' }}
+      />
+      <Stack.Screen
+        name="buyout-scope-gap"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="estimate-accuracy"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="estimate-confidence"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="estimate-calibration"
+        options={{ title: 'Estimate Calibration' }}
+      />
+      <Stack.Screen
+        name="cost-database"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="area-takeoff"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="project-memory"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="portfolio-margin"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="margin-alerts"
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -1024,6 +1103,33 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="scope-sheet"
+        options={{
+          title: "Scope Sheet",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="connect-claude"
+        options={{
+          title: "Connect Claude",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="data-import"
+        options={{
+          title: "Import Data",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
         name="client-update"
         options={{
           title: "Weekly Client Update",
@@ -1142,6 +1248,7 @@ export default Sentry.wrap(function RootLayout() {
                               <MagicLinkHandler />
                               <AnalyticsManager />
                               <OfflineSyncManager />
+                              <MarginAlertManager />
                               <RootLayoutNav />
                               <UniversalSearch />
                               <SearchHotkeyListener />

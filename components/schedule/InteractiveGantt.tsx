@@ -52,7 +52,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
-import { colorForTask as canonicalColorForTask } from '@/utils/scheduleColors';
+import { colorForTask as canonicalColorForTask, barLabelColorFor } from '@/utils/scheduleColors';
 import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
@@ -1795,6 +1795,9 @@ function BarView({
   // putting an outline on the bar itself made dense schedules where every task
   // is critical (a common case) read as rectangular "loops" enclosing each bar.
   const barColor = colorForTask(bar.task);
+  // Label color follows the fill's brightness so text stays legible on light
+  // trade colors (finish/demo/cyan), not always-white.
+  const barTextColor = barLabelColorFor(barColor);
   const progressPct = Math.max(0, Math.min(1, (bar.task.progress ?? 0) / 100));
 
   // Width-aware label — full title+id when wide, abbreviated when narrow.
@@ -2004,7 +2007,7 @@ function BarView({
       {(barLabelResult.mode === 'full' || barLabelResult.mode === 'name') && (
         <View style={styles.barLabel}>
           <Text
-            style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '600' }}
+            style={{ color: barTextColor, fontSize: 11, fontWeight: '600' }}
             numberOfLines={1}
             ellipsizeMode="tail"
           >

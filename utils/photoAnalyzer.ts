@@ -16,6 +16,7 @@
 
 import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system';
+import type { RawReceiptExtraction } from '@/utils/materialReceipt';
 
 export interface AiPunchItem {
   description: string;
@@ -126,7 +127,7 @@ interface AnalyzeMeta {
   skippedIndexes: number[];
 }
 
-async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' | 'rfi' | 'triage' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
+async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' | 'rfi' | 'triage' | 'receipt' | 'rooms' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
   if (!opts.photoUrls || opts.photoUrls.length === 0) {
     throw new Error('No photos to analyze.');
   }
@@ -224,6 +225,29 @@ export async function analyzePhotosForPunch(opts: BaseOpts): Promise<{ items: Ai
 export async function analyzePhotosForDfr(opts: BaseOpts): Promise<{ summary: AiDfrSummary; meta: AnalyzeMeta }> {
   const { data, meta } = await callAnalyzePhotos<AiDfrSummary>({ ...opts, task: 'dfr' });
   return { summary: data, meta };
+}
+
+/**
+ * Extract a supplier/material invoice into structured line items. Returns the
+ * raw extraction (RawReceiptExtraction shape from utils/materialReceipt) — the
+ * caller runs normalizeExtraction() to coerce numbers + recompute totals. Single
+ * photo expected (one invoice); extra photos are allowed (multi-page) but the
+ * model returns one consolidated object.
+ */
+export async function analyzeReceipt(opts: BaseOpts): Promise<{ data: RawReceiptExtraction; meta: AnalyzeMeta }> {
+  const { data, meta } = await callAnalyzePhotos<RawReceiptExtraction>({ ...opts, task: 'receipt' });
+  return { data, meta };
+}
+
+/**
+ * Detect rooms/spaces on a floor-plan sheet (the Plan Intelligence flow).
+ * Returns the raw wire rooms — the caller runs them through
+ * utils/planIntelligence.buildPlanRooms (which clamps, types, and applies the
+ * learned memory). One sheet image expected per call.
+ */
+export async function analyzePlanRooms(opts: BaseOpts): Promise<{ rooms: unknown[]; meta: AnalyzeMeta }> {
+  const { data, meta } = await callAnalyzePhotos<{ rooms: unknown[] }>({ ...opts, task: 'rooms' });
+  return { rooms: Array.isArray(data?.rooms) ? data.rooms : [], meta };
 }
 
 export interface AiRfiCandidate {

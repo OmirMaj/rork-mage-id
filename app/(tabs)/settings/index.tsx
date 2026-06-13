@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -1123,6 +1123,30 @@ export default function SettingsScreen() {
               <FolderDown size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/connect-claude' as any)}
+            activeOpacity={0.7}
+            testID="connect-claude-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.text }]}>
+              <Sparkles size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Connect Claude (AI assistant)</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/data-import' as any)}
+            activeOpacity={0.7}
+            testID="data-import-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
+              <FolderInput size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Import data</Text>
             <ChevronRight size={16} color={themeColors.textMuted} />
           </TouchableOpacity>
         </View>

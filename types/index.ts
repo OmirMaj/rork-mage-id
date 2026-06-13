@@ -1763,6 +1763,68 @@ export interface Commitment {
 }
 
 /**
+ * MaterialReceipt — a supplier/material invoice the GC snaps or forwards, with
+ * its line items extracted by AI vision (analyze-photos task 'receipt'). This is
+ * the front door to actual material cost: instead of typing a lumber-yard
+ * invoice into a spreadsheet, the GC photographs it, MAGE reads the line items,
+ * and the per-unit prices feed the personal Cost Database (utils/costDatabase)
+ * so the next estimate is priced off what materials ACTUALLY cost — not a stale
+ * national average.
+ *
+ * V1 is captured + stored locally and (optionally) linked to a purchase-order
+ * Commitment for at-a-glance "spent vs committed" per PO. Posting into
+ * commitment.paidToDate is intentionally NOT done here — that figure is
+ * maintained server-side by a DB trigger and must not be mutated from the
+ * client; the server-side rollup is a tracked follow-up.
+ */
+export interface MaterialReceiptLine {
+  id: string;
+  /** What was bought ("2x4x8 SPF stud", "1/2in CDX plywood"). */
+  description: string;
+  /** Free-text trade/category for cost-book grouping ("Framing", "Concrete").
+   *  AI's best guess; user-editable. */
+  category?: string;
+  quantity: number;
+  /** Unit of measure as printed ("ea", "bf", "sheet", "cy", "lf"). */
+  unit: string;
+  /** Price per unit. */
+  unitPrice: number;
+  /** quantity × unitPrice (recomputed on normalize; never trusted raw). */
+  lineTotal: number;
+}
+
+export type MaterialReceiptStatus = 'extracted' | 'reviewed';
+
+export interface MaterialReceipt {
+  id: string;
+  projectId: string;
+  /** Optional link to the purchase-order Commitment this material was bought
+   *  against, for per-PO spend tracking. */
+  commitmentId?: string;
+  vendor: string;
+  /** Invoice/receipt date as printed (YYYY-MM-DD when parseable, else raw). */
+  receiptDate?: string;
+  /** Supplier's invoice/PO number off the document, if present. */
+  documentNumber?: string;
+  lines: MaterialReceiptLine[];
+  /** Pre-tax sum of lines (recomputed). */
+  subtotal: number;
+  /** Tax as printed, if any. */
+  tax?: number;
+  /** Document grand total (subtotal + tax + fees). Used to reconcile against
+   *  the summed lines so OCR drift is visible. */
+  total: number;
+  /** Local URI / remote URL of the source photo, for re-review. */
+  imageUri?: string;
+  status: MaterialReceiptStatus;
+  /** 0-100 — vision model's self-reported extraction confidence. */
+  confidence?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Prequalification + COI tracking.
  *
  * Why this exists (MAGE product angle): OSHA's Multi-Employer Citation
@@ -2656,6 +2718,44 @@ export interface TieredProposal {
   assumptions: string[];
   /** 'ai' when the LLM produced it, 'heuristic' on fallback. */
   source: 'ai' | 'heuristic';
+  generatedAt: string;
+}
+
+/**
+ * AI Scope Sheet (app/scope-sheet.tsx) — the inclusions / exclusions /
+ * clarifications / assumptions narrative that turns a priced estimate into a
+ * defensible scope of work. Drafted by AI from the estimate line items, then
+ * editable by the contractor before it goes into a proposal or contract.
+ *
+ * This attacks the #1 documented estimate-handoff failure: the estimator's
+ * narrative (what's in, what's out, what we assumed) lives only in their head
+ * and an email thread, so the PM inherits a number with no story. We persist
+ * it per-project so it's there at contract, buyout, and change-order time.
+ */
+export interface ScopeSheetItem {
+  text: string;
+  /** Trade / CSI grouping label for scanning, e.g. "Electrical", "Demolition". */
+  trade?: string;
+  /** Dispute-risk flag (mainly on exclusions/clarifications) so the GC sees
+   *  the landmines before signing. */
+  risk?: 'high' | 'medium' | 'low';
+  /** One-line "why this matters" shown on higher-risk items. */
+  note?: string;
+}
+
+export interface ScopeSheet {
+  kind: 'scope_sheet_v1';
+  projectId: string;
+  inclusions: ScopeSheetItem[];
+  exclusions: ScopeSheetItem[];
+  clarifications: ScopeSheetItem[];
+  assumptions: ScopeSheetItem[];
+  allowances: ScopeSheetItem[];
+  /** 'ai' when the model drafted it; 'heuristic' on the offline/failure fallback. */
+  source: 'ai' | 'heuristic';
+  /** Estimate grandTotal at draft time — lets the UI flag "estimate changed
+   *  since this was written, regenerate". */
+  estimateTotal: number;
   generatedAt: string;
 }
 

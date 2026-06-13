@@ -1,13 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Home, Wrench, Settings, BarChart3, CalendarDays,
-  Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
+  FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
   Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
-  PenTool, Store, Clock,
+  PenTool, Store, Clock, Sparkles, ChevronDown, ChevronRight,
+  FolderKanban, ScrollText, UserPlus, Handshake, Bot, ListChecks,
+  FileQuestion, FileCheck, Presentation, Truck, FileSignature, Banknote,
+  PieChart, LineChart, Coins, Gauge, Library, BellRing,
 } from 'lucide-react-native';
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
@@ -28,81 +31,90 @@ interface NavItem {
   requires?: FeatureKey;
 }
 
-// The bids / companies / hire layouts under (tabs)/ were merged into the
-// discover/ folder when those features moved under the unified Find Work
-// shell. This sidebar pointed at the old (tabs)/bids etc. paths which now
-// 404 in production. Routes below now point to the live discover/* paths.
+// ─── Information architecture (2026 declutter audit) ──────────────────────
+// The flat 38-item rail across 7 always-expanded groups read as a wall. The
+// research-backed fix (Procore / Jira / GitHub all do this): separate GLOBAL
+// surfaces from PROJECT-SCOPED tools, and chunk the long tail behind
+// collapsible group headers so the headers stay scannable while the items
+// stay one click away. Distinct icons per destination (the old rail reused
+// FileText/BarChart3 across ~10 items, which kills scannability).
 //
-// Audit (May 2026) expanded this from 12 destinations → 30+ to address
-// the desktop navigability gap. Mobile users reach feature screens via
-// the project-detail tile grids; desktop users (web) saw a sparse
-// sidebar with no way to reach 50+ feature screens until they opened a
-// project. Now every major feature has a sidebar entry.
+// GLOBAL groups render expanded by default; PROJECT groups render collapsed
+// by default (the group containing the active route auto-expands for
+// context). Account is pinned to the bottom of the rail, dimmed.
 const NAV_ITEMS: NavItem[] = [
-  // ── PROJECT — top-level work surfaces
-  { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'PROJECT' },
-  { key: 'home',              label: 'Projects',         icon: Home,            route: '/(tabs)/(home)',                   section: 'PROJECT' },
-  { key: 'estimate',          label: 'Estimate',         icon: BarChart3,       route: '/(tabs)/discover/estimate',        section: 'PROJECT' },
-  { key: 'schedule',          label: 'Schedule',         icon: CalendarDays,    route: '/(tabs)/discover/schedule',        section: 'PROJECT', requires: 'schedule_gantt_pdf' },
-  { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'PROJECT' },
-  { key: 'weekly-snapshot',   label: 'Weekly Snapshot',  icon: TrendingUp,      route: '/weekly-snapshot',                  section: 'PROJECT' },
+  // ── WORKSPACE — global landing surfaces
+  { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'WORKSPACE' },
+  { key: 'home',              label: 'Projects',         icon: FolderKanban,    route: '/(tabs)/(home)',                   section: 'WORKSPACE' },
+  { key: 'ask-mage',          label: 'Ask MAGE',         icon: Sparkles,        route: '/ask',                              section: 'WORKSPACE' },
+  { key: 'margin-board',      label: 'Margin Board',     icon: Gauge,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'cost-database',     label: 'Cost Database',    icon: Library,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: PenTool,         route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
 
-  // ── FIELD OPS — daily field operations
+  // ── FIND WORK — marketplace / bids / suppliers
+  { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK' },
+  { key: 'bids',              label: 'Public Bids',      icon: ScrollText,      route: '/(tabs)/discover/bids',            section: 'FIND WORK' },
+  { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK' },
+
+  // ── NETWORK — people + AI
+  { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
+  { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
+  { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
+  { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
+  { key: 'hire',              label: 'Hire',             icon: Handshake,       route: '/(tabs)/discover/hire',            section: 'NETWORK' },
+  { key: 'construction-ai',   label: 'Construction AI',  icon: Bot,             route: '/(tabs)/construction-ai',          section: 'NETWORK' },
+
+  // ── PROJECT · OVERVIEW
+  { key: 'estimate',          label: 'Estimate',         icon: Calculator,      route: '/(tabs)/discover/estimate',        section: 'OVERVIEW' },
+  { key: 'schedule',          label: 'Schedule',         icon: CalendarDays,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
+  { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
+  { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'OVERVIEW' },
+  { key: 'weekly-snapshot',   label: 'Weekly Snapshot',  icon: TrendingUp,      route: '/weekly-snapshot',                  section: 'OVERVIEW' },
+
+  // ── PROJECT · FIELD OPS
   { key: 'daily-report',      label: 'Daily Report',     icon: ClipboardList,   route: '/daily-report',                     section: 'FIELD OPS' },
   { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS' },
   { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
-  { key: 'punch-list',        label: 'Punch List',       icon: ClipboardList,   route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
-  { key: 'rfi',               label: 'RFIs',             icon: FileText,        route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
-  { key: 'submittal',         label: 'Submittals',       icon: FileText,        route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
-  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Users,           route: '/oac-meeting',                      section: 'FIELD OPS' },
-  { key: 'equipment',         label: 'Equipment',        icon: Hammer,          route: '/(tabs)/equipment',                section: 'FIELD OPS', requires: 'equipment_rental' },
+  { key: 'punch-list',        label: 'Punch List',       icon: ListChecks,      route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
+  { key: 'rfi',               label: 'RFIs',             icon: FileQuestion,    route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
+  { key: 'submittal',         label: 'Submittals',       icon: FileCheck,       route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
+  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS' },
+  { key: 'equipment',         label: 'Equipment',        icon: Truck,           route: '/(tabs)/equipment',                section: 'FIELD OPS', requires: 'equipment_rental' },
 
-  // ── FINANCIAL — money flow
-  { key: 'invoice',           label: 'Invoices',         icon: Receipt,         route: '/invoice',                          section: 'FINANCIAL' },
-  { key: 'change-order',      label: 'Change Orders',    icon: PenTool,         route: '/change-order',                     section: 'FINANCIAL', requires: 'change_orders_invoicing' },
-  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: FileText,        route: '/aia-pay-app',                      section: 'FINANCIAL', requires: 'aia_pay_app' },
-  { key: 'cash-flow',         label: 'Cash Flow',        icon: TrendingUp,      route: '/cash-flow',                        section: 'FINANCIAL', requires: 'cash_flow_forecaster' },
-  { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: BarChart3,       route: '/budget-dashboard',                 section: 'FINANCIAL', requires: 'full_budget_dashboard' },
-  { key: 'job-costing',       label: 'Job Costing',      icon: Calculator,      route: '/job-costing',                      section: 'FINANCIAL', requires: 'job_costing' },
-  { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCIAL' },
-  { key: 'reports',           label: 'Reports',          icon: BarChart3,       route: '/reports',                          section: 'FINANCIAL' },
+  // ── PROJECT · FINANCIALS
+  { key: 'invoice',           label: 'Invoices',         icon: Receipt,         route: '/invoice',                          section: 'FINANCIALS' },
+  { key: 'change-order',      label: 'Change Orders',    icon: FileSignature,   route: '/change-order',                     section: 'FINANCIALS', requires: 'change_orders_invoicing' },
+  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: Banknote,        route: '/aia-pay-app',                      section: 'FINANCIALS', requires: 'aia_pay_app' },
+  { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', requires: 'full_budget_dashboard' },
+  { key: 'job-costing',       label: 'Job Costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', requires: 'job_costing' },
+  { key: 'cash-flow',         label: 'Cash Flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCIALS', requires: 'cash_flow_forecaster' },
+  { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCIALS' },
+  { key: 'reports',           label: 'Reports',          icon: BarChart3,       route: '/reports',                          section: 'FINANCIALS' },
 
-  // ── CLIENT — homeowner-facing
-  { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT', requires: 'client_portal' },
+  // ── PROJECT · CLIENT
+  { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT' },
   { key: 'contract',          label: 'Contracts',        icon: FileText,        route: '/contract',                         section: 'CLIENT' },
   { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT' },
   { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT' },
 
-  // ── MARKETPLACE — bids + suppliers
-  { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Hammer,          route: '/(tabs)/mage-id-bids',             section: 'MARKETPLACE' },
-  { key: 'bids',              label: 'Public Bids',      icon: FileText,        route: '/(tabs)/discover/bids',            section: 'MARKETPLACE' },
-  { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'MARKETPLACE' },
-
-  // ── NETWORK — people + AI assistant
-  { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
-  { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
-  { key: 'leads',             label: 'Leads',            icon: TrendingUp,      route: '/leads',                            section: 'NETWORK' },
-  { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
-  { key: 'hire',              label: 'Hire',             icon: HardHat,         route: '/(tabs)/discover/hire',            section: 'NETWORK' },
-  { key: 'construction-ai',   label: 'Construction AI',  icon: Gavel,           route: '/(tabs)/construction-ai',          section: 'NETWORK' },
-
-  // ── ACCOUNT
+  // ── ACCOUNT (pinned to bottom)
   { key: 'notifications',     label: 'Notifications',    icon: Bell,            route: '/notifications-inbox',              section: 'ACCOUNT' },
   { key: 'messages',          label: 'Messages',         icon: MessageCircle,   route: '/messages',                         section: 'ACCOUNT' },
   { key: 'report-inbox',      label: 'Report Inbox',     icon: Inbox,           route: '/report-inbox',                     section: 'ACCOUNT' },
   { key: 'settings',          label: 'Settings',         icon: Settings,        route: '/(tabs)/settings',                 section: 'ACCOUNT' },
 ];
 
-const SECTIONS = ['PROJECT', 'FIELD OPS', 'FINANCIAL', 'CLIENT', 'MARKETPLACE', 'NETWORK', 'ACCOUNT'];
+// Global groups render expanded; project groups render collapsed by default.
+const GLOBAL_SECTIONS = ['WORKSPACE', 'FIND WORK', 'NETWORK'];
+const PROJECT_SECTIONS = ['OVERVIEW', 'FIELD OPS', 'FINANCIALS', 'CLIENT'];
+const SECTIONS = [...GLOBAL_SECTIONS, ...PROJECT_SECTIONS];
+const ACCOUNT_SECTION = 'ACCOUNT';
 
 // ─── Client-persona sidebar ──────────────────────────────────────────────
-// The full NAV_ITEMS list is contractor-shaped — 30+ destinations covering
-// estimating, scheduling, daily reports, AIA pay apps, RFIs, submittals,
-// subs, etc. A property owner posting renovations needs a much smaller
-// surface: post a project, see active RFPs, talk to awarded contractors,
-// manage account. Most contractor-side routes are not even authorized for
-// clients server-side (they're scoped by user_id on tables only contractors
-// populate), so showing them would just lead to dead ends.
+// A property owner posting renovations needs a much smaller surface: post a
+// project, see active RFPs, talk to awarded contractors, manage account. Most
+// contractor-side routes aren't even authorized for clients server-side.
 const CLIENT_NAV_ITEMS: NavItem[] = [
   { key: 'home',          label: 'Home',           icon: Home,          route: '/(tabs)/(home)', section: 'PROPERTY OWNER' },
   { key: 'my-rfps',       label: 'My Projects',    icon: Briefcase,     route: '/my-rfps',       section: 'PROPERTY OWNER' },
@@ -112,7 +124,7 @@ const CLIENT_NAV_ITEMS: NavItem[] = [
   { key: 'notifications', label: 'Notifications',  icon: Bell,          route: '/notifications-inbox', section: 'ACCOUNT' },
   { key: 'settings',      label: 'Settings',       icon: Settings,      route: '/(tabs)/settings', section: 'ACCOUNT' },
 ];
-const CLIENT_SECTIONS = ['PROPERTY OWNER', 'ACCOUNT'];
+const CLIENT_SECTIONS = ['PROPERTY OWNER'];
 
 function isActiveRoute(pathname: string, navKey: string, route: string): boolean {
   if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
@@ -122,12 +134,7 @@ function isActiveRoute(pathname: string, navKey: string, route: string): boolean
     return /\/bids(?:\/|$)/.test(pathname) && !pathname.includes('mage-id-bids');
   }
   // Strip Expo Router group folders e.g. `(tabs)` — the resolved pathname
-  // never includes them — and compare on full path boundaries. Pre-fix this
-  // used `pathname.includes(lastSegment)`, which painted Contracts active on
-  // `/contract-export`, lit Subs on `/subscription-paywall`, and otherwise
-  // mis-highlighted any route whose final segment was a substring of
-  // another. The startsWith form keeps child routes (e.g. `/invoice/123`)
-  // highlighting their parent without the false positives.
+  // never includes them — and compare on full path boundaries.
   const normalized = '/' + route
     .split('/')
     .filter(seg => seg.length > 0 && !seg.startsWith('('))
@@ -147,33 +154,114 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const { openSearch } = useSearch();
   const { canAccess } = useTierAccess();
   const { colors } = useTheme();
-  const { userRole } = useCoreData();
+  const { userRole, projects } = useCoreData();
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const handleNav = useCallback((route: string) => {
     router.push(route as any);
   }, [router]);
 
-  // Client persona renders a 6-item sidebar (Home / My Projects / Post /
-  // Messages / Notifications / Settings); contractor + 'both' get the full
-  // ~30-item operations sidebar. Falls back to contractor view when the
-  // role query is still hydrating so cold boot doesn't briefly flash an
-  // empty sidebar before settling.
   const isClient = userRole === 'client';
   const navItems = isClient ? CLIENT_NAV_ITEMS : NAV_ITEMS;
   const sections = isClient ? CLIENT_SECTIONS : SECTIONS;
-  const groupedItems = sections.map(section => ({
-    section,
-    items: navItems.filter(item => item.section === section),
-  }));
+
+  // Account items render pinned to the bottom of the rail (dimmed), separate
+  // from the scrollable section list.
+  const accountItems = useMemo(
+    () => navItems.filter(item => item.section === ACCOUNT_SECTION),
+    [navItems],
+  );
+  const groupedItems = useMemo(
+    () => sections.map(section => ({
+      section,
+      items: navItems.filter(item => item.section === section),
+    })),
+    [sections, navItems],
+  );
+
+  // Which section holds the currently-active route — auto-expanded for context.
+  const activeSection = useMemo(() => {
+    const hit = navItems.find(it => isActiveRoute(pathname, it.key, it.route));
+    return hit?.section ?? null;
+  }, [navItems, pathname]);
+
+  // Collapse state: project-tool groups start collapsed, everything else open.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const s of SECTIONS) init[s] = !PROJECT_SECTIONS.includes(s);
+    for (const s of CLIENT_SECTIONS) init[s] = true;
+    return init;
+  });
+
+  // Reveal the active section automatically (without fighting manual toggles
+  // elsewhere). Per GOV.UK accordion research we drive this from a deliberate
+  // default rather than persisting arbitrary state across sessions.
+  useEffect(() => {
+    if (activeSection) {
+      setOpenSections(prev => (prev[activeSection] ? prev : { ...prev, [activeSection]: true }));
+    }
+  }, [activeSection]);
+
+  const toggleSection = useCallback((section: string) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  }, []);
+
+  const recentProjects = useMemo(
+    () => (isClient ? [] : projects.slice(0, 3)),
+    [isClient, projects],
+  );
+
+  const renderNavItem = useCallback((item: NavItem, dimmed = false) => {
+    const active = isActiveRoute(pathname, item.key, item.route);
+    const hovered = hoveredKey === item.key;
+    const Icon = item.icon;
+    const locked = !!item.requires && !canAccess(item.requires);
+    const baseColor = dimmed ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.6)';
+
+    return (
+      <TouchableOpacity
+        key={item.key}
+        style={[
+          styles.navItem,
+          active && [styles.navItemActive, { backgroundColor: colors.accent }],
+          hovered && !active && styles.navItemHovered,
+        ]}
+        onPress={() => handleNav(item.route)}
+        activeOpacity={0.7}
+        {...(Platform.OS === 'web' ? {
+          onMouseEnter: () => setHoveredKey(item.key),
+          onMouseLeave: () => setHoveredKey(null),
+        } as any : {})}
+        testID={`sidebar-${item.key}`}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
+        accessibilityState={{ selected: active, disabled: locked }}
+      >
+        <Icon
+          size={18}
+          color={active ? '#FFFFFF' : hovered ? '#FFFFFF' : baseColor}
+          strokeWidth={active ? 2.2 : 1.8}
+        />
+        <Text style={[
+          styles.navLabel,
+          dimmed && styles.navLabelDimmed,
+          active && styles.navLabelActive,
+          hovered && !active && styles.navLabelHovered,
+        ]}>
+          {item.label}
+        </Text>
+        {locked && (
+          <View style={styles.lockBadge}>
+            <Lock size={10} color="rgba(255,255,255,0.55)" strokeWidth={2.2} />
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }, [pathname, hoveredKey, canAccess, colors.accent, handleNav]);
 
   return (
     <View
-      style={[styles.container, { width, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
-      // Audit-2026-05-21 W5: semantic landmark on web. React Native Web
-      // maps accessibilityRole="navigation" to <nav>, giving screen
-      // readers a "Jump to navigation" skip-link target + improving
-      // Lighthouse a11y score. Native ignores the role.
+      style={[styles.container, { width, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 12 }]}
       accessibilityRole={Platform.OS === 'web' ? ('navigation' as never) : undefined}
       accessibilityLabel="Primary navigation"
     >
@@ -196,10 +284,6 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
               onMouseLeave: () => setHoveredKey(null),
             } as any : {})}
             testID="sidebar-search"
-            // Audit-2026-05-21 W7 — accessibility. accessibilityRole="button"
-            // promotes the TouchableOpacity to a real <button> on web (gets
-            // keyboard focusability + screen-reader role). accessibilityLabel
-            // gives the icon-only search affordance a spoken name.
             accessibilityRole="button"
             accessibilityLabel="Open universal search"
           >
@@ -218,74 +302,79 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
             )}
           </TouchableOpacity>
         </View>
-        {groupedItems.map(({ section, items }) => (
-          <View key={section} style={styles.navSection}>
-            <Text style={styles.sectionLabel}>{section}</Text>
-            {items.map(item => {
-              const active = isActiveRoute(pathname, item.key, item.route);
-              const hovered = hoveredKey === item.key;
-              const Icon = item.icon;
-              const locked = !!item.requires && !canAccess(item.requires);
 
-              return (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[
-                    styles.navItem,
-                    active && [styles.navItemActive, { backgroundColor: colors.accent }],
-                    hovered && !active && styles.navItemHovered,
-                  ]}
-                  onPress={() => handleNav(item.route)}
-                  activeOpacity={0.7}
-                  {...(Platform.OS === 'web' ? {
-                    onMouseEnter: () => setHoveredKey(item.key),
-                    onMouseLeave: () => setHoveredKey(null),
-                  } as any : {})}
-                  testID={`sidebar-${item.key}`}
-                  // Audit-2026-05-21 W6 + W7 — accessibility. Promotes
-                  // each nav item to <button> on web (keyboard focus +
-                  // screen-reader role) and announces the destination
-                  // with current state ("Active") + locked state if
-                  // tier-gated.
-                  accessibilityRole="button"
-                  accessibilityLabel={`${item.label}${locked ? ' (requires upgrade)' : ''}${active ? ', current page' : ''}`}
-                  accessibilityState={{ selected: active, disabled: locked }}
-                >
-                  {/* Active state is now a solid pill (matches the SaaS-
-                      dashboard reference) instead of a left-bar + 9% tint
-                      combo. Pill alone reads cleaner; the bar was redundant
-                      visual noise once the bg was strong enough to anchor
-                      the active item. */}
-                  <Icon
-                    size={18}
-                    color={active ? '#FFFFFF' : hovered ? '#FFFFFF' : 'rgba(255,255,255,0.6)'}
-                    strokeWidth={active ? 2.2 : 1.8}
-                  />
-                  <Text style={[
-                    styles.navLabel,
-                    active && styles.navLabelActive,
-                    hovered && !active && styles.navLabelHovered,
-                  ]}>
-                    {item.label}
-                  </Text>
-                  {locked && (
-                    <View style={styles.lockBadge}>
-                      <Lock size={10} color="rgba(255,255,255,0.55)" strokeWidth={2.2} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+        {/* Recent projects — zero-effort frecency re-navigation (last 3 opened). */}
+        {recentProjects.length > 0 && (
+          <View style={styles.navSection}>
+            <Text style={styles.sectionLabel}>RECENT</Text>
+            {recentProjects.map(p => (
+              <TouchableOpacity
+                key={p.id}
+                style={styles.navItem}
+                onPress={() => handleNav(`/project-detail?id=${p.id}`)}
+                activeOpacity={0.7}
+                {...(Platform.OS === 'web' ? {
+                  onMouseEnter: () => setHoveredKey(`recent-${p.id}`),
+                  onMouseLeave: () => setHoveredKey(null),
+                } as any : {})}
+                testID={`sidebar-recent-${p.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Open project ${p.name}`}
+              >
+                <Clock size={16} color={hoveredKey === `recent-${p.id}` ? '#FFFFFF' : 'rgba(255,255,255,0.5)'} strokeWidth={1.8} />
+                <Text style={[styles.navLabel, hoveredKey === `recent-${p.id}` && styles.navLabelHovered]} numberOfLines={1}>
+                  {p.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        ))}
+        )}
+
+        {groupedItems.map(({ section, items }) => {
+          if (items.length === 0) return null;
+          const isProjectGroup = PROJECT_SECTIONS.includes(section);
+          const open = openSections[section] ?? !isProjectGroup;
+          const showProjectDivider = !isClient && section === PROJECT_SECTIONS[0];
+
+          return (
+            <View key={section} style={styles.navSection}>
+              {showProjectDivider && (
+                <View style={styles.projectDivider}>
+                  <View style={styles.projectDividerLine} />
+                  <Text style={styles.projectDividerLabel}>PROJECT TOOLS</Text>
+                  <View style={styles.projectDividerLine} />
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.sectionHeader}
+                onPress={() => toggleSection(section)}
+                activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel={`${section} section, ${open ? 'expanded' : 'collapsed'}`}
+                accessibilityState={{ expanded: open }}
+                testID={`sidebar-section-${section}`}
+              >
+                <Text style={styles.sectionLabel}>{section}</Text>
+                {open
+                  ? <ChevronDown size={13} color="rgba(255,255,255,0.3)" strokeWidth={2} />
+                  : <ChevronRight size={13} color="rgba(255,255,255,0.3)" strokeWidth={2} />}
+              </TouchableOpacity>
+              {open && items.map(item => renderNavItem(item))}
+            </View>
+          );
+        })}
       </ScrollView>
 
-      {/* Dev-mode footer — only shown in dev builds. The "v2.0 / Desktop
-          Mode" label was reading as a debug stamp on the production site;
-          quiet by default, available locally for build diagnostics. */}
+      {/* Account — pinned to the bottom of the rail, dimmed. */}
+      {accountItems.length > 0 && (
+        <View style={styles.accountSection}>
+          <View style={styles.footerDivider} />
+          {accountItems.map(item => renderNavItem(item, true))}
+        </View>
+      )}
+
       {__DEV__ && (
         <View style={styles.footer}>
-          <View style={styles.footerDivider} />
           <Text style={styles.footerText}>MAGE ID v2.0</Text>
           <Text style={styles.footerSubtext}>Desktop Mode</Text>
         </View>
@@ -335,30 +424,54 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   navSection: {
-    marginBottom: 16,
+    marginBottom: 14,
+  },
+  // Section header is now a pressable collapse toggle (label + chevron).
+  sectionHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 4,
   },
   sectionLabel: {
     fontSize: 10,
     fontWeight: '700' as const,
     color: 'rgba(255,255,255,0.3)',
     letterSpacing: 1.2,
-    paddingHorizontal: 12,
-    marginBottom: 6,
+  },
+  // "PROJECT TOOLS" divider separates the global rail from project-scoped
+  // groups — the core IA split that tames the clutter.
+  projectDivider: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 4,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  projectDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  projectDividerLabel: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: 'rgba(255,255,255,0.28)',
+    letterSpacing: 1.4,
   },
   navItem: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 12,
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 12,
     borderRadius: Tokens.radius.md,
     marginBottom: 2,
     position: 'relative' as const,
   },
-  // Solid pill in brand green for the active item — high-contrast against
-  // the dark sidebar surface, matches the reference dashboard's active
-  // treatment. Replaces the 9%-opacity tint + left-bar combo, which was
-  // too subtle on a dark bg to read as "you are here".
   navItemActive: {
     // backgroundColor set inline via theme colors.accent
   },
@@ -369,6 +482,10 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: 'rgba(255,255,255,0.6)',
+    flexShrink: 1,
+  },
+  navLabelDimmed: {
+    color: 'rgba(255,255,255,0.45)',
   },
   navLabelActive: {
     color: '#FFFFFF',
@@ -395,15 +512,18 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
     letterSpacing: 0.3,
   },
+  accountSection: {
+    paddingTop: 6,
+  },
   footer: {
     alignItems: 'center' as const,
-    paddingTop: 12,
+    paddingTop: 10,
   },
   footerDivider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.06)',
     alignSelf: 'stretch' as const,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   footerText: {
     fontSize: Type.caption2.fontSize,

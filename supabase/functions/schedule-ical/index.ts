@@ -99,12 +99,21 @@ Deno.serve(async (req) => {
 
   const { data: project, error } = await supa
     .from('projects')
-    .select('id, name, schedule')
+    .select('id, name, schedule, user_id')
     .eq('id', scheduleId)
     .maybeSingle();
 
   if (error || !project) {
     return new Response('Not found', { status: 404 });
+  }
+
+  // Defense in depth (SECURITY). The mint endpoint (schedule-ical-url) now
+  // verifies ownership before signing, but a token minted under the OLD code
+  // (attacker's uid + victim's project) would still validate the HMAC. Confirm
+  // the uid in the token actually owns the project before serving the feed —
+  // this retroactively invalidates any such tokens.
+  if (project.user_id !== userId) {
+    return new Response('Forbidden', { status: 403 });
   }
 
   const schedule = project.schedule as {
