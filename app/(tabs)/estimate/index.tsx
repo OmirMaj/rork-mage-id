@@ -36,6 +36,7 @@ import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildEstimateEmailHtml } from '@/utils/emailService';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import type { LinkedEstimate, LinkedEstimateItem, Project } from '@/types';
 import { LABOR_RATES, LABOR_CATEGORIES, type LaborRate } from '@/constants/laborRates';
 import { ASSEMBLIES, ASSEMBLY_CATEGORIES, type AssemblyItem } from '@/constants/assemblies';
@@ -132,6 +133,7 @@ export default function EstimateScreen() {
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { projects, updateProject, settings, updateSettings, contacts } = useProjects();
+  const { isFree } = useTierAccess();
   // Shared materials cart (used by the Materials browser too). All cart
   // mutations now flow through the context — local setCart() calls were
   // removed in favor of these helpers.
@@ -867,6 +869,7 @@ export default function EstimateScreen() {
         contactName: branding.contactName,
         contactEmail: branding.email,
         contactPhone: branding.phone,
+        growthBadge: isFree,
       });
 
       const tempProject: Project = {
@@ -951,7 +954,7 @@ export default function EstimateScreen() {
       console.error('[Estimate] PDF share error:', e);
       Alert.alert('Error', 'Failed to generate PDF. Please try again.');
     }
-  }, [cart, settings, buildLinkedEstimate, cartTotal]);
+  }, [cart, settings, buildLinkedEstimate, cartTotal, isFree]);
 
   const handleShareEmail = useCallback(() => {
     let text = '';

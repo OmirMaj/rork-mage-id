@@ -75,6 +75,12 @@ export interface EmailWrapOpts {
   accent?: string;
   /** Unsubscribe context — drives footer link. */
   unsubscribe?: UnsubscribeOpts;
+  /** When true, the footer shows the "Built with MAGE ID — run your projects
+   *  free" growth CTA instead of the subtle "Powered by" line. Set this for
+   *  emails a FREE-tier GC sends to their own clients/subs (the recipients are
+   *  prospective users); paid tiers keep the clean footer. The badge is the
+   *  "price" of the free plan — the Calendly/Loom/Typeform loop. */
+  growthBadge?: boolean;
 }
 
 // ─── HTML helpers ────────────────────────────────────────────────────
@@ -277,9 +283,26 @@ export function buildPreferencesUrl(email: string): string {
   return `${PORTAL_BASE_URL}/preferences?${params.toString()}`;
 }
 
+// "Built with MAGE ID — run your projects free" growth CTA. Shown in the
+// footer when growthBadge is set (free-tier GC → their clients/subs). The
+// recipient is a prospective user; this is the product-led acquisition loop.
+const GROWTH_BADGE_URL = `${PORTAL_BASE_URL}/?ref=email`;
+
+function brandLineHtml(growthBadge?: boolean): string {
+  if (growthBadge) {
+    return `<p style="margin:0;font-family:${FONT_STACK};font-size:12px;color:${STONE};line-height:1.6;">
+        Built with <a href="${GROWTH_BADGE_URL}" style="color:${AMBER};font-weight:800;text-decoration:none;">MAGE ID</a> — the all-in-one app for contractors. <a href="${GROWTH_BADGE_URL}" style="color:${INK};font-weight:700;text-decoration:underline;">Run your projects free →</a>
+      </p>`;
+  }
+  return `<p style="margin:0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;">
+        Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a> — the operating system for general contractors.
+      </p>`;
+}
+
 function footerHtml(opts: {
   sender?: { name?: string; email?: string; phone?: string };
   unsubscribe?: UnsubscribeOpts;
+  growthBadge?: boolean;
 }): string {
   const senderLine = (opts.sender?.name || opts.sender?.email || opts.sender?.phone)
     ? `<p style="margin:0 0 6px;font-family:${FONT_STACK};font-size:12px;color:${STONE};line-height:1.5;">Sent by <strong style="color:${INK}">${escapeHtml(opts.sender?.name ?? '')}</strong>${opts.sender?.email ? ` · ${escapeHtml(opts.sender.email)}` : ''}${opts.sender?.phone ? ` · ${escapeHtml(opts.sender.phone)}` : ''}. Replies go to them, not us.</p>`
@@ -294,9 +317,7 @@ function footerHtml(opts: {
   return `
     <tr><td style="padding:22px 32px 28px;background:#FAFAF7;border-top:1px solid ${SAND};">
       ${senderLine}
-      <p style="margin:0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;">
-        Powered by <a href="${PORTAL_BASE_URL}" style="color:${INK};font-weight:700;text-decoration:none;">MAGE ID</a> — the operating system for general contractors.
-      </p>
+      ${brandLineHtml(opts.growthBadge)}
       ${unsubLine}
     </td></tr>`;
 }
@@ -381,7 +402,7 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
           ${ctaHtml}
           ${secondaryHtml}
         </td></tr>
-        ${footerHtml({ sender, unsubscribe: opts.unsubscribe })}
+        ${footerHtml({ sender, unsubscribe: opts.unsubscribe, growthBadge: opts.growthBadge })}
       </table>
     </td></tr>
   </table>

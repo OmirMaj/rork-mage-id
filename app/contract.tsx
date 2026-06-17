@@ -31,6 +31,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import {
   fetchActiveContract, saveContract, setContractStatus,
   buildDraftContract, buildProposalFromRevision, defaultPaymentSchedule,
@@ -71,6 +72,7 @@ export default function ContractScreen() {
   const styles = useThemedStyles(makeStyles);
   const { projectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
   const { getProject, updateProject: ctxUpdateProject, settings } = useProjects();
+  const { isFree } = useTierAccess();
   const project = projectId ? getProject(projectId) : undefined;
 
   const [contract, setContract] = useState<ProjectContract | null>(null);
@@ -317,6 +319,7 @@ export default function ContractScreen() {
             companyName,
             project: { name: project.name, location: project.location },
             sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
+            growthBadge: isFree,
           });
 
           const subject = `${project.name} — your contract is ready to sign`;
@@ -355,7 +358,7 @@ export default function ContractScreen() {
     } finally {
       setSigning(false);
     }
-  }, [contract, project, ctxUpdateProject, settings]);
+  }, [contract, project, ctxUpdateProject, settings, isFree]);
 
   const handleSealSignedContract = useCallback(async () => {
     if (!project || !contract || !user?.id) return;

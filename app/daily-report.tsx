@@ -26,6 +26,7 @@ import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
 import { FolderOpen } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
@@ -59,6 +60,7 @@ export default function DailyReportScreen() {
     getPhotosForProject,
   } = useProjects();
   const { isProOrAbove } = useSubscription();
+  const { isFree } = useTierAccess();
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [showVoiceBanner, setShowVoiceBanner] = useState(false);
   // Tracks which fields the AI populated in the most recent voice
@@ -656,6 +658,7 @@ export default function DailyReportScreen() {
         issuesAndDelays: issuesAndDelays.trim(),
         contactName: branding.contactName,
         contactEmail: branding.email,
+        growthBadge: isFree,
       });
 
       const result = await sendEmail({
@@ -726,7 +729,7 @@ export default function DailyReportScreen() {
     }
 
     handleSave('sent', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, existingReport]);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, existingReport, isFree]);
 
   if (!project) {
     return (
