@@ -494,11 +494,13 @@ export function buildDailyReportEmailHtml(opts: {
   message?: string;
   contactName?: string;
   contactEmail?: string;
+  /** Free-tier "Built with MAGE ID" growth footer — homeowner-facing report. */
+  growthBadge?: boolean;
 }): string {
   const {
     companyName, recipientName, projectName, date,
     weather, totalManpower, totalManHours, workPerformed,
-    issuesAndDelays, message, contactName, contactEmail,
+    issuesAndDelays, message, contactName, contactEmail, growthBadge,
   } = opts;
 
   const formatted = new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -529,6 +531,7 @@ export function buildDailyReportEmailHtml(opts: {
     companyName,
     project: { name: projectName },
     contactName, contactEmail,
+    growthBadge,
   });
 }
 
@@ -545,10 +548,14 @@ export function buildEstimateEmailHtml(opts: {
   /** Pre-rendered financing offer block — injected after the stat card.
       Pass '' or omit to suppress the block entirely. */
   financingHtml?: string;
+  /** Free-tier "Built with MAGE ID" growth footer (estimates are ungated +
+      high-frequency, so this is a prime product-led acquisition surface). */
+  growthBadge?: boolean;
 }): string {
   const {
     companyName, recipientName, projectName, grandTotal,
     itemCount, message, contactName, contactEmail, contactPhone, financingHtml,
+    growthBadge,
   } = opts;
 
   const bodyHtml = `
@@ -572,6 +579,7 @@ export function buildEstimateEmailHtml(opts: {
     companyName,
     project: { name: projectName },
     contactName, contactEmail, contactPhone,
+    growthBadge,
   });
 }
 

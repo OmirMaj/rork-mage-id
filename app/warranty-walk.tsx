@@ -24,6 +24,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { sendEmail } from '@/utils/emailService';
 import { wrapEmailHtml, escapeHtml } from '@/utils/emailLayout';
 import { Type } from '@/constants/typography';
@@ -72,6 +73,7 @@ export default function WarrantyWalkScreen() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, updateProject, settings } = useProjects();
+  const { isFree } = useTierAccess();
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
 
   const [items, setItems] = useState<Record<string, ItemState>>(() =>
@@ -167,6 +169,7 @@ export default function WarrantyWalkScreen() {
           email: settings?.branding?.email,
           phone: settings?.branding?.phone,
         },
+        growthBadge: isFree,
       });
       const subject = `${project.name} — 11-month warranty walk summary`;
       const results = await Promise.all(recipients.map(r => sendEmail({
@@ -186,7 +189,7 @@ export default function WarrantyWalkScreen() {
     } finally {
       setEmailing(false);
     }
-  }, [project, settings, items, totals, overallNotes]);
+  }, [project, settings, items, totals, overallNotes, isFree]);
 
   // Group items by phase for cleaner scrolling. Computed BEFORE the
   // `!project` early return so the hook call order stays stable across
