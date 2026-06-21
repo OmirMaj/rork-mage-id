@@ -53,16 +53,17 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: April 21, 2026</p>
+    <p class="updated">Last updated: June 20, 2026</p>
 
     <p>MAGE ID ("we," "us," or "our") operates the MAGE ID mobile and web applications (the "Service"). This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.</p>
 
     <h2>Information We Collect</h2>
     <ul>
       <li><strong>Account Information:</strong> Name, email address, and password (encrypted) when you sign up.</li>
-      <li><strong>Project Data:</strong> Project details, schedules, estimates, invoices, daily reports, and related construction management content you create inside the app.</li>
+      <li><strong>Project &amp; Financial Data:</strong> Project details, schedules, estimates, costs, invoices, change orders, daily reports, documents, photos, and client/subcontractor contact details you create inside the app.</li>
+      <li><strong>Payment Data:</strong> When you send or receive payments, card processing is handled by Stripe; we do not store full card numbers. Subscriptions are handled by RevenueCat and the Apple App Store / Google Play.</li>
       <li><strong>Device Information:</strong> Operating system, device type, and app version for diagnostic purposes.</li>
-      <li><strong>Usage Data:</strong> Anonymous analytics about feature usage to improve the product.</li>
+      <li><strong>Usage Data:</strong> App interactions and diagnostics, via PostHog (product analytics), to improve the product.</li>
     </ul>
 
     <h2>How We Use Your Information</h2>
@@ -78,17 +79,23 @@
     <p>Your data is stored on secure, encrypted servers provided by Supabase (PostgreSQL database, hosted on AWS). We use industry-standard encryption in transit (TLS) and at rest. Passwords are hashed using bcrypt and never stored in plain text.</p>
 
     <h2>Third-Party Services</h2>
-    <p>We use a limited set of third-party services to operate MAGE ID:</p>
+    <p>We use a limited set of third-party service providers to operate MAGE ID. Each processes data only to provide its service to us:</p>
     <ul>
       <li><strong>Supabase</strong> — authentication and database hosting</li>
+      <li><strong>Stripe</strong> — payment processing (when you send or receive payments)</li>
+      <li><strong>RevenueCat</strong> — subscription management, alongside the Apple App Store and Google Play</li>
+      <li><strong>PostHog</strong> — product analytics</li>
       <li><strong>Resend</strong> — transactional email delivery</li>
-      <li><strong>Stripe</strong> — payment processing (when you send or receive invoices)</li>
-      <li><strong>Anthropic / Claude</strong> — AI features (schedule risk analysis, estimate generation, briefings). AI prompts are not used to train the models.</li>
+      <li><strong>Apple / Google</strong> — app distribution and in-app purchases</li>
+      <li><strong>Google (Gemini)</strong> and other AI processing vendors — strictly to deliver in-app AI features (e.g. estimate generation, schedule risk analysis, project summaries) on data you submit. AI prompts are not used to train third-party foundation models.</li>
     </ul>
     <p>We do not sell or rent your personal information to any third party.</p>
 
     <h2>Your Rights</h2>
-    <p>You can request to access, correct, export, or delete your data at any time by emailing <a href="mailto:help@mageid.app">help@mageid.app</a>. We will respond within 30 days.</p>
+    <p>You can request to access, correct, export, or delete your data at any time — in-app (Settings → Delete Account) or by emailing <a href="mailto:help@mageid.app">help@mageid.app</a>. We will respond within 30 days, except where law requires us to retain certain records.</p>
+
+    <h2>California Privacy Rights (CCPA / CPRA)</h2>
+    <p>California residents may access, correct, delete, or export their personal information, and opt out of any "sharing." We do not sell personal information. To exercise these rights, email <a href="mailto:help@mageid.app">help@mageid.app</a> or use our <a href="/do-not-sell.html">Do Not Sell or Share</a> page.</p>
 
     <h2>Data Retention</h2>
     <p>We retain your data for as long as your account is active. When you delete your account, all associated project data is permanently removed within 30 days.</p>
