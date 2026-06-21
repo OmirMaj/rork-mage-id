@@ -33,7 +33,7 @@ import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon } from 'lucide-react-native';
+import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon, CloudRain } from 'lucide-react-native';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -48,6 +48,7 @@ import InteractiveGantt from '@/components/schedule/InteractiveGantt';
 import { SchedulerTabShell } from '@/components/schedule/SchedulerTabShell';
 import AIAssistantPanel from '@/components/schedule/AIAssistantPanel';
 import ClosuresModal from '@/components/schedule/ClosuresModal';
+import WeatherRescheduleModal from '@/components/schedule/WeatherRescheduleModal';
 import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
 import BaselineManagerModal from '@/components/schedule/BaselineManagerModal';
 import TaskInspector from '@/components/schedule/TaskInspector';
@@ -61,6 +62,7 @@ import { EarnedValuePanel } from '@/components/schedule/EarnedValuePanel';
 import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
 import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
 import { getSimulatedForecast } from '@/utils/weatherService';
+import { computeWeatherReschedule, buildWeatherDelayLog, type WeatherRescheduleResult } from '@/utils/weatherReschedule';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
 import { PlanZoneEditor } from '@/components/schedule/mobile/PlanZoneEditor';
@@ -175,6 +177,8 @@ function ScheduleProScreenInner() {
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
   const [showClosures, setShowClosures] = useState(false);
+  const [showWeather, setShowWeather] = useState(false);
+  const [weatherResult, setWeatherResult] = useState<WeatherRescheduleResult | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showBaselineManager, setShowBaselineManager] = useState(false);
   // Voice → schedule mutations. Tap mic, speak ("push framing by 3 days"),
@@ -445,6 +449,7 @@ function ScheduleProScreenInner() {
         resources: project.schedule?.resources,
         scenarios: project.schedule?.scenarios,
         activeScenarioId: project.schedule?.activeScenarioId,
+        weatherDelayLog: project.schedule?.weatherDelayLog,
       };
       console.log('[ScheduleProScreen] Persist', {
         tasks: tasks.length,
@@ -482,6 +487,7 @@ function ScheduleProScreenInner() {
               resources: project.schedule?.resources,
               scenarios: project.schedule?.scenarios,
               activeScenarioId: project.schedule?.activeScenarioId,
+              weatherDelayLog: project.schedule?.weatherDelayLog,
             },
           });
         }
@@ -541,6 +547,51 @@ function ScheduleProScreenInner() {
     () => getSimulatedForecast(projectStartDate, 14),
     [projectStartDate],
   );
+
+  // Weather reschedule — compute the forecast's impact on weather-sensitive
+  // tasks (and the cascade) and open the preview. todayDay pins work already
+  // underway so we only reschedule the future.
+  const openWeatherReschedule = useCallback(() => {
+    const todayDay = Math.max(1, Math.floor((Date.now() - projectStartDate.getTime()) / 86400000) + 1);
+    const result = computeWeatherReschedule(workingTasks, projectStartDate, forecast, { todayDay });
+    setWeatherResult(result);
+    setShowWeather(true);
+  }, [workingTasks, projectStartDate, forecast]);
+
+  // Apply the proposed reschedule: commit the cascaded startDays AND append a
+  // delay-day log entry, in ONE write (mirrors the unmount-flush) so the
+  // debounced keystroke-persist can't race the log. Snapshots history for undo.
+  const applyWeatherReschedule = useCallback(() => {
+    if (!project || !weatherResult) return;
+    const next = weatherResult.tasks;
+    setHistory(h => [...(h.length >= 20 ? h.slice(h.length - 19) : h), workingTasksRef.current]);
+    setFuture([]);
+    setWorkingTasks(next);
+    const rebuilt = buildScheduleFromTasks(
+      project.schedule?.name ?? project.name ?? 'Schedule',
+      project.id,
+      next,
+      project.schedule?.baseline ?? null,
+      { criticalPathDays: cpm.projectFinish },
+    );
+    const logEntry = buildWeatherDelayLog(weatherResult, () => createId('weather'));
+    updateProject(project.id, {
+      schedule: {
+        ...rebuilt,
+        startDate: project.schedule?.startDate ?? rebuilt.startDate,
+        baselines: baselinesRef.current,
+        nonWorkingDates: project.schedule?.nonWorkingDates,
+        criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
+        resources: project.schedule?.resources,
+        scenarios: project.schedule?.scenarios,
+        activeScenarioId: project.schedule?.activeScenarioId,
+        weatherDelayLog: logEntry
+          ? [...(project.schedule?.weatherDelayLog ?? []), logEntry]
+          : project.schedule?.weatherDelayLog,
+      },
+    });
+    setShowWeather(false);
+  }, [project, weatherResult, updateProject, cpm.projectFinish]);
 
   // Bulk push handler — moves multiple tasks in a single commit. Each
   // task's startDay shifts by deltaDays; CPM cascades successors via the
@@ -1318,6 +1369,7 @@ function ScheduleProScreenInner() {
               else Alert.alert('Schedule analysis', msg);
             }}
           />
+          <HeaderBtn icon={CloudRain} label="Weather" onPress={openWeatherReschedule} />
           <HeaderBtn icon={CalendarX} label="Closures" onPress={() => setShowClosures(true)} />
           <HeaderBtn icon={Settings} label="Settings" onPress={() => setShowSettings(true)} />
           <HeaderBtn icon={Share2} label="Share" onPress={handleShare} />
@@ -1492,6 +1544,16 @@ function ScheduleProScreenInner() {
           });
           setShowClosures(false);
         }}
+      />
+
+      {/* Weather-driven reschedule — preview the forecast's impact on
+          weather-sensitive tasks + cascade, then apply in one tap. */}
+      <WeatherRescheduleModal
+        visible={showWeather}
+        result={weatherResult}
+        projectStartDate={projectStartDate}
+        onClose={() => setShowWeather(false)}
+        onApply={applyWeatherReschedule}
       />
 
       {/* Voice → schedule mutations. The modal handles transcription +

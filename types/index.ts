@@ -724,6 +724,22 @@ export interface WeatherAlert {
   dismissed: boolean;
 }
 
+/**
+ * A record of an applied weather-driven reschedule — the "delay-day log".
+ * Written by the weather reschedule flow (utils/weatherReschedule) when the GC
+ * accepts the proposed shift, so the job has an auditable history of which
+ * forecast days cost how much. condition is a DayForecast['condition'] string.
+ */
+export interface WeatherDelayLogEntry {
+  id: string;
+  appliedAt: string;
+  dates: string[];
+  condition?: string;
+  taskIds: string[];
+  projectSlipDays: number;
+  note?: string;
+}
+
 export interface ProjectSchedule {
   id: string;
   name: string;
@@ -761,6 +777,8 @@ export interface ProjectSchedule {
     tasks: { id: string; startDay: number; endDay: number }[];
   }[];
   weatherAlerts?: WeatherAlert[];
+  /** History of applied weather-driven reschedules (the delay-day log). */
+  weatherDelayLog?: WeatherDelayLogEntry[];
   /**
    * What-If scenarios — user-created alternate timelines branched off the
    * baseline `tasks` array. A scenario stores a full task snapshot plus a
