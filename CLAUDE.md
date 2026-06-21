@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **New session? Read `docs/PRODUCT-BIBLE.md` first** — the full picture of what MAGE ID is, who it's for, why it beats competitors, the cost-learning moat, the feature map, the three surfaces, and architecture/security. This CLAUDE.md is the build/command reference; the bible is the product/strategy reference.
+
 ## Project
 
 MAGE ID — React Native / Expo construction management app (iOS primary, Android + web supported). Bundle IDs: `com.mageid.app` (iOS), `app.mageid.android` (Android). EAS project `9f6536e0-0774-47e0-a0ae-2f10a4e46b2b`, owner `omirmajeed`.
