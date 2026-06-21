@@ -154,4 +154,24 @@
     <priority>0.3</priority>
   </url>
 
+  <!-- Comparison / "alternative" landing pages + lead-magnet calculator. -->
+  <url>
+    <loc>https://mageid.app/compare/procore.html</loc>
+    <lastmod>2026-06-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://mageid.app/buildertrend-alternative.html</loc>
+    <lastmod>2026-06-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://mageid.app/calculator.html</loc>
+    <lastmod>2026-06-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
 </urlset>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Markup vs. Margin Calculator — Are you actually making money on this job? | MAGE ID</title>
+<link rel="canonical" href="https://mageid.app/calculator.html" />
+<meta name="description" content="Free markup vs. margin calculator for contractors. Enter your job cost and see the price to charge, your real profit, and the markup-vs-margin trap that quietly loses you money. By MAGE ID." />
+<meta name="theme-color" content="#0B0D10" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Markup vs. Margin Calculator for Contractors" />
+<meta property="og:description" content="Markup isn't margin — and the gap is where money quietly disappears. Free calculator by MAGE ID." />
+<meta property="og:url" content="https://mageid.app/calculator.html" />
+<meta property="og:site_name" content="MAGE ID" />
+<meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+<style>
+  /* Brand-aligned palette (ink + amber + cream), matching mageid.app. */
+  :root{
+    --navy:#0B0D10; --navyd:#14181D; --amber:#FF6A1A; --amber-l:#FFF1E6;
+    --ink:#1c2530; --muted:#5b6775; --line:#E8DFCD; --bg:#FAF7F0; --card:#ffffff;
+    --green:#1E8E4A; --red:#C0392B;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.5;
+    padding:24px 16px 60px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:580px;margin:0 auto}
+  .brandbar{display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:18px}
+  .brandbar a{display:flex;align-items:center;gap:8px;text-decoration:none}
+  .brandbar .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+  .brandbar span{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy);text-transform:uppercase}
+  h1{font-size:26px;line-height:1.2;color:var(--navyd);text-align:center;margin-bottom:8px;letter-spacing:-.01em}
+  .sub{text-align:center;color:var(--muted);font-size:15px;margin-bottom:24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 1px 2px rgba(11,13,16,.04),0 8px 24px rgba(11,13,16,.06)}
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:20px}
+  .seg button{flex:1;border:0;background:transparent;padding:10px 8px;font-size:14px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;transition:.15s}
+  .seg button.on{background:var(--navy);color:#fff;box-shadow:0 1px 3px rgba(11,13,16,.25)}
+  label{display:block;font-size:13px;font-weight:600;color:var(--navy);margin:0 0 6px}
+  .field{margin-bottom:16px}
+  .inputwrap{position:relative;display:flex;align-items:center}
+  .inputwrap .affix{position:absolute;font-size:17px;color:var(--muted);font-weight:600}
+  .inputwrap .affix.pre{left:14px}
+  .inputwrap .affix.post{right:14px}
+  input[type=number]{
+    width:100%;font-size:18px;font-weight:600;color:var(--ink);
+    padding:13px 14px 13px 28px;border:1.5px solid var(--line);border-radius:10px;background:#fff;
+    -moz-appearance:textfield;
+  }
+  input.pct{padding:13px 30px 13px 14px}
+  input[type=number]:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,106,26,.14)}
+  input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none}
+  .results{margin-top:6px;border-top:1px dashed var(--line);padding-top:18px}
+  .price{background:var(--navy);border-radius:12px;padding:16px 18px;color:#fff;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+  .price .lbl{font-size:13px;font-weight:600;opacity:.85;text-transform:uppercase;letter-spacing:.06em}
+  .price .val{font-size:30px;font-weight:800;letter-spacing:-.02em}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+  .stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .stat .lbl{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+  .stat .val{font-size:20px;font-weight:700;color:var(--ink)}
+  .stat .val.green{color:var(--green)}
+  .trap{background:var(--amber-l);border-left:5px solid var(--amber);border-radius:8px;padding:14px 16px;font-size:14.5px;color:var(--navyd)}
+  .trap b{color:var(--amber)}
+  details{margin-top:18px;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+  summary{cursor:pointer;padding:14px 16px;font-weight:600;font-size:14px;color:var(--navy);list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"＋";float:right;color:var(--amber);font-weight:700}
+  details[open] summary::after{content:"－"}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:9px 16px;text-align:left;border-top:1px solid var(--line)}
+  th{background:var(--bg);color:var(--navy);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  td:last-child,th:last-child{text-align:right}
+  .cta{margin-top:22px;background:linear-gradient(135deg,var(--navy),var(--navyd));border-radius:14px;padding:20px;color:#fff;text-align:center}
+  .cta h3{font-size:18px;margin-bottom:6px}
+  .cta p{font-size:14px;opacity:.9;margin-bottom:14px}
+  .cta a{display:inline-block;background:var(--amber);color:#fff;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:9px;font-size:15px}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
+  .foot a{color:var(--muted)}
+  @media(max-width:420px){h1{font-size:22px}.price .val{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brandbar"><a href="/"><span class="dot"></span><span>MAGE ID</span></a></div>
+  <h1>Are you actually making money on this job?</h1>
+  <p class="sub">The #1 way contractors lose profit: confusing markup with margin. Enter your numbers and see the truth.</p>
+
+  <div class="card">
+    <div class="seg" id="seg">
+      <button data-mode="markup" class="on">I add a markup</button>
+      <button data-mode="margin">I want a margin</button>
+    </div>
+
+    <div class="field">
+      <label for="cost">Your job cost (labor + materials + subs)</label>
+      <div class="inputwrap">
+        <span class="affix pre">$</span>
+        <input type="number" id="cost" inputmode="decimal" placeholder="0" value="10000" min="0" step="100" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label id="pctLabel" for="pct">Markup you add</label>
+      <div class="inputwrap">
+        <input type="number" id="pct" class="pct" inputmode="decimal" placeholder="0" value="20" min="0" step="1" />
+        <span class="affix post">%</span>
+      </div>
+    </div>
+
+    <div class="results">
+      <div class="price">
+        <span class="lbl">Price to charge</span>
+        <span class="val" id="price">$12,000</span>
+      </div>
+      <div class="grid">
+        <div class="stat"><div class="lbl">Your profit</div><div class="val green" id="profit">$2,000</div></div>
+        <div class="stat"><div class="lbl" id="otherLbl">Real margin</div><div class="val" id="other">16.7%</div></div>
+      </div>
+      <div class="trap" id="trap"></div>
+    </div>
+
+    <details>
+      <summary>Markup → margin cheat sheet</summary>
+      <table>
+        <thead><tr><th>If your markup is…</th><th>Your real margin is…</th></tr></thead>
+        <tbody id="cheat"></tbody>
+      </table>
+    </details>
+  </div>
+
+  <div class="cta">
+    <h3>Stop guessing your margin on every bid.</h3>
+    <p>MAGE ID learns your real costs from finished jobs, prices your next bid off your own numbers, and warns you the moment a live job starts bleeding margin.</p>
+    <a href="/">See how MAGE ID protects your profit →</a>
+  </div>
+
+  <p class="foot">Markup = profit as a % of <em>cost</em>. Margin = profit as a % of <em>price</em>. They are not the same — and the gap is where money quietly disappears.<br/>Free tool by <a href="/">MAGE ID</a> · mageid.app</p>
+</div>
+
+<script>
+  var mode = "markup";
+  var $ = function(id){ return document.getElementById(id); };
+  var fmt = function(n){
+    if(!isFinite(n)) return "—";
+    return "$" + Math.round(n).toLocaleString("en-US");
+  };
+  var pct = function(n){ return (isFinite(n) ? n.toFixed(1) : "—") + "%"; };
+
+  function setMode(m){
+    mode = m;
+    var btns = document.querySelectorAll("#seg button");
+    btns.forEach(function(b){ b.classList.toggle("on", b.dataset.mode === m); });
+    $("pctLabel").textContent = (m === "markup") ? "Markup you add" : "Margin you want";
+    $("otherLbl").textContent = (m === "markup") ? "Real margin" : "Markup needed";
+    calc();
+  }
+
+  function calc(){
+    var cost = parseFloat($("cost").value) || 0;
+    var p = parseFloat($("pct").value) || 0;
+    var price, profit, other;
+
+    if(mode === "markup"){
+      price = cost * (1 + p/100);
+      profit = price - cost;
+      other = price > 0 ? (profit / price) * 100 : 0; // real margin
+      $("other").textContent = pct(other);
+      $("trap").innerHTML = "A <b>" + (p||0) + "% markup</b> is really only a <b>" + pct(other) +
+        " margin</b>. Most contractors think those are the same — they aren't. To actually keep " +
+        (p||0) + "% of every dollar, you'd need a higher markup.";
+    } else {
+      if(p >= 100){ p = 99.9; }
+      price = p < 100 ? cost / (1 - p/100) : 0;
+      profit = price - cost;
+      other = cost > 0 ? (profit / cost) * 100 : 0; // markup needed
+      $("other").textContent = pct(other);
+      $("trap").innerHTML = "To keep a <b>" + (parseFloat($('pct').value)||0) + "% margin</b>, you must add a <b>" +
+        pct(other) + " markup</b> — not " + (parseFloat($('pct').value)||0) +
+        "%. Charging only a " + (parseFloat($('pct').value)||0) + "% markup quietly leaves money on the table.";
+    }
+    $("price").textContent = fmt(price);
+    $("profit").textContent = fmt(profit);
+  }
+
+  // build cheat sheet
+  (function(){
+    var rows = [10,15,20,25,30,40,50,100];
+    var html = "";
+    rows.forEach(function(mk){
+      var margin = (mk/(100+mk))*100;
+      html += "<tr><td>" + mk + "% markup</td><td>" + margin.toFixed(1) + "% margin</td></tr>";
+    });
+    $("cheat").innerHTML = html;
+  })();
+
+  document.querySelectorAll("#seg button").forEach(function(b){
+    b.addEventListener("click", function(){ setMode(b.dataset.mode); });
+  });
+  $("cost").addEventListener("input", calc);
+  $("pct").addEventListener("input", calc);
+  calc();
+</script>
+</body>
+</html>
