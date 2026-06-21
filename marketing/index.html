@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>MAGE ID — The operating system for general contractors</title>
+  <link rel="canonical" href="https://mageid.app/" />
   <meta name="description" content="The field-first OS for general contractors — and the easiest way for homeowners to find one. Plans, estimates, daily reports, pay applications, a live client portal. Post your project, get bids from verified contractors nearby." />
   <meta name="theme-color" content="#0B0D10" />
 
@@ -50,6 +51,36 @@
       autocapture: false,
       persistence: 'localStorage+cookie',
     });
+  </script>
+
+  <!-- Structured data (launch-audit §5.2 / §5.3). SoftwareApplication +
+       Organization on the homepage — Google reads these once for the site;
+       no need to repeat on every page. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MAGE ID",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "iOS, Android, Web",
+    "description": "Margin-protection operating system for residential and light-commercial general contractors. Learns your real costs from finished jobs, prices your next bid off your own numbers, and warns you before a live job loses margin.",
+    "url": "https://mageid.app",
+    "offers": [
+      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
+      { "@type": "Offer", "name": "Pro", "price": "29", "priceCurrency": "USD" },
+      { "@type": "Offer", "name": "Business", "price": "79", "priceCurrency": "USD" },
+      { "@type": "Offer", "name": "Enterprise", "price": "150", "priceCurrency": "USD" }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "MAGE ID",
+    "url": "https://mageid.app",
+    "logo": "https://mageid.app/assets/favicon-512.png"
+  }
   </script>
 </head>
 <body>

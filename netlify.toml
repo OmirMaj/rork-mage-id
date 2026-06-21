@@ -28,3 +28,14 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# SEO: keep the WEB APP (app.mageid.app) out of search results. It's the
+# product surface, not content — the marketing site at mageid.app carries every
+# public/indexable page and is the canonical destination. Without this, the web
+# app's routes get indexed and compete with / cannibalize the marketing site.
+# Applies to this build only (the marketing site is a separate Netlify project).
+# (Launch-audit fix §5.5; paired with public/robots.txt.)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"

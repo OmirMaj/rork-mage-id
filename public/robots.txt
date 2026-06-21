@@ -1,0 +1,7 @@
+# app.mageid.app — the MAGE ID web app, not indexable content.
+# All public/SEO pages live on the marketing site at https://mageid.app.
+# Expo copies public/ into the web export (dist/), so this is served at
+# app.mageid.app/robots.txt. (Launch-audit fix §5.5; paired with the
+# X-Robots-Tag: noindex header in netlify.toml.)
+User-agent: *
+Disallow: /
