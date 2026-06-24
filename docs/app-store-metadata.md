@@ -1,175 +1,186 @@
-# App Store Connect — metadata copy
+# App Store Connect — listing copy + demo script (launch-ready)
 
-Drop these into **App Store Connect → My Apps → MAGE ID → Distribution → iOS App → Version Information**. All character counts include spaces; counts are App Store Connect's own limits as of 2026.
+Profit-first ASO, aligned with the homepage rewrite ("Win the bid. Keep the profit."). Paste into **App Store Connect → My Apps → MAGE ID → iOS App → [version] → App Information / Version Information**. Char counts are approximate — **re-verify in App Store Connect**, which counts `•`/`—`/`→` as one character each.
+
+**Submit reference:** app `6762229238` · team `HKT2J284D2` · bundle `com.mageid.app` · Support URL `https://mageid.app/support` · Marketing URL `https://mageid.app` · Privacy Policy URL `https://mageid.app/privacy`.
+
+---
+
+## App Name (30 chars)
+
+```
+MAGE ID: Contractor Estimates
+```
+(29) — keeps the brand first, then the highest-intent keyword phrase.
+
+**Alternates to test:**
+- `MAGE ID — Bids & Job Costing` (28)
+- `MAGE ID: Estimate & Margin` (26)
 
 ---
 
 ## Subtitle (30 chars)
 
 ```
-AI that protects your margin
+Estimate, job cost & margin
 ```
+(27) — three high-intent keywords; "margin" is the differentiator no competitor owns.
 
-(28 chars · 2 free) — leads with the moat (margin defense), the one thing no competitor does.
-
-**Alternates** if you want to test:
-- `Your prices. Your margin. AI.` (29)
-- `GC ops, AI takeoff & pay apps` (29 — prior subtitle)
-- `The GC's pocket back office` (27)
-- `Built for builders, on iPhone` (29)
+**Alternates:**
+- `Bids, job costing & margin` (26)
+- `AI that protects your margin` (28)
 
 ---
 
-## Promotional text (170 chars · updateable without re-submission)
+## Promotional text (170 chars · editable WITHOUT re-submitting the build)
 
 ```
-NEW · Your estimate now learns from every job you close — and warns you before a job loses money. The only GC app that prices from YOUR costs, not a generic catalog.
+Win the bid — then keep the profit. MAGE learns your real costs from past jobs and warns you before a live job loses margin. The only app that prices from YOUR numbers.
 ```
-
-(162 chars · 8 free) — the moat as the freshest hook. This is the single highest-leverage field: it updates WITHOUT re-submitting the build, so keep it pointed at the differentiator.
-
-Use this slot for the freshest hook — change it whenever you ship something new. It's the ONLY editable field that updates without re-submitting the build.
+(167) — the single highest-leverage field: it updates without a new build, so keep it pointed at the moat and refresh it whenever you ship something new.
 
 ---
 
-## App description (4000 char limit · ~3500 used)
+## App description (4000 char limit · first 3 lines are what's visible "above the fold")
 
 ```
-MAGE ID is the operating system for general contractors — built for the residential and small-commercial GC running $1M–$30M jobs from the truck, not the corner office.
+Win the bid. Keep the profit.
 
-Plans, estimates, daily reports, change orders, AIA pay applications, schedule, and a live homeowner portal — replaced a dozen apps with one that lives on your phone. Voice-driven everything. AI where it actually saves you hours. Built mobile-first because that's where the job is.
+MAGE ID is the margin-protection app for residential general contractors and remodelers. Unlike tools that just organize your job, MAGE learns your real costs from finished jobs, prices your next bid off your own numbers, and warns you the moment a live job starts bleeding margin.
 
-THE DIFFERENCE — IT LEARNS WHAT YOUR JOBS REALLY COST
-Other apps price your bid off a generic catalog (Home Depot, regional averages). MAGE learns from your own closed jobs — every estimate gets sharper — and watches your margin live, warning you before a job loses money. Bid from your reality, not an AI's guess.
+Most contractors don't lose money on bad jobs — they lose it on good jobs they bid wrong. MAGE is built to stop that.
 
-WHAT'S INSIDE
-• Cost Database — your unit prices, learned from every job you close, so your next bid is priced from your reality.
-• Margin Intelligence — live projected margin, a per-job risk score, and alerts before one bleeds.
-• AI Drawing Analyzer — drop a PDF of plans, get a priced line-item estimate in 30–60 seconds, powered by Gemini Vision. Standard for fast turnarounds; Pro Estimator depth (Business tier) for ambiguous schedules.
-• AI Quantity Takeoff — measures linear feet, square feet, doors, windows, fixtures, and bulk materials right off the sheet. Edit, verify in the field, route into a buyout package.
-• AI Spec-Match — match takeoff callout codes against the architect's spec book in one tap.
-• Plans & Markup — calibrate scale, drop pins, link RFIs / photos / punch items to drawing locations. Offline-first.
-• AIA G702/G703 Pay Apps — the schedule of values, retention math, change-order roll-up, and e-sign export. One screen, one tap.
-• Change Orders — pricing, markup, approval trail. Owner signs in the portal; trail lives forever.
-• Schedule with DCMA 14-point Health — the federal-grade schedule assessment that P6 and Asta Powerproject ship as a paid module, built in.
-• Field Ops — voice-to-log daily reports, geo-stamped photos, RFI + punch pipelines, all offline-capable.
-• Cash Flow Dashboard — budget vs actual, by cost code, live. Know which job is making money.
-• Live Homeowner Portal — AI Daily Digest in plain English, six languages (EN/ES/PT/ZH/VI/FR), e-sign for contracts and selections. Zero app to install.
-• Open-Book / GMP Mode — flip a project to Open Book and the homeowner sees actual cost vs commitment, not just billed amount.
-• Marketplace — homeowners post projects, verified contractors bid. Optional inbound channel.
-• Universal Voice Form Fill — tap mic, speak, AI fills RFIs, COs, punch items, invoices, submittals, new leads.
+ESTIMATE & WIN
+• Cost Database — your unit prices, learned from every job you close, so your next bid is priced from your reality, not a generic catalog.
+• AI estimate from a sentence or a plan PDF — drop drawings, get priced line items in under a minute.
+• AI Quantity Takeoff — measures linear feet, square feet, doors, windows, and bulk materials off the sheet; verify in the field.
+• Smart Proposals — good/better/best tiers, priced to win, that train on whether you actually win.
 
-PRICING
-• Free — try every flow with sample data, ship one project to your client portal.
-• Pro ($29/mo) — owner-operator GC, all 8 stack tools, AI takeoff at Standard depth.
-• Business ($79/mo) — small office, unlimited projects, Pro Estimator AI depth, priority queue.
+PROTECT YOUR MARGIN
+• Margin Risk score — a live, per-job read that flags erosion early, so you defend profit during the job, not after.
+• Job costing & cash flow — budget vs. actual by cost code, live. Know which job is making money.
+• A schedule that holds — critical path, plus weather auto-reschedule and Last Planner pull planning, because a slipped schedule is a blown margin.
 
-No per-seat fees. No implementation cost. No sales call required. Cancel anytime in the App Store.
+RUN THE FIELD
+• Voice-to-log daily reports, geo-stamped photos, RFIs, submittals, and punch lists — all offline-capable.
+• Plans & markup — calibrate scale, drop pins, link photos and RFIs to drawing locations.
 
-WHO THIS IS FOR
-• Residential GCs ($1M–$30M annual revenue)
-• Custom-home builders running 4–20 active projects
-• Design-build firms where the owner is still on a ladder twice a week
-• Small-commercial GCs who want one tool that handles plans → pay → portal
+GET PAID
+• AIA G702/G703 pay apps — schedule of values, retention, change-order roll-up, e-sign export. One screen.
+• Change orders with an approval trail; invoicing with Stripe; lien waivers built in.
 
-If you have an office manager doing your AIA pay apps in Excel, this app is built for you. If you have a $50M+ shop with a full back office, you'll outgrow it — go talk to Procore.
+YOUR CLIENT, KEPT IN THE LOOP
+• Live homeowner portal — AI daily digest in plain English (six languages), contract & selection e-sign, zero app to install.
+• Optional marketplace — homeowners post projects, you bid. An inbound channel you're never forced to pay for.
+
+ONE FLAT PRICE — SUBS ARE FREE
+• Free — ship your first project, try every flow.
+• Pro ($29/mo) — owner-operator GC.
+• Business ($79/mo) — small office, deeper AI, unlimited projects.
+• Enterprise ($150/mo) — for larger teams.
+No per-seat fees. No implementation cost. No sales call. Cancel anytime in the App Store.
+
+WHO IT'S FOR
+Residential GCs, remodelers, custom-home builders, and small-commercial GCs running 4–20 jobs — the owner who's still on a ladder twice a week. If you run a $50M+ shop with a full back office, you'll outgrow this; go talk to the enterprise tools.
 
 PRIVACY
-Project data lives on your device first, syncs to your team. Homeowner sees only what you publish to the portal. No data sold to third parties. End-to-end encrypted in transit, RLS-protected at rest.
+Your data is row-level scoped to your account and encrypted in transit and at rest. The homeowner sees only what you publish to the portal. We don't sell your personal information.
 
 SUPPORT
-Tap Help in Settings — direct line to a real person. Reply within 4 business hours. iOS-first; Android and web supported.
-
-Built by a GC who got tired of switching between twelve tabs.
+Tap Help in Settings for a real person. iOS-first; Android and web supported.
 ```
-
-(~3,900 chars · ~100 free — re-verify the count in App Store Connect; `•`/`—`/`→` each count as one character there, not multiple bytes. Now leads with the moat: Cost Database + Margin Intelligence.)
+(~2,900 chars — comfortably under 4,000; re-verify in ASC.)
 
 ---
 
-## Keywords (100 chars · comma-separated)
+## Keywords (100 chars · comma-separated, no spaces after commas)
 
 ```
-GC,contractor,AIA pay app,takeoff,estimate,schedule,RFI,daily report,job cost,margin,cost database
+contractor,estimate,takeoff,job costing,margin,remodel,builder,invoice,schedule,bid,AIA pay app,WIP
 ```
+(≈99) — highest-intent terms; "margin" + "job costing" + "AIA pay app" are the differentiator/buyer-intent terms. Apple stems plurals and indexes the description, so we skip generic "construction."
 
-(98 chars · 2 free) — swapped `blueprint` + `punch list` for high-intent differentiator terms `margin` and `cost database` (the moat); "plans"/"punch" are already indexed via the description.
-
-**Why these:** GC and contractor are the highest-intent terms. AIA pay app is unusually specific — anyone searching it is a high-intent buyer. Takeoff, estimate, schedule, RFI, punch list, daily report, blueprint, job cost cover every tool in the stack we replace. Skip generic words like "construction" — too competitive, and Apple already indexes the description for those.
-
-**Don't include:**
-- Brand names of competitors (Apple rejects these)
-- "Free" or "best" (Apple strips these)
-- Plurals (Apple matches stems automatically)
+**Don't include:** competitor brand names (Apple rejects), "free"/"best" (stripped), plurals (auto-stemmed).
 
 ---
 
-## What's New (4000 chars · updated per release)
+## What's New (4000 chars · per release)
 
-### Version 1.0.x — current release
-
+### Version 1.0.0 — launch
 ```
-What's new in this update:
+Welcome to MAGE ID — the app that helps you win the bid and keep the profit.
 
-• AI Drawing Analyzer — drop a PDF of plans, get a priced estimate in under a minute. Available to Pro and Business tiers.
-• AI Quantity Takeoff — measures dimensions and schedules off the sheet, ready to route into a buyout package.
-• Spec-Match — match callouts against the architect's spec book in one tap.
-• Schedule Pro — DCMA 14-point assessment built in. The federal-grade schedule check that P6 charges for, included.
-• Subcontractor schedule portal — subs add daily progress through a portal slug, no app install required.
-• AIA G702/G703 generator — one screen for schedule of values, retainage, change orders, and e-sign export.
-• Open Book mode — flip a project to GMP/Open Book, homeowner sees actual cost vs commitment.
-• Onboarding redesign — three-step flow lands you in your first project under 30 seconds.
-• Premium UI pass — squircle corners, iOS-native typography, tighter spacing, and motion that feels alive.
-• Pull-to-refresh wired across the home tab.
-• A11y pass — VoiceOver labels added to 290+ icon-only buttons.
+• Cost-learning estimates — your finished jobs teach MAGE your real prices, so every bid gets sharper.
+• Margin Risk — a live score that warns you before a job loses money.
+• AI estimate from a sentence or a plan PDF, plus on-screen quantity takeoff.
+• Scheduling with critical path, weather auto-reschedule, and Last Planner pull planning.
+• AIA G702/G703 pay apps, change orders, invoicing, and lien waivers.
+• Voice-to-log daily reports, RFIs, punch lists — offline-first.
+• Live homeowner portal with a plain-English daily digest in six languages.
+• One flat price. Subcontractors are free. No per-seat fees.
 
-Plus 2,400+ small polish improvements: type system locked to a 12-step scale, color tokens consolidated, skeleton previews on AI flows, and 40+ bug fixes from the field.
+Questions or feedback? Tap Help in Settings — a real person replies.
 ```
 
-(1,165 chars · 2,835 free)
+---
+
+## Privacy Nutrition Label (App Store Connect → App Privacy)
+
+Declare these to match the privacy policy at mageid.app/privacy. For each, Apple asks: collected? linked to identity? used for tracking? (We do **not** track across other companies' apps/sites → "Used for Tracking: No" everywhere.)
+
+| Data type | Collected | Linked to user | Purpose |
+|---|---|---|---|
+| Contact info (name, email) | Yes | Yes | App functionality, account |
+| User content (project/financial data, photos, docs) | Yes | Yes | App functionality |
+| Identifiers (user ID) | Yes | Yes | App functionality |
+| Purchases (subscription status) | Yes | Yes | App functionality (via RevenueCat / App Store) |
+| Usage data (product interactions) | Yes | Yes | Analytics (PostHog) |
+| Diagnostics (crash/performance) | Yes | Yes | App functionality (Sentry) |
+
+Processors to keep consistent with the policy: Supabase, Stripe, RevenueCat, PostHog, Resend, Apple/Google, Google (Gemini) for in-app AI. **Account deletion** is in-app (Settings → Delete Account) — Apple requires this and it's already wired.
+
+---
+
+## App Preview video (App Store · 15–30 sec, optional — converts ~25% better)
+No voiceover; captions hard-coded; lead with the moat.
+- 0:00–0:04 — open app → a Margin Risk alert on a live job ("This job is slipping.")
+- 0:04–0:12 — Estimate Wizard → cost database → priced estimate built from *your* numbers
+- 0:12–0:20 — Schedule: rain hits, weather auto-reschedule moves the job
+- 0:20–0:30 — AIA pay app / portal e-sign → end on the pricing card ("Free to start")
+
+---
+
+## 90-second demo video (for the /demo marketing page) — §4
+Record on your phone or screen — authenticity beats polish. No fancy production needed.
+
+| Time | Say this | Show this |
+|---|---|---|
+| 0:00–0:10 | "Most contractors don't lose money on bad jobs — they lose it on good jobs they bid wrong. Here's how MAGE stops that." | App home, then a Margin Risk alert |
+| 0:10–0:35 | "I describe the job, and MAGE builds the estimate off MY real costs from past jobs — not a generic catalog." | Estimate Wizard → cost database → estimate |
+| 0:35–1:00 | "Once the job's running, MAGE watches every dollar. The second margin starts slipping, it tells me — while I can still fix it." | Margin Risk score + an erosion alert |
+| 1:00–1:20 | "Weather reshuffles the schedule automatically, so a rained-out week doesn't blow my margin." | Weather auto-reschedule on the Gantt |
+| 1:20–1:30 | "One flat price, subs are free, first project's on us. Link below." | Pricing + CTA card |
+
+---
+
+## Screenshots checklist (App Store requires real UI — not marketing mockups)
+- 6.5" and 6.7" iPhone sets required. No iPad (`ios.supportsTablet: false`).
+
+Recommended 10, in order — lead with the moat:
+1. **Margin Risk alert** — "Find out a job's slipping while you can still fix it."
+2. **Estimate from your cost database** — "Bid off your real costs, not a catalog."
+3. **AI estimate from a plan PDF** — "Priced estimate in under a minute."
+4. **Quantity takeoff** — "Measured off the sheet."
+5. **Schedule + weather reschedule** — "Rain moves the job for you."
+6. **Cash-flow dashboard** — "Know which job is making money."
+7. **AIA pay app** — "G702/G703, one screen."
+8. **Daily report (voice)** — "Voice-to-log in 30 seconds."
+9. **Client portal** — "Six languages. Zero app to install."
+10. **Pricing/onboarding** — "Free to start. Subs free."
+
+Generate from the real app (phone screenshots or Apple's Preview Builder). App Store guidelines require screenshots reflect actual UI.
 
 ---
 
 ## Version-bump cadence
-
-You don't need to bump `expo.version` for any of these JS-only changes — push them via OTA on the production channel. Bump the version (and re-submit to Apple) only when:
-- Adding a native module
-- Changing entitlements (camera, location, etc.)
-- Major UX overhauls warranting a marketing push
-
-Per CLAUDE.md, runtime version is `appVersion`-locked, so you can ship 50 OTA updates against the same `1.0.x` build.
-
----
-
-## Screenshots checklist (you'll do these later)
-
-- 6.5" (iPhone 14 Pro Max / 15 Pro Max) — required for App Store Connect
-- 6.7" — required separate set
-- 12.9" iPad — NOT required since `ios.supportsTablet: false`
-
-Recommended set (10 screenshots, in this order):
-1. **Hero — Plans + AI estimate** "Drop a PDF. Get a priced estimate in 60 seconds." (Drawing Analyzer review screen)
-2. **Home tab** "Every project. One tap away." (showing 3-4 active projects with budget bars)
-3. **Takeoff result** "Quantities measured off the sheet." (showing a takeoff with verified rows highlighted)
-4. **Schedule Gantt** "Critical path on your phone." (with red highlight on critical-path tasks)
-5. **DCMA scoreboard** "Schedule health, federal-grade." (with the 14 checks listed)
-6. **AIA pay app** "G702/G703. One screen." (showing pay app generator)
-7. **Cash flow dashboard** "Know which job is making money." (showing budget vs actual chart)
-8. **Daily report** "Voice-to-log. 30 seconds." (showing voice modal mid-record)
-9. **Client portal preview** "Six languages. Zero app." (showing portal as homeowner sees it)
-10. **Onboarding step 2** "Built for residential GCs." (showing the band picker)
-
-Use Apple's "Preview Builder" inside Connect or generate via your phone with screenshot-cropping tools. Do NOT use marketing mockups — App Store guidelines require screenshots to reflect actual app UI.
-
----
-
-## App Preview video (15-30 sec, optional but converts ~25% better)
-
-If you record one, lead with:
-- 0:00–0:03 — phone unlocking, MAGE icon, opening
-- 0:03–0:08 — drag a PDF onto Drawing Analyzer, watch it analyze
-- 0:08–0:15 — scroll through priced result
-- 0:15–0:22 — flip to Schedule, show DCMA check
-- 0:22–0:30 — open client portal as homeowner, end on the e-sign screen
-
-No voiceover. Music optional. Captions hard-coded.
+Runtime version is `appVersion`-locked, so ship JS-only changes via OTA on the `production` channel against the same `1.0.x` build. Bump `expo.version` + re-submit only for: new native modules, entitlement changes, or a major UX overhaul worth a marketing push.
