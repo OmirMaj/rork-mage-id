@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex,nofollow" />
+<title>MAGE ID — AI icon direction (internal preview)</title>
+<style>
+  :root{ --ink:#0B0D10; --ink2:#14181D; --amber:#FF6A1A; --cream:#F4EFE6; --fog:#9AA3AD; --line:#E8DFCD; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--cream);color:var(--ink);line-height:1.5;padding:28px 16px 80px}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:24px;letter-spacing:-.01em;margin-bottom:6px}
+  .sub{color:#5b6775;font-size:15px;margin-bottom:28px;max-width:620px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#8B9099;margin:34px 0 14px;font-weight:800}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:14px}
+  .row{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-end}
+  .swatch{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .swatch .lbl{font-size:12px;color:#8B9099}
+  .dark{background:var(--ink);border-radius:14px;padding:22px}
+  .dark .lbl{color:#9AA3AD}
+  .pick{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .pick .opt{border:1px solid var(--line);border-radius:14px;padding:20px 12px;text-align:center;background:#fff}
+  .pick .opt .name{font-size:13px;font-weight:700;margin-top:12px}
+  .pick .opt .desc{font-size:11.5px;color:#8B9099;margin-top:4px;line-height:1.4}
+  .opt.current{border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,106,26,.12)}
+  .tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);margin-top:8px}
+  .note{font-size:13px;color:#5b6775;background:#FAF7F0;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:8px}
+  @media(max-width:640px){.pick{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The "MAGE AI" icon — pick a direction</h1>
+  <p class="sub">Today every AI feature uses the generic <b>Sparkles</b> (28×) — the LLM-wrapper cliché. Option A is what I built &amp; wired into "Ask MAGE". B–D are alternates if you'd rather lean somewhere else. Reply with a letter.</p>
+
+  <h2>Before → after (the cliché vs. Option A)</h2>
+  <div class="card">
+    <div class="row">
+      <div class="swatch">
+        <!-- generic Sparkles (the cliché) -->
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.8 4.9L19 9.7l-5.2 1.8L12 16.4l-1.8-4.9L5 9.7l5.2-1.8z" fill="#9AA3AD"/><path d="M19 14l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" fill="#C7CDD4"/></svg>
+        <span class="lbl">Today — Sparkles (generic)</span>
+      </div>
+      <div style="font-size:26px;color:#C7CDD4;align-self:center">→</div>
+      <div class="swatch">
+        <!-- Option A reticle, two-tone ink + amber -->
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none"><line x1="12" y1="2.5" x2="12" y2="5" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="21.5" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><line x1="2.5" y1="12" x2="5" y2="12" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><line x1="19" y1="12" x2="21.5" y2="12" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><circle cx="12" cy="12" r="7" stroke="#0B0D10" stroke-width="1.75" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#FF6A1A"/></svg>
+        <span class="lbl">Option A — reticle (built)</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Option A at real app sizes — does it read small?</h2>
+  <div class="card">
+    <div class="row" style="align-items:center">
+      <!-- monochrome amber (how it's wired in Ask MAGE now) -->
+      <div class="swatch"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="2.5" x2="12" y2="5" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="21.5" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="2.5" y1="12" x2="5" y2="12" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="19" y1="12" x2="21.5" y2="12" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><circle cx="12" cy="12" r="7" stroke="#FF6A1A" stroke-width="1.75" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#FF6A1A"/></svg><span class="lbl">16px</span></div>
+      <div class="swatch"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><line x1="12" y1="2.5" x2="12" y2="5" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="21.5" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="2.5" y1="12" x2="5" y2="12" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="19" y1="12" x2="21.5" y2="12" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><circle cx="12" cy="12" r="7" stroke="#FF6A1A" stroke-width="1.75" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#FF6A1A"/></svg><span class="lbl">24px</span></div>
+      <div class="swatch"><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><line x1="12" y1="2.5" x2="12" y2="5" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="21.5" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="2.5" y1="12" x2="5" y2="12" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><line x1="19" y1="12" x2="21.5" y2="12" stroke="#FF6A1A" stroke-width="1.75" stroke-linecap="round"/><circle cx="12" cy="12" r="7" stroke="#FF6A1A" stroke-width="1.75" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#FF6A1A"/></svg><span class="lbl">40px</span></div>
+      <div class="swatch dark"><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><line x1="12" y1="2.5" x2="12" y2="5" stroke="#F4EFE6" stroke-width="1.75" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="21.5" stroke="#F4EFE6" stroke-width="1.75" stroke-linecap="round"/><line x1="2.5" y1="12" x2="5" y2="12" stroke="#F4EFE6" stroke-width="1.75" stroke-linecap="round"/><line x1="19" y1="12" x2="21.5" y2="12" stroke="#F4EFE6" stroke-width="1.75" stroke-linecap="round"/><circle cx="12" cy="12" r="7" stroke="#F4EFE6" stroke-width="1.75" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#FF6A1A"/></svg><span class="lbl">on dark (two-tone)</span></div>
+    </div>
+  </div>
+
+  <h2>Or pick a different direction</h2>
+  <div class="pick">
+    <div class="opt current">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none"><line x1="12" y1="2.5" x2="12" y2="5" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="21.5" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><line x1="2.5" y1="12" x2="5" y2="12" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><line x1="19" y1="12" x2="21.5" y2="12" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/><circle cx="12" cy="12" r="7" stroke="#0B0D10" stroke-width="1.75" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#FF6A1A"/></svg>
+      <div class="name">A · Surveyor's reticle</div>
+      <div class="desc">Precision instrument. "We measure." <span class="tag">Built</span></div>
+    </div>
+    <div class="opt">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none">
+        <path d="M3.5 17.2 h17" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/>
+        <path d="M6.5 17.2 a5.5 5.5 0 0 1 11 0" stroke="#0B0D10" stroke-width="1.75" fill="none"/>
+        <line x1="12" y1="6.4" x2="12" y2="8.6" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/>
+        <circle cx="18.2" cy="6.2" r="1.5" fill="#FF6A1A"/>
+      </svg>
+      <div class="name">B · Hard hat + spark</div>
+      <div class="desc">Unmistakably construction.</div>
+    </div>
+    <div class="opt">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none">
+        <line x1="9" y1="3.6" x2="15" y2="3.6" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/>
+        <line x1="12" y1="3.6" x2="12" y2="12" stroke="#0B0D10" stroke-width="1.75" stroke-linecap="round"/>
+        <path d="M12 12 L8.9 13 L12 20.6 L15.1 13 Z" fill="#FF6A1A" stroke="#0B0D10" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>
+      <div class="name">C · Plumb bob</div>
+      <div class="desc">Old-trade, precise, iconic.</div>
+    </div>
+    <div class="opt">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="9" width="18" height="6" rx="3" stroke="#0B0D10" stroke-width="1.75" fill="none"/>
+        <line x1="9.4" y1="9.7" x2="9.4" y2="14.3" stroke="#0B0D10" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="14.6" y1="9.7" x2="14.6" y2="14.3" stroke="#0B0D10" stroke-width="1.3" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="2.1" fill="#FF6A1A"/>
+      </svg>
+      <div class="name">D · Level bubble</div>
+      <div class="desc">"Dialed in / on the level."</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>How to use this:</b> just tell me a letter (A/B/C/D) — or "A but two-tone," "B but thinner," etc. Whatever you pick becomes the single MAGE-AI mark everywhere the app currently shows a sparkle, and I'll build the matching construction set (RFI, submittal, pay app, takeoff, schedule…) in the same hand. The icons in this page are the <i>exact</i> vector geometry that ships — what you see here is what renders in the app.
+  </div>
+</div>
+</body>
+</html>
