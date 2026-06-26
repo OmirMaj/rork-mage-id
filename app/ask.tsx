@@ -18,7 +18,8 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Sparkles, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { MageIntelligence } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -80,7 +81,7 @@ export default function AskMageScreen() {
           <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <View style={styles.headerIcon}><Sparkles size={15} color={themeColors.accent} /></View>
+          <View style={styles.headerIcon}><MageIntelligence size={16} color={themeColors.accent} accentColor={themeColors.accent} /></View>
           <View>
             <Text style={styles.headerTitle}>Ask MAGE</Text>
             <Text style={styles.headerSub}>Answers across your whole business</Text>
@@ -102,7 +103,7 @@ export default function AskMageScreen() {
         >
           {empty ? (
             <View style={styles.emptyWrap}>
-              <View style={styles.emptyIcon}><Sparkles size={26} color={themeColors.accent} /></View>
+              <View style={styles.emptyIcon}><MageIntelligence size={28} color={themeColors.accent} accentColor={themeColors.accent} /></View>
               <Text style={styles.emptyTitle}>Ask me anything about your business</Text>
               <Text style={styles.emptyBody}>
                 I can see your projects, invoices, schedules, leads, change orders and RFIs.
