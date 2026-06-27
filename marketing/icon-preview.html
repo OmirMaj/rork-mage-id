@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="robots" content="noindex,nofollow"/>
-<title>MAGE-AI mark — Compass Spark (locked)</title>
+<title>MAGE-AI mark — adding the I</title>
 <style>
   :root { --ink:#0B0D10; --paper:#F4EFE6; --amber:#FF6A1A; --line:#E6E0D4; --mut:#6B6256; }
   * { box-sizing:border-box; }
@@ -12,71 +12,66 @@
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
   .wrap { max-width:880px; margin:0 auto; padding:40px 24px 90px; }
   h1 { font-size:27px; letter-spacing:-0.4px; margin:0 0 4px; }
-  .sub { color:var(--mut); margin:0 0 28px; max-width:620px; }
-  .lock { display:inline-block; font-size:11px; font-weight:800; color:#fff; background:var(--amber); border-radius:6px; padding:3px 9px; margin-bottom:10px; letter-spacing:.4px; }
-  .note { background:#fff; border:1px solid var(--line); border-radius:14px; padding:20px 22px; margin:0 0 22px; }
-  .tiles { display:flex; gap:14px; }
-  .lt { background:var(--paper); border-radius:14px; flex:1; min-height:120px; display:flex; align-items:center; justify-content:center; color:var(--ink); }
-  .dk { background:var(--ink); border-radius:14px; flex:1; min-height:120px; display:flex; align-items:center; justify-content:center; color:var(--paper); }
-  .strip { display:flex; align-items:flex-end; gap:30px; flex-wrap:wrap; margin-top:6px; }
-  .cell { text-align:center; color:var(--ink); }
-  .lbl { color:var(--mut); font-size:11.5px; margin-top:6px; }
-  .appicon { width:60px; height:60px; border-radius:15px; background:var(--ink); color:var(--paper); display:flex; align-items:center; justify-content:center; }
-  .compare { display:flex; gap:14px; }
-  .cmp { flex:1; background:var(--paper); border-radius:12px; padding:16px; text-align:center; color:var(--ink); }
-  .ctx { display:flex; align-items:center; gap:10px; margin-top:6px; }
-  .iconbox { width:34px; height:34px; border-radius:10px; background:rgba(255,106,26,.10); display:flex; align-items:center; justify-content:center; }
-  .ttl { font-weight:800; font-size:16px; }
-  h3 { font-size:13px; text-transform:uppercase; letter-spacing:.5px; color:var(--mut); margin:0 0 12px; }
+  .sub { color:var(--mut); margin:0 0 28px; max-width:640px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px; }
+  .card.rec { border-color:var(--amber); box-shadow:0 0 0 1px var(--amber); }
+  .badge { font-size:10.5px;font-weight:800;color:#fff;background:var(--amber);border-radius:5px;padding:2px 7px;letter-spacing:.4px; }
+  .nm { font-weight:800; font-size:16px; margin:10px 0 2px; }
+  .tag { color:var(--mut); font-size:12.5px; margin-bottom:14px; min-height:34px; }
+  .tiles { display:flex; gap:12px; }
+  .lt { background:var(--paper); border-radius:12px; flex:1; min-height:96px; display:flex; align-items:center; justify-content:center; color:var(--ink); }
+  .dk { background:var(--ink); border-radius:12px; flex:1; min-height:96px; display:flex; align-items:center; justify-content:center; color:var(--paper); }
+  .mini { display:flex; align-items:center; gap:16px; margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+  .appicon { width:50px; height:50px; border-radius:13px; background:var(--ink); color:var(--paper); display:flex; align-items:center; justify-content:center; }
+  .twenty { color:var(--ink); display:flex; align-items:center; }
+  .lbl { color:var(--mut); font-size:11px; }
+  .note { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-top:24px; }
+  code { background:#F1ECE2; padding:1px 6px; border-radius:6px; font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <span class="lock">LOCKED</span>
-  <h1>Compass Spark — the MAGE-AI mark</h1>
-  <p class="sub">A drafting compass striking a dimension arc, sparked at the pivot. The legs are thinned per your note. This is now live in <code style="background:#F1ECE2;padding:1px 5px;border-radius:5px;">components/icons/MageIntelligence.tsx</code> — two-tone (ink instrument + amber spark), type-checks clean.</p>
+  <h1>Adding the "I"</h1>
+  <p class="sub">The compass already gives you the <b>A</b> (the splayed legs = an A-frame). Here are two ways to bring in the <b>I</b> — one keeps it a single square emblem, one makes the "AI" explicit. Compass legs stay at the thinner 1.9 you locked.</p>
 
-  <div class="note">
-    <h3>The mark — light &amp; dark</h3>
-    <div class="tiles">
-      <div class="lt"><svg width="84" height="84" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      <div class="dk"><svg width="84" height="84" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="grid">
+
+    <!-- Option B: nested plumb-line I -->
+    <div class="card rec">
+      <span class="badge">MY PICK · stays square</span>
+      <div class="nm">A · Plumb-line I</div>
+      <div class="tag">A plumb line drops from the compass pivot — the vertical stem is the "I", the amber bob is its point. One object, still a square.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="92" height="92" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.1" x2="12" y2="16.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><path d="M12 16.0 C13.6 16.0 14.3 17.3 14.05 18.5 C13.8 19.7 12.8 20.5 12 21.8 C11.2 20.5 10.2 19.7 9.95 18.5 C9.7 17.3 10.4 16.0 12 16.0 Z" fill="#FF6A1A"/></svg></div>
+        <div class="dk"><svg width="92" height="92" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.1" x2="12" y2="16.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><path d="M12 16.0 C13.6 16.0 14.3 17.3 14.05 18.5 C13.8 19.7 12.8 20.5 12 21.8 C11.2 20.5 10.2 19.7 9.95 18.5 C9.7 17.3 10.4 16.0 12 16.0 Z" fill="#FF6A1A"/></svg></div>
+      </div>
+      <div class="mini">
+        <div class="appicon"><svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.1" x2="12" y2="16.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><path d="M12 16.0 C13.6 16.0 14.3 17.3 14.05 18.5 C13.8 19.7 12.8 20.5 12 21.8 C11.2 20.5 10.2 19.7 9.95 18.5 C9.7 17.3 10.4 16.0 12 16.0 Z" fill="#FF6A1A"/></svg></div>
+        <div class="twenty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.1" x2="12" y2="16.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><path d="M12 16.0 C13.6 16.0 14.3 17.3 14.05 18.5 C13.8 19.7 12.8 20.5 12 21.8 C11.2 20.5 10.2 19.7 9.95 18.5 C9.7 17.3 10.4 16.0 12 16.0 Z" fill="#FF6A1A"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
+      </div>
     </div>
+
+    <!-- Option A: compass + I-beam -->
+    <div class="card">
+      <div class="nm" style="margin-top:26px;">B · Compass + I-beam</div>
+      <div class="tag">The compass-A stays, and a small steel I-beam stands to its right — reads as "AI" unmistakably. Slightly wider than square.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="120" height="86" viewBox="0 0 34 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="25" y1="7.6" x2="31" y2="7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="28" y1="7.6" x2="28" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="25" y1="18.6" x2="31" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+        <div class="dk"><svg width="120" height="86" viewBox="0 0 34 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="25" y1="7.6" x2="31" y2="7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="28" y1="7.6" x2="28" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="25" y1="18.6" x2="31" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+      </div>
+      <div class="mini">
+        <div class="appicon"><svg width="48" height="34" viewBox="0 0 34 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="25" y1="7.6" x2="31" y2="7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="28" y1="7.6" x2="28" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="25" y1="18.6" x2="31" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+        <div class="twenty"><svg width="28" height="20" viewBox="0 0 34 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="25" y1="7.6" x2="31" y2="7.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="28" y1="7.6" x2="28" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><line x1="25" y1="18.6" x2="31" y2="18.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
+      </div>
+    </div>
+
   </div>
 
   <div class="note">
-    <h3>Thinner — before / after</h3>
-    <div class="compare">
-      <div class="cmp">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.7" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <div class="lbl">before · legs 2.4</div>
-      </div>
-      <div class="cmp">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <div class="lbl"><b>after · legs 1.9</b></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="note">
-    <h3>Real sizes &amp; in context</h3>
-    <div class="strip">
-      <div class="cell"><div class="appicon"><svg width="42" height="42" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="lbl">app icon</div></div>
-      <div class="cell"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="lbl">28px</div></div>
-      <div class="cell"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="lbl">20px</div></div>
-      <div class="cell"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="lbl">16px</div></div>
-      <div class="cell">
-        <div class="ctx">
-          <div class="iconbox"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="color:#FF6A1A"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.45" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/></svg></div>
-          <span class="ttl">Ask MAGE</span>
-        </div>
-        <div class="lbl">app header</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="note" style="margin-top:22px;">
-    <b>Next:</b> say the word and I'll roll this across all <b>53</b> AI spots in the app (Sparkles / Wand2 / Zap / BrainCircuit / Lightbulb / Bot → Compass Spark), then build out the construction domain glyph set. It's already wired into the "Ask MAGE" screen.
+    <b>Which one?</b> <code>A</code> keeps the square single-emblem you liked (the I is the plumb line hanging from the pivot — very drafting/compass-appropriate, and the amber bob doubles as the spark's "point"). <code>B</code> spells "AI" most literally but goes a little wider. Reply A or B (or "blend" / a tweak) and I'll lock it into <code>MageIntelligence.tsx</code> and roll it across the app.
   </div>
 </div>
 </body>
