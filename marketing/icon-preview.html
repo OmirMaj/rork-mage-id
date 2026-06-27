@@ -4,207 +4,203 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="robots" content="noindex,nofollow"/>
-<title>MAGE-AI mark — built from construction parts</title>
+<title>MAGE-AI mark — 8 directions</title>
 <style>
   :root { --ink:#0B0D10; --paper:#F4EFE6; --amber:#FF6A1A; --line:#E6E0D4; --mut:#6B6256; }
   * { box-sizing:border-box; }
   body { margin:0; background:#FBF8F2; color:var(--ink);
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  .wrap { max-width:940px; margin:0 auto; padding:40px 24px 80px; }
-  h1 { font-size:26px; letter-spacing:-0.4px; margin:0 0 4px; }
-  .sub { color:var(--mut); margin:0 0 12px; }
-  .note { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin:24px 0; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:18px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px; }
-  .row { display:flex; align-items:center; gap:14px; }
-  .lt { background:var(--paper); border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:center; flex:1; min-height:84px; }
-  .dk { background:var(--ink); border-radius:12px; padding:14px 16px; display:flex; align-items:center; justify-content:center; flex:1; min-height:84px; }
-  .name { font-weight:700; margin-top:14px; }
-  .desc { color:var(--mut); font-size:13px; margin-top:2px; }
-  .lbl { color:var(--mut); font-size:12px; }
-  .ctx { display:flex; align-items:center; gap:8px; margin-top:14px; flex-wrap:wrap; }
-  .chip { display:inline-flex; align-items:center; gap:7px; background:var(--paper); border:1px solid var(--line); border-radius:999px; padding:6px 13px 6px 9px; font-weight:600; font-size:13px; }
-  .hdr { display:inline-flex; align-items:center; gap:10px; }
-  .hdr .iconbox { width:32px; height:32px; border-radius:9px; background:rgba(255,106,26,.08); display:flex; align-items:center; justify-content:center; }
-  .hdr .ttl { font-weight:800; font-size:16px; }
+  .wrap { max-width:1000px; margin:0 auto; padding:40px 24px 90px; }
+  h1 { font-size:27px; letter-spacing:-0.4px; margin:0 0 4px; }
+  .sub { color:var(--mut); margin:0 0 8px; max-width:680px; }
+  .hero { background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px 24px; margin:24px 0 34px; }
+  .hero h2 { margin:0 0 2px; font-size:18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; display:flex; flex-direction:column; }
+  .card.win { border-color:var(--amber); box-shadow:0 0 0 1px var(--amber); }
+  .rankrow { display:flex; align-items:center; gap:8px; margin-bottom:2px; }
+  .rank { font-size:11px; font-weight:800; color:#fff; background:var(--mut); border-radius:6px; padding:2px 7px; }
+  .rank.r1 { background:var(--amber); } .rank.r2 { background:#0B0D10; }
+  .nm { font-weight:800; font-size:15px; }
+  .tag { color:var(--mut); font-size:12.5px; margin:2px 0 12px; min-height:34px; }
+  .tiles { display:flex; gap:10px; }
+  .lt { background:var(--paper); border-radius:12px; flex:1; min-height:78px; display:flex; align-items:center; justify-content:center; color:var(--ink); }
+  .dk { background:var(--ink); border-radius:12px; flex:1; min-height:78px; display:flex; align-items:center; justify-content:center; color:var(--paper); }
+  .mini { display:flex; align-items:center; gap:14px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+  .mini .lbl { font-size:11px; color:var(--mut); }
+  .appicon { width:50px; height:50px; border-radius:13px; background:var(--ink); color:var(--paper); display:flex; align-items:center; justify-content:center; }
+  .twenty { display:flex; align-items:center; justify-content:center; color:var(--ink); width:30px; }
+  .scores { display:flex; flex-wrap:wrap; gap:5px; margin-top:12px; }
+  .s { font-size:10.5px; color:var(--mut); background:#F4EFE6; border-radius:5px; padding:2px 6px; }
+  .s b { color:var(--ink); }
+  .total { font-size:10.5px; color:#fff; background:var(--ink); border-radius:5px; padding:2px 7px; font-weight:700; }
+  .verdict { font-size:12.5px; color:var(--ink); margin-top:11px; }
+  .meta { font-size:11.5px; color:var(--mut); margin-top:8px; }
+  .meta b { color:var(--ink); }
+  .note { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin:30px 0 0; }
   code { background:#F1ECE2; padding:1px 6px; border-radius:6px; font-size:13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>"AI", built from construction parts</h1>
-  <p class="sub">No more dots. The letters <i>are</i> the jobsite: the <b>I is a solid steel I-beam</b> (flanges + web), the <b>A is an A-frame stepladder</b> (hinged apex, rung, splayed feet). W1 wand + amber star carries the mage. Three takes on how hard to push it.</p>
+  <h1>MAGE-AI mark — 8 fresh directions</h1>
+  <p class="sub">You said the wand-+-"AI"-strip format was limiting. So I broke it open: 8 independent directions — emblems, the wand fused into a letter, badges, tools-as-letters, and letterless symbols — each scored by a design director on construction-feel, magic, 20px legibility, originality, and how well it flexes (app icon / tab / inline). Every mark is shown on light + dark, at real 20px, and as an app-icon tile.</p>
+
+  <div class="hero">
+    <div class="rankrow"><span class="rank r1">DIRECTOR'S PICK</span><h2>Gantry M</h2></div>
+    <p style="margin:6px 0 0;color:var(--ink);">The only mark that does all three jobs at once: it <b>is the brand</b> (an M for MAGE), it <b>reads as construction</b> (a portal/gantry truss with steel-baseplate footings — not a typeface letter), and the <b>amber spark is structural</b> — the apex of the build, not a sparkle pasted on. Most ownable/trademark-distinct, best 20px legibility (one continuous beam path + a single accent), and it fills a square app icon, a tab glyph, and an inline slot without changing shape. Runner-up <b>Spark Truss</b> if you want a name-agnostic symbol.</p>
+  </div>
 
   <div class="grid">
 
-    <!-- D1 -->
-    <div class="card">
-      <div class="row">
-        <div class="lt">
-          <svg width="150" height="60" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <!-- wand -->
-            <line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--ink)" stroke-width="3.6"/>
-            <line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--ink)" stroke-width="2.1"/>
-            <path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/>
-            <!-- A = stepladder: legs, hinge gap at apex, rung, splayed feet -->
-            <line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/>
-            <!-- I = filled steel I-beam -->
-            <rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/>
-            <rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/>
-            <rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--ink)"/>
-          </svg>
-        </div>
-        <div class="dk">
-          <svg width="150" height="60" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--paper)" stroke-width="3.6"/>
-            <line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--paper)" stroke-width="2.1"/>
-            <path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/>
-            <line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/>
-            <rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/>
-            <rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/>
-            <rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--paper)"/>
-          </svg>
-        </div>
+    <!-- 1 Gantry M -->
+    <div class="card win">
+      <div class="rankrow"><span class="rank r1">#1 · 43</span><span class="nm">Gantry M</span></div>
+      <div class="tag">A truss-built "M" for MAGE whose right peak rises into the amber star.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><polyline points="4.5,20 4.5,7.5 12,14 19.5,7.5 19.5,20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><line x1="2.8" y1="20.2" x2="6.2" y2="20.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><line x1="17.8" y1="20.2" x2="21.2" y2="20.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19.5 3 L20.5 6 L23.5 7 L20.5 8 L19.5 11 L18.5 8 L15.5 7 L18.5 6 Z" fill="#FF6A1A"/></svg></div>
+        <div class="dk"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><polyline points="4.5,20 4.5,7.5 12,14 19.5,7.5 19.5,20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><line x1="2.8" y1="20.2" x2="6.2" y2="20.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><line x1="17.8" y1="20.2" x2="21.2" y2="20.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19.5 3 L20.5 6 L23.5 7 L20.5 8 L19.5 11 L18.5 8 L15.5 7 L18.5 6 Z" fill="#FF6A1A"/></svg></div>
       </div>
-      <div class="name">D1 · Stepladder A + steel I-beam</div>
-      <div class="desc">The letters are literally a ladder and a beam. Monochrome — amber lives only in the wand. Cleanest. My pick.</div>
-      <div class="ctx">
-        <span class="chip">
-          <svg width="42" height="17" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--ink)" stroke-width="3.6"/><line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--ink)" stroke-width="2.1"/><path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/><line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/><line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/><line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--ink)" stroke-width="2.1"/><line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/><line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/><rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/><rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/><rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--ink)"/></svg>
-          Ask MAGE
-        </span>
+      <div class="mini">
+        <div class="appicon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none"><polyline points="4.5,20 4.5,7.5 12,14 19.5,7.5 19.5,20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><line x1="2.8" y1="20.2" x2="6.2" y2="20.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><line x1="17.8" y1="20.2" x2="21.2" y2="20.2" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M19.5 3 L20.5 6 L23.5 7 L20.5 8 L19.5 11 L18.5 8 L15.5 7 L18.5 6 Z" fill="#FF6A1A"/></svg></div>
+        <div class="twenty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><polyline points="4.5,20 4.5,7.5 12,14 19.5,7.5 19.5,20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.5 3.5 L20.4 6 L22.9 6.9 L20.4 7.8 L19.5 10.3 L18.6 7.8 L16.1 6.9 L18.6 6 Z" fill="#FF6A1A"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
       </div>
+      <div class="scores"><span class="total">43</span><span class="s">build <b>8</b></span><span class="s">mage <b>8</b></span><span class="s">20px <b>9</b></span><span class="s">orig <b>9</b></span><span class="s">flex <b>9</b></span></div>
+      <div class="verdict">Brandable, ownable, and the only candidate that carries the actual brand name.</div>
+      <div class="meta"><b>Risk:</b> reads as "M + sparkle" if the star drifts off the right peak — fixed by anchoring it on the vertex.</div>
     </div>
 
-    <!-- D2 -->
+    <!-- 2 Spark Truss -->
     <div class="card">
-      <div class="row">
-        <div class="lt">
-          <svg width="150" height="60" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--ink)" stroke-width="3.6"/>
-            <line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--ink)" stroke-width="2.1"/>
-            <path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/>
-            <line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--amber)" stroke-width="2.1"/>
-            <line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/>
-            <rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/>
-            <rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/>
-            <rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--amber)"/>
-          </svg>
-        </div>
-        <div class="dk">
-          <svg width="150" height="60" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--paper)" stroke-width="3.6"/>
-            <line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--paper)" stroke-width="2.1"/>
-            <path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/>
-            <line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--amber)" stroke-width="2.1"/>
-            <line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/>
-            <rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/>
-            <rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/>
-            <rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--amber)"/>
-          </svg>
-        </div>
+      <div class="rankrow"><span class="rank r2">#2 · 42</span><span class="nm">Spark Truss</span></div>
+      <div class="tag">An amber spark crowning a triangulated truss on a beam — no letters.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><line x1="3.6" y1="19.6" x2="20.4" y2="19.6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><polyline points="5,19.6 12,6.8 19,19.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="8.5" y1="13.2" x2="15.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.8" x2="8.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.8" x2="15.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="19.6" r="1.1" fill="currentColor"/><circle cx="19" cy="19.6" r="1.1" fill="currentColor"/><circle cx="8.5" cy="13.2" r="0.95" fill="currentColor"/><circle cx="15.5" cy="13.2" r="0.95" fill="currentColor"/><path d="M12 0.9 L13.05 3.95 L16.1 5 L13.05 6.05 L12 9.1 L10.95 6.05 L7.9 5 L10.95 3.95 Z" fill="#FF6A1A"/></svg></div>
+        <div class="dk"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><line x1="3.6" y1="19.6" x2="20.4" y2="19.6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><polyline points="5,19.6 12,6.8 19,19.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="8.5" y1="13.2" x2="15.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.8" x2="8.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.8" x2="15.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="19.6" r="1.1" fill="currentColor"/><circle cx="19" cy="19.6" r="1.1" fill="currentColor"/><circle cx="8.5" cy="13.2" r="0.95" fill="currentColor"/><circle cx="15.5" cy="13.2" r="0.95" fill="currentColor"/><path d="M12 0.9 L13.05 3.95 L16.1 5 L13.05 6.05 L12 9.1 L10.95 6.05 L7.9 5 L10.95 3.95 Z" fill="#FF6A1A"/></svg></div>
       </div>
-      <div class="name">D2 · Amber "live" members</div>
-      <div class="desc">Same parts, but the ladder rung and the beam's web glow amber — the load-bearing members are where the magic flows. Mage + steel.</div>
-      <div class="ctx">
-        <span class="hdr">
-          <span class="iconbox">
-            <svg width="40" height="16" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--amber)" stroke-width="3.6"/><line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--amber)" stroke-width="2.1"/><path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/><line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--amber)" stroke-width="2.1"/><line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--amber)" stroke-width="2.1"/><line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--amber)" stroke-width="2.1"/><line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--amber)" stroke-width="2.1"/><line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--amber)" stroke-width="2.1"/><rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--amber)"/><rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--amber)"/><rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--amber)"/></svg>
-          </span>
-          <span class="ttl">Ask MAGE</span>
-        </span>
+      <div class="mini">
+        <div class="appicon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none"><line x1="3.6" y1="19.6" x2="20.4" y2="19.6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><polyline points="5,19.6 12,6.8 19,19.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="8.5" y1="13.2" x2="15.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.8" x2="8.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="6.8" x2="15.5" y2="13.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 0.9 L13.05 3.95 L16.1 5 L13.05 6.05 L12 9.1 L10.95 6.05 L7.9 5 L10.95 3.95 Z" fill="#FF6A1A"/></svg></div>
+        <div class="twenty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><line x1="3.6" y1="19.6" x2="20.4" y2="19.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><polyline points="5,19.6 12,7.2 19,19.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="7.2" x2="8.6" y2="13.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="7.2" x2="15.4" y2="13.4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 1 L13.15 4.2 L16.35 5.35 L13.15 6.5 L12 9.7 L10.85 6.5 L7.65 5.35 L10.85 4.2 Z" fill="#FF6A1A"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
       </div>
+      <div class="scores"><span class="total">42</span><span class="s">build <b>9</b></span><span class="s">mage <b>8</b></span><span class="s">20px <b>8</b></span><span class="s">orig <b>8</b></span><span class="s">flex <b>9</b></span></div>
+      <div class="verdict">Cleanest "structure that computes" idea — node-graph at the truss joints. Scales like a true app icon.</div>
+      <div class="meta"><b>Risk:</b> the joint dots crowd the apex when tiny — small version drops them.</div>
     </div>
 
-    <!-- D3 -->
+    <!-- 3 Crane-spark -->
     <div class="card">
-      <div class="row">
-        <div class="lt">
-          <svg width="150" height="60" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--ink)" stroke-width="3.6"/>
-            <line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--ink)" stroke-width="2.1"/>
-            <path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/>
-            <!-- truss A: rafters + king post + two web diagonals + rung + feet -->
-            <line x1="24.8" y1="18.5" x2="30" y2="6.8" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="35.2" y1="18.5" x2="30" y2="6.8" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="27.0" y1="13.6" x2="33.0" y2="13.6" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="30" y1="6.8" x2="30" y2="13.6" stroke="var(--ink)" stroke-width="1.5"/>
-            <line x1="30" y1="6.8" x2="27.5" y2="13.6" stroke="var(--ink)" stroke-width="1.5"/>
-            <line x1="30" y1="6.8" x2="32.5" y2="13.6" stroke="var(--ink)" stroke-width="1.5"/>
-            <line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/>
-            <line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/>
-            <!-- I-beam -->
-            <rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/>
-            <rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/>
-            <rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--ink)"/>
-          </svg>
-        </div>
-        <div class="dk">
-          <svg width="150" height="60" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--paper)" stroke-width="3.6"/>
-            <line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--paper)" stroke-width="2.1"/>
-            <path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/>
-            <line x1="24.8" y1="18.5" x2="30" y2="6.8" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="35.2" y1="18.5" x2="30" y2="6.8" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="27.0" y1="13.6" x2="33.0" y2="13.6" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="30" y1="6.8" x2="30" y2="13.6" stroke="var(--paper)" stroke-width="1.5"/>
-            <line x1="30" y1="6.8" x2="27.5" y2="13.6" stroke="var(--paper)" stroke-width="1.5"/>
-            <line x1="30" y1="6.8" x2="32.5" y2="13.6" stroke="var(--paper)" stroke-width="1.5"/>
-            <line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/>
-            <line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/>
-            <rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/>
-            <rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/>
-            <rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--paper)"/>
-          </svg>
-        </div>
+      <div class="rankrow"><span class="rank">#3 · 36</span><span class="nm">Crane-spark</span></div>
+      <div class="tag">A jobsite crane hoisting the amber spark of intelligence.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="68" height="58" viewBox="0 0 28 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="6.4" y1="22" x2="6.4" y2="6.2" stroke-width="2.4"/><line x1="6.4" y1="6.2" x2="3.0" y2="22" stroke-width="2.1"/><line x1="2.1" y1="22" x2="3.9" y2="22" stroke-width="2.1"/><line x1="5.5" y1="22" x2="7.3" y2="22" stroke-width="2.1"/><line x1="4.45" y1="14.2" x2="6.4" y2="14.2" stroke-width="1.7"/><line x1="6.4" y1="6.2" x2="22.0" y2="2.7" stroke-width="2.4"/><polyline points="8.8,5.6 11.0,7.2 13.4,4.9 15.8,6.4 18.2,4.2 20.6,5.4" stroke-width="1.7"/><line x1="22.0" y1="2.9" x2="22.0" y2="8.4" stroke-width="1.7"/></g><path d="M22 8.2 L23.0 11.0 L25.8 12.0 L23.0 13.0 L22 15.8 L21.0 13.0 L18.2 12.0 L21.0 11.0 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="dk"><svg width="68" height="58" viewBox="0 0 28 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="6.4" y1="22" x2="6.4" y2="6.2" stroke-width="2.4"/><line x1="6.4" y1="6.2" x2="3.0" y2="22" stroke-width="2.1"/><line x1="2.1" y1="22" x2="3.9" y2="22" stroke-width="2.1"/><line x1="5.5" y1="22" x2="7.3" y2="22" stroke-width="2.1"/><line x1="4.45" y1="14.2" x2="6.4" y2="14.2" stroke-width="1.7"/><line x1="6.4" y1="6.2" x2="22.0" y2="2.7" stroke-width="2.4"/><polyline points="8.8,5.6 11.0,7.2 13.4,4.9 15.8,6.4 18.2,4.2 20.6,5.4" stroke-width="1.7"/><line x1="22.0" y1="2.9" x2="22.0" y2="8.4" stroke-width="1.7"/></g><path d="M22 8.2 L23.0 11.0 L25.8 12.0 L23.0 13.0 L22 15.8 L21.0 13.0 L18.2 12.0 L21.0 11.0 Z" fill="#FF6A1A" stroke="none"/></svg></div>
       </div>
-      <div class="name">D3 · Engineered roof truss</div>
-      <div class="desc">The A becomes a real king-post truss — rafters, king post, web diagonals. Most "structural engineering," but the thin webs soften below ~24px.</div>
-      <div class="ctx">
-        <span class="chip" style="background:var(--ink);color:#fff;border-color:var(--ink);">
-          <svg width="42" height="17" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--paper)" stroke-width="3.6"/><line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--paper)" stroke-width="2.1"/><path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/><line x1="24.8" y1="18.5" x2="30" y2="6.8" stroke="var(--paper)" stroke-width="2.1"/><line x1="35.2" y1="18.5" x2="30" y2="6.8" stroke="var(--paper)" stroke-width="2.1"/><line x1="27.0" y1="13.6" x2="33.0" y2="13.6" stroke="var(--paper)" stroke-width="2.1"/><line x1="30" y1="6.8" x2="30" y2="13.6" stroke="var(--paper)" stroke-width="1.5"/><line x1="30" y1="6.8" x2="27.5" y2="13.6" stroke="var(--paper)" stroke-width="1.5"/><line x1="30" y1="6.8" x2="32.5" y2="13.6" stroke="var(--paper)" stroke-width="1.5"/><line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/><line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--paper)" stroke-width="2.1"/><rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/><rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--paper)"/><rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--paper)"/></svg>
-          Estimate with AI
-        </span>
+      <div class="mini">
+        <div class="appicon"><svg width="42" height="36" viewBox="0 0 28 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="6.4" y1="22" x2="6.4" y2="6.4" stroke-width="2.6"/><line x1="6.4" y1="6.4" x2="3.2" y2="22" stroke-width="2.4"/><line x1="2.2" y1="22" x2="7.4" y2="22" stroke-width="2.4"/><line x1="6.4" y1="6.4" x2="21.6" y2="3.0" stroke-width="2.6"/><line x1="21.4" y1="3.2" x2="21.4" y2="8.0" stroke-width="2"/></g><path d="M21.4 7.6 L22.5 10.7 L25.6 11.8 L22.5 12.9 L21.4 16.0 L20.3 12.9 L17.2 11.8 L20.3 10.7 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="twenty"><svg width="26" height="22" viewBox="0 0 28 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="6.4" y1="22" x2="6.4" y2="6.4" stroke-width="2.6"/><line x1="6.4" y1="6.4" x2="3.2" y2="22" stroke-width="2.4"/><line x1="2.2" y1="22" x2="7.4" y2="22" stroke-width="2.4"/><line x1="6.4" y1="6.4" x2="21.6" y2="3.0" stroke-width="2.6"/><line x1="21.4" y1="3.2" x2="21.4" y2="8.0" stroke-width="2"/></g><path d="M21.4 7.6 L22.5 10.7 L25.6 11.8 L22.5 12.9 L21.4 16.0 L20.3 12.9 L17.2 11.8 L20.3 10.7 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
       </div>
+      <div class="scores"><span class="total">36</span><span class="s">build <b>9</b></span><span class="s">mage <b>8</b></span><span class="s">20px <b>6</b></span><span class="s">orig <b>7</b></span><span class="s">flex <b>6</b></span></div>
+      <div class="verdict">Best narrative — but the diagonal landscape ratio fights a square tile and the boom truss muddies at 20px.</div>
+      <div class="meta"><b>Risk:</b> reads as a plain crane until the amber spark registers.</div>
+    </div>
+
+    <!-- 4 Crane-Frame -->
+    <div class="card">
+      <div class="rankrow"><span class="rank">#4 · 33</span><span class="nm">Crane-Frame</span></div>
+      <div class="tag">Wand lowered like a crane jib, setting the star on an A-frame beside an I-beam.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2.6" y1="3.0" x2="6.0" y2="5.6" stroke-width="3.4"/><line x1="5.6" y1="5.3" x2="10.4" y2="6.2" stroke-width="2"/><line x1="10.6" y1="6.4" x2="10.6" y2="8.3" stroke-width="1.7"/><line x1="6.4" y1="21.0" x2="10.6" y2="9.6"/><line x1="10.6" y1="9.6" x2="14.8" y2="21.0"/><line x1="8.35" y1="16.2" x2="12.85" y2="16.2"/><line x1="16.4" y1="11.0" x2="21.4" y2="11.0"/><line x1="18.9" y1="11.0" x2="18.9" y2="21.0"/><line x1="16.4" y1="21.0" x2="21.4" y2="21.0"/></g><path d="M10.6 4.0 L11.45 6.85 L14.3 7.7 L11.45 8.55 L10.6 11.4 L9.75 8.55 L6.9 7.7 L9.75 6.85 Z" fill="#FF6A1A"/></svg></div>
+        <div class="dk"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2.6" y1="3.0" x2="6.0" y2="5.6" stroke-width="3.4"/><line x1="5.6" y1="5.3" x2="10.4" y2="6.2" stroke-width="2"/><line x1="10.6" y1="6.4" x2="10.6" y2="8.3" stroke-width="1.7"/><line x1="6.4" y1="21.0" x2="10.6" y2="9.6"/><line x1="10.6" y1="9.6" x2="14.8" y2="21.0"/><line x1="8.35" y1="16.2" x2="12.85" y2="16.2"/><line x1="16.4" y1="11.0" x2="21.4" y2="11.0"/><line x1="18.9" y1="11.0" x2="18.9" y2="21.0"/><line x1="16.4" y1="21.0" x2="21.4" y2="21.0"/></g><path d="M10.6 4.0 L11.45 6.85 L14.3 7.7 L11.45 8.55 L10.6 11.4 L9.75 8.55 L6.9 7.7 L9.75 6.85 Z" fill="#FF6A1A"/></svg></div>
+      </div>
+      <div class="mini">
+        <div class="appicon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none"><g fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="6.4" y1="21.0" x2="10.6" y2="9.8"/><line x1="10.6" y1="9.8" x2="14.8" y2="21.0"/><line x1="8.4" y1="16.4" x2="12.8" y2="16.4"/><line x1="16.4" y1="11.2" x2="21.4" y2="11.2"/><line x1="18.9" y1="11.2" x2="18.9" y2="21.0"/><line x1="16.4" y1="21.0" x2="21.4" y2="21.0"/></g><path d="M10.6 4.4 L11.5 7.3 L14.4 8.2 L11.5 9.1 L10.6 12.0 L9.7 9.1 L6.8 8.2 L9.7 7.3 Z" fill="#FF6A1A"/></svg></div>
+        <div class="twenty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><g fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="6.4" y1="21.0" x2="10.6" y2="9.8"/><line x1="10.6" y1="9.8" x2="14.8" y2="21.0"/><line x1="8.4" y1="16.4" x2="12.8" y2="16.4"/><line x1="16.4" y1="11.2" x2="21.4" y2="11.2"/><line x1="18.9" y1="11.2" x2="18.9" y2="21.0"/><line x1="16.4" y1="21.0" x2="21.4" y2="21.0"/></g><path d="M10.6 4.4 L11.5 7.3 L14.4 8.2 L11.5 9.1 L10.6 12.0 L9.7 9.1 L6.8 8.2 L9.7 7.3 Z" fill="#FF6A1A"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
+      </div>
+      <div class="scores"><span class="total">33</span><span class="s">build <b>8</b></span><span class="s">mage <b>7</b></span><span class="s">20px <b>5</b></span><span class="s">orig <b>6</b></span><span class="s">flex <b>7</b></span></div>
+      <div class="verdict">Smart "placing intelligence on structure," but three stacked sub-glyphs is too much for a tab icon.</div>
+      <div class="meta"><b>Risk:</b> hoist line + collar tie merge into the star when small.</div>
+    </div>
+
+    <!-- 5 Compass Spark -->
+    <div class="card">
+      <div class="rankrow"><span class="rank">#5 · 33</span><span class="nm">Compass Spark</span></div>
+      <div class="tag">A drafting compass striking a dimension arc, sparked at the pivot.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.7" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="dk"><svg width="60" height="60" viewBox="0 0 24 24" fill="none"><path d="M4 18.5 A 8.5 8.5 0 0 1 20 18.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-dasharray="0.1 3.1" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="6.2" y2="18.8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="4.3" x2="17.8" y2="18.8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.3" r="1.7" fill="currentColor"/><path d="M12 0.6 L12.8 3.5 L15.7 4.3 L12.8 5.1 L12 8 L11.2 5.1 L8.3 4.3 L11.2 3.5 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14.4" r="1.5" fill="#FF6A1A"/><line x1="5" y1="18.4" x2="7.4" y2="19.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div class="mini">
+        <div class="appicon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M5 18 A 7.5 7.5 0 0 1 19 18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-dasharray="0.1 3.4" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="5" x2="6.5" y2="18.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="5" x2="17.5" y2="18.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 1 L12.9 4 L15.9 4.9 L12.9 5.8 L12 8.8 L11.1 5.8 L8.1 4.9 L11.1 4 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14" r="1.8" fill="#FF6A1A"/></svg></div>
+        <div class="twenty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M5 18 A 7.5 7.5 0 0 1 19 18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-dasharray="0.1 3.4" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="5" x2="6.5" y2="18.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="5" x2="17.5" y2="18.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 1 L12.9 4 L15.9 4.9 L12.9 5.8 L12 8.8 L11.1 5.8 L8.1 4.9 L11.1 4 Z" fill="#FF6A1A"/><circle cx="14.6" cy="14" r="1.8" fill="#FF6A1A"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
+      </div>
+      <div class="scores"><span class="total">33</span><span class="s">build <b>8</b></span><span class="s">mage <b>7</b></span><span class="s">20px <b>5</b></span><span class="s">orig <b>7</b></span><span class="s">flex <b>6</b></span></div>
+      <div class="verdict">Elegant precision-instrument idea — but the dashed arc sinters to a fuzzy band at 20px.</div>
+      <div class="meta"><b>Risk:</b> bare compass can read as a generic caret/A without the arc.</div>
+    </div>
+
+    <!-- 6 Plumb & Frame -->
+    <div class="card">
+      <div class="rankrow"><span class="rank">#6 · 30</span><span class="nm">Plumb &amp; Frame</span></div>
+      <div class="tag">"AI" from a stepladder A-frame and a plumb-bob — tools that spell the letters.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="77" height="58" viewBox="0 0 32 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="3.4" x2="3.2" y2="20.6" stroke-width="2.6"/><line x1="9" y1="3.4" x2="14.8" y2="20.6" stroke-width="2.6"/><line x1="6.1" y1="12" x2="11.9" y2="12" stroke-width="2.0"/><line x1="7.2" y1="16" x2="10.8" y2="16" stroke-width="1.7"/><line x1="22.0" y1="3.6" x2="27.2" y2="3.6" stroke-width="2.3"/><line x1="24.6" y1="3.6" x2="24.6" y2="14.6" stroke-width="2.0"/></g><path d="M24.6 13.2 C 26.7 13.2 27.7 14.9 27.4 16.5 C 27.1 18.1 25.7 19.2 24.6 21.0 C 23.5 19.2 22.1 18.1 21.8 16.5 C 21.5 14.9 22.5 13.2 24.6 13.2 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="dk"><svg width="77" height="58" viewBox="0 0 32 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="3.4" x2="3.2" y2="20.6" stroke-width="2.6"/><line x1="9" y1="3.4" x2="14.8" y2="20.6" stroke-width="2.6"/><line x1="6.1" y1="12" x2="11.9" y2="12" stroke-width="2.0"/><line x1="7.2" y1="16" x2="10.8" y2="16" stroke-width="1.7"/><line x1="22.0" y1="3.6" x2="27.2" y2="3.6" stroke-width="2.3"/><line x1="24.6" y1="3.6" x2="24.6" y2="14.6" stroke-width="2.0"/></g><path d="M24.6 13.2 C 26.7 13.2 27.7 14.9 27.4 16.5 C 27.1 18.1 25.7 19.2 24.6 21.0 C 23.5 19.2 22.1 18.1 21.8 16.5 C 21.5 14.9 22.5 13.2 24.6 13.2 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+      </div>
+      <div class="mini">
+        <div class="appicon"><svg width="48" height="36" viewBox="0 0 32 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="3.4" x2="3.2" y2="20.6" stroke-width="2.9"/><line x1="9" y1="3.4" x2="14.8" y2="20.6" stroke-width="2.9"/><line x1="5.9" y1="12" x2="12.1" y2="12" stroke-width="2.5"/><line x1="24.6" y1="3.6" x2="24.6" y2="13.4" stroke-width="2.5"/><line x1="21.9" y1="3.6" x2="27.3" y2="3.6" stroke-width="2.5"/></g><path d="M24.6 12.4 C 27.2 12.4 28.1 14.6 27.6 16.4 C 27.1 18.3 25.7 19.3 24.6 21.2 C 23.5 19.3 22.1 18.3 21.6 16.4 C 21.1 14.6 22.0 12.4 24.6 12.4 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="twenty"><svg width="29" height="22" viewBox="0 0 32 24" fill="none"><g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="3.4" x2="3.2" y2="20.6" stroke-width="2.9"/><line x1="9" y1="3.4" x2="14.8" y2="20.6" stroke-width="2.9"/><line x1="5.9" y1="12" x2="12.1" y2="12" stroke-width="2.5"/><line x1="24.6" y1="3.6" x2="24.6" y2="13.4" stroke-width="2.5"/><line x1="21.9" y1="3.6" x2="27.3" y2="3.6" stroke-width="2.5"/></g><path d="M24.6 12.4 C 27.2 12.4 28.1 14.6 27.6 16.4 C 27.1 18.3 25.7 19.3 24.6 21.2 C 23.5 19.3 22.1 18.3 21.6 16.4 C 21.1 14.6 22.0 12.4 24.6 12.4 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
+      </div>
+      <div class="scores"><span class="total">30</span><span class="s">build <b>8</b></span><span class="s">mage <b>5</b></span><span class="s">20px <b>6</b></span><span class="s">orig <b>6</b></span><span class="s">flex <b>5</b></span></div>
+      <div class="verdict">Honest tools-as-letters, but the amber bob reads as a map pin and it's still a wide wordmark.</div>
+      <div class="meta"><b>Risk:</b> the I's top serif can start to look like a "T".</div>
+    </div>
+
+    <!-- 7 A-frame & Wand-I -->
+    <div class="card">
+      <div class="rankrow"><span class="rank">#7 · 27</span><span class="nm">A-frame &amp; Wand-I</span></div>
+      <div class="tag">An A-frame ladder leaning on the wand, the star as the I's tittle.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="83" height="58" viewBox="0 0 40 28" fill="none"><g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4.5" y1="24" x2="11.5" y2="6.5"/><line x1="18.5" y1="24" x2="11.5" y2="6.5"/><line x1="8.2" y1="15.2" x2="14.8" y2="15.2" stroke-width="2.1"/><line x1="25.6" y1="24" x2="27.4" y2="16.5" stroke-width="3.4"/><line x1="27.4" y1="16.5" x2="30.2" y2="6.6" stroke-width="2.1"/></g><polygon points="31.2,1.2 32.3,4.7 35.8,5.8 32.3,6.9 31.2,10.4 30.1,6.9 26.6,5.8 30.1,4.7" fill="#FF6A1A"/></svg></div>
+        <div class="dk"><svg width="83" height="58" viewBox="0 0 40 28" fill="none"><g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4.5" y1="24" x2="11.5" y2="6.5"/><line x1="18.5" y1="24" x2="11.5" y2="6.5"/><line x1="8.2" y1="15.2" x2="14.8" y2="15.2" stroke-width="2.1"/><line x1="25.6" y1="24" x2="27.4" y2="16.5" stroke-width="3.4"/><line x1="27.4" y1="16.5" x2="30.2" y2="6.6" stroke-width="2.1"/></g><polygon points="31.2,1.2 32.3,4.7 35.8,5.8 32.3,6.9 31.2,10.4 30.1,6.9 26.6,5.8 30.1,4.7" fill="#FF6A1A"/></svg></div>
+      </div>
+      <div class="mini">
+        <div class="appicon"><svg width="51" height="36" viewBox="0 0 40 28" fill="none"><g fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="24" x2="11" y2="6.5"/><line x1="18" y1="24" x2="11" y2="6.5"/><line x1="7.8" y1="15.5" x2="14.2" y2="15.5" stroke-width="2.4"/><line x1="27" y1="24" x2="30" y2="7" stroke-width="3"/></g><polygon points="31.4,1 32.6,4.8 36.4,6 32.6,7.2 31.4,11 30.2,7.2 26.4,6 30.2,4.8" fill="#FF6A1A"/></svg></div>
+        <div class="twenty"><svg width="31" height="22" viewBox="0 0 40 28" fill="none"><g fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="24" x2="11" y2="6.5"/><line x1="18" y1="24" x2="11" y2="6.5"/><line x1="7.8" y1="15.5" x2="14.2" y2="15.5" stroke-width="2.4"/><line x1="27" y1="24" x2="30" y2="7" stroke-width="3"/></g><polygon points="31.4,1 32.6,4.8 36.4,6 32.6,7.2 31.4,11 30.2,7.2 26.4,6 30.2,4.8" fill="#FF6A1A"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
+      </div>
+      <div class="scores"><span class="total">27</span><span class="s">build <b>7</b></span><span class="s">mage <b>6</b></span><span class="s">20px <b>4</b></span><span class="s">orig <b>5</b></span><span class="s">flex <b>5</b></span></div>
+      <div class="verdict">Charming interlock, but the 40×28 ratio and the leg-to-wand gap blob keep it stuck in lockup territory.</div>
+      <div class="meta"><b>Risk:</b> A and wand merge into one blob at 20px.</div>
+    </div>
+
+    <!-- 8 Tradesman's Wand Shield -->
+    <div class="card">
+      <div class="rankrow"><span class="rank">#8 · 27</span><span class="nm">Wand Shield</span></div>
+      <div class="tag">A union-trade safety shield stamped with the wand and amber spark.</div>
+      <div class="tiles">
+        <div class="lt"><svg width="58" height="58" viewBox="0 0 24 24" fill="none"><path d="M12 1.6 C8.6 3.0 5.6 3.7 2.9 3.9 C2.9 9.5 3.4 16.0 12 22.4 C20.6 16.0 21.1 9.5 21.1 3.9 C18.4 3.7 15.4 3.0 12 1.6 Z" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 4.0 C9.5 5.0 7.3 5.5 5.3 5.7 C5.3 9.8 5.7 14.6 12 19.4 C18.3 14.6 18.7 9.8 18.7 5.7 C16.7 5.5 14.5 5.0 12 4.0 Z" fill="none" stroke="currentColor" stroke-width="0.85"/><line x1="8.0" y1="16.6" x2="10.9" y2="13.1" stroke="currentColor" stroke-width="3.0"/><line x1="10.5" y1="13.6" x2="14.8" y2="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M15.0 5.6 L15.75 7.85 L18.0 8.2 L15.75 8.55 L15.0 10.8 L14.25 8.55 L12.0 8.2 L14.25 7.85 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="dk"><svg width="58" height="58" viewBox="0 0 24 24" fill="none"><path d="M12 1.6 C8.6 3.0 5.6 3.7 2.9 3.9 C2.9 9.5 3.4 16.0 12 22.4 C20.6 16.0 21.1 9.5 21.1 3.9 C18.4 3.7 15.4 3.0 12 1.6 Z" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 4.0 C9.5 5.0 7.3 5.5 5.3 5.7 C5.3 9.8 5.7 14.6 12 19.4 C18.3 14.6 18.7 9.8 18.7 5.7 C16.7 5.5 14.5 5.0 12 4.0 Z" fill="none" stroke="currentColor" stroke-width="0.85"/><line x1="8.0" y1="16.6" x2="10.9" y2="13.1" stroke="currentColor" stroke-width="3.0"/><line x1="10.5" y1="13.6" x2="14.8" y2="8.5" stroke="currentColor" stroke-width="1.8"/><path d="M15.0 5.6 L15.75 7.85 L18.0 8.2 L15.75 8.55 L15.0 10.8 L14.25 8.55 L12.0 8.2 L14.25 7.85 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+      </div>
+      <div class="mini">
+        <div class="appicon"><svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 1.6 C8.6 3.0 5.6 3.7 2.9 3.9 C2.9 9.5 3.4 16.0 12 22.4 C20.6 16.0 21.1 9.5 21.1 3.9 C18.4 3.7 15.4 3.0 12 1.6 Z" fill="none" stroke="currentColor" stroke-width="2.0"/><line x1="8.0" y1="16.4" x2="11.1" y2="12.8" stroke="currentColor" stroke-width="3.4"/><line x1="10.6" y1="13.4" x2="14.7" y2="8.6" stroke="currentColor" stroke-width="2.2"/><path d="M14.9 5.2 L15.75 7.75 L18.3 8.15 L15.75 8.55 L14.9 11.1 L14.05 8.55 L11.5 8.15 L14.05 7.75 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="twenty"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 1.6 C8.6 3.0 5.6 3.7 2.9 3.9 C2.9 9.5 3.4 16.0 12 22.4 C20.6 16.0 21.1 9.5 21.1 3.9 C18.4 3.7 15.4 3.0 12 1.6 Z" fill="none" stroke="currentColor" stroke-width="2.0"/><line x1="8.0" y1="16.4" x2="11.1" y2="12.8" stroke="currentColor" stroke-width="3.4"/><line x1="10.6" y1="13.4" x2="14.7" y2="8.6" stroke="currentColor" stroke-width="2.2"/><path d="M14.9 5.2 L15.75 7.75 L18.3 8.15 L15.75 8.55 L14.9 11.1 L14.05 8.55 L11.5 8.15 L14.05 7.75 Z" fill="#FF6A1A" stroke="none"/></svg></div>
+        <div class="lbl">app icon · 20px</div>
+      </div>
+      <div class="scores"><span class="total">27</span><span class="s">build <b>7</b></span><span class="s">mage <b>6</b></span><span class="s">20px <b>5</b></span><span class="s">orig <b>3</b></span><span class="s">flex <b>6</b></span></div>
+      <div class="verdict">Shield authority is real, but it's the most clichéd container — risks reading as a generic security badge.</div>
+      <div class="meta"><b>Risk:</b> low originality; the spark must stay amber or the "magic" disappears.</div>
     </div>
 
   </div>
 
   <div class="note">
-    <b>At real UI sizes</b> — D1 holding up small:
-    <div style="display:flex;align-items:center;gap:30px;margin-top:16px;flex-wrap:wrap;">
-      <div style="text-align:center;">
-        <svg width="67" height="26" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--ink)" stroke-width="3.6"/><line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--ink)" stroke-width="2.1"/><path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/><line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/><line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/><line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--ink)" stroke-width="2.1"/><line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/><line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/><rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/><rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/><rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--ink)"/></svg>
-        <div class="lbl" style="margin-top:4px;">26px</div>
-      </div>
-      <div style="text-align:center;">
-        <svg width="52" height="20" viewBox="0 0 62 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--ink)" stroke-width="3.6"/><line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--ink)" stroke-width="2.1"/><path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/><line x1="24.8" y1="18.5" x2="29.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/><line x1="35.2" y1="18.5" x2="30.5" y2="7.2" stroke="var(--ink)" stroke-width="2.1"/><line x1="27.0" y1="13.4" x2="33.0" y2="13.4" stroke="var(--ink)" stroke-width="2.1"/><line x1="23.7" y1="18.5" x2="26.0" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/><line x1="34.0" y1="18.5" x2="36.3" y2="18.5" stroke="var(--ink)" stroke-width="2.1"/><rect x="39.6" y="6.7" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/><rect x="39.6" y="16.1" width="7.8" height="2.3" rx="0.4" fill="var(--ink)"/><rect x="42.35" y="8.6" width="2.3" height="7.7" fill="var(--ink)"/></svg>
-        <div class="lbl" style="margin-top:4px;">20px</div>
-      </div>
-      <div style="text-align:center;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-linecap="round"><line x1="5.9" y1="18.5" x2="9.3" y2="14.6" stroke="var(--ink)" stroke-width="3.6"/><line x1="8.9" y1="15.1" x2="15.3" y2="7.6" stroke="var(--ink)" stroke-width="2.1"/><path d="M15.6 4.2 L16.4 6.7 L18.9 7.1 L16.4 7.5 L15.6 10 L14.8 7.5 L12.3 7.1 L14.8 6.7 Z" fill="var(--amber)"/></svg>
-        <div class="lbl" style="margin-top:4px;">wand only @ 20px<br/>(tiny inline)</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="note">
-    <b>Pick:</b> <code>D1</code> stepladder + I-beam, monochrome (my pick) · <code>D2</code> amber live members · <code>D3</code> engineered truss.
-    Still ships as <i>both</i> a wand-only mark (tiny inline) and the chosen lockup. Tell me D1 / D2 / D3 — or push further ("thicker beam," "hard-hat instead of star," "make the A a real ladder with 2 rungs").
+    <b>Tell me which to lock</b> — name one (my rec: <code>Gantry M</code>, runner-up <code>Spark Truss</code>), or ask for a head-to-head refinement of any two. Whatever you pick I'll build into <code>MageIntelligence.tsx</code> (two-tone: ink structure + amber spark), then roll it across the 53 AI spots — and if it's <code>Gantry M</code> or a square emblem, it can double as the actual app icon.
   </div>
 </div>
 </body>
