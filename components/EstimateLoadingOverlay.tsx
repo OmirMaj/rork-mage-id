@@ -13,7 +13,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, Animated, Easing, Platform, TouchableOpacity,
 } from 'react-native';
-import { Sparkles, Hammer } from 'lucide-react-native';
+import { Hammer } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -123,7 +124,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, onCan
               <Hammer size={28} color={themeColors.accent} />
             </Animated.View>
             <View style={styles.iconBadge}>
-              <Sparkles size={11} color="#FFF" />
+              <MageAIMark size={11} color="#FFF" />
             </View>
           </View>
 

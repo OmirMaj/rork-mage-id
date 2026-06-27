@@ -23,8 +23,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Building2, ChevronRight, MapPin, Wrench, ClipboardList, Send,
-  Sun, Moon, Sunrise, Sunset, X, Sparkles,
+  Sun, Moon, Sunrise, Sunset, X,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -279,7 +280,7 @@ export default function PropertyManagerHome() {
               activeOpacity={0.85}
               testID="pm-add-submit"
             >
-              <Sparkles size={15} color="#FFF" />
+              <MageAIMark size={15} color="#FFF" />
               <Text style={styles.modalCtaText}>Add property</Text>
             </TouchableOpacity>
           </View>

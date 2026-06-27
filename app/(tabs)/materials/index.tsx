@@ -10,10 +10,9 @@ import {
   // Category icons (rendered via CATEGORY_ICONS map below) — replaces
   // emoji-as-icon for visual consistency with the rest of the app
   TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
-  Wrench, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
   type LucideIcon,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -35,7 +34,7 @@ const ALL_CATEGORIES = Object.keys(CATEGORY_META);
 // data files shouldn't import from JSX-rendering modules.
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   TreePine, Box, Home: HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
-  Wrench, Zap: MageAIMark, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
 };
 
 interface CategorySummary {

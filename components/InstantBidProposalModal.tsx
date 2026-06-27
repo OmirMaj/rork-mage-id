@@ -15,7 +15,8 @@ import {
   ActivityIndicator, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Zap, Sparkles, Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
+import { Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -119,7 +120,7 @@ export default function InstantBidProposalModal({
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.head}>
-            <View style={styles.headIcon}><Zap size={16} color="#FFF" /></View>
+            <View style={styles.headIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Instant Bid</Text>
               <Text style={styles.sub} numberOfLines={1}>for {lead.name}</Text>
@@ -154,7 +155,7 @@ export default function InstantBidProposalModal({
               >
                 {generating
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <><Sparkles size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft proposal</Text></>}
+                  : <><MageAIMark size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft proposal</Text></>}
               </TouchableOpacity>
             </View>
           ) : (

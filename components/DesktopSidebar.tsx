@@ -7,11 +7,12 @@ import {
   FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
   Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
-  PenTool, Store, Clock, Sparkles, ChevronDown, ChevronRight,
-  FolderKanban, ScrollText, UserPlus, Handshake, Bot, ListChecks,
+  PenTool, Store, Clock, ChevronDown, ChevronRight,
+  FolderKanban, ScrollText, UserPlus, Handshake, ListChecks,
   FileQuestion, FileCheck, Presentation, Truck, FileSignature, Banknote,
   PieChart, LineChart, Coins, Gauge, Library, BellRing,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
@@ -48,7 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── WORKSPACE — global landing surfaces
   { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'WORKSPACE' },
   { key: 'home',              label: 'Projects',         icon: FolderKanban,    route: '/(tabs)/(home)',                   section: 'WORKSPACE' },
-  { key: 'ask-mage',          label: 'Ask MAGE',         icon: Sparkles,        route: '/ask',                              section: 'WORKSPACE' },
+  { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE' },
   { key: 'margin-board',      label: 'Margin Board',     icon: Gauge,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-database',     label: 'Cost Database',    icon: Library,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
@@ -65,7 +66,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
   { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
   { key: 'hire',              label: 'Hire',             icon: Handshake,       route: '/(tabs)/discover/hire',            section: 'NETWORK' },
-  { key: 'construction-ai',   label: 'Construction AI',  icon: Bot,             route: '/(tabs)/construction-ai',          section: 'NETWORK' },
+  { key: 'construction-ai',   label: 'Construction AI',  icon: MageAIMark,      route: '/(tabs)/construction-ai',          section: 'NETWORK' },
 
   // ── PROJECT · OVERVIEW
   { key: 'estimate',          label: 'Estimate',         icon: Calculator,      route: '/(tabs)/discover/estimate',        section: 'OVERVIEW' },

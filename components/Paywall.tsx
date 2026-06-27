@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Crown, Building2, CheckCircle2, X, Sparkles, Shield, Smartphone, Apple } from 'lucide-react-native';
+import { Crown, Building2, CheckCircle2, X, Shield, Smartphone, Apple } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -410,7 +411,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Sparkles size={18} color="#fff" />
+                <MageAIMark size={18} color="#fff" />
                 <Text style={styles.upgradeBtnText}>
                   {!isLoading && !tierPackageAvailable ? `${tierLabel} unavailable` : `Upgrade to ${tierLabel}`}
                 </Text>

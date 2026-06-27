@@ -29,7 +29,8 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
-import { Mic, Sparkles, AlertCircle } from 'lucide-react-native';
+import { Mic, AlertCircle } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -112,12 +113,12 @@ export default function InlineVoiceFill({
           <Mic size={16} color={themeColors.accent} />
         )}
         <Text style={styles.btnText}>{busy ? 'Reading what you said…' : buttonLabel}</Text>
-        {!busy && <Sparkles size={12} color={themeColors.accent} />}
+        {!busy && <MageAIMark size={12} color={themeColors.accent} />}
       </TouchableOpacity>
 
       {!!filledMsg && !busy && (
         <View style={styles.successCard}>
-          <Sparkles size={13} color={themeColors.success} />
+          <MageAIMark size={13} color={themeColors.success} />
           <Text style={styles.successText}>{filledMsg}</Text>
         </View>
       )}
