@@ -1,12 +1,13 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
-  FlatList, KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
+  FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
   Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Sparkles, Send, X, AlertTriangle, Lightbulb, ChevronRight } from 'lucide-react-native';
+import MageCraneBuild from '@/components/MageCraneBuild';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -142,23 +143,11 @@ export default function AICopilot() {
   const [isLoading, setIsLoading] = useState(false);
   const [usageText, setUsageText] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const refreshUsage = useCallback(async () => {
     const stats = await getAIUsageStats(tier as any);
     setUsageText(`${stats.used}/${stats.limit} AI requests used today`);
   }, [tier]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1500, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
 
   useEffect(() => {
     if (isOpen) {
@@ -258,13 +247,13 @@ export default function AICopilot() {
           on web to keep the AI FAB clear of typical scrollable content
           edges. Matches the same +48 offset on UniversalMicButton so
           the two FABs stay vertically aligned. */}
-      <Animated.View style={[styles.fab, { bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0), transform: [{ scale: pulseAnim }] }]}>
+      <View style={[styles.fab, { bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0) }]}>
         <TouchableOpacity
           onPress={handleOpen}
           style={styles.fabButton}
           activeOpacity={0.8}
-          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><Sparkles size={22} color={'#FFFFFF'} /></TouchableOpacity>
-      </Animated.View>
+          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><MageCraneBuild size={40} color="#FFFFFF" accentColor="#FF6A1A" /></TouchableOpacity>
+      </View>
 
       <Modal visible={isOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -364,10 +353,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     zIndex: 999,
   },
   fabButton: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     borderRadius: Tokens.radius.full,
-    backgroundColor: t.accent,
+    backgroundColor: '#0B0D10',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     shadowColor: t.accent,
