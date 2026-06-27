@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, Send, X, AlertTriangle, Lightbulb, ChevronRight } from 'lucide-react-native';
+import { Send, X, AlertTriangle, ChevronRight } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import MageCraneBuild from '@/components/MageCraneBuild';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -58,7 +59,7 @@ const MessageBubble = React.memo(function MessageBubble({ message, styles, color
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
         {!isUser && (
           <View style={styles.aiLabel}>
-            <Sparkles size={10} color={colors.accent} />
+            <MageAIMark size={10} color={colors.accent} />
             <Text style={styles.aiLabelText}>MAGE AI</Text>
           </View>
         )}
@@ -72,7 +73,7 @@ const MessageBubble = React.memo(function MessageBubble({ message, styles, color
               return (
                 <View key={idx} style={[styles.actionChip, { backgroundColor: palette.bg, borderColor: palette.border }]}>
                   {item.priority === 'urgent' && <AlertTriangle size={11} color={palette.text} />}
-                  {item.priority === 'suggestion' && <Lightbulb size={11} color={palette.text} />}
+                  {item.priority === 'suggestion' && <MageAIMark size={11} color={palette.text} />}
                   <Text style={[styles.actionChipText, { color: palette.text }]}>{item.text}</Text>
                 </View>
               );
@@ -263,7 +264,7 @@ export default function AICopilot() {
           >
             <View style={styles.modalHeader}>
               <View style={styles.headerLeft}>
-                <Sparkles size={18} color={colors.accent} />
+                <MageAIMark size={18} color={colors.accent} />
                 <Text style={styles.headerTitle}>MAGE AI Copilot</Text>
               </View>
               <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textSecondary} /></TouchableOpacity>
@@ -278,7 +279,7 @@ export default function AICopilot() {
             {messages.length === 0 && !isLoading ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
-                  <Sparkles size={32} color={colors.accent} />
+                  <MageAIMark size={32} color={colors.accent} />
                 </View>
                 <Text style={styles.emptyTitle}>Ask me anything about your project</Text>
                 <Text style={styles.emptySubtitle}>I have access to your schedule, estimate, and project data.</Text>

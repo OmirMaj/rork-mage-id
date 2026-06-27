@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, X, CheckCircle2, Settings } from 'lucide-react-native';
+import { X, CheckCircle2, Settings } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,7 +33,7 @@ export function AIMatchBadge({ score }: { score: number }) {
   const badge = getMatchBadge(score);
   return (
     <View style={[badgeStyles.container, { backgroundColor: badge.bg }]}>
-      <Sparkles size={10} color={badge.color} />
+      <MageAIMark size={10} color={badge.color} />
       <Text style={[badgeStyles.text, { color: badge.color }]}>{badge.label}</Text>
     </View>
   );

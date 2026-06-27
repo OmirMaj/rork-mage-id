@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, CalendarDays, DollarSign, ArrowRight, Zap } from 'lucide-react-native';
+import { CalendarDays, DollarSign, ArrowRight } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -70,7 +71,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
         {isLoading ? (
           <ActivityIndicator size="small" color={themeColors.accent} />
         ) : (
-          <Sparkles size={16} color={changeDescription.trim() ? themeColors.accent : themeColors.textMuted} />
+          <MageAIMark size={16} color={changeDescription.trim() ? themeColors.accent : themeColors.textMuted} />
         )}
         <Text style={[styles.triggerText, !changeDescription.trim() && { color: themeColors.textMuted }]}>
           {isLoading ? 'Analyzing Impact...' : 'Analyze Impact with AI'}
@@ -83,7 +84,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     <View style={styles.card}>
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
-          <Sparkles size={16} color={themeColors.accent} />
+          <MageAIMark size={16} color={themeColors.accent} />
           <Text style={styles.headerTitle}>Change Order Impact Analysis</Text>
         </View>
         <Text style={styles.aiTag}>AI</Text>
@@ -136,7 +137,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
           {(result.downstreamEffects ?? []).length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Zap size={14} color={Colors.warning} />
+                <MageAIMark size={14} color={Colors.warning} />
                 <Text style={styles.sectionTitle}>Downstream Effects</Text>
               </View>
               {(result.downstreamEffects ?? []).map((effect, idx) => (

@@ -2,7 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, CalendarDays, Link2 } from 'lucide-react-native';
+import { CalendarDays, Link2 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -70,7 +71,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
     <View style={styles.container} testID={testID}>
       <View style={styles.header}>
         <View style={styles.iconWrap}>
-          <Sparkles size={16} color={themeColors.accent} />
+          <MageAIMark size={16} color={themeColors.accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Auto-Schedule from Estimate</Text>
@@ -105,7 +106,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
           </>
         ) : (
           <>
-            <Sparkles size={15} color="#FFF" />
+            <MageAIMark size={15} color="#FFF" />
             <Text style={styles.actionBtnText}>Generate Schedule</Text>
           </>
         )}

@@ -16,7 +16,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { ChevronLeft, Trophy, TrendingUp, Target, Gem, Lightbulb } from 'lucide-react-native';
+import { ChevronLeft, Trophy, TrendingUp, Target, Gem } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -241,7 +242,7 @@ function WinOptimizerInner() {
             <View style={styles.driversCard}>
               {result.drivers.map((d, i) => (
                 <View key={i} style={[styles.driverRow, i > 0 && styles.driverBorder]}>
-                  <Lightbulb size={14} color={t.accent} style={{ marginTop: 2 }} />
+                  <View style={{ marginTop: 2 }}><MageAIMark size={14} color={t.accent} /></View>
                   <Text style={styles.driverText}>{d}</Text>
                 </View>
               ))}

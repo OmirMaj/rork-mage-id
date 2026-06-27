@@ -4,7 +4,8 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, RefreshCw, TrendingUp, ArrowRight } from 'lucide-react-native';
+import { RefreshCw, TrendingUp, ArrowRight } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -83,7 +84,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
         {isLoading ? (
           <ActivityIndicator size="small" color={"#FF6A1A"} />
         ) : (
-          <Sparkles size={16} color={"#FF6A1A"} />
+          <MageAIMark size={16} color={"#FF6A1A"} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Rent vs Buy Advice'}</Text>
       </TouchableOpacity>
@@ -95,7 +96,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Sparkles size={12} color={"#FF6A1A"} />
+        <MageAIMark size={12} color={"#FF6A1A"} />
         <Text style={styles.headerTitle}>Rent vs Buy: {equipment.name}</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>

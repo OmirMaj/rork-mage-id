@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, AlertTriangle, CheckCircle2, Lightbulb, XCircle, Search } from 'lucide-react-native';
+import { AlertTriangle, CheckCircle2, XCircle, Search } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -30,7 +31,7 @@ interface Props {
 const ISSUE_ICONS = {
   warning: { Icon: AlertTriangle, color: Colors.warning, bg: Colors.warningLight },
   error: { Icon: XCircle, color: "#C84038", bg: Colors.errorLight },
-  suggestion: { Icon: Lightbulb, color: "#1565C0", bg: Colors.infoLight },
+  suggestion: { Icon: MageAIMark, color: "#1565C0", bg: Colors.infoLight },
   ok: { Icon: CheckCircle2, color: "#2E7D44", bg: Colors.successLight },
 } as const;
 
@@ -87,7 +88,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
         <Text style={styles.triggerText}>
           {isLoading ? 'Validating...' : 'AI Validate Estimate'}
         </Text>
-        <Sparkles size={14} color={"#FF6A1A"} />
+        <MageAIMark size={14} color={"#FF6A1A"} />
       </TouchableOpacity>
     );
   }
@@ -99,7 +100,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
     <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
         <View style={styles.headerLeft}>
-          <Sparkles size={16} color={"#FF6A1A"} />
+          <MageAIMark size={16} color={"#FF6A1A"} />
           <Text style={styles.headerTitle}>AI Estimate Review</Text>
         </View>
         <View style={[styles.scoreBadge, { backgroundColor: `${scoreColor}15` }]}>

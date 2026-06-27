@@ -4,8 +4,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, Zap, TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target,
+  TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -132,7 +133,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       <View style={styles.container} testID={testID}>
         <View style={styles.heroRow}>
           <View style={styles.iconWrap}>
-            <Sparkles size={18} color={"#FF6A1A"} />
+            <MageAIMark size={18} color={"#FF6A1A"} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>AI Go/No-Go Analysis</Text>
@@ -154,7 +155,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <>
-              <Zap size={15} color="#FFF" />
+              <MageAIMark size={15} color="#FFF" />
               <Text style={styles.runBtnText}>
                 {profileReady ? 'Run Go/No-Go Score' : 'Set Up & Score'}
               </Text>
@@ -206,7 +207,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
     <View style={styles.container} testID={testID}>
       <View style={styles.heroRow}>
         <View style={styles.iconWrap}>
-          <Sparkles size={18} color={"#FF6A1A"} />
+          <MageAIMark size={18} color={"#FF6A1A"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>AI Go/No-Go Analysis</Text>

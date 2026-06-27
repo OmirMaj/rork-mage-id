@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Image,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Camera, Sparkles, Check } from 'lucide-react-native';
+import { Camera, Check } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -137,7 +138,7 @@ export default React.memo(function AIDFRFromPhotos({
         {loading ? (
           <ActivityIndicator size="small" color="#FFF" />
         ) : (
-          <Sparkles size={15} color="#FFF" />
+          <MageAIMark size={15} color="#FFF" />
         )}
         <Text style={styles.btnText}>
           {loading
