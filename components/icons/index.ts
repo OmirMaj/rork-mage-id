@@ -8,3 +8,7 @@
 
 export { default as MageIcon, MAGE_STROKE, IconSize } from './MageIcon';
 export { default as MageIntelligence } from './MageIntelligence';
+// MageAIMark: the static "AI" + amber-spark glyph (crane end-frame) — the
+// drop-in replacement for the Sparkles/Wand2/Zap/BrainCircuit/Lightbulb/Bot
+// clichés. MageCraneBuild (components/) is the animated counterpart.
+export { default as MageAIMark } from './MageAIMark';
