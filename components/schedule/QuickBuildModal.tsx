@@ -13,12 +13,12 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronRight,
   X,
-  Zap,
   Home,
   Building2,
   Wrench,
   Trees,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate } from '@/constants/scheduleTemplates';
@@ -120,7 +120,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
           <View style={s.handle} />
           <View style={s.header}>
             <View style={s.headerLeft}>
-              <Zap size={20} color={Colors.accent} />
+              <MageAIMark size={20} color={Colors.accent} />
               <Text style={s.headerTitle}>Quick Build</Text>
             </View>
             <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
@@ -223,7 +223,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
               </ScrollView>
 
               <TouchableOpacity style={s.createBtn} onPress={handleCreate} activeOpacity={0.85}>
-                <Zap size={16} color="#FFF" />
+                <MageAIMark size={16} color="#FFF" />
                 <Text style={s.createBtnText}>Create Schedule</Text>
               </TouchableOpacity>
             </>

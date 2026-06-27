@@ -27,11 +27,12 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Gavel, MapPin, Hammer, AlertTriangle, CheckCircle, Sparkles,
-  ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp, Zap,
+  Gavel, MapPin, Hammer, AlertTriangle, CheckCircle,
+  ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
@@ -53,7 +54,7 @@ import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanRev
 const CATEGORIES = [
   { key: 'residential', label: 'Residential', icon: Home },
   { key: 'commercial', label: 'Commercial', icon: Building2 },
-  { key: 'electrical', label: 'Electrical', icon: Zap },
+  { key: 'electrical', label: 'Electrical', icon: MageAIMark },
   { key: 'plumbing', label: 'Plumbing', icon: Droplets },
   { key: 'structural', label: 'Structural', icon: HardHat },
   { key: 'egress_fire', label: 'Egress / Fire', icon: AlertTriangle },
@@ -253,7 +254,7 @@ export default function ConstructionAITab() {
             activeOpacity={0.85}
             testID="construction-ai-upgrade"
           >
-            <Sparkles size={18} color="#FFF" />
+            <MageAIMark size={18} color="#FFF" />
             <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
           </TouchableOpacity>
         </View>
@@ -626,7 +627,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             </View>
 
             <View style={styles.presetHeader}>
-              <Zap size={14} color={Colors.primary} />
+              <MageAIMark size={14} color={Colors.primary} />
               <Text style={styles.presetHeaderText}>Popular questions</Text>
             </View>
             <View style={styles.presetList}>
@@ -674,7 +675,7 @@ Be specific to the cited location if possible. If the location is not in the US,
               activeOpacity={0.85}
               testID="code-check-run"
             >
-              <Sparkles size={18} color="#FFF" />
+              <MageAIMark size={18} color="#FFF" />
               <Text style={styles.runBtnText}>Run Code Check</Text>
             </TouchableOpacity>
 
@@ -745,7 +746,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                   activeOpacity={0.85}
                   testID="roadmap-generate"
                 >
-                  <Sparkles size={18} color="#FFF" />
+                  <MageAIMark size={18} color="#FFF" />
                   <Text style={styles.runBtnText}>Generate Roadmap</Text>
                 </TouchableOpacity>
                 <Text style={styles.quotaText}>
@@ -952,7 +953,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                     activeOpacity={0.85}
                     testID="run-plan-review"
                   >
-                    <Sparkles size={18} color="#FFF" />
+                    <MageAIMark size={18} color="#FFF" />
                     <Text style={styles.runBtnText}>
                       {planLoading ? 'Reviewing…' : existingReview ? 'Re-review for code' : 'Review for code'}
                     </Text>

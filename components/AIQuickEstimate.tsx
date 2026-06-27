@@ -5,10 +5,11 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, X, ChevronRight, Wand2, AlertTriangle, Lightbulb,
+  X, ChevronRight, AlertTriangle,
   TrendingDown, Clock, MapPin, Ruler, Package, HardHat, Boxes,
-  CheckCircle, DollarSign, Shield, ChevronDown, ChevronUp, Zap,
+  CheckCircle, DollarSign, Shield, ChevronDown, ChevronUp,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
@@ -308,7 +309,7 @@ export default React.memo(function AIQuickEstimate({
     <ScrollView style={s.scrollBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <View style={s.heroSection}>
         <View style={s.heroIconWrap}>
-          <Wand2 size={28} color={Colors.primary} />
+          <MageAIMark size={28} color={Colors.primary} />
         </View>
         <Text style={s.heroTitle}>AI Quick Estimate</Text>
         <Text style={s.heroDesc}>
@@ -418,7 +419,7 @@ export default React.memo(function AIQuickEstimate({
         activeOpacity={0.8}
         testID="ai-generate-btn"
       >
-        <Sparkles size={20} color="#FFF" />
+        <MageAIMark size={20} color="#FFF" />
         <Text style={s.generateBtnText}>Generate Estimate with AI</Text>
       </TouchableOpacity>
 
@@ -435,7 +436,7 @@ export default React.memo(function AIQuickEstimate({
   const renderLoading = () => (
     <View style={s.loadingContainer}>
       <Animated.View style={[s.loadingIcon, { opacity: pulseAnim }]}>
-        <Wand2 size={48} color={Colors.primary} />
+        <MageAIMark size={48} color={Colors.primary} />
       </Animated.View>
       <Text style={s.loadingTitle}>Building Your Estimate</Text>
       <Text style={s.loadingDesc}>
@@ -453,7 +454,7 @@ export default React.memo(function AIQuickEstimate({
           'Finalizing estimate...',
         ].map((step2, i) => (
           <View key={i} style={s.loadingStepRow}>
-            <Sparkles size={12} color={Colors.primary + '60'} />
+            <MageAIMark size={12} color={Colors.primary + '60'} />
             <Text style={s.loadingStepText}>{step2}</Text>
           </View>
         ))}
@@ -489,7 +490,7 @@ export default React.memo(function AIQuickEstimate({
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={s.resultHeader}>
             <View style={s.resultBadge}>
-              <Sparkles size={14} color={Colors.primary} />
+              <MageAIMark size={14} color={Colors.primary} />
               <Text style={s.resultBadgeText}>AI Generated</Text>
             </View>
             <View style={[s.confidenceBadge, { backgroundColor: confidenceColor + '15' }]}>
@@ -643,12 +644,12 @@ export default React.memo(function AIQuickEstimate({
           )}
 
           <TouchableOpacity style={s.applyBtn} onPress={handleApply} activeOpacity={0.8} testID="ai-apply-btn">
-            <Zap size={20} color="#FFF" />
+            <MageAIMark size={20} color="#FFF" />
             <Text style={s.applyBtnText}>Add All to Estimate</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={s.regenerateBtn} onPress={handleReset} activeOpacity={0.7}>
-            <Sparkles size={14} color={Colors.primary} />
+            <MageAIMark size={14} color={Colors.primary} />
             <Text style={s.regenerateBtnText}>Start Over</Text>
           </TouchableOpacity>
 
@@ -693,7 +694,7 @@ export default React.memo(function AIQuickEstimate({
           <View style={s.modalHandle} />
           <View style={s.modalTitleRow}>
             <View style={s.modalTitleLeft}>
-              <Sparkles size={20} color={Colors.primary} />
+              <MageAIMark size={20} color={Colors.primary} />
               <Text style={s.modalTitle}>AI Estimator</Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textSecondary} /></TouchableOpacity>

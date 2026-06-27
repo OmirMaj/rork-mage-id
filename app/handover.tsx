@@ -28,8 +28,9 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, CheckCircle2, Circle, AlertCircle, ChevronRight,
   ShoppingCart, CheckSquare, ShieldCheck, BookOpen, Receipt,
-  ScrollText, Footprints, Send, Sparkles,
+  ScrollText, Footprints, Send,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -338,7 +339,7 @@ export default function HandoverScreen() {
           {/* Progress hero */}
           <View style={[styles.heroCard, allDone && styles.heroCardDone]}>
             <View style={styles.heroHead}>
-              {allDone ? <Sparkles size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={themeColors.accent} />}
+              {allDone ? <MageAIMark size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={themeColors.accent} />}
               <Text style={[styles.heroTitle, allDone && { color: Colors.successDark }]}>
                 {allDone ? 'Ready to hand over' : `${doneCount} of ${total} done`}
               </Text>

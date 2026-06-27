@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   CheckCircle, XCircle, Crown, Zap, Building2, Rocket, X, Shield,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -563,7 +564,7 @@ function WebPaywallView({
               justifyContent: 'center',
             }}
           >
-            <Zap size={18} color={themeColors.text} />
+            <MageAIMark size={18} color={themeColors.text} />
             <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 15 }}>Google Play</Text>
           </TouchableOpacity>
         </View>
@@ -587,7 +588,7 @@ function WebPaywallView({
         {/* Plan tiles — read-only on web */}
         <View style={{ gap: 14, marginBottom: 28 }}>
           {([
-            { name: 'Pro',        price: '$29/mo',  blurb: 'AI estimates, cash flow, AIA G702/G703, change orders + invoicing.', icon: Zap,       active: currentTier === 'pro' },
+            { name: 'Pro',        price: '$29/mo',  blurb: 'AI estimates, cash flow, AIA G702/G703, change orders + invoicing.', icon: MageAIMark,       active: currentTier === 'pro' },
             { name: 'Business',   price: '$79/mo',  blurb: 'Everything in Pro + subs, RFIs, submittals, punch + closeout, plans.', icon: Building2, active: currentTier === 'business' },
             { name: 'Enterprise', price: '$150/mo', blurb: 'Same features as Business with the highest AI usage caps.',           icon: Rocket,    active: currentTier === 'enterprise' },
           ]).map(plan => (

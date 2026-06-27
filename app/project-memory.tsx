@@ -14,7 +14,8 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, BrainCircuit, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -111,7 +112,7 @@ function ProjectMemoryInner() {
           <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <View style={styles.headerIcon}><BrainCircuit size={15} color={themeColors.accent} /></View>
+          <View style={styles.headerIcon}><MageAIMark size={15} color={themeColors.accent} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>Project Memory</Text>
             <Text style={styles.headerSub} numberOfLines={1}>{project?.name ?? 'Ask this project’s history'}</Text>
@@ -133,7 +134,7 @@ function ProjectMemoryInner() {
         >
           {empty ? (
             <View style={styles.emptyWrap}>
-              <View style={styles.emptyIcon}><BrainCircuit size={26} color={themeColors.accent} /></View>
+              <View style={styles.emptyIcon}><MageAIMark size={26} color={themeColors.accent} /></View>
               <Text style={styles.emptyTitle}>Ask this project anything</Text>
               <Text style={styles.emptyBody}>
                 I&apos;ve read {docs.length} record{docs.length === 1 ? '' : 's'} from this job — RFIs, daily reports,

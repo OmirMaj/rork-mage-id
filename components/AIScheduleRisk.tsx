@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, RefreshCw, AlertTriangle, CheckCircle2, Zap, TrendingDown } from 'lucide-react-native';
+import { RefreshCw, AlertTriangle, CheckCircle2, TrendingDown } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -28,7 +29,7 @@ interface Props {
 
 const SEVERITY_STYLES = {
   high: { bg: Colors.errorLight, border: '#C84038', icon: AlertTriangle, label: 'HIGH RISK', textColor: '#D32F2F' },
-  medium: { bg: '#FFF8E1', border: Colors.warning, icon: Zap, label: 'MEDIUM RISK', textColor: Colors.warningDark },
+  medium: { bg: '#FFF8E1', border: Colors.warning, icon: MageAIMark, label: 'MEDIUM RISK', textColor: Colors.warningDark },
   low: { bg: Colors.successLight, border: '#2E7D44', icon: CheckCircle2, label: 'LOW RISK', textColor: Colors.successDark },
 } as const;
 
@@ -91,7 +92,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
   if (!hasLoaded && !isLoading) {
     return (
       <TouchableOpacity style={styles.initCard} onPress={() => loadOrAnalyze(false, true)}>
-        <Sparkles size={18} color={themeColors.accent} />
+        <MageAIMark size={18} color={themeColors.accent} />
         <Text style={styles.initText}>Tap to run AI Risk Analysis</Text>
       </TouchableOpacity>
     );
@@ -120,7 +121,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Sparkles size={16} color={themeColors.accent} />
+          <MageAIMark size={16} color={themeColors.accent} />
           <Text style={styles.headerTitle}>AI Risk Forecast</Text>
         </View>
         <TouchableOpacity

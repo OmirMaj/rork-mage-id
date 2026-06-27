@@ -27,9 +27,10 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ChevronRight, Sparkles, CheckCircle2, FileDown,
+  ChevronLeft, ChevronRight, CheckCircle2, FileDown,
   RotateCcw, Users,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -637,7 +638,7 @@ function EstimateWizardScreenInner() {
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <>
-                  <Sparkles size={18} color="#FFF" />
+                  <MageAIMark size={18} color="#FFF" />
                   <Text style={styles.primaryText}>Generate Estimate</Text>
                 </>
               )}

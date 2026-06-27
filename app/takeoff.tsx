@@ -25,11 +25,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileUp, Sparkles, ShieldAlert, Eye, AlertTriangle, CheckCircle2,
-  HelpCircle, FileText, RefreshCw, ChevronRight, Crown, Zap, Ruler, Square,
+  ChevronLeft, FileUp, ShieldAlert, Eye, AlertTriangle, CheckCircle2,
+  HelpCircle, FileText, RefreshCw, ChevronRight, Crown, Ruler, Square,
   DoorOpen, AppWindow, Paintbrush, Wrench, Boxes, Pencil, BookOpen, Search,
   Gavel, X,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -645,7 +646,7 @@ function TakeoffInner() {
                 Architectural plans + schedules. Up to 16 pages. The AI reads dimensions, schedules, and callouts to produce LF / SF / EA / CY quantities.
               </Text>
               <View style={styles.uploadCta}>
-                <Sparkles size={14} color="#FFF" />
+                <MageAIMark size={14} color="#FFF" />
                 <Text style={styles.uploadCtaText}>Pick a PDF</Text>
               </View>
               <Text style={styles.uploadHint}>
@@ -660,7 +661,7 @@ function TakeoffInner() {
               testID="open-analyzer-link"
             >
               <View style={styles.sisterToolIconWrap}>
-                <Sparkles size={16} color={themeColors.accent} />
+                <MageAIMark size={16} color={themeColors.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sisterToolTitle}>Want a priced estimate instead?</Text>
@@ -848,7 +849,7 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const meta = MODEL_DISPLAY[modelKey];
-  const Icon = modelKey === 'gemini-2.5-pro' ? Crown : Zap;
+  const Icon = modelKey === 'gemini-2.5-pro' ? Crown : MageAIMark;
   return (
     <TouchableOpacity
       style={[
@@ -1005,7 +1006,7 @@ function ResultView({
             <View style={styles.modelBadge}>
               {modelUsed === 'gemini-2.5-pro'
                 ? <Crown size={10} color={themeColors.accent} />
-                : <Zap size={10} color={themeColors.textMuted} />}
+                : <MageAIMark size={10} color={themeColors.textMuted} />}
               <Text style={styles.modelBadgeText}>{modelMeta.label}</Text>
             </View>
           )}

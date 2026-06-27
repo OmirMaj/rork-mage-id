@@ -23,7 +23,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, Redirect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Sparkles, Database, Trash2, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, Database, Trash2, AlertTriangle } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -1122,7 +1123,7 @@ export default function DevSeederScreen() {
 
         <View style={styles.card}>
           <View style={[styles.cardIcon, { backgroundColor: themeColors.accent + '15' }]}>
-            <Sparkles size={28} color={themeColors.accent} />
+            <MageAIMark size={28} color={themeColors.accent} />
           </View>
           <Text style={styles.cardTitle}>Load demo project</Text>
           <Text style={styles.cardSub}>

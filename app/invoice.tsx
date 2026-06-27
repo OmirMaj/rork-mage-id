@@ -9,8 +9,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
-  Link2, Copy, Share2, Zap, FileText, Receipt,
+  Link2, Copy, Share2, FileText, Receipt,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -1167,7 +1168,7 @@ function InvoiceInner() {
             <View style={styles.payLinkCard}>
               <View style={styles.payLinkHeader}>
                 <View style={styles.payLinkIconWrap}>
-                  <Zap size={18} color={themeColors.accent} />
+                  <MageAIMark size={18} color={themeColors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.payLinkTitle}>Stripe Payment Link</Text>
@@ -1260,7 +1261,7 @@ function InvoiceInner() {
                     </>
                   ) : (
                     <>
-                      <Zap size={16} color={"#FFFFFF"} />
+                      <MageAIMark size={16} color={"#FFFFFF"} />
                       <Text style={styles.payLinkGenerateText}>Generate Payment Link</Text>
                     </>
                   )}

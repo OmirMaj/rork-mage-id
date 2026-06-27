@@ -4,7 +4,8 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, HelpCircle, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
+import { HelpCircle, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -74,7 +75,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
         {isLoading ? (
           <ActivityIndicator size="small" color={"#FF6A1A"} />
         ) : (
-          <Sparkles size={16} color={"#FF6A1A"} />
+          <MageAIMark size={16} color={"#FF6A1A"} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Evaluate Sub'}</Text>
       </TouchableOpacity>
@@ -84,7 +85,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
   return (
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
-        <Sparkles size={12} color={"#FF6A1A"} />
+        <MageAIMark size={12} color={"#FF6A1A"} />
         <Text style={styles.headerTitle}>AI Sub Evaluation</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>

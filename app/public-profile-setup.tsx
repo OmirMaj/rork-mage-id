@@ -7,8 +7,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Globe, Copy, Send, Sparkles, Eye, Quote,
+  ChevronLeft, Globe, Copy, Send, Eye, Quote,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -135,7 +136,7 @@ export default function PublicProfileSetupScreen() {
           <View style={styles.togglesCard}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
-                <Sparkles size={18} color={themeColors.accent} />
+                <MageAIMark size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Publish project page</Text>
                   <Text style={styles.toggleDesc}>Anyone with the link can view it; you can unpublish anytime.</Text>

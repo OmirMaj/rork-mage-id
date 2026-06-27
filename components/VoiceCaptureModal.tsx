@@ -16,7 +16,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Pressable, Modal,
   Animated, ActivityIndicator, Platform, ScrollView,
 } from 'react-native';
-import { Mic, X, Square, Lightbulb, AlertCircle } from 'lucide-react-native';
+import { Mic, X, Square, AlertCircle } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -287,7 +288,7 @@ export default function VoiceCaptureModal({
           {suggestions.length > 0 && (
             <View style={styles.suggestionsCard}>
               <View style={styles.suggestionsHeaderRow}>
-                <Lightbulb size={16} color={themeColors.accent} />
+                <MageAIMark size={16} color={themeColors.accent} />
                 <Text style={styles.suggestionsHeader}>Try saying</Text>
               </View>
               <Text style={styles.suggestionItemHero}>

@@ -27,9 +27,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Plus, Mic, Sparkles, ChevronRight, AlertTriangle, CheckCircle2,
+  Plus, Mic, ChevronRight, AlertTriangle, CheckCircle2,
   Clock, TrendingUp, TrendingDown, Package, X, Save,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -392,7 +393,7 @@ export default function BuyoutScreen() {
             >
               <Plus size={18} color="#FFF" />
               <Text style={styles.fabPrimaryText}>New scope package</Text>
-              <Sparkles size={12} color="#FFF" />
+              <MageAIMark size={12} color="#FFF" />
             </TouchableOpacity>
           </View>
         )}

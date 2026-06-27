@@ -30,8 +30,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Camera, Mic, Check, X, Undo2, MapPin,
-  AlertTriangle, ChevronRight, Plus, Flag, Sparkles,
+  AlertTriangle, ChevronRight, Plus, Flag,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -427,7 +428,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             onPress={() => router.push({ pathname: '/ai-punch' as never, params: { projectId } as never })}
             activeOpacity={0.85}
           >
-            <Sparkles size={16} color={themeColors.accent} />
+            <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.aiPunchBtnTitle}>AI Punch from Photos</Text>
               <Text style={styles.aiPunchBtnSub}>Take a few photos, AI builds the punch list</Text>
@@ -444,7 +445,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             onPress={() => router.push({ pathname: '/photo-triage' as never, params: { projectId } as never })}
             activeOpacity={0.85}
           >
-            <Sparkles size={16} color={themeColors.accent} />
+            <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.aiPunchBtnTitle}>AI Photo Triage</Text>
               <Text style={styles.aiPunchBtnSub}>Mixed batch — sorts to punch, RFI, daily report, progress</Text>

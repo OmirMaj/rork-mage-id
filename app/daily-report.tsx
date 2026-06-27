@@ -10,9 +10,10 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
-  Sparkles, Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
+  Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
@@ -895,7 +896,7 @@ export default function DailyReportScreen() {
           {showVoiceBanner && voiceParsed && (
             <View style={voiceStyles.previewCard}>
               <View style={voiceStyles.previewHead}>
-                <Sparkles size={14} color={themeColors.accent} />
+                <MageAIMark size={14} color={themeColors.accent} />
                 <Text style={voiceStyles.previewTitle}>Here&apos;s what I heard</Text>
                 <TouchableOpacity onPress={() => { setShowVoiceBanner(false); setVoiceParsed(null); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={14} color={themeColors.textMuted} />
@@ -1336,7 +1337,7 @@ export default function DailyReportScreen() {
                   </>
                 ) : (
                   <>
-                    <Sparkles size={14} color={themeColors.accent} />
+                    <MageAIMark size={14} color={themeColors.accent} />
                     <Text style={hsStyles.aiBtnText}>{homeownerSummary ? 'Re-generate from notes' : 'Generate from today\'s notes'}</Text>
                   </>
                 )}

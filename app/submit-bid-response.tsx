@@ -13,9 +13,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Send, DollarSign, MessageSquare, Eye, Sparkles,
-  AlertTriangle, FileText, Zap, Check, CheckCircle2,
+  ChevronLeft, Send, DollarSign, MessageSquare, Eye,
+  AlertTriangle, FileText, Check, CheckCircle2,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -258,7 +259,7 @@ export default function SubmitBidResponseScreen() {
         {/* ⚡ Instant Bid — one-tap AI-drafted Good/Better/Best proposal */}
         <View style={styles.instantCard}>
           <View style={styles.instantHead}>
-            <View style={styles.instantIcon}><Zap size={16} color="#FFF" /></View>
+            <View style={styles.instantIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.instantTitle}>Instant Bid</Text>
               <Text style={styles.instantSub}>
@@ -277,7 +278,7 @@ export default function SubmitBidResponseScreen() {
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
               <>
-                <Sparkles size={15} color="#FFF" />
+                <MageAIMark size={15} color="#FFF" />
                 <Text style={styles.instantBtnText}>{proposal ? 'Regenerate draft' : 'Draft my bid'}</Text>
               </>
             )}

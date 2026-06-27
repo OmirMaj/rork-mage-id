@@ -21,8 +21,9 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ClipboardPaste, Users, Check, X, Trash2, Sparkles, DollarSign, Phone,
+  ChevronLeft, ClipboardPaste, Users, Check, X, Trash2, DollarSign, Phone,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -150,7 +151,7 @@ export default function ImportPipelineScreen() {
         {mode === 'paste' && !reviewing && (
           <>
             <View style={styles.pitch}>
-              <Sparkles size={16} color={themeColors.accent} />
+              <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.pitchText}>
                 Paste your client list — one per line. We&apos;ll read the name, phone, email,
                 project, and budget in any order. Copy a column straight from a spreadsheet,

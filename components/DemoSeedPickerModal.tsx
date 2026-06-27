@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { X, ChevronRight, HardHat, Building2, Sparkles } from 'lucide-react-native';
+import { X, ChevronRight, HardHat, Building2 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -51,7 +52,7 @@ const FLAVOR_VISUAL: Record<DemoFlavor, {
     ],
   },
   medium: {
-    Icon: Sparkles,
+    Icon: MageAIMark as React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>,
     accent: "#FF6A1A",
     pitch: 'Premium full-gut renovation. Architect-led, multi-trade.',
     bullets: [

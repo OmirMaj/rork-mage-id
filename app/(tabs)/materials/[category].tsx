@@ -9,13 +9,14 @@ import {
   ArrowLeft, Tag, Truck, Search, X, Bell, Plus, CheckCircle,
   // Category icons (rendered via lookup map below) — replaces emoji-as-icon
   TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
-  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+  Wrench, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
   type LucideIcon,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   TreePine, Box, Home: HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
-  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+  Wrench, Zap: MageAIMark, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
 };
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';

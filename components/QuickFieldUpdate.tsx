@@ -13,14 +13,13 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  Zap,
   Send,
   Check,
   AlertCircle,
   ChevronDown,
   HardHat,
-  Sparkles,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -450,7 +449,7 @@ export default function QuickFieldUpdate() {
     <View style={styles.wrap}>
       <View style={styles.titleRow}>
         <View style={styles.titleIconWrap}>
-          <Zap size={14} color={themeColors.accent} />
+          <MageAIMark size={14} color={themeColors.accent} />
         </View>
         <Text style={styles.title}>Quick Field Update</Text>
       </View>
@@ -522,7 +521,7 @@ export default function QuickFieldUpdate() {
               activeOpacity={0.75}
               testID={`qfu-suggestion-${t.id}`}
             >
-              <Sparkles size={10} color={themeColors.accent} />
+              <MageAIMark size={10} color={themeColors.accent} />
               <Text style={styles.suggestLabel} numberOfLines={1}>
                 {t.title}
               </Text>

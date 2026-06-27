@@ -13,8 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ScanSearch, Copy, Sparkles, Boxes,
+  ChevronLeft, ScanSearch, Copy, Boxes,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -146,7 +147,7 @@ function BuyoutScopeGapInner() {
               onPress={() => router.replace({ pathname: '/generative-setup', params: { projectId: project.id } } as any)}
               activeOpacity={0.85}
             >
-              <Sparkles size={15} color={t.accent} />
+              <MageAIMark size={15} color={t.accent} />
               <Text style={styles.infoBtnText}>Set up buyout</Text>
             </TouchableOpacity>
           </View>
@@ -239,7 +240,7 @@ function BuyoutScopeGapInner() {
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
                       <>
-                        <Sparkles size={15} color="#fff" />
+                        <MageAIMark size={15} color="#fff" />
                         <Text style={styles.aiBtnText}>Find commonly-missed scope</Text>
                       </>
                     )}

@@ -19,9 +19,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileText, Sparkles, AlertCircle, Plus, Minus, Pencil, Info,
+  ChevronLeft, FileText, AlertCircle, Plus, Minus, Pencil, Info,
   ArrowUpRight, ArrowDown,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -164,7 +165,7 @@ export default function CompareDrawingsScreen() {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <Sparkles size={20} color={themeColors.accent} />
+                <MageAIMark size={20} color={themeColors.accent} />
               </View>
               <Text style={styles.heroTitle}>Find what changed</Text>
               <Text style={styles.heroBody}>

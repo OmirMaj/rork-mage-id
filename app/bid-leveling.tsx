@@ -14,7 +14,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Scale, Sparkles, Trophy, BadgeDollarSign, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, Scale, Trophy, BadgeDollarSign, AlertTriangle } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -145,7 +146,7 @@ function BidLevelingInner() {
 
           {/* AI level CTA + summary */}
           <TouchableOpacity style={[styles.aiBtn, aiBusy && { opacity: 0.7 }]} onPress={aiLevel} disabled={aiBusy} activeOpacity={0.85} testID="bid-ai-level">
-            {aiBusy ? <ActivityIndicator size="small" color={t.accent} /> : <Sparkles size={16} color={t.accent} />}
+            {aiBusy ? <ActivityIndicator size="small" color={t.accent} /> : <MageAIMark size={16} color={t.accent} />}
             <Text style={styles.aiBtnText}>{aiBusy ? 'Leveling exclusions…' : 'AI-level the exclusions'}</Text>
           </TouchableOpacity>
           {aiMsg && <Text style={styles.aiMsg}>{aiMsg}</Text>}

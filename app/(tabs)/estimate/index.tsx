@@ -8,14 +8,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   Search, X, Plus, Minus, Trash2, ChevronDown, ChevronUp,
-  Layers, Droplets, Zap, Hammer, Trees, Home, PaintBucket,
+  Layers, Droplets, Hammer, Trees, Home, PaintBucket,
   ArrowRight, Percent, ShoppingCart, CheckCircle, Info, RefreshCw,
   Truck, Package, Wrench, Wind, Shield, Grid,
-  TrendingUp, AlertTriangle, Lightbulb, Clock3, Database, MapPin,
+  TrendingUp, AlertTriangle, Clock3, Database, MapPin,
   Mail, MessageSquare, FolderOpen, FileText, Send,
   HardHat, Boxes, ClipboardList, Ruler, Calculator, Gauge, GitCompare,
   ChevronRight,
- Sparkles, Wifi, PlusCircle, History, Star, FileUp } from 'lucide-react-native';
+ Wifi, PlusCircle, History, Star, FileUp } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
@@ -96,7 +97,7 @@ const CATEGORY_CHIPS = [
   { id: 'windows', label: 'Windows', icon: Grid },
   { id: 'flooring', label: 'Flooring', icon: Layers },
   { id: 'plumbing', label: 'Plumbing', icon: Droplets },
-  { id: 'electrical', label: 'Electrical', icon: Zap },
+  { id: 'electrical', label: 'Electrical', icon: MageAIMark },
   { id: 'hvac', label: 'HVAC', icon: Wind },
   { id: 'drywall', label: 'Drywall', icon: Hammer },
   { id: 'paint', label: 'Paint', icon: PaintBucket },
@@ -683,7 +684,7 @@ export default function EstimateScreen() {
       {
         id: 'bulk-gap', title: 'Bulk Trigger Gap',
         detail: quantityGap > 0 ? `You are near bulk thresholds. Closing gaps can recover ~${quantityGap.toFixed(0)}.` : 'All bulk-eligible lines are already optimized.',
-        delta: quantityGap, tone: quantityGap > 0 ? 'positive' : 'neutral', icon: Lightbulb,
+        delta: quantityGap, tone: quantityGap > 0 ? 'positive' : 'neutral', icon: MageAIMark,
       },
       {
         id: 'concentration', title: 'Supplier Concentration Risk',
@@ -1234,7 +1235,7 @@ export default function EstimateScreen() {
         testID="wizard-cta"
       >
         <View style={styles.wizardCtaIcon}>
-          <Sparkles size={18} color={Colors.surface} />
+          <MageAIMark size={18} color={Colors.surface} />
         </View>
         <View style={styles.wizardCtaText}>
           <Text style={styles.wizardCtaTitle}>Quick Estimate Wizard</Text>
@@ -1297,7 +1298,7 @@ export default function EstimateScreen() {
               activeOpacity={0.8}
               testID="ai-quick-estimate-btn"
             >
-              <Sparkles size={13} color={Colors.textOnPrimary} />
+              <MageAIMark size={13} color={Colors.textOnPrimary} />
               <Text style={styles.aiEstimateBtnText}>AI</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1512,7 +1513,7 @@ export default function EstimateScreen() {
       {activeTab === 'materials' && query.trim().length > 0 && filteredMaterials.length < 3 && !showAiResults && (
         <View style={aiStyles.aiSearchPrompt}>
           <View style={aiStyles.aiSearchPromptIcon}>
-            <Sparkles size={20} color={Colors.primary} />
+            <MageAIMark size={20} color={Colors.primary} />
           </View>
           <View style={aiStyles.aiSearchPromptContent}>
             <Text style={aiStyles.aiSearchPromptTitle}>Can't find what you need?</Text>
@@ -1529,7 +1530,7 @@ export default function EstimateScreen() {
         <View style={aiStyles.aiResultsContainer}>
           <View style={aiStyles.aiResultsHeader}>
             <View style={aiStyles.aiResultsTitleRow}>
-              <Sparkles size={14} color={Colors.primary} />
+              <MageAIMark size={14} color={Colors.primary} />
               <Text style={aiStyles.aiResultsTitle}>Live Search: "{query}"</Text>
             </View>
             <TouchableOpacity onPress={() => { setShowAiResults(false); setAiSearchResults([]); }} accessibilityRole="button" accessibilityLabel="Close">
@@ -1561,7 +1562,7 @@ export default function EstimateScreen() {
                     </View>
                     <View style={aiStyles.aiResultTags}>
                       <View style={[aiStyles.aiSourceTag, { backgroundColor: '#9333EA18' }]}>
-                        <Sparkles size={9} color="#9333EA" />
+                        <MageAIMark size={9} color="#9333EA" />
                         <Text style={[aiStyles.aiSourceTagText, { color: '#9333EA' }]}>AI Found</Text>
                       </View>
                       <View style={[aiStyles.aiConfBadge, { backgroundColor: confColor + '18' }]}>
@@ -1580,7 +1581,7 @@ export default function EstimateScreen() {
           })}
           {aiSearchResults.length > 0 && aiSearchResults[0].relatedItems.length > 0 && (
             <View style={aiStyles.aiRelatedRow}>
-              <Lightbulb size={12} color={Colors.info} />
+              <MageAIMark size={12} color={Colors.info} />
               <Text style={aiStyles.aiRelatedText}>Related: {aiSearchResults[0].relatedItems.slice(0, 4).join(', ')}</Text>
             </View>
           )}
@@ -1967,7 +1968,7 @@ export default function EstimateScreen() {
               activeOpacity={0.85}
               testID="desktop-wizard-cta"
             >
-              <Sparkles size={14} color={Colors.surface} />
+              <MageAIMark size={14} color={Colors.surface} />
               <Text style={dStyles.desktopHeroBtnText}>Wizard</Text>
             </TouchableOpacity>
             {/* AI Takeoff — purple hero button, replaces the spot the
@@ -2872,7 +2873,7 @@ export default function EstimateScreen() {
                       testID="ask-ai-btn"
                     >
                       <View style={styles.askAIBtnIcon}>
-                        <Sparkles size={16} color={Colors.surface} />
+                        <MageAIMark size={16} color={Colors.surface} />
                       </View>
                       <View style={styles.askAIBtnText}>
                         <Text style={styles.askAIBtnTitle}>Ask AI</Text>

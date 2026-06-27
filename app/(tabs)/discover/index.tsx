@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   Gavel, Building2, Briefcase, ExternalLink,
-  Plus, Search, Award, Sparkles, CalendarDays, ChevronRight, DollarSign,
+  Plus, Search, Award, CalendarDays, ChevronRight, DollarSign,
   Wrench, Share2, CreditCard, FileSignature, Truck,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -106,7 +107,7 @@ const TABS: TabDef[] = [
   { id: 'bids', label: 'Public Bids', icon: Gavel },
   { id: 'companies', label: 'Companies', icon: Building2 },
   { id: 'hire', label: 'Direct Hire', icon: Briefcase },
-  { id: 'estimate', label: 'Estimator', icon: Sparkles },
+  { id: 'estimate', label: 'Estimator', icon: MageAIMark },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
   // 'materials' tile removed — the standalone Materials browser is
   // redundant now that the Estimator surfaces the same category filter
@@ -310,7 +311,7 @@ export default function DiscoverScreen() {
             previous rainbow (5 different system-color hexes) was pure
             decoration — color carried no meaning, just noise. */}
         <NavigationCard
-          icon={Sparkles}
+          icon={MageAIMark}
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="Estimator"
@@ -360,7 +361,7 @@ export default function DiscoverScreen() {
         </View>
 
         <NavigationCard
-          icon={Sparkles}
+          icon={MageAIMark}
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="MAGE ID Bids"

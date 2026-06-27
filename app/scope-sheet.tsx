@@ -18,9 +18,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, RefreshCw, Copy, Share2, Plus, Trash2, Check, X,
+  RefreshCw, Copy, Share2, Plus, Trash2, Check, X,
   CircleCheck, CircleMinus, CircleHelp, Info, Wallet, AlertTriangle, Pencil,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -166,7 +167,7 @@ export default function ScopeSheetScreen() {
           {sheet && (
             <View style={styles.badgeRow}>
               <View style={[styles.srcBadge, sheet.source === 'ai' ? styles.srcAi : styles.srcHeuristic]}>
-                {sheet.source === 'ai' && <Sparkles size={11} color={t.accent} />}
+                {sheet.source === 'ai' && <MageAIMark size={11} color={t.accent} />}
                 <Text style={[styles.srcText, { color: sheet.source === 'ai' ? t.accent : t.textSecondary }]}>
                   {sheet.source === 'ai' ? 'AI draft' : 'Starter draft'}
                 </Text>
@@ -195,14 +196,14 @@ export default function ScopeSheetScreen() {
         {/* Empty state */}
         {!sheet && !loading && (
           <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}><Sparkles size={26} color={t.accent} /></View>
+            <View style={styles.emptyIcon}><MageAIMark size={26} color={t.accent} /></View>
             <Text style={styles.emptyTitle}>Draft the scope from your estimate</Text>
             <Text style={styles.emptyBody}>
               MAGE reads your estimate line items and drafts the inclusions, exclusions, clarifications, assumptions, and
               allowances — the scope language that protects your margin at change-order time. Edit anything before you send it.
             </Text>
             <TouchableOpacity style={styles.primaryBtn} onPress={() => generate(false)} disabled={generating} activeOpacity={0.85} testID="generate-scope-sheet">
-              {generating ? <ActivityIndicator color={Colors.textOnAccent} /> : <><Sparkles size={16} color={Colors.textOnAccent} /><Text style={styles.primaryBtnText}>Generate scope sheet</Text></>}
+              {generating ? <ActivityIndicator color={Colors.textOnAccent} /> : <><MageAIMark size={16} color={Colors.textOnAccent} /><Text style={styles.primaryBtnText}>Generate scope sheet</Text></>}
             </TouchableOpacity>
           </View>
         )}

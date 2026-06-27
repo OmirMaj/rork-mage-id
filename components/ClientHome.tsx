@@ -33,9 +33,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Plus, Sparkles, MapPin, ChevronRight, Building2, Trophy, Clock,
+  Plus, MapPin, ChevronRight, Building2, Trophy, Clock,
   LayoutGrid, Sun, Moon, Sunrise, Sunset,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -339,7 +340,7 @@ export default function ClientHome() {
                 lit={totals.awarded > 0}
               />
               <StatTile
-                icon={Sparkles}
+                icon={MageAIMark}
                 label="New bids"
                 value={totals.newBids}
                 accent={themeColors.accent}
@@ -363,7 +364,7 @@ export default function ClientHome() {
           <FadeRise delay={200}>
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconWrap}>
-                <Sparkles size={28} color={themeColors.accent} />
+                <MageAIMark size={28} color={themeColors.accent} />
               </View>
               <Text style={styles.emptyTitle}>Welcome to MAGE ID</Text>
               <Text style={styles.emptyBody}>
@@ -574,7 +575,7 @@ function RfpCard({
 
         <View style={styles.rfpFoot}>
           <View style={styles.rfpResponseChip}>
-            <Sparkles size={11} color={row.unreviewed_count > 0 ? accent : themeColors.textMuted} strokeWidth={2.2} />
+            <MageAIMark size={11} color={row.unreviewed_count > 0 ? accent : themeColors.textMuted} />
             <Text style={[
               styles.rfpResponseChipText,
               row.unreviewed_count > 0 ? { color: accent } : null,

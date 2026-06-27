@@ -25,9 +25,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Plus, Mic, Sparkles, X, Save, Trophy, AlertTriangle, CheckCircle2,
+  Plus, Mic, X, Save, Trophy, AlertTriangle, CheckCircle2,
   Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown, Scale,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -494,7 +495,7 @@ export default function BuyoutPackageScreen() {
                   </>
                 ) : (
                   <>
-                    <Sparkles size={16} color="#FFF" />
+                    <MageAIMark size={16} color="#FFF" />
                     <Text style={styles.levelBtnText}>{levelingResult ? 'Re-run AI leveling' : 'Run AI leveling'}</Text>
                   </>
                 )}
@@ -511,7 +512,7 @@ export default function BuyoutPackageScreen() {
               {!!levelingResult?.summary && (
                 <View style={styles.levelingSummary}>
                   <View style={styles.levelingSummaryHead}>
-                    <Sparkles size={14} color={themeColors.accent} />
+                    <MageAIMark size={14} color={themeColors.accent} />
                     <Text style={styles.levelingSummaryHeadText}>AI leveling summary</Text>
                   </View>
                   <Text style={styles.levelingSummaryBody}>{levelingResult.summary}</Text>
@@ -627,7 +628,7 @@ export default function BuyoutPackageScreen() {
                     )}
                     {!!bid.normalizedAdjustmentReason && (
                       <View style={styles.adjReason}>
-                        <Sparkles size={11} color={themeColors.accent} />
+                        <MageAIMark size={11} color={themeColors.accent} />
                         <Text style={styles.adjReasonText}>{bid.normalizedAdjustmentReason}</Text>
                       </View>
                     )}
@@ -697,7 +698,7 @@ export default function BuyoutPackageScreen() {
             <TouchableOpacity style={styles.fabPrimary} onPress={() => setVoiceOpen(true)} activeOpacity={0.85}>
               <Mic size={16} color="#FFF" />
               <Text style={styles.fabPrimaryText}>Add bid by voice</Text>
-              <Sparkles size={12} color="#FFF" />
+              <MageAIMark size={12} color="#FFF" />
             </TouchableOpacity>
           </View>
         )}

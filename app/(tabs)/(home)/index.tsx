@@ -10,9 +10,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
-  Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
+  Search, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
   Wallet,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -458,7 +459,7 @@ export default function HomeScreen() {
             paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
           }}
         >
-          <Sparkles size={18} color="#FFF" strokeWidth={2.2} />
+          <MageAIMark size={18} color="#FFF" />
           <View style={{ flex: 1 }}>
             <Text style={{ color: Colors.textOnAccent, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
             <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: Type.caption2.fontSize, marginTop: 2 }}>
@@ -474,7 +475,7 @@ export default function HomeScreen() {
             testID="ai-briefing-toggle"
           >
             <View style={styles.aiBriefingToggleLeft}>
-              <Sparkles size={14} color={themeColors.accent} strokeWidth={2.2} />
+              <MageAIMark size={14} color={themeColors.accent} />
               <Text style={styles.aiBriefingToggleText}>
                 {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
               </Text>
@@ -794,7 +795,7 @@ export default function HomeScreen() {
                 }}
                 testID="samples-banner"
               >
-                <Sparkles size={20} color={themeColors.accent} strokeWidth={2} />
+                <MageAIMark size={20} color={themeColors.accent} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 15, fontWeight: '700', color: themeColors.text }}>
                     These are sample projects

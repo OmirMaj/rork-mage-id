@@ -37,7 +37,6 @@ import {
   Link2,
   Minus,
   Plus,
-  Sparkles,
   Target,
   Trash2,
   Users,
@@ -45,9 +44,9 @@ import {
   BarChart3,
   LayoutGrid,
   FileText,
-  Zap,
   Save,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -966,7 +965,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
   const renderFieldMode = useCallback(() => (
     <View style={styles.fieldModeContainer}>
       <View style={styles.fieldModeHeader}>
-        <Zap size={20} color={themeColors.accent} />
+        <MageAIMark size={20} color={themeColors.accent} />
         <Text style={styles.fieldModeTitle}>Field Update Mode</Text>
         <TouchableOpacity style={styles.fieldModeClose} onPress={() => setIsFieldMode(false)} accessibilityRole="button" accessibilityLabel="Close">
           <X size={18} color={themeColors.textMuted} />
@@ -1500,7 +1499,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.bottomSheetHandle} />
               <View style={styles.aiHeader}>
-                <Sparkles size={22} color={themeColors.accent} />
+                <MageAIMark size={22} color={themeColors.accent} />
                 <Text style={styles.aiTitle}>AI Schedule Builder</Text>
               </View>
               <Text style={styles.aiSubtitle}>
@@ -1524,7 +1523,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 {isAILoading ? (
                   <ActivityIndicator color="#FFF" size="small" />
                 ) : (
-                  <Sparkles size={16} color="#FFF" />
+                  <MageAIMark size={16} color="#FFF" />
                 )}
                 <Text style={styles.aiGenerateBtnText}>
                   {isAILoading ? 'Building your schedule...' : 'Generate Schedule'}
@@ -1658,7 +1657,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               activeOpacity={0.85}
               testID="open-schedule-pro"
             >
-              <Zap size={14} color={"#FFFFFF"} />
+              <MageAIMark size={14} color={"#FFFFFF"} />
               <Text style={desktopStyles.proBtnText}>Pro</Text>
             </TouchableOpacity>
           )}
@@ -2152,7 +2151,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.emptyAction} onPress={() => setIsAIBuilderOpen(true)}>
-              <Sparkles size={20} color={themeColors.accent} />
+              <MageAIMark size={20} color={themeColors.accent} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.emptyActionTitle}>Generate with AI</Text>
                 <Text style={styles.emptyActionDesc}>Describe your project, get a full schedule in seconds</Text>
@@ -2258,7 +2257,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <TouchableOpacity
                   style={[styles.fieldModeBtn, isFieldMode && styles.fieldModeBtnActive]}
                   onPress={() => setIsFieldMode(!isFieldMode)} accessibilityRole="button" accessibilityLabel="Power">
-                  <Zap size={13} color={isFieldMode ? '#FFF' : themeColors.accent} />
+                  <MageAIMark size={13} color={isFieldMode ? '#FFF' : themeColors.accent} />
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -2480,7 +2479,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             onPress={() => setIsQuickBuildOpen(true)}
             activeOpacity={0.85}
             testID="open-quick-build" accessibilityRole="button" accessibilityLabel="Power">
-            <Zap size={18} color={themeColors.accent} />
+            <MageAIMark size={18} color={themeColors.accent} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fab}

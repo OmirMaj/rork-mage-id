@@ -28,8 +28,9 @@ import {
   Search, X, ChevronRight, ChevronLeft, FolderPlus, Calculator, CalendarDays, FileText,
   Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
-  Wallet, MessageSquare, Ruler, Sparkles, Lock, FileCheck, type LucideIcon,
+  Wallet, MessageSquare, Ruler, Lock, FileCheck, type LucideIcon,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -104,7 +105,7 @@ const OPTIONS: CreateOption[] = [
   // Tools
   { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', category: 'tools', scoped: true },
   { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', category: 'tools', tier: 'pro', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
-  { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: Sparkles, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
+  { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: MageAIMark as unknown as LucideIcon, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
 ];
 
 const CATEGORY_LABELS: Record<CreateOption['category'], string> = {

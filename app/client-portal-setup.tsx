@@ -10,8 +10,9 @@ import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
   CalendarDays, DollarSign, Image, FileText, ClipboardList,
   MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
-  Mail, RefreshCw, Sparkles, Check, X, HandCoins, Sunrise, Briefcase,
+  Mail, RefreshCw, Check, X, HandCoins, Sunrise, Briefcase,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -1180,7 +1181,7 @@ function ClientPortalSetupScreenInner() {
           testID="draft-weekly-update-btn"
         >
           <View style={styles.weeklyUpdateIcon}>
-            <Sparkles size={16} color={themeColors.accent} />
+            <MageAIMark size={16} color={themeColors.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.weeklyUpdateTitle}>Draft Weekly Update</Text>

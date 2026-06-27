@@ -10,13 +10,14 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import {
   DollarSign, Users, TrendingDown, MapPin,
-  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, CalendarDays,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, ScanSearch, Layers, Scale, ShieldCheck,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
-  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
-  Clock, Lock, BrainCircuit,
+  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
+  Clock, Lock,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
@@ -1158,7 +1159,7 @@ export default function ProjectDetailScreen() {
             <Text style={detailStyles.sectionLabel}>Optimization Tip</Text>
             <View style={[detailStyles.infoCard, { backgroundColor: themeColors.accentSoft, borderColor: themeColors.accent + '30' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-                <Lightbulb size={18} color={themeColors.accent} />
+                <MageAIMark size={18} color={themeColors.accent} />
                 <View style={{ flex: 1 }}>
                   <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
                   <Text style={detailStyles.infoDesc}>
@@ -2214,7 +2215,7 @@ export default function ProjectDetailScreen() {
                   onPress={() => toggleSection('notes')}
                   activeOpacity={0.7}
                 >
-                  <Lightbulb size={20} color={themeColors.accent} />
+                  <MageAIMark size={20} color={themeColors.accent} />
                   <Text style={styles.sectionTitle}>Tips & Notes</Text>
                   {expanded.notes ? (
                     <ChevronUp size={18} color={themeColors.textMuted} />
@@ -2566,7 +2567,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-quick-invoice-btn"
                 >
-                  <Zap size={16} color={themeColors.accent} />
+                  <MageAIMark size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Quick</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -2964,7 +2965,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="extract-submittals-btn"
               >
-                <Sparkles size={16} color={themeColors.accent} />
+                <MageAIMark size={16} color={themeColors.accent} />
                 <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Extract from spec book (AI)</Text>
               </TouchableOpacity>
             </View>
@@ -3011,7 +3012,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-generative-setup"
                 >
-                  <Sparkles size={16} color={themeColors.accent} />
+                  <MageAIMark size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Set up project from estimate</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3092,7 +3093,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-project-memory"
                 >
-                  <BrainCircuit size={16} color={themeColors.accent} />
+                  <MageAIMark size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Project Memory · ask this job&apos;s history</Text>
                 </TouchableOpacity>
               </View>

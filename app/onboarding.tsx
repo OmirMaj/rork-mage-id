@@ -42,7 +42,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { ArrowRight, Check, Ruler, DollarSign, Mic, Zap, Sparkles } from 'lucide-react-native';
+import { ArrowRight, Check, Ruler, DollarSign, Mic } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -90,7 +91,7 @@ interface PreviewCard {
 // word headlines, ~15-25 word bodies).
 const PREVIEW_CARDS: PreviewCard[] = [
   {
-    Icon: Zap,
+    Icon: MageAIMark,
     title: 'Win more jobs with Instant Bid',
     body: 'Tap once on a homeowner request — get a polished Good/Better/Best proposal with financing, ready to send in seconds.',
   },
@@ -619,7 +620,7 @@ export default function OnboardingScreen() {
               <Animated.View style={{ opacity: bodyOpacity }}>
                 <View style={styles.confirmCard}>
                   <View style={styles.confirmHeadRow}>
-                    <Sparkles size={16} color={BRAND.orange} />
+                    <MageAIMark size={16} color={BRAND.orange} />
                     <Text style={styles.confirmCount}>
                       {drafts.length} client{drafts.length === 1 ? '' : 's'} ready to import
                     </Text>

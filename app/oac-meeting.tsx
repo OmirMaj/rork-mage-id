@@ -21,9 +21,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Plus, Sparkles, RefreshCw, Send, CheckCircle2, Circle,
+  ChevronLeft, Plus, RefreshCw, Send, CheckCircle2, Circle,
   Mic, X, Users, Calendar, AlertTriangle, Clock, Upload,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -454,7 +455,7 @@ function OACMeetingInner() {
           {/* Agenda */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Sparkles size={16} color={themeColors.accent} />
+              <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.cardLabel}>Agenda · auto-built from project state</Text>
               <TouchableOpacity onPress={handleRefreshAgenda} disabled={generatingAgenda} hitSlop={10}>
                 {generatingAgenda
@@ -561,7 +562,7 @@ function OACMeetingInner() {
           {/* Minutes */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Sparkles size={16} color={themeColors.accent} />
+              <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.cardLabel}>Minutes</Text>
             </View>
             {active.minutes ? (
@@ -594,7 +595,7 @@ function OACMeetingInner() {
               >
                 {generatingMinutes
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <><Sparkles size={16} color="#fff" /><Text style={styles.primaryBtnText}>Generate minutes from transcript</Text></>}
+                  : <><MageAIMark size={16} color="#fff" /><Text style={styles.primaryBtnText}>Generate minutes from transcript</Text></>}
               </TouchableOpacity>
             )}
           </View>

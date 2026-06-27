@@ -20,17 +20,15 @@ import {
 } from 'react-native';
 import {
   X,
-  Sparkles,
   ShieldAlert,
-  Zap,
   Target,
   MessageSquare,
   Mic,
-  Wand2,
   ArrowRight,
   Check,
   AlertTriangle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -317,7 +315,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.headerIconWrap}>
-              <Sparkles size={16} color={themeColors.accent} />
+              <MageAIMark size={16} color={themeColors.accent} />
             </View>
             <View>
               <Text style={styles.headerTitle}>AI Schedule Assistant</Text>
@@ -338,20 +336,20 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           contentContainerStyle={styles.modeRow}
         >
           {selectedCount > 0 && (
-            <ModeChip icon={Sparkles} label={`Bulk (${selectedCount})`} active={mode === 'bulk'} onPress={() => setMode('bulk')} />
+            <ModeChip icon={MageAIMark} label={`Bulk (${selectedCount})`} active={mode === 'bulk'} onPress={() => setMode('bulk')} />
           )}
           <ModeChip icon={ShieldAlert} label="Risks"      active={mode === 'risks'}    onPress={handleDetectRisks} />
-          <ModeChip icon={Zap}          label="Optimize"   active={mode === 'optimize'} onPress={handleOptimize} />
+          <ModeChip icon={MageAIMark}   label="Optimize"   active={mode === 'optimize'} onPress={handleOptimize} />
           <ModeChip icon={Target}       label="Explain CP" active={mode === 'explain'}  onPress={handleExplain} />
           <ModeChip icon={MessageSquare} label="Ask"       active={mode === 'ask'}      onPress={() => setMode('ask')} />
           <ModeChip icon={Mic}          label="As-built"  active={mode === 'asbuilt'}  onPress={() => setMode('asbuilt')} />
-          <ModeChip icon={Wand2}        label="Generate"   active={mode === 'generate'} onPress={() => setMode('generate')} />
+          <ModeChip icon={MageAIMark}   label="Generate"   active={mode === 'generate'} onPress={() => setMode('generate')} />
         </ScrollView>
 
         {/* Selection summary strip — informs the user that bulk ops are scoped. */}
         {selectedCount > 0 && mode === 'bulk' && (
           <View style={styles.selectionStrip}>
-            <Sparkles size={12} color={themeColors.accent} />
+            <MageAIMark size={12} color={themeColors.accent} />
             <Text style={styles.selectionStripText} numberOfLines={2}>
               Bulk editing {selectedCount} task{selectedCount === 1 ? '' : 's'}:{' '}
               <Text style={styles.selectionStripNames}>
@@ -552,7 +550,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   earned-value / cash-flow panels populate immediately. */}
               {linkedEstimate && linkedEstimate.items.length > 0 && !genPreview && (
                 <QuickBtn
-                  icon={Wand2}
+                  icon={MageAIMark}
                   title="Generate from my estimate"
                   sub={`${linkedEstimate.items.length} item${linkedEstimate.items.length === 1 ? '' : 's'} · $${Math.round(linkedEstimate.grandTotal).toLocaleString()} → cost-loaded plan`}
                   onPress={handleGenerateFromEstimate}
@@ -689,7 +687,7 @@ function HomeCard({
       <Text style={styles.sectionLabel}>Quick actions</Text>
       <View style={styles.quickGrid}>
         {empty ? (
-          <QuickBtn icon={Wand2} title="Generate schedule" sub="Describe project → full plan" onPress={onGenerate} featured />
+          <QuickBtn icon={MageAIMark} title="Generate schedule" sub="Describe project → full plan" onPress={onGenerate} featured />
         ) : (
           <>
             <QuickBtn icon={ShieldAlert} title="Detect risks" sub="Scan for logic issues" onPress={onRisks} featured />

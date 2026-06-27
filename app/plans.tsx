@@ -29,8 +29,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft, Plus, MapPin, Trash2, Image as ImageIcon,
-  ChevronRight, AlertTriangle, FileImage, X, Check, FileText, Sparkles,
+  ChevronRight, AlertTriangle, FileImage, X, Check, FileText,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -336,7 +337,7 @@ export default function PlansScreen() {
             style={styles.compareBtn}
             testID="compare-drawings-cta"
           >
-            <Sparkles size={16} color={themeColors.accent} />
+            <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.compareBtnTitle}>AI compare to revision</Text>
               <Text style={styles.compareBtnSub}>Pick a sheet + upload its new rev — AI flags every change</Text>

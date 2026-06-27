@@ -22,7 +22,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
   ChevronLeft, Shield, ShieldCheck, ShieldAlert, ShieldX, Plus,
-  Sparkles, Upload, Trash2, AlertTriangle, CheckCircle2, Clock,
+  Upload, Trash2, AlertTriangle, CheckCircle2, Clock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';

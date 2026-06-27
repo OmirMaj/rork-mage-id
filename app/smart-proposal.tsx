@@ -19,8 +19,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import {
-  ChevronLeft, FileSignature, Lightbulb, Share2, CheckCircle2, XCircle, Lock, Star, Check, User,
+  ChevronLeft, FileSignature, Share2, CheckCircle2, XCircle, Lock, Star, Check, User,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -370,7 +371,7 @@ function SmartProposalInner() {
             <View style={styles.driversCard}>
               {built.drivers.map((d, i) => (
                 <View key={i} style={[styles.driverRow, i > 0 && styles.driverBorder]}>
-                  <Lightbulb size={14} color={t.accent} style={{ marginTop: 2 }} />
+                  <View style={{ marginTop: 2 }}><MageAIMark size={14} color={t.accent} /></View>
                   <Text style={styles.driverText}>{d}</Text>
                 </View>
               ))}

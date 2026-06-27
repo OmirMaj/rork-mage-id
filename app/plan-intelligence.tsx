@@ -26,9 +26,10 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ScanSearch, FileImage, Sparkles, X, Check,
+  ChevronLeft, ScanSearch, FileImage, X, Check,
   StickyNote, Plus, RefreshCw, GraduationCap,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors } from '@/constants/colors';
@@ -283,7 +284,7 @@ function PlanIntelligenceInner() {
                 <>
                   {session && (
                     <TouchableOpacity style={styles.resumeCard} onPress={restoreSession} activeOpacity={0.85}>
-                      <Sparkles size={16} color={t.accent} />
+                      <MageAIMark size={16} color={t.accent} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resumeTitle}>Resume last session</Text>
                         <Text style={styles.resumeSub}>{session.rooms.length} rooms · saved {new Date(session.updatedAt).toLocaleDateString()}</Text>
@@ -296,7 +297,7 @@ function PlanIntelligenceInner() {
                     <TouchableOpacity key={s.id} style={styles.pickRow} onPress={() => void runAnalysis(s.imageUri, s.id, s.width, s.height)} activeOpacity={0.8}>
                       <FileImage size={16} color={t.textSecondary} />
                       <Text style={styles.pickRowTitle} numberOfLines={1}>{s.name}</Text>
-                      <Sparkles size={16} color={t.accent} />
+                      <MageAIMark size={16} color={t.accent} />
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity style={[styles.pickRow, styles.pickRowDashed]} onPress={() => void pickFromLibrary()} activeOpacity={0.8}>

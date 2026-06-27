@@ -22,8 +22,9 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Camera, ImagePlus, Sparkles, Receipt, Trash2, Check, AlertTriangle, BookOpen,
+  ChevronLeft, Camera, ImagePlus, Receipt, Trash2, Check, AlertTriangle, BookOpen,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -240,7 +241,7 @@ function MaterialReceiptInner() {
         {/* Extract CTA */}
         {imageUri && !draft && (
           <TouchableOpacity style={[styles.aiBtn, busy && { opacity: 0.7 }]} onPress={extract} disabled={busy} activeOpacity={0.85} testID="receipt-extract">
-            {busy ? <ActivityIndicator size="small" color="#FFF" /> : <Sparkles size={16} color="#FFF" />}
+            {busy ? <ActivityIndicator size="small" color="#FFF" /> : <MageAIMark size={16} color="#FFF" />}
             <Text style={styles.aiBtnText}>{busy ? 'Reading the invoice…' : 'Extract line items'}</Text>
           </TouchableOpacity>
         )}

@@ -50,7 +50,8 @@ import {
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
-import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, Sparkles, X, Anchor } from 'lucide-react-native';
+import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -1251,7 +1252,7 @@ export default function GridPane({
         <View style={styles.bulkBtnRow}>
           {onBulkAskAI && (
             <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnAI]} onPress={runBulkAskAI} activeOpacity={0.7}>
-              <Sparkles size={12} color="#fff" />
+              <MageAIMark size={12} color="#fff" />
               <Text style={[styles.bulkBtnText, { color: '#fff' }]}>Ask AI</Text>
             </TouchableOpacity>
           )}

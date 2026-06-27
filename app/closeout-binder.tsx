@@ -22,10 +22,11 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileDown, Plus, Trash2, Wrench, Sparkles,
+  ChevronLeft, FileDown, Plus, Trash2, Wrench,
   CheckCircle2, Send, Lock, RefreshCw, Stamp, FileText, Shield, X,
   ShieldCheck,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -506,7 +507,7 @@ export default function CloseoutBinderScreen() {
           {/* What's in it */}
           <View style={styles.previewCard}>
             <View style={styles.previewHead}>
-              <Sparkles size={14} color={themeColors.accent} />
+              <MageAIMark size={14} color={themeColors.accent} />
               <Text style={styles.previewTitle}>Auto-compiled from this project</Text>
             </View>
             <Text style={styles.previewBody}>

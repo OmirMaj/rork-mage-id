@@ -6,8 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, TrendingUp, AlertTriangle, Clock, CheckCircle2, ChevronRight, Wallet, RefreshCw, Phone,
+  TrendingUp, AlertTriangle, Clock, CheckCircle2, ChevronRight, Wallet, RefreshCw, Phone,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -131,7 +132,7 @@ export default function PaymentPredictionsScreen() {
     >
       <View style={styles.header}>
         <View style={styles.heroIcon}>
-          <Sparkles size={22} color={themeColors.accent} />
+          <MageAIMark size={22} color={themeColors.accent} />
         </View>
         <Text style={styles.heroTitle}>Cash-Crunch Forecast</Text>
         <Text style={styles.heroSub}>{scopeName} • {unpaidCount} unpaid invoice{unpaidCount === 1 ? '' : 's'} • {formatMoney(totalOutstanding)} outstanding</Text>
@@ -155,7 +156,7 @@ export default function PaymentPredictionsScreen() {
             activeOpacity={0.85}
             testID="run-payment-forecast-btn"
           >
-            <Sparkles size={16} color="#FFF" />
+            <MageAIMark size={16} color="#FFF" />
             <Text style={styles.runBtnText}>Run Forecast</Text>
           </TouchableOpacity>
         </View>
@@ -273,7 +274,7 @@ export default function PaymentPredictionsScreen() {
 
                 {pred.suggestedAction && (
                   <View style={styles.actionBlock}>
-                    <Sparkles size={11} color={themeColors.accent} />
+                    <MageAIMark size={11} color={themeColors.accent} />
                     <Text style={styles.actionText}>{pred.suggestedAction}</Text>
                   </View>
                 )}

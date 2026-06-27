@@ -15,8 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, Plus, Copy, Trash2, ShieldCheck, KeyRound, Info, Check, AlertTriangle,
+  Plus, Copy, Trash2, ShieldCheck, KeyRound, Info, Check, AlertTriangle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -140,7 +141,7 @@ export default function ConnectClaudeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><Sparkles size={24} color={themeColors.accent} /></View>
+          <View style={styles.heroIcon}><MageAIMark size={24} color={themeColors.accent} /></View>
           <Text style={styles.heroTitle}>Connect Claude</Text>
           <Text style={styles.heroSub}>
             Ask Claude (on claude.ai or Claude Desktop) about your business — &quot;what&apos;s overdue?&quot;,

@@ -22,10 +22,11 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   X, ChevronLeft, ChevronRight, Home, FileText, Calendar, DollarSign,
-  Users, Sparkles, Gavel, Wrench, Camera, ClipboardCheck, Plus, CheckCircle2,
+  Users, Gavel, Wrench, Camera, ClipboardCheck, Plus, CheckCircle2,
   LayoutDashboard, Target, ArrowRight, ShoppingCart, PenTool, BookOpen,
   Pencil, ScrollText, Globe, Bell, Footprints,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -48,7 +49,7 @@ type DemoProps = { onComplete: () => void; completed: boolean };
 interface TutorialStep {
   title: string;
   body: string;
-  Icon: typeof Home;
+  Icon: React.ComponentType<{ size?: number; color?: string }>;
   // Optional deep link — shown as a secondary "Try it live" button.
   deepLink?: string;
   // Interactive demo rendered above the body text.
@@ -112,7 +113,7 @@ const TapPlusDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
 };
 
 // Generic "tap the highlighted thing" demo — used for tab selection.
-function buildTapTarget(targetIdx: number, items: { label: string; Icon: typeof Home }[]): React.FC<DemoProps> {
+function buildTapTarget(targetIdx: number, items: { label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }[]): React.FC<DemoProps> {
   const Comp: React.FC<DemoProps> = ({ onComplete, completed }) => {
     const pulse = useRef(new Animated.Value(0)).current;
     useEffect(() => {
@@ -309,7 +310,7 @@ const TapToFinishDemo: React.FC<DemoProps> = ({ onComplete, completed }) => (
 const TAB_ITEMS = [
   { label: 'Summary', Icon: LayoutDashboard },
   { label: 'Projects', Icon: Home },
-  { label: 'Discover', Icon: Sparkles },
+  { label: 'Discover', Icon: MageAIMark },
   { label: 'Settings', Icon: Wrench },
 ];
 
@@ -332,7 +333,7 @@ const GotItDemo = ({ onComplete, completed }: { onComplete: () => void; complete
     >
       {completed
         ? <CheckCircle2 size={28} color="#FFF" />
-        : <Sparkles size={22} color="#FFF" />}
+        : <MageAIMark size={22} color="#FFF" />}
       <Text style={demoStyles.finishBtnText}>{completed ? 'Got it' : 'Got it — next'}</Text>
     </TouchableOpacity>
   </View>
@@ -374,7 +375,7 @@ const STEPS: TutorialStep[] = [
   {
     title: '2. AI does the estimating',
     body: 'Open your project and tap Estimator. Describe the job and the AI returns line items: materials with quantities + unit costs, labor, subs, permits, contingency. You review, edit, and add markup. A typical kitchen takes 3 minutes instead of 3 hours.',
-    Icon: Sparkles,
+    Icon: MageAIMark,
     instruction: 'Take me to the AI estimator',
     Demo: GotItDemo,
     deepLink: '/(tabs)/discover/estimate',

@@ -8,8 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   Mic, Send, X, CheckCircle2, AlertTriangle, HelpCircle,
-  RotateCcw, ChevronRight, Clock, Sparkles, MessageSquare,
+  RotateCcw, ChevronRight, Clock, MessageSquare,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
@@ -480,7 +481,7 @@ export default function VoiceCommandModal({
                 <Mic size={18} color={Colors.primary} />
                 <Text style={s.headerTitle}>MAGE Voice</Text>
                 <View style={s.aiBadge}>
-                  <Sparkles size={9} color={Colors.primary} />
+                  <MageAIMark size={9} color={Colors.primary} />
                   <Text style={s.aiBadgeText}>AI</Text>
                 </View>
               </View>

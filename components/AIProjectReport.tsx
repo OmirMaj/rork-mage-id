@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, X, CheckCircle2, AlertTriangle, Target, FileText } from 'lucide-react-native';
+import { X, CheckCircle2, AlertTriangle, Target, FileText } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -80,7 +81,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
         {isLoading ? (
           <ActivityIndicator size="small" color={themeColors.accent} />
         ) : (
-          <Sparkles size={16} color={themeColors.accent} />
+          <MageAIMark size={16} color={themeColors.accent} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Generating Report...' : 'AI Project Report'}</Text>
       </TouchableOpacity>
@@ -95,7 +96,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <View style={styles.headerLeft}>
-              <Sparkles size={16} color={themeColors.accent} />
+              <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.modalTitle}>Project Status Report</Text>
             </View>
             <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close">
@@ -169,7 +170,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Recommendations</Text>
                   {(result.recommendations ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <Sparkles size={13} color={themeColors.accent} />
+                      <MageAIMark size={13} color={themeColors.accent} />
                       <Text style={[styles.listText, { color: themeColors.accent, fontWeight: '500' as const }]}>{item}</Text>
                     </View>
                   ))}

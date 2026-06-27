@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, Mail, RefreshCw, CheckCircle2, Plus, X, FileText, Info,
+  Mail, RefreshCw, CheckCircle2, Plus, X, FileText, Info,
   Users,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -173,7 +174,7 @@ export default function ClientUpdateScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><Sparkles size={22} color={themeColors.accent} /></View>
+          <View style={styles.heroIcon}><MageAIMark size={22} color={themeColors.accent} /></View>
           <Text style={styles.heroTitle}>Weekly client update</Text>
           <Text style={styles.heroSub}>
             AI drafts a friendly email from the last 7 days of field data. Review, edit, then send from your mail app.
@@ -246,7 +247,7 @@ export default function ClientUpdateScreen() {
               <ActivityIndicator color={'#FFFFFF'} />
             ) : (
               <>
-                <Sparkles size={16} color={'#FFFFFF'} />
+                <MageAIMark size={16} color={'#FFFFFF'} />
                 <Text style={styles.draftBtnTxt}>Draft update with AI</Text>
               </>
             )}

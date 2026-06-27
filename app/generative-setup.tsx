@@ -14,9 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Boxes, ClipboardCheck, CalendarRange, Check, Sparkles,
+  ChevronLeft, Boxes, ClipboardCheck, CalendarRange, Check,
   ArrowRight, AlertTriangle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -179,7 +180,7 @@ function GenerativeSetupInner() {
           />
         ) : !hasEstimate ? (
           <View style={styles.infoCard}>
-            <Sparkles size={26} color={t.accent} strokeWidth={1.7} />
+            <MageAIMark size={26} color={t.accent} />
             <Text style={styles.infoTitle}>Build an estimate first</Text>
             <Text style={styles.infoBody}>
               Generative Setup breaks your estimate into buyout packages and a submittal
@@ -299,7 +300,7 @@ function GenerativeSetupInner() {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <Sparkles size={17} color="#fff" />
+                <MageAIMark size={17} color="#fff" />
                 <Text style={styles.ctaText}>Generate setup</Text>
               </>
             )}

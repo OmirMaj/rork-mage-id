@@ -21,8 +21,9 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { generateUUID } from '@/utils/generateId';
 import {
-  Camera, ImagePlus, Sparkles, X, Trash2, ChevronRight, Save, AlertCircle,
+  Camera, ImagePlus, X, Trash2, ChevronRight, Save, AlertCircle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -379,7 +380,7 @@ export default function AiPunchScreen() {
               feels the same surface across the app. */}
           <View style={styles.hero}>
             <View style={styles.heroIconWrap}>
-              <Sparkles size={28} color={"#FF6A1A"} />
+              <MageAIMark size={28} color={"#FF6A1A"} />
             </View>
             <Text style={styles.heroTitle}>AI Punch from Photos</Text>
             <Text style={styles.heroSub}>
@@ -573,7 +574,7 @@ export default function AiPunchScreen() {
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} color="#FFF" />
+                  <MageAIMark size={16} color="#FFF" />
                   <Text style={styles.fabPrimaryText}>Run AI · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
                   <ChevronRight size={16} color="#FFF" />
                 </>

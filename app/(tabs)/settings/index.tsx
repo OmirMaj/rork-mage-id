@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -547,7 +548,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Sparkles size={14} color="#fff" />
+              <MageAIMark size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Today: {aiUsed} of {aiLimit} requests</Text>
@@ -559,7 +560,7 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Sparkles size={14} color="#fff" />
+              <MageAIMark size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Advanced: {aiSmartUsed} of {aiSmartLimit}</Text>
@@ -1132,7 +1133,7 @@ export default function SettingsScreen() {
             testID="connect-claude-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.text }]}>
-              <Sparkles size={14} color="#fff" />
+              <MageAIMark size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Connect Claude (AI assistant)</Text>
             <ChevronRight size={16} color={themeColors.textMuted} />
@@ -1249,7 +1250,7 @@ export default function SettingsScreen() {
                 label: 'Pro',
                 price: '$29/mo',
                 color: themeColors.accent,
-                icon: Zap,
+                icon: MageAIMark,
                 features: ['Unlimited projects', 'Full estimate + markup', 'Schedule maker (all views)', 'Branded PDF export', 'Change orders & invoicing', 'Daily field reports', 'Material price alerts', 'Cloud sync'],
                 disabled: [],
               },

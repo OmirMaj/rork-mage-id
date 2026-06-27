@@ -31,10 +31,11 @@ import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Camera, FileText, MapPin, DollarSign, Calendar,
-  X, Image as ImageIcon, Sparkles, ShieldCheck, AlertTriangle, Building2,
+  X, Image as ImageIcon, ShieldCheck, AlertTriangle, Building2,
   Home, LayoutGrid, MoreHorizontal, ClipboardCheck, Clock, Briefcase,
   Check, ArrowRight, Plus, TreePine,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -744,7 +745,7 @@ function DetailsStep({
             ))}
           </View>
           <View style={styles.proTipCard}>
-            <Sparkles size={13} color={themeColors.accent} />
+            <MageAIMark size={13} color={themeColors.accent} />
             <Text style={styles.proTipText}>
               <Text style={styles.proTipBold}>Pro tip: </Text>
               Add at least 3 photos for better, more accurate bids.
@@ -953,7 +954,7 @@ function ReviewStep({
 
       <FadeRise delay={240}>
         <View style={styles.disclaimerCard}>
-          <Sparkles size={13} color={themeColors.accent} />
+          <MageAIMark size={13} color={themeColors.accent} />
           <Text style={styles.disclaimerText}>
             By posting you agree this is a real project at a real address. Trolls and fake posts get accounts banned.
           </Text>

@@ -25,9 +25,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  Camera, ImagePlus, Sparkles, X, Trash2, ChevronLeft,
+  Camera, ImagePlus, X, Trash2, ChevronLeft,
   AlertCircle, ClipboardList, MessageSquare, FileText, Image as ImageIcon, Sparkle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -365,7 +366,7 @@ export default function PhotoTriageScreen() {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <Sparkles size={20} color={themeColors.accent} />
+                <MageAIMark size={20} color={themeColors.accent} />
               </View>
               <Text style={styles.heroTitle}>One walk, every record</Text>
               <Text style={styles.heroBody}>
@@ -443,7 +444,7 @@ export default function PhotoTriageScreen() {
                 ? <ActivityIndicator color="#FFF" />
                 : (
                   <>
-                    <Sparkles size={16} color="#FFF" />
+                    <MageAIMark size={16} color="#FFF" />
                     <Text style={styles.analyzeText}>Run AI triage</Text>
                   </>
                 )}

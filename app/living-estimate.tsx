@@ -13,8 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import {
   ChevronLeft, TrendingUp, TrendingDown, AlertTriangle, ArrowRight,
-  Activity, Sparkles, ShieldAlert,
+  Activity, ShieldAlert,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -111,7 +112,7 @@ function LivingEstimateInner() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }} showsVerticalScrollIndicator={false}>
         {!snapshot?.hasMarginBasis ? (
           <View style={styles.basisCard}>
-            <Sparkles size={28} color={t.accent} strokeWidth={1.7} />
+            <MageAIMark size={28} color={t.accent} />
             <Text style={styles.basisTitle}>Add markup to track live margin</Text>
             <Text style={styles.basisBody}>
               This project&apos;s estimate doesn&apos;t carry a cost-and-markup split, so
@@ -209,7 +210,7 @@ function LivingEstimateInner() {
             {/* Pending CO upside */}
             {snapshot.pendingChangeOrders !== 0 && (
               <View style={styles.upsideCard}>
-                <Sparkles size={16} color={t.info} />
+                <MageAIMark size={16} color={t.info} />
                 <Text style={styles.upsideText}>
                   <Text style={styles.upsideStrong}>{money(snapshot.pendingChangeOrders)}</Text> in pending change orders
                   — not yet booked into the projection.

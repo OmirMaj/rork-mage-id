@@ -8,9 +8,10 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, TrendingDown, DollarSign, Plus, X, Trash2, Edit3,
-  AlertTriangle, CheckCircle, Sparkles, ChevronDown, ChevronUp,
+  AlertTriangle, CheckCircle, ChevronDown, ChevronUp,
   Calendar, Clock, Wallet, BarChart3, RefreshCw,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -857,7 +858,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             {aiLoading ? (
               <ActivityIndicator size="small" color={"#FFFFFF"} />
             ) : (
-              <Sparkles size={18} color={"#FFFFFF"} />
+              <MageAIMark size={18} color={"#FFFFFF"} />
             )}
             <Text style={styles.aiButtonText}>
               {aiLoading ? 'Analyzing...' : 'Get AI Advice'}
@@ -877,7 +878,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           {showAiResults && aiAnalysis && (
             <View style={styles.aiResultsCard}>
               <View style={styles.aiResultsHeader}>
-                <Sparkles size={16} color={themeColors.accent} />
+                <MageAIMark size={16} color={themeColors.accent} />
                 <Text style={styles.aiResultsTitle}>AI Cash Flow Analysis</Text>
                 <View style={[styles.healthBadge, { backgroundColor: healthColor(aiAnalysis.overallHealth) + '20' }]}>
                   <Text style={[styles.healthBadgeText, { color: healthColor(aiAnalysis.overallHealth) }]}>

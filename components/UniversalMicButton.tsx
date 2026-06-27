@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
-  Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle, Sparkles,
+  Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle,
   CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -658,7 +659,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                       style={styles.ctaPrimary}
                       onPress={handleConfirm}
                     >
-                      <Sparkles size={14} color="#FFF" />
+                      <MageAIMark size={14} color="#FFF" />
                       <Text style={styles.ctaPrimaryText}>
                         Create {kindCTA}
                       </Text>

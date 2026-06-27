@@ -31,8 +31,9 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, CheckCircle2, Clock, AlertTriangle, Wallet, Lock,
-  ExternalLink, RefreshCw, Sparkles,
+  ExternalLink, RefreshCw,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -319,7 +320,7 @@ function NotConnectedCard({
           <ActivityIndicator color="#fff" />
         ) : (
           <>
-            <Sparkles size={16} color="#fff" />
+            <MageAIMark size={16} color="#fff" />
             <Text style={styles.ctaText}>
               {status === 'incomplete' ? 'Continue setup' : 'Set up payments'}
             </Text>

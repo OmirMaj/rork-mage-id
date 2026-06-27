@@ -10,9 +10,10 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ChevronLeft, Plus, Sparkles, Inbox, MapPin, ChevronRight,
+  ChevronLeft, Plus, Inbox, MapPin, ChevronRight,
   CheckCircle2, Clock, Trophy,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -156,7 +157,7 @@ export default function MyRfpsScreen() {
         {!isLoading && rfps.length === 0 && (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconWrap}>
-              <Sparkles size={28} color={themeColors.accent} />
+              <MageAIMark size={28} color={themeColors.accent} />
             </View>
             <Text style={styles.emptyTitle}>Post your first project</Text>
             <Text style={styles.emptyBody}>

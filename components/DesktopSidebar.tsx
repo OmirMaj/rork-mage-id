@@ -22,7 +22,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 interface NavItem {
   key: string;
   label: string;
-  icon: typeof Home;
+  // Accepts lucide icons AND the bespoke MageAIMark (a plain function
+  // component, so `typeof Home`'s ForwardRef type would reject it).
+  icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   route: string;
   section: string;
   // Optional feature gate — when set, sidebar shows a small lock badge if

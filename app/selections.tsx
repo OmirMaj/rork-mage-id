@@ -13,9 +13,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Plus, Trash2, Sparkles, DollarSign, Star, ExternalLink,
+  ChevronLeft, Plus, Trash2, DollarSign, Star, ExternalLink,
   CheckCircle2, AlertTriangle, Clock, Package, PenTool,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -243,7 +244,7 @@ export default function SelectionsScreen() {
 
         {!loading && categories.length === 0 && (
           <View style={styles.emptyCard}>
-            <Sparkles size={28} color={themeColors.accent} />
+            <MageAIMark size={28} color={themeColors.accent} />
             <Text style={styles.emptyTitle}>Add your first allowance</Text>
             <Text style={styles.emptyBody}>
               Tell us what the homeowner will pick — Kitchen Cabinets, Bathroom Tile, Lighting,
@@ -362,7 +363,7 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
 
       {opts.length === 0 && !curating && (
         <TouchableOpacity style={styles.curateCta} onPress={onCurate}>
-          <Sparkles size={16} color="#FFF" />
+          <MageAIMark size={16} color="#FFF" />
           <Text style={styles.curateCtaText}>Generate AI options</Text>
         </TouchableOpacity>
       )}
@@ -380,7 +381,7 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
           ))}
           {!isChosen && !isExceeded && (
             <TouchableOpacity style={styles.regenerateBtn} onPress={onCurate}>
-              <Sparkles size={12} color={themeColors.accent} />
+              <MageAIMark size={12} color={themeColors.accent} />
               <Text style={styles.regenerateText}>Regenerate options</Text>
             </TouchableOpacity>
           )}

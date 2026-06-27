@@ -38,9 +38,10 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Sparkles, Save, Plus, Trash2, AlertTriangle,
+  ChevronLeft, Save, Plus, Trash2, AlertTriangle,
   RefreshCw, Pencil, Check,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -352,7 +353,7 @@ function TakeoffEstimateInner() {
             style={styles.primaryBtn}
             onPress={() => router.replace({ pathname: '/takeoff', params: projectId ? { projectId } : {} } as never)}
           >
-            <Sparkles size={16} color={themeColors.surface} />
+            <MageAIMark size={16} color={themeColors.surface} />
             <Text style={styles.primaryBtnText}>Run AI Takeoff</Text>
           </TouchableOpacity>
         </View>
@@ -408,7 +409,7 @@ function TakeoffEstimateInner() {
         {/* Source summary */}
         {!pricing && lines.length > 0 && (
           <View style={styles.sourceCard}>
-            <Sparkles size={14} color={themeColors.accent} />
+            <MageAIMark size={14} color={themeColors.accent} />
             <Text style={styles.sourceText}>
               Auto-generated from {countQuantities(takeoff)} takeoff items. Tap any line to edit description, quantity, or unit price. Add custom lines for anything the AI missed.
             </Text>

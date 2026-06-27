@@ -25,7 +25,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { CheckCircle2, X, Sparkles, FileText, Home as HomeIcon, Briefcase } from 'lucide-react-native';
+import { CheckCircle2, X, FileText, Home as HomeIcon, Briefcase } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -263,7 +264,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                 <ActivityIndicator size="small" color={themeColors.accent} />
               ) : (
                 <>
-                  <Sparkles size={14} color={themeColors.accent} />
+                  <MageAIMark size={14} color={themeColors.accent} />
                   <Text style={[styles.subCtaText, { color: themeColors.accent }]}>
                     Start {CLIENT_PRICING.TRIAL_DAYS}-day free trial
                   </Text>
@@ -315,7 +316,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
                 <>
-                  <Sparkles size={14} color="#FFF" />
+                  <MageAIMark size={14} color="#FFF" />
                   <Text style={[styles.subCtaText, { color: '#FFF' }]}>
                     Start {CLIENT_PRICING.TRIAL_DAYS}-day free trial
                   </Text>

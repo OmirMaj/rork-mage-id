@@ -20,8 +20,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Phone, Mail, MapPin, ChevronRight, MessageSquare, Calendar, Clock,
-  Trash2, Save, Sparkles, ArrowRight, Briefcase, Mic, X, Zap,
+  Trash2, Save, ArrowRight, Briefcase, Mic, X,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -259,7 +260,7 @@ export default function LeadDetailScreen() {
           {score != null && (
             <View style={styles.scoreCard}>
               <View style={[styles.scoreCircle, score >= 8 && styles.scoreCircleHot]}>
-                <Sparkles size={14} color={score >= 8 ? '#FFF' : themeColors.accent} />
+                <MageAIMark size={14} color={score >= 8 ? '#FFF' : themeColors.accent} />
                 <Text style={[styles.scoreCircleText, score >= 8 && styles.scoreCircleTextHot]}>{score}</Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -308,9 +309,9 @@ export default function LeadDetailScreen() {
                 until the deal's decided (won/lost). */}
             {existing && stage !== 'won' && stage !== 'lost' && (
               <TouchableOpacity style={styles.proposalBtn} onPress={() => setShowProposal(true)} activeOpacity={0.85} testID="lead-draft-proposal">
-                <Zap size={16} color="#FFF" />
+                <MageAIMark size={16} color="#FFF" />
                 <Text style={styles.proposalBtnText}>Draft Instant Bid proposal</Text>
-                <Sparkles size={13} color="#FFF" />
+                <MageAIMark size={13} color="#FFF" />
               </TouchableOpacity>
             )}
             {existing && stage === 'won' && !existing.convertedProjectId && (

@@ -21,9 +21,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileText, Sparkles, AlertCircle, Save, Trash2,
+  ChevronLeft, FileText, AlertCircle, Save, Trash2,
   Layers, Calendar, Hammer,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -212,7 +213,7 @@ export default function ExtractSubmittalsScreen() {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <Sparkles size={20} color={"#FF6A1A"} />
+                <MageAIMark size={20} color={"#FF6A1A"} />
               </View>
               <Text style={styles.heroTitle}>Spec book → submittal log</Text>
               <Text style={styles.heroBody}>

@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, CalendarDays, ChevronRight, FileText, X,
+  CalendarDays, ChevronRight, FileText, X,
   CheckCircle2, Clock, Plus, Folder, FolderPlus,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
@@ -341,7 +342,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
           <View style={s.aiSection}>
             <View style={s.aiHeader}>
-              <Sparkles size={18} color="#FF9F0A" />
+              <MageAIMark size={18} color="#FF9F0A" />
               <Text style={s.aiTitle}>Generate with AI</Text>
             </View>
             <Text style={s.aiDesc}>
@@ -369,7 +370,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Sparkles size={16} color="#FFF" />
+                    <MageAIMark size={16} color="#FFF" />
                     <Text style={s.aiBtnText}>Generate (New Project)</Text>
                   </>
                 )}
