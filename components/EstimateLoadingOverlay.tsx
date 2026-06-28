@@ -13,8 +13,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, Animated, Easing, Platform, TouchableOpacity,
 } from 'react-native';
-import { Hammer } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import MageBuildScene from '@/components/MageBuildScene';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -65,7 +64,6 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, onCan
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
   const factOpacity = useRef(new Animated.Value(1)).current;
-  const iconRotate = useRef(new Animated.Value(0)).current;
 
   // Rotate fact every 4 seconds with a quick fade.
   useEffect(() => {
@@ -97,18 +95,6 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, onCan
     return () => { a.stop(); b.stop(); c.stop(); };
   }, [visible, dot1, dot2, dot3]);
 
-  // Slow rotation on the hammer icon.
-  useEffect(() => {
-    if (!visible) return;
-    const loop = Animated.loop(
-      Animated.timing(iconRotate, { toValue: 1, duration: 4500, easing: Easing.linear, useNativeDriver: true }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [visible, iconRotate]);
-
-  const rotate = iconRotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-
   return (
     <Modal
       visible={visible}
@@ -119,13 +105,8 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, onCan
     >
       <View style={styles.overlay}>
         <View style={styles.card}>
-          <View style={styles.iconStack}>
-            <Animated.View style={[styles.iconRing, { transform: [{ rotate }] }]}>
-              <Hammer size={28} color={themeColors.accent} strokeWidth={1.75} />
-            </Animated.View>
-            <View style={styles.iconBadge}>
-              <MageAIMark size={11} color="#FFF" />
-            </View>
+          <View style={styles.scene}>
+            <MageBuildScene size={300} color={themeColors.text} accentColor={themeColors.accent} />
           </View>
 
           <Text style={styles.title}>{title ?? 'Generating estimate…'}</Text>
@@ -195,24 +176,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
       ? { boxShadow: '0 18px 48px rgba(0,0,0,0.45)' as any }
       : { shadowColor: '#000', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.45, shadowRadius: 28, elevation: 18 }),
   },
-  iconStack: {
-    width: 72, height: 72,
-    alignItems: 'center', justifyContent: 'center',
-    position: 'relative',
-  },
-  iconRing: {
-    width: 72, height: 72, borderRadius: 22,
-    backgroundColor: t.accent + '15',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: t.accent + '30',
-  },
-  iconBadge: {
-    position: 'absolute',
-    top: -4, right: -4,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: t.accent,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: t.surface,
+  scene: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
   },
   title: {
     fontSize: 19, fontWeight: '800',
