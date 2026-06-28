@@ -6,7 +6,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send, FileText } from 'lucide-react-native';
+import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send } from 'lucide-react-native';
+import { MageSubmittal } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -262,7 +263,7 @@ function SubmittalScreenInner() {
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Submittals' }} />
         <EmptyState
-          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageSubmittal size={36} color={themeColors.accent} />}
           title="No submittal open yet"
           message="Submittals route product specs through the architect for sign-off, then attach to the project's record. To start one:"
           steps={[

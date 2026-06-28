@@ -12,3 +12,10 @@ export { default as MageIntelligence } from './MageIntelligence';
 // drop-in replacement for the Sparkles/Wand2/Zap/BrainCircuit/Lightbulb/Bot
 // clichés. MageCraneBuild (components/) is the animated counterpart.
 export { default as MageAIMark } from './MageAIMark';
+// Bespoke construction glyph set (tab bar + core domain docs) — icon-audit §4.
+export {
+  MageProject, MageDiscover, MageSummary,
+  MageRFI, MageSubmittal, MagePayApp, MageChangeOrder,
+  MageTakeoff, MageSchedule, MageEstimate, MageMargin,
+  MagePlans, MageCostDb, MageMaterials, MageEquipment, MagePunch,
+} from './glyphs';

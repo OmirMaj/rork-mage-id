@@ -6,7 +6,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, ChevronDown, Link2, X, CheckCircle2, Send, FileText, CalendarDays } from 'lucide-react-native';
+import { Save, ChevronDown, Link2, X, CheckCircle2, Send, CalendarDays } from 'lucide-react-native';
+import { MageRFI } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
@@ -316,7 +317,7 @@ function RFIScreenInner() {
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'RFIs' }} />
         <EmptyState
-          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageRFI size={36} color={themeColors.accent} />}
           title="No RFI open yet"
           message="RFIs (Requests for Information) attach to a project so the answer becomes part of that job's record. To send one:"
           steps={[

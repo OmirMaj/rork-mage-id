@@ -2,7 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
+import { Settings } from 'lucide-react-native';
+import { MageProject, MageDiscover, MageSummary } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCoreData } from '@/contexts/ProjectContext';
@@ -187,7 +188,7 @@ export default function TabLayout() {
         options={isMinimalPersona ? { href: null } : {
           title: 'Summary',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon Icon={LayoutDashboard} color={color} focused={focused} />
+            <TabIcon Icon={MageSummary} color={color} focused={focused} />
           ),
         }}
       />
@@ -201,7 +202,7 @@ export default function TabLayout() {
           tabBarBadge: inboxBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon Icon={Home} color={color} focused={focused} />
+            <TabIcon Icon={MageProject} color={color} focused={focused} />
           ),
         }}
       />
@@ -213,7 +214,7 @@ export default function TabLayout() {
         options={isMinimalPersona ? { href: null } : {
           title: 'Discover',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon Icon={Compass} color={color} focused={focused} />
+            <TabIcon Icon={MageDiscover} color={color} focused={focused} />
           ),
         }}
       />

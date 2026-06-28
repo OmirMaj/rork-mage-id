@@ -77,10 +77,11 @@ Each gets a custom SVG (described); interim lucide fallback noted so nothing loo
 
 ## 6. Phased rollout
 
-- **Phase 1 (built this pass):** the icon-system foundation (`components/icons/`) + the flagship **MAGE AI mark**, wired into a flagship surface as a reviewable proof. → review on device.
-- **Phase 2:** the tab bar set (4 glyphs) + the top ~10 domain glyphs (RFI/Submittal/PayApp/CO/Takeoff/Buyout/Punch/Schedule/Estimate/Margin), each reviewed from a screenshot.
-- **Phase 3:** route all remaining lucide through `<MageIcon>` for one stroke/scale; swap the long-tail domain glyphs.
-- **Phase 4 (optional):** a matching custom app icon + splash refresh so the home-screen mark shares the language.
+- **Phase 1 — DONE:** icon-system foundation (`components/icons/`) + the flagship **MAGE AI mark** (now the animated `MageCraneBuild` bubble + static `MageAIMark`), wired in.
+- **Phase 1.5 — DONE:** the AI-cliché sweep — Sparkles/Wand2/Zap/BrainCircuit/Lightbulb/Bot → `MageAIMark` across ~90 files (Tell #1); the house loader → `MageBuildScene` (a crane erecting a building) on the full-screen loader.
+- **Phase 2 — DONE:** the bespoke construction glyph set (`components/icons/glyphs.tsx`): tab bar (Projects/Discover/Summary via `MageProject`/`MageDiscover`/`MageSummary`) + domain glyphs (RFI, Submittal, Pay App, Change Order, Takeoff, Schedule, Estimate, Margin, Plans, Cost DB, Materials, Equipment, Punch). Wired into the tab bar, the desktop sidebar nav, and the RFI/Submittal/Pay-App screen headers (fixing the triple-`FileText`).
+- **Phase 3 — DONE (stroke):** stroke normalized to **1.75** across ~239 files / ~2,345 usages via AST codemod, preserving intentional strokes (tab focus cue). Long-tail per-screen domain headers can keep adopting glyphs incrementally.
+- **Phase 4 (optional, not done):** a matching custom app icon + splash refresh so the home-screen mark shares the language.
 
 ## 7. What this is NOT
 Not a reskin for its own sake. The goal is that a contractor's first 10 seconds in the app *feel* like a tool built by people who've been on a site — distinct AI, trade-true documents, a tactile tab bar — instead of a clean LLM wrapper. That perception is worth more than any single feature for a launch.

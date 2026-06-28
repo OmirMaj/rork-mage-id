@@ -8,8 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Info, Printer, Check, Save,
-  ShieldAlert, CheckCircle2, FileText,
+  ShieldAlert, CheckCircle2,
 } from 'lucide-react-native';
+import { MagePayApp } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -457,7 +458,7 @@ function AIAPayAppScreenInner() {
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
         <EmptyState
-          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MagePayApp size={36} color={themeColors.accent} />}
           title="No AIA pay app open yet"
           message="AIA pay applications (G702 / G703) bill against an existing progress invoice. To start one:"
           steps={[
