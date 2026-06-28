@@ -159,9 +159,9 @@ export default function TaskInspector({
   return (
     <View style={styles.panel}>
       <View style={styles.header}>
-        <Info size={16} color={"#FF6A1A"} />
+        <Info size={16} color={"#FF6A1A"} strokeWidth={1.75} />
         <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled task'}</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} /></TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -182,7 +182,7 @@ export default function TaskInspector({
         {/* Status picker — quick single-tap update without opening the grid. */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <Flag size={12} color={"#9AA3AD"} />
+            <Flag size={12} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Status</Text>
           </View>
           <View style={styles.statusRow}>
@@ -245,7 +245,7 @@ export default function TaskInspector({
         {/* Anchor summary — read-only here; the grid owns anchor editing. */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <Anchor size={12} color={"#9AA3AD"} />
+            <Anchor size={12} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Anchor</Text>
           </View>
           {anchorPretty ? (
@@ -261,7 +261,7 @@ export default function TaskInspector({
         {/* Dependencies list */}
         <View style={styles.section}>
           <View style={styles.sectionHeadRow}>
-            <CalendarClock size={12} color={"#9AA3AD"} />
+            <CalendarClock size={12} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Predecessors</Text>
           </View>
           {depRows.length === 0 ? (
@@ -282,7 +282,7 @@ export default function TaskInspector({
         {(task.crew || (task.resourceIds && task.resourceIds.length > 0)) && (
           <View style={styles.section}>
             <View style={styles.sectionHeadRow}>
-              <Users size={12} color={"#9AA3AD"} />
+              <Users size={12} color={"#9AA3AD"} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Crew</Text>
             </View>
             {task.crew && <Row label="Crew" value={task.crew} />}
@@ -300,7 +300,7 @@ export default function TaskInspector({
         {/* Photos — camera + library, no upload (local URI). */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Camera size={12} color={"#9AA3AD"} />
+            <Camera size={12} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Photos {task.photos && task.photos.length > 0 ? `(${task.photos.length})` : ''}</Text>
           </View>
           <View style={styles.photoGrid}>
@@ -311,7 +311,7 @@ export default function TaskInspector({
                   style={styles.photoRemove}
                   onPress={() => handleRemovePhoto(i)}
                   hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={11} color="#FFF" />
+                  <Trash2 size={11} color="#FFF" strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -321,7 +321,7 @@ export default function TaskInspector({
               activeOpacity={0.85}
               testID="task-add-photo"
             >
-              <Camera size={18} color={"#FF6A1A"} />
+              <Camera size={18} color={"#FF6A1A"} strokeWidth={1.75} />
               <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
             </TouchableOpacity>
             {Platform.OS !== 'web' && (
@@ -330,7 +330,7 @@ export default function TaskInspector({
                 onPress={() => handleAddPhoto('library')}
                 activeOpacity={0.85}
               >
-                <Plus size={18} color={"#FF6A1A"} />
+                <Plus size={18} color={"#FF6A1A"} strokeWidth={1.75} />
                 <Text style={styles.photoAddLabel}>Library</Text>
               </TouchableOpacity>
             )}
@@ -341,7 +341,7 @@ export default function TaskInspector({
             (opposite of Buildertrend's email-everyone posture). */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Bell size={12} color={"#9AA3AD"} />
+            <Bell size={12} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Notification list {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
           </View>
           <Text style={styles.notesText}>
@@ -361,7 +361,7 @@ export default function TaskInspector({
               style={[styles.subAddBtn, !subscriberDraft.trim() && styles.subAddBtnDisabled]}
               onPress={handleAddSubscriber}
               disabled={!subscriberDraft.trim()}
-              activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color="#FFF" /></TouchableOpacity>
+              activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color="#FFF" strokeWidth={1.75} /></TouchableOpacity>
           </View>
           {(task.subscribers ?? []).length > 0 && (
             <View style={styles.subList}>
@@ -371,7 +371,7 @@ export default function TaskInspector({
                   <TouchableOpacity
                     onPress={() => handleRemoveSubscriber(s)}
                     hitSlop={4} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={11} color={"#9AA3AD"} />
+                    <X size={11} color={"#9AA3AD"} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ))}

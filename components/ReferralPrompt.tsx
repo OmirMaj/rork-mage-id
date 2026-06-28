@@ -57,10 +57,10 @@ export default function ReferralPrompt({
       <View style={styles.overlay}>
         <View style={styles.card}>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
-            <X size={18} color={colors.textMuted} />
+            <X size={18} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
-          <View style={styles.iconWrap}><PartyPopper size={32} color={colors.accent} /></View>
+          <View style={styles.iconWrap}><PartyPopper size={32} color={colors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.title}>Nice win!{jobName ? ` ${jobName}` : ''}</Text>
           <Text style={styles.body}>
             Know another contractor who could use an edge like this? Most of our
@@ -68,7 +68,7 @@ export default function ReferralPrompt({
           </Text>
 
           <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85} testID="referral-share">
-            <Share2 size={16} color="#FFF" />
+            <Share2 size={16} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.shareBtnText}>Refer a contractor</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.laterBtn} onPress={onClose} activeOpacity={0.7}>

@@ -73,7 +73,7 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
           disabled={busy || !canSend}
           testID={`send-to-client-${kind}-${itemId}`}
         >
-          <Send size={16} color="#FFFFFF" />
+          <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
           <Text style={styles.primaryText}>{busy ? 'Sending…' : status === 'recalled' ? 'Re-send to Client' : 'Send to Client'}</Text>
         </TouchableOpacity>
         {!canSend && canSendReason ? <Text style={styles.hint}>{canSendReason}</Text> : null}
@@ -91,11 +91,11 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
           disabled={busy}
           testID={`resend-to-client-${kind}-${itemId}`}
         >
-          <Send size={16} color="#FFFFFF" />
+          <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
           <Text style={styles.primaryText}>{busy ? 'Sending…' : 'Re-send updated'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondary} onPress={doRecall} disabled={busy}>
-          <RotateCcw size={14} color={colors.textMuted} />
+          <RotateCcw size={14} color={colors.textMuted} strokeWidth={1.75} />
           <Text style={styles.secondaryText}>Recall</Text>
         </TouchableOpacity>
       </View>
@@ -105,11 +105,11 @@ export function SendToClientButton({ kind, itemId, projectId, portalState, itemU
   return (
     <View style={styles.bar}>
       <View style={styles.statusInline}>
-        {portalState?.viewedAt ? <Eye size={14} color={colors.textMuted} /> : null}
+        {portalState?.viewedAt ? <Eye size={14} color={colors.textMuted} strokeWidth={1.75} /> : null}
         <Text style={styles.statusInlineText}>{portalState?.viewedAt ? 'Client viewed this' : 'Shared with client'}</Text>
       </View>
       <TouchableOpacity style={styles.secondary} onPress={doRecall} disabled={busy}>
-        <RotateCcw size={14} color={colors.textMuted} />
+        <RotateCcw size={14} color={colors.textMuted} strokeWidth={1.75} />
         <Text style={styles.secondaryText}>Recall</Text>
       </TouchableOpacity>
     </View>

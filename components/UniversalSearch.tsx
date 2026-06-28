@@ -224,7 +224,7 @@ export default function UniversalSearch() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.searchBar}>
-            <SearchIcon size={18} color={themeColors.textSecondary} />
+            <SearchIcon size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
             <TextInput
               ref={inputRef}
               style={styles.input}
@@ -243,7 +243,7 @@ export default function UniversalSearch() {
                 accessibilityLabel="Clear"
                 style={styles.clearBtn}
               >
-                <X size={16} color={themeColors.textMuted} />
+                <X size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -280,17 +280,17 @@ export default function UniversalSearch() {
                       activeOpacity={0.7}
                     >
                       <View style={styles.recentIcon}>
-                        <Clock size={16} color={themeColors.textSecondary} />
+                        <Clock size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
                       </View>
                       <Text style={styles.recentText} numberOfLines={1}>{r}</Text>
-                      <ChevronRight size={14} color={themeColors.textMuted} />
+                      <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>
               ) : (
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIcon}>
-                    <SearchIcon size={26} color={themeColors.textMuted} />
+                    <SearchIcon size={26} color={themeColors.textMuted} strokeWidth={1.75} />
                   </View>
                   <Text style={styles.emptyTitle}>Find anything in your account</Text>
                   <Text style={styles.emptyBody}>
@@ -352,7 +352,7 @@ export default function UniversalSearch() {
                             <Text style={styles.resultSnippet} numberOfLines={1}>{r.matchSnippet}</Text>
                           ) : null}
                         </View>
-                        <ChevronRight size={16} color={themeColors.textMuted} />
+                        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
                     ))}
                   </View>

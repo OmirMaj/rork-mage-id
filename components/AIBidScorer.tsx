@@ -86,7 +86,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
       <View style={[setupStyles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <View style={setupStyles.header}>
           <Text style={setupStyles.title}>Company AI Profile</Text>
-          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={setupStyles.content}>
           <Text style={setupStyles.sectionTitle}>Specialties</Text>

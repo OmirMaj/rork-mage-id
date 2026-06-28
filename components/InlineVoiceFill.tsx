@@ -110,7 +110,7 @@ export default function InlineVoiceFill({
         {busy ? (
           <ActivityIndicator size="small" color={themeColors.accent} />
         ) : (
-          <Mic size={16} color={themeColors.accent} />
+          <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
         )}
         <Text style={styles.btnText}>{busy ? 'Reading what you said…' : buttonLabel}</Text>
         {!busy && <MageAIMark size={12} color={themeColors.accent} />}
@@ -125,7 +125,7 @@ export default function InlineVoiceFill({
 
       {!!errorMsg && !busy && (
         <View style={styles.errorCard}>
-          <AlertCircle size={13} color={themeColors.danger} />
+          <AlertCircle size={13} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.errorText}>{errorMsg}</Text>
         </View>
       )}

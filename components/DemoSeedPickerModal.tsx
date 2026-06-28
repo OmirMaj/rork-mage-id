@@ -106,7 +106,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
               Both load instantly. Wipe anytime from Settings → Reset, or tap Delete on the project tile.
             </Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} testID="demo-picker-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} testID="demo-picker-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
@@ -130,7 +130,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
                     <Text style={styles.cardName}>{meta.name.replace('Sample — ', '')}</Text>
                     <Text style={styles.cardScope}>{meta.scope}</Text>
                   </View>
-                  <ChevronRight size={16} color={themeColors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </View>
 
                 <View style={styles.cardStats}>
@@ -163,7 +163,7 @@ function DemoSeedPickerModalImpl({ visible, onClose, onPick, showMedium = false 
 
                 <View style={[styles.cta, { backgroundColor: visual.accent }]}>
                   <Text style={styles.ctaText}>Load this sample</Text>
-                  <ChevronRight size={14} color="#FFF" />
+                  <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
                 </View>
               </TouchableOpacity>
             );

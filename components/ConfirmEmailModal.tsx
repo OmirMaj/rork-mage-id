@@ -146,8 +146,8 @@ export default function ConfirmEmailModal({
               statusKind === 'success' ? styles.statusBannerSuccess : styles.statusBannerError,
             ]}>
               {statusKind === 'success'
-                ? <CheckCircle2 size={14} color="#1B5E20" />
-                : <AlertTriangle size={14} color={themeColors.danger} />}
+                ? <CheckCircle2 size={14} color="#1B5E20" strokeWidth={1.75} />
+                : <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />}
               <Text style={[
                 styles.statusText,
                 statusKind === 'success' ? styles.statusTextSuccess : styles.statusTextError,

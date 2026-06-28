@@ -326,7 +326,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               </Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {/* Mode switcher (always visible) */}
@@ -370,7 +370,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           )}
           {error && (
             <View style={styles.errorCard}>
-              <AlertTriangle size={14} color={themeColors.danger} />
+              <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -459,7 +459,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   <View style={styles.cardHeader}>
                     <Text style={styles.cardTitle}>{asBuiltPatches.length} update(s) proposed</Text>
                     <TouchableOpacity style={styles.applyAllBtn} onPress={handleAsBuiltApplyAll}>
-                      <Check size={12} color="#fff" />
+                      <Check size={12} color="#fff" strokeWidth={1.75} />
                       <Text style={styles.applyAllBtnText}>Apply all</Text>
                     </TouchableOpacity>
                   </View>
@@ -471,7 +471,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
                       <TouchableOpacity style={styles.applyBtn} onPress={() => handleAsBuiltApply(p)} accessibilityRole="button" accessibilityLabel="Confirm">
-                        <Check size={12} color={themeColors.accent} />
+                        <Check size={12} color={themeColors.accent} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -510,14 +510,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     )}
                     {bulkResult.patches.length > 0 && (
                       <TouchableOpacity style={styles.applyAllBtn} onPress={handleBulkApplyAll}>
-                        <Check size={12} color="#fff" />
+                        <Check size={12} color="#fff" strokeWidth={1.75} />
                         <Text style={styles.applyAllBtnText}>Apply all</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                   {bulkResult.errorKind === 'validation' && (
                     <View style={styles.partialBanner}>
-                      <AlertTriangle size={12} color={Colors.warning} />
+                      <AlertTriangle size={12} color={Colors.warning} strokeWidth={1.75} />
                       <Text style={styles.partialBannerText}>
                         Partial result — AI response didn't fully match the expected shape. Review carefully before applying.
                       </Text>
@@ -534,7 +534,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
                       <TouchableOpacity style={styles.applyBtn} onPress={() => handleBulkApplyOne(p)} accessibilityRole="button" accessibilityLabel="Confirm">
-                        <Check size={12} color={themeColors.accent} />
+                        <Check size={12} color={themeColors.accent} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -596,7 +596,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                       <Text style={styles.secondaryBtnText}>Discard</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.primaryBtn} onPress={handleGenerateApply}>
-                      <Check size={12} color="#fff" />
+                      <Check size={12} color="#fff" strokeWidth={1.75} />
                       <Text style={styles.primaryBtnText}>Apply to project</Text>
                     </TouchableOpacity>
                   </View>
@@ -715,7 +715,7 @@ function QuickBtn({
         <Text style={[styles.quickBtnTitle, featured && { color: '#fff' }]}>{title}</Text>
         <Text style={[styles.quickBtnSub, featured && { color: 'rgba(255,255,255,0.8)' }]}>{sub}</Text>
       </View>
-      <ArrowRight size={14} color={featured ? '#fff' : themeColors.textSecondary} />
+      <ArrowRight size={14} color={featured ? '#fff' : themeColors.textSecondary} strokeWidth={1.75} />
     </TouchableOpacity>
   );
 }
@@ -819,7 +819,7 @@ function InputBar({
       >
         {busy
           ? <ActivityIndicator size="small" color="#fff" />
-          : <ArrowRight size={16} color="#fff" />}
+          : <ArrowRight size={16} color="#fff" strokeWidth={1.75} />}
       </TouchableOpacity>
     </View>
   );

@@ -54,9 +54,9 @@ export default function ScheduleSettingsMenu({
       <TouchableOpacity activeOpacity={1} style={styles.backdrop} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
-            <Settings size={16} color={themeColors.accent} />
+            <Settings size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.title}>Schedule settings</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={styles.row}>

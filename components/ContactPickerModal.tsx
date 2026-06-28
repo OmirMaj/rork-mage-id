@@ -103,7 +103,7 @@ export default function ContactPickerModal({
             </View>
             {item.email ? (
               <View style={styles.emailRow}>
-                <Mail size={10} color={themeColors.textMuted} />
+                <Mail size={10} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.contactEmail} numberOfLines={1}>{item.email}</Text>
               </View>
             ) : null}
@@ -122,11 +122,11 @@ export default function ContactPickerModal({
 
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{title}</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={styles.searchBar}>
-            <Search size={16} color={themeColors.textMuted} />
+            <Search size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
               style={styles.searchInput}
               value={query}
@@ -138,7 +138,7 @@ export default function ContactPickerModal({
             />
             {query.length > 0 && (
               <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={themeColors.textMuted} />
+                <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
           </View>
@@ -153,7 +153,7 @@ export default function ContactPickerModal({
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <User size={32} color={themeColors.textMuted} />
+                <User size={32} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.emptyTitle}>
                   {query ? 'No contacts found' : 'No contacts yet'}
                 </Text>

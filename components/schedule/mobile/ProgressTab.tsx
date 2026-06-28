@@ -67,7 +67,7 @@ export function ProgressTab({ tasks, startDate }: ProgressTabProps) {
           const done = m.status === 'done';
           return (
             <View key={m.id} style={[styles.prow, i > 0 ? styles.rowDivider : null]}>
-              {done ? <CheckCircle2 size={16} color={colors.success} /> : <Flag size={16} color={colors.accent} />}
+              {done ? <CheckCircle2 size={16} color={colors.success} strokeWidth={1.75} /> : <Flag size={16} color={colors.accent} strokeWidth={1.75} />}
               <Text style={[styles.pname, done ? { color: colors.textMuted } : null]} numberOfLines={1}>{m.title}</Text>
               <Text style={styles.mdate}>{d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
             </View>

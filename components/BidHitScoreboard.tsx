@@ -71,14 +71,14 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
   return (
     <View style={styles.card} testID={testID ?? 'bid-hit-scoreboard'}>
       <View style={styles.head}>
-        <View style={styles.headIcon}><Target size={15} color={colors.accent} /></View>
+        <View style={styles.headIcon}><Target size={15} color={colors.accent} strokeWidth={1.75} /></View>
         <Text style={styles.headTitle}>Your Bid-Hit Scoreboard</Text>
       </View>
 
       <View style={styles.row}>
         <View style={styles.stat}>
           <View style={styles.statTop}>
-            <Trophy size={13} color={beatsBenchmark ? colors.success : colors.text} />
+            <Trophy size={13} color={beatsBenchmark ? colors.success : colors.text} strokeWidth={1.75} />
             <Text style={[styles.statValue, beatsBenchmark && { color: colors.success }]}>
               {pct != null ? `${pct}%` : '—'}
             </Text>
@@ -88,7 +88,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
         <View style={styles.div} />
         <View style={styles.stat}>
           <View style={styles.statTop}>
-            <TrendingUp size={13} color={colors.text} />
+            <TrendingUp size={13} color={colors.text} strokeWidth={1.75} />
             <Text style={styles.statValue}>{stats.won}/{stats.won + stats.lost}</Text>
           </View>
           <Text style={styles.statLabel}>Won / decided</Text>
@@ -96,7 +96,7 @@ export default function BidHitScoreboard({ testID }: { testID?: string }) {
         <View style={styles.div} />
         <View style={styles.stat}>
           <View style={styles.statTop}>
-            <Clock size={13} color={colors.text} />
+            <Clock size={13} color={colors.text} strokeWidth={1.75} />
             <Text style={styles.statValue}>{respLabel}</Text>
           </View>
           <Text style={styles.statLabel}>Median response</Text>

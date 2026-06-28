@@ -60,12 +60,12 @@ export default function ReactivationBanner() {
   return (
     <View style={styles.card}>
       <View style={styles.head}>
-        <View style={styles.headIcon}><BellRing size={14} color={colors.accent} /></View>
+        <View style={styles.headIcon}><BellRing size={14} color={colors.accent} strokeWidth={1.75} /></View>
         <Text style={styles.headTitle}>
           {stale.length} {stale.length === 1 ? 'client has' : 'clients have'} gone quiet
         </Text>
         <TouchableOpacity onPress={() => setDismissed(true)} hitSlop={8} accessibilityLabel="Dismiss">
-          <X size={16} color={colors.textMuted} />
+          <X size={16} color={colors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
       <Text style={styles.sub}>
@@ -84,7 +84,7 @@ export default function ReactivationBanner() {
               >
                 <Text style={styles.rowName} numberOfLines={1}>{l.name}</Text>
                 <Text style={styles.rowDays}>{days}d quiet</Text>
-                <ChevronRight size={14} color={colors.textMuted} />
+                <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.logBtn}
@@ -93,7 +93,7 @@ export default function ReactivationBanner() {
                 testID={`reactivate-log-${l.id}`}
                 accessibilityLabel={`Mark ${l.name} followed up`}
               >
-                <Check size={13} color={colors.success} />
+                <Check size={13} color={colors.success} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
           );

@@ -94,7 +94,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
 
       {result.trackRecord ? (
         <View style={styles.trackRow}>
-          <CheckCircle2 size={12} color={"#2E7D44"} />
+          <CheckCircle2 size={12} color={"#2E7D44"} strokeWidth={1.75} />
           <Text style={styles.trackText}>{result.trackRecord}</Text>
         </View>
       ) : null}
@@ -102,7 +102,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       <Text style={styles.sectionLabel}>Questions to Ask</Text>
       {(result.questionsToAsk ?? []).map((q, idx) => (
         <View key={idx} style={styles.questionRow}>
-          <HelpCircle size={12} color={"#1565C0"} />
+          <HelpCircle size={12} color={"#1565C0"} strokeWidth={1.75} />
           <Text style={styles.questionText}>{q}</Text>
         </View>
       ))}
@@ -128,7 +128,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
           <Text style={styles.sectionLabel}>Red Flags to Watch</Text>
           {(result.redFlags ?? []).map((flag, idx) => (
             <View key={idx} style={styles.flagRow}>
-              <AlertTriangle size={12} color={"#C84038"} />
+              <AlertTriangle size={12} color={"#C84038"} strokeWidth={1.75} />
               <Text style={styles.flagText}>{flag}</Text>
             </View>
           ))}

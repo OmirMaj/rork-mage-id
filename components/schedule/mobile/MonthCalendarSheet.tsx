@@ -67,10 +67,10 @@ export function MonthCalendarSheet({ visible, selectedDate, tasks, startDateIso,
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.grab} />
         <View style={styles.head}>
-          <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.nav} accessibilityLabel="Previous month"><ChevronLeft size={20} color={colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => shiftMonth(-1)} style={styles.nav} accessibilityLabel="Previous month"><ChevronLeft size={20} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
           <Text style={styles.title}>{MONTHS[cursor.getMonth()]} {cursor.getFullYear()}</Text>
-          <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.nav} accessibilityLabel="Next month"><ChevronRight size={20} color={colors.text} /></TouchableOpacity>
-          <TouchableOpacity onPress={onClose} style={styles.nav} accessibilityLabel="Close"><X size={18} color={colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => shiftMonth(1)} style={styles.nav} accessibilityLabel="Next month"><ChevronRight size={20} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.nav} accessibilityLabel="Close"><X size={18} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <View style={styles.dowRow}>
           {DOW.map((d, i) => <Text key={i} style={styles.dow}>{d}</Text>)}

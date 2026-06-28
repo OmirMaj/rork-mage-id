@@ -86,7 +86,7 @@ export default React.memo(function AIDFRFromPhotos({
     <View style={styles.wrap}>
       <View style={styles.header}>
         <View style={styles.headerIconWrap}>
-          <Camera size={16} color={themeColors.accent} />
+          <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Draft from today&apos;s photos</Text>
@@ -118,7 +118,7 @@ export default React.memo(function AIDFRFromPhotos({
               )}
               {isSel && (
                 <View style={styles.checkBadge}>
-                  <Check size={11} color="#FFF" />
+                  <Check size={11} color="#FFF" strokeWidth={1.75} />
                 </View>
               )}
               {p.tag ? (

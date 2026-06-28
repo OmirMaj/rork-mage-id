@@ -277,7 +277,7 @@ export default function VoiceCaptureModal({
             <Text style={styles.title}>{title}</Text>
             {!!contextLine && <Text style={styles.contextLine}>{contextLine}</Text>}
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -355,9 +355,9 @@ export default function VoiceCaptureModal({
                 {isTranscribing ? (
                   <ActivityIndicator color="#fff" size="large" />
                 ) : isRecording ? (
-                  <Square size={36} color="#fff" fill="#fff" />
+                  <Square size={36} color="#fff" fill="#fff" strokeWidth={1.75} />
                 ) : (
-                  <Mic size={40} color="#fff" />
+                  <Mic size={40} color="#fff" strokeWidth={1.75} />
                 )}
               </Animated.View>
             </Pressable>
@@ -374,7 +374,7 @@ export default function VoiceCaptureModal({
 
             {!!errorMsg && (
               <View style={styles.errorCard}>
-                <AlertCircle size={16} color={themeColors.danger} />
+                <AlertCircle size={16} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
             )}

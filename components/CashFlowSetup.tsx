@@ -109,7 +109,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const renderStep0 = () => (
     <View style={styles.stepContent}>
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.accent + '15' }]}>
-        <Wallet size={32} color={themeColors.accent} />
+        <Wallet size={32} color={themeColors.accent} strokeWidth={1.75} />
       </View>
       <Text style={styles.stepTitle}>Current Bank Balance</Text>
       <Text style={styles.stepDesc}>
@@ -133,7 +133,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const renderStep1 = () => (
     <View style={styles.stepContent}>
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.danger + '15' }]}>
-        <DollarSign size={32} color={themeColors.danger} />
+        <DollarSign size={32} color={themeColors.danger} strokeWidth={1.75} />
       </View>
       <Text style={styles.stepTitle}>Recurring Expenses</Text>
       <Text style={styles.stepDesc}>
@@ -151,7 +151,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
               activeOpacity={0.7}
               disabled={added}
             >
-              {added ? <CheckCircle size={14} color={themeColors.success} /> : <Plus size={14} color={themeColors.accent} />}
+              {added ? <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} /> : <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />}
               <Text style={[styles.suggestionText, added && { color: themeColors.success }]}>{s.name}</Text>
             </TouchableOpacity>
           );
@@ -177,7 +177,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
               />
             </View>
             <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel="Delete">
-              <Trash2 size={14} color={themeColors.danger} />
+              <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
         ))}
@@ -191,7 +191,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   const renderStep2 = () => (
     <View style={styles.stepContent}>
       <View style={[styles.stepIconWrap, { backgroundColor: themeColors.info + '15' }]}>
-        <Clock size={32} color={themeColors.info} />
+        <Clock size={32} color={themeColors.info} strokeWidth={1.75} />
       </View>
       <Text style={styles.stepTitle}>Default Payment Terms</Text>
       <Text style={styles.stepDesc}>
@@ -229,7 +229,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
     return (
       <View style={styles.stepContent}>
         <View style={[styles.stepIconWrap, { backgroundColor: themeColors.success + '15' }]}>
-          <CheckCircle size={32} color={themeColors.success} />
+          <CheckCircle size={32} color={themeColors.success} strokeWidth={1.75} />
         </View>
         <Text style={styles.stepTitle}>You're All Set!</Text>
         <Text style={styles.stepDesc}>
@@ -274,7 +274,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
         <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             <Text style={styles.headerTitle}>Cash Flow Setup</Text>
             <Text style={styles.stepIndicator}>{step + 1}/4</Text>
           </View>
@@ -304,7 +304,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
               activeOpacity={0.85}
             >
               <Text style={styles.nextButtonText}>{isLast ? 'Start Forecasting' : 'Continue'}</Text>
-              {!isLast && <ChevronRight size={18} color={'#FFFFFF'} />}
+              {!isLast && <ChevronRight size={18} color={'#FFFFFF'} strokeWidth={1.75} />}
             </TouchableOpacity>
           </View>
         </View>

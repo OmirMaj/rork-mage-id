@@ -123,7 +123,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
               <MageAIMark size={20} color={Colors.accent} />
               <Text style={s.headerTitle}>Quick Build</Text>
             </View>
-            <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={s.stepIndicator}>
@@ -152,7 +152,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
                         <Text style={s.templateName}>{template.name}</Text>
                         <Text style={s.templateMeta}>{template.taskCount} tasks · {template.typicalDuration}</Text>
                       </View>
-                      <ChevronRight size={16} color={Colors.textMuted} />
+                      <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   );
                 })}

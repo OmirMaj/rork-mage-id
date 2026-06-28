@@ -255,13 +255,13 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
           <>
             <View style={styles.headerRow}>
               <TouchableOpacity onPress={() => setPickFor(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-                <ChevronLeft size={18} color={themeColors.text} />
+                <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
               <Text style={[Type.title2, { color: themeColors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
                 {pickFor.label} → which project?
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
@@ -285,7 +285,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                       {p.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
-                  <ChevronRight size={16} color={themeColors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -294,11 +294,11 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
           <>
             <View style={styles.headerRow}>
               <Text style={[Type.title2, { color: themeColors.text }]}>Create new…</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <View style={styles.searchRow}>
-              <Search size={16} color={themeColors.textMuted} />
+              <Search size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={[styles.searchInput, Type.body]}
                 placeholder="Search for anything you can create…"
@@ -310,7 +310,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
               />
               {!!query && (
                 <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={themeColors.textMuted} />
+                  <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -356,7 +356,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                           </View>
                         ) : null;
                       })()}
-                      <ChevronRight size={16} color={themeColors.textMuted} />
+                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>

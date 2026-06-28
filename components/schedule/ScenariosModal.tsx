@@ -141,7 +141,7 @@ export default function ScenariosModal({
         <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backBtn} onPress={onClose}>
-              <ChevronLeft size={22} color={themeColors.text} />
+              <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.backText}>Back</Text>
             </TouchableOpacity>
             <Text style={styles.title}>What-If Scenarios</Text>
@@ -149,7 +149,7 @@ export default function ScenariosModal({
           </View>
           <View style={styles.paywallWrap}>
             <View style={styles.lockBadge}>
-              <Lock size={18} color={themeColors.accent} />
+              <Lock size={18} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Paywall visible={true} requiredTier="pro" feature="schedule_scenarios" onClose={onClose} />
           </View>
@@ -168,7 +168,7 @@ export default function ScenariosModal({
       <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={onClose} testID="scenarios-back">
-            <ChevronLeft size={22} color={themeColors.text} />
+            <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>What-If Scenarios</Text>
@@ -189,7 +189,7 @@ export default function ScenariosModal({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.helpCard}>
-            <GitBranch size={16} color={themeColors.accent} />
+            <GitBranch size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.helpText}>
               Snapshot the schedule into a named alternate, like {'"'}Overtime push{'"'} or
               {' "'}Rain delay,{'"'} then toggle between the baseline plan and any
@@ -207,7 +207,7 @@ export default function ScenariosModal({
               <Text style={[styles.rowName, activeId === null && styles.rowNameActive]}>
                 Baseline Plan
               </Text>
-              {activeId === null && <Check size={16} color={themeColors.accent} />}
+              {activeId === null && <Check size={16} color={themeColors.accent} strokeWidth={1.75} />}
             </View>
             <Text style={styles.rowMeta}>
               {schedule.tasks.length} tasks · {schedule.totalDurationDays} days
@@ -234,7 +234,7 @@ export default function ScenariosModal({
                     >
                       {s.name}
                     </Text>
-                    {isActive && <Check size={16} color={themeColors.accent} />}
+                    {isActive && <Check size={16} color={themeColors.accent} strokeWidth={1.75} />}
                   </View>
                   {!!s.note && (
                     <Text style={styles.rowNote} numberOfLines={2}>
@@ -251,7 +251,7 @@ export default function ScenariosModal({
                   onPress={() => handleDelete(s.id)}
                   activeOpacity={0.7}
                   testID={`scenarios-delete-${s.id}`} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={themeColors.danger} />
+                  <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             );

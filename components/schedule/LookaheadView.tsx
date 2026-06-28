@@ -132,7 +132,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
   return (
     <View style={s.swipeWrapper}>
       <View style={s.swipeBg}>
-        <ChevronRight size={14} color="#FFF" />
+        <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
         <Text style={s.swipeBgText}>+25%</Text>
       </View>
 
@@ -151,7 +151,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
               <Text style={s.taskCardTitle} numberOfLines={1}>{task.title}</Text>
               {isBlocked && (
                 <View style={s.blockedTag}>
-                  <AlertTriangle size={9} color={Colors.error} />
+                  <AlertTriangle size={9} color={Colors.error} strokeWidth={1.75} />
                   <Text style={s.blockedTagText}>BLOCKED</Text>
                 </View>
               )}
@@ -167,7 +167,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
                 <View style={[s.taskCardProgressFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor }]} />
               </View>
               <Text style={s.taskCardProgressText}>{task.progress}%</Text>
-              <TouchableOpacity style={s.incrementBtn} onPress={handleIncrement} accessibilityRole="button" accessibilityLabel="Add"><Plus size={12} color={Colors.primary} /></TouchableOpacity>
+              <TouchableOpacity style={s.incrementBtn} onPress={handleIncrement} accessibilityRole="button" accessibilityLabel="Add"><Plus size={12} color={Colors.primary} strokeWidth={1.75} /></TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>

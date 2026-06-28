@@ -138,7 +138,7 @@ function TakeoffFieldVerifyButtonImpl({
           onPress={() => setViewing(true)}
           activeOpacity={0.7}
         >
-          <Check size={11} color={themeColors.success} />
+          <Check size={11} color={themeColors.success} strokeWidth={1.75} />
           {/* "Field-stamped" honestly describes what we did — captured a
               photo + (best-effort) GPS at the row. "Verified" implied we
               had reconciled the field measurement against the AI takeoff,
@@ -156,7 +156,7 @@ function TakeoffFieldVerifyButtonImpl({
               <View style={styles.modalHead}>
                 <Text style={styles.modalTitle}>Field verification</Text>
                 <TouchableOpacity onPress={() => setViewing(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={18} color={themeColors.text} />
+                  <X size={18} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <Image source={{ uri: existing.photoUri }} style={styles.modalImage} contentFit="contain" />
@@ -177,7 +177,7 @@ function TakeoffFieldVerifyButtonImpl({
                 {existing.note && <Text style={styles.modalNote}>{existing.note}</Text>}
                 {existing.latitude != null && (
                   <View style={styles.gpsRow}>
-                    <MapPin size={11} color={themeColors.textMuted} />
+                    <MapPin size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.gpsText}>
                       {existing.latitude.toFixed(5)}, {existing.longitude?.toFixed(5)}
                     </Text>
@@ -213,7 +213,7 @@ function TakeoffFieldVerifyButtonImpl({
         disabled={busy}
         activeOpacity={0.7}
       >
-        <Camera size={11} color={themeColors.accent} />
+        <Camera size={11} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.btnText}>Verify on site</Text>
       </TouchableOpacity>
 
@@ -224,7 +224,7 @@ function TakeoffFieldVerifyButtonImpl({
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Verify quantity</Text>
               <TouchableOpacity onPress={() => setDraft(null)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             {draft?.photoUri && (
@@ -251,13 +251,13 @@ function TakeoffFieldVerifyButtonImpl({
               />
               {draft?.lat != null && (
                 <View style={styles.gpsRow}>
-                  <MapPin size={11} color={themeColors.success} />
+                  <MapPin size={11} color={themeColors.success} strokeWidth={1.75} />
                   <Text style={styles.gpsText}>GPS attached</Text>
                 </View>
               )}
             </View>
             <TouchableOpacity style={styles.commitBtn} onPress={commit}>
-              <Check size={14} color="#FFF" />
+              <Check size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.commitBtnText}>Save verification</Text>
             </TouchableOpacity>
           </View>

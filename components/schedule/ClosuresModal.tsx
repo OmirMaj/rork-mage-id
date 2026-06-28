@@ -114,12 +114,12 @@ export default function ClosuresModal({
       <TouchableOpacity activeOpacity={1} style={styles.backdrop} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
-            <CalendarX size={16} color={themeColors.accent} />
+            <CalendarX size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.title}>Closures</Text>
             <Text style={styles.subtitle} numberOfLines={1}>
               Holidays, rain days, site lockdowns — skipped in CPM math.
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={styles.body}>
@@ -130,14 +130,14 @@ export default function ClosuresModal({
                   onPress={() => setCursor(new Date(year, month0 - 1, 1))}
                   style={styles.navBtn}
                   activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-                  <ChevronLeft size={16} color={themeColors.text} />
+                  <ChevronLeft size={16} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <Text style={styles.monthLabel}>{monthLabel}</Text>
                 <TouchableOpacity
                   onPress={() => setCursor(new Date(year, month0 + 1, 1))}
                   style={styles.navBtn}
                   activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Open">
-                  <ChevronRight size={16} color={themeColors.text} />
+                  <ChevronRight size={16} color={themeColors.text} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <View style={styles.dowRow}>
@@ -188,7 +188,7 @@ export default function ClosuresModal({
                 <Text style={styles.listTitle}>Marked ({sorted.length})</Text>
                 {sorted.length > 0 && (
                   <TouchableOpacity onPress={clearAll} style={styles.clearBtn} activeOpacity={0.7}>
-                    <Trash2 size={12} color={themeColors.danger} />
+                    <Trash2 size={12} color={themeColors.danger} strokeWidth={1.75} />
                     <Text style={styles.clearText}>Clear</Text>
                   </TouchableOpacity>
                 )}
@@ -209,7 +209,7 @@ export default function ClosuresModal({
                           onPress={() => toggle(iso)}
                           style={styles.removeBtn}
                           activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                          <X size={12} color={themeColors.textSecondary} />
+                          <X size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
                         </TouchableOpacity>
                       </View>
                     );

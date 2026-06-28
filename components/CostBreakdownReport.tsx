@@ -185,23 +185,23 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
 
       <View style={s.metricsGrid}>
         <View style={s.metricCard}>
-          <Package size={14} color={Colors.primary} />
+          <Package size={14} color={Colors.primary} strokeWidth={1.75} />
           <Text style={s.metricLabel}>Mat:Labor</Text>
           <Text style={s.metricValue}>{totals.matLaborRatio}:1</Text>
         </View>
         <View style={s.metricCard}>
-          <Percent size={14} color={Colors.accent} />
+          <Percent size={14} color={Colors.accent} strokeWidth={1.75} />
           <Text style={s.metricLabel}>Markup</Text>
           <Text style={s.metricValue}>${totals.markupAmount.toFixed(0)}</Text>
         </View>
         <View style={s.metricCard}>
-          <Clock size={14} color={Colors.info} />
+          <Clock size={14} color={Colors.info} strokeWidth={1.75} />
           <Text style={s.metricLabel}>Labor Hrs</Text>
           <Text style={s.metricValue}>{totals.laborHours.toFixed(0)}</Text>
         </View>
         {locationFactor !== 1 && (
           <View style={s.metricCard}>
-            <MapPin size={14} color={Colors.warning} />
+            <MapPin size={14} color={Colors.warning} strokeWidth={1.75} />
             <Text style={s.metricLabel}>Location</Text>
             <Text style={s.metricValue}>{locationFactor.toFixed(2)}x</Text>
           </View>

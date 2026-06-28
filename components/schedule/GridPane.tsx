@@ -816,7 +816,7 @@ export default function GridPane({
           >
             {isSelected ? (
               <View style={styles.selectDot}>
-                <Check size={10} color="#fff" />
+                <Check size={10} color="#fff" strokeWidth={1.75} />
               </View>
             ) : (
               <Text style={styles.cellTextMuted}>{rowIndex + 1}</Text>
@@ -898,7 +898,7 @@ export default function GridPane({
         }
         display = (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {hasAnchor && <Anchor size={10} color={themeColors.accent} />}
+            {hasAnchor && <Anchor size={10} color={themeColors.accent} strokeWidth={1.75} />}
             <Text style={styles.cellText}>{label}</Text>
           </View>
         );
@@ -1024,7 +1024,7 @@ export default function GridPane({
               }
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Delete">
-            <Trash2 size={14} color={themeColors.textMuted} />
+            <Trash2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         );
         break;
@@ -1229,7 +1229,7 @@ export default function GridPane({
     const summary = cpm.conflicts[0];
     return (
       <View style={[styles.banner, summary.kind === 'cycle' ? styles.bannerError : styles.bannerWarn]}>
-        <AlertTriangle size={14} color={summary.kind === 'cycle' ? themeColors.danger : Colors.warning} />
+        <AlertTriangle size={14} color={summary.kind === 'cycle' ? themeColors.danger : Colors.warning} strokeWidth={1.75} />
         <Text style={styles.bannerText}>{summary.message}</Text>
         {cpm.conflicts.length > 1 && (
           <Text style={styles.bannerCount}>+{cpm.conflicts.length - 1} more</Text>
@@ -1247,7 +1247,7 @@ export default function GridPane({
     const n = selected.size;
     return (
       <View style={styles.bulkBar}>
-        <TouchableOpacity onPress={clearSelection} style={styles.bulkClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textSecondary} /></TouchableOpacity>
+        <TouchableOpacity onPress={clearSelection} style={styles.bulkClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         <Text style={styles.bulkCount}>{n} selected</Text>
         <View style={styles.bulkBtnRow}>
           {onBulkAskAI && (
@@ -1258,31 +1258,31 @@ export default function GridPane({
           )}
           {onBulkShiftDays && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkShiftDays} activeOpacity={0.7}>
-              <CalendarRange size={12} color={themeColors.accent} />
+              <CalendarRange size={12} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.bulkBtnText}>Shift days</Text>
             </TouchableOpacity>
           )}
           {onBulkSetPhase && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkSetPhase} activeOpacity={0.7}>
-              <Layers size={12} color={themeColors.accent} />
+              <Layers size={12} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.bulkBtnText}>Phase</Text>
             </TouchableOpacity>
           )}
           {onBulkSetCrew && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkSetCrew} activeOpacity={0.7}>
-              <Users size={12} color={themeColors.accent} />
+              <Users size={12} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.bulkBtnText}>Crew</Text>
             </TouchableOpacity>
           )}
           {onBulkDuplicate && (
             <TouchableOpacity style={styles.bulkBtn} onPress={runBulkDuplicate} activeOpacity={0.7}>
-              <Copy size={12} color={themeColors.accent} />
+              <Copy size={12} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.bulkBtnText}>Duplicate</Text>
             </TouchableOpacity>
           )}
           {onBulkDelete && (
             <TouchableOpacity style={[styles.bulkBtn, styles.bulkBtnDanger]} onPress={runBulkDelete} activeOpacity={0.7}>
-              <Trash2 size={12} color={themeColors.danger} />
+              <Trash2 size={12} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={[styles.bulkBtnText, { color: themeColors.danger }]}>Delete</Text>
             </TouchableOpacity>
           )}
@@ -1401,7 +1401,7 @@ export default function GridPane({
               activeOpacity={0.6}
               testID="grid-add-task"
             >
-              <Plus size={14} color={themeColors.accent} />
+              <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.addRowText}>Add task</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -1514,10 +1514,10 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
       <TouchableOpacity style={anchorStyles.backdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={anchorStyles.card} onPress={() => {}}>
           <View style={anchorStyles.header}>
-            <Anchor size={16} color={themeColors.accent} />
+            <Anchor size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={anchorStyles.title}>Anchor</Text>
             <Text style={anchorStyles.subtitle} numberOfLines={1}>{task?.title || ''}</Text>
-            <TouchableOpacity onPress={onClose} style={anchorStyles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={anchorStyles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>
           <ScrollView style={{ maxHeight: 360 }}>
             {ANCHOR_OPTIONS.map(opt => {

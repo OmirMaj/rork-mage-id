@@ -432,7 +432,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           accessibilityLabel="Voice action"
           testID="universal-mic-fab"
         >
-          <Mic size={20} color="#FFF" />
+          <Mic size={20} color="#FFF" strokeWidth={1.75} />
         </TouchableOpacity>
       )}
       {shouldRender && variant === 'inline' && (
@@ -442,7 +442,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           activeOpacity={0.85}
           testID="universal-mic-inline"
         >
-          <Mic size={16} color={themeColors.accent} />
+          <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.inlineBtnText}>Voice action</Text>
         </TouchableOpacity>
       )}
@@ -455,7 +455,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                 <Text style={styles.modalEyebrow}>Speak it, we&apos;ll draft it</Text>
                 <Text style={styles.modalTitle}>Voice action</Text>
               </View>
-              <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
+              <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             {/* Project picker — render any time the user hasn't pinned

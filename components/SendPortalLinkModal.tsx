@@ -172,14 +172,14 @@ export function SendPortalLinkModal({
                   onPress={() => { setMode('email'); setError(null); }}
                   style={[styles.modeBtn, mode === 'email' && styles.modeBtnActive]}
                 >
-                  <Mail size={14} color={mode === 'email' ? '#0B0D10' : Colors.text} />
+                  <Mail size={14} color={mode === 'email' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'email' && styles.modeBtnTextActive]}>Email</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => { setMode('text'); setError(null); }}
                   style={[styles.modeBtn, mode === 'text' && styles.modeBtnActive]}
                 >
-                  <MessageSquare size={14} color={mode === 'text' ? '#0B0D10' : Colors.text} />
+                  <MessageSquare size={14} color={mode === 'text' ? '#0B0D10' : Colors.text} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, mode === 'text' && styles.modeBtnTextActive]}>Text</Text>
                 </Pressable>
               </View>

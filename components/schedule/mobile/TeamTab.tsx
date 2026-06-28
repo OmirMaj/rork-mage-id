@@ -56,7 +56,7 @@ export function TeamTab({ tasks, onPressTask }: TeamTabProps) {
                   <View style={[styles.dot, { backgroundColor: getPhaseColor(t.phase || 'Other') }]} />
                   <Text style={[styles.tname, t.status === 'done' ? { color: colors.textMuted, textDecorationLine: 'line-through' } : null]} numberOfLines={1}>{t.title}</Text>
                   <Text style={styles.tpct}>{t.progress ?? 0}%</Text>
-                  <ChevronRight size={15} color={colors.textMuted} />
+                  <ChevronRight size={15} color={colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
             </View>

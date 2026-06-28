@@ -160,7 +160,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         <View style={styles.urgentSection}>
           {result.urgentItems.map((item, idx) => (
             <View key={idx} style={styles.urgentRow}>
-              <AlertTriangle size={12} color={Colors.error} />
+              <AlertTriangle size={12} color={Colors.error} strokeWidth={1.75} />
               <Text style={styles.urgentText}>{item}</Text>
             </View>
           ))}
@@ -175,7 +175,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
             activeOpacity={0.7}
           >
             <Text style={styles.viewFullText}>View Full Analysis</Text>
-            <ChevronRight size={14} color={Colors.primary} />
+            <ChevronRight size={14} color={Colors.primary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : <View />}
         <Text style={styles.usageText}>{usageText}</Text>

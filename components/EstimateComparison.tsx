@@ -188,18 +188,18 @@ const EstimateComparison = React.memo(function EstimateComparison({
             <Text style={s.headerTitle}>Compare Estimates</Text>
             <Text style={s.headerSub}>Track changes across versions</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
           <TouchableOpacity style={s.saveBtn} onPress={handleSaveCurrentVersion} activeOpacity={0.85}>
-            <Save size={16} color={Colors.textOnPrimary} />
+            <Save size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
             <Text style={s.saveBtnText}>Save Current as Version</Text>
           </TouchableOpacity>
 
           {savedVersions.length === 0 && !loading && (
             <View style={s.emptyState}>
-              <GitCompare size={40} color={Colors.textMuted} />
+              <GitCompare size={40} color={Colors.textMuted} strokeWidth={1.75} />
               <Text style={s.emptyTitle}>No saved versions yet</Text>
               <Text style={s.emptyDesc}>Save your current estimate to start tracking changes over time.</Text>
             </View>
@@ -224,7 +224,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
                       <View style={s.versionInfo}>
                         <Text style={[s.versionName, isSelected && s.versionNameSelected]}>{version.name}</Text>
                         <View style={s.versionMeta}>
-                          <Clock size={10} color={Colors.textMuted} />
+                          <Clock size={10} color={Colors.textMuted} strokeWidth={1.75} />
                           <Text style={s.versionDate}>
                             {new Date(version.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </Text>
@@ -240,7 +240,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
                         style={s.deleteBtn}
                         onPress={() => handleDeleteVersion(version.id)}
                       >
-                        <X size={12} color={Colors.error} />
+                        <X size={12} color={Colors.error} strokeWidth={1.75} />
                         <Text style={s.deleteBtnText}>Delete</Text>
                       </TouchableOpacity>
                     )}

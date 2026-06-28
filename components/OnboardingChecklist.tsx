@@ -204,7 +204,7 @@ function OnboardingChecklistImpl({
             </Text>
           </View>
         </View>
-        <TouchableOpacity onPress={handleDismiss} hitSlop={10} style={styles.closeBtn} testID="onboarding-checklist-dismiss" accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={colors.textMuted} /></TouchableOpacity>
+        <TouchableOpacity onPress={handleDismiss} hitSlop={10} style={styles.closeBtn} testID="onboarding-checklist-dismiss" accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
       <View style={styles.progressTrack}>
@@ -224,7 +224,7 @@ function OnboardingChecklistImpl({
             >
               <View style={styles.itemLeft}>
                 {item.done ? (
-                  <CheckCircle2 size={18} color={colors.success} />
+                  <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} />
                 ) : (
                   <Circle size={18} color={colors.textMuted} strokeWidth={1.8} />
                 )}
@@ -236,7 +236,7 @@ function OnboardingChecklistImpl({
               {!item.done && (
                 <View style={styles.itemCta}>
                   <Text style={styles.itemCtaText}>{item.cta}</Text>
-                  <ArrowRight size={12} color={colors.accent} />
+                  <ArrowRight size={12} color={colors.accent} strokeWidth={1.75} />
                 </View>
               )}
             </TouchableOpacity>

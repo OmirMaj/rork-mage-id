@@ -92,7 +92,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
         testID="sub-updates-tile"
       >
         <View style={styles.tileIcon}>
-          <Activity size={14} color={themeColors.accent} />
+          <Activity size={14} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.tileLabel}>Sub updates</Text>
@@ -104,11 +104,11 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
         </View>
         {blockerCount > 0 && (
           <View style={styles.blockerBadge}>
-            <AlertTriangle size={11} color={themeColors.danger} />
+            <AlertTriangle size={11} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.blockerBadgeText}>{blockerCount}</Text>
           </View>
         )}
-        <ChevronRight size={14} color={themeColors.textMuted} />
+        <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -123,7 +123,7 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
@@ -204,19 +204,19 @@ function UpdateRow({
       <View style={styles.statRow}>
         {update.hoursWorked != null && (
           <View style={styles.statChip}>
-            <Clock size={11} color={themeColors.textMuted} />
+            <Clock size={11} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.statChipText}>{update.hoursWorked} hr</Text>
           </View>
         )}
         {update.crewCount != null && (
           <View style={styles.statChip}>
-            <Users size={11} color={themeColors.textMuted} />
+            <Users size={11} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.statChipText}>{update.crewCount} crew</Text>
           </View>
         )}
         {update.photos && update.photos.length > 0 && (
           <View style={styles.statChip}>
-            <Activity size={11} color={themeColors.textMuted} />
+            <Activity size={11} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.statChipText}>{update.photos.length} photo{update.photos.length === 1 ? '' : 's'}</Text>
           </View>
         )}
@@ -224,14 +224,14 @@ function UpdateRow({
 
       {hasBlocker && (
         <View style={styles.blockerCard}>
-          <AlertTriangle size={12} color={themeColors.danger} />
+          <AlertTriangle size={12} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.blockerCardText}>{update.blocker}</Text>
         </View>
       )}
 
       {update.notes && update.notes.trim().length > 0 && (
         <View style={styles.notesRow}>
-          <MessageSquare size={11} color={themeColors.textMuted} />
+          <MessageSquare size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.notesText}>{update.notes}</Text>
         </View>
       )}

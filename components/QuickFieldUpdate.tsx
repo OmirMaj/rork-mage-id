@@ -462,12 +462,12 @@ export default function QuickFieldUpdate() {
         activeOpacity={projectsWithSchedule.length > 1 ? 0.7 : 1}
         testID="qfu-project-chip"
       >
-        <HardHat size={12} color={themeColors.textSecondary} />
+        <HardHat size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
         <Text style={styles.projectChipText} numberOfLines={1}>
           {selectedProject?.name ?? '—'}
         </Text>
         {projectsWithSchedule.length > 1 && (
-          <ChevronDown size={12} color={themeColors.textMuted} />
+          <ChevronDown size={12} color={themeColors.textMuted} strokeWidth={1.75} />
         )}
       </TouchableOpacity>
 
@@ -540,9 +540,9 @@ export default function QuickFieldUpdate() {
           ]}
         >
           {feedback.kind === 'success' ? (
-            <Check size={12} color={themeColors.success} />
+            <Check size={12} color={themeColors.success} strokeWidth={1.75} />
           ) : (
-            <AlertCircle size={12} color={Colors.warning} />
+            <AlertCircle size={12} color={Colors.warning} strokeWidth={1.75} />
           )}
           <Text
             style={[

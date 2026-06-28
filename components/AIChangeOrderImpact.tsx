@@ -94,13 +94,13 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
         <>
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <CalendarDays size={14} color={themeColors.info} />
+              <CalendarDays size={14} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Schedule Impact</Text>
             </View>
             <Text style={styles.impactValue}>+{result.scheduleDays} days</Text>
             {(result.affectedTasks ?? []).map((task, idx) => (
               <View key={idx} style={styles.taskRow}>
-                <ArrowRight size={12} color={themeColors.textMuted} />
+                <ArrowRight size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.taskText}>
                   "{task.taskName}" pushed {task.daysAdded}d ({task.currentEnd} → {task.newEnd})
                 </Text>
@@ -111,7 +111,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <DollarSign size={14} color={themeColors.success} />
+              <DollarSign size={14} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Cost Impact</Text>
             </View>
             <View style={styles.costGrid}>

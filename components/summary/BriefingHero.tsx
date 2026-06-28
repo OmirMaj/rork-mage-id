@@ -51,7 +51,7 @@ export function BriefingHero({ greetingName, attentionCount, activeCount, onOpen
         accessibilityLabel="More tools"
         testID="summary-tools-button"
       >
-        <MoreHorizontal size={20} color={colors.textSecondary} />
+        <MoreHorizontal size={20} color={colors.textSecondary} strokeWidth={1.75} />
       </TouchableOpacity>
     </View>
   );

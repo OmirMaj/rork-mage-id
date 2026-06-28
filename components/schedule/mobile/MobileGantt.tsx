@@ -296,7 +296,7 @@ export function MobileGantt({
           </View>
           {rows.map((r, i) => r.kind === 'phase' ? (
             <TouchableOpacity key={`p-${r.phase}`} style={[styles.lrow, styles.phaseRow]} activeOpacity={0.7} onPress={() => onTogglePhase(r.phase)}>
-              {collapsedPhases[r.phase] ? <ChevronRight size={14} color={colors.textMuted} /> : <ChevronDown size={14} color={colors.textMuted} />}
+              {collapsedPhases[r.phase] ? <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={14} color={colors.textMuted} strokeWidth={1.75} />}
               <View style={[styles.phaseDot, { backgroundColor: getPhaseColor(r.phase) }]} />
               <Text style={styles.phaseName} numberOfLines={1}>{r.phase}</Text>
               <Text style={styles.phasePct}>{r.pct}%</Text>
@@ -304,15 +304,15 @@ export function MobileGantt({
           ) : (
             <TouchableOpacity key={r.task.id} style={[styles.lrow, styles.taskRow]} activeOpacity={0.7} onPress={() => onPressTask(r.task)}>
               {r.task.status === 'done'
-                ? <CheckCircle2 size={15} color={colors.success} />
+                ? <CheckCircle2 size={15} color={colors.success} strokeWidth={1.75} />
                 : r.task.status === 'in_progress'
-                  ? <CircleDot size={15} color={getPhaseColor(r.task.phase || 'Other')} />
-                  : <Circle size={15} color={colors.textMuted} />}
+                  ? <CircleDot size={15} color={getPhaseColor(r.task.phase || 'Other')} strokeWidth={1.75} />
+                  : <Circle size={15} color={colors.textMuted} strokeWidth={1.75} />}
               <Text style={[styles.taskName, r.task.status === 'done' ? styles.taskNameDone : null]} numberOfLines={1}>{r.task.title}</Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={styles.addRow} activeOpacity={0.7} onPress={onAddTask} testID="mobile-gantt-add">
-            <Plus size={15} color={colors.accent} />
+            <Plus size={15} color={colors.accent} strokeWidth={1.75} />
             <Text style={styles.addText}>New Work Package</Text>
           </TouchableOpacity>
         </View>

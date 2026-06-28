@@ -132,14 +132,14 @@ const AlertCard = React.memo(function AlertCard({
           {alert.title}
         </Text>
         <TouchableOpacity onPress={() => onDismiss(alert.id)} style={styles.dismissBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close">
-          <X size={14} color={colors.textMuted} />
+          <X size={14} color={colors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
       <Text style={styles.alertMessage} numberOfLines={2}>{alert.message}</Text>
       {alert.actionLabel && (
         <TouchableOpacity style={styles.alertAction} onPress={onAction} activeOpacity={0.7}>
           <Text style={[styles.alertActionText, { color: config.iconColor }]}>{alert.actionLabel}</Text>
-          <ChevronRight size={14} color={config.iconColor} />
+          <ChevronRight size={14} color={config.iconColor} strokeWidth={1.75} />
         </TouchableOpacity>
       )}
     </View>

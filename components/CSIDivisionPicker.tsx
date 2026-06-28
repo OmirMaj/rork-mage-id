@@ -82,7 +82,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
         >
           {triggerLabel}
         </Text>
-        <ChevronDown size={14} color={themeColors.textMuted} />
+        <ChevronDown size={14} color={themeColors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
 
       <Modal
@@ -101,7 +101,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <X size={20} color={themeColors.textMuted} />
+              <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -120,7 +120,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
           )}
 
           <View style={styles.searchRow}>
-            <Search size={14} color={themeColors.textMuted} />
+            <Search size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
               style={styles.searchInput}
               value={query}

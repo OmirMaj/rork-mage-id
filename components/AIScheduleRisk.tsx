@@ -132,7 +132,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
           {isLoading ? (
             <ActivityIndicator size="small" color={themeColors.accent} />
           ) : (
-            <RefreshCw size={16} color={themeColors.textSecondary} />
+            <RefreshCw size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
           )}
         </TouchableOpacity>
       </View>
@@ -171,7 +171,7 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       {(lowCount + otherCount) > 0 && (
         <View style={[styles.riskItem, { backgroundColor: Colors.successLight, borderLeftColor: themeColors.success }]}>
           <View style={styles.riskHeader}>
-            <CheckCircle2 size={14} color={Colors.successDark} />
+            <CheckCircle2 size={14} color={Colors.successDark} strokeWidth={1.75} />
             <Text style={[styles.riskSeverity, { color: Colors.successDark }]}>
               LOW RISK: {lowCount + otherCount} other tasks on track
             </Text>

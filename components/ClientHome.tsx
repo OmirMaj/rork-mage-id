@@ -307,7 +307,7 @@ export default function ClientHome() {
                   From a kitchen remodel to a full gut — verified contractors will bid on your scope.
                 </Text>
               </View>
-              <ChevronRight size={18} color="#FFF" />
+              <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
             </LinearGradient>
           </TouchableOpacity>
         </FadeRise>
@@ -550,7 +550,7 @@ function RfpCard({
         <Text style={styles.rfpTitle} numberOfLines={2}>{row.title}</Text>
 
         <View style={styles.rfpMeta}>
-          <MapPin size={11} color={themeColors.textMuted} />
+          <MapPin size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.rfpMetaText} numberOfLines={1}>
             {[row.city, row.state].filter(Boolean).join(', ') || 'Address pending'}
           </Text>
@@ -588,7 +588,7 @@ function RfpCard({
               </View>
             )}
           </View>
-          <ChevronRight size={14} color={themeColors.textMuted} />
+          <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
       </View>
     </TouchableOpacity>

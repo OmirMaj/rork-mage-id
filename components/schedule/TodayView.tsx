@@ -214,7 +214,7 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
       onLayout={(e) => { cardWidth.current = e.nativeEvent.layout.width; }}
     >
       <View style={s.swipeBg}>
-        <ChevronRight size={16} color="#FFF" />
+        <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
         <Text style={s.swipeBgText}>+25%</Text>
       </View>
 
@@ -244,17 +244,17 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
               <View style={s.predRow}>
                 {predsComplete ? (
                   <View style={s.predBadgeGreen}>
-                    <CheckCircle2 size={10} color={Colors.success} />
+                    <CheckCircle2 size={10} color={Colors.success} strokeWidth={1.75} />
                     <Text style={s.predBadgeTextGreen}>Predecessors done</Text>
                   </View>
                 ) : predsInProgress ? (
                   <View style={s.predBadgeYellow}>
-                    <Clock size={10} color={Colors.warning} />
+                    <Clock size={10} color={Colors.warning} strokeWidth={1.75} />
                     <Text style={s.predBadgeTextYellow}>Predecessors in progress</Text>
                   </View>
                 ) : (
                   <View style={s.predBadgeRed}>
-                    <AlertTriangle size={10} color={Colors.error} />
+                    <AlertTriangle size={10} color={Colors.error} strokeWidth={1.75} />
                     <Text style={s.predBadgeTextRed}>Blocked</Text>
                   </View>
                 )}
@@ -276,24 +276,24 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
 
             <View style={s.quickActions}>
               <TouchableOpacity style={s.quickActionBtn} onPress={handleIncrement}>
-                <Plus size={14} color={Colors.primary} />
+                <Plus size={14} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={s.quickActionLabel}>+10%</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.quickActionBtn, s.quickActionBtnComplete]}
                 onPress={handleComplete}
               >
-                <CheckCircle2 size={14} color={Colors.success} />
+                <CheckCircle2 size={14} color={Colors.success} strokeWidth={1.75} />
                 <Text style={[s.quickActionLabel, { color: Colors.success }]}>Done</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.quickActionBtn} onPress={handlePhotoCapture}>
-                <Camera size={14} color={Colors.info} />
+                <Camera size={14} color={Colors.info} strokeWidth={1.75} />
                 {photoCount > 0 && (
                   <Text style={[s.quickActionLabel, { color: Colors.info }]}>{photoCount}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={s.quickActionBtn} onPress={() => onTaskPress(task)} accessibilityRole="button" accessibilityLabel="Message">
-                <MessageSquare size={14} color={Colors.textSecondary} />
+                <MessageSquare size={14} color={Colors.textSecondary} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
@@ -306,7 +306,7 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
                 ))}
                 {photoCount > 3 && (
                   <View style={s.photoMore}>
-                    <ImageIcon size={10} color={Colors.textMuted} />
+                    <ImageIcon size={10} color={Colors.textMuted} strokeWidth={1.75} />
                     <Text style={s.photoMoreText}>+{photoCount - 3}</Text>
                   </View>
                 )}
@@ -414,7 +414,7 @@ function TodayView({
               <Text style={s.healthMiniText}>{healthScore}</Text>
             </View>
             <View style={s.daysLeftMini}>
-              <Clock size={10} color={Colors.textSecondary} />
+              <Clock size={10} color={Colors.textSecondary} strokeWidth={1.75} />
               <Text style={s.daysLeftMiniText}>{daysRemaining}d left</Text>
             </View>
           </View>
@@ -447,7 +447,7 @@ function TodayView({
       {overdueTasks.length > 0 && (
         <View style={s.section}>
           <View style={s.sectionHeaderOverdue}>
-            <AlertTriangle size={14} color={Colors.error} />
+            <AlertTriangle size={14} color={Colors.error} strokeWidth={1.75} />
             <Text style={s.sectionTitleOverdue}>Overdue ({overdueTasks.length})</Text>
           </View>
           {overdueTasks.map(task => {
@@ -480,18 +480,18 @@ function TodayView({
 
       <View style={s.section}>
         <View style={s.sectionHeader}>
-          <Sun size={14} color={Colors.accent} />
+          <Sun size={14} color={Colors.accent} strokeWidth={1.75} />
           <Text style={s.sectionTitle}>Active Now ({activeTasks.length})</Text>
         </View>
         {activeTasks.length > 0 && (
           <View style={s.swipeHint}>
-            <ChevronRight size={10} color={Colors.textMuted} />
+            <ChevronRight size={10} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={s.swipeHintText}>Swipe right on a task to update progress</Text>
           </View>
         )}
         {activeTasks.length === 0 ? (
           <View style={s.emptyActive}>
-            <CheckCircle2 size={28} color={Colors.success} />
+            <CheckCircle2 size={28} color={Colors.success} strokeWidth={1.75} />
             <Text style={s.emptyActiveText}>No tasks active today</Text>
           </View>
         ) : (
@@ -508,7 +508,7 @@ function TodayView({
       {comingUpTasks.length > 0 && (
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <ChevronRight size={14} color={Colors.info} />
+            <ChevronRight size={14} color={Colors.info} strokeWidth={1.75} />
             <Text style={s.sectionTitle}>Coming Up (Next 3 Days)</Text>
           </View>
           {comingUpTasks.map(task => {
@@ -530,7 +530,7 @@ function TodayView({
                 </View>
                 {isBlocked && (
                   <View style={s.blockedBadge}>
-                    <AlertTriangle size={10} color={Colors.error} />
+                    <AlertTriangle size={10} color={Colors.error} strokeWidth={1.75} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -542,12 +542,12 @@ function TodayView({
       {completedToday.length > 0 && (
         <View style={s.section}>
           <View style={s.sectionHeaderGreen}>
-            <Trophy size={14} color={Colors.success} />
+            <Trophy size={14} color={Colors.success} strokeWidth={1.75} />
             <Text style={s.sectionTitleGreen}>Completed ({completedToday.length})</Text>
           </View>
           {completedToday.map(task => (
             <View key={task.id} style={s.completedCard}>
-              <CheckCircle2 size={14} color={Colors.success} />
+              <CheckCircle2 size={14} color={Colors.success} strokeWidth={1.75} />
               <Text style={s.completedTitle} numberOfLines={1}>{task.title}</Text>
             </View>
           ))}

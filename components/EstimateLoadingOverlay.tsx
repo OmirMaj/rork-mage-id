@@ -121,7 +121,7 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, onCan
         <View style={styles.card}>
           <View style={styles.iconStack}>
             <Animated.View style={[styles.iconRing, { transform: [{ rotate }] }]}>
-              <Hammer size={28} color={themeColors.accent} />
+              <Hammer size={28} color={themeColors.accent} strokeWidth={1.75} />
             </Animated.View>
             <View style={styles.iconBadge}>
               <MageAIMark size={11} color="#FFF" />

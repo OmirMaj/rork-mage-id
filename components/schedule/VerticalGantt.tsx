@@ -94,7 +94,7 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
         <View style={[s.taskBarFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor + '30' }]} />
         <View style={s.taskBarContent}>
           <View style={s.taskBarIcons}>
-            {task.isCriticalPath && <GitBranch size={9} color={Colors.error} />}
+            {task.isCriticalPath && <GitBranch size={9} color={Colors.error} strokeWidth={1.75} />}
           </View>
           <Text style={[s.taskBarTitle, { color: phaseColor }]} numberOfLines={1}>{task.title}</Text>
           <Text style={s.taskBarPercent}>{task.progress}%</Text>

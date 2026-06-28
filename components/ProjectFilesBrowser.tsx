@@ -159,7 +159,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
       <View style={styles.container}>
         <View style={styles.fileListHeader}>
           <TouchableOpacity onPress={() => setActiveFolder(null)} style={styles.backBtn}>
-            <ChevronLeft size={18} color={themeColors.text} />
+            <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.folderEyebrow}>FOLDER</Text>
@@ -173,7 +173,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
           >
             {uploading
               ? <ActivityIndicator size="small" color={themeColors.surface} />
-              : <Upload size={14} color={themeColors.surface} />}
+              : <Upload size={14} color={themeColors.surface} strokeWidth={1.75} />}
             <Text style={styles.uploadBtnText}>{uploading ? 'Uploading…' : 'Upload'}</Text>
           </TouchableOpacity>
         </View>
@@ -185,7 +185,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
           </View>
         ) : files.length === 0 ? (
           <View style={styles.emptyFolder}>
-            <FolderOpen size={28} color={themeColors.textMuted} />
+            <FolderOpen size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyFolderTitle}>No files in this folder yet</Text>
             <Text style={styles.emptyFolderBody}>
               Upload contracts, signed PDFs, photos, or anything else you want stored
@@ -200,7 +200,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             >
               {uploading
                 ? <ActivityIndicator size="small" color={themeColors.surface} />
-                : <Upload size={14} color={themeColors.surface} />}
+                : <Upload size={14} color={themeColors.surface} strokeWidth={1.75} />}
               <Text style={styles.uploadBtnText}>{uploading ? 'Uploading…' : 'Upload first file'}</Text>
             </TouchableOpacity>
           </View>
@@ -209,7 +209,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
             {files.map(f => (
               <View key={f.path} style={styles.fileRow}>
                 <View style={styles.fileIconWrap}>
-                  <FileText size={16} color={themeColors.accent} />
+                  <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fileName} numberOfLines={2}>{f.name}</Text>
@@ -224,7 +224,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel="Open"
                 >
-                  <ExternalLink size={15} color={themeColors.textSecondary} />
+                  <ExternalLink size={15} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDelete(f)}
@@ -233,7 +233,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel="Delete"
                 >
-                  <Trash2 size={15} color={Colors.errorDark} />
+                  <Trash2 size={15} color={Colors.errorDark} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             ))}

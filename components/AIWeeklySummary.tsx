@@ -98,7 +98,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             <MageAIMark size={18} color={"#FF6A1A"} />
             <Text style={styles.headerTitle}>Full Project Analysis</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={"#9AA3AD"} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={"#9AA3AD"} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {paywallReason ? (
@@ -150,7 +150,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             {(result.criticalIssues ?? []).length > 0 ? (
               <View style={styles.issuesSection}>
                 <View style={styles.issuesHeader}>
-                  <AlertTriangle size={16} color={"#C84038"} />
+                  <AlertTriangle size={16} color={"#C84038"} strokeWidth={1.75} />
                   <Text style={styles.issuesTitle}>Issues breakdown</Text>
                   <View style={styles.issuesCountPill}>
                     <Text style={styles.issuesCountText}>{result.criticalIssues.length}</Text>
@@ -180,7 +180,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                         {iss.cause ? (
                           <View style={styles.issueRow}>
                             <View style={[styles.issueRowIcon, { backgroundColor: Colors.warningLight }]}>
-                              <Target size={11} color={Colors.warningDark} />
+                              <Target size={11} color={Colors.warningDark} strokeWidth={1.75} />
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={styles.issueRowLabel}>CAUSE</Text>
@@ -204,7 +204,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
                         {iss.fix ? (
                           <View style={[styles.issueRow, styles.issueRowFix]}>
                             <View style={[styles.issueRowIcon, { backgroundColor: Colors.successLight }]}>
-                              <Wrench size={11} color={Colors.successDark} />
+                              <Wrench size={11} color={Colors.successDark} strokeWidth={1.75} />
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={[styles.issueRowLabel, { color: Colors.successDark }]}>NEXT STEP</Text>
@@ -218,7 +218,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
               </View>
             ) : (
               <View style={styles.noIssuesCard}>
-                <CheckCircle2 size={20} color={"#2E7D44"} />
+                <CheckCircle2 size={20} color={"#2E7D44"} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.noIssuesTitle}>Nothing critical to flag</Text>
                   <Text style={styles.noIssuesBody}>

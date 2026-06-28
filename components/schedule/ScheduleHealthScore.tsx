@@ -119,7 +119,7 @@ function ScheduleHealthDetailImpl({ visible, onClose, result, onJumpToTask }: Sc
           <View style={styles.modalHandle} />
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>Schedule health</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           {/* Big-number hero */}
@@ -219,7 +219,7 @@ function CheckRow({
                     <Text style={styles.flaggedTitle}>{f.title}</Text>
                     <Text style={styles.flaggedReason}>{f.reason}</Text>
                   </View>
-                  {onJumpToTask && <ChevronRight size={12} color={"#9AA3AD"} />}
+                  {onJumpToTask && <ChevronRight size={12} color={"#9AA3AD"} strokeWidth={1.75} />}
                 </TouchableOpacity>
               ))}
             </View>

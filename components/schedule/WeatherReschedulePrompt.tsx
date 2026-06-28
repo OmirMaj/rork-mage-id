@@ -111,7 +111,7 @@ function WeatherReschedulePromptImpl({
     <>
       <View style={styles.banner}>
         <View style={styles.bannerIcon}>
-          <CloudRain size={16} color={Colors.warning} />
+          <CloudRain size={16} color={Colors.warning} strokeWidth={1.75} />
         </View>
         <View style={styles.bannerBody}>
           <Text style={styles.bannerTitle}>
@@ -130,17 +130,17 @@ function WeatherReschedulePromptImpl({
             activeOpacity={0.7}
           >
             <Text style={styles.bannerSecondaryText}>Review</Text>
-            <ChevronRight size={12} color={themeColors.text} />
+            <ChevronRight size={12} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handlePushAll}
             style={styles.bannerPrimaryBtn}
             activeOpacity={0.85}
           >
-            <RefreshCw size={12} color="#FFF" />
+            <RefreshCw size={12} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.bannerPrimaryText}>Push all</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleDismiss} hitSlop={6} style={styles.bannerCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleDismiss} hitSlop={6} style={styles.bannerCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
       </View>
 
@@ -156,7 +156,7 @@ function WeatherReschedulePromptImpl({
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setShowDetail(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
@@ -171,7 +171,7 @@ function WeatherReschedulePromptImpl({
                   activeOpacity={0.85}
                 >
                   <View style={styles.rowIcon}>
-                    <AlertTriangle size={14} color={Colors.warning} />
+                    <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowTitle}>{c.task.title}</Text>
@@ -184,7 +184,7 @@ function WeatherReschedulePromptImpl({
                   </View>
                   <View style={styles.rowAction}>
                     <Text style={styles.rowActionText}>+{c.suggestedPushDays}d</Text>
-                    <ChevronRight size={12} color={themeColors.accent} />
+                    <ChevronRight size={12} color={themeColors.accent} strokeWidth={1.75} />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -205,7 +205,7 @@ function WeatherReschedulePromptImpl({
                 }}
                 activeOpacity={0.85}
               >
-                <RefreshCw size={14} color="#FFF" />
+                <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.modalPrimaryText}>Push all {conflicts.length}</Text>
               </TouchableOpacity>
             </View>

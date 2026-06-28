@@ -270,7 +270,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     >
       <View style={styles.brandSection}>
         <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
-          <Wrench size={20} color={'#FFFFFF'} />
+          <Wrench size={20} color={'#FFFFFF'} strokeWidth={1.75} />
         </View>
         <Text style={styles.brandName}>MAGE ID</Text>
         <Text style={styles.brandTagline}>Construction Suite</Text>

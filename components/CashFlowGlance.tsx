@@ -67,7 +67,7 @@ export default function CashFlowGlance({ forecast, weeks = 4 }: Props) {
     >
       <View style={styles.head}>
         <View style={styles.headIcon}>
-          <Wallet size={16} color={colors.accent} />
+          <Wallet size={16} color={colors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Cash flow · next {weeks} weeks</Text>
@@ -75,7 +75,7 @@ export default function CashFlowGlance({ forecast, weeks = 4 }: Props) {
             {formatMoney(balances[balances.length - 1])}
           </Text>
         </View>
-        <ChevronRight size={16} color={colors.textMuted} />
+        <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.75} />
       </View>
 
       <Svg width={chartW} height={chartH} style={styles.spark}>
@@ -88,8 +88,8 @@ export default function CashFlowGlance({ forecast, weeks = 4 }: Props) {
       </Svg>
 
       <View style={styles.foot}>
-        <Stat styles={styles} label="In" value={formatMoney(totals.income)} icon={<TrendingUp size={12} color={colors.success} />} />
-        <Stat styles={styles} label="Out" value={formatMoney(totals.expense)} icon={<TrendingDown size={12} color={colors.accentLabel} />} />
+        <Stat styles={styles} label="In" value={formatMoney(totals.income)} icon={<TrendingUp size={12} color={colors.success} strokeWidth={1.75} />} />
+        <Stat styles={styles} label="Out" value={formatMoney(totals.expense)} icon={<TrendingDown size={12} color={colors.accentLabel} strokeWidth={1.75} />} />
         <Stat
           styles={styles}
           label="Net"

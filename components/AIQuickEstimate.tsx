@@ -351,7 +351,7 @@ export default React.memo(function AIQuickEstimate({
       <View style={s.detailsRow}>
         <View style={s.detailField}>
           <Text style={s.detailLabel}>
-            <Ruler size={12} color={Colors.textSecondary} /> Sq Ft
+            <Ruler size={12} color={Colors.textSecondary} strokeWidth={1.75} /> Sq Ft
           </Text>
           <TextInput
             style={s.detailInput}
@@ -364,7 +364,7 @@ export default React.memo(function AIQuickEstimate({
         </View>
         <View style={s.detailField}>
           <Text style={s.detailLabel}>
-            <MapPin size={12} color={Colors.textSecondary} /> Location
+            <MapPin size={12} color={Colors.textSecondary} strokeWidth={1.75} /> Location
           </Text>
           <View style={s.locationBadge}>
             <Text style={s.locationText} numberOfLines={1}>{location || 'US Avg'}</Text>
@@ -407,7 +407,7 @@ export default React.memo(function AIQuickEstimate({
 
       {error && (
         <View style={s.errorBanner}>
-          <AlertTriangle size={16} color={Colors.error} />
+          <AlertTriangle size={16} color={Colors.error} strokeWidth={1.75} />
           <Text style={s.errorText}>{error}</Text>
         </View>
       )}
@@ -506,29 +506,29 @@ export default React.memo(function AIQuickEstimate({
             <View style={s.totalDivider} />
             <View style={s.totalBreakdownGrid}>
               <View style={s.totalBreakdownItem}>
-                <Package size={14} color={Colors.primary} />
+                <Package size={14} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={s.totalBreakdownLabel}>Materials</Text>
                 <Text style={s.totalBreakdownValue}>${estimatedTotals.materials.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
               <View style={s.totalBreakdownItem}>
-                <HardHat size={14} color={Colors.accent} />
+                <HardHat size={14} color={Colors.accent} strokeWidth={1.75} />
                 <Text style={s.totalBreakdownLabel}>Labor</Text>
                 <Text style={s.totalBreakdownValue}>${estimatedTotals.labor.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
               <View style={s.totalBreakdownItem}>
-                <Shield size={14} color={Colors.info} />
+                <Shield size={14} color={Colors.info} strokeWidth={1.75} />
                 <Text style={s.totalBreakdownLabel}>Other</Text>
                 <Text style={s.totalBreakdownValue}>${estimatedTotals.additional.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
               <View style={s.totalBreakdownItem}>
-                <Clock size={14} color={Colors.textSecondary} />
+                <Clock size={14} color={Colors.textSecondary} strokeWidth={1.75} />
                 <Text style={s.totalBreakdownLabel}>Duration</Text>
                 <Text style={s.totalBreakdownValue}>{result.estimatedDuration}</Text>
               </View>
             </View>
             {result.costPerSqFt > 0 && (
               <View style={s.costPerSqftRow}>
-                <DollarSign size={12} color={Colors.textSecondary} />
+                <DollarSign size={12} color={Colors.textSecondary} strokeWidth={1.75} />
                 <Text style={s.costPerSqftText}>${result.costPerSqFt.toFixed(0)}/sq ft</Text>
               </View>
             )}
@@ -622,7 +622,7 @@ export default React.memo(function AIQuickEstimate({
           {(result.warnings ?? []).length > 0 && (
             <View style={s.warningsCard}>
               <View style={s.warningsHeader}>
-                <AlertTriangle size={14} color={Colors.warning} />
+                <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
                 <Text style={s.warningsTitle}>Watch Out</Text>
               </View>
               {(result.warnings ?? []).map((w, i) => (
@@ -634,7 +634,7 @@ export default React.memo(function AIQuickEstimate({
           {(result.savingsTips ?? []).length > 0 && (
             <View style={s.tipsCard}>
               <View style={s.tipsHeader}>
-                <TrendingDown size={14} color={Colors.success} />
+                <TrendingDown size={14} color={Colors.success} strokeWidth={1.75} />
                 <Text style={s.tipsTitle}>Savings Tips</Text>
               </View>
               {(result.savingsTips ?? []).map((t, i) => (
@@ -680,7 +680,7 @@ export default React.memo(function AIQuickEstimate({
             </View>
             <Text style={s.collapsibleTitle}>{title}</Text>
           </View>
-          {isOpen ? <ChevronUp size={18} color={Colors.textMuted} /> : <ChevronDown size={18} color={Colors.textMuted} />}
+          {isOpen ? <ChevronUp size={18} color={Colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={18} color={Colors.textMuted} strokeWidth={1.75} />}
         </TouchableOpacity>
         {isOpen && content()}
       </View>
@@ -697,7 +697,7 @@ export default React.memo(function AIQuickEstimate({
               <MageAIMark size={20} color={Colors.primary} />
               <Text style={s.modalTitle}>AI Estimator</Text>
             </View>
-            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
           </View>
         </View>
 

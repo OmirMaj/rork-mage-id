@@ -71,7 +71,7 @@ export default function VoiceRecorder({
     return (
       <View style={styles.container}>
         <View style={[styles.micBtn, styles.micBtnDisabled]}>
-          <MicOff size={20} color={themeColors.textMuted} />
+          <MicOff size={20} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
         <Text style={styles.webLabel}>Voice input not available on web</Text>
       </View>
@@ -82,7 +82,7 @@ export default function VoiceRecorder({
     return (
       <TouchableOpacity style={styles.container} onPress={onLockedPress} activeOpacity={0.7}>
         <View style={[styles.micBtn, styles.micBtnLocked]}>
-          <Lock size={18} color={themeColors.textMuted} />
+          <Lock size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
         <Text style={styles.lockedLabel}>Pro feature — tap to upgrade</Text>
       </TouchableOpacity>
@@ -98,7 +98,7 @@ export default function VoiceRecorder({
         testID="voice-record-btn"
       >
         <View style={styles.micBtn}>
-          <Mic size={20} color={themeColors.accent} />
+          <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <Text style={styles.label}>
           {isLoading ? 'Processing…' : 'Tap to dictate'}

@@ -52,7 +52,7 @@ export default function OfflineSyncPill({ variant = 'compact' }: Props) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} accessibilityLabel={`${depth} changes queued for sync`}>
       <View style={styles.pill}>
-        <CloudOff size={12} color={Colors.warning} />
+        <CloudOff size={12} color={Colors.warning} strokeWidth={1.75} />
         <Text style={styles.text}>
           {variant === 'full' ? `${depth} queued` : depth}
         </Text>

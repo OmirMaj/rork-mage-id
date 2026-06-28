@@ -72,7 +72,7 @@ const MessageBubble = React.memo(function MessageBubble({ message, styles, color
               const palette = getPriorityPalette(colors, item.priority);
               return (
                 <View key={idx} style={[styles.actionChip, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                  {item.priority === 'urgent' && <AlertTriangle size={11} color={palette.text} />}
+                  {item.priority === 'urgent' && <AlertTriangle size={11} color={palette.text} strokeWidth={1.75} />}
                   {item.priority === 'suggestion' && <MageAIMark size={11} color={palette.text} />}
                   <Text style={[styles.actionChipText, { color: palette.text }]}>{item.text}</Text>
                 </View>
@@ -267,7 +267,7 @@ export default function AICopilot() {
                 <MageAIMark size={18} color={colors.accent} />
                 <Text style={styles.headerTitle}>MAGE AI Copilot</Text>
               </View>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <View style={styles.projectBadge}>
@@ -291,7 +291,7 @@ export default function AICopilot() {
                       onPress={() => handleSend(prompt)}
                     >
                       <Text style={styles.suggestText}>{prompt}</Text>
-                      <ChevronRight size={14} color={colors.accent} />
+                      <ChevronRight size={14} color={colors.accent} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -336,7 +336,7 @@ export default function AICopilot() {
                   onPress={() => handleSend()}
                   style={[styles.sendBtn, (!input.trim() || isLoading) && styles.sendBtnDisabled]}
                   disabled={!input.trim() || isLoading} accessibilityRole="button" accessibilityLabel="Send">
-                  <Send size={18} color={input.trim() && !isLoading ? '#FFFFFF' : colors.textMuted} />
+                  <Send size={18} color={input.trim() && !isLoading ? '#FFFFFF' : colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             </View>

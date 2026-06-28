@@ -65,7 +65,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
         activeOpacity={0.85}
       >
         <View style={styles.iconWrap}>
-          <Crown size={14} color="#7C3AED" />
+          <Crown size={14} color="#7C3AED" strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.upgradeTitle}>Takeoffs are a Pro feature</Text>
@@ -94,7 +94,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
       {/* Top row — file name (if any) + headline number */}
       <View style={styles.topRow}>
         <View style={styles.iconWrap}>
-          {exceeds ? <AlertTriangle size={14} color={Colors.errorDark} /> : <FileText size={14} color={themeColors.accent} />}
+          {exceeds ? <AlertTriangle size={14} color={Colors.errorDark} strokeWidth={1.75} /> : <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />}
         </View>
         <View style={{ flex: 1 }}>
           {pendingPages != null ? (
@@ -127,7 +127,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
       {exceeds && (
         <View style={styles.exceedRow}>
           <TouchableOpacity onPress={onUpgrade} style={styles.upgradePill} activeOpacity={0.85}>
-            <TrendingUp size={12} color={themeColors.surface} />
+            <TrendingUp size={12} color={themeColors.surface} strokeWidth={1.75} />
             <Text style={styles.upgradePillText}>Upgrade plan</Text>
           </TouchableOpacity>
         </View>

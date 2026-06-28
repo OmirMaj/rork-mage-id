@@ -83,7 +83,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
         {isLoading ? (
           <ActivityIndicator size="small" color={"#FF6A1A"} />
         ) : (
-          <Search size={16} color={"#FF6A1A"} />
+          <Search size={16} color={"#FF6A1A"} strokeWidth={1.75} />
         )}
         <Text style={styles.triggerText}>
           {isLoading ? 'Validating...' : 'AI Validate Estimate'}

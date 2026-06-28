@@ -140,7 +140,7 @@ export function MobileScheduleScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
         <EmptyState
-          icon={<FolderOpen size={36} color={colors.accent} />}
+          icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
           title="No project yet"
           message="Create a project to build its schedule."
           actionLabel="Open Projects"
@@ -156,18 +156,18 @@ export function MobileScheduleScreen() {
         <TouchableOpacity style={{ flex: 1, minWidth: 0 }} activeOpacity={0.7} onPress={cycleProject}>
           <View style={styles.titleRow}>
             <Text style={styles.projName} numberOfLines={1}>{selectedProject.name}</Text>
-            {projects.length > 1 && <ChevronDown size={18} color={colors.text} />}
+            {projects.length > 1 && <ChevronDown size={18} color={colors.text} strokeWidth={1.75} />}
           </View>
           {!!selectedProject.location && <Text style={styles.loc} numberOfLines={1}>{selectedProject.location}</Text>}
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => setShowCalendar(true)} accessibilityLabel="Jump to date" testID="open-calendar">
-          <CalendarDays size={19} color={colors.text} />
+          <CalendarDays size={19} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => setShowExport(true)} accessibilityLabel="Export schedule" testID="open-export" disabled={tasks.length === 0}>
-          <Download size={19} color={tasks.length === 0 ? colors.textMuted : colors.text} />
+          <Download size={19} color={tasks.length === 0 ? colors.textMuted : colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/notifications-inbox' as never)} accessibilityLabel="Notifications">
-          <Bell size={19} color={colors.text} />
+          <Bell size={19} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -185,7 +185,7 @@ export function MobileScheduleScreen() {
       {tab === 'schedule' ? (
         tasks.length === 0 ? (
           <EmptyState
-            icon={<FolderOpen size={36} color={colors.accent} />}
+            icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
             title="No schedule yet"
             message="Add work packages to start building the schedule."
             actionLabel="New Work Package"
