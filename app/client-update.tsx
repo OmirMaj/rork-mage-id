@@ -199,7 +199,7 @@ export default function ClientUpdateScreen() {
                     <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
                     <Text style={styles.projectRowMeta}>{p.type} · {p.location}</Text>
                   </View>
-                  {active && <CheckCircle2 size={18} color={themeColors.accent} />}
+                  {active && <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>
               );
             })
@@ -213,10 +213,10 @@ export default function ClientUpdateScreen() {
           )}
           {recipients.map(email => (
             <View key={email} style={styles.chip}>
-              <Mail size={12} color={themeColors.accent} />
+              <Mail size={12} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.chipTxt} numberOfLines={1}>{email}</Text>
               <TouchableOpacity onPress={() => removeRecipient(email)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={themeColors.textSecondary} />
+                <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
           ))}
@@ -232,7 +232,7 @@ export default function ClientUpdateScreen() {
               onChangeText={setNewEmail}
               onSubmitEditing={addRecipient}
             />
-            <TouchableOpacity style={styles.addBtn} onPress={addRecipient} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color={'#FFFFFF'} /></TouchableOpacity>
+            <TouchableOpacity style={styles.addBtn} onPress={addRecipient} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color={'#FFFFFF'} strokeWidth={1.75} /></TouchableOpacity>
           </View>
         </View>
 
@@ -256,7 +256,7 @@ export default function ClientUpdateScreen() {
 
         {errorMsg && (
           <View style={styles.errorCard}>
-            <Info size={14} color="#D93025" />
+            <Info size={14} color="#D93025" strokeWidth={1.75} />
             <Text style={styles.errorTxt}>{errorMsg}</Text>
           </View>
         )}
@@ -266,7 +266,7 @@ export default function ClientUpdateScreen() {
             <View style={styles.draftHeader}>
               <Text style={styles.sectionLabel}>DRAFT · Edit anything</Text>
               <TouchableOpacity onPress={handleDraft} style={styles.regenBtn} activeOpacity={0.7}>
-                <RefreshCw size={12} color={themeColors.accent} />
+                <RefreshCw size={12} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.regenTxt}>Regenerate</Text>
               </TouchableOpacity>
             </View>
@@ -356,7 +356,7 @@ export default function ClientUpdateScreen() {
 
             <View style={styles.previewCard}>
               <View style={styles.previewHeader}>
-                <FileText size={14} color={themeColors.textSecondary} />
+                <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 <Text style={styles.previewHeaderTxt}>Plain-text preview</Text>
               </View>
               <Text style={styles.previewBody}>{renderDraftToPlainText(draft)}</Text>
@@ -377,7 +377,7 @@ export default function ClientUpdateScreen() {
               <ActivityIndicator color={'#FFFFFF'} />
             ) : (
               <>
-                <Users size={16} color={'#FFFFFF'} />
+                <Users size={16} color={'#FFFFFF'} strokeWidth={1.75} />
                 <Text style={styles.sendBtnTxt}>
                   Send to {recipients.length} {recipients.length === 1 ? 'recipient' : 'recipients'}
                 </Text>
@@ -417,12 +417,12 @@ function BulletEditor({
             placeholderTextColor={themeColors.textMuted}
           />
           <TouchableOpacity onPress={() => onRemove(i)} hitSlop={8} style={styles.bulletRemove} accessibilityRole="button" accessibilityLabel="Close">
-            <X size={14} color={themeColors.textSecondary} />
+            <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       ))}
       <TouchableOpacity onPress={onAdd} style={styles.addBullet} activeOpacity={0.7}>
-        <Plus size={12} color={themeColors.accent} />
+        <Plus size={12} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.addBulletTxt}>Add</Text>
       </TouchableOpacity>
     </View>

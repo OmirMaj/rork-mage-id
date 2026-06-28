@@ -23,22 +23,22 @@ import { Tokens } from '@/constants/designTokens';
 // not a button.
 const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: string }> = {
   // Client → GC
-  portal_message:        { icon: <MessageSquare size={16} color={"#1565C0"} />, tint: '#E7F0FA', label: 'Client message' },
-  budget_proposal:       { icon: <HandCoins   size={16} color={Colors.orange} />, tint: '#FFF1E6', label: 'Budget proposal' },
-  co_approval:           { icon: <CheckCircle2 size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Change order' },
-  contract_signed:       { icon: <PenTool     size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Contract signed' },
-  selection_chosen:      { icon: <ShoppingCart size={16} color={Colors.orange} />, tint: '#FFF1E6', label: 'Selection picked' },
-  closeout_binder_sent:  { icon: <Package     size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Closeout delivered' },
+  portal_message:        { icon: <MessageSquare size={16} color={"#1565C0"} strokeWidth={1.75} />, tint: '#E7F0FA', label: 'Client message' },
+  budget_proposal:       { icon: <HandCoins   size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Budget proposal' },
+  co_approval:           { icon: <CheckCircle2 size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Change order' },
+  contract_signed:       { icon: <PenTool     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Contract signed' },
+  selection_chosen:      { icon: <ShoppingCart size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Selection picked' },
+  closeout_binder_sent:  { icon: <Package     size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'Closeout delivered' },
 
   // Sub → GC
-  sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Sub invoice' },
-  sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Invoice update' },
+  sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Sub invoice' },
+  sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" strokeWidth={1.75} />, tint: '#F4ECFA', label: 'Invoice update' },
 
   // Marketplace
-  nearby_rfp_posted:     { icon: <Hammer      size={16} color={Colors.purple} />, tint: '#EFEFFA', label: 'New project nearby' },
-  rfp_awarded:           { icon: <Trophy      size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'You won the bid' },
-  bid_question_asked:    { icon: <HelpCircle  size={16} color={Colors.purple} />, tint: '#EFEFFA', label: 'Pre-bid question' },
-  bid_question_answered: { icon: <HelpCircle  size={16} color={Colors.purple} />, tint: '#EFEFFA', label: 'Bid Q&A' },
+  nearby_rfp_posted:     { icon: <Hammer      size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'New project nearby' },
+  rfp_awarded:           { icon: <Trophy      size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'You won the bid' },
+  bid_question_asked:    { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Pre-bid question' },
+  bid_question_answered: { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Bid Q&A' },
 };
 
 function fmtAgo(iso: string): string {
@@ -289,7 +289,7 @@ export default function NotificationsInboxScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={"#FF6A1A"} />
+          <ChevronLeft size={26} color={"#FF6A1A"} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Notifications</Text>
@@ -299,7 +299,7 @@ export default function NotificationsInboxScreen() {
         </View>
         {feed.items.length > 0 && (
           <TouchableOpacity style={styles.headerAction} onPress={feed.markAllRead}>
-            <CheckCheck size={16} color={themeColors.text} />
+            <CheckCheck size={16} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.headerActionText}>Mark all read</Text>
           </TouchableOpacity>
         )}
@@ -307,7 +307,7 @@ export default function NotificationsInboxScreen() {
           style={styles.headerIconBtn}
           onPress={() => router.push('/notifications-settings' as never)}
           hitSlop={6} accessibilityRole="button" accessibilityLabel="Settings">
-          <Settings size={18} color={"#9AA3AD"} />
+          <Settings size={18} color={"#9AA3AD"} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -317,7 +317,7 @@ export default function NotificationsInboxScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 32, paddingHorizontal: 16, paddingTop: 8 }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Bell size={40} color={"#9AA3AD"} />
+            <Bell size={40} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>You&apos;re all caught up</Text>
             <Text style={styles.emptyBody}>
               When clients send messages, propose budgets, approve change orders, or subs submit invoices, you&apos;ll see the history here.
@@ -327,13 +327,13 @@ export default function NotificationsInboxScreen() {
         ListFooterComponent={
           feed.items.length > 0 ? (
             <TouchableOpacity style={styles.clearAll} onPress={handleClearAll}>
-              <Trash2 size={14} color={"#C84038"} />
+              <Trash2 size={14} color={"#C84038"} strokeWidth={1.75} />
               <Text style={styles.clearAllText}>Clear all</Text>
             </TouchableOpacity>
           ) : null
         }
         renderItem={({ item }) => {
-          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={themeColors.text} />, tint: themeColors.bg, label: item.eventType };
+          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={themeColors.text} strokeWidth={1.75} />, tint: themeColors.bg, label: item.eventType };
           const summary = summarize(item);
           const isUnread = !item.readAt;
           return (
@@ -360,7 +360,7 @@ export default function NotificationsInboxScreen() {
                 style={styles.dismissBtn}
                 onPress={(e) => { e.stopPropagation(); feed.dismiss(item.id); }}
                 hitSlop={6} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={"#9AA3AD"} />
+                <X size={14} color={"#9AA3AD"} strokeWidth={1.75} />
               </TouchableOpacity>
             </TouchableOpacity>
           );

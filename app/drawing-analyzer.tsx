@@ -202,7 +202,7 @@ function DrawingAnalyzerInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>AI drawing analyzer</Text>
@@ -239,7 +239,7 @@ function DrawingAnalyzerInner() {
             </View>
             {!isBusinessTier && (
               <View style={styles.upsell}>
-                <Crown size={12} color={Colors.warning} />
+                <Crown size={12} color={Colors.warning} strokeWidth={1.75} />
                 <Text style={styles.upsellText}>
                   Pro Estimator is included with the Business tier — deeper reasoning, larger output budget, more conservative on incomplete drawings.
                 </Text>
@@ -281,7 +281,7 @@ function DrawingAnalyzerInner() {
         {step === 'idle' && (
           <TouchableOpacity style={styles.uploadCard} onPress={handlePick} activeOpacity={0.85}>
             <View style={styles.uploadIcon}>
-              <FileUp size={34} color={themeColors.accent} />
+              <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
             <Text style={styles.uploadBody}>
@@ -305,7 +305,7 @@ function DrawingAnalyzerInner() {
             testID="open-takeoff-link"
           >
             <View style={styles.sisterToolIconWrap}>
-              <FileText size={16} color={themeColors.accent} />
+              <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.sisterToolTitle}>Need raw quantities instead?</Text>
@@ -313,13 +313,13 @@ function DrawingAnalyzerInner() {
                 Open the Quantity Takeoff tool — same PDF in, but you get LF / SF / EA counts you can edit before sending out for sub bids.
               </Text>
             </View>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         )}
 
         {error && step === 'idle' && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={themeColors.danger} />
+            <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.errorRetry} onPress={() => setError(null)}>
               <Text style={styles.errorRetryText}>Dismiss</Text>
@@ -456,12 +456,12 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
           {modelMeta && (
             <View style={styles.modelBadge}>
               {modelUsed === 'gemini-2.5-pro'
-                ? <Crown size={10} color={themeColors.accent} />
+                ? <Crown size={10} color={themeColors.accent} strokeWidth={1.75} />
                 : <MageAIMark size={10} color={themeColors.textMuted} />}
               <Text style={styles.modelBadgeText}>{modelMeta.label}</Text>
             </View>
           )}
-          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={themeColors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <Text style={styles.summaryTitle}>{result.summary}</Text>
         <Text style={styles.summarySub}>{result.confidenceExplanation}</Text>
@@ -487,13 +487,13 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
         <TouchableOpacity style={styles.teaserCard} onPress={onUpgrade} activeOpacity={0.85}>
           <View style={styles.teaserHead}>
             <View style={styles.teaserIcon}>
-              <Crown size={16} color={Colors.warning} />
+              <Crown size={16} color={Colors.warning} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.teaserEyebrow}>Business tier · Pro Estimator</Text>
               <Text style={styles.teaserTitle}>Want sharper numbers on this set?</Text>
             </View>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </View>
           <Text style={styles.teaserBody}>
             Pro Estimator routinely catches scope Standard misses on incomplete drawings — electrical rough-ins, structural metals, site work, permits. It also escalates ambiguous areas to critical-severity concerns so you don&apos;t ship a bid without an RFI.
@@ -511,13 +511,13 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
           </View>
           <View style={styles.teaserCta}>
             <Text style={styles.teaserCtaText}>Upgrade to Business</Text>
-            <ChevronRight size={14} color="#FFF" />
+            <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
           </View>
         </TouchableOpacity>
       )}
 
       {/* What the AI looked at */}
-      <SectionHeader icon={<Eye size={16} color={themeColors.accent} />} title="What the AI looked at" />
+      <SectionHeader icon={<Eye size={16} color={themeColors.accent} strokeWidth={1.75} />} title="What the AI looked at" />
       <Text style={styles.sectionHelper}>
         Verify these match what you uploaded. If a page is read &quot;poor,&quot; rerun with a higher-resolution scan.
       </Text>
@@ -561,7 +561,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
       {result.concerns && result.concerns.length > 0 && (
         <>
           <SectionHeader
-            icon={<ShieldAlert size={16} color={Colors.warning} />}
+            icon={<ShieldAlert size={16} color={Colors.warning} strokeWidth={1.75} />}
             title="Areas of concern"
           />
           <Text style={styles.sectionHelper}>
@@ -597,7 +597,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
       {result.doubleCheck && result.doubleCheck.length > 0 && (
         <>
           <SectionHeader
-            icon={<HelpCircle size={16} color={themeColors.accent} />}
+            icon={<HelpCircle size={16} color={themeColors.accent} strokeWidth={1.75} />}
             title="Double-check before sending"
           />
           <View style={styles.checklistCard}>
@@ -615,7 +615,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
       {result.missingScopes && result.missingScopes.length > 0 && (
         <>
           <SectionHeader
-            icon={<AlertTriangle size={16} color={Colors.warning} />}
+            icon={<AlertTriangle size={16} color={Colors.warning} strokeWidth={1.75} />}
             title="Scopes not included in these drawings"
           />
           <View style={styles.checklistCard}>
@@ -631,7 +631,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
 
       {/* Line items grouped by category */}
       <SectionHeader
-        icon={<FileText size={16} color={themeColors.accent} />}
+        icon={<FileText size={16} color={themeColors.accent} strokeWidth={1.75} />}
         title={`Line items (${result.lineItems.length})`}
       />
       <Text style={styles.sectionHelper}>
@@ -687,9 +687,9 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
           <Text style={styles.ctaSecondaryText}>Run on a different PDF</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.ctaPrimary} onPress={onUse}>
-          <CheckCircle2 size={16} color="#FFF" />
+          <CheckCircle2 size={16} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.ctaPrimaryText}>Use as starting point</Text>
-          <ChevronRight size={14} color="#FFF" />
+          <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
     </View>

@@ -61,55 +61,55 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showSchedule',
     label: 'Project Schedule',
     description: 'Gantt chart & task progress',
-    icon: <CalendarDays size={18} color={"#1565C0"} />,
+    icon: <CalendarDays size={18} color={"#1565C0"} strokeWidth={1.75} />,
   },
   {
     key: 'showBudgetSummary',
     label: 'Budget Summary',
     description: 'Overall spend vs. contract value',
-    icon: <BarChart3 size={18} color={"#2E7D44"} />,
+    icon: <BarChart3 size={18} color={"#2E7D44"} strokeWidth={1.75} />,
   },
   {
     key: 'showInvoices',
     label: 'Invoices',
     description: 'Invoice history & payment status',
-    icon: <DollarSign size={18} color={Colors.warning} />,
+    icon: <DollarSign size={18} color={Colors.warning} strokeWidth={1.75} />,
   },
   {
     key: 'showChangeOrders',
     label: 'Change Orders',
     description: 'Approved & pending change orders',
-    icon: <FileText size={18} color={"#C84038"} />,
+    icon: <FileText size={18} color={"#C84038"} strokeWidth={1.75} />,
   },
   {
     key: 'showPhotos',
     label: 'Site Photos',
     description: 'Progress photos from the field',
-    icon: <Image size={18} color={Colors.purple} />,
+    icon: <Image size={18} color={Colors.purple} strokeWidth={1.75} />,
   },
   {
     key: 'showDailyReports',
     label: 'Daily Reports',
     description: 'Weather, crew, and work summaries',
-    icon: <ClipboardList size={18} color="#32ADE6" />,
+    icon: <ClipboardList size={18} color="#32ADE6" strokeWidth={1.75} />,
   },
   {
     key: 'showPunchList',
     label: 'Punch List',
     description: 'Open items & completion status',
-    icon: <CheckCircle2 size={18} color={"#2E7D44"} />,
+    icon: <CheckCircle2 size={18} color={"#2E7D44"} strokeWidth={1.75} />,
   },
   {
     key: 'showRFIs',
     label: 'RFIs',
     description: 'Requests for information',
-    icon: <MessageSquare size={18} color={Colors.warning} />,
+    icon: <MessageSquare size={18} color={Colors.warning} strokeWidth={1.75} />,
   },
   {
     key: 'showDocuments',
     label: 'Documents',
     description: 'Contracts, lien waivers, permits',
-    icon: <FileText size={18} color="#8E8E93" />,
+    icon: <FileText size={18} color="#8E8E93" strokeWidth={1.75} />,
   },
 ];
 
@@ -667,7 +667,7 @@ function ClientPortalSetupScreenInner() {
           title: 'Client Portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
           headerRight: () => (
@@ -685,14 +685,14 @@ function ClientPortalSetupScreenInner() {
         {/* Portal Link */}
         <View style={styles.linkCard}>
           <View style={styles.linkCardHeader}>
-            <Globe size={20} color={Colors.purple} />
+            <Globe size={20} color={Colors.purple} strokeWidth={1.75} />
             <Text style={styles.linkCardTitle}>Portal Link</Text>
             <View style={styles.activeBadge}>
               <Text style={styles.activeBadgeText}>Active</Text>
             </View>
           </View>
           <View style={styles.linkRow}>
-            <Link size={12} color={themeColors.info} />
+            <Link size={12} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.linkText} numberOfLines={1}>
               {`${PORTAL_BASE_URL}/${portal.portalId}`}
             </Text>
@@ -705,11 +705,11 @@ function ClientPortalSetupScreenInner() {
               is shown to the GC. */}
           <View style={styles.linkActions}>
             <TouchableOpacity style={styles.linkActionBtn} onPress={handleCopyLink}>
-              <Copy size={15} color={themeColors.accent} />
+              <Copy size={15} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.linkActionText}>Copy</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.linkActionBtn} onPress={handleShare}>
-              <Send size={15} color={themeColors.accent} />
+              <Send size={15} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.linkActionText}>Share</Text>
             </TouchableOpacity>
           </View>
@@ -722,7 +722,7 @@ function ClientPortalSetupScreenInner() {
           <View style={styles.togglesCard}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
-                <Lock size={18} color={themeColors.accent} />
+                <Lock size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Require Passcode</Text>
                   <Text style={styles.toggleDesc}>{portal.requirePasscode ? 'Portal is locked' : 'Portal is open with link only'}</Text>
@@ -748,7 +748,7 @@ function ClientPortalSetupScreenInner() {
                 maxLength={20}
               />
               <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} activeOpacity={0.8}>
-                <RefreshCw size={13} color={themeColors.accent} />
+                <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.resetPasscodeText}>Generate New Passcode</Text>
               </TouchableOpacity>
             </>
@@ -779,7 +779,7 @@ function ClientPortalSetupScreenInner() {
                     <Text style={[styles.langEndonym, active && styles.langEndonymActive]}>{l.endonym}</Text>
                     <Text style={styles.langEnglish}>{l.englishName}</Text>
                   </View>
-                  {active && <Check size={14} color={themeColors.accent} />}
+                  {active && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>
               );
             })}
@@ -811,7 +811,7 @@ function ClientPortalSetupScreenInner() {
           <View style={[styles.togglesCard, { padding: 0 }]}>
             <View style={[styles.toggleRow, (project?.targetBudget || proposalQ.pending.length > 0) && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <HandCoins size={18} color={Colors.orange} />
+                <HandCoins size={18} color={Colors.orange} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Allow client to suggest budget</Text>
                   <Text style={styles.toggleDesc}>Shows a &quot;Set your target budget&quot; card on the portal</Text>
@@ -829,7 +829,7 @@ function ClientPortalSetupScreenInner() {
             {project?.targetBudget && (
               <View style={[styles.budgetStatus, proposalQ.pending.length > 0 && { borderBottomWidth: 1, borderBottomColor: themeColors.line }]}>
                 <View style={styles.budgetStatusBadge}>
-                  <Check size={14} color={Colors.successDark} />
+                  <Check size={14} color={Colors.successDark} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.budgetStatusLabel}>
@@ -866,14 +866,14 @@ function ClientPortalSetupScreenInner() {
                     onPress={() => handleAcceptProposal(p.id)}
                     disabled={proposalQ.isResponding}
                   >
-                    <Check size={14} color="#FFF" />
+                    <Check size={14} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.proposalBtnText}>Accept</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.proposalBtnDecline}
                     onPress={() => handleDeclineProposal(p.id)}
                     disabled={proposalQ.isResponding} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={themeColors.textMuted} />
+                    <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -893,7 +893,7 @@ function ClientPortalSetupScreenInner() {
           <View style={[styles.togglesCard, { padding: 0 }]}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
-                <Sunrise size={18} color={Colors.orange} />
+                <Sunrise size={18} color={Colors.orange} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Send weekly recap</Text>
                   <Text style={styles.toggleDesc}>Friday afternoons. Goes to every portal invite email.</Text>
@@ -931,7 +931,7 @@ function ClientPortalSetupScreenInner() {
             }}
             activeOpacity={0.85}
           >
-            <Send size={14} color={themeColors.accent} />
+            <Send size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.previewWeeklyBtnText}>Send today&apos;s preview now</Text>
           </TouchableOpacity>
         </View>
@@ -945,7 +945,7 @@ function ClientPortalSetupScreenInner() {
           <View style={styles.togglesCard}>
             <View style={[styles.toggleRow, threadQ.coApprovals.length > 0 && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <CheckCircle2 size={18} color={themeColors.accent} />
+                <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>1-tap CO approval</Text>
                   <Text style={styles.toggleDesc}>Owner can sign off on change orders directly from the portal</Text>
@@ -962,8 +962,8 @@ function ClientPortalSetupScreenInner() {
               <View key={a.id} style={[styles.coApprovalRow, idx < 4 && styles.toggleRowBorder]}>
                 <View style={[styles.budgetStatusBadge, a.decision === 'declined' && { backgroundColor: '#FBEAE7' }]}>
                   {a.decision === 'approved'
-                    ? <Check size={14} color={Colors.successDark} />
-                    : <X size={14} color="#C0392B" />}
+                    ? <Check size={14} color={Colors.successDark} strokeWidth={1.75} />
+                    : <X size={14} color="#C0392B" strokeWidth={1.75} />}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.coApprovalLabel}>
@@ -990,7 +990,7 @@ function ClientPortalSetupScreenInner() {
             testID="portal-recent-messages"
           >
             <View style={styles.messagesPreviewHeader}>
-              <MessageSquare size={14} color={themeColors.accent} />
+              <MessageSquare size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.messagesPreviewLabel}>
                 {recentMessages.length === 0 ? 'Messages' : 'Recent messages'}
               </Text>
@@ -1128,7 +1128,7 @@ function ClientPortalSetupScreenInner() {
               autoCapitalize="none"
             />
             <TouchableOpacity style={styles.inviteBtn} onPress={handleAddInvite}>
-              <Plus size={16} color="#FFF" />
+              <Plus size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.inviteBtnText}>Add Client</Text>
             </TouchableOpacity>
           </View>
@@ -1148,18 +1148,18 @@ function ClientPortalSetupScreenInner() {
                   <View style={styles.inviteRight}>
                     <View style={[styles.inviteStatus, invite.status === 'viewed' && styles.inviteStatusViewed]}>
                       {invite.status === 'viewed'
-                        ? <Eye size={10} color={themeColors.success} />
-                        : <Clock size={10} color={Colors.warning} />
+                        ? <Eye size={10} color={themeColors.success} strokeWidth={1.75} />
+                        : <Clock size={10} color={Colors.warning} strokeWidth={1.75} />
                       }
                       <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: themeColors.success }]}>
                         {invite.status === 'viewed' ? 'Viewed' : 'Pending'}
                       </Text>
                     </View>
                     <TouchableOpacity onPress={() => handleEmailInvite(invite)} style={styles.emailInviteBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Email">
-                      <Mail size={14} color={themeColors.accent} />
+                      <Mail size={14} color={themeColors.accent} strokeWidth={1.75} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleRemoveInvite(invite.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={14} color={themeColors.danger} />
+                      <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1192,7 +1192,7 @@ function ClientPortalSetupScreenInner() {
 
         {/* Danger Zone */}
         <TouchableOpacity style={styles.disableBtn} onPress={handleDisablePortal}>
-          <EyeOff size={16} color={themeColors.danger} />
+          <EyeOff size={16} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.disableBtnText}>Disable Client Portal</Text>
         </TouchableOpacity>
       </ScrollView>

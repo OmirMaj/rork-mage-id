@@ -136,14 +136,14 @@ function JobCostingInner() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Job Costing · MAGE</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add">
-          <Plus size={18} color={'#FFFFFF'} />
+          <Plus size={18} color={'#FFFFFF'} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -203,9 +203,9 @@ function JobCostingInner() {
           activeOpacity={0.8}
           testID="open-living-estimate"
         >
-          <Activity size={16} color={themeColors.info} />
+          <Activity size={16} color={themeColors.info} strokeWidth={1.75} />
           <Text style={styles.marginLinkText}>See this as projected margin at completion</Text>
-          <ChevronRight size={16} color={themeColors.textMuted} />
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
 
         {/* Snap a supplier invoice → costed line items that feed the price book */}
@@ -215,9 +215,9 @@ function JobCostingInner() {
           activeOpacity={0.8}
           testID="open-material-receipt"
         >
-          <Receipt size={16} color={themeColors.accent} />
+          <Receipt size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.marginLinkText}>Snap a material receipt to log actual cost</Text>
-          <ChevronRight size={16} color={themeColors.textMuted} />
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
 
         {/* Biggest variances call-out */}
@@ -237,7 +237,7 @@ function JobCostingInner() {
                 }]}>
                   {formatMoney(p.variance, { sign: true })}
                 </Text>
-                <ChevronRight size={16} color={themeColors.textSecondary} />
+                <ChevronRight size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
               </TouchableOpacity>
             ))}
           </View>
@@ -259,7 +259,7 @@ function JobCostingInner() {
         {summary.overcommittedCommitments.length > 0 && (
           <View style={[styles.section, styles.warningSection]}>
             <View style={styles.warningHeader}>
-              <AlertTriangle size={16} color={themeColors.danger} />
+              <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={styles.warningTitle}>Over-committed against budget</Text>
             </View>
             {summary.overcommittedCommitments.map(c => (
@@ -275,13 +275,13 @@ function JobCostingInner() {
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Commitments ({projectCommitments.length})</Text>
             <TouchableOpacity onPress={() => setShowAdd(true)} style={styles.addLink}>
-              <Plus size={14} color={themeColors.accent} />
+              <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.addLinkText}>Add</Text>
             </TouchableOpacity>
           </View>
           {projectCommitments.length === 0 ? (
             <View style={styles.emptyBox}>
-              <FileSignature size={22} color={themeColors.textMuted} />
+              <FileSignature size={22} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyText}>
                 Log signed subcontracts and POs here. They drive your cost-to-complete.
               </Text>
@@ -316,7 +316,7 @@ function JobCostingInner() {
                   </Text>
                   <StatusChip status={c.status} />
                   <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                    <Trash2 size={14} color={themeColors.danger} />
+                    <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </TouchableOpacity>
               );
@@ -516,7 +516,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{existing ? 'Edit commitment' : 'New commitment'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <ScrollView style={{ maxHeight: 500 }}>
@@ -587,7 +587,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
               <Text style={styles.btnGhostText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleSave} style={styles.btnPrimary}>
-              <Check size={16} color={'#FFFFFF'} />
+              <Check size={16} color={'#FFFFFF'} strokeWidth={1.75} />
               <Text style={styles.btnPrimaryText}>{existing ? 'Save' : 'Add'}</Text>
             </TouchableOpacity>
           </View>
@@ -627,7 +627,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{line.phase}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
           <View style={{ padding: 16 }}>
             <DetailRow label="Budget" value={formatMoneyFull(line.budget)} />

@@ -78,7 +78,7 @@ export default function AskMageScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <View style={styles.headerIcon}><MageAIMark size={16} color={themeColors.accent} accentColor={themeColors.accent} /></View>
@@ -130,7 +130,7 @@ export default function AskMageScreen() {
                 style={[styles.bubbleRow, t.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}
               >
                 {t.role === 'assistant' && t.error && (
-                  <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} />
+                  <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
                 )}
                 <View style={[styles.bubble, t.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
                   <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>

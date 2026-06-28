@@ -112,11 +112,11 @@ function JobCard({ job, onPress }: { job: JobWithDistance; onPress: () => void }
 
         <View style={styles.cardMeta}>
           <View style={styles.metaItem}>
-            <MapPin size={13} color={themeColors.textSecondary} />
+            <MapPin size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.metaText}>{job.city && job.state ? `${job.city}, ${job.state}` : job.city || job.state || 'Location not available'}</Text>
           </View>
           <View style={styles.metaItem}>
-            <DollarSign size={13} color={'#FF6A1A'} />
+            <DollarSign size={13} color={'#FF6A1A'} strokeWidth={1.75} />
             <Text style={[styles.metaText, { color: '#FF6A1A', fontWeight: '600' as const }]}>
               {formatSalary(job.salary_min, job.salary_max)}
             </Text>
@@ -126,13 +126,13 @@ function JobCard({ job, onPress }: { job: JobWithDistance; onPress: () => void }
         <View style={styles.cardFooter}>
           {job.distance !== null && (
             <View style={styles.distanceBadge}>
-              <Navigation size={11} color={themeColors.info} />
+              <Navigation size={11} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.distanceText}>{job.distance} mi</Text>
             </View>
           )}
           <View style={{ flex: 1 }} />
           <View style={styles.applyHint}>
-            <Briefcase size={12} color={'#FF6A1A'} />
+            <Briefcase size={12} color={'#FF6A1A'} strokeWidth={1.75} />
             <Text style={styles.applyHintText}>Tap to Apply</Text>
           </View>
         </View>
@@ -226,7 +226,7 @@ export default function CachedHireScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-            <ArrowLeft size={20} color={themeColors.text} />
+            <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Direct Hire</Text>
           <View style={styles.countPill}>
@@ -283,7 +283,7 @@ export default function CachedHireScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <AlertCircle size={40} color={themeColors.textMuted} />
+              <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No jobs posted yet</Text>
               <Text style={styles.emptySubtitle}>
                 Hire shows open construction jobs near you posted by other GCs. Widen the radius, clear the trade filter, or post your own job from this screen to attract subs.

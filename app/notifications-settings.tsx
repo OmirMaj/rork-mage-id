@@ -50,35 +50,35 @@ const CATEGORIES: CategoryDef[] = [
     key: 'portal_message',
     label: 'Client messages',
     description: 'Your client sends a message from the portal.',
-    icon: <MessageSquare size={18} color={"#1565C0"} />,
+    icon: <MessageSquare size={18} color={"#1565C0"} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'contract_signed',
     label: 'Contract signed',
     description: 'Your client counter-signs the construction agreement.',
-    icon: <PenTool size={18} color={Colors.successDark} />,
+    icon: <PenTool size={18} color={Colors.successDark} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'selection_chosen',
     label: 'Selection picked',
     description: 'Your client picks a tile, fixture, or other allowance option.',
-    icon: <ShoppingCart size={18} color={Colors.orange} />,
+    icon: <ShoppingCart size={18} color={Colors.orange} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'budget_proposal',
     label: 'Budget proposals',
     description: 'Your client proposes a target budget from the portal.',
-    icon: <HandCoins size={18} color={Colors.orange} />,
+    icon: <HandCoins size={18} color={Colors.orange} strokeWidth={1.75} />,
     group: 'client',
   },
   {
     key: 'co_approval',
     label: 'CO approvals',
     description: 'Your client approves or declines a change order.',
-    icon: <CheckCircle2 size={18} color={"#2E7D44"} />,
+    icon: <CheckCircle2 size={18} color={"#2E7D44"} strokeWidth={1.75} />,
     group: 'client',
   },
   // ─── Sub → GC ───
@@ -86,7 +86,7 @@ const CATEGORIES: CategoryDef[] = [
     key: 'sub_invoice',
     label: 'Sub invoices',
     description: 'A subcontractor submits an invoice through their portal.',
-    icon: <Inbox size={18} color="#AF52DE" />,
+    icon: <Inbox size={18} color="#AF52DE" strokeWidth={1.75} />,
     group: 'sub',
   },
   // ─── Marketplace ───
@@ -94,21 +94,21 @@ const CATEGORIES: CategoryDef[] = [
     key: 'nearby_rfp_posted',
     label: 'New nearby RFPs',
     description: 'A homeowner posts a project in your service area.',
-    icon: <Hammer size={18} color={Colors.purple} />,
+    icon: <Hammer size={18} color={Colors.purple} strokeWidth={1.75} />,
     group: 'marketplace',
   },
   {
     key: 'bid_question_asked',
     label: 'Pre-bid questions',
     description: 'A contractor asks a question on an RFP you posted.',
-    icon: <HelpCircle size={18} color={Colors.purple} />,
+    icon: <HelpCircle size={18} color={Colors.purple} strokeWidth={1.75} />,
     group: 'marketplace',
   },
   {
     key: 'rfp_awarded',
     label: 'RFP awarded to you',
     description: 'A homeowner picks your bid for their project.',
-    icon: <CheckCircle2 size={18} color={Colors.successDark} />,
+    icon: <CheckCircle2 size={18} color={Colors.successDark} strokeWidth={1.75} />,
     group: 'marketplace',
   },
 ];
@@ -350,7 +350,7 @@ export default function NotificationsSettingsScreen() {
           title: 'Notifications',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -361,7 +361,7 @@ export default function NotificationsSettingsScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroIcon}>
-            <Bell size={20} color={themeColors.accent} />
+            <Bell size={20} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroTitle}>Stay in the loop</Text>
           <Text style={styles.heroBody}>
@@ -381,7 +381,7 @@ export default function NotificationsSettingsScreen() {
         {(pushPermStatus === 'undetermined' || pushPermStatus === 'denied') && (
           <View style={styles.permBanner}>
             <View style={styles.permIcon}>
-              <Bell size={18} color="#FFF" />
+              <Bell size={18} color="#FFF" strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.permTitle}>
@@ -425,7 +425,7 @@ export default function NotificationsSettingsScreen() {
           <View style={styles.digestCard}>
             <View style={styles.digestHeader}>
               <View style={styles.digestIcon}>
-                <Sunrise size={18} color="#FFF" />
+                <Sunrise size={18} color="#FFF" strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.digestTitle}>Send me a daily brief</Text>
@@ -453,7 +453,7 @@ export default function NotificationsSettingsScreen() {
                     crews and overseas users. */}
                 <View style={styles.digestRow}>
                   <View style={styles.digestRowLabel}>
-                    <Clock size={14} color={themeColors.textMuted} />
+                    <Clock size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.digestRowLabelText}>When</Text>
                   </View>
                   <Text style={styles.digestRowValue}>{formatHour(digestHour)}</Text>
@@ -484,7 +484,7 @@ export default function NotificationsSettingsScreen() {
                     digests to mobile push because it's noisy at 6 AM. */}
                 <View style={styles.channelRow}>
                   <View style={styles.channelInfo}>
-                    <Mail size={16} color={themeColors.text} />
+                    <Mail size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.channelLabel}>Email</Text>
                   </View>
                   <Switch
@@ -496,7 +496,7 @@ export default function NotificationsSettingsScreen() {
                 </View>
                 <View style={styles.channelRow}>
                   <View style={styles.channelInfo}>
-                    <Smartphone size={16} color={themeColors.text} />
+                    <Smartphone size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.channelLabel}>In-app inbox</Text>
                   </View>
                   <Switch
@@ -516,7 +516,7 @@ export default function NotificationsSettingsScreen() {
                     in that brief." */}
                 <View style={styles.locationCard}>
                   <View style={styles.locationHeader}>
-                    <MapPin size={14} color={locationCoverage.geocoded === locationCoverage.total ? themeColors.success : '#7A4500'} />
+                    <MapPin size={14} color={locationCoverage.geocoded === locationCoverage.total ? themeColors.success : '#7A4500'} strokeWidth={1.75} />
                     <Text style={styles.locationTitle}>
                       {locationCoverage.total === 0
                         ? 'No active projects yet'
@@ -554,7 +554,7 @@ export default function NotificationsSettingsScreen() {
                   activeOpacity={0.85}
                   style={[styles.previewBtn, previewing && { opacity: 0.6 }]}
                 >
-                  <Send size={14} color="#FFF" />
+                  <Send size={14} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.previewBtnText}>
                     {previewing ? 'Sending preview…' : "Send today's preview now"}
                   </Text>

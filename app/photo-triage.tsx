@@ -356,7 +356,7 @@ export default function PhotoTriageScreen() {
           title: 'AI Photo Triage',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -377,11 +377,11 @@ export default function PhotoTriageScreen() {
             {/* Picker actions */}
             <View style={styles.actionRow}>
               <TouchableOpacity onPress={handleTakePhoto} style={styles.actionBtn} activeOpacity={0.85}>
-                <Camera size={16} color={themeColors.text} />
+                <Camera size={16} color={themeColors.text} strokeWidth={1.75} />
                 <Text style={styles.actionBtnText}>Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handlePickFromCameraRoll} style={styles.actionBtn} activeOpacity={0.85}>
-                <ImagePlus size={16} color={themeColors.text} />
+                <ImagePlus size={16} color={themeColors.text} strokeWidth={1.75} />
                 <Text style={styles.actionBtnText}>Library</Text>
               </TouchableOpacity>
             </View>
@@ -403,7 +403,7 @@ export default function PhotoTriageScreen() {
                         <Image source={{ uri: p.uri }} style={styles.galleryImage} />
                         {picked && (
                           <View style={styles.galleryCheck}>
-                            <Sparkle size={12} color="#FFF" />
+                            <Sparkle size={12} color="#FFF" strokeWidth={1.75} />
                           </View>
                         )}
                       </TouchableOpacity>
@@ -425,7 +425,7 @@ export default function PhotoTriageScreen() {
                         onPress={() => setPickedPhotos(prev => prev.filter(x => x.id !== p.id))}
                         style={styles.removeChip}
                       >
-                        <X size={12} color="#FFF" />
+                        <X size={12} color="#FFF" strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -452,7 +452,7 @@ export default function PhotoTriageScreen() {
 
             {error && (
               <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={themeColors.danger} />
+                <AlertCircle size={14} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -524,7 +524,7 @@ export default function PhotoTriageScreen() {
                         </View>
                       </View>
                       <TouchableOpacity onPress={() => discardEntry(e.id)} style={styles.discardBtn}>
-                        <Trash2 size={14} color={themeColors.textMuted} />
+                        <Trash2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                   ))}

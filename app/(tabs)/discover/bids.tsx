@@ -197,12 +197,12 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
           )}
           {bid.isConstruction && (
             <View style={styles.constructionBadge}>
-              <Hammer size={10} color="#3D2A0F" />
+              <Hammer size={10} color="#3D2A0F" strokeWidth={1.75} />
               <Text style={styles.constructionText}>Construction</Text>
             </View>
           )}
           <View style={[styles.countdownBadge, { backgroundColor: deadlineInfo.bgColor }]}>
-            <Clock size={11} color={deadlineInfo.color} />
+            <Clock size={11} color={deadlineInfo.color} strokeWidth={1.75} />
             <Text style={[styles.countdownText, { color: deadlineInfo.color }]}>{deadlineInfo.text}</Text>
           </View>
         </View>
@@ -215,12 +215,12 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
 
         <View style={styles.bidMeta}>
           <View style={styles.metaItem}>
-            <MapPin size={13} color={themeColors.textSecondary} />
+            <MapPin size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.metaText} numberOfLines={1}>{locationLabel}</Text>
           </View>
           {bid.distance !== null && (
             <View style={styles.distanceTag}>
-              <Navigation size={10} color={themeColors.info} />
+              <Navigation size={10} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.distanceTagText}>{bid.distance} mi</Text>
             </View>
           )}
@@ -475,7 +475,7 @@ export default function CachedBidsScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-            <ArrowLeft size={20} color={themeColors.text} />
+            <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Public Bids</Text>
@@ -491,14 +491,14 @@ export default function CachedBidsScreen() {
             onPress={() => { setShowSortDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
             activeOpacity={0.7}
           >
-            <ArrowUpDown size={14} color={themeColors.text} />
+            <ArrowUpDown size={14} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.sortBtnText}>{sortLabel}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Search box */}
         <View style={styles.searchWrap}>
-          <Search size={15} color={themeColors.textMuted} />
+          <Search size={15} color={themeColors.textMuted} strokeWidth={1.75} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -511,7 +511,7 @@ export default function CachedBidsScreen() {
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={15} color={themeColors.textMuted} />
+              <X size={15} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -523,7 +523,7 @@ export default function CachedBidsScreen() {
             onPress={() => { setConstructionOnly(!constructionOnly); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
             activeOpacity={0.85}
           >
-            <Hammer size={12} color={constructionOnly ? '#FFF' : themeColors.textSecondary} />
+            <Hammer size={12} color={constructionOnly ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.pillText, constructionOnly && styles.pillTextActive]}>Construction</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -531,11 +531,11 @@ export default function CachedBidsScreen() {
             onPress={() => { setShowSetAsideDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
             activeOpacity={0.85}
           >
-            <Filter size={12} color={selectedSetAside ? '#FFF' : themeColors.textSecondary} />
+            <Filter size={12} color={selectedSetAside ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.pillText, selectedSetAside ? styles.pillTextActive : null]} numberOfLines={1}>
               {selectedSetAside ?? 'Set-aside'}
             </Text>
-            <ChevronDown size={12} color={selectedSetAside ? '#FFF' : themeColors.textSecondary} />
+            <ChevronDown size={12} color={selectedSetAside ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -553,7 +553,7 @@ export default function CachedBidsScreen() {
             onPress={() => handleLocationModeChange('nearby')}
             activeOpacity={0.85}
           >
-            <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : themeColors.textSecondary} />
+            <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.pillText, locationMode === 'nearby' && styles.pillTextActive]}>Near me</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -561,7 +561,7 @@ export default function CachedBidsScreen() {
             onPress={() => handleLocationModeChange('city')}
             activeOpacity={0.85}
           >
-            <Building size={12} color={locationMode === 'city' ? '#FFF' : themeColors.textSecondary} />
+            <Building size={12} color={locationMode === 'city' ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.pillText, locationMode === 'city' && styles.pillTextActive]}>City</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -572,7 +572,7 @@ export default function CachedBidsScreen() {
             <Text style={[styles.pillText, locationMode === 'state' && styles.pillTextActive]}>
               {selectedState ?? 'State'}
             </Text>
-            <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : themeColors.textSecondary} />
+            <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -649,7 +649,7 @@ export default function CachedBidsScreen() {
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Sort by</Text>
               <TouchableOpacity onPress={() => setShowSortDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.text} />
+                <X size={20} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             {SORT_OPTIONS.map((opt) => (
@@ -678,7 +678,7 @@ export default function CachedBidsScreen() {
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Set-aside type</Text>
               <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.text} />
+                <X size={20} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -711,7 +711,7 @@ export default function CachedBidsScreen() {
 
       {bidsQueryError ? (
         <View style={styles.loadingContainer}>
-          <AlertCircle size={40} color="#D32F2F" />
+          <AlertCircle size={40} color="#D32F2F" strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>Couldn't load bids</Text>
           <Text style={styles.emptySubtitle}>{bidsQueryError.message}</Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
@@ -734,7 +734,7 @@ export default function CachedBidsScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <AlertCircle size={40} color={themeColors.textMuted} />
+              <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No bids match these filters</Text>
               <Text style={styles.emptySubtitle}>
                 {totalCount > 0

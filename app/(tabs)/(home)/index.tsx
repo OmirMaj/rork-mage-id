@@ -715,7 +715,7 @@ export default function HomeScreen() {
                           {entry.activeTaskTitles.join(' · ')}
                         </Text>
                       </View>
-                      <ChevronRight size={14} color={themeColors.textMuted} />
+                      <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -741,7 +741,7 @@ export default function HomeScreen() {
                 testID="stripe-connect-home-banner"
               >
                 <View style={styles.stripeBannerIcon}>
-                  <Wallet size={20} color="#FFFFFF" />
+                  <Wallet size={20} color="#FFFFFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.stripeBannerTitle}>Get paid in one tap</Text>
@@ -749,7 +749,7 @@ export default function HomeScreen() {
                     Connect Stripe so clients can pay invoices from their phone. Takes 2 minutes.
                   </Text>
                 </View>
-                <ChevronRight size={18} color="#FFFFFF" style={{ opacity: 0.85 }} />
+                <ChevronRight size={18} color="#FFFFFF" style={{ opacity: 0.85 }} strokeWidth={1.75} />
                 <TouchableOpacity
                   onPress={handleDismissStripeBanner}
                   hitSlop={8}
@@ -757,7 +757,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Dismiss"
                 >
-                  <X size={14} color="#FFFFFF" />
+                  <X size={14} color="#FFFFFF" strokeWidth={1.75} />
                 </TouchableOpacity>
               </TouchableOpacity>
             )}
@@ -804,7 +804,7 @@ export default function HomeScreen() {
                     Tap to create your own and start for real.
                   </Text>
                 </View>
-                <ChevronRight size={18} color={themeColors.textMuted} />
+                <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ) : projects.length > 0 ? (
               <NextStepHero
@@ -840,7 +840,7 @@ export default function HomeScreen() {
               <View style={styles.createModalHeader}>
                 <Text style={styles.createModalTitle}>New Project</Text>
                 <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -925,7 +925,7 @@ export default function HomeScreen() {
                 <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
                 <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
               </View>
-              <ChevronRight size={18} color={themeColors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
@@ -934,7 +934,7 @@ export default function HomeScreen() {
                 <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
                 <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>
               </View>
-              <ChevronRight size={18} color={themeColors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.laterBtn} onPress={() => handleNextStep('later')} activeOpacity={0.7}>

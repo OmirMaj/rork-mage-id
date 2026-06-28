@@ -70,7 +70,7 @@ function EstimateAccuracyInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Estimate Accuracy · MAGE</Text>
@@ -113,7 +113,7 @@ function EstimateAccuracyInner() {
               <Text style={styles.kpiValue}>{formatMoney(report.totalBid)}</Text>
               <Text style={styles.kpiSub}>estimated cost</Text>
             </View>
-            <ArrowRight size={14} color={t.textMuted} style={styles.kpiArrow} />
+            <ArrowRight size={14} color={t.textMuted} style={styles.kpiArrow} strokeWidth={1.75} />
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Committed</Text>
               <Text style={[styles.kpiValue, { color: overallVarColor(report.totalCommitted - report.totalBid) }]}>{formatMoney(report.totalCommitted)}</Text>
@@ -123,7 +123,7 @@ function EstimateAccuracyInner() {
             </View>
             {report.hasActuals && (
               <>
-                <ArrowRight size={14} color={t.textMuted} style={styles.kpiArrow} />
+                <ArrowRight size={14} color={t.textMuted} style={styles.kpiArrow} strokeWidth={1.75} />
                 <View style={styles.kpiCard}>
                   <Text style={styles.kpiLabel}>Actual</Text>
                   <Text style={[styles.kpiValue, { color: overallVarColor(report.totalActual - report.totalBid) }]}>{formatMoney(report.totalActual)}</Text>
@@ -137,7 +137,7 @@ function EstimateAccuracyInner() {
 
           {report.coveragePct < 99 && report.totalCommitted > 0 && (
             <View style={styles.disclose}>
-              <Info size={15} color={t.accent} />
+              <Info size={15} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.discloseText}>
                 {report.coveragePct.toFixed(0)}% of committed cost is traced to estimate lines.
                 {report.untracedCommitmentCount > 0
@@ -149,7 +149,7 @@ function EstimateAccuracyInner() {
 
           {!report.hasActuals && (
             <View style={styles.disclose}>
-              <Info size={15} color={t.textMuted} />
+              <Info size={15} color={t.textMuted} strokeWidth={1.75} />
               <Text style={styles.discloseText}>
                 No actuals yet — showing bid vs committed. Record sub/PO payments and the actual column fills in per line.
               </Text>
@@ -169,7 +169,7 @@ function EstimateAccuracyInner() {
                 </View>
                 {vp !== null && (ref > 0) ? (
                   <View style={[styles.varPill, { backgroundColor: overallVarColor(ref - tr.bid) + '1F' }]}>
-                    {ref - tr.bid > 0 ? <TrendingUp size={11} color={t.danger} /> : <TrendingDown size={11} color={t.success} />}
+                    {ref - tr.bid > 0 ? <TrendingUp size={11} color={t.danger} strokeWidth={1.75} /> : <TrendingDown size={11} color={t.success} strokeWidth={1.75} />}
                     <Text style={[styles.varText, { color: overallVarColor(ref - tr.bid) }]}>{pctStr(vp)}</Text>
                   </View>
                 ) : (
@@ -191,9 +191,9 @@ function EstimateAccuracyInner() {
             activeOpacity={0.7}
             testID="estimate-accuracy-cost-db-link"
           >
-            <Library size={16} color={t.accent} />
+            <Library size={16} color={t.accent} strokeWidth={1.75} />
             <Text style={styles.crossLinkText}>See your cost database — rates learned from every closed job</Text>
-            <ChevronRight size={16} color={t.textMuted} />
+            <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
           <Text style={styles.note}>

@@ -115,7 +115,7 @@ export default function ImportPipelineScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Bring your book of business</Text>
@@ -129,14 +129,14 @@ export default function ImportPipelineScreen() {
           style={[styles.segment, mode === 'paste' && styles.segmentActive]}
           onPress={() => { setMode('paste'); setReviewing(false); }}
         >
-          <ClipboardPaste size={14} color={mode === 'paste' ? themeColors.accent : themeColors.textMuted} />
+          <ClipboardPaste size={14} color={mode === 'paste' ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.segmentText, mode === 'paste' && styles.segmentTextActive]}>Paste list</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.segment, mode === 'contacts' && styles.segmentActive]}
           onPress={() => { setMode('contacts'); setReviewing(false); }}
         >
-          <Users size={14} color={mode === 'contacts' ? themeColors.accent : themeColors.textMuted} />
+          <Users size={14} color={mode === 'contacts' ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.segmentText, mode === 'contacts' && styles.segmentTextActive]}>
             From contacts{importableContacts.length > 0 ? ` · ${importableContacts.length}` : ''}
           </Text>
@@ -190,23 +190,23 @@ export default function ImportPipelineScreen() {
                   <Text style={styles.draftName}>{d.name}</Text>
                   <View style={styles.draftMeta}>
                     {!!d.phone && (
-                      <View style={styles.draftChip}><Phone size={10} color={themeColors.textMuted} /><Text style={styles.draftChipText}>{d.phone}</Text></View>
+                      <View style={styles.draftChip}><Phone size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.draftChipText}>{d.phone}</Text></View>
                     )}
                     {!!d.email && <View style={styles.draftChip}><Text style={styles.draftChipText}>{d.email}</Text></View>}
                     {(d.budgetMax != null) && (
-                      <View style={styles.draftChip}><DollarSign size={10} color={themeColors.accent} /><Text style={styles.draftChipText}>{formatMoney(d.budgetMax)}</Text></View>
+                      <View style={styles.draftChip}><DollarSign size={10} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.draftChipText}>{formatMoney(d.budgetMax)}</Text></View>
                     )}
                   </View>
                   {!!d.projectType && <Text style={styles.draftProject} numberOfLines={1}>{d.projectType}</Text>}
                 </View>
                 <TouchableOpacity onPress={() => removeDraft(i)} hitSlop={8} style={styles.draftRemove}>
-                  <Trash2 size={15} color={themeColors.danger} />
+                  <Trash2 size={15} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             ))}
             <View style={styles.reviewActions}>
               <TouchableOpacity style={styles.secondaryBtn} onPress={() => setReviewing(false)} activeOpacity={0.8}>
-                <X size={15} color={themeColors.text} />
+                <X size={15} color={themeColors.text} strokeWidth={1.75} />
                 <Text style={styles.secondaryBtnText}>Back to edit</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -216,7 +216,7 @@ export default function ImportPipelineScreen() {
                 activeOpacity={0.85}
                 testID="import-commit"
               >
-                <Check size={16} color="#FFF" />
+                <Check size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.primaryBtnText}>Import {drafts.length}</Text>
               </TouchableOpacity>
             </View>
@@ -226,7 +226,7 @@ export default function ImportPipelineScreen() {
         {mode === 'contacts' && (
           importableContacts.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Users size={26} color={themeColors.textMuted} />
+              <Users size={26} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No contacts to import</Text>
               <Text style={styles.emptyBody}>
                 Every contact is already in your pipeline, or you haven&apos;t added contacts yet.
@@ -248,7 +248,7 @@ export default function ImportPipelineScreen() {
                     <Text style={styles.draftName}>{`${c.firstName} ${c.lastName}`.trim() || c.companyName}</Text>
                     <View style={styles.draftMeta}>
                       {!!c.role && <View style={styles.draftChip}><Text style={styles.draftChipText}>{c.role}</Text></View>}
-                      {!!c.phone && <View style={styles.draftChip}><Phone size={10} color={themeColors.textMuted} /><Text style={styles.draftChipText}>{c.phone}</Text></View>}
+                      {!!c.phone && <View style={styles.draftChip}><Phone size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.draftChipText}>{c.phone}</Text></View>}
                     </View>
                   </View>
                   <View style={styles.addPill}><Text style={styles.addPillText}>Add</Text></View>

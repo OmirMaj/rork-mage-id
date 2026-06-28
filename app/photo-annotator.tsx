@@ -273,11 +273,11 @@ export default function PhotoAnnotatorScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.title}>Markup</Text>
         <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-          <Check size={16} color={themeColors.surface} />
+          <Check size={16} color={themeColors.surface} strokeWidth={1.75} />
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
       </View>
@@ -313,9 +313,9 @@ export default function PhotoAnnotatorScreen() {
               maxLength={28}
               testID="annotator-text-input"
             />
-            <TouchableOpacity onPress={commitText} style={styles.textOk} accessibilityRole="button" accessibilityLabel="Confirm"><Check size={16} color={themeColors.surface} /></TouchableOpacity>
+            <TouchableOpacity onPress={commitText} style={styles.textOk} accessibilityRole="button" accessibilityLabel="Confirm"><Check size={16} color={themeColors.surface} strokeWidth={1.75} /></TouchableOpacity>
             <TouchableOpacity onPress={() => { setPendingText(null); setTextValue(''); }} style={styles.textCancel} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={16} color={themeColors.textMuted} />
+              <X size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -360,11 +360,11 @@ export default function PhotoAnnotatorScreen() {
         {/* Action row */}
         <View style={styles.actionRow}>
           <TouchableOpacity onPress={handleUndo} disabled={!markups.length} style={[styles.actionBtn, !markups.length && styles.actionDisabled]}>
-            <Undo2 size={16} color={markups.length ? themeColors.text : themeColors.textMuted} />
+            <Undo2 size={16} color={markups.length ? themeColors.text : themeColors.textMuted} strokeWidth={1.75} />
             <Text style={[styles.actionText, !markups.length && styles.actionTextDisabled]}>Undo</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleClear} disabled={!markups.length} style={[styles.actionBtn, !markups.length && styles.actionDisabled]}>
-            <Trash2 size={16} color={markups.length ? themeColors.danger : themeColors.textMuted} />
+            <Trash2 size={16} color={markups.length ? themeColors.danger : themeColors.textMuted} strokeWidth={1.75} />
             <Text style={[styles.actionText, { color: markups.length ? themeColors.danger : themeColors.textMuted }]}>Clear all</Text>
           </TouchableOpacity>
         </View>

@@ -1310,7 +1310,7 @@ function ScheduleProScreenInner() {
       {/* Custom header — the RN stack header is too cramped for our action row */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <ChevronLeft size={20} color={themeColors.accent} />
+          <ChevronLeft size={20} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.headerBackText}>Back</Text>
         </TouchableOpacity>
 

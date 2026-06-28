@@ -148,11 +148,11 @@ export default function ManagedPropertyScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={8}><ChevronLeft size={26} color={themeColors.accent} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={8}><ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
           <Text style={styles.headerTitle}>Property</Text>
         </View>
         <View style={styles.missingWrap}>
-          <AlertTriangle size={28} color={themeColors.textMuted} />
+          <AlertTriangle size={28} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.missingText}>This property could not be found.</Text>
         </View>
       </View>
@@ -165,11 +165,11 @@ export default function ManagedPropertyScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{property.name}</Text>
         <TouchableOpacity onPress={openEdit} hitSlop={8} accessibilityLabel="Edit property">
-          <Pencil size={18} color={themeColors.accent} />
+          <Pencil size={18} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -183,7 +183,7 @@ export default function ManagedPropertyScreen() {
           <Text style={styles.propName}>{property.name}</Text>
           {!!property.address && (
             <View style={styles.propMetaRow}>
-              <MapPin size={13} color={themeColors.textMuted} />
+              <MapPin size={13} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.propMetaText}>{property.address}</Text>
             </View>
           )}
@@ -198,14 +198,14 @@ export default function ManagedPropertyScreen() {
         <View style={styles.woHeadRow}>
           <Text style={styles.sectionTitle}>Work orders</Text>
           <TouchableOpacity style={styles.addWoBtn} onPress={() => setWoOpen(true)} activeOpacity={0.85} testID="add-work-order">
-            <Plus size={15} color="#FFF" />
+            <Plus size={15} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.addWoBtnText}>New</Text>
           </TouchableOpacity>
         </View>
 
         {workOrders.length === 0 ? (
           <View style={styles.emptyWo}>
-            <Wrench size={22} color={themeColors.textMuted} />
+            <Wrench size={22} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyWoText}>No work orders yet. Log a repair or maintenance task and dispatch it to a contractor.</Text>
           </View>
         ) : (
@@ -221,7 +221,7 @@ export default function ManagedPropertyScreen() {
         )}
 
         <TouchableOpacity style={styles.deleteRow} onPress={handleDelete} activeOpacity={0.7}>
-          <Trash2 size={15} color={themeColors.danger} />
+          <Trash2 size={15} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.deleteRowText}>Delete property</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -233,7 +233,7 @@ export default function ManagedPropertyScreen() {
             <View style={styles.modalHandle} />
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Edit property</Text>
-              <TouchableOpacity onPress={() => setEditOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setEditOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Field label="Name"><TextInput style={styles.input} value={eName} onChangeText={setEName} placeholderTextColor={themeColors.textMuted} /></Field>
@@ -243,7 +243,7 @@ export default function ManagedPropertyScreen() {
               <Field label="Owner phone"><TextInput style={styles.input} value={eOwnerPhone} onChangeText={setEOwnerPhone} keyboardType="phone-pad" placeholderTextColor={themeColors.textMuted} /></Field>
             </ScrollView>
             <TouchableOpacity style={[styles.modalCta, !eName.trim() && styles.modalCtaDisabled]} onPress={saveEdit} disabled={!eName.trim()} activeOpacity={0.85}>
-              <Check size={16} color="#FFF" />
+              <Check size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.modalCtaText}>Save</Text>
             </TouchableOpacity>
           </View>
@@ -256,9 +256,9 @@ export default function ManagedPropertyScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHead}>
-              <View style={styles.modalHeadIcon}><Wrench size={15} color="#FFF" /></View>
+              <View style={styles.modalHeadIcon}><Wrench size={15} color="#FFF" strokeWidth={1.75} /></View>
               <Text style={styles.modalTitle}>New work order</Text>
-              <TouchableOpacity onPress={() => { setWoOpen(false); resetWoDraft(); }} hitSlop={8}><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => { setWoOpen(false); resetWoDraft(); }} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Field label="What needs doing?">
@@ -289,7 +289,7 @@ export default function ManagedPropertyScreen() {
               </Field>
             </ScrollView>
             <TouchableOpacity style={[styles.modalCta, !woTitle.trim() && styles.modalCtaDisabled]} onPress={handleAddWo} disabled={!woTitle.trim()} activeOpacity={0.85} testID="wo-submit">
-              <Plus size={16} color="#FFF" />
+              <Plus size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.modalCtaText}>Create work order</Text>
             </TouchableOpacity>
           </View>
@@ -326,7 +326,7 @@ function WorkOrderRow({ wo, onPress, styles, themeColors }: {
       <View style={[styles.woStatusPill, { backgroundColor: STATUS_COLORS[wo.status] + '1A' }]}>
         <Text style={[styles.woStatusText, { color: STATUS_COLORS[wo.status] }]}>{WORK_ORDER_STATUS_LABELS[wo.status]}</Text>
       </View>
-      <ChevronRight size={15} color={themeColors.textMuted} />
+      <ChevronRight size={15} color={themeColors.textMuted} strokeWidth={1.75} />
     </TouchableOpacity>
   );
 }

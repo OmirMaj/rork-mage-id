@@ -960,7 +960,7 @@ export default function ProjectDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
         <View style={detailStyles.heroSection}>
           <View style={detailStyles.heroIconWrap}>
-            <BarChart3 size={28} color={themeColors.accent} />
+            <BarChart3 size={28} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={detailStyles.heroAmount}>{formatMoney(estimate.grandTotal)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Project Value</Text>
@@ -1078,7 +1078,7 @@ export default function ProjectDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
         <View style={detailStyles.heroSection}>
           <View style={[detailStyles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
-            <TrendingDown size={28} color={themeColors.success} />
+            <TrendingDown size={28} color={themeColors.success} strokeWidth={1.75} />
           </View>
           <Text style={[detailStyles.heroAmount, { color: themeColors.success }]}>{formatMoney(savingsBreakdown.totalBulkSavings)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
@@ -1186,7 +1186,7 @@ export default function ProjectDetailScreen() {
   // a missing project via the optional chain in the title fallback.
   const headerRight = useCallback(
     () => (
-      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={themeColors.accent} /></TouchableOpacity>
+      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
     ),
     [openEditModal],
   );
@@ -1233,7 +1233,7 @@ export default function ProjectDetailScreen() {
             <View style={styles.heroTitleBlock}>
               <Text style={styles.heroName}>{project.name}</Text>
               <View style={styles.heroMeta}>
-                <MapPin size={14} color={themeColors.textMuted} />
+                <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.heroMetaText}>{project.location}</Text>
               </View>
               {project.description ? (
@@ -1282,7 +1282,7 @@ export default function ProjectDetailScreen() {
                       <Text style={[styles.smallStatValue, { color: themeColors.success }]}>
                         {formatMoney(estimate.bulkSavingsTotal)}
                       </Text>
-                      <ArrowDownRight size={10} color="rgba(255,255,255,0.5)" />
+                      <ArrowDownRight size={10} color="rgba(255,255,255,0.5)" strokeWidth={1.75} />
                     </TouchableOpacity>
                   </>
                 )}
@@ -1387,7 +1387,7 @@ export default function ProjectDetailScreen() {
             testID="project-weekly-snapshot-btn"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <CalendarDays size={18} color={themeColors.accent} />
+              <CalendarDays size={18} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>This Week</Text>
           </TouchableOpacity>
@@ -1398,7 +1398,7 @@ export default function ProjectDetailScreen() {
             testID="project-cash-flow-btn"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: themeColors.success + '15' }]}>
-              <Wallet size={18} color={themeColors.success} />
+              <Wallet size={18} color={themeColors.success} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>Cash Flow</Text>
           </TouchableOpacity>
@@ -1410,7 +1410,7 @@ export default function ProjectDetailScreen() {
               testID="project-create-estimate-btn"
             >
               <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                <Receipt size={18} color={themeColors.accent} />
+                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <Text style={styles.quickActionLabel}>Estimate</Text>
             </TouchableOpacity>
@@ -1423,7 +1423,7 @@ export default function ProjectDetailScreen() {
               testID="project-create-schedule-btn"
             >
               <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
-                <CalendarDays size={18} color={themeColors.info} />
+                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
               </View>
               <Text style={styles.quickActionLabel}>Schedule</Text>
             </TouchableOpacity>
@@ -1436,7 +1436,7 @@ export default function ProjectDetailScreen() {
               testID="project-view-schedule-btn"
             >
               <View style={[styles.quickActionIcon, { backgroundColor: themeColors.info + '15' }]}>
-                <CalendarDays size={18} color={themeColors.info} />
+                <CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />
               </View>
               <Text style={styles.quickActionLabel}>Schedule</Text>
             </TouchableOpacity>
@@ -1449,7 +1449,7 @@ export default function ProjectDetailScreen() {
               testID="project-view-estimate-btn"
             >
               <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-                <Receipt size={18} color={themeColors.accent} />
+                <Receipt size={18} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <Text style={styles.quickActionLabel}>Estimate</Text>
             </TouchableOpacity>
@@ -1461,7 +1461,7 @@ export default function ProjectDetailScreen() {
             testID="project-payment-forecast-btn"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <TrendingDown size={18} color={themeColors.accent} />
+              <TrendingDown size={18} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>Forecast</Text>
           </TouchableOpacity>
@@ -1473,7 +1473,7 @@ export default function ProjectDetailScreen() {
             testID="project-closeout-packet-btn"
           >
             <View style={[styles.quickActionIcon, { backgroundColor: themeColors.accent + '15' }]}>
-              <Archive size={18} color={themeColors.accent} />
+              <Archive size={18} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
             {/* Concrete-pour progress bar appears under the button while
@@ -1617,7 +1617,7 @@ export default function ProjectDetailScreen() {
                 {lockedTileKeys.has(tile.key) && (
                   <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 4 }} />
                 )}
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </HardHatTap>
             );
           };
@@ -1647,7 +1647,7 @@ export default function ProjectDetailScreen() {
                           <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
                         </View>
                       )}
-                      {collapsed ? <ChevronDown size={18} color={themeColors.textMuted} /> : <ChevronUp size={18} color={themeColors.textMuted} />}
+                      {collapsed ? <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
                     </TouchableOpacity>
                     {/* No wrapper — conditional render only. LayoutAnimation
                         in toggleGroup() handles the smooth open/close.
@@ -1680,7 +1680,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="section-modal-back"
               >
-                <ChevronLeft size={22} color={themeColors.text} />
+                <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                 <Text style={styles.sectionModalBackText}>Back</Text>
               </TouchableOpacity>
               <Text style={styles.sectionModalTitle} numberOfLines={1}>
@@ -1719,14 +1719,14 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="linked-estimate-section"
             >
-              <ShoppingCart size={20} color={themeColors.accent} />
+              <ShoppingCart size={20} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>
                 Estimate Items — {formatMoney(linkedEstimate.grandTotal, 2)}
               </Text>
               {expanded.linkedEstimate ? (
-                <ChevronUp size={18} color={themeColors.textMuted} />
+                <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               ) : (
-                <ChevronDown size={18} color={themeColors.textMuted} />
+                <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               )}
             </TouchableOpacity>
 
@@ -1764,7 +1764,7 @@ export default function ProjectDetailScreen() {
                         </Text>
                         {item.usesBulk && (
                           <View style={styles.bulkBadge}>
-                            <TrendingDown size={10} color={themeColors.success} />
+                            <TrendingDown size={10} color={themeColors.success} strokeWidth={1.75} />
                             <Text style={styles.bulkBadgeText}>Bulk rate</Text>
                           </View>
                         )}
@@ -1814,9 +1814,9 @@ export default function ProjectDetailScreen() {
                     activeOpacity={0.7}
                     testID="estimate-view-schedule-link"
                   >
-                    <CalendarDays size={16} color={themeColors.info} />
+                    <CalendarDays size={16} color={themeColors.info} strokeWidth={1.75} />
                     <Text style={styles.crossLinkText}>View Schedule ({Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0} tasks · {project.schedule.totalDurationDays ?? 0}d)</Text>
-                    <ChevronRight size={16} color={themeColors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1853,7 +1853,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="save-estimate-revision-btn"
             >
-              <Layers size={16} color={themeColors.accent} />
+              <Layers size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.revSaveBtnText}>Save as Revision</Text>
             </TouchableOpacity>
 
@@ -1883,7 +1883,7 @@ export default function ProjectDetailScreen() {
                         </Text>
                       </View>
                       <Text style={styles.revRowTotal}>{formatMoney(rev.grandTotal)}</Text>
-                      <ChevronRight size={16} color={themeColors.textMuted} />
+                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1904,7 +1904,7 @@ export default function ProjectDetailScreen() {
                     activeOpacity={1}
                     testID="create-proposal-disabled"
                   >
-                    <FileText size={16} color={themeColors.accent} />
+                    <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.revSaveBtnText}>Create Proposal — save a revision first</Text>
                   </TouchableOpacity>
                 );
@@ -1936,7 +1936,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="create-proposal-btn"
                 >
-                  <FileText size={16} color={themeColors.accent} />
+                  <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.revSaveBtnText}>Create Proposal from Revision</Text>
                 </TouchableOpacity>
               );
@@ -1952,12 +1952,12 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="project-schedule-section"
             >
-              <CalendarDays size={20} color={themeColors.info} />
+              <CalendarDays size={20} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Schedule</Text>
               {expanded.schedule ? (
-                <ChevronUp size={18} color={themeColors.textMuted} />
+                <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               ) : (
-                <ChevronDown size={18} color={themeColors.textMuted} />
+                <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               )}
             </TouchableOpacity>
 
@@ -1996,9 +1996,9 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="schedule-open-full-link"
                 >
-                  <CalendarDays size={16} color={themeColors.info} />
+                  <CalendarDays size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={styles.crossLinkText}>Open Full Schedule</Text>
-                  <ChevronRight size={16} color={themeColors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
 
                 {hasAnyEstimate && (
@@ -2008,9 +2008,9 @@ export default function ProjectDetailScreen() {
                     activeOpacity={estimate ? 0.7 : 1}
                     testID="schedule-view-estimate-link"
                   >
-                    <Receipt size={16} color={themeColors.accent} />
+                    <Receipt size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.crossLinkText}>View Estimate ({formatMoney(heroTotal)})</Text>
-                    <ChevronRight size={16} color={themeColors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 )}
                 {!hasAnyEstimate && (
@@ -2020,9 +2020,9 @@ export default function ProjectDetailScreen() {
                     activeOpacity={0.7}
                     testID="schedule-create-estimate-link"
                   >
-                    <Receipt size={16} color={themeColors.accent} />
+                    <Receipt size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.crossLinkText}>Create Estimate for This Project</Text>
-                    <ChevronRight size={16} color={themeColors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 )}
                 {/* Dispatch to the marketplace — post this project's scope so
@@ -2043,9 +2043,9 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="project-post-for-bids"
                 >
-                  <Hammer size={16} color={themeColors.accent} />
+                  <Hammer size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.crossLinkText}>Post this project for bids</Text>
-                  <ChevronRight size={16} color={themeColors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             )}
@@ -2060,14 +2060,14 @@ export default function ProjectDetailScreen() {
                 onPress={() => toggleSection('materials')}
                 activeOpacity={0.7}
               >
-                <Package size={20} color={themeColors.accent} />
+                <Package size={20} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.sectionTitle}>
                   Materials — {formatMoney(estimate.materialTotal)}
                 </Text>
                 {expanded.materials ? (
-                  <ChevronUp size={18} color={themeColors.textMuted} />
+                  <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                 ) : (
-                  <ChevronDown size={18} color={themeColors.textMuted} />
+                  <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                 )}
               </TouchableOpacity>
 
@@ -2085,7 +2085,7 @@ export default function ProjectDetailScreen() {
                         <Text style={styles.tableCellName} numberOfLines={1}>{item.name}</Text>
                         {(item.savings ?? 0) > 0 && (
                           <View style={styles.savingsBadge}>
-                            <TrendingDown size={10} color={themeColors.success} />
+                            <TrendingDown size={10} color={themeColors.success} strokeWidth={1.75} />
                             <Text style={styles.savingsText}>Save ${(item.savings ?? 0).toFixed(0)}</Text>
                           </View>
                         )}
@@ -2111,14 +2111,14 @@ export default function ProjectDetailScreen() {
                 onPress={() => toggleSection('labor')}
                 activeOpacity={0.7}
               >
-                <Users size={20} color={themeColors.accent} />
+                <Users size={20} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.sectionTitle}>
                   Labor — {formatMoney(estimate.laborTotal)}
                 </Text>
                 {expanded.labor ? (
-                  <ChevronUp size={18} color={themeColors.textMuted} />
+                  <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                 ) : (
-                  <ChevronDown size={18} color={themeColors.textMuted} />
+                  <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                 )}
               </TouchableOpacity>
 
@@ -2150,12 +2150,12 @@ export default function ProjectDetailScreen() {
                 onPress={() => toggleSection('summary')}
                 activeOpacity={0.7}
               >
-                <DollarSign size={20} color={themeColors.accent} />
+                <DollarSign size={20} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.sectionTitle}>Cost Summary</Text>
                 {expanded.summary ? (
-                  <ChevronUp size={18} color={themeColors.textMuted} />
+                  <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                 ) : (
-                  <ChevronDown size={18} color={themeColors.textMuted} />
+                  <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                 )}
               </TouchableOpacity>
 
@@ -2192,7 +2192,7 @@ export default function ProjectDetailScreen() {
                   </View>
                   <View style={styles.summaryRow}>
                     <View style={styles.savingsHighlight}>
-                      <TrendingDown size={14} color={themeColors.success} />
+                      <TrendingDown size={14} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={[styles.summaryLabel, { color: themeColors.success }]}>Bulk Savings</Text>
                     </View>
                     <Text style={[styles.summaryValue, { color: themeColors.success }]}>
@@ -2218,9 +2218,9 @@ export default function ProjectDetailScreen() {
                   <MageAIMark size={20} color={themeColors.accent} />
                   <Text style={styles.sectionTitle}>Tips & Notes</Text>
                   {expanded.notes ? (
-                    <ChevronUp size={18} color={themeColors.textMuted} />
+                    <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                   ) : (
-                    <ChevronDown size={18} color={themeColors.textMuted} />
+                    <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                   )}
                 </TouchableOpacity>
 
@@ -2247,14 +2247,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="collaborators-section"
           >
-            <Users size={20} color={themeColors.info} />
+            <Users size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Team ({collaborators.length + 1})
             </Text>
             {expanded.collaborators ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -2262,7 +2262,7 @@ export default function ProjectDetailScreen() {
             <View style={styles.collabCard}>
               <View style={styles.collabMember}>
                 <View style={[styles.collabAvatar, { backgroundColor: themeColors.accent }]}>
-                  <Crown size={14} color={"#FFFFFF"} />
+                  <Crown size={14} color={"#FFFFFF"} strokeWidth={1.75} />
                 </View>
                 <View style={styles.collabInfo}>
                   <Text style={styles.collabName}>You (Owner)</Text>
@@ -2276,7 +2276,7 @@ export default function ProjectDetailScreen() {
               {collaborators.map(collab => (
                 <View key={collab.id} style={styles.collabMember}>
                   <View style={[styles.collabAvatar, { backgroundColor: collab.role === 'editor' ? themeColors.info : themeColors.textMuted }]}>
-                    {collab.role === 'editor' ? <PenTool size={12} color="#fff" /> : <Eye size={12} color="#fff" />}
+                    {collab.role === 'editor' ? <PenTool size={12} color="#fff" strokeWidth={1.75} /> : <Eye size={12} color="#fff" strokeWidth={1.75} />}
                   </View>
                   <View style={styles.collabInfo}>
                     <Text style={styles.collabName}>{collab.name}</Text>
@@ -2296,7 +2296,7 @@ export default function ProjectDetailScreen() {
                       style={styles.collabRemoveBtn}
                       onPress={() => handleRemoveCollaborator(collab.id, collab.name)}
                       activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={14} color={themeColors.danger} />
+                      <X size={14} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -2308,7 +2308,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="invite-collab-btn"
               >
-                <UserPlus size={16} color={themeColors.accent} />
+                <UserPlus size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.inviteBtnText}>Invite Collaborator</Text>
               </TouchableOpacity>
             </View>
@@ -2324,14 +2324,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="change-orders-section"
           >
-            <Repeat size={20} color={themeColors.accent} />
+            <Repeat size={20} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Change Orders ({changeOrders.length})
             </Text>
             {expanded.changeOrders ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -2444,7 +2444,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="add-change-order-btn"
               >
-                <Plus size={16} color={themeColors.accent} />
+                <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.coAddBtnText}>New Change Order</Text>
               </TouchableOpacity>
             </View>
@@ -2460,14 +2460,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="invoices-section"
           >
-            <Receipt size={20} color={themeColors.success} />
+            <Receipt size={20} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Invoices ({projectInvoices.length})
             </Text>
             {expanded.invoices ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -2483,7 +2483,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.8}
                   testID="invoices-accounting-export"
                 >
-                  <Share2 size={16} color={themeColors.accent} />
+                  <Share2 size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.photoShareBtnText}>Export to accounting (CSV)</Text>
                   <Text style={styles.photoShareBtnHint}>QuickBooks · Xero</Text>
                 </TouchableOpacity>
@@ -2576,7 +2576,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-progress-bill-btn"
                 >
-                  <ClipboardList size={16} color={themeColors.info} />
+                  <ClipboardList size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Progress</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -2585,7 +2585,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-full-invoice-btn"
                 >
-                  <Receipt size={16} color={themeColors.success} />
+                  <Receipt size={16} color={themeColors.success} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.success }]}>Full</Text>
                 </TouchableOpacity>
               </View>
@@ -2602,14 +2602,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="daily-reports-section"
           >
-            <ClipboardList size={20} color={themeColors.accent} />
+            <ClipboardList size={20} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Daily Reports ({dailyReports.length})
             </Text>
             {expanded.dailyReports ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -2686,7 +2686,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="add-daily-report-btn"
               >
-                <Plus size={16} color={themeColors.accent} />
+                <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.coAddBtnText}>New Daily Report</Text>
               </TouchableOpacity>
             </View>
@@ -2702,14 +2702,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="punch-list-section"
           >
-            <CheckSquare size={20} color={themeColors.accent} />
+            <CheckSquare size={20} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Punch List ({punchItems.length})
             </Text>
             {expanded.punchList ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -2758,7 +2758,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="open-punch-list-btn"
               >
-                <CheckSquare size={16} color={themeColors.accent} />
+                <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Manage Punch List</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2767,7 +2767,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="open-warranties-btn"
               >
-                <CheckSquare size={16} color={themeColors.accent} />
+                <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Warranties</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2776,7 +2776,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="open-retention-btn"
               >
-                <CheckSquare size={16} color={themeColors.accent} />
+                <CheckSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Retention Tracker</Text>
               </TouchableOpacity>
             </View>
@@ -2792,14 +2792,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="rfis-section"
           >
-            <FileText size={20} color={themeColors.info} />
+            <FileText size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               RFIs ({projectRFIs.length})
             </Text>
             {expanded.rfis ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -2884,7 +2884,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="add-rfi-btn"
                 >
-                  <Plus size={16} color={themeColors.info} />
+                  <Plus size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>New RFI</Text>
                 </TouchableOpacity>
                 {projectRFIs.length > 0 && (
@@ -2894,7 +2894,7 @@ export default function ProjectDetailScreen() {
                     activeOpacity={0.7}
                     testID="export-rfi-log-btn"
                   >
-                    <Share2 size={15} color={themeColors.text} />
+                    <Share2 size={15} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={[styles.coAddBtnText, { color: themeColors.text }]}>Export Log</Text>
                   </TouchableOpacity>
                 )}
@@ -2912,14 +2912,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="submittals-section"
           >
-            <FileText size={20} color={themeColors.info} />
+            <FileText size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Submittals ({projectSubmittals.length})
             </Text>
             {expanded.submittals ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -2956,7 +2956,7 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="add-submittal-btn"
               >
-                <Plus size={16} color={themeColors.info} />
+                <Plus size={16} color={themeColors.info} strokeWidth={1.75} />
                 <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>New Submittal</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2981,12 +2981,12 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="budget-section"
             >
-              <DollarSign size={20} color={themeColors.success} />
+              <DollarSign size={20} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Financial Health</Text>
               {expanded.budget ? (
-                <ChevronUp size={18} color={themeColors.textMuted} />
+                <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               ) : (
-                <ChevronDown size={18} color={themeColors.textMuted} />
+                <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               )}
             </TouchableOpacity>
 
@@ -3021,7 +3021,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-budget-dashboard"
                 >
-                  <DollarSign size={16} color={themeColors.success} />
+                  <DollarSign size={16} color={themeColors.success} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.success }]}>Full Budget Dashboard</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3030,7 +3030,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-job-costing"
                 >
-                  <BarChart3 size={16} color={themeColors.accent} />
+                  <BarChart3 size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Job Cost-to-Complete</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3039,7 +3039,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-living-estimate"
                 >
-                  <Activity size={16} color={themeColors.info} />
+                  <Activity size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Living Estimate · margin at completion</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3048,7 +3048,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-margin-risk"
                 >
-                  <ShieldAlert size={16} color={themeColors.accent} />
+                  <ShieldAlert size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Margin Risk Score</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3057,7 +3057,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-buyout-scope-gap"
                 >
-                  <ScanSearch size={16} color={themeColors.accent} />
+                  <ScanSearch size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Buyout Scope-Gap Audit</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3066,7 +3066,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-estimate-accuracy"
                 >
-                  <Scale size={16} color={themeColors.accent} />
+                  <Scale size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Accuracy · bid vs actual</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3075,7 +3075,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-estimate-confidence"
                 >
-                  <ShieldCheck size={16} color={themeColors.accent} />
+                  <ShieldCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Confidence · price check</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3084,7 +3084,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="open-area-takeoff"
                 >
-                  <PenTool size={16} color={themeColors.accent} />
+                  <PenTool size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Visual Takeoff · trace → priced line</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -3109,14 +3109,14 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="photos-section"
           >
-            <Camera size={20} color={themeColors.info} />
+            <Camera size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>
               Photos ({projectPhotos.length})
             </Text>
             {expanded.photos ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -3134,7 +3134,7 @@ export default function ProjectDetailScreen() {
                   accessibilityLabel="Share photo timeline link"
                   testID="photos-share-timeline"
                 >
-                  <Share2 size={14} color={themeColors.accent} />
+                  <Share2 size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.photoShareBtnText}>Share read-only timeline</Text>
                   <Text style={styles.photoShareBtnHint}>{projectPhotos.length > PHOTO_SHARE_MAX ? `${PHOTO_SHARE_MAX} most recent` : 'No login needed'}</Text>
                 </TouchableOpacity>
@@ -3186,11 +3186,11 @@ export default function ProjectDetailScreen() {
                     {photo.uri ? (
                       <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} resizeMode="cover" />
                     ) : (
-                      <Camera size={20} color={themeColors.textMuted} />
+                      <Camera size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                     )}
                     {(photo.markup?.length ?? 0) > 0 && (
                       <View style={styles.photoThumbMarkupBadge}>
-                        <Pencil size={10} color={themeColors.surface} />
+                        <Pencil size={10} color={themeColors.surface} strokeWidth={1.75} />
                       </View>
                     )}
                     <View style={styles.photoThumbDateOverlay}>
@@ -3225,9 +3225,9 @@ export default function ProjectDetailScreen() {
                         testID="photos-group-toggle"
                       >
                         {photoGroupByDate ? (
-                          <CalendarDays size={14} color={themeColors.accent} />
+                          <CalendarDays size={14} color={themeColors.accent} strokeWidth={1.75} />
                         ) : (
-                          <Layers size={14} color={themeColors.textMuted} />
+                          <Layers size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                         )}
                         <Text style={styles.photoGroupToggleText}>{photoGroupByDate ? 'By date' : 'Grid'}</Text>
                       </TouchableOpacity>
@@ -3266,19 +3266,19 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="client-portal-section"
           >
-            <Globe size={20} color={themeColors.info} />
+            <Globe size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Client Portal</Text>
             {expanded.clientPortal ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
           {expanded.clientPortal && (
             <View style={styles.coCard}>
               <View style={styles.portalInfo}>
-                <Globe size={24} color={themeColors.info} />
+                <Globe size={24} color={themeColors.info} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.portalTitle}>Share Project with Client</Text>
                   <Text style={styles.portalDesc}>Read-only link with progress, invoices, photos and more. Toggle exactly what your client sees.</Text>
@@ -3297,15 +3297,15 @@ export default function ProjectDetailScreen() {
                       accessibilityRole="button"
                       accessibilityLabel="Copy portal link"
                     >
-                      <Link size={12} color={themeColors.info} />
+                      <Link size={12} color={themeColors.info} strokeWidth={1.75} />
                       <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.portalCopyBtn} onPress={handleCopyPortalLink} accessibilityRole="button" accessibilityLabel="Copy">
-                      <Copy size={14} color={themeColors.accent} />
+                      <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.portalInviteCount}>
-                    <Users size={13} color={themeColors.textMuted} />
+                    <Users size={13} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.portalInviteCountText}>
                       {project.clientPortal.invites?.length ?? 0} client{(project.clientPortal.invites?.length ?? 0) !== 1 ? 's' : ''} invited
                     </Text>
@@ -3354,7 +3354,7 @@ export default function ProjectDetailScreen() {
                       activeOpacity={0.7}
                       testID="client-outbox-entry"
                     >
-                      <Send size={14} color={themeColors.accent} />
+                      <Send size={14} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.portalMessagesText}>{`Client Outbox · ${outboxCount} item${outboxCount === 1 ? '' : 's'} to review`}</Text>
                       <Text style={styles.portalMessagesOpen}>Open ›</Text>
                     </TouchableOpacity>
@@ -3372,7 +3372,7 @@ export default function ProjectDetailScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Open messages"
                   >
-                    <MessageSquare size={14} color={themeColors.accent} />
+                    <MessageSquare size={14} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.portalMessagesText}>Messages</Text>
                     <Text style={styles.portalMessagesOpen}>Open ›</Text>
                   </TouchableOpacity>
@@ -3415,7 +3415,7 @@ export default function ProjectDetailScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Globe size={16} color={themeColors.info} />
+                  <Globe size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={styles.portalEnableBtnText}>Enable Client Portal</Text>
                 </TouchableOpacity>
               )}
@@ -3432,15 +3432,15 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="communications-section"
           >
-            <Mail size={20} color={themeColors.info} />
+            <Mail size={20} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Communications</Text>
             <View style={styles.coBadge}>
               <Text style={styles.coBadgeText}>{commEvents.length}</Text>
             </View>
             {expanded.communications ? (
-              <ChevronUp size={18} color={themeColors.textMuted} />
+              <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             ) : (
-              <ChevronDown size={18} color={themeColors.textMuted} />
+              <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
 
@@ -3448,7 +3448,7 @@ export default function ProjectDetailScreen() {
             <View style={styles.coCard}>
               {commEvents.length === 0 ? (
                 <View style={styles.commEmpty}>
-                  <Mail size={24} color={themeColors.textMuted} />
+                  <Mail size={24} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.commEmptyText}>No activity yet. Sending documents, approvals, and notes will appear here.</Text>
                 </View>
               ) : (
@@ -3494,7 +3494,7 @@ export default function ProjectDetailScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <Plus size={14} color={themeColors.info} />
+                <Plus size={14} color={themeColors.info} strokeWidth={1.75} />
                 <Text style={styles.commAddNoteBtnText}>Add Internal Note</Text>
               </TouchableOpacity>
             </View>
@@ -3513,7 +3513,7 @@ export default function ProjectDetailScreen() {
             ) : null}
             {branding.signatureData && branding.signatureData.length > 0 && (
               <View style={styles.signatureNote}>
-                <PenTool size={12} color={themeColors.accent} />
+                <PenTool size={12} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.signatureNoteText}>Signature will be included</Text>
               </View>
             )}
@@ -3523,7 +3523,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.7}
               testID="open-share-modal"
             >
-              <Share2 size={18} color={"#FFFFFF"} />
+              <Share2 size={18} color={"#FFFFFF"} strokeWidth={1.75} />
               <Text style={styles.shareBtnPrimaryText}>Share Estimate</Text>
             </TouchableOpacity>
           </View>
@@ -3531,7 +3531,7 @@ export default function ProjectDetailScreen() {
 
         {!hasAnyEstimate && (
           <View style={styles.noEstimate}>
-            <AlertTriangle size={32} color={themeColors.accent} />
+            <AlertTriangle size={32} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.noEstimateTitle}>No Estimate Yet</Text>
             <Text style={styles.noEstimateText}>
               Go to the Estimate tab to search materials and link an estimate to this project.
@@ -3551,12 +3551,12 @@ export default function ProjectDetailScreen() {
         )}
 
         <TouchableOpacity style={styles.editButton} onPress={openEditModal} activeOpacity={0.7} testID="edit-project-bottom-btn">
-          <Pencil size={18} color={themeColors.accent} />
+          <Pencil size={18} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.editButtonText}>Edit Project</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.7}>
-          <Trash2 size={18} color={themeColors.danger} />
+          <Trash2 size={18} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.deleteButtonText}>Delete Project</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -3578,7 +3578,7 @@ export default function ProjectDetailScreen() {
               onPress={() => setDetailModal(null)}
               activeOpacity={0.7}
               testID="close-detail-modal" accessibilityRole="button" accessibilityLabel="Close">
-              <X size={20} color={themeColors.text} />
+              <X size={20} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
           {detailModal === 'total' && renderTotalDetailModal()}
@@ -3612,7 +3612,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="rev-detail-back"
                 >
-                  <ChevronLeft size={22} color={themeColors.text} />
+                  <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.sectionModalBackText}>Back</Text>
                 </TouchableOpacity>
                 <Text style={styles.sectionModalTitle} numberOfLines={1}>
@@ -3740,7 +3740,7 @@ export default function ProjectDetailScreen() {
                   activeOpacity={0.7}
                   testID="restore-revision-btn"
                 >
-                  <Repeat size={16} color={'#FFFFFF'} />
+                  <Repeat size={16} color={'#FFFFFF'} strokeWidth={1.75} />
                   <Text style={styles.revRestoreBtnText}>Restore this revision</Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -3760,7 +3760,7 @@ export default function ProjectDetailScreen() {
             <View style={styles.shareModalHeader}>
               <Text style={styles.shareModalTitle}>Share Estimate</Text>
               <TouchableOpacity onPress={() => setShowShareModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
@@ -3770,7 +3770,7 @@ export default function ProjectDetailScreen() {
 
             <TouchableOpacity style={styles.shareOption} onPress={handleSharePDF} activeOpacity={0.7} testID="share-pdf-option">
               <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.accent + '12' }]}>
-                <FileText size={20} color={themeColors.accent} />
+                <FileText size={20} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <View style={styles.shareOptionInfo}>
                 <Text style={styles.shareOptionTitle}>Share as PDF</Text>
@@ -3780,7 +3780,7 @@ export default function ProjectDetailScreen() {
 
             <TouchableOpacity style={styles.shareOption} onPress={handleShareEmail} activeOpacity={0.7} testID="share-email-option">
               <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.info + '12' }]}>
-                <Mail size={20} color={themeColors.info} />
+                <Mail size={20} color={themeColors.info} strokeWidth={1.75} />
               </View>
               <View style={styles.shareOptionInfo}>
                 <Text style={styles.shareOptionTitle}>Send via Email</Text>
@@ -3790,7 +3790,7 @@ export default function ProjectDetailScreen() {
 
             <TouchableOpacity style={styles.shareOption} onPress={handleShareText} activeOpacity={0.7} testID="share-text-option">
               <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.success + '12' }]}>
-                <MessageSquare size={20} color={themeColors.success} />
+                <MessageSquare size={20} color={themeColors.success} strokeWidth={1.75} />
               </View>
               <View style={styles.shareOptionInfo}>
                 <Text style={styles.shareOptionTitle}>Send via Text</Text>
@@ -3801,7 +3801,7 @@ export default function ProjectDetailScreen() {
             {project.schedule && (
               <TouchableOpacity style={styles.shareOption} onPress={handleShareSchedulePDF} activeOpacity={0.7} testID="share-schedule-option">
                 <View style={[styles.shareOptionIcon, { backgroundColor: themeColors.accent + '12' }]}>
-                  <CalendarDays size={20} color={themeColors.accent} />
+                  <CalendarDays size={20} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
                 <View style={styles.shareOptionInfo}>
                   <Text style={styles.shareOptionTitle}>Schedule PDF</Text>
@@ -3830,7 +3830,7 @@ export default function ProjectDetailScreen() {
                 <View style={styles.inviteModalHeader}>
                   <Text style={styles.inviteModalTitle}>Edit Project</Text>
                   <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={themeColors.textMuted} />
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
@@ -3921,7 +3921,7 @@ export default function ProjectDetailScreen() {
               <View style={styles.inviteModalHeader}>
                 <Text style={styles.inviteModalTitle}>Invite Collaborator</Text>
                 <TouchableOpacity onPress={() => setShowInviteModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -3958,7 +3958,7 @@ export default function ProjectDetailScreen() {
                   onPress={() => setInviteRole('editor')}
                   activeOpacity={0.7}
                 >
-                  <PenTool size={14} color={inviteRole === 'editor' ? "#FFFFFF" : themeColors.text} />
+                  <PenTool size={14} color={inviteRole === 'editor' ? "#FFFFFF" : themeColors.text} strokeWidth={1.75} />
                   <Text style={[styles.inviteRoleBtnText, inviteRole === 'editor' && styles.inviteRoleBtnTextActive]}>Editor</Text>
                   <Text style={[styles.inviteRoleDesc, inviteRole === 'editor' && { color: 'rgba(255,255,255,0.7)' }]}>Can edit</Text>
                 </TouchableOpacity>
@@ -3967,7 +3967,7 @@ export default function ProjectDetailScreen() {
                   onPress={() => setInviteRole('viewer')}
                   activeOpacity={0.7}
                 >
-                  <Eye size={14} color={inviteRole === 'viewer' ? "#FFFFFF" : themeColors.text} />
+                  <Eye size={14} color={inviteRole === 'viewer' ? "#FFFFFF" : themeColors.text} strokeWidth={1.75} />
                   <Text style={[styles.inviteRoleBtnText, inviteRole === 'viewer' && styles.inviteRoleBtnTextActive]}>Viewer</Text>
                   <Text style={[styles.inviteRoleDesc, inviteRole === 'viewer' && { color: 'rgba(255,255,255,0.7)' }]}>Read only</Text>
                 </TouchableOpacity>
@@ -3978,7 +3978,7 @@ export default function ProjectDetailScreen() {
                   <Text style={styles.inviteCancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.inviteSendBtn} onPress={handleInvite} activeOpacity={0.85} testID="send-invite-btn">
-                  <Send size={16} color={"#FFFFFF"} />
+                  <Send size={16} color={"#FFFFFF"} strokeWidth={1.75} />
                   <Text style={styles.inviteSendBtnText}>Send Invite</Text>
                 </TouchableOpacity>
               </View>
@@ -4025,7 +4025,7 @@ export default function ProjectDetailScreen() {
             onPress={() => setLightboxPhoto(null)}
             activeOpacity={0.7}
             testID="photo-lightbox-close" accessibilityRole="button" accessibilityLabel="Close">
-            <X size={20} color={themeColors.surface} />
+            <X size={20} color={themeColors.surface} strokeWidth={1.75} />
           </TouchableOpacity>
           {lightboxPhoto && (
             <TouchableOpacity
@@ -4040,7 +4040,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.85}
               testID="photo-lightbox-markup"
             >
-              <Pencil size={14} color={themeColors.surface} />
+              <Pencil size={14} color={themeColors.surface} strokeWidth={1.75} />
               <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
             </TouchableOpacity>
           )}

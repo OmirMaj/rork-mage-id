@@ -128,7 +128,7 @@ function MarginAlertsInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Margin Alerts · MAGE</Text>
@@ -136,7 +136,7 @@ function MarginAlertsInner() {
         </View>
         {alerts.length > 0 ? (
           <TouchableOpacity onPress={markAllRead} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Mark all read" testID="margin-alerts-mark-read">
-            <CheckCheck size={20} color={t.accent} />
+            <CheckCheck size={20} color={t.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : (
           <View style={styles.headerBtn} />
@@ -171,7 +171,7 @@ function MarginAlertsInner() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
           <View style={styles.summary}>
-            <BellRing size={16} color={actionable > 0 ? t.danger : t.success} />
+            <BellRing size={16} color={actionable > 0 ? t.danger : t.success} strokeWidth={1.75} />
             <Text style={styles.summaryText}>
               {actionable > 0 ? (
                 <><Text style={styles.summaryStrong}>{actionable}</Text> job{actionable === 1 ? '' : 's'} need attention since you last looked.</>
@@ -210,13 +210,13 @@ function MarginAlertsInner() {
                     {a.erosionPoints < -0.05 && (
                       <>
                         <Text style={styles.metaDot}>·</Text>
-                        <TrendingDown size={11} color={t.danger} />
+                        <TrendingDown size={11} color={t.danger} strokeWidth={1.75} />
                         <Text style={[styles.metaVal, { color: t.danger }]}>{a.erosionPoints.toFixed(1)} pts off bid</Text>
                       </>
                     )}
                   </View>
                 </View>
-                <ChevronRight size={18} color={t.textMuted} />
+                <ChevronRight size={18} color={t.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             );
           })}

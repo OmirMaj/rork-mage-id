@@ -157,7 +157,7 @@ export default function MessagesScreen() {
         {!isAtBottom && (
           <Animated.View style={[styles.scrollToBottomBtn, { opacity: scrollIndicatorAnim }]}>
             <TouchableOpacity onPress={scrollToBottom} style={styles.scrollBtnInner}>
-              <ChevronDown size={18} color={themeColors.accent} />
+              <ChevronDown size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.scrollBtnText}>New messages</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -178,7 +178,7 @@ export default function MessagesScreen() {
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
             onPress={handleSend}
             disabled={!text.trim()}
-            testID="send-button" accessibilityRole="button" accessibilityLabel="Send"><Send size={18} color={text.trim() ? '#FFF' : themeColors.textMuted} /></TouchableOpacity>
+            testID="send-button" accessibilityRole="button" accessibilityLabel="Send"><Send size={18} color={text.trim() ? '#FFF' : themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </View>

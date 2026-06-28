@@ -78,7 +78,7 @@ export default function QboSetupScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Back"><ChevronLeft size={22} color={colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} accessibilityLabel="Back"><ChevronLeft size={22} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
         <Text style={styles.title}>QuickBooks</Text>
         <View style={{ width: 22 }} />
       </View>
@@ -97,7 +97,7 @@ export default function QboSetupScreen() {
                   Stop double-entering invoices. MAGE pushes new customers, invoices, items, and payments to your books in seconds — and pulls QuickBooks-side payments back automatically.
                 </Text>
                 <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} disabled={busy} onPress={onConnect} testID="qbo-connect">
-                  <ExternalLink size={16} color="#FFFFFF" />
+                  <ExternalLink size={16} color="#FFFFFF" strokeWidth={1.75} />
                   <Text style={styles.primaryText}>{busy ? 'Opening…' : 'Connect QuickBooks'}</Text>
                 </TouchableOpacity>
                 <Text style={styles.heroHint}>One-tap OAuth · about 30 seconds</Text>
@@ -122,13 +122,13 @@ export default function QboSetupScreen() {
 
               {/* Trust footer */}
               <View style={styles.trustRow}>
-                <Shield size={14} color={colors.textMuted} />
+                <Shield size={14} color={colors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.trustText}>OAuth 2.0 via Intuit · MAGE never stores your QuickBooks password</Text>
               </View>
             </>
           ) : status.status === 'reauth_required' ? (
             <View style={[styles.card, styles.cardWarn]}>
-              <AlertTriangle size={20} color={colors.danger} />
+              <AlertTriangle size={20} color={colors.danger} strokeWidth={1.75} />
               <Text style={styles.cardTitle}>Reconnect QuickBooks</Text>
               <Text style={styles.cardSub}>Your QuickBooks session expired. Tap to reconnect — your existing links to QBO records will be preserved.</Text>
               <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} onPress={onConnect} disabled={busy} testID="qbo-connect">
@@ -137,7 +137,7 @@ export default function QboSetupScreen() {
             </View>
           ) : status.status === 'error' || status.status === 'connecting' ? (
             <View style={[styles.card, styles.cardWarn]}>
-              <AlertTriangle size={20} color={colors.danger} />
+              <AlertTriangle size={20} color={colors.danger} strokeWidth={1.75} />
               <Text style={styles.cardTitle}>{status.status === 'connecting' ? 'Connecting…' : 'Connection Error'}</Text>
               <Text style={styles.cardSub}>{status.status === 'connecting'
                 ? 'OAuth in progress. Come back in a moment.'
@@ -160,7 +160,7 @@ export default function QboSetupScreen() {
                 </View>
               ) : null}
               <View style={styles.card}>
-                <View style={styles.row}><CheckCircle2 size={18} color={colors.success} /><Text style={styles.cardTitle}>Connected · {status.companyName ?? 'QuickBooks Online'}</Text></View>
+                <View style={styles.row}><CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} /><Text style={styles.cardTitle}>Connected · {status.companyName ?? 'QuickBooks Online'}</Text></View>
                 <Text style={styles.cardSub}>Realm {status.realmId} · {status.environment}</Text>
                 {status.lastSyncAt ? <Text style={styles.cardSub}>Last reconcile: {new Date(status.lastSyncAt).toLocaleString()}</Text> : null}
               </View>
@@ -170,7 +170,7 @@ export default function QboSetupScreen() {
                 <Stat label="Errors" value={status.counts?.error ?? 0} bad styles={styles} />
               </View>
               <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} onPress={onRefreshStatus} disabled={busy} testID="qbo-refresh-status">
-                <RefreshCw size={16} color="#FFFFFF" />
+                <RefreshCw size={16} color="#FFFFFF" strokeWidth={1.75} />
                 <Text style={styles.primaryText}>{busy ? 'Refreshing…' : 'Refresh status'}</Text>
               </TouchableOpacity>
             </>

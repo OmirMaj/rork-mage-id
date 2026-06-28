@@ -99,7 +99,7 @@ export default function ProjectScopeScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={goBack} hitSlop={12} testID="scope-back" accessibilityRole="button" accessibilityLabel="Back">
-            <ChevronLeft size={24} color={c.text} />
+            <ChevronLeft size={24} color={c.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>PROJECT SCOPE</Text>
@@ -135,7 +135,7 @@ export default function ProjectScopeScreen() {
             activeOpacity={0.85}
             testID="scope-next"
           >
-            {isLast ? <Check size={18} color="#FFF" /> : <ChevronRight size={18} color="#FFF" />}
+            {isLast ? <Check size={18} color="#FFF" strokeWidth={1.75} /> : <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />}
             <Text style={styles.nextBtnText}>{isLast ? 'Save scope' : 'Next'}</Text>
           </TouchableOpacity>
         </View>

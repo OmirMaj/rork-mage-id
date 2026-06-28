@@ -453,7 +453,7 @@ export default function CloseoutBinderScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -491,13 +491,13 @@ export default function CloseoutBinderScreen() {
             <View style={styles.timeline}>
               {finalizedAt && (
                 <View style={styles.timelineRow}>
-                  <CheckCircle2 size={14} color={'#C26A00'} />
+                  <CheckCircle2 size={14} color={'#C26A00'} strokeWidth={1.75} />
                   <Text style={styles.timelineText}>Finalized {formattedAt(finalizedAt)}</Text>
                 </View>
               )}
               {sentAt && (
                 <View style={styles.timelineRow}>
-                  <Send size={13} color={themeColors.success} />
+                  <Send size={13} color={themeColors.success} strokeWidth={1.75} />
                   <Text style={styles.timelineText}>Delivered to homeowner {formattedAt(sentAt)}</Text>
                 </View>
               )}
@@ -548,7 +548,7 @@ export default function CloseoutBinderScreen() {
                 <Text style={styles.cardHelper}>Routine tasks the homeowner should do. Pre-filled with sane defaults — edit, add, remove.</Text>
               </View>
               <TouchableOpacity style={styles.smallBtn} onPress={addMaintenance}>
-                <Plus size={14} color={themeColors.accent} />
+                <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.smallBtnText}>Add</Text>
               </TouchableOpacity>
             </View>
@@ -563,7 +563,7 @@ export default function CloseoutBinderScreen() {
                     placeholderTextColor={themeColors.textMuted}
                   />
                   <View style={styles.maintMeta}>
-                    <Wrench size={11} color={themeColors.textMuted} />
+                    <Wrench size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                     <TextInput
                       style={styles.maintFreq}
                       value={m.frequency}
@@ -574,7 +574,7 @@ export default function CloseoutBinderScreen() {
                   </View>
                 </View>
                 <TouchableOpacity onPress={() => removeMaintenance(m.id)} hitSlop={6} testID={`maint-remove-${m.id}`} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={13} color={themeColors.danger} />
+                  <Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -611,7 +611,7 @@ export default function CloseoutBinderScreen() {
                   <Text style={styles.aiaFormTitle}>{form.title}</Text>
                   <Text style={styles.aiaFormSub}>{form.subtitle}</Text>
                 </View>
-                <FileDown size={16} color={themeColors.textMuted} />
+                <FileDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ))}
             <Text style={styles.emptyHint}>
@@ -647,13 +647,13 @@ export default function CloseoutBinderScreen() {
               <TouchableOpacity style={styles.secondary} onPress={handleExport} disabled={exporting} testID="binder-pdf">
                 {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
-                    <FileDown size={14} color={themeColors.text} />
+                    <FileDown size={14} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.secondaryText}>PDF</Text>
                   </>
                 )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.primary} onPress={handleFinalize} disabled={saving} testID="binder-finalize">
-                <Lock size={14} color="#FFF" />
+                <Lock size={14} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.primaryText}>Finalize</Text>
               </TouchableOpacity>
             </>
@@ -666,7 +666,7 @@ export default function CloseoutBinderScreen() {
               <TouchableOpacity style={styles.secondary} onPress={handleExport} disabled={exporting} testID="binder-pdf-final">
                 {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
-                    <FileDown size={14} color={themeColors.text} />
+                    <FileDown size={14} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.secondaryText}>PDF</Text>
                   </>
                 )}
@@ -674,7 +674,7 @@ export default function CloseoutBinderScreen() {
               <TouchableOpacity style={styles.primary} onPress={handleDeliver} disabled={delivering} testID="binder-deliver">
                 {delivering ? <ActivityIndicator size="small" color="#FFF" /> : (
                   <>
-                    <Send size={14} color="#FFF" />
+                    <Send size={14} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.primaryText}>Deliver to homeowner</Text>
                   </>
                 )}
@@ -686,7 +686,7 @@ export default function CloseoutBinderScreen() {
               <TouchableOpacity style={styles.secondary} onPress={handleExport} disabled={exporting} testID="binder-pdf-sent">
                 {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
-                    <FileDown size={14} color={themeColors.text} />
+                    <FileDown size={14} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.secondaryText}>PDF</Text>
                   </>
                 )}
@@ -694,7 +694,7 @@ export default function CloseoutBinderScreen() {
               <TouchableOpacity style={styles.primary} onPress={handleDeliver} disabled={delivering} testID="binder-redeliver">
                 {delivering ? <ActivityIndicator size="small" color="#FFF" /> : (
                   <>
-                    <RefreshCw size={14} color="#FFF" />
+                    <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.primaryText}>Re-deliver</Text>
                   </>
                 )}
@@ -781,7 +781,7 @@ function AiaFormModal({
             <Text style={modalStyles.headSub}>Generate</Text>
             <Text style={modalStyles.headTitle}>{formMeta?.title}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={10} testID="aia-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={10} testID="aia-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
@@ -866,7 +866,7 @@ function AiaFormModal({
           activeOpacity={0.85}
           testID="aia-modal-generate"
         >
-          <FileDown size={16} color="#FFF" />
+          <FileDown size={16} color="#FFF" strokeWidth={1.75} />
           <Text style={modalStyles.ctaText}>Generate PDF</Text>
         </TouchableOpacity>
       </View>

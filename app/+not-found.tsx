@@ -16,7 +16,7 @@ export default function NotFoundScreen() {
       <Stack.Screen options={{ title: "Not Found" }} />
       <View style={styles.container}>
         <View style={styles.iconContainer}>
-          <AlertTriangle size={32} color={themeColors.accent} />
+          <AlertTriangle size={32} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <Text style={styles.title}>Page Not Found</Text>
         <Text style={styles.subtitle}>This screen doesn&apos;t exist.</Text>

@@ -296,7 +296,7 @@ export default function BillFromEstimateScreen() {
         }} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 16 }}>
           <View style={styles.emptyCard}>
-            <ClipboardList size={28} color={themeColors.textMuted} />
+            <ClipboardList size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No estimate yet</Text>
             <Text style={styles.emptyBody}>
               This project doesn&apos;t have an estimate with line items. Build one first so invoices draw
@@ -310,7 +310,7 @@ export default function BillFromEstimateScreen() {
               testID="bill-from-estimate-blank-invoice"
             >
               <Text style={styles.primaryBtnText}>Create Blank Invoice</Text>
-              <ArrowRight size={16} color={'#FFFFFF'} />
+              <ArrowRight size={16} color={'#FFFFFF'} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -381,7 +381,7 @@ export default function BillFromEstimateScreen() {
           </View>
 
           <View style={styles.helpBanner}>
-            <Info size={14} color={themeColors.info} />
+            <Info size={14} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.helpBannerText}>
               Tap a row to include or exclude it. Enter a percent of the remaining balance you want
               to bill this round — the totals below update live.
@@ -412,11 +412,11 @@ export default function BillFromEstimateScreen() {
                   testID={`row-toggle-${r.key}`}
                 >
                   {isFullyBilled ? (
-                    <CheckCircle2 size={18} color={themeColors.success} />
+                    <CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />
                   ) : isSelected ? (
-                    <CheckCircle2 size={18} color={themeColors.accent} />
+                    <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />
                   ) : (
-                    <Circle size={18} color={themeColors.textMuted} />
+                    <Circle size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                   )}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowName} numberOfLines={2}>{r.name}</Text>
@@ -473,7 +473,7 @@ export default function BillFromEstimateScreen() {
                           keyboardType="decimal-pad"
                           testID={`row-pct-${r.key}`}
                         />
-                        <Percent size={14} color={themeColors.textMuted} />
+                        <Percent size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                       </View>
                       <View style={styles.miniPresetRow}>
                         {[25, 50, 100].map(p => (
@@ -491,7 +491,7 @@ export default function BillFromEstimateScreen() {
                     <View style={styles.rowAmtCol}>
                       <Text style={styles.rowControlLabel}>Line amount</Text>
                       <View style={styles.rowAmtWrap}>
-                        <DollarSign size={14} color={themeColors.success} />
+                        <DollarSign size={14} color={themeColors.success} strokeWidth={1.75} />
                         <Text style={styles.rowAmtText}>{money(amount).replace('$', '')}</Text>
                       </View>
                       <Text style={styles.rowAmtHint}>
@@ -529,7 +529,7 @@ export default function BillFromEstimateScreen() {
             testID="bill-from-estimate-create"
           >
             <Text style={styles.primaryBtnText}>Continue to Invoice</Text>
-            <ArrowRight size={16} color={'#FFFFFF'} />
+            <ArrowRight size={16} color={'#FFFFFF'} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

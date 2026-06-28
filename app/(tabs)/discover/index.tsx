@@ -160,7 +160,7 @@ function NavigationCard({
               <Text style={[styles.navCountText, { color: countColor }]}>{count}</Text>
             </View>
           )}
-          <ChevronRight size={18} color={themeColors.textMuted} />
+          <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -251,7 +251,7 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Plus size={16} color={Colors.accent} />
+              <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>Post Bid</Text>
           </TouchableOpacity>
@@ -261,7 +261,7 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Plus size={16} color={Colors.accent} />
+              <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>Post Job</Text>
           </TouchableOpacity>
@@ -271,7 +271,7 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Search size={16} color={Colors.accent} />
+              <Search size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>My Profile</Text>
           </TouchableOpacity>
@@ -440,7 +440,7 @@ export default function DiscoverScreen() {
               <Text style={styles.bidSourceName}>{source.name}</Text>
               <Text style={styles.bidSourceDesc} numberOfLines={2}>{source.description}</Text>
               <View style={styles.bidSourceFooter}>
-                <ExternalLink size={12} color={source.color} />
+                <ExternalLink size={12} color={source.color} strokeWidth={1.75} />
                 <Text style={[styles.bidSourceLink, { color: source.color }]}>Open Portal</Text>
               </View>
             </TouchableOpacity>
@@ -449,7 +449,7 @@ export default function DiscoverScreen() {
 
         <View style={styles.tipCard}>
           <View style={styles.tipHeader}>
-            <Award size={16} color={Colors.primary} />
+            <Award size={16} color={Colors.primary} strokeWidth={1.75} />
             <Text style={styles.tipTitle}>Pro Tip</Text>
           </View>
           <Text style={styles.tipText}>

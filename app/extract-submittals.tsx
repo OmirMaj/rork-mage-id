@@ -203,7 +203,7 @@ export default function ExtractSubmittalsScreen() {
           title: 'Extract Submittals',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={"#FF6A1A"} />
+              <ChevronLeft size={24} color={"#FF6A1A"} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -222,13 +222,13 @@ export default function ExtractSubmittalsScreen() {
             </View>
 
             <TouchableOpacity onPress={handlePickAndAnalyze} style={styles.primaryBtn} activeOpacity={0.85}>
-              <FileText size={16} color="#FFF" />
+              <FileText size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>Pick spec book PDF</Text>
             </TouchableOpacity>
 
             {error && (
               <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={"#C84038"} />
+                <AlertCircle size={14} color={"#C84038"} strokeWidth={1.75} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -278,16 +278,16 @@ export default function ExtractSubmittalsScreen() {
                     <View style={styles.metaLine}>
                       {row.specSection ? (
                         <View style={styles.metaChip}>
-                          <Layers size={11} color={"#9AA3AD"} />
+                          <Layers size={11} color={"#9AA3AD"} strokeWidth={1.75} />
                           <Text style={styles.metaChipText}>{row.specSection}</Text>
                         </View>
                       ) : null}
                       <View style={styles.metaChip}>
-                        <Hammer size={11} color={"#9AA3AD"} />
+                        <Hammer size={11} color={"#9AA3AD"} strokeWidth={1.75} />
                         <Text style={styles.metaChipText}>{row.trade}</Text>
                       </View>
                       <View style={styles.metaChip}>
-                        <Calendar size={11} color={"#9AA3AD"} />
+                        <Calendar size={11} color={"#9AA3AD"} strokeWidth={1.75} />
                         <Text style={styles.metaChipText}>{row.dueRelativeDays}d lead</Text>
                       </View>
                       <View style={[styles.confChip, confColor(row.confidence)]}>
@@ -307,7 +307,7 @@ export default function ExtractSubmittalsScreen() {
                   />
                 </View>
                 <TouchableOpacity onPress={() => dropRow(row.rowId)} style={styles.dropRow}>
-                  <Trash2 size={12} color={"#9AA3AD"} />
+                  <Trash2 size={12} color={"#9AA3AD"} strokeWidth={1.75} />
                   <Text style={styles.dropText}>Remove from list</Text>
                 </TouchableOpacity>
               </View>
@@ -323,7 +323,7 @@ export default function ExtractSubmittalsScreen() {
                 ? <ActivityIndicator color="#FFF" />
                 : (
                   <>
-                    <Save size={16} color="#FFF" />
+                    <Save size={16} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.primaryBtnText}>
                       Add {selectedCount} submittal{selectedCount === 1 ? '' : 's'} to log
                     </Text>

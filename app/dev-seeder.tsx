@@ -1106,7 +1106,7 @@ export default function DevSeederScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dev — Demo Seeder</Text>
         <View style={{ width: 36 }} />
@@ -1114,7 +1114,7 @@ export default function DevSeederScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
         <View style={styles.warningCard}>
-          <AlertTriangle size={18} color={Colors.warning} />
+          <AlertTriangle size={18} color={Colors.warning} strokeWidth={1.75} />
           <Text style={styles.warningText}>
             Owner-only screen. Only emails in OWNER_EMAILS (utils/owner.ts) reach here.
             Regular users get redirected home.
@@ -1152,7 +1152,7 @@ export default function DevSeederScreen() {
               <ActivityIndicator color={themeColors.surface} />
             ) : (
               <>
-                <Database size={16} color={themeColors.surface} />
+                <Database size={16} color={themeColors.surface} strokeWidth={1.75} />
                 <Text style={styles.ctaText}>Load demo project</Text>
               </>
             )}
@@ -1161,7 +1161,7 @@ export default function DevSeederScreen() {
 
         <View style={[styles.card, { marginTop: 16, borderColor: themeColors.danger + '40' }]}>
           <View style={[styles.cardIcon, { backgroundColor: themeColors.danger + '15' }]}>
-            <Trash2 size={28} color={themeColors.danger} />
+            <Trash2 size={28} color={themeColors.danger} strokeWidth={1.75} />
           </View>
           <Text style={styles.cardTitle}>Wipe all projects</Text>
           <Text style={styles.cardSub}>
@@ -1173,7 +1173,7 @@ export default function DevSeederScreen() {
             onPress={wipeAllProjects}
             activeOpacity={0.85}
           >
-            <Trash2 size={16} color={themeColors.surface} />
+            <Trash2 size={16} color={themeColors.surface} strokeWidth={1.75} />
             <Text style={styles.ctaText}>Wipe all projects</Text>
           </TouchableOpacity>
         </View>

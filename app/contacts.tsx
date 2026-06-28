@@ -228,7 +228,7 @@ export default function ContactsScreen() {
             ) : null}
           </View>
         </View>
-        <ChevronRight size={16} color={themeColors.textMuted} />
+        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
     );
   }, [openDetail]);
@@ -241,13 +241,13 @@ export default function ContactsScreen() {
         headerTintColor: themeColors.accent,
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         headerRight: () => (
-          <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn} accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color={themeColors.accent} /></TouchableOpacity>
+          <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn} accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
         ),
       }} />
 
       <View style={styles.searchSection}>
         <View style={styles.searchBar}>
-          <Search size={16} color={themeColors.textMuted} />
+          <Search size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           <TextInput
             style={styles.searchInput}
             value={query}
@@ -258,7 +258,7 @@ export default function ContactsScreen() {
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={14} color={themeColors.textMuted} />
+              <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
         </View>
@@ -290,7 +290,7 @@ export default function ContactsScreen() {
         ListEmptyComponent={
           <View style={{ minHeight: 360 }}>
             <EmptyState
-              icon={<User size={36} color={themeColors.accent} />}
+              icon={<User size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title={query || filterRole !== 'all' ? 'No contacts match' : 'No contacts yet'}
               message={query || filterRole !== 'all'
                 ? 'Try a different search term or clear the role filter to see everyone.'
@@ -310,7 +310,7 @@ export default function ContactsScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingContact ? 'Edit Contact' : 'New Contact'}</Text>
                 <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -378,13 +378,13 @@ export default function ContactsScreen() {
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>{displayName}</Text>
                     <TouchableOpacity onPress={() => setShowDetailModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={20} color={themeColors.textMuted} />
+                      <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
 
                   <ScrollView showsVerticalScrollIndicator={false}>
                     <View style={[styles.detailRoleBadge, { backgroundColor: roleColor + '15' }]}>
-                      <Briefcase size={14} color={roleColor} />
+                      <Briefcase size={14} color={roleColor} strokeWidth={1.75} />
                       <Text style={[styles.detailRoleText, { color: roleColor }]}>{selectedContact.role}</Text>
                       {selectedContact.companyName && selectedContact.firstName ? (
                         <Text style={styles.detailCompany}> · {selectedContact.companyName}</Text>
@@ -394,19 +394,19 @@ export default function ContactsScreen() {
                     <View style={styles.detailSection}>
                       {selectedContact.email ? (
                         <View style={styles.detailRow}>
-                          <Mail size={14} color={themeColors.textMuted} />
+                          <Mail size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                           <Text style={styles.detailText}>{selectedContact.email}</Text>
                         </View>
                       ) : null}
                       {selectedContact.phone ? (
                         <View style={styles.detailRow}>
-                          <Phone size={14} color={themeColors.textMuted} />
+                          <Phone size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                           <Text style={styles.detailText}>{selectedContact.phone}</Text>
                         </View>
                       ) : null}
                       {selectedContact.address ? (
                         <View style={styles.detailRow}>
-                          <MapPin size={14} color={themeColors.textMuted} />
+                          <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                           <Text style={styles.detailText}>{selectedContact.address}</Text>
                         </View>
                       ) : null}
@@ -448,7 +448,7 @@ export default function ContactsScreen() {
                             }}
                           >
                             <Text style={styles.linkedProjectName}>{p.name}</Text>
-                            <ChevronRight size={14} color={themeColors.textMuted} />
+                            <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -469,14 +469,14 @@ export default function ContactsScreen() {
                           setTimeout(() => openEditModal(selectedContact), 350);
                         }}
                       >
-                        <Edit3 size={14} color={themeColors.accent} />
+                        <Edit3 size={14} color={themeColors.accent} strokeWidth={1.75} />
                         <Text style={styles.editBtnText}>Edit</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.deleteBtn}
                         onPress={() => handleDelete(selectedContact)}
                       >
-                        <Trash2 size={14} color={themeColors.danger} />
+                        <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                         <Text style={styles.deleteBtnText}>Delete</Text>
                       </TouchableOpacity>
                     </View>

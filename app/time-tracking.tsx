@@ -95,7 +95,7 @@ function LiveTimeCard({
 
         {entry.status !== 'clocked_out' && (
           <View style={styles.liveCardTimer}>
-            <Clock size={14} color={overThreshold ? '#C62828' : approachingThreshold ? '#E65100' : themeColors.accent} />
+            <Clock size={14} color={overThreshold ? '#C62828' : approachingThreshold ? '#E65100' : themeColors.accent} strokeWidth={1.75} />
             <Text style={[
               styles.liveCardTimerText,
               overThreshold && { color: '#C62828' },
@@ -117,7 +117,7 @@ function LiveTimeCard({
             styles.thresholdBanner,
             { backgroundColor: overThreshold ? '#FDECEA' : '#FFF7EC', borderColor: overThreshold ? '#F5C2BE' : '#F5D4A8' },
           ]}>
-            <AlertTriangle size={13} color={overThreshold ? '#C62828' : '#E65100'} />
+            <AlertTriangle size={13} color={overThreshold ? '#C62828' : '#E65100'} strokeWidth={1.75} />
             <Text style={[styles.thresholdBannerText, { color: overThreshold ? '#C62828' : '#7A3E00' }]}>
               {overThreshold
                 ? `Past ${alertThresholdHours}h shift — consider clocking out`
@@ -135,7 +135,7 @@ function LiveTimeCard({
                   onPress={() => onAction(entry, 'break')}
                   activeOpacity={0.7}
                 >
-                  <Coffee size={14} color={Colors.warningDark} />
+                  <Coffee size={14} color={Colors.warningDark} strokeWidth={1.75} />
                   <Text style={[styles.actionBtnText, { color: Colors.warningDark }]}>Break</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -143,7 +143,7 @@ function LiveTimeCard({
                   onPress={() => onAction(entry, 'clock_out')}
                   activeOpacity={0.7}
                 >
-                  <Square size={14} color={Colors.errorDark} />
+                  <Square size={14} color={Colors.errorDark} strokeWidth={1.75} />
                   <Text style={[styles.actionBtnText, { color: Colors.errorDark }]}>Clock Out</Text>
                 </TouchableOpacity>
               </>
@@ -153,7 +153,7 @@ function LiveTimeCard({
                 onPress={() => onAction(entry, 'resume')}
                 activeOpacity={0.7}
               >
-                <Play size={14} color={Colors.successDark} />
+                <Play size={14} color={Colors.successDark} strokeWidth={1.75} />
                 <Text style={[styles.actionBtnText, { color: Colors.successDark }]}>Resume</Text>
               </TouchableOpacity>
             )}
@@ -317,21 +317,21 @@ function TimeTrackingScreenInner() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.accent + '14' }]}>
-              <Users size={16} color={themeColors.accent} />
+              <Users size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.statValue}>{todayStats.liveCount}</Text>
             <Text style={styles.statLabel}>On Site</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.info + '14' }]}>
-              <Clock size={16} color={themeColors.info} />
+              <Clock size={16} color={themeColors.info} strokeWidth={1.75} />
             </View>
             <Text style={styles.statValue}>{todayStats.totalHours.toFixed(1)}</Text>
             <Text style={styles.statLabel}>Hours Today</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? '#FFF3E0' : themeColors.success + '14' }]}>
-              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} /> : <TrendingUp size={16} color={themeColors.success} />}
+              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} strokeWidth={1.75} /> : <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} />}
             </View>
             <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: Colors.warningDark }]}>{todayStats.totalOT.toFixed(1)}</Text>
             <Text style={styles.statLabel}>OT Hours</Text>
@@ -344,7 +344,7 @@ function TimeTrackingScreenInner() {
             onPress={() => setShowClockInModal(true)}
             activeOpacity={0.85}
           >
-            <Play size={18} color="#fff" />
+            <Play size={18} color="#fff" strokeWidth={1.75} />
             <Text style={styles.clockInButtonText}>Clock In Crew</Text>
           </TouchableOpacity>
           {/* Payroll-friendly CSV export — drop into QuickBooks / Sage /
@@ -361,7 +361,7 @@ function TimeTrackingScreenInner() {
             activeOpacity={0.85}
             testID="time-tracking-export"
           >
-            <FileDown size={16} color={themeColors.text} />
+            <FileDown size={16} color={themeColors.text} strokeWidth={1.75} />
             <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text }}>Export CSV</Text>
           </TouchableOpacity>
         </View>
@@ -379,7 +379,7 @@ function TimeTrackingScreenInner() {
           accessibilityLabel={`Shift alert at ${shiftAlertHours} hours, tap to change`}
           testID="time-tracking-alert-setting"
         >
-          <Bell size={14} color={themeColors.accent} />
+          <Bell size={14} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.alertSettingText}>
             Alert at <Text style={styles.alertSettingHours}>{shiftAlertHours}h</Text>
           </Text>
@@ -410,7 +410,7 @@ function TimeTrackingScreenInner() {
         {selectedTab === 'live' ? (
           liveEntries.length === 0 ? (
             <View style={styles.emptyState}>
-              <Clock size={32} color={themeColors.textMuted} />
+              <Clock size={32} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No active time cards</Text>
               <Text style={styles.emptyDesc}>
                 Tap Clock In Crew above, pick a worker and project, and their hours start logging here in real time.
@@ -467,7 +467,7 @@ function TimeTrackingScreenInner() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock In</Text>
               <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>Select a crew member to clock in</Text>
@@ -485,7 +485,7 @@ function TimeTrackingScreenInner() {
                 accessibilityLabel="Choose project"
               >
                 <View style={styles.projectPickerIcon}>
-                  <Briefcase size={16} color={themeColors.accent} />
+                  <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.projectPickerLabel}>Project</Text>
@@ -496,7 +496,7 @@ function TimeTrackingScreenInner() {
                 <ChevronDown
                   size={16}
                   color={themeColors.textMuted}
-                  style={{ transform: [{ rotate: showProjectPicker ? '180deg' : '0deg' }] }}
+                  style={{ transform: [{ rotate: showProjectPicker ? '180deg' : '0deg' }] }} strokeWidth={1.75}
                 />
               </TouchableOpacity>
             ) : null}
@@ -519,7 +519,7 @@ function TimeTrackingScreenInner() {
                         <Text style={[styles.projectListRowText, active && styles.projectListRowTextActive]} numberOfLines={1}>
                           {p.name}
                         </Text>
-                        {active ? <Check size={16} color={themeColors.accent} /> : null}
+                        {active ? <Check size={16} color={themeColors.accent} strokeWidth={1.75} /> : null}
                       </TouchableOpacity>
                     );
                   })}
@@ -542,7 +542,7 @@ function TimeTrackingScreenInner() {
                     <Text style={styles.memberName}>{member.name}</Text>
                     <Text style={styles.memberTrade}>{member.trade} · ${member.rate}/hr</Text>
                   </View>
-                  <Play size={16} color={themeColors.accent} />
+                  <Play size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
               {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).length === 0 && (
@@ -563,7 +563,7 @@ function TimeTrackingScreenInner() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Shift alert</Text>
               <TouchableOpacity onPress={() => setShowAlertPicker(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.text} />
+                <X size={20} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={{ paddingTop: 6, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 }}>

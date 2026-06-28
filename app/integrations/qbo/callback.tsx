@@ -122,14 +122,14 @@ export default function QboCallbackScreen() {
             </Text>
             <Text style={styles.hint}>Returning you to the MAGE app…</Text>
             <TouchableOpacity style={styles.primary} onPress={openMage} testID="qbo-callback-return">
-              <ExternalLink size={16} color="#FFFFFF" />
+              <ExternalLink size={16} color="#FFFFFF" strokeWidth={1.75} />
               <Text style={styles.primaryText}>Open MAGE app</Text>
             </TouchableOpacity>
           </>
         )}
         {status === "error" && (
           <>
-            <AlertTriangle size={64} color={colors.danger} />
+            <AlertTriangle size={64} color={colors.danger} strokeWidth={1.75} />
             <Text style={styles.title}>Connection failed</Text>
             <Text style={styles.subtitle}>{error ?? "Unknown error."}</Text>
             <Text style={styles.hint}>Return to the MAGE app and try connecting again.</Text>

@@ -691,7 +691,7 @@ function ChangeOrderInner() {
                     activeOpacity={0.7}
                     testID="search-materials-btn"
                   >
-                    <Search size={14} color={themeColors.success} />
+                    <Search size={14} color={themeColors.success} strokeWidth={1.75} />
                     <Text style={styles.addSearchBtnText}>Materials</Text>
                   </TouchableOpacity>
                   {estimateItems.length > 0 && (
@@ -700,7 +700,7 @@ function ChangeOrderInner() {
                       onPress={() => setShowEstimateItems(true)}
                       activeOpacity={0.7}
                     >
-                      <FileText size={14} color={themeColors.info} />
+                      <FileText size={14} color={themeColors.info} strokeWidth={1.75} />
                       <Text style={styles.addFromBtnText}>Estimate</Text>
                     </TouchableOpacity>
                   )}
@@ -710,7 +710,7 @@ function ChangeOrderInner() {
                     activeOpacity={0.7}
                     testID="add-co-item-btn"
                   >
-                    <Plus size={14} color={themeColors.accent} />
+                    <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.addNewBtnText}>Custom</Text>
                   </TouchableOpacity>
                 </View>
@@ -732,7 +732,7 @@ function ChangeOrderInner() {
                   </View>
                   {!isLocked && (
                     <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={16} color={themeColors.danger} />
+                      <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -806,7 +806,7 @@ function ChangeOrderInner() {
               activeOpacity={0.7}
               testID="issue-as-ccd-btn"
             >
-              <FileText size={13} color={themeColors.textSecondary} />
+              <FileText size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.ccdLinkText}>
                 Need work to start before pricing is agreed? Issue as Construction Change Directive (G714)
               </Text>
@@ -838,7 +838,7 @@ function ChangeOrderInner() {
             <Button
               label="Send & Save"
               onPress={handleSendPress}
-              iconLeft={<Send size={16} color="#FFFFFF" />}
+              iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
               style={{ flex: 1 }}
               testID="send-co-btn"
             />
@@ -853,19 +853,19 @@ function ChangeOrderInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send for Approval To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
               {contactPicked ? (
                 <View style={styles.selectedRecipientCard}>
-                  <User size={16} color={themeColors.accent} />
+                  <User size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
                   <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={themeColors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -894,7 +894,7 @@ function ChangeOrderInner() {
                       onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
                       activeOpacity={0.7}
                     >
-                      <BookUser size={14} color={themeColors.accent} />
+                      <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.pickContactText}>Pick from Contacts</Text>
                     </TouchableOpacity>
                   )}
@@ -906,7 +906,7 @@ function ChangeOrderInner() {
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
-                  <Send size={16} color={"#FFFFFF"} />
+                  <Send size={16} color={"#FFFFFF"} strokeWidth={1.75} />
                   <Text style={styles.sendBtnText}>Send</Text>
                 </TouchableOpacity>
               </View>
@@ -936,7 +936,7 @@ function ChangeOrderInner() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add New Item</Text>
-                <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowAddItem(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Item Name</Text>
               <TextInput style={styles.modalInput} value={newItemName} onChangeText={setNewItemName} placeholder="Item name" placeholderTextColor={themeColors.textMuted} />
@@ -969,7 +969,7 @@ function ChangeOrderInner() {
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add from Estimate</Text>
-              <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowEstimateItems(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               {estimateItems.map((item, idx) => (
@@ -983,7 +983,7 @@ function ChangeOrderInner() {
                     <Text style={styles.estimateItemName}>{item.name}</Text>
                     <Text style={styles.estimateItemMeta}>{item.category} · {formatCurrency(item.unitPrice)}/{item.unit}</Text>
                   </View>
-                  <Plus size={18} color={themeColors.accent} />
+                  <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -996,11 +996,11 @@ function ChangeOrderInner() {
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Search Materials</Text>
-              <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowMaterialSearch(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <View style={styles.matSearchBar}>
-              <Search size={16} color={themeColors.textMuted} />
+              <Search size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={styles.matSearchInput}
                 value={materialQuery}
@@ -1012,7 +1012,7 @@ function ChangeOrderInner() {
               />
               {materialQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setMaterialQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={themeColors.textMuted} />
+                  <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1031,7 +1031,7 @@ function ChangeOrderInner() {
                 <Text style={[styles.priceTypeText, selectedPriceType === 'bulk' && styles.priceTypeTextActive]}>Bulk</Text>
               </TouchableOpacity>
               <View style={styles.matMarkupRow}>
-                <Percent size={12} color={themeColors.accent} />
+                <Percent size={12} color={themeColors.accent} strokeWidth={1.75} />
                 <TextInput
                   style={styles.matMarkupInput}
                   value={itemMarkup}
@@ -1078,7 +1078,7 @@ function ChangeOrderInner() {
                       <Text style={styles.matResultBulk}>${material.baseBulkPrice.toFixed(2)}</Text>
                       {markup > 0 && <Text style={styles.matResultFinal}>${finalPrice.toFixed(2)}</Text>}
                     </View>
-                    <Plus size={18} color={themeColors.accent} />
+                    <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                   </TouchableOpacity>
                 );
               }}

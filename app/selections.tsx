@@ -208,14 +208,14 @@ export default function SelectionsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
           <Text style={styles.title}>Selections & Allowances</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
-          <Plus size={14} color="#FFF" />
+          <Plus size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.addBtnText}>Add</Text>
         </TouchableOpacity>
       </View>
@@ -252,7 +252,7 @@ export default function SelectionsScreen() {
               in their portal.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => setAddModal(true)}>
-              <Plus size={14} color="#FFF" />
+              <Plus size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.bigCtaText}>Add allowance</Text>
             </TouchableOpacity>
           </View>
@@ -330,15 +330,15 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
           <Text style={styles.catBudgetLabel}>BUDGET</Text>
           <Text style={styles.catBudgetValue}>{formatMoney(category.budget)}</Text>
         </View>
-        <TouchableOpacity onPress={onDelete} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.danger} /></TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
       {chosen && (
         <View style={[styles.chosenBanner, isExceeded && { backgroundColor: themeColors.danger + '0D', borderColor: themeColors.danger + '30' }]}>
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
             {isExceeded
-              ? <AlertTriangle size={14} color={themeColors.danger} />
-              : <CheckCircle2  size={14} color={themeColors.success} />}
+              ? <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
+              : <CheckCircle2  size={14} color={themeColors.success} strokeWidth={1.75} />}
             <View style={{ flex: 1 }}>
               <Text style={[styles.chosenTitle, isExceeded && { color: themeColors.danger }]}>
                 {isExceeded ? 'Over allowance' : 'Chosen'}: {chosen.productName}
@@ -425,17 +425,17 @@ function OptionRow({ option, budget, onPress, onSetPhoto }: { option: SelectionO
         <View style={styles.highlightsRow}>
           {option.highlights.slice(0, 3).map((h, i) => (
             <View key={i} style={styles.highlight}>
-              <Star size={9} color={Colors.warning} />
+              <Star size={9} color={Colors.warning} strokeWidth={1.75} />
               <Text style={styles.highlightText}>{h}</Text>
             </View>
           ))}
         </View>
       )}
       <View style={styles.optFoot}>
-        {option.supplier ? <View style={styles.optMeta}><Package size={11} color={themeColors.textMuted} /><Text style={styles.optMetaText}>{option.supplier}</Text></View> : null}
-        {option.leadTimeDays != null ? <View style={styles.optMeta}><Clock size={11} color={themeColors.textMuted} /><Text style={styles.optMetaText}>{option.leadTimeDays}d lead time</Text></View> : null}
-        {option.productUrl ? <View style={styles.optMeta}><ExternalLink size={11} color={themeColors.textMuted} /><Text style={styles.optMetaText}>Link</Text></View> : null}
-        {option.isChosen && <View style={styles.chosenPill}><CheckCircle2 size={11} color={themeColors.success} /><Text style={styles.chosenPillText}>CHOSEN</Text></View>}
+        {option.supplier ? <View style={styles.optMeta}><Package size={11} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.optMetaText}>{option.supplier}</Text></View> : null}
+        {option.leadTimeDays != null ? <View style={styles.optMeta}><Clock size={11} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.optMetaText}>{option.leadTimeDays}d lead time</Text></View> : null}
+        {option.productUrl ? <View style={styles.optMeta}><ExternalLink size={11} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.optMetaText}>Link</Text></View> : null}
+        {option.isChosen && <View style={styles.chosenPill}><CheckCircle2 size={11} color={themeColors.success} strokeWidth={1.75} /><Text style={styles.chosenPillText}>CHOSEN</Text></View>}
       </View>
     </TouchableOpacity>
   );
@@ -494,7 +494,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
 
           <Text style={styles.modalLabel}>Allowance budget *</Text>
           <View style={styles.modalAmountField}>
-            <DollarSign size={14} color={themeColors.textMuted} />
+            <DollarSign size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
               style={styles.modalAmountInput}
               value={budget}
@@ -525,7 +525,7 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
               onPress={handleAdd}
               disabled={!category.trim() || !Number(budget) || Number(budget) <= 0}
             >
-              <Plus size={14} color="#FFF" />
+              <Plus size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.modalConfirmText}>Add</Text>
             </TouchableOpacity>
           </View>

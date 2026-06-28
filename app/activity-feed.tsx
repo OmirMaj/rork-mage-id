@@ -58,7 +58,7 @@ export default function ActivityFeedScreen() {
           accessibilityLabel="Go back"
           testID="activity-back-btn"
         >
-          <ChevronLeft size={24} color={themeColors.text} />
+          <ChevronLeft size={24} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
@@ -69,7 +69,7 @@ export default function ActivityFeedScreen() {
 
       {items.length === 0 ? (
         <EmptyState
-          icon={<Activity size={32} color={themeColors.accent} />}
+          icon={<Activity size={32} color={themeColors.accent} strokeWidth={1.75} />}
           title="No activity yet"
           message="Every change order, RFI, daily report, invoice, and photo lands here the moment it's created — your project's heartbeat in one timeline."
           actionLabel="Back to projects"
@@ -136,7 +136,7 @@ function ActivityRow({ item, onPress, onLongPress }: RowProps) {
           ) : null}
         </Text>
       </View>
-      <ChevronRight size={16} color={themeColors.textMuted} />
+      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
     </TouchableOpacity>
   );
 }

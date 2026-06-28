@@ -63,7 +63,7 @@ export default function DiscoverToolsScreen() {
             accessibilityLabel="Back"
             testID="tools-back-btn"
           >
-            <ArrowLeft size={20} color={themeColors.text} />
+            <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerTitleStack}>
             <Text style={styles.headerTitle}>Tools</Text>
@@ -476,7 +476,7 @@ export default function DiscoverToolsScreen() {
         {!hasProjects && (
           <View style={styles.emptyWrap}>
             <EmptyState
-              icon={<Wrench size={32} color={Colors.primary} />}
+              icon={<Wrench size={32} color={Colors.primary} strokeWidth={1.75} />}
               title="More tools unlock with projects"
               message="Most tools (Daily reports, Compliance, Closeout, Reporting) are project-aware. Create your first project to unlock them."
               actionLabel="Open Projects"

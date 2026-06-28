@@ -379,7 +379,7 @@ function PunchListScreenInner() {
             accessibilityRole="button"
             accessibilityLabel="More filters"
           >
-            <Filter size={14} color={activeFilterCount > 0 ? themeColors.accent : themeColors.textSecondary} />
+            <Filter size={14} color={activeFilterCount > 0 ? themeColors.accent : themeColors.textSecondary} strokeWidth={1.75} />
             {activeFilterCount > 0 && (
               <View style={styles.moreFiltersBadge}>
                 <Text style={styles.moreFiltersBadgeText}>{activeFilterCount}</Text>
@@ -396,19 +396,19 @@ function PunchListScreenInner() {
             {filterSub && (
               <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterSub('')}>
                 <Text style={styles.activeFilterPillText}>Sub: {filterSub}</Text>
-                <X size={11} color={themeColors.accent} />
+                <X size={11} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
             {filterPriority !== 'all' && (
               <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterPriority('all')}>
                 <Text style={styles.activeFilterPillText}>Priority: {filterPriority}</Text>
-                <X size={11} color={themeColors.accent} />
+                <X size={11} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
             {filterLocation && (
               <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterLocation('')}>
                 <Text style={styles.activeFilterPillText}>Location: {filterLocation}</Text>
-                <X size={11} color={themeColors.accent} />
+                <X size={11} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: themeColors.line }]}>
@@ -452,14 +452,14 @@ function PunchListScreenInner() {
 
               {item.linkedTaskName ? (
                 <View style={styles.linkedTaskBadge}>
-                  <Link2 size={11} color={themeColors.accent} />
+                  <Link2 size={11} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.linkedTaskBadgeText} numberOfLines={1}>Task: {item.linkedTaskName}</Text>
                 </View>
               ) : null}
 
               {item.rejectionNote ? (
                 <View style={styles.rejectionBox}>
-                  <MessageSquare size={12} color={themeColors.danger} />
+                  <MessageSquare size={12} color={themeColors.danger} strokeWidth={1.75} />
                   <Text style={styles.rejectionText}>{item.rejectionNote}</Text>
                 </View>
               ) : null}
@@ -467,24 +467,24 @@ function PunchListScreenInner() {
               <View style={styles.punchActions}>
                 {item.status === 'open' && (
                   <TouchableOpacity style={styles.punchActionBtn} onPress={() => handleStatusChange(item, 'in_progress')}>
-                    <Clock size={14} color={themeColors.info} />
+                    <Clock size={14} color={themeColors.info} strokeWidth={1.75} />
                     <Text style={[styles.punchActionText, { color: themeColors.info }]}>Start</Text>
                   </TouchableOpacity>
                 )}
                 {item.status === 'in_progress' && (
                   <TouchableOpacity style={styles.punchActionBtn} onPress={() => handleStatusChange(item, 'ready_for_review')}>
-                    <Eye size={14} color={themeColors.accent} />
+                    <Eye size={14} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={[styles.punchActionText, { color: themeColors.accent }]}>Submit for Review</Text>
                   </TouchableOpacity>
                 )}
                 {item.status === 'ready_for_review' && (
                   <>
                     <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.successSoft }]} onPress={() => handleStatusChange(item, 'closed')}>
-                      <CheckCircle size={14} color={themeColors.success} />
+                      <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={[styles.punchActionText, { color: themeColors.success }]}>Close</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.punchActionBtn, { backgroundColor: themeColors.danger }]} onPress={() => { setShowRejectModal(item.id); setRejectionNote(''); }}>
-                      <X size={14} color={themeColors.danger} />
+                      <X size={14} color={themeColors.danger} strokeWidth={1.75} />
                       <Text style={[styles.punchActionText, { color: themeColors.danger }]}>Reject</Text>
                     </TouchableOpacity>
                   </>
@@ -495,7 +495,7 @@ function PunchListScreenInner() {
                     { text: 'Delete', style: 'destructive', onPress: () => deletePunchItem(item.id) },
                   ]);
                 }} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={themeColors.danger} />
+                  <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -505,7 +505,7 @@ function PunchListScreenInner() {
         {filteredItems.length === 0 && (
           <View style={{ minHeight: 360 }}>
             <EmptyState
-              icon={<CheckCircle size={36} color={themeColors.accent} />}
+              icon={<CheckCircle size={36} color={themeColors.accent} strokeWidth={1.75} />}
               title={filterStatus !== 'all' ? 'Nothing matches that filter' : 'No punch items yet'}
               message={filterStatus !== 'all'
                 ? `No items currently sit in "${filterStatus.replace(/_/g, ' ')}". Switch filters above to see the rest.`
@@ -517,7 +517,7 @@ function PunchListScreenInner() {
         )}
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-punch-item">
-          <Plus size={16} color={themeColors.accent} />
+          <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.addItemBtnText}>Add Punch Item</Text>
         </TouchableOpacity>
 
@@ -527,7 +527,7 @@ function PunchListScreenInner() {
           activeOpacity={0.7}
           testID="apply-punch-template"
         >
-          <ListChecks size={16} color={themeColors.accent} />
+          <ListChecks size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.addItemBtnText}>Apply trade template</Text>
         </TouchableOpacity>
 
@@ -537,13 +537,13 @@ function PunchListScreenInner() {
           activeOpacity={0.85}
           testID="open-punch-walk"
         >
-          <Mic size={16} color={"#FFFFFF"} />
+          <Mic size={16} color={"#FFFFFF"} strokeWidth={1.75} />
           <Text style={styles.walkBtnText}>Walk Mode — voice capture</Text>
         </TouchableOpacity>
 
         {allClosed && totalCount > 0 && (
           <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85}>
-            <CheckCircle size={18} color="#fff" />
+            <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
             <Text style={styles.closeProjectBtnText}>Close Project</Text>
           </TouchableOpacity>
         )}
@@ -557,7 +557,7 @@ function PunchListScreenInner() {
                 <View style={styles.formHeader}>
                   <Text style={styles.formTitle}>{editingItem ? 'Edit Item' : 'New Punch Item'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={themeColors.textMuted} />
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
@@ -612,16 +612,16 @@ function PunchListScreenInner() {
                   <>
                     <Text style={styles.fieldLabel}>Link to Schedule Task (optional)</Text>
                     <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
-                      <Link2 size={14} color={themeColors.accent} />
+                      <Link2 size={14} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={[styles.pickerBtnText, !linkedTask && { color: themeColors.textMuted }]} numberOfLines={1}>
                         {linkedTask ? linkedTask.title : 'No task linked'}
                       </Text>
                       {linkedTask ? (
                         <TouchableOpacity onPress={() => setLinkedTaskId('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                          <X size={14} color={themeColors.textMuted} />
+                          <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                         </TouchableOpacity>
                       ) : (
-                        <ChevronDown size={14} color={themeColors.textMuted} />
+                        <ChevronDown size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                       )}
                     </TouchableOpacity>
                   </>
@@ -647,7 +647,7 @@ function PunchListScreenInner() {
             <View style={styles.formHeader}>
               <Text style={styles.rejectTitle}>Link to Task</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 400 }}>
@@ -707,7 +707,7 @@ function PunchListScreenInner() {
             <View style={styles.formHeader}>
               <Text style={styles.formTitle}>Apply trade template</Text>
               <TouchableOpacity onPress={() => setShowTemplates(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={22} color={themeColors.text} />
+                <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 14, lineHeight: 17 }}>
@@ -743,7 +743,7 @@ function PunchListScreenInner() {
                           {t.context} · {t.items.length} items
                         </Text>
                       </View>
-                      <ChevronRight size={16} color={themeColors.textMuted} />
+                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -762,7 +762,7 @@ function PunchListScreenInner() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
               <TouchableOpacity onPress={() => setShowFilterDrawer(false)} style={{ padding: 4 }}>
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 

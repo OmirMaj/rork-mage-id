@@ -185,7 +185,7 @@ export default function MageIdBidsTabScreen() {
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.brandIcon}><Hammer size={18} color={Colors.primary} /></View>
+          <View style={styles.brandIcon}><Hammer size={18} color={Colors.primary} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>MAGE ID Bids</Text>
             <Text style={styles.title}>
@@ -194,7 +194,7 @@ export default function MageIdBidsTabScreen() {
           </View>
         </View>
         <TouchableOpacity style={styles.postCta} onPress={handlePost} activeOpacity={0.85} testID="mageid-bids-post">
-          <Plus size={14} color="#FFF" />
+          <Plus size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.postCtaText}>Post project</Text>
         </TouchableOpacity>
       </View>
@@ -205,7 +205,7 @@ export default function MageIdBidsTabScreen() {
           style={[styles.segment, mode === 'browse' && styles.segmentActive]}
           onPress={() => setMode('browse')}
         >
-          <Compass size={13} color={mode === 'browse' ? Colors.primary : Colors.textMuted} />
+          <Compass size={13} color={mode === 'browse' ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.segmentText, mode === 'browse' && styles.segmentTextActive]}>
             Browse{filteredBrowse.length > 0 ? ` · ${filteredBrowse.length}` : ''}
           </Text>
@@ -214,7 +214,7 @@ export default function MageIdBidsTabScreen() {
           style={[styles.segment, mode === 'mine' && styles.segmentActive]}
           onPress={() => setMode('mine')}
         >
-          <Layers size={13} color={mode === 'mine' ? Colors.primary : Colors.textMuted} />
+          <Layers size={13} color={mode === 'mine' ? Colors.primary : Colors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.segmentText, mode === 'mine' && styles.segmentTextActive]}>
             My posts{myStats.total > 0 ? ` · ${myStats.total}` : ''}
           </Text>
@@ -229,7 +229,7 @@ export default function MageIdBidsTabScreen() {
       {mode === 'browse' && (
         <View style={styles.controls}>
           <TouchableOpacity style={styles.locBtn} onPress={() => { void requestLocation(); }}>
-            <Crosshair size={13} color={location ? Colors.success : Colors.primary} />
+            <Crosshair size={13} color={location ? Colors.success : Colors.primary} strokeWidth={1.75} />
             <Text style={styles.locBtnText}>
               {location ? 'Location set' : locLoading ? 'Getting location…' : 'Use my location'}
             </Text>
@@ -254,9 +254,9 @@ export default function MageIdBidsTabScreen() {
             activeOpacity={0.85}
             testID="mageid-bids-nearby-map"
           >
-            <MapPin size={13} color={Colors.primary} />
+            <MapPin size={13} color={Colors.primary} strokeWidth={1.75} />
             <Text style={styles.mapBtnText}>Map view</Text>
-            <ChevronRight size={12} color={Colors.primary} />
+            <ChevronRight size={12} color={Colors.primary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       )}
@@ -285,7 +285,7 @@ export default function MageIdBidsTabScreen() {
         {/* BROWSE mode */}
         {mode === 'browse' && !isLoading && filteredBrowse.length === 0 && (
           <View style={styles.emptyCard}>
-            <Inbox size={28} color={Colors.textMuted} />
+            <Inbox size={28} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
             <Text style={styles.emptyBody}>
               {!location
@@ -315,10 +315,10 @@ export default function MageIdBidsTabScreen() {
                 <View style={styles.rfpHead}>
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
                   {r.address_verified ? (
-                    <View style={styles.verifyDot}><ShieldCheck size={10} color={Colors.success} /></View>
+                    <View style={styles.verifyDot}><ShieldCheck size={10} color={Colors.success} strokeWidth={1.75} /></View>
                   ) : (
                     <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
-                      <AlertTriangle size={10} color={Colors.warning} />
+                      <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
                     </View>
                   )}
                 </View>
@@ -326,7 +326,7 @@ export default function MageIdBidsTabScreen() {
                   <Text style={styles.rfpScope} numberOfLines={3}>{r.scope_description}</Text>
                 ) : null}
                 <View style={styles.rfpMeta}>
-                  <MapPin size={11} color={Colors.textMuted} />
+                  <MapPin size={11} color={Colors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.rfpMetaText}>
                     {[r.city, r.state].filter(Boolean).join(', ') || 'Location pending'} · {distanceText}
                   </Text>
@@ -334,19 +334,19 @@ export default function MageIdBidsTabScreen() {
                 <View style={styles.rfpFoot}>
                   {(r.budget_min || r.budget_max) ? (
                     <View style={styles.footChip}>
-                      <DollarSign size={11} color={Colors.primary} />
+                      <DollarSign size={11} color={Colors.primary} strokeWidth={1.75} />
                       <Text style={styles.footChipText}>
                         {r.budget_min ? formatMoney(r.budget_min) : '?'} – {r.budget_max ? formatMoney(r.budget_max) : '?'}
                       </Text>
                     </View>
                   ) : <View />}
                   <View style={[styles.footChip, daysLeft < 3 ? { backgroundColor: Colors.error + '15' } : null]}>
-                    <Clock size={11} color={daysLeft < 3 ? Colors.error : Colors.textMuted} />
+                    <Clock size={11} color={daysLeft < 3 ? Colors.error : Colors.textMuted} strokeWidth={1.75} />
                     <Text style={[styles.footChipText, daysLeft < 3 ? { color: Colors.error } : null]}>
                       {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
                     </Text>
                   </View>
-                  <ChevronRight size={14} color={Colors.textMuted} />
+                  <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
                 </View>
               </View>
             </TouchableOpacity>
@@ -356,7 +356,7 @@ export default function MageIdBidsTabScreen() {
         {/* MINE mode */}
         {mode === 'mine' && !user && (
           <View style={styles.emptyCard}>
-            <Inbox size={28} color={Colors.textMuted} />
+            <Inbox size={28} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>Sign in to see your posts</Text>
             <Text style={styles.emptyBody}>
               Log in or create an account first, then post your project to start collecting bids.
@@ -366,13 +366,13 @@ export default function MageIdBidsTabScreen() {
 
         {mode === 'mine' && user && !mineQ.isLoading && (mineQ.data ?? []).length === 0 && (
           <View style={styles.emptyCard}>
-            <Hammer size={28} color={Colors.primary} />
+            <Hammer size={28} color={Colors.primary} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>You haven&apos;t posted anything yet</Text>
             <Text style={styles.emptyBody}>
               Post your first project. Verified contractors near you will be notified and start submitting bids — usually within a day.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={handlePost}>
-              <Plus size={14} color="#FFF" />
+              <Plus size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.bigCtaText}>Post a project</Text>
             </TouchableOpacity>
           </View>
@@ -410,19 +410,19 @@ export default function MageIdBidsTabScreen() {
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
                   {isAwarded && (
                     <View style={[styles.statusPill, { backgroundColor: Colors.success + '20' }]}>
-                      <Trophy size={10} color={Colors.success} />
+                      <Trophy size={10} color={Colors.success} strokeWidth={1.75} />
                       <Text style={[styles.statusPillText, { color: Colors.success }]}>AWARDED</Text>
                     </View>
                   )}
                   {isOpen && (
                     <View style={[styles.statusPill, { backgroundColor: Colors.primary + '20' }]}>
-                      <Clock size={10} color={Colors.primary} />
+                      <Clock size={10} color={Colors.primary} strokeWidth={1.75} />
                       <Text style={[styles.statusPillText, { color: Colors.primary }]}>OPEN</Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.rfpMeta}>
-                  <MapPin size={11} color={Colors.textMuted} />
+                  <MapPin size={11} color={Colors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.rfpMetaText} numberOfLines={1}>
                     {[r.city, r.state].filter(Boolean).join(', ') || 'Address pending'}
                   </Text>
@@ -443,7 +443,7 @@ export default function MageIdBidsTabScreen() {
                       </View>
                     )}
                   </View>
-                  <ChevronRight size={14} color={Colors.textMuted} />
+                  <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
                 </View>
               </View>
             </TouchableOpacity>

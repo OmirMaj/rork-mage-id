@@ -400,7 +400,7 @@ function OACMeetingInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={() => setActiveId(null)} hitSlop={10} style={styles.headerBack}>
-            <ChevronLeft size={22} color={themeColors.accent} />
+            <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>All meetings</Text>
           </TouchableOpacity>
           <View style={styles.statusPill}>
@@ -415,7 +415,7 @@ function OACMeetingInner() {
               promotes it to the premium centered-hero treatment. */}
           <View style={styles.oacHero}>
             <View style={styles.oacHeroIcon}>
-              <Users size={26} color={themeColors.accent} />
+              <Users size={26} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.eyebrow}>OAC Meeting #{active.number}</Text>
             <Text style={styles.oacHeroTitle}>{project.name}</Text>
@@ -427,7 +427,7 @@ function OACMeetingInner() {
           {/* Attendees */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Users size={16} color={themeColors.accent} />
+              <Users size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Attendees ({active.attendees.length})</Text>
             </View>
             {active.attendees.length === 0 ? (
@@ -447,7 +447,7 @@ function OACMeetingInner() {
               onPress={() => promptAddAttendee(active, ctx)}
               testID="oac-add-attendee"
             >
-              <Plus size={14} color={themeColors.accent} />
+              <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.smallBtnText}>Add attendee</Text>
             </TouchableOpacity>
           </View>
@@ -460,7 +460,7 @@ function OACMeetingInner() {
               <TouchableOpacity onPress={handleRefreshAgenda} disabled={generatingAgenda} hitSlop={10}>
                 {generatingAgenda
                   ? <ActivityIndicator size="small" color={themeColors.accent} />
-                  : <RefreshCw size={15} color={themeColors.accent} />}
+                  : <RefreshCw size={15} color={themeColors.accent} strokeWidth={1.75} />}
               </TouchableOpacity>
             </View>
             <Text style={styles.cardHelper}>Tap each item to mark covered. Add a manual note below any item.</Text>
@@ -474,8 +474,8 @@ function OACMeetingInner() {
                     <View key={item.id} style={styles.agendaItem}>
                       <TouchableOpacity onPress={() => handleToggleCovered(item.id)} style={styles.agendaCheck} hitSlop={6}>
                         {item.covered
-                          ? <CheckCircle2 size={20} color={themeColors.success} />
-                          : <Circle size={20} color={themeColors.textMuted} />}
+                          ? <CheckCircle2 size={20} color={themeColors.success} strokeWidth={1.75} />
+                          : <Circle size={20} color={themeColors.textMuted} strokeWidth={1.75} />}
                       </TouchableOpacity>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.agendaTitle, item.covered && styles.agendaTitleDone]}>
@@ -513,7 +513,7 @@ function OACMeetingInner() {
           {/* Voice capture */}
           <View style={styles.card}>
             <View style={styles.cardHead}>
-              <Mic size={16} color={themeColors.accent} />
+              <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Voice capture</Text>
             </View>
             <Text style={styles.cardHelper}>
@@ -539,7 +539,7 @@ function OACMeetingInner() {
             >
               {uploadingAudio
                 ? <ActivityIndicator size="small" color={themeColors.accent} />
-                : <Upload size={16} color={themeColors.accent} />}
+                : <Upload size={16} color={themeColors.accent} strokeWidth={1.75} />}
               <View style={{ flex: 1 }}>
                 <Text style={styles.uploadAudioLabel}>
                   {uploadingAudio ? 'Transcribing audio…' : 'Upload existing recording'}
@@ -583,7 +583,7 @@ function OACMeetingInner() {
                 >
                   {distributing
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <><Send size={16} color="#fff" /><Text style={styles.primaryBtnText}>Distribute to attendees</Text></>}
+                    : <><Send size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>Distribute to attendees</Text></>}
                 </TouchableOpacity>
               </>
             ) : (
@@ -604,7 +604,7 @@ function OACMeetingInner() {
           {active.actionItems.length > 0 && (
             <View style={styles.card}>
               <View style={styles.cardHead}>
-                <CheckCircle2 size={16} color={themeColors.accent} />
+                <CheckCircle2 size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.cardLabel}>Action items ({active.actionItems.length})</Text>
               </View>
               {active.actionItems.map(a => (
@@ -659,14 +659,14 @@ function OACMeetingInner() {
         >
           {generatingAgenda
             ? <ActivityIndicator size="small" color="#fff" />
-            : <><Plus size={16} color="#fff" /><Text style={styles.primaryBtnText}>New meeting</Text></>}
+            : <><Plus size={16} color="#fff" strokeWidth={1.75} /><Text style={styles.primaryBtnText}>New meeting</Text></>}
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
         {meetings.length === 0 ? (
           <View style={styles.emptyState}>
-            <Calendar size={36} color={themeColors.textMuted} />
+            <Calendar size={36} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No OAC meetings yet</Text>
             <Text style={styles.emptyBody}>
               The OAC weekly is the central meeting where owner, architect, and contractor sync. Tap "New meeting" — MAGE ID auto-builds the agenda from open RFIs, submittals, change orders, and schedule slips.
@@ -698,10 +698,10 @@ function OACMeetingInner() {
                   </Text>
                 </View>
                 {m.status === 'distributed'
-                  ? <CheckCircle2 size={18} color={themeColors.success} />
+                  ? <CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />
                   : m.status === 'concluded'
-                    ? <Clock size={18} color={Colors.warning} />
-                    : <Circle size={18} color={themeColors.textMuted} />}
+                    ? <Clock size={18} color={Colors.warning} strokeWidth={1.75} />
+                    : <Circle size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
               </TouchableOpacity>
             ))
         )}

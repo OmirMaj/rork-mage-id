@@ -146,7 +146,7 @@ export default function EquipmentDetailScreen() {
       >
         <View style={styles.headerCard}>
           <View style={styles.equipIconWrap}>
-            <Truck size={28} color={"#FF6A1A"} />
+            <Truck size={28} color={"#FF6A1A"} strokeWidth={1.75} />
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
             <Text style={[styles.statusBadgeText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
@@ -178,7 +178,7 @@ export default function EquipmentDetailScreen() {
         <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowStatusPicker(!showStatusPicker)}>
           <View style={[styles.statusDot, { backgroundColor: (STATUS_CONFIG[editStatus] ?? STATUS_CONFIG.available).color }]} />
           <Text style={styles.pickerBtnText}>{(STATUS_CONFIG[editStatus] ?? STATUS_CONFIG.available).label}</Text>
-          <ChevronDown size={16} color={"#9AA3AD"} />
+          <ChevronDown size={16} color={"#9AA3AD"} strokeWidth={1.75} />
         </TouchableOpacity>
         {showStatusPicker && (
           <View style={styles.optionsRow}>
@@ -199,7 +199,7 @@ export default function EquipmentDetailScreen() {
           <Text style={styles.pickerBtnText}>
             {editProjectId ? (projects.find(p => p.id === editProjectId)?.name ?? 'Unknown') : 'None'}
           </Text>
-          <ChevronDown size={16} color={"#9AA3AD"} />
+          <ChevronDown size={16} color={"#9AA3AD"} strokeWidth={1.75} />
         </TouchableOpacity>
         {showProjectPicker && (
           <View style={styles.projectList}>
@@ -232,9 +232,9 @@ export default function EquipmentDetailScreen() {
           equip.maintenanceSchedule.map((item) => (
             <View key={item.id} style={[styles.maintCard, item.isOverdue && styles.maintCardOverdue]}>
               <View style={styles.maintHeader}>
-                <Wrench size={14} color={item.isOverdue ? "#C84038" : "#9AA3AD"} />
+                <Wrench size={14} color={item.isOverdue ? "#C84038" : "#9AA3AD"} strokeWidth={1.75} />
                 <Text style={styles.maintDesc}>{item.description}</Text>
-                {item.isOverdue && <AlertTriangle size={14} color={"#C84038"} />}
+                {item.isOverdue && <AlertTriangle size={14} color={"#C84038"} strokeWidth={1.75} />}
               </View>
               <Text style={styles.maintDetail}>
                 Every {item.intervalDays} days | Next: {new Date(item.nextDue).toLocaleDateString()}
@@ -269,7 +269,7 @@ export default function EquipmentDetailScreen() {
         )}
 
         <TouchableOpacity style={styles.logBtn} onPress={() => setShowLogModal(true)} activeOpacity={0.7}>
-          <Clock size={16} color={"#FF6A1A"} />
+          <Clock size={16} color={"#FF6A1A"} strokeWidth={1.75} />
           <Text style={styles.logBtnText}>Log Today's Use</Text>
         </TouchableOpacity>
 
@@ -281,12 +281,12 @@ export default function EquipmentDetailScreen() {
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-equipment">
-          <Save size={18} color="#fff" />
+          <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>Save Changes</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
-          <Trash2 size={16} color={"#C84038"} />
+          <Trash2 size={16} color={"#C84038"} strokeWidth={1.75} />
           <Text style={styles.deleteBtnText}>Delete Equipment</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -297,7 +297,7 @@ export default function EquipmentDetailScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Log Usage</Text>
               <TouchableOpacity onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={"#9AA3AD"} />
+                <X size={20} color={"#9AA3AD"} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.fieldLabel}>Hours Used</Text>

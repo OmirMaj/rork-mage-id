@@ -67,7 +67,7 @@ export default function SubPortalsListScreen() {
           title: 'Sub Portals',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -85,7 +85,7 @@ export default function SubPortalsListScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32 }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Inbox size={32} color={themeColors.textMuted} />
+            <Inbox size={32} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No commitments yet</Text>
             <Text style={styles.emptyBody}>Add a sub commitment to a project — that&apos;s the link between a sub and a project, and what powers their portal.</Text>
           </View>
@@ -109,7 +109,7 @@ function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) 
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.rowIcon}>
-        <HardHat size={20} color={themeColors.accent} />
+        <HardHat size={20} color={themeColors.accent} strokeWidth={1.75} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>{item.subName}</Text>
@@ -125,7 +125,7 @@ function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) 
           )}
         </View>
       </View>
-      <ChevronRight size={18} color={themeColors.textMuted} />
+      <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
     </TouchableOpacity>
   );
 }

@@ -502,7 +502,7 @@ function RFIScreenInner() {
           activeOpacity={0.7}
           testID="rfi-date-required"
         >
-          <CalendarDays size={16} color={themeColors.textMuted} />
+          <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text
             style={[styles.pickerBtnText, !dateRequired && { color: themeColors.textMuted }]}
             numberOfLines={1}
@@ -529,7 +529,7 @@ function RFIScreenInner() {
         >
           <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
           <Text style={styles.pickerBtnText}>{priority.charAt(0).toUpperCase() + priority.slice(1)}</Text>
-          <ChevronDown size={16} color={themeColors.textMuted} />
+          <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
         {showPriorityPicker && (
           <View style={styles.pickerOptions}>
@@ -556,7 +556,7 @@ function RFIScreenInner() {
               activeOpacity={0.7}
             >
               <Text style={styles.pickerBtnText}>{status.replace('_', ' ').charAt(0).toUpperCase() + status.slice(1)}</Text>
-              <ChevronDown size={16} color={themeColors.textMuted} />
+              <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
             {showStatusPicker && (
               <View style={styles.pickerOptions}>
@@ -604,18 +604,18 @@ function RFIScreenInner() {
           <>
             <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
-              <Link2 size={15} color={themeColors.info} />
+              <Link2 size={15} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
                 {linkedTask ? linkedTask.title : 'None — tap to link a task'}
               </Text>
-              <ChevronDown size={16} color={themeColors.textMuted} />
+              <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
             {linkedTask && (
               <View style={styles.linkedTaskBadge}>
                 <Text style={styles.linkedTaskPhase}>{linkedTask.phase}</Text>
                 <Text style={styles.linkedTaskName} numberOfLines={1}>{linkedTask.title}</Text>
                 <TouchableOpacity onPress={() => setLinkedTaskId('')} style={styles.unlinkBtn} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={themeColors.danger} />
+                  <X size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             )}
@@ -635,7 +635,7 @@ function RFIScreenInner() {
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="rfi-save">
-          <Save size={18} color="#fff" />
+          <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>{existingRFI ? 'Update RFI' : 'Create RFI'}</Text>
         </TouchableOpacity>
 
@@ -650,7 +650,7 @@ function RFIScreenInner() {
             activeOpacity={0.85}
             testID="rfi-send-to-pro"
           >
-            <Send size={16} color={themeColors.accent} />
+            <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.sendToProBtnText}>Send to Architect / Engineer</Text>
           </TouchableOpacity>
         )}
@@ -663,7 +663,7 @@ function RFIScreenInner() {
             <View style={styles.sendCardHeader}>
               <Text style={styles.sendCardTitle}>Send RFI #{existingRFI?.number}</Text>
               <TouchableOpacity onPress={() => setShowSendModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sendCardHelper}>
@@ -706,7 +706,7 @@ function RFIScreenInner() {
               activeOpacity={0.85}
               testID="rfi-send-submit"
             >
-              <Send size={16} color="#fff" />
+              <Send size={16} color="#fff" strokeWidth={1.75} />
               <Text style={styles.sendSubmitBtnText}>{sending ? 'Sending…' : 'Send RFI'}</Text>
             </TouchableOpacity>
           </Pressable>
@@ -719,7 +719,7 @@ function RFIScreenInner() {
           <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
-              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
               <TouchableOpacity
@@ -734,7 +734,7 @@ function RFIScreenInner() {
                   style={[styles.taskOption, linkedTaskId === task.id && styles.taskOptionActive]}
                   onPress={() => { setLinkedTaskId(task.id); setShowTaskPicker(false); }}
                 >
-                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={themeColors.accent} />}
+                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={themeColors.accent} strokeWidth={1.75} />}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.taskOptionText, linkedTaskId === task.id && styles.taskOptionTextActive]} numberOfLines={1}>{task.title}</Text>
                     <Text style={styles.taskOptionMeta}>{task.phase} · {task.durationDays}d · {task.progress}% done</Text>

@@ -205,14 +205,14 @@ export default function PaymentsSetupScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} testID="payments-setup-back" accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payments</Text>
         <TouchableOpacity onPress={() => refresh()} style={styles.headerBtn} disabled={refreshing} testID="payments-setup-refresh">
           {refreshing ? (
             <ActivityIndicator size="small" color={themeColors.accent} />
           ) : (
-            <RefreshCw size={18} color={themeColors.accent} />
+            <RefreshCw size={18} color={themeColors.accent} strokeWidth={1.75} />
           )}
         </TouchableOpacity>
       </View>
@@ -276,7 +276,7 @@ export default function PaymentsSetupScreen() {
         </View>
 
         <View style={styles.fineprint}>
-          <Lock size={11} color={themeColors.textMuted} />
+          <Lock size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.fineprintText}>
             Secured by Stripe. MAGE ID never stores card data. A 1% platform fee plus standard
             Stripe processing (2.9% + 30¢) is deducted from each successful payment.
@@ -295,7 +295,7 @@ function NotConnectedCard({
   return (
     <View style={styles.card}>
       <View style={[styles.heroIcon, { backgroundColor: themeColors.accent + '15' }]}>
-        <Wallet size={28} color={themeColors.accent} />
+        <Wallet size={28} color={themeColors.accent} strokeWidth={1.75} />
       </View>
       <Text style={styles.heroTitle}>Get paid faster</Text>
       <Text style={styles.heroSub}>
@@ -348,7 +348,7 @@ function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refresh
   return (
     <View style={styles.card}>
       <View style={[styles.heroIcon, { backgroundColor: Colors.warning + '15' }]}>
-        <Clock size={28} color={Colors.warning} />
+        <Clock size={28} color={Colors.warning} strokeWidth={1.75} />
       </View>
       <Text style={styles.heroTitle}>Stripe is reviewing your info</Text>
       <Text style={styles.heroSub}>
@@ -363,7 +363,7 @@ function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refresh
       >
         {refreshing ? <ActivityIndicator color="#fff" /> : (
           <>
-            <RefreshCw size={16} color="#fff" />
+            <RefreshCw size={16} color="#fff" strokeWidth={1.75} />
             <Text style={styles.ctaText}>Check status</Text>
           </>
         )}
@@ -378,7 +378,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
   return (
     <View style={styles.card}>
       <View style={[styles.heroIcon, { backgroundColor: themeColors.success + '15' }]}>
-        <CheckCircle2 size={28} color={themeColors.success} />
+        <CheckCircle2 size={28} color={themeColors.success} strokeWidth={1.75} />
       </View>
       <Text style={styles.heroTitle}>Payments connected</Text>
       <Text style={styles.heroSub}>
@@ -404,7 +404,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
         onPress={onManage}
         activeOpacity={0.85}
       >
-        <ExternalLink size={16} color="#fff" />
+        <ExternalLink size={16} color="#fff" strokeWidth={1.75} />
         <Text style={styles.ctaText}>Manage on Stripe</Text>
       </TouchableOpacity>
     </View>
@@ -417,7 +417,7 @@ function Benefit({ text }: { text: string }) {
   return (
     <View style={styles.benefitRow}>
       <View style={styles.benefitDot}>
-        <CheckCircle2 size={14} color={themeColors.success} />
+        <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
       </View>
       <Text style={styles.benefitText}>{text}</Text>
     </View>

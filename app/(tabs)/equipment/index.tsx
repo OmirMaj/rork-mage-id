@@ -163,7 +163,7 @@ export default function EquipmentScreen() {
               >
                 <View style={styles.equipCardHeader}>
                   <View style={styles.equipIconWrap}>
-                    <Truck size={20} color={Colors.primary} />
+                    <Truck size={20} color={Colors.primary} strokeWidth={1.75} />
                   </View>
                   <View style={styles.equipCardInfo}>
                     <Text style={styles.equipName} numberOfLines={1}>{equip.name}</Text>
@@ -180,7 +180,7 @@ export default function EquipmentScreen() {
                   <Text style={styles.equipRate}>{formatMoney(equip.dailyRate)}/day</Text>
                   {hasOverdue && (
                     <View style={styles.overdueBadge}>
-                      <AlertTriangle size={12} color={Colors.error} />
+                      <AlertTriangle size={12} color={Colors.error} strokeWidth={1.75} />
                       <Text style={styles.overdueText}>Overdue</Text>
                     </View>
                   )}
@@ -196,7 +196,7 @@ export default function EquipmentScreen() {
         onPress={() => setShowAddModal(true)}
         activeOpacity={0.85}
         testID="add-equipment" accessibilityRole="button" accessibilityLabel="Add">
-        <Plus size={24} color="#fff" />
+        <Plus size={24} color="#fff" strokeWidth={1.75} />
       </TouchableOpacity>
 
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
@@ -206,7 +206,7 @@ export default function EquipmentScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Equipment</Text>
                 <TouchableOpacity onPress={() => setShowAddModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={22} color={Colors.textMuted} />
+                  <X size={22} color={Colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -239,7 +239,7 @@ export default function EquipmentScreen() {
                 <Text style={styles.pickerBtnText}>
                   {EQUIPMENT_CATEGORIES.find(c => c.id === newCategory)?.label ?? 'Other'}
                 </Text>
-                <ChevronDown size={16} color={Colors.textMuted} />
+                <ChevronDown size={16} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
               {showCategoryPicker && (
                 <View style={styles.categoryGrid}>

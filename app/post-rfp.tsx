@@ -441,7 +441,7 @@ export default function PostRfpScreen() {
             accessibilityLabel="Back"
             style={styles.heroBack}
           >
-            <ChevronLeft size={20} color={themeColors.text} />
+            <ChevronLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
 
           <View style={styles.heroIllustration} pointerEvents="none">
@@ -557,7 +557,7 @@ export default function PostRfpScreen() {
           {error && (
             <FadeRise delay={0}>
               <View style={styles.errorCard}>
-                <AlertTriangle size={16} color={themeColors.danger} />
+                <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             </FadeRise>
@@ -662,7 +662,7 @@ function DetailsStep({
           </View>
           {addressVerified && (
             <View style={styles.verifiedRow}>
-              <ShieldCheck size={13} color={themeColors.success} />
+              <ShieldCheck size={13} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.verifiedText} numberOfLines={1}>
                 Verified · {latLng?.lat.toFixed(4)}, {latLng?.lng.toFixed(4)}
               </Text>
@@ -800,7 +800,7 @@ function ScopeStep({
             {drawings.map(d => (
               <View key={d.uri} style={styles.photoTile}>
                 <View style={styles.drawingPlaceholder}>
-                  <FileText size={18} color={themeColors.accent} />
+                  <FileText size={18} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.drawingName} numberOfLines={2}>{d.name}</Text>
                 </View>
                 <TouchableOpacity
@@ -843,7 +843,7 @@ function BudgetStep({
           <CardHead icon={DollarSign} title="Budget range" subtitle="A range filters out wildly off-target bids. Leave blank if you're not sure." styles={styles} themeColors={themeColors} />
           <View style={styles.budgetRow}>
             <View style={styles.budgetField}>
-              <DollarSign size={14} color={themeColors.textMuted} />
+              <DollarSign size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={styles.budgetInput}
                 value={budgetMin} onChangeText={setBudgetMin}
@@ -853,7 +853,7 @@ function BudgetStep({
             </View>
             <Text style={styles.budgetDash}>–</Text>
             <View style={styles.budgetField}>
-              <DollarSign size={14} color={themeColors.textMuted} />
+              <DollarSign size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={styles.budgetInput}
                 value={budgetMax} onChangeText={setBudgetMax}
@@ -892,7 +892,7 @@ function BudgetStep({
           activeOpacity={0.85}
           testID="post-rfp-verified-only"
         >
-          <ShieldCheck size={20} color={verifiedOnly ? themeColors.success : themeColors.textMuted} />
+          <ShieldCheck size={20} color={verifiedOnly ? themeColors.success : themeColors.textMuted} strokeWidth={1.75} />
           <View style={{ flex: 1 }}>
             <Text style={styles.verifyToggleTitle}>Verified pros only</Text>
             <Text style={styles.verifyToggleSub}>
@@ -900,7 +900,7 @@ function BudgetStep({
             </Text>
           </View>
           <View style={[styles.verifyCheckbox, verifiedOnly && styles.verifyCheckboxOn]}>
-            {verifiedOnly && <Check size={14} color="#FFF" />}
+            {verifiedOnly && <Check size={14} color="#FFF" strokeWidth={1.75} />}
           </View>
         </TouchableOpacity>
       </FadeRise>
@@ -1001,7 +1001,7 @@ function CardHead({
         <Text style={styles.cardHeadTitle}>{title}</Text>
         {subtitle && <Text style={styles.cardHeadSubtitle}>{subtitle}</Text>}
       </View>
-      {chevron && <ChevronRight size={16} color={themeColors.textMuted} />}
+      {chevron && <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />}
     </View>
   );
 }

@@ -114,7 +114,7 @@ function BuyoutScopeGapInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Scope-Gap Audit · MAGE</Text>
@@ -203,7 +203,7 @@ function BuyoutScopeGapInner() {
             {report.overlapItems.length > 0 && (
               <View style={styles.overlapCard}>
                 <View style={styles.overlapHead}>
-                  <Copy size={16} color={t.accentHot} />
+                  <Copy size={16} color={t.accentHot} strokeWidth={1.75} />
                   <Text style={styles.overlapTitle}>Possible double-buy</Text>
                 </View>
                 <Text style={styles.overlapSub}>

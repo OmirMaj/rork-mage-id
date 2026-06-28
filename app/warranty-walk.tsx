@@ -223,7 +223,7 @@ export default function WarrantyWalkScreen() {
           title: '11-month walk',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -231,7 +231,7 @@ export default function WarrantyWalkScreen() {
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <ShieldCheck size={20} color={themeColors.accent} />
+            <ShieldCheck size={20} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroTitle}>{project.name}</Text>
           <Text style={styles.heroBody}>
@@ -239,7 +239,7 @@ export default function WarrantyWalkScreen() {
           </Text>
           {alreadyDone && (
             <View style={styles.doneBadge}>
-              <CheckCircle2 size={14} color={themeColors.success} />
+              <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.doneBadgeText}>
                 Walk completed {new Date(project.warrantyWalkCompletedAt!).toLocaleDateString()}
               </Text>
@@ -272,15 +272,15 @@ export default function WarrantyWalkScreen() {
                   <View style={styles.itemHeader}>
                     <TouchableOpacity onPress={() => toggleChecked(it.id)} style={styles.checkbox} activeOpacity={0.85}>
                       {state.checked
-                        ? <CheckCircle2 size={20} color={themeColors.success} />
-                        : <Circle size={20} color={themeColors.textMuted} />}
+                        ? <CheckCircle2 size={20} color={themeColors.success} strokeWidth={1.75} />
+                        : <Circle size={20} color={themeColors.textMuted} strokeWidth={1.75} />}
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemTitle}>{it.title}</Text>
                       <Text style={styles.itemHint}>{it.hint}</Text>
                     </View>
                     <TouchableOpacity onPress={() => toggleAttention(it.id)} style={styles.flagBtn} activeOpacity={0.85}>
-                      <AlertTriangle size={16} color={state.needsAttention ? Colors.warning : themeColors.textMuted} />
+                      <AlertTriangle size={16} color={state.needsAttention ? Colors.warning : themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                   {(state.checked || state.needsAttention) && (
@@ -315,7 +315,7 @@ export default function WarrantyWalkScreen() {
           activeOpacity={0.85}
           style={[styles.secondaryBtn, (emailing || (totals.checkedCount === 0 && totals.flaggedCount === 0)) && { opacity: 0.6 }]}
         >
-          {emailing ? <ActivityIndicator color={themeColors.accent} /> : <Mail size={16} color={themeColors.accent} />}
+          {emailing ? <ActivityIndicator color={themeColors.accent} /> : <Mail size={16} color={themeColors.accent} strokeWidth={1.75} />}
           <Text style={styles.secondaryBtnText}>Email summary to homeowner</Text>
         </TouchableOpacity>
 
@@ -325,7 +325,7 @@ export default function WarrantyWalkScreen() {
           activeOpacity={0.85}
           style={[styles.primaryBtn, completing && { opacity: 0.6 }]}
         >
-          {completing ? <ActivityIndicator color="#FFF" /> : <Send size={16} color="#FFF" />}
+          {completing ? <ActivityIndicator color="#FFF" /> : <Send size={16} color="#FFF" strokeWidth={1.75} />}
           <Text style={styles.primaryBtnText}>
             {alreadyDone ? 'Update walk-completed date' : 'Mark walk complete'}
           </Text>

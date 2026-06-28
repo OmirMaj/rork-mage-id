@@ -106,7 +106,7 @@ export default function MarketplaceScreen() {
           key={i}
           size={12}
           color={i <= Math.round(rating) ? '#FFB800' : Colors.borderLight}
-          fill={i <= Math.round(rating) ? '#FFB800' : 'transparent'}
+          fill={i <= Math.round(rating) ? '#FFB800' : 'transparent'} strokeWidth={1.75}
         />
       );
     }
@@ -127,13 +127,13 @@ export default function MarketplaceScreen() {
       >
         {item.featured && (
           <View style={styles.featuredBadge}>
-            <Award size={10} color="#FFB800" />
+            <Award size={10} color="#FFB800" strokeWidth={1.75} />
             <Text style={styles.featuredText}>Featured</Text>
           </View>
         )}
         <View style={styles.supplierTop}>
           <View style={styles.supplierAvatar}>
-            <Store size={20} color={Colors.primary} />
+            <Store size={20} color={Colors.primary} strokeWidth={1.75} />
           </View>
           <View style={styles.supplierInfo}>
             <Text style={styles.supplierName} numberOfLines={1}>{item.companyName}</Text>
@@ -142,20 +142,20 @@ export default function MarketplaceScreen() {
               <Text style={styles.ratingText}>{item.rating}</Text>
             </View>
           </View>
-          <ChevronRight size={18} color={Colors.textMuted} />
+          <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
         </View>
         <Text style={styles.supplierDesc} numberOfLines={2}>{item.description}</Text>
         <View style={styles.supplierMeta}>
           <View style={styles.supplierChip}>
-            <Package size={10} color={Colors.info} />
+            <Package size={10} color={Colors.info} strokeWidth={1.75} />
             <Text style={styles.supplierChipText}>{listingCount} products</Text>
           </View>
           <View style={styles.supplierChip}>
-            <MapPin size={10} color={Colors.textMuted} />
+            <MapPin size={10} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.supplierChipText}>{item.address.split(',').pop()?.trim()}</Text>
           </View>
           <View style={styles.supplierChip}>
-            <DollarSign size={10} color={Colors.success} />
+            <DollarSign size={10} color={Colors.success} strokeWidth={1.75} />
             <Text style={styles.supplierChipText}>Min ${item.minOrderAmount}</Text>
           </View>
         </View>
@@ -194,7 +194,7 @@ export default function MarketplaceScreen() {
           </View>
           {item.inStock && (
             <View style={styles.stockBadge}>
-              <CheckCircle size={10} color={Colors.success} />
+              <CheckCircle size={10} color={Colors.success} strokeWidth={1.75} />
               <Text style={styles.stockText}>In Stock</Text>
             </View>
           )}
@@ -221,12 +221,12 @@ export default function MarketplaceScreen() {
         <View style={styles.listingBottom}>
           {supplier && (
             <View style={styles.listingSupplierRow}>
-              <Store size={10} color={Colors.textMuted} />
+              <Store size={10} color={Colors.textMuted} strokeWidth={1.75} />
               <Text style={styles.listingSupplierText}>{supplier.companyName}</Text>
             </View>
           )}
           <View style={styles.listingLeadRow}>
-            <Clock size={10} color={Colors.info} />
+            <Clock size={10} color={Colors.info} strokeWidth={1.75} />
             <Text style={styles.listingLeadText}>{item.leadTimeDays}d lead</Text>
           </View>
         </View>
@@ -271,7 +271,7 @@ export default function MarketplaceScreen() {
               </View>
 
               <View style={styles.searchBar}>
-                <Search size={16} color={Colors.textMuted} />
+                <Search size={16} color={Colors.textMuted} strokeWidth={1.75} />
                 <TextInput
                   style={styles.searchInput}
                   value={query}
@@ -285,7 +285,7 @@ export default function MarketplaceScreen() {
                 />
                 {query.length > 0 && (
                   <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={16} color={Colors.textMuted} />
+                    <X size={16} color={Colors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -296,7 +296,7 @@ export default function MarketplaceScreen() {
                   onPress={() => setViewMode('suppliers')}
                   activeOpacity={0.7}
                 >
-                  <Store size={14} color={viewMode === 'suppliers' ? Colors.textOnPrimary : Colors.textSecondary} />
+                  <Store size={14} color={viewMode === 'suppliers' ? Colors.textOnPrimary : Colors.textSecondary} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, viewMode === 'suppliers' && styles.modeBtnTextActive]}>Suppliers</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -304,7 +304,7 @@ export default function MarketplaceScreen() {
                   onPress={() => setViewMode('listings')}
                   activeOpacity={0.7}
                 >
-                  <Package size={14} color={viewMode === 'listings' ? Colors.textOnPrimary : Colors.textSecondary} />
+                  <Package size={14} color={viewMode === 'listings' ? Colors.textOnPrimary : Colors.textSecondary} strokeWidth={1.75} />
                   <Text style={[styles.modeBtnText, viewMode === 'listings' && styles.modeBtnTextActive]}>Products</Text>
                 </TouchableOpacity>
               </View>
@@ -360,7 +360,7 @@ export default function MarketplaceScreen() {
             }
             {viewMode === 'suppliers' && filteredSuppliers.length === 0 && (
               <View style={styles.emptyState}>
-                <Store size={40} color={Colors.textMuted} />
+                <Store size={40} color={Colors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.emptyTitle}>No suppliers match yet</Text>
                 <Text style={styles.emptyDesc}>
                   Clear the search box, switch the category chip, or tap the Listings tab to see products instead of vendors.
@@ -369,7 +369,7 @@ export default function MarketplaceScreen() {
             )}
             {viewMode === 'listings' && filteredListings.length === 0 && (
               <View style={styles.emptyState}>
-                <Package size={40} color={Colors.textMuted} />
+                <Package size={40} color={Colors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.emptyTitle}>No products match yet</Text>
                 <Text style={styles.emptyDesc}>
                   Try a broader category, clear your search, or switch to the Suppliers tab to browse vendors first.
@@ -397,14 +397,14 @@ export default function MarketplaceScreen() {
                 style={styles.modalCloseBtn}
                 onPress={() => setSelectedSupplier(null)}
                 activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.text} />
+                <X size={20} color={Colors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
               <View style={styles.supplierDetailHeader}>
                 <View style={styles.supplierDetailAvatar}>
-                  <Store size={32} color={Colors.primary} />
+                  <Store size={32} color={Colors.primary} strokeWidth={1.75} />
                 </View>
                 <View style={styles.ratingRowLarge}>
                   {renderStars(selectedSupplier.rating)}
@@ -419,7 +419,7 @@ export default function MarketplaceScreen() {
                   onPress={() => handleContactSupplier(selectedSupplier, 'email')}
                   activeOpacity={0.7}
                 >
-                  <Mail size={18} color={Colors.info} />
+                  <Mail size={18} color={Colors.info} strokeWidth={1.75} />
                   <Text style={styles.contactBtnText}>Email</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -427,7 +427,7 @@ export default function MarketplaceScreen() {
                   onPress={() => handleContactSupplier(selectedSupplier, 'phone')}
                   activeOpacity={0.7}
                 >
-                  <Phone size={18} color={Colors.success} />
+                  <Phone size={18} color={Colors.success} strokeWidth={1.75} />
                   <Text style={styles.contactBtnText}>Call</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -435,24 +435,24 @@ export default function MarketplaceScreen() {
                   onPress={() => handleContactSupplier(selectedSupplier, 'website')}
                   activeOpacity={0.7}
                 >
-                  <Globe size={18} color={Colors.accent} />
+                  <Globe size={18} color={Colors.accent} strokeWidth={1.75} />
                   <Text style={styles.contactBtnText}>Website</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.detailInfoCard}>
                 <View style={styles.detailInfoRow}>
-                  <MapPin size={14} color={Colors.textMuted} />
+                  <MapPin size={14} color={Colors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.detailInfoText}>{selectedSupplier.address}</Text>
                 </View>
                 <View style={styles.detailInfoDivider} />
                 <View style={styles.detailInfoRow}>
-                  <Truck size={14} color={Colors.textMuted} />
+                  <Truck size={14} color={Colors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.detailInfoText}>{selectedSupplier.deliveryOptions.join(' · ')}</Text>
                 </View>
                 <View style={styles.detailInfoDivider} />
                 <View style={styles.detailInfoRow}>
-                  <DollarSign size={14} color={Colors.textMuted} />
+                  <DollarSign size={14} color={Colors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.detailInfoText}>Min order: ${selectedSupplier.minOrderAmount}</Text>
                 </View>
               </View>
@@ -517,7 +517,7 @@ export default function MarketplaceScreen() {
                   <View style={styles.popupHeader}>
                     <Text style={styles.popupTitle} numberOfLines={2}>{selectedListing.name}</Text>
                     <TouchableOpacity onPress={() => setSelectedListing(null)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={18} color={Colors.textMuted} />
+                      <X size={18} color={Colors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
 
@@ -525,11 +525,11 @@ export default function MarketplaceScreen() {
 
                   {supplier && (
                     <View style={styles.popupSupplierRow}>
-                      <Store size={12} color={Colors.primary} />
+                      <Store size={12} color={Colors.primary} strokeWidth={1.75} />
                       <Text style={styles.popupSupplierName}>{supplier.companyName}</Text>
                       {selectedListing.inStock && (
                         <View style={styles.popupStockBadge}>
-                          <CheckCircle size={10} color={Colors.success} />
+                          <CheckCircle size={10} color={Colors.success} strokeWidth={1.75} />
                           <Text style={styles.popupStockText}>In Stock</Text>
                         </View>
                       )}
@@ -581,7 +581,7 @@ export default function MarketplaceScreen() {
 
                   {usesBulk && (
                     <View style={styles.popupBulkBanner}>
-                      <CheckCircle size={14} color={Colors.success} />
+                      <CheckCircle size={14} color={Colors.success} strokeWidth={1.75} />
                       <Text style={styles.popupBulkText}>Bulk pricing applied! Save {savings}%</Text>
                     </View>
                   )}
@@ -592,7 +592,7 @@ export default function MarketplaceScreen() {
                   </View>
 
                   <View style={styles.popupLeadRow}>
-                    <Clock size={12} color={Colors.info} />
+                    <Clock size={12} color={Colors.info} strokeWidth={1.75} />
                     <Text style={styles.popupLeadText}>
                       Estimated lead time: {selectedListing.leadTimeDays} business day{selectedListing.leadTimeDays !== 1 ? 's' : ''}
                     </Text>
@@ -604,7 +604,7 @@ export default function MarketplaceScreen() {
                     activeOpacity={0.85}
                     testID="request-quote-btn"
                   >
-                    <Mail size={18} color={Colors.textOnPrimary} />
+                    <Mail size={18} color={Colors.textOnPrimary} strokeWidth={1.75} />
                     <Text style={styles.popupRequestBtnText}>Request Quote via Email</Text>
                   </TouchableOpacity>
 
@@ -614,7 +614,7 @@ export default function MarketplaceScreen() {
                       onPress={() => handleContactSupplier(supplier, 'phone')}
                       activeOpacity={0.7}
                     >
-                      <Phone size={16} color={Colors.primary} />
+                      <Phone size={16} color={Colors.primary} strokeWidth={1.75} />
                       <Text style={styles.popupCallBtnText}>Call {supplier.companyName}</Text>
                     </TouchableOpacity>
                   )}

@@ -145,9 +145,9 @@ export default function PaymentPredictionsScreen() {
             Mage AI analyzes due dates, client payment history, project status, and retention holds to forecast real inflows — so you know which invoices need a call today vs. which are safe to let ride.
           </Text>
           <View style={styles.featureRow}>
-            <View style={styles.featureChip}><Clock size={12} color={themeColors.accent} /><Text style={styles.featureText}>Per-invoice pay date</Text></View>
-            <View style={styles.featureChip}><AlertTriangle size={12} color={Colors.warning} /><Text style={styles.featureText}>Risk scoring</Text></View>
-            <View style={styles.featureChip}><Phone size={12} color={themeColors.accent} /><Text style={styles.featureText}>Action suggestions</Text></View>
+            <View style={styles.featureChip}><Clock size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Per-invoice pay date</Text></View>
+            <View style={styles.featureChip}><AlertTriangle size={12} color={Colors.warning} strokeWidth={1.75} /><Text style={styles.featureText}>Risk scoring</Text></View>
+            <View style={styles.featureChip}><Phone size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Action suggestions</Text></View>
           </View>
           <TouchableOpacity
             style={[styles.runBtn, unpaidCount === 0 && { opacity: 0.5 }]}
@@ -171,10 +171,10 @@ export default function PaymentPredictionsScreen() {
 
       {error && !loading && (
         <View style={styles.errorCard}>
-          <AlertTriangle size={18} color={themeColors.danger} />
+          <AlertTriangle size={18} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={runForecast} activeOpacity={0.85}>
-            <RefreshCw size={14} color={themeColors.accent} />
+            <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.retryBtnText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -194,7 +194,7 @@ export default function PaymentPredictionsScreen() {
                 <Text style={styles.headlineText}>{result.headline}</Text>
                 {result.topAction && (
                   <View style={styles.topActionWrap}>
-                    <Phone size={12} color={themeColors.accent} />
+                    <Phone size={12} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.topActionText}>{result.topAction}</Text>
                   </View>
                 )}
@@ -242,7 +242,7 @@ export default function PaymentPredictionsScreen() {
                     </View>
                     <Text style={styles.invoiceProject} numberOfLines={1}>{pred.projectName}</Text>
                   </View>
-                  <ChevronRight size={18} color={themeColors.textMuted} />
+                  <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
                 </View>
 
                 <View style={styles.invoiceMetrics}>
@@ -283,7 +283,7 @@ export default function PaymentPredictionsScreen() {
           })}
 
           <TouchableOpacity style={styles.rerunBtn} onPress={runForecast} activeOpacity={0.85} testID="rerun-forecast-btn">
-            <RefreshCw size={14} color={themeColors.accent} />
+            <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.rerunBtnText}>Re-run Forecast</Text>
           </TouchableOpacity>
         </>

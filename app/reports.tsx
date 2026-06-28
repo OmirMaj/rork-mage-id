@@ -101,7 +101,7 @@ export default function ReportsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Financial Reports</Text>
@@ -121,7 +121,7 @@ export default function ReportsScreen() {
             Reports reads as a sibling of the AI-feature screens. */}
         <View style={styles.reportsHero}>
           <View style={styles.reportsHeroIcon}>
-            <TrendingUp size={26} color={themeColors.accent} />
+            <TrendingUp size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.reportsHeroTitle}>Bank-Ready Reports</Text>
           <Text style={styles.reportsHeroSub}>
@@ -138,7 +138,7 @@ export default function ReportsScreen() {
       <View style={[styles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
         {tab !== 'profit' && (
           <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleCopyCsv} activeOpacity={0.85}>
-            <Copy size={14} color={themeColors.text} />
+            <Copy size={14} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.actionBtnSecondaryText}>Copy CSV</Text>
           </TouchableOpacity>
         )}
@@ -152,7 +152,7 @@ export default function ReportsScreen() {
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <>
-              <FileDown size={16} color="#FFF" />
+              <FileDown size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.actionBtnPrimaryText}>
                 {Platform.OS === 'web' ? 'Open PDF preview' : 'Download & share PDF'}
               </Text>

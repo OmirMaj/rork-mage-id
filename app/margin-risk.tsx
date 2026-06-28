@@ -89,7 +89,7 @@ function MarginRiskInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Margin Risk · MAGE</Text>
@@ -173,9 +173,9 @@ function MarginRiskInner() {
               onPress={() => router.push({ pathname: '/living-estimate', params: { projectId: project.id } } as any)}
               activeOpacity={0.8}
             >
-              <Activity size={16} color={t.accent} />
+              <Activity size={16} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.linkRowText}>Open the Living Estimate</Text>
-              <ArrowRight size={16} color={t.accent} />
+              <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </>
         )}
@@ -194,7 +194,7 @@ function FactorCard({ f, t, styles }: { f: RiskFactor; t: ThemeColors; styles: R
       </View>
       <Text style={styles.factorDetail}>{f.detail}</Text>
       <View style={styles.factorRecRow}>
-        <ArrowRight size={13} color={t.textSecondary} />
+        <ArrowRight size={13} color={t.textSecondary} strokeWidth={1.75} />
         <Text style={styles.factorRec}>{f.recommendation}</Text>
       </View>
     </View>

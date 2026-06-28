@@ -227,7 +227,7 @@ export default function ScheduleWizardScreen() {
       {/* Top bar: back arrow, title, save shortcut. Mirrors the mockup. */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={handleBack} style={styles.topBarBackBtn} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Create Schedule</Text>
         {step === 3 ? (
@@ -367,7 +367,7 @@ function ProjectStep(props: {
               <Text style={styles.heroMeta}>📍 {picked.location || 'No location set'}</Text>
             </View>
             <View style={styles.heroMetaRow}>
-              <CalendarIcon size={13} color={themeColors.textMuted} />
+              <CalendarIcon size={13} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.heroMeta}>
                 {fmtShort(startDate)} – {fmtShort(projectEndDate)}
                 {totalDays > 0 ? ` · ${totalDays} days` : ''}
@@ -478,7 +478,7 @@ function TasksStep(props: {
                 accessibilityRole="button"
                 accessibilityLabel="Remove task"
               >
-                <Trash2 size={16} color={themeColors.textMuted} />
+                <Trash2 size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
           );
@@ -500,7 +500,7 @@ function TasksStep(props: {
           }}
           activeOpacity={0.85}
         >
-          <Plus size={16} color={themeColors.accent} />
+          <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.addTaskBtnText}>Add task</Text>
         </TouchableOpacity>
       </View>

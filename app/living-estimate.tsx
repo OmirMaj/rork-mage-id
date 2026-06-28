@@ -100,7 +100,7 @@ function LivingEstimateInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Living Estimate · MAGE</Text>
@@ -126,7 +126,7 @@ function LivingEstimateInner() {
               activeOpacity={0.85}
             >
               <Text style={styles.basisBtnText}>Open Job Costing</Text>
-              <ArrowRight size={16} color={t.accent} />
+              <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
         ) : (
@@ -137,11 +137,11 @@ function LivingEstimateInner() {
                 <Text style={styles.heroLabel}>Projected margin at completion</Text>
                 <View style={[styles.healthChip, { backgroundColor: healthColor + '22' }]}>
                   {health === 'critical' ? (
-                    <AlertTriangle size={13} color={healthColor} />
+                    <AlertTriangle size={13} color={healthColor} strokeWidth={1.75} />
                   ) : health === 'watch' ? (
-                    <TrendingDown size={13} color={healthColor} />
+                    <TrendingDown size={13} color={healthColor} strokeWidth={1.75} />
                   ) : (
-                    <TrendingUp size={13} color={healthColor} />
+                    <TrendingUp size={13} color={healthColor} strokeWidth={1.75} />
                   )}
                   <Text style={[styles.healthChipText, { color: healthColor }]}>
                     {health === 'critical' ? 'At risk' : health === 'watch' ? 'Watch' : 'On track'}
@@ -157,7 +157,7 @@ function LivingEstimateInner() {
                 <Text style={styles.heroDeltaText}>
                   As bid <Text style={styles.heroDeltaStrong}>{pct(snapshot.original.marginPct)}</Text>
                 </Text>
-                <ArrowRight size={14} color={t.textMuted} />
+                <ArrowRight size={14} color={t.textMuted} strokeWidth={1.75} />
                 <Text style={styles.heroDeltaText}>
                   Now <Text style={[styles.heroDeltaStrong, { color: healthColor }]}>{pct(snapshot.projected.marginPct)}</Text>
                 </Text>
@@ -191,7 +191,7 @@ function LivingEstimateInner() {
                     return (
                       <View key={d.key} style={[styles.driverRow, i > 0 && styles.driverRowBorder]}>
                         <View style={[styles.driverIcon, { backgroundColor: (up ? t.success : t.danger) + '1A' }]}>
-                          {up ? <TrendingUp size={15} color={t.success} /> : <TrendingDown size={15} color={t.danger} />}
+                          {up ? <TrendingUp size={15} color={t.success} strokeWidth={1.75} /> : <TrendingDown size={15} color={t.danger} strokeWidth={1.75} />}
                         </View>
                         <View style={styles.driverBody}>
                           <Text style={styles.driverLabel}>{d.label}</Text>
@@ -232,9 +232,9 @@ function LivingEstimateInner() {
               onPress={() => router.push({ pathname: '/margin-risk', params: { projectId: project.id } } as any)}
               activeOpacity={0.8}
             >
-              <ShieldAlert size={16} color={t.accent} />
+              <ShieldAlert size={16} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.linkRowText}>Score this project&apos;s margin risk</Text>
-              <ArrowRight size={16} color={t.accent} />
+              <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -243,7 +243,7 @@ function LivingEstimateInner() {
               activeOpacity={0.8}
             >
               <Text style={styles.linkRowText}>Open Job Costing for phase detail</Text>
-              <ArrowRight size={16} color={t.accent} />
+              <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </>
         )}

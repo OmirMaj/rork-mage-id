@@ -74,11 +74,11 @@ export default function CompanyDetailScreen() {
           </View>
           <Text style={styles.companyName}>{company.companyName}</Text>
           <View style={styles.locationRow}>
-            <MapPin size={14} color={themeColors.textSecondary} />
+            <MapPin size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.locationText}>{company.city}, {company.state}</Text>
           </View>
           <View style={styles.ratingRow}>
-            <Star size={16} color="#F5A623" fill="#F5A623" />
+            <Star size={16} color="#F5A623" fill="#F5A623" strokeWidth={1.75} />
             <Text style={styles.ratingText}>{company.rating.toFixed(1)}</Text>
             <Text style={styles.ratingDivider}>·</Text>
             <Text style={styles.categoryText}>{BID_CATEGORY_LABELS[company.primaryCategory]}</Text>
@@ -87,25 +87,25 @@ export default function CompanyDetailScreen() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Shield size={20} color={themeColors.accent} />
+            <Shield size={20} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Bond Capacity</Text>
             <Text style={styles.statValue}>{formatCurrency(company.bondCapacity)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Building2 size={20} color={themeColors.accent} />
+            <Building2 size={20} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Projects Done</Text>
             <Text style={styles.statValue}>{company.completedProjects}</Text>
           </View>
           {company.yearEstablished && (
             <View style={styles.statCard}>
-              <Calendar size={20} color={themeColors.textSecondary} />
+              <Calendar size={20} color={themeColors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.statLabel}>Established</Text>
               <Text style={styles.statValue}>{company.yearEstablished}</Text>
             </View>
           )}
           {company.employeeCount && (
             <View style={styles.statCard}>
-              <Users size={20} color={themeColors.info} />
+              <Users size={20} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.statLabel}>Employees</Text>
               <Text style={styles.statValue}>{company.employeeCount}</Text>
             </View>
@@ -160,7 +160,7 @@ export default function CompanyDetailScreen() {
                   <Text style={styles.bidTitle} numberOfLines={1}>{bid.title}</Text>
                   <Text style={styles.bidMeta}>{bid.city}, {bid.state} · {formatCurrency(bid.estimatedValue)}</Text>
                 </View>
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ))
           )}
@@ -174,16 +174,16 @@ export default function CompanyDetailScreen() {
               subject: `Quick question — ${company.companyName}`,
               body: [`Hi ${company.companyName},`, '', '', ...mailSignOff()],
             }))}>
-              <Mail size={16} color="#FFF" />
+              <Mail size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.contactBtnText}>Email</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#2E7D32' }]} onPress={() => void Linking.openURL(`tel:${company.phone}`)}>
-              <Phone size={16} color="#FFF" />
+              <Phone size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.contactBtnText}>Call</Text>
             </TouchableOpacity>
             {company.website && (
               <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.info }]} onPress={() => void Linking.openURL(company.website!)}>
-                <Globe size={16} color="#FFF" />
+                <Globe size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.contactBtnText}>Website</Text>
               </TouchableOpacity>
             )}

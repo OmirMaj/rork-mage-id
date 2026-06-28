@@ -109,7 +109,7 @@ function ProjectMemoryInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <View style={styles.headerIcon}><MageAIMark size={15} color={themeColors.accent} /></View>
@@ -153,7 +153,7 @@ function ProjectMemoryInner() {
               <View key={i}>
                 <View style={[styles.bubbleRow, turn.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}>
                   {turn.role === 'assistant' && turn.error && (
-                    <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} />
+                    <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
                   )}
                   <View style={[styles.bubble, turn.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
                     <Text style={turn.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{turn.text}</Text>

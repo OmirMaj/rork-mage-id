@@ -252,7 +252,7 @@ export default function BuyoutScreen() {
 
         {!project ? (
           <View style={styles.emptyState}>
-            <Package size={48} color={themeColors.textMuted} />
+            <Package size={48} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No project selected</Text>
             <Text style={styles.emptyDesc}>Pick a project above to see its buyout dashboard.</Text>
           </View>
@@ -265,7 +265,7 @@ export default function BuyoutScreen() {
                   <Text style={styles.kpiLabel}>Bought out</Text>
                   {kpi.overdue > 0 && (
                     <View style={styles.kpiAlert}>
-                      <AlertTriangle size={11} color="#FFF" />
+                      <AlertTriangle size={11} color="#FFF" strokeWidth={1.75} />
                       <Text style={styles.kpiAlertText}>{kpi.overdue} overdue</Text>
                     </View>
                   )}
@@ -281,8 +281,8 @@ export default function BuyoutScreen() {
                 <View style={styles.kpiTileTopRow}>
                   <Text style={styles.kpiLabel} numberOfLines={1}>{kpi.savingsToDate >= 0 ? 'Savings' : 'Overrun'}</Text>
                   {kpi.savingsToDate >= 0
-                    ? <TrendingUp size={14} color={themeColors.success} />
-                    : <TrendingDown size={14} color={themeColors.danger} />}
+                    ? <TrendingUp size={14} color={themeColors.success} strokeWidth={1.75} />
+                    : <TrendingDown size={14} color={themeColors.danger} strokeWidth={1.75} />}
                 </View>
                 <Text style={[styles.kpiNum, { color: kpi.savingsToDate >= 0 ? themeColors.success : themeColors.danger }]} numberOfLines={1} adjustsFontSizeToFit>
                   {kpi.savingsToDate >= 0 ? '+' : ''}{formatMoney(kpi.savingsToDate)}
@@ -315,7 +315,7 @@ export default function BuyoutScreen() {
 
               {packages.length === 0 ? (
                 <View style={styles.emptyPackages}>
-                  <Package size={32} color={themeColors.textMuted} />
+                  <Package size={32} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.emptyPackagesText}>
                     Create a scope package — Plumbing rough-in, Drywall, MEP, etc. Send it out for bid, log the responses, and let MAGE ID level them.
                   </Text>
@@ -348,7 +348,7 @@ export default function BuyoutScreen() {
                             )}
                           </View>
                         </View>
-                        <ChevronRight size={16} color={themeColors.textMuted} />
+                        <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                       </View>
 
                       <View style={styles.pkgBudgetRow}>
@@ -391,7 +391,7 @@ export default function BuyoutScreen() {
               onPress={() => setShowNewPkg(true)}
               activeOpacity={0.85}
             >
-              <Plus size={18} color="#FFF" />
+              <Plus size={18} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.fabPrimaryText}>New scope package</Text>
               <MageAIMark size={12} color="#FFF" />
             </TouchableOpacity>
@@ -404,7 +404,7 @@ export default function BuyoutScreen() {
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>New scope package</Text>
               <TouchableOpacity onPress={() => setShowNewPkg(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={22} color={themeColors.text} />
+                <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -487,7 +487,7 @@ export default function BuyoutScreen() {
             </ScrollView>
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreatePackage} activeOpacity={0.85}>
-                <Save size={16} color="#FFF" />
+                <Save size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.saveBtnText}>Create package</Text>
               </TouchableOpacity>
             </View>

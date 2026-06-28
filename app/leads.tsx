@@ -132,7 +132,7 @@ export default function LeadsScreen() {
               accessibilityLabel="Import clients"
               testID="leads-import"
             >
-              <Upload size={20} color={themeColors.accent} />
+              <Upload size={20} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -177,7 +177,7 @@ export default function LeadsScreen() {
               activeOpacity={0.85}
               testID="leads-empty-import"
             >
-              <Upload size={15} color="#FFF" />
+              <Upload size={15} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.emptyImportBtnText}>Import your existing clients</Text>
             </TouchableOpacity>
           </View>
@@ -226,7 +226,7 @@ export default function LeadsScreen() {
             onPress={() => router.push({ pathname: '/lead-detail' as never, params: { mode: 'new' } as never })}
             activeOpacity={0.85}
           >
-            <Plus size={18} color={themeColors.text} />
+            <Plus size={18} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.fabSecondaryText}>Add by hand</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -235,7 +235,7 @@ export default function LeadsScreen() {
             disabled={creating}
             activeOpacity={0.85}
           >
-            <Mic size={18} color="#FFF" />
+            <Mic size={18} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.fabPrimaryText}>{creating ? 'Adding…' : 'New lead by voice'}</Text>
             <MageAIMark size={12} color="#FFF" />
           </TouchableOpacity>
@@ -289,7 +289,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
       </View>
       {waiting && (
         <View style={[styles.waitingPill, overdue && styles.waitingPillOverdue]}>
-          <Clock size={11} color={overdue ? '#FFF' : Colors.warning} />
+          <Clock size={11} color={overdue ? '#FFF' : Colors.warning} strokeWidth={1.75} />
           <Text style={[styles.waitingText, overdue && styles.waitingTextOverdue]}>
             {ageHours < 1 ? 'just now' : `waiting ${ageHours}h`}
           </Text>
@@ -297,7 +297,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
       )}
       {!!lead.phone && (
         <View style={styles.cardContactRow}>
-          <Phone size={11} color={themeColors.textMuted} />
+          <Phone size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.cardContactText} numberOfLines={1}>{lead.phone}</Text>
         </View>
       )}

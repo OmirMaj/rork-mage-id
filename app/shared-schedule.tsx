@@ -216,7 +216,7 @@ export default function SharedScheduleScreen() {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ title: 'Schedule' }} />
-        <Lock size={28} color={themeColors.textMuted} />
+        <Lock size={28} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.title}>
           {stillLoading ? 'Loading schedule…' : 'Invalid or expired link'}
         </Text>
@@ -239,7 +239,7 @@ export default function SharedScheduleScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={6}>
-          <ChevronLeft size={18} color={themeColors.accent} />
+          <ChevronLeft size={18} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
         <View style={styles.titleWrap}>
@@ -251,7 +251,7 @@ export default function SharedScheduleScreen() {
           </Text>
         </View>
         <View style={styles.lockBadge}>
-          <Lock size={12} color={themeColors.textSecondary} />
+          <Lock size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.lockBadgeText}>{isSubMode ? 'Sub' : 'Shared'}</Text>
         </View>
       </View>
@@ -260,7 +260,7 @@ export default function SharedScheduleScreen() {
       {isSubMode && (
         <View style={styles.subBanner}>
           <View style={styles.subBannerIcon}>
-            <CheckCircle2 size={16} color={themeColors.success} />
+            <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.subBannerTitle}>Confirming as: {subName}</Text>
@@ -275,7 +275,7 @@ export default function SharedScheduleScreen() {
       {isSubMode ? (
         subTasks.length === 0 ? (
           <View style={[styles.body, styles.centered]}>
-            <AlertCircle size={28} color={Colors.warning} />
+            <AlertCircle size={28} color={Colors.warning} strokeWidth={1.75} />
             <Text style={styles.title}>No tasks assigned to {subName}</Text>
             <Text style={styles.body}>
               The schedule was shared with you but no tasks are tagged for {subName}. Reach out to the GC if you think this is wrong.
@@ -298,13 +298,13 @@ export default function SharedScheduleScreen() {
                     </View>
                   </View>
                   <View style={styles.subRowDates}>
-                    <CalendarClock size={14} color={themeColors.accent} />
+                    <CalendarClock size={14} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.subRowDateText}>{range}</Text>
                   </View>
                   <View style={styles.subRowActions}>
                     {confirmed ? (
                       <View style={[styles.subBtn, styles.subBtnDone]}>
-                        <CheckCircle2 size={14} color={themeColors.success} />
+                        <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
                         <Text style={[styles.subBtnText, { color: themeColors.success }]}>Confirmation sent</Text>
                       </View>
                     ) : (
@@ -314,7 +314,7 @@ export default function SharedScheduleScreen() {
                         activeOpacity={0.85}
                         testID={`sub-confirm-${task.id}`}
                       >
-                        <CheckCircle2 size={14} color="#FFF" />
+                        <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
                         <Text style={[styles.subBtnText, { color: '#FFF' }]}>Confirm</Text>
                       </TouchableOpacity>
                     )}
@@ -324,7 +324,7 @@ export default function SharedScheduleScreen() {
                       activeOpacity={0.85}
                       testID={`sub-reschedule-${task.id}`}
                     >
-                      <CalendarClock size={14} color={Colors.warning} />
+                      <CalendarClock size={14} color={Colors.warning} strokeWidth={1.75} />
                       <Text style={[styles.subBtnText, { color: Colors.warning }]}>Reschedule</Text>
                     </TouchableOpacity>
                   </View>
@@ -338,7 +338,7 @@ export default function SharedScheduleScreen() {
                       <View style={styles.subUpdateRow}>
                         {last && (
                           <View style={styles.subUpdateChip}>
-                            <Activity size={11} color={themeColors.success} />
+                            <Activity size={11} color={themeColors.success} strokeWidth={1.75} />
                             <Text style={styles.subUpdateChipText}>
                               {last.progressPercent}% on {new Date(last.forDate).toLocaleDateString()}
                             </Text>
@@ -350,7 +350,7 @@ export default function SharedScheduleScreen() {
                           activeOpacity={0.85}
                           testID={`sub-log-${task.id}`}
                         >
-                          <Activity size={14} color={themeColors.accent} />
+                          <Activity size={14} color={themeColors.accent} strokeWidth={1.75} />
                           <Text style={[styles.subBtnText, { color: themeColors.accent }]}>
                             {last ? 'Update today\'s progress' : 'Log today\'s update'}
                           </Text>
@@ -434,7 +434,7 @@ export default function SharedScheduleScreen() {
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setRescheduleTask(null)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <TextInput
@@ -459,8 +459,8 @@ export default function SharedScheduleScreen() {
                 activeOpacity={0.85}
               >
                 {payload.gc?.email
-                  ? <Mail size={14} color="#FFF" />
-                  : <MessageSquare size={14} color="#FFF" />}
+                  ? <Mail size={14} color="#FFF" strokeWidth={1.75} />
+                  : <MessageSquare size={14} color="#FFF" strokeWidth={1.75} />}
                 <Text style={styles.modalBtnPrimaryText}>
                   Open {payload.gc?.email ? 'email' : 'message'}
                 </Text>

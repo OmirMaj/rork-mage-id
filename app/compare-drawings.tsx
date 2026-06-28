@@ -153,7 +153,7 @@ export default function CompareDrawingsScreen() {
           title: 'Compare Drawings',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -192,7 +192,7 @@ export default function CompareDrawingsScreen() {
                     <Text style={styles.sheetTitle}>{s.name}</Text>
                     {s.sheetNumber ? <Text style={styles.sheetMeta}>{s.sheetNumber}</Text> : null}
                   </View>
-                  <ArrowUpRight size={16} color={themeColors.textMuted} />
+                  <ArrowUpRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))
             )}
@@ -224,13 +224,13 @@ export default function CompareDrawingsScreen() {
             </View>
 
             <TouchableOpacity onPress={handlePickNew} style={styles.primaryBtn} activeOpacity={0.85}>
-              <FileText size={16} color="#FFF" />
+              <FileText size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>Pick new revision (PDF)</Text>
             </TouchableOpacity>
 
             {error && (
               <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={themeColors.danger} />
+                <AlertCircle size={14} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -310,7 +310,7 @@ export default function CompareDrawingsScreen() {
                 <Text style={styles.sectionLabel}>Possible RFIs to architect</Text>
                 {result.rfiCandidates.map((r, i) => (
                   <View key={i} style={styles.rfiCard}>
-                    <Info size={14} color={themeColors.info} />
+                    <Info size={14} color={themeColors.info} strokeWidth={1.75} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rfiSubject}>{r.subject}</Text>
                       <Text style={styles.rfiQuestion}>{r.question}</Text>
@@ -331,10 +331,10 @@ export default function CompareDrawingsScreen() {
 }
 
 function iconForType(t: ChangeType) {
-  if (t === 'added') return <Plus size={14} color="#FFF" />;
-  if (t === 'removed') return <Minus size={14} color="#FFF" />;
-  if (t === 'modified') return <Pencil size={14} color="#FFF" />;
-  return <Info size={14} color="#FFF" />;
+  if (t === 'added') return <Plus size={14} color="#FFF" strokeWidth={1.75} />;
+  if (t === 'removed') return <Minus size={14} color="#FFF" strokeWidth={1.75} />;
+  if (t === 'modified') return <Pencil size={14} color="#FFF" strokeWidth={1.75} />;
+  return <Info size={14} color="#FFF" strokeWidth={1.75} />;
 }
 function labelForType(t: ChangeType): string {
   if (t === 'added') return 'Added';

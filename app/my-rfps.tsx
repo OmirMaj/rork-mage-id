@@ -111,14 +111,14 @@ export default function MyRfpsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Your projects</Text>
           <Text style={styles.title}>My posted projects</Text>
         </View>
         <TouchableOpacity style={styles.headerCta} onPress={handleNew}>
-          <Plus size={16} color="#FFF" />
+          <Plus size={16} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.headerCtaText}>New</Text>
         </TouchableOpacity>
       </View>
@@ -165,7 +165,7 @@ export default function MyRfpsScreen() {
               contractors near you get notified, and you pick the bid you like best. No fees.
             </Text>
             <TouchableOpacity style={styles.emptyCta} onPress={handleNew}>
-              <Plus size={14} color="#FFF" />
+              <Plus size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.emptyCtaText}>Post a project</Text>
             </TouchableOpacity>
           </View>
@@ -186,7 +186,7 @@ export default function MyRfpsScreen() {
                 <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
               ) : (
                 <View style={[styles.rfpHero, styles.rfpHeroPlaceholder]}>
-                  <Inbox size={24} color={themeColors.textMuted} />
+                  <Inbox size={24} color={themeColors.textMuted} strokeWidth={1.75} />
                 </View>
               )}
               <View style={styles.rfpBody}>
@@ -194,19 +194,19 @@ export default function MyRfpsScreen() {
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
                   {isAwarded && (
                     <View style={[styles.statusPill, { backgroundColor: themeColors.success + '20' }]}>
-                      <Trophy size={10} color={themeColors.success} />
+                      <Trophy size={10} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={[styles.statusPillText, { color: themeColors.success }]}>AWARDED</Text>
                     </View>
                   )}
                   {isOpen && (
                     <View style={[styles.statusPill, { backgroundColor: themeColors.accent + '20' }]}>
-                      <Clock size={10} color={themeColors.accent} />
+                      <Clock size={10} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={[styles.statusPillText, { color: themeColors.accent }]}>OPEN</Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.rfpMeta}>
-                  <MapPin size={11} color={themeColors.textMuted} />
+                  <MapPin size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.rfpMetaText} numberOfLines={1}>
                     {[r.city, r.state].filter(Boolean).join(', ') || 'Address pending'}
                   </Text>
@@ -229,7 +229,7 @@ export default function MyRfpsScreen() {
                       </View>
                     )}
                   </View>
-                  <ChevronRight size={14} color={themeColors.textMuted} />
+                  <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </View>
               </View>
             </TouchableOpacity>

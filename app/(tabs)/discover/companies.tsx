@@ -110,21 +110,21 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
         </View>
 
         <View style={styles.ratingRow}>
-          <Star size={14} color="#F5A623" fill="#F5A623" />
+          <Star size={14} color="#F5A623" fill="#F5A623" strokeWidth={1.75} />
           <Text style={styles.ratingValue}>{company.rating != null ? company.rating.toFixed(1) : 'N/A'}</Text>
           <Text style={styles.ratingStars}>{renderStars(company.rating)}</Text>
           <Text style={styles.reviewCount}>({company.total_reviews ?? company.review_count ?? 0} reviews)</Text>
         </View>
 
         <View style={styles.addressRow}>
-          <MapPin size={13} color={themeColors.textSecondary} />
+          <MapPin size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.addressText} numberOfLines={2}>{formattedAddress || 'Address not available'}</Text>
         </View>
 
         <View style={styles.cardFooter}>
           {company.distance !== null && (
             <View style={styles.distanceBadge}>
-              <Navigation size={11} color={themeColors.info} />
+              <Navigation size={11} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.distanceText}>{company.distance} mi</Text>
             </View>
           )}
@@ -135,7 +135,7 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
               onPress={(e) => { e.stopPropagation(); handleCall(); }}
               activeOpacity={0.7}
             >
-              <Phone size={14} color="#FFF" />
+              <Phone size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.actionBtnText}>Call</Text>
             </TouchableOpacity>
           ) : null}
@@ -145,7 +145,7 @@ function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPre
               onPress={(e) => { e.stopPropagation(); handleWebsite(); }}
               activeOpacity={0.7}
             >
-              <Globe size={14} color={themeColors.accent} />
+              <Globe size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={[styles.actionBtnText, { color: themeColors.accent }]}>Website</Text>
             </TouchableOpacity>
           ) : null}
@@ -235,7 +235,7 @@ export default function CachedCompaniesScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-            <ArrowLeft size={20} color={themeColors.text} />
+            <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Companies</Text>
           <View style={styles.countPill}>
@@ -292,7 +292,7 @@ export default function CachedCompaniesScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <AlertCircle size={40} color={themeColors.textMuted} />
+              <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No companies match yet</Text>
               <Text style={styles.emptySubtitle}>
                 Companies are construction firms publishing public profiles in your area. Try a wider radius, clear the specialty filter, or check back as more companies join.

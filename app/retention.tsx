@@ -110,7 +110,7 @@ export default function RetentionScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <Lock size={28} color={Colors.warning} />
+            <Lock size={28} color={Colors.warning} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroAmount}>{formatCurrencyPrecise(totals.totalPending)}</Text>
           <Text style={styles.heroLabel}>Retention Pending Release</Text>
@@ -125,17 +125,17 @@ export default function RetentionScreen() {
         {/* Metrics */}
         <View style={styles.metricsRow}>
           <View style={[styles.metricCard, { borderColor: Colors.warning + '40' }]}>
-            <Lock size={14} color={Colors.warning} />
+            <Lock size={14} color={Colors.warning} strokeWidth={1.75} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalHeld)}</Text>
             <Text style={styles.metricLabel}>Total Held</Text>
           </View>
           <View style={[styles.metricCard, { borderColor: themeColors.success + '40' }]}>
-            <Unlock size={14} color={themeColors.success} />
+            <Unlock size={14} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalReleased)}</Text>
             <Text style={styles.metricLabel}>Released</Text>
           </View>
           <View style={[styles.metricCard, { borderColor: themeColors.danger + '40' }]}>
-            <AlertCircle size={14} color={themeColors.danger} />
+            <AlertCircle size={14} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.metricValue}>{formatCurrency(totals.totalPending)}</Text>
             <Text style={styles.metricLabel}>Pending</Text>
           </View>
@@ -144,13 +144,13 @@ export default function RetentionScreen() {
         {/* Explainer */}
         {projectRetention.length === 0 && (
           <View style={styles.emptyState}>
-            <Lock size={36} color={themeColors.textMuted} />
+            <Lock size={36} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No Retention Held Yet</Text>
             <Text style={styles.emptyBody}>
               When you set a Retention % on an invoice (e.g. 10%), that amount is held back by the client until punch list is cleared or substantial completion. It will appear here so you can track and release it.
             </Text>
             <TouchableOpacity style={styles.emptyBtn} onPress={() => router.back()} activeOpacity={0.8}>
-              <ArrowLeft size={14} color={themeColors.accent} />
+              <ArrowLeft size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.emptyBtnText}>Back</Text>
             </TouchableOpacity>
           </View>
@@ -170,9 +170,9 @@ export default function RetentionScreen() {
               >
                 <View style={styles.projectIconWrap}>
                   {isComplete ? (
-                    <CheckCircle2 size={18} color={themeColors.success} />
+                    <CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />
                   ) : (
-                    <FolderOpen size={18} color={themeColors.accent} />
+                    <FolderOpen size={18} color={themeColors.accent} strokeWidth={1.75} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -191,7 +191,7 @@ export default function RetentionScreen() {
                 <ChevronRight
                   size={18}
                   color={themeColors.textMuted}
-                  style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}
+                  style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }} strokeWidth={1.75}
                 />
               </TouchableOpacity>
 
@@ -236,7 +236,7 @@ export default function RetentionScreen() {
                         activeOpacity={0.7}
                       >
                         <View style={styles.invoiceIconWrap}>
-                          <Receipt size={14} color={themeColors.accent} />
+                          <Receipt size={14} color={themeColors.accent} strokeWidth={1.75} />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.invoiceTitle}>
@@ -256,7 +256,7 @@ export default function RetentionScreen() {
                             {invDone ? 'released' : 'pending'}
                           </Text>
                         </View>
-                        <ChevronRight size={14} color={themeColors.textMuted} />
+                        <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
                     );
                   })}
@@ -268,7 +268,7 @@ export default function RetentionScreen() {
 
         {projectRetention.length > 0 && !scopeProjectId && (
           <View style={styles.tipCard}>
-            <TrendingUp size={16} color={themeColors.accent} />
+            <TrendingUp size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.tipText}>
               Release retention from inside each invoice. Common triggers: substantial completion, punch list clearance, final inspection sign-off.
             </Text>

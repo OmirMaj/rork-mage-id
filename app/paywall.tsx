@@ -96,8 +96,8 @@ const AI_LIMITS: AILimitRow[] = [
 
 function FeatureCheck({ available, colors }: { available: boolean; colors: ThemeColors }) {
   return available
-    ? <CheckCircle size={16} color={colors.success} />
-    : <XCircle size={16} color={colors.textMuted} />;
+    ? <CheckCircle size={16} color={colors.success} strokeWidth={1.75} />
+    : <XCircle size={16} color={colors.textMuted} strokeWidth={1.75} />;
 }
 
 export default function PaywallScreen() {
@@ -231,7 +231,7 @@ export default function PaywallScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close" accessibilityRole="button" accessibilityLabel="Close">
-          <X size={22} color={themeColors.text} />
+          <X size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Choose Your Plan</Text>
         <View style={{ width: 36 }} />
@@ -429,7 +429,7 @@ export default function PaywallScreen() {
 
         <View style={styles.trustStack}>
           <View style={styles.trustRow}>
-            <Shield size={14} color={themeColors.textSecondary} />
+            <Shield size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.trustText}>
               Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
             </Text>
@@ -512,7 +512,7 @@ function WebPaywallView({
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-close-web" accessibilityRole="button" accessibilityLabel="Close">
-          <X size={22} color={themeColors.text} />
+          <X size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Plans</Text>
         <View style={{ width: 36 }} />
@@ -548,7 +548,7 @@ function WebPaywallView({
               justifyContent: 'center',
             }}
           >
-            <Rocket size={18} color={themeColors.bg} />
+            <Rocket size={18} color={themeColors.bg} strokeWidth={1.75} />
             <Text style={{ color: themeColors.bg, fontWeight: '700', fontSize: 15 }}>App Store</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -575,7 +575,7 @@ function WebPaywallView({
           borderColor: themeColors.line, marginBottom: 28, alignItems: 'flex-start', gap: 6,
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Shield size={16} color={themeColors.accent} />
+            <Shield size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 14 }}>
               Already subscribed?
             </Text>

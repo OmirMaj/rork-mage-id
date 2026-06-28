@@ -84,7 +84,7 @@ function EstimateConfidenceInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Estimate Confidence · MAGE</Text>
@@ -124,7 +124,7 @@ function EstimateConfidenceInner() {
 
           {!report.hasHistory && (
             <View style={styles.disclose}>
-              <Info size={15} color={t.accent} />
+              <Info size={15} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.discloseText}>
                 No cost history yet — close a job or two with linked commitments and this fills in. Until then every line reads as no-history.
               </Text>
@@ -134,12 +134,12 @@ function EstimateConfidenceInner() {
           {/* Risk summary */}
           <View style={styles.summaryRow}>
             <View style={styles.sumCard}>
-              <AlertTriangle size={15} color={t.danger} />
+              <AlertTriangle size={15} color={t.danger} strokeWidth={1.75} />
               <Text style={[styles.sumNum, { color: report.underpricedExposure > 0 ? t.danger : t.text }]}>{formatMoney(report.underpricedExposure)}</Text>
               <Text style={styles.sumLabel}>underpriced · {report.underpricedCount} line{report.underpricedCount === 1 ? '' : 's'}</Text>
             </View>
             <View style={styles.sumCard}>
-              <HelpCircle size={15} color={t.textMuted} />
+              <HelpCircle size={15} color={t.textMuted} strokeWidth={1.75} />
               <Text style={styles.sumNum}>{formatMoney(report.noHistoryExposure)}</Text>
               <Text style={styles.sumLabel}>no history · {report.noHistoryCount} line{report.noHistoryCount === 1 ? '' : 's'}</Text>
             </View>

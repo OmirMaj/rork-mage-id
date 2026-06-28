@@ -111,7 +111,7 @@ export default function NearbyRfpsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Homeowner RFPs</Text>
@@ -122,7 +122,7 @@ export default function NearbyRfpsScreen() {
       {/* Location + radius controls */}
       <View style={styles.controls}>
         <TouchableOpacity style={styles.locBtn} onPress={() => { void requestLocation(); }}>
-          <Crosshair size={14} color={location ? themeColors.success : themeColors.accent} />
+          <Crosshair size={14} color={location ? themeColors.success : themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.locBtnText}>
             {location ? 'Location set' : locLoading ? 'Getting location…' : 'Use my location'}
           </Text>
@@ -157,7 +157,7 @@ export default function NearbyRfpsScreen() {
 
         {!isLoading && filtered.length === 0 && (
           <View style={styles.emptyCard}>
-            <Inbox size={28} color={themeColors.textMuted} />
+            <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
             <Text style={styles.emptyBody}>
               {!location ? 'Allow location access to see projects near you, or expand your radius.' : 'Try expanding the radius — new projects show up here as homeowners post them.'}
@@ -185,11 +185,11 @@ export default function NearbyRfpsScreen() {
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
                   {r.address_verified ? (
                     <View style={styles.verifyDot}>
-                      <ShieldCheck size={10} color={themeColors.success} />
+                      <ShieldCheck size={10} color={themeColors.success} strokeWidth={1.75} />
                     </View>
                   ) : (
                     <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
-                      <AlertTriangle size={10} color={Colors.warning} />
+                      <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
                     </View>
                   )}
                 </View>
@@ -200,7 +200,7 @@ export default function NearbyRfpsScreen() {
 
                 <View style={styles.rfpMetaRow}>
                   <View style={styles.rfpMetaItem}>
-                    <MapPin size={11} color={themeColors.textMuted} />
+                    <MapPin size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.rfpMetaText}>
                       {[r.city, r.state].filter(Boolean).join(', ') || 'Location pending'} · {distanceText}
                     </Text>
@@ -210,19 +210,19 @@ export default function NearbyRfpsScreen() {
                 <View style={styles.rfpFoot}>
                   {(r.budget_min || r.budget_max) ? (
                     <View style={styles.rfpFootChip}>
-                      <DollarSign size={11} color={themeColors.accent} />
+                      <DollarSign size={11} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.rfpFootChipText}>
                         {r.budget_min ? formatMoney(r.budget_min) : '?'} – {r.budget_max ? formatMoney(r.budget_max) : '?'}
                       </Text>
                     </View>
                   ) : <View />}
                   <View style={[styles.rfpFootChip, daysLeft < 3 ? { backgroundColor: themeColors.danger + '15' } : null]}>
-                    <Clock size={11} color={daysLeft < 3 ? themeColors.danger : themeColors.textMuted} />
+                    <Clock size={11} color={daysLeft < 3 ? themeColors.danger : themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={[styles.rfpFootChipText, daysLeft < 3 ? { color: themeColors.danger } : null]}>
                       {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
                     </Text>
                   </View>
-                  <ChevronRight size={14} color={themeColors.textMuted} />
+                  <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </View>
               </View>
             </TouchableOpacity>

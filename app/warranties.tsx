@@ -173,7 +173,7 @@ export default function WarrantiesScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <Shield size={24} color={"#FF6A1A"} />
+          <Shield size={24} color={"#FF6A1A"} strokeWidth={1.75} />
           <Text style={styles.heroTitle}>Warranty Tracker</Text>
           <Text style={styles.heroSub}>Track active, expiring, and claimed warranties across projects.</Text>
         </View>
@@ -195,7 +195,7 @@ export default function WarrantiesScreen() {
 
         {list.length === 0 ? (
           <View style={styles.emptyState}>
-            <Shield size={36} color={"#9AA3AD"} />
+            <Shield size={36} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No warranties yet</Text>
             <Text style={styles.emptyDesc}>Track equipment, roofing, HVAC, and finish warranties to protect your clients and your liability.</Text>
           </View>
@@ -223,7 +223,7 @@ export default function WarrantiesScreen() {
                   </Text>
                 </View>
                 <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(w)} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={"#C84038"} />
+                  <Trash2 size={14} color={"#C84038"} strokeWidth={1.75} />
                 </TouchableOpacity>
               </TouchableOpacity>
             );
@@ -231,7 +231,7 @@ export default function WarrantiesScreen() {
         )}
 
         <TouchableOpacity style={styles.addBtn} onPress={openNew} activeOpacity={0.85}>
-          <Plus size={18} color={"#FF6A1A"} />
+          <Plus size={18} color={"#FF6A1A"} strokeWidth={1.75} />
           <Text style={styles.addBtnText}>Add Warranty</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -244,7 +244,7 @@ export default function WarrantiesScreen() {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingId ? 'Edit Warranty' : 'New Warranty'}</Text>
                   <TouchableOpacity onPress={() => setShowForm(false)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={"#9AA3AD"} />
+                    <X size={20} color={"#9AA3AD"} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 

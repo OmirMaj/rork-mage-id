@@ -215,12 +215,12 @@ export default function LeadDetailScreen() {
                 <>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                     onPress={() => Linking.openURL(`tel:${existing.phone}`)}>
-                    <Phone size={16} color={themeColors.text} />
+                    <Phone size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.quickBtnText}>Call</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                     onPress={() => Linking.openURL(`sms:${existing.phone}`)}>
-                    <MessageSquare size={16} color={themeColors.text} />
+                    <MessageSquare size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.quickBtnText}>Text</Text>
                   </TouchableOpacity>
                 </>
@@ -242,14 +242,14 @@ export default function LeadDetailScreen() {
                       ...mailSignOff(),
                     ],
                   }))}>
-                  <Mail size={16} color={themeColors.text} />
+                  <Mail size={16} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.quickBtnText}>Email</Text>
                 </TouchableOpacity>
               )}
               {!!existing.address && (
                 <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                   onPress={() => Linking.openURL(`maps:?q=${encodeURIComponent(existing.address!)}`)}>
-                  <MapPin size={16} color={themeColors.text} />
+                  <MapPin size={16} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.quickBtnText}>Map</Text>
                 </TouchableOpacity>
               )}
@@ -316,9 +316,9 @@ export default function LeadDetailScreen() {
             )}
             {existing && stage === 'won' && !existing.convertedProjectId && (
               <TouchableOpacity style={styles.convertBtn} onPress={handleConvert} activeOpacity={0.85}>
-                <Briefcase size={16} color="#FFF" />
+                <Briefcase size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.convertBtnText}>Convert to project</Text>
-                <ArrowRight size={16} color="#FFF" />
+                <ArrowRight size={16} color="#FFF" strokeWidth={1.75} />
               </TouchableOpacity>
             )}
             {existing?.convertedProjectId && (
@@ -327,9 +327,9 @@ export default function LeadDetailScreen() {
                 onPress={() => router.replace({ pathname: '/project-detail' as never, params: { id: existing.convertedProjectId } as never })}
                 activeOpacity={0.85}
               >
-                <Briefcase size={16} color={themeColors.accent} />
+                <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.convertedBtnText}>Open the project</Text>
-                <ChevronRight size={16} color={themeColors.accent} />
+                <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
           </View>
@@ -429,7 +429,7 @@ export default function LeadDetailScreen() {
                   placeholderTextColor={themeColors.textMuted}
                 />
                 <TouchableOpacity style={styles.touchVoiceBtn} onPress={() => setVoiceLogOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Record">
-                  <Mic size={16} color={themeColors.accent} />
+                  <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.touchAddBtn, !touchBody.trim() && styles.touchAddBtnDisabled]}
@@ -464,7 +464,7 @@ export default function LeadDetailScreen() {
         {/* Sticky bottom save bar */}
         <View style={[styles.saveBar, { paddingBottom: insets.bottom + 12 }]}>
           {existing && (
-            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} /></TouchableOpacity>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
           )}
           <TouchableOpacity
             style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
@@ -472,7 +472,7 @@ export default function LeadDetailScreen() {
             disabled={!canSave}
             activeOpacity={0.85}
           >
-            <Save size={16} color="#FFF" />
+            <Save size={16} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.saveBtnText}>{isNew ? 'Save lead' : 'Save changes'}</Text>
           </TouchableOpacity>
         </View>

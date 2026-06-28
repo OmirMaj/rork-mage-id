@@ -178,7 +178,7 @@ function PrequalManagerInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Prequal + COI · MAGE</Text>
@@ -197,7 +197,7 @@ function PrequalManagerInner() {
         </View>
 
         <View style={styles.banner}>
-          <ShieldCheck size={16} color={themeColors.accent} />
+          <ShieldCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.bannerText}>
             OSHA{"\u2019"}s Multi-Employer Citation Policy treats the GC as a controlling employer —
             expired COIs can cost $16,550 per instance.
@@ -208,7 +208,7 @@ function PrequalManagerInner() {
         {rows.filter(r => r.bucket === '7d' || r.bucket === '30d' || r.bucket === 'expired').length > 0 && (
           <View style={styles.renewCard}>
             <View style={styles.renewHeader}>
-              <Clock size={14} color={Colors.warning} />
+              <Clock size={14} color={Colors.warning} strokeWidth={1.75} />
               <Text style={styles.renewTitle}>Renewals needed</Text>
             </View>
             {rows.filter(r => r.bucket === '7d' || r.bucket === '30d' || r.bucket === 'expired').map(r => (
@@ -236,7 +236,7 @@ function PrequalManagerInner() {
         {/* Sub list */}
         {rows.length === 0 ? (
           <View style={styles.emptyBox}>
-            <ShieldAlert size={24} color={themeColors.textMuted} />
+            <ShieldAlert size={24} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyText}>No subcontractors on file. Add one from the Subs directory to invite a packet.</Text>
           </View>
         ) : (
@@ -266,7 +266,7 @@ function PrequalManagerInner() {
                     <Text style={styles.subMissing}>Missing: {review.missingFields.slice(0, 2).join(', ')}{review.missingFields.length > 2 ? ` +${review.missingFields.length - 2}` : ''}</Text>
                   )}
                 </View>
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ))}
           </View>
@@ -362,7 +362,7 @@ function InviteModal({ sub, onClose, onSend }: {
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Invite {sub?.companyName ?? 'sub'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
           <View style={{ padding: 16 }}>
             <Text style={styles.fieldLabel}>Email</Text>
@@ -393,7 +393,7 @@ function InviteModal({ sub, onClose, onSend }: {
               }}
               style={styles.btnPrimary}
             >
-              <Send size={16} color={'#FFFFFF'} />
+              <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
               <Text style={styles.btnPrimaryText}>Send invite</Text>
             </TouchableOpacity>
           </View>
@@ -430,7 +430,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
         <View style={[styles.modalCard, { maxHeight: '92%' }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{sub?.companyName ?? 'Packet'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <ScrollView style={{ maxHeight: 560 }}>
@@ -458,7 +458,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                     );
                   }}
                 >
-                  <Copy size={14} color={themeColors.accent} />
+                  <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.copyLinkText}>Copy magic link</Text>
                 </TouchableOpacity>
               )}
@@ -468,8 +468,8 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               {review?.findings.map(f => (
                 <View key={f.criterion} style={styles.findingRow}>
                   {f.passed
-                    ? <CheckCircle2 size={14} color={themeColors.success} />
-                    : <AlertTriangle size={14} color={f.severity === 'blocker' ? themeColors.danger : Colors.warning} />}
+                    ? <CheckCircle2 size={14} color={themeColors.success} strokeWidth={1.75} />
+                    : <AlertTriangle size={14} color={f.severity === 'blocker' ? themeColors.danger : Colors.warning} strokeWidth={1.75} />}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.findingLabel}>{f.label}</Text>
                     {f.note ? <Text style={styles.findingNote}>{f.note}</Text> : null}
@@ -509,18 +509,18 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               style={[styles.btnGhost, { flex: 0.8 }]}
               onPress={() => onReject(packet, note || 'Rejected by reviewer')}
             >
-              <ShieldX size={14} color={themeColors.danger} />
+              <ShieldX size={14} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={[styles.btnGhostText, { color: themeColors.danger }]}>Reject</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btnGhost, { flex: 1 }]}
               onPress={() => onNeedsChanges(packet, note || 'Please provide missing fields')}
             >
-              <AlertTriangle size={14} color={Colors.warning} />
+              <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
               <Text style={[styles.btnGhostText, { color: Colors.warning }]}>Needs changes</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => onApprove(packet)}>
-              <CheckCircle2 size={14} color={'#FFFFFF'} />
+              <CheckCircle2 size={14} color={'#FFFFFF'} strokeWidth={1.75} />
               <Text style={styles.btnPrimaryText}>Approve</Text>
             </TouchableOpacity>
           </View>

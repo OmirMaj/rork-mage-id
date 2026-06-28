@@ -223,7 +223,7 @@ export default function WeeklySnapshotScreen() {
         title: 'This Week',
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} testID="snapshot-back">
-            <ChevronLeft size={22} color={themeColors.accent} />
+            <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>Back</Text>
           </TouchableOpacity>
         ),
@@ -247,7 +247,7 @@ export default function WeeklySnapshotScreen() {
         <View style={styles.row}>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <Cloud size={16} color={themeColors.info} />
+              <Cloud size={16} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Weather</Text>
             </View>
             {weatherStats.high !== null ? (
@@ -261,7 +261,7 @@ export default function WeeklySnapshotScreen() {
           </View>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <Users size={16} color={themeColors.accent} />
+              <Users size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Manpower</Text>
             </View>
             <TapeRollNumber value={manpowerHours.totalHours} formatter={n => `${Math.round(n).toLocaleString()}`} style={styles.cardBigValue} />
@@ -273,28 +273,28 @@ export default function WeeklySnapshotScreen() {
         <View style={styles.row}>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <FileText size={16} color={Colors.warning} />
+              <FileText size={16} color={Colors.warning} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>RFIs</Text>
             </View>
             <Text style={styles.cardBigValue}>{rfiStats.opened} <Text style={styles.cardArrow}>→</Text> {rfiStats.closed}</Text>
             <Text style={styles.cardSub}>opened · closed</Text>
             {rfiStats.overdue > 0 && (
               <View style={styles.warnPill}>
-                <AlertTriangle size={11} color={themeColors.danger} />
+                <AlertTriangle size={11} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.warnPillText}>{rfiStats.overdue} overdue</Text>
               </View>
             )}
           </View>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <Receipt size={16} color={themeColors.success} />
+              <Receipt size={16} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Invoices</Text>
             </View>
             <TapeRollNumber value={invoiceStats.totalUnpaid} formatter={n => formatMoney(Math.round(n))} style={styles.cardBigValue} />
             <Text style={styles.cardSub}>unpaid balance · all-time</Text>
             {invoiceStats.paidThisWindow > 0 && (
               <View style={styles.successPill}>
-                <CheckCircle2 size={11} color={themeColors.success} />
+                <CheckCircle2 size={11} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={styles.successPillText}>{formatMoney(Math.round(invoiceStats.paidThisWindow))} paid this window</Text>
               </View>
             )}
@@ -305,21 +305,21 @@ export default function WeeklySnapshotScreen() {
         <View style={styles.row}>
           <View style={[styles.card, styles.cardThird]}>
             <View style={styles.cardHeader}>
-              <Camera size={14} color={themeColors.info} />
+              <Camera size={14} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Photos</Text>
             </View>
             <TapeRollNumber value={photoCount} formatter={n => `${Math.round(n)}`} style={styles.cardBigValueSmall} />
           </View>
           <View style={[styles.card, styles.cardThird]}>
             <View style={styles.cardHeader}>
-              <Repeat size={14} color={themeColors.accent} />
+              <Repeat size={14} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>COs</Text>
             </View>
             <TapeRollNumber value={coCount} formatter={n => `${Math.round(n)}`} style={styles.cardBigValueSmall} />
           </View>
           <View style={[styles.card, styles.cardThird]}>
             <View style={styles.cardHeader}>
-              <ClipboardList size={14} color={Colors.warning} />
+              <ClipboardList size={14} color={Colors.warning} strokeWidth={1.75} />
               <Text style={styles.cardLabel}>Punch</Text>
             </View>
             <Text style={styles.cardBigValueSmall}>{punchOpenedCount}<Text style={styles.cardArrow}>/</Text>{punchClosedCount}</Text>
@@ -330,7 +330,7 @@ export default function WeeklySnapshotScreen() {
         {budgetCap > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} /> : <TrendingDown size={16} color={Colors.warning} />}
+              {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} /> : <TrendingDown size={16} color={Colors.warning} strokeWidth={1.75} />}
               <Text style={styles.cardLabel}>Budget Burn</Text>
               <Text style={styles.burnPct}>{Math.round(burnPct * 100)}%</Text>
             </View>

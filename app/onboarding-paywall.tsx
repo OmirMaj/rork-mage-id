@@ -269,7 +269,7 @@ export default function OnboardingPaywallScreen() {
         <TouchableOpacity
           style={styles.closeBtn}
           onPress={handleClose}
-          testID="onboarding-paywall-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textSecondary} /></TouchableOpacity>
+          testID="onboarding-paywall-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
       <ScrollView

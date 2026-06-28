@@ -318,7 +318,7 @@ export default function ClientMessagesScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 40, alignItems: 'center', paddingHorizontal: 24 }]}>
         <Stack.Screen options={{ title: 'Messages' }} />
-        <Inbox size={30} color={themeColors.textMuted} />
+        <Inbox size={30} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.muted}>Enable the client portal for this project to start a conversation.</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backBtnTxt}>Back to portal setup</Text>
@@ -340,7 +340,7 @@ export default function ClientMessagesScreen() {
     >
       <Stack.Screen options={{ title: project.name }} />
       <View style={styles.subheader}>
-        <MessageSquare size={14} color={themeColors.accent} />
+        <MessageSquare size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.subheaderTxt}>
           Thread with {portal.invites?.length ?? 0} {(portal.invites?.length ?? 0) === 1 ? 'client' : 'clients'}
         </Text>
@@ -354,7 +354,7 @@ export default function ClientMessagesScreen() {
       >
         {display.length === 0 ? (
           <View style={styles.empty}>
-            <MessageSquare size={28} color={themeColors.textMuted} />
+            <MessageSquare size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No messages yet.</Text>
             <Text style={styles.emptyHint}>
               Break the ice — send a quick hello and let your client know how to reach you.
@@ -400,7 +400,7 @@ export default function ClientMessagesScreen() {
             style={({ pressed }) => [{ opacity: pressed && canSend ? 0.92 : 1 }]}
           >
             <Animated.View style={[styles.sendBtn, { backgroundColor: sendBg }]}>
-              <Send size={16} color="#FFFFFF" />
+              <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
             </Animated.View>
           </Pressable>
         </Animated.View>

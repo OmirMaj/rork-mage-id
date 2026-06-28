@@ -133,7 +133,7 @@ function PortfolioMarginInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Margin Board · MAGE</Text>
@@ -178,17 +178,17 @@ function PortfolioMarginInner() {
               activeOpacity={0.7}
               testID="portfolio-margin-alerts-link"
             >
-              <BellRing size={16} color={t.accent} />
+              <BellRing size={16} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.alertsLinkText}>
                 <Text style={styles.alertsLinkStrong}>{unreadAlerts}</Text> margin alert{unreadAlerts === 1 ? '' : 's'} since you last looked
               </Text>
-              <ChevronRight size={16} color={t.textMuted} />
+              <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
 
           {atRisk > 0 && (
             <View style={styles.alertBanner}>
-              <ShieldAlert size={16} color={t.danger} />
+              <ShieldAlert size={16} color={t.danger} strokeWidth={1.75} />
               <Text style={styles.alertText}>
                 <Text style={styles.alertStrong}>{atRisk}</Text> job{atRisk === 1 ? '' : 's'} at elevated or high margin risk — top of the list.
               </Text>
@@ -221,13 +221,13 @@ function PortfolioMarginInner() {
                     {eroded && (
                       <>
                         <Text style={styles.rowDot}>·</Text>
-                        <TrendingDown size={12} color={t.danger} />
+                        <TrendingDown size={12} color={t.danger} strokeWidth={1.75} />
                         <Text style={[styles.rowMeta, { color: t.danger }]}>{r.erosionPoints.toFixed(1)} pts</Text>
                       </>
                     )}
                   </View>
                 </View>
-                <ChevronRight size={18} color={t.textMuted} />
+                <ChevronRight size={18} color={t.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             );
           })}
