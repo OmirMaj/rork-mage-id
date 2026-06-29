@@ -31,6 +31,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { FeatureHeader } from '@/components/FeatureHeader';
+import { MageCOI } from '@/components/icons';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { validateCOIImage, recomputeValidation } from '@/utils/coiValidator';
@@ -206,7 +207,7 @@ function COIVaultInner() {
 
           {subCOIs.length === 0 ? (
             <View style={styles.emptyState}>
-              <Shield size={36} color={"#9AA3AD"} strokeWidth={1.75} />
+              <MageCOI size={36} color={"#9AA3AD"} />
               <Text style={styles.emptyTitle}>No COIs yet</Text>
               <Text style={styles.emptyBody}>
                 Upload the sub's Certificate of Insurance — MAGE ID will read the dates,

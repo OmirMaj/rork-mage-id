@@ -13,7 +13,7 @@ import {
   Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageDailyReport } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
@@ -737,7 +737,7 @@ export default function DailyReportScreen() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Daily Report' }} />
         <EmptyState
-          icon={<ClipboardList size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageDailyReport size={36} color={themeColors.accent} />}
           title="No daily report open yet"
           message="Daily field reports (DFRs) log weather, manpower, and progress on a specific project. To start one:"
           steps={[

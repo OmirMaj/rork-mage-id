@@ -18,4 +18,5 @@ export {
   MageRFI, MageSubmittal, MagePayApp, MageChangeOrder,
   MageTakeoff, MageSchedule, MageEstimate, MageMargin,
   MagePlans, MageCostDb, MageMaterials, MageEquipment, MagePunch,
+  MageInvoice, MageDailyReport, MageContract, MageCOI,
 } from './glyphs';

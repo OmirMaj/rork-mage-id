@@ -23,6 +23,7 @@ import {
   ChevronLeft, FileText, Plus, Trash2, DollarSign, Calendar, Send,
   CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight,
 } from 'lucide-react-native';
+import { MageContract } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -405,7 +406,7 @@ export default function ContractScreen() {
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <EmptyState
-          icon={<FileSignature size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageContract size={36} color={themeColors.accent} />}
           title="No contract open yet"
           message="Contracts (scope, payment schedule, allowances, signatures) live inside a project. To start one:"
           steps={[

@@ -9,9 +9,17 @@ import {
   Search, X, Star, Truck, Clock, MapPin, Phone, Mail, Globe,
   ChevronRight, Package, CheckCircle,
   Store, Award, DollarSign,
+  TreePine, Box, Home, Zap, Wrench, Layers, LayoutGrid, HardHat, Paintbrush, Leaf, Fence,
 } from 'lucide-react-native';
 import { MageMaterials } from '@/components/icons';
 import { Colors } from '@/constants/colors';
+
+// Supplier-category id → trade icon (replaces the emoji chips).
+const CAT_ICON: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
+  all: Store, lumber: TreePine, concrete: Box, roofing: Home, electrical: Zap,
+  plumbing: Wrench, insulation: Layers, flooring: LayoutGrid, steel: HardHat,
+  paint: Paintbrush, landscape: Leaf, fencing: Fence,
+};
 import { MOCK_SUPPLIERS, MOCK_LISTINGS, SUPPLIER_CATEGORIES } from '@/mocks/suppliers';
 import type { Supplier, SupplierListing } from '@/types';
 import { Type } from '@/constants/typography';
@@ -165,7 +173,8 @@ export default function MarketplaceScreen() {
             const catInfo = SUPPLIER_CATEGORIES.find(c => c.id === cat);
             return (
               <View key={cat} style={styles.catTag}>
-                <Text style={styles.catTagText}>{catInfo?.emoji} {catInfo?.label ?? cat}</Text>
+                {(() => { const I = CAT_ICON[cat]; return I ? <I size={11} color={Colors.primary} strokeWidth={1.75} /> : null; })()}
+                <Text style={styles.catTagText}>{catInfo?.label ?? cat}</Text>
               </View>
             );
           })}
@@ -325,7 +334,7 @@ export default function MarketplaceScreen() {
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+                      {(() => { const I = CAT_ICON[cat.id]; return I ? <I size={15} color={isActive ? '#FFFFFF' : Colors.textSecondary} strokeWidth={1.75} /> : null; })()}
                       <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
                         {cat.label}
                       </Text>
@@ -828,6 +837,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   catTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: Colors.primary + '10',
     paddingHorizontal: 10,
     paddingVertical: 5,

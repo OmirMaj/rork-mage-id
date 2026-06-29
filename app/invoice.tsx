@@ -11,7 +11,7 @@ import {
   Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
   Link2, Copy, Share2, FileText, Receipt,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageInvoice } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -830,7 +830,7 @@ function InvoiceInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Invoices' }} />
         <EmptyState
-          icon={<Receipt size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageInvoice size={36} color={themeColors.accent} />}
           title="No invoice open yet"
           message="Invoices live inside a project so they roll up to the right billing total. To create one:"
           steps={[

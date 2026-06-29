@@ -201,3 +201,43 @@ export const MagePunch = glyph(({ c, a, w }) => (
     <Path d="M16 16.5 C18.2 16.5 19.2 18.2 18.9 19.8 C18.6 21.4 17 22.4 16 24 C15 22.4 13.4 21.4 13.1 19.8 C12.8 18.2 13.8 16.5 16 16.5 Z" fill={a} />
   </>
 ));
+
+// Invoice — a bill document with a currency mark.
+export const MageInvoice = glyph(({ c, a, w }) => (
+  <>
+    {docFold(c, w)}
+    <Line x1={8.5} y1={11.3} x2={13} y2={11.3} stroke={c} strokeWidth={w * 0.85} {...cap} />
+    <Line x1={8.5} y1={13.6} x2={11.5} y2={13.6} stroke={c} strokeWidth={w * 0.85} {...cap} />
+    <Line x1={12} y1={13.6} x2={12} y2={19.4} stroke={a} strokeWidth={w} {...cap} />
+    <Path d="M13.7 15 C13.7 14.2 12.9 13.9 12 13.9 C11.1 13.9 10.3 14.3 10.3 15.1 C10.3 16.6 13.7 16 13.7 17.5 C13.7 18.3 12.9 18.7 12 18.7 C11.1 18.7 10.3 18.3 10.3 17.5" stroke={a} strokeWidth={w} fill="none" {...cap} />
+  </>
+));
+
+// Daily Report — a field clipboard with an amber "sun" (weather/the day).
+export const MageDailyReport = glyph(({ c, a, w }) => (
+  <>
+    <Rect x={5} y={5} width={14} height={16} rx={2} stroke={c} strokeWidth={w} fill="none" {...cap} />
+    <Rect x={9} y={3.4} width={6} height={3} rx={1} stroke={c} strokeWidth={w} fill="none" {...cap} />
+    <Line x1={8.5} y1={13} x2={15.5} y2={13} stroke={c} strokeWidth={w * 0.85} {...cap} />
+    <Line x1={8.5} y1={16.5} x2={13.5} y2={16.5} stroke={c} strokeWidth={w * 0.85} {...cap} />
+    <Circle cx={15.4} cy={9.2} r={1.7} fill={a} />
+  </>
+));
+
+// Contract — a document with a signature stroke on the line.
+export const MageContract = glyph(({ c, a, w }) => (
+  <>
+    {docFold(c, w)}
+    <Line x1={8.5} y1={11.3} x2={14} y2={11.3} stroke={c} strokeWidth={w * 0.85} {...cap} />
+    <Path d="M8.5 16.3 C9.4 14.9 10.3 17.8 11.3 16.4 C12.1 15.2 12.8 16.1 13.5 15.9" stroke={a} strokeWidth={w} fill="none" {...cap} />
+    <Line x1={8.5} y1={18.6} x2={15.5} y2={18.6} stroke={c} strokeWidth={w * 0.7} {...cap} />
+  </>
+));
+
+// COI / Insurance — a certificate shield with an approval check.
+export const MageCOI = glyph(({ c, a, w }) => (
+  <>
+    <Path d="M12 3 C9.5 4.3 7.2 4.9 5 5 C5 11 5.4 16.5 12 21 C18.6 16.5 19 11 19 5 C16.8 4.9 14.5 4.3 12 3 Z" stroke={c} strokeWidth={w} fill="none" {...cap} />
+    <Polyline points="9,11.8 11,13.8 15,9.4" stroke={a} strokeWidth={w} fill="none" {...cap} />
+  </>
+));
