@@ -33,9 +33,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Plus, Sparkles, MapPin, ChevronRight, Building2, Trophy, Clock,
+  Plus, MapPin, ChevronRight, Building2, Trophy, Clock,
   LayoutGrid, Sun, Moon, Sunrise, Sunset,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -306,7 +307,7 @@ export default function ClientHome() {
                   From a kitchen remodel to a full gut — verified contractors will bid on your scope.
                 </Text>
               </View>
-              <ChevronRight size={18} color="#FFF" />
+              <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
             </LinearGradient>
           </TouchableOpacity>
         </FadeRise>
@@ -339,7 +340,7 @@ export default function ClientHome() {
                 lit={totals.awarded > 0}
               />
               <StatTile
-                icon={Sparkles}
+                icon={MageAIMark}
                 label="New bids"
                 value={totals.newBids}
                 accent={themeColors.accent}
@@ -363,7 +364,7 @@ export default function ClientHome() {
           <FadeRise delay={200}>
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconWrap}>
-                <Sparkles size={28} color={themeColors.accent} />
+                <MageAIMark size={28} color={themeColors.accent} />
               </View>
               <Text style={styles.emptyTitle}>Welcome to MAGE ID</Text>
               <Text style={styles.emptyBody}>
@@ -549,7 +550,7 @@ function RfpCard({
         <Text style={styles.rfpTitle} numberOfLines={2}>{row.title}</Text>
 
         <View style={styles.rfpMeta}>
-          <MapPin size={11} color={themeColors.textMuted} />
+          <MapPin size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.rfpMetaText} numberOfLines={1}>
             {[row.city, row.state].filter(Boolean).join(', ') || 'Address pending'}
           </Text>
@@ -574,7 +575,7 @@ function RfpCard({
 
         <View style={styles.rfpFoot}>
           <View style={styles.rfpResponseChip}>
-            <Sparkles size={11} color={row.unreviewed_count > 0 ? accent : themeColors.textMuted} strokeWidth={2.2} />
+            <MageAIMark size={11} color={row.unreviewed_count > 0 ? accent : themeColors.textMuted} />
             <Text style={[
               styles.rfpResponseChipText,
               row.unreviewed_count > 0 ? { color: accent } : null,
@@ -587,7 +588,7 @@ function RfpCard({
               </View>
             )}
           </View>
-          <ChevronRight size={14} color={themeColors.textMuted} />
+          <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
       </View>
     </TouchableOpacity>

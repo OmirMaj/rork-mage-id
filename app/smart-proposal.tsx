@@ -19,8 +19,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import {
-  ChevronLeft, FileSignature, Lightbulb, Share2, CheckCircle2, XCircle, Lock, Star, Check, User,
+  ChevronLeft, FileSignature, Share2, CheckCircle2, XCircle, Lock, Star, Check, User,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -201,7 +202,7 @@ function SmartProposalInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Smart Proposal · MAGE</Text>
@@ -293,7 +294,7 @@ function SmartProposalInner() {
                     onPress={() => setSelectedLeadId(active ? null : l.id)}
                     activeOpacity={0.8}
                   >
-                    <User size={12} color={active ? t.accent : t.textMuted} />
+                    <User size={12} color={active ? t.accent : t.textMuted} strokeWidth={1.75} />
                     <Text style={[styles.leadChipText, active && { color: t.accent }]} numberOfLines={1}>{l.name}</Text>
                   </TouchableOpacity>
                 );
@@ -339,7 +340,7 @@ function SmartProposalInner() {
 
             {/* Actions */}
             <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: t.accent }]} onPress={handleShare} activeOpacity={0.85} testID="proposal-share">
-              <Share2 size={18} color={t.bg} />
+              <Share2 size={18} color={t.bg} strokeWidth={1.75} />
               <Text style={[styles.primaryBtnText, { color: t.bg }]}>Share with client</Text>
             </TouchableOpacity>
             <View style={styles.outcomeRow}>
@@ -350,7 +351,7 @@ function SmartProposalInner() {
                 activeOpacity={0.85}
                 testID="proposal-accept"
               >
-                <CheckCircle2 size={16} color={t.success} />
+                <CheckCircle2 size={16} color={t.success} strokeWidth={1.75} />
                 <Text style={[styles.outcomeBtnText, { color: t.success }]}>Mark accepted</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -360,7 +361,7 @@ function SmartProposalInner() {
                 activeOpacity={0.85}
                 testID="proposal-decline"
               >
-                <XCircle size={16} color={t.danger} />
+                <XCircle size={16} color={t.danger} strokeWidth={1.75} />
                 <Text style={[styles.outcomeBtnText, { color: t.danger }]}>Mark declined</Text>
               </TouchableOpacity>
             </View>
@@ -370,7 +371,7 @@ function SmartProposalInner() {
             <View style={styles.driversCard}>
               {built.drivers.map((d, i) => (
                 <View key={i} style={[styles.driverRow, i > 0 && styles.driverBorder]}>
-                  <Lightbulb size={14} color={t.accent} style={{ marginTop: 2 }} />
+                  <View style={{ marginTop: 2 }}><MageAIMark size={14} color={t.accent} /></View>
                   <Text style={styles.driverText}>{d}</Text>
                 </View>
               ))}
@@ -402,7 +403,7 @@ function TierCard({ tier, selected, onSelect, t, styles }: {
     >
       <View style={styles.tierHead}>
         <View style={styles.tierTitleRow}>
-          {tier.recommended && <Star size={14} color={t.accent} fill={t.accent} />}
+          {tier.recommended && <Star size={14} color={t.accent} fill={t.accent} strokeWidth={1.75} />}
           <Text style={styles.tierLabel}>{tier.label}</Text>
           {tier.recommended && (
             <View style={[styles.recChip, { backgroundColor: t.accent + '22' }]}>
@@ -412,21 +413,21 @@ function TierCard({ tier, selected, onSelect, t, styles }: {
         </View>
         <View style={styles.tierPriceRow}>
           <Text style={styles.tierPrice}>{formatMoney(tier.price)}</Text>
-          {selected && <Check size={16} color={t.accent} />}
+          {selected && <Check size={16} color={t.accent} strokeWidth={1.75} />}
         </View>
       </View>
       <Text style={styles.tierTagline}>{tier.tagline}</Text>
       <View style={styles.inclusions}>
         {tier.inclusions.map((inc, i) => (
           <View key={i} style={styles.inclusionRow}>
-            <Check size={12} color={t.success} style={{ marginTop: 3 }} />
+            <Check size={12} color={t.success} style={{ marginTop: 3 }} strokeWidth={1.75} />
             <Text style={styles.inclusionText}>{inc}</Text>
           </View>
         ))}
       </View>
       {/* GC-only strip — never appears in the shared/client output. */}
       <View style={styles.internalStrip}>
-        <Lock size={11} color={t.textMuted} />
+        <Lock size={11} color={t.textMuted} strokeWidth={1.75} />
         <Text style={styles.internalText}>
           Internal · {Math.round(tier.winProbability * 100)}% win odds · {formatMoney(tier.expectedProfit)} expected profit · {Math.round(tier.markup * 100)}% markup
         </Text>

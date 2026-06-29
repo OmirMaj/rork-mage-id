@@ -22,10 +22,11 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   X, ChevronLeft, ChevronRight, Home, FileText, Calendar, DollarSign,
-  Users, Sparkles, Gavel, Wrench, Camera, ClipboardCheck, Plus, CheckCircle2,
+  Users, Gavel, Wrench, Camera, ClipboardCheck, Plus, CheckCircle2,
   LayoutDashboard, Target, ArrowRight, ShoppingCart, PenTool, BookOpen,
   Pencil, ScrollText, Globe, Bell, Footprints,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -48,7 +49,7 @@ type DemoProps = { onComplete: () => void; completed: boolean };
 interface TutorialStep {
   title: string;
   body: string;
-  Icon: typeof Home;
+  Icon: React.ComponentType<{ size?: number; color?: string }>;
   // Optional deep link — shown as a secondary "Try it live" button.
   deepLink?: string;
   // Interactive demo rendered above the body text.
@@ -104,7 +105,7 @@ const TapPlusDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
           style={[demoStyles.fab, completed && demoStyles.fabComplete]}
           testID="tutorial-demo-plus"
         >
-          {completed ? <CheckCircle2 size={22} color="#FFF" /> : <Plus size={22} color="#FFF" />}
+          {completed ? <CheckCircle2 size={22} color="#FFF" strokeWidth={1.75} /> : <Plus size={22} color="#FFF" strokeWidth={1.75} />}
         </TouchableOpacity>
       </View>
     </View>
@@ -112,7 +113,7 @@ const TapPlusDemo: React.FC<DemoProps> = ({ onComplete, completed }) => {
 };
 
 // Generic "tap the highlighted thing" demo — used for tab selection.
-function buildTapTarget(targetIdx: number, items: { label: string; Icon: typeof Home }[]): React.FC<DemoProps> {
+function buildTapTarget(targetIdx: number, items: { label: string; Icon: React.ComponentType<{ size?: number; color?: string }> }[]): React.FC<DemoProps> {
   const Comp: React.FC<DemoProps> = ({ onComplete, completed }) => {
     const pulse = useRef(new Animated.Value(0)).current;
     useEffect(() => {
@@ -162,7 +163,7 @@ function buildTapTarget(targetIdx: number, items: { label: string; Icon: typeof 
         </View>
         <View style={demoStyles.mockBody}>
           <View style={demoStyles.hintRow}>
-            <Target size={14} color={Colors.primary} />
+            <Target size={14} color={Colors.primary} strokeWidth={1.75} />
             <Text style={demoStyles.hintText}>
               {completed ? 'Nice — that\'s how you switch tabs.' : `Tap the "${items[targetIdx].label}" tab`}
             </Text>
@@ -264,7 +265,7 @@ function buildQuizDemo(question: string, options: string[], correctIdx: number):
                 ]}>
                   {o}
                 </Text>
-                {isCorrect ? <CheckCircle2 size={16} color={Colors.success} /> : null}
+                {isCorrect ? <CheckCircle2 size={16} color={Colors.success} strokeWidth={1.75} /> : null}
               </TouchableOpacity>
             );
           })}
@@ -291,12 +292,12 @@ const TapToFinishDemo: React.FC<DemoProps> = ({ onComplete, completed }) => (
     >
       {completed ? (
         <>
-          <CheckCircle2 size={28} color="#FFF" />
+          <CheckCircle2 size={28} color="#FFF" strokeWidth={1.75} />
           <Text style={demoStyles.finishBtnText}>All set!</Text>
         </>
       ) : (
         <>
-          <Wrench size={24} color="#FFF" />
+          <Wrench size={24} color="#FFF" strokeWidth={1.75} />
           <Text style={demoStyles.finishBtnText}>I\u2019m ready</Text>
         </>
       )}
@@ -309,7 +310,7 @@ const TapToFinishDemo: React.FC<DemoProps> = ({ onComplete, completed }) => (
 const TAB_ITEMS = [
   { label: 'Summary', Icon: LayoutDashboard },
   { label: 'Projects', Icon: Home },
-  { label: 'Discover', Icon: Sparkles },
+  { label: 'Discover', Icon: MageAIMark },
   { label: 'Settings', Icon: Wrench },
 ];
 
@@ -331,8 +332,8 @@ const GotItDemo = ({ onComplete, completed }: { onComplete: () => void; complete
       accessibilityLabel={completed ? 'Step done' : 'Got it — continue to next step'}
     >
       {completed
-        ? <CheckCircle2 size={28} color="#FFF" />
-        : <Sparkles size={22} color="#FFF" />}
+        ? <CheckCircle2 size={28} color="#FFF" strokeWidth={1.75} />
+        : <MageAIMark size={22} color="#FFF" />}
       <Text style={demoStyles.finishBtnText}>{completed ? 'Got it' : 'Got it — next'}</Text>
     </TouchableOpacity>
   </View>
@@ -374,7 +375,7 @@ const STEPS: TutorialStep[] = [
   {
     title: '2. AI does the estimating',
     body: 'Open your project and tap Estimator. Describe the job and the AI returns line items: materials with quantities + unit costs, labor, subs, permits, contingency. You review, edit, and add markup. A typical kitchen takes 3 minutes instead of 3 hours.',
-    Icon: Sparkles,
+    Icon: MageAIMark,
     instruction: 'Take me to the AI estimator',
     Demo: GotItDemo,
     deepLink: '/(tabs)/discover/estimate',
@@ -480,7 +481,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={finish}>
       <View style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={finish} style={styles.closeBtn} testID="tutorial-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={finish} style={styles.closeBtn} testID="tutorial-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           <View style={styles.progressDots}>
             {STEPS.map((_, i) => (
               <View
@@ -513,12 +514,12 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
           <View style={styles.instructionRow}>
             {currentDone ? (
               <>
-                <CheckCircle2 size={16} color={colors.success} />
+                <CheckCircle2 size={16} color={colors.success} strokeWidth={1.75} />
                 <Text style={[styles.instructionText, { color: Colors.success }]}>Nice work — tap Next to continue</Text>
               </>
             ) : (
               <>
-                <Target size={16} color={colors.accent} />
+                <Target size={16} color={colors.accent} strokeWidth={1.75} />
                 <Text style={styles.instructionText}>{step.instruction}</Text>
               </>
             )}
@@ -534,7 +535,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
               testID="tutorial-deep-link"
             >
               <Text style={styles.deepLinkText}>Try it live in the app</Text>
-              <ArrowRight size={14} color={colors.accent} />
+              <ArrowRight size={14} color={colors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ) : null}
         </ScrollView>
@@ -547,7 +548,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
             activeOpacity={0.8}
             testID="tutorial-back"
           >
-            <ChevronLeft size={18} color={isFirst ? Colors.textMuted : Colors.text} />
+            <ChevronLeft size={18} color={isFirst ? Colors.textMuted : Colors.text} strokeWidth={1.75} />
             <Text style={[styles.secondaryText, isFirst && { color: Colors.textMuted }]}>Back</Text>
           </TouchableOpacity>
 
@@ -559,7 +560,7 @@ export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialP
             testID="tutorial-next"
           >
             <Text style={styles.primaryText}>{isLast ? 'Finish' : 'Next'}</Text>
-            {!isLast ? <ChevronRight size={18} color="#FFF" /> : null}
+            {!isLast ? <ChevronRight size={18} color="#FFF" strokeWidth={1.75} /> : null}
           </TouchableOpacity>
         </View>
 

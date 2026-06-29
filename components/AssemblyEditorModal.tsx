@@ -232,7 +232,7 @@ function AssemblyEditorModalImpl({
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <ChevronLeft size={18} color={themeColors.text} />
+              <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.title}>
               {isEditing ? 'Edit Assembly' : 'New Assembly'}
@@ -244,7 +244,7 @@ function AssemblyEditorModalImpl({
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <X size={18} color={themeColors.text} />
+              <X size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -325,7 +325,7 @@ function AssemblyEditorModalImpl({
                       accessibilityRole="button"
                       accessibilityLabel="Remove material"
                     >
-                      <X size={14} color={themeColors.textMuted} />
+                      <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                   <TextInput
@@ -372,7 +372,7 @@ function AssemblyEditorModalImpl({
                 </View>
               ))}
               <TouchableOpacity style={styles.addRowBtn} onPress={addMaterial} activeOpacity={0.8}>
-                <Plus size={14} color={themeColors.accent} />
+                <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add material</Text>
               </TouchableOpacity>
             </View>
@@ -390,7 +390,7 @@ function AssemblyEditorModalImpl({
                       accessibilityRole="button"
                       accessibilityLabel="Remove labor"
                     >
-                      <X size={14} color={themeColors.textMuted} />
+                      <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                   <View style={styles.row2}>
@@ -419,7 +419,7 @@ function AssemblyEditorModalImpl({
                 </View>
               ))}
               <TouchableOpacity style={styles.addRowBtn} onPress={addLabor} activeOpacity={0.8}>
-                <Plus size={14} color={themeColors.accent} />
+                <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>Add labor</Text>
               </TouchableOpacity>
             </View>
@@ -456,7 +456,7 @@ function AssemblyEditorModalImpl({
               onPress={handleSave}
               activeOpacity={0.85}
             >
-              <CheckCircle2 size={14} color="#FFF" />
+              <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>
                 {isEditing ? 'Save changes' : 'Create assembly'}
               </Text>

@@ -175,10 +175,10 @@ function ScheduleShareSheet({
           <View style={st.handle} />
           <View style={st.header}>
             <View style={st.headerLeft}>
-              <Share2 size={18} color={Colors.primary} />
+              <Share2 size={18} color={Colors.primary} strokeWidth={1.75} />
               <Text style={st.headerTitle}>Share Schedule</Text>
             </View>
-            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <View style={st.modeRow}>
@@ -186,14 +186,14 @@ function ScheduleShareSheet({
               style={[st.modeBtn, shareMode === 'full' && st.modeBtnActive]}
               onPress={() => setShareMode('full')}
             >
-              <FileText size={14} color={shareMode === 'full' ? '#FFF' : Colors.textSecondary} />
+              <FileText size={14} color={shareMode === 'full' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
               <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full Schedule</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[st.modeBtn, shareMode === 'trade' && st.modeBtnActive]}
               onPress={() => setShareMode('trade')}
             >
-              <Users size={14} color={shareMode === 'trade' ? '#FFF' : Colors.textSecondary} />
+              <Users size={14} color={shareMode === 'trade' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
               <Text style={[st.modeBtnText, shareMode === 'trade' && st.modeBtnTextActive]}>By Trade</Text>
             </TouchableOpacity>
           </View>
@@ -224,7 +224,7 @@ function ScheduleShareSheet({
             {isGenerating ? (
               <ActivityIndicator color="#FFF" size="small" />
             ) : (
-              <Share2 size={16} color="#FFF" />
+              <Share2 size={16} color="#FFF" strokeWidth={1.75} />
             )}
             <Text style={st.shareBtnText}>
               {isGenerating ? 'Generating PDF...' : 'Generate & Share PDF'}

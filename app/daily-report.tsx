@@ -10,9 +10,10 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
-  Sparkles, Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
+  Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
 } from 'lucide-react-native';
+import { MageAIMark, MageDailyReport } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
@@ -736,7 +737,7 @@ export default function DailyReportScreen() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Daily Report' }} />
         <EmptyState
-          icon={<ClipboardList size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageDailyReport size={36} color={themeColors.accent} />}
           title="No daily report open yet"
           message="Daily field reports (DFRs) log weather, manpower, and progress on a specific project. To start one:"
           steps={[
@@ -770,7 +771,7 @@ export default function DailyReportScreen() {
             accessibilityLabel="Back"
             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
-            <ChevronLeft size={22} color={themeColors.text} />
+            <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.topBarTitleCol}
@@ -785,7 +786,7 @@ export default function DailyReportScreen() {
               <Text style={styles.topBarDate}>
                 {new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </Text>
-              {!isLocked && <CalendarDays size={11} color={themeColors.textMuted} />}
+              {!isLocked && <CalendarDays size={11} color={themeColors.textMuted} strokeWidth={1.75} />}
             </View>
           </TouchableOpacity>
           {!isLocked ? (
@@ -895,10 +896,10 @@ export default function DailyReportScreen() {
           {showVoiceBanner && voiceParsed && (
             <View style={voiceStyles.previewCard}>
               <View style={voiceStyles.previewHead}>
-                <Sparkles size={14} color={themeColors.accent} />
+                <MageAIMark size={14} color={themeColors.accent} />
                 <Text style={voiceStyles.previewTitle}>Here&apos;s what I heard</Text>
                 <TouchableOpacity onPress={() => { setShowVoiceBanner(false); setVoiceParsed(null); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={themeColors.textMuted} />
+                  <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <Text style={voiceStyles.previewHelper}>
@@ -931,7 +932,7 @@ export default function DailyReportScreen() {
               activeOpacity={0.7}
             >
               <Text style={{ flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.info }}>Nothing new picked up — the fields you already had stay as-is.</Text>
-              <X size={14} color={themeColors.info} />
+              <X size={14} color={themeColors.info} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
 
@@ -994,7 +995,7 @@ export default function DailyReportScreen() {
             <Text style={styles.heroDate}>{reportDateStr}</Text>
             {projectDayInfo && (
               <View style={styles.heroDayRow}>
-                <CalendarDays size={13} color={themeColors.textMuted} />
+                <CalendarDays size={13} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.heroDayText}>
                   Day {projectDayInfo.day} of {projectDayInfo.total}
                 </Text>
@@ -1058,7 +1059,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Cloud size={18} color={themeColors.info} />
+              <Cloud size={18} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Weather</Text>
               {!isLocked && (
                 <TouchableOpacity
@@ -1075,7 +1076,7 @@ export default function DailyReportScreen() {
             </View>
             <View style={styles.weatherGrid}>
               <View style={styles.weatherItem}>
-                <Thermometer size={14} color={themeColors.accent} />
+                <Thermometer size={14} color={themeColors.accent} strokeWidth={1.75} />
                 {!isLocked ? (
                   <TextInput
                     style={styles.weatherInput}
@@ -1089,7 +1090,7 @@ export default function DailyReportScreen() {
                 )}
               </View>
               <View style={styles.weatherItem}>
-                <Cloud size={14} color={themeColors.info} />
+                <Cloud size={14} color={themeColors.info} strokeWidth={1.75} />
                 {!isLocked ? (
                   <TextInput
                     style={styles.weatherInput}
@@ -1103,7 +1104,7 @@ export default function DailyReportScreen() {
                 )}
               </View>
               <View style={styles.weatherItem}>
-                <Wind size={14} color={themeColors.textSecondary} />
+                <Wind size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 {!isLocked ? (
                   <TextInput
                     style={styles.weatherInput}
@@ -1127,7 +1128,7 @@ export default function DailyReportScreen() {
               data flows downstream without re-entry. */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <BarChart3 size={18} color={themeColors.accent} />
+              <BarChart3 size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Work Progress</Text>
               <Text style={styles.sectionTotal}>{workProgress.length > 0 ? `${workProgress.length} task${workProgress.length === 1 ? '' : 's'}` : 'What was completed today?'}</Text>
               {!isLocked && (project.schedule?.tasks?.length ?? 0) > 0 && (
@@ -1136,7 +1137,7 @@ export default function DailyReportScreen() {
                   onPress={() => setShowTaskPicker(true)}
                   activeOpacity={0.7}
                   testID="add-work-progress-btn" accessibilityRole="button" accessibilityLabel="Add work">
-                  <Plus size={14} color={themeColors.accent} />
+                  <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1167,7 +1168,7 @@ export default function DailyReportScreen() {
                           accessibilityRole="button"
                           accessibilityLabel="Remove"
                         >
-                          <X size={14} color={themeColors.textMuted} />
+                          <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -1179,7 +1180,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Users size={18} color={themeColors.accent} />
+              <Users size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Workforce</Text>
               <Text style={styles.sectionTotal}>Total · {totalManpower}</Text>
               {!isLocked && (
@@ -1188,7 +1189,7 @@ export default function DailyReportScreen() {
                   onPress={() => setShowManpowerModal(true)}
                   activeOpacity={0.7}
                   testID="add-manpower-btn" accessibilityRole="button" accessibilityLabel="Add">
-                  <Plus size={14} color={themeColors.accent} />
+                  <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1220,7 +1221,7 @@ export default function DailyReportScreen() {
                 </View>
                 {!isLocked && (
                   <TouchableOpacity onPress={() => handleRemoveManpower(entry.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
-                    <Trash2 size={14} color={themeColors.danger} />
+                    <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1229,7 +1230,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <HardHat size={18} color={themeColors.accent} />
+              <HardHat size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Work Performed</Text>
             </View>
             {!isLocked ? (
@@ -1250,7 +1251,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <Package size={18} color={themeColors.accent} />
+              <Package size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Materials Delivered</Text>
             </View>
             {!isLocked && (
@@ -1264,7 +1265,7 @@ export default function DailyReportScreen() {
                   onSubmitEditing={handleAddMaterial}
                   returnKeyType="done"
                 />
-                <TouchableOpacity style={styles.addMaterialBtn} onPress={handleAddMaterial} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={16} color={themeColors.accent} /></TouchableOpacity>
+                <TouchableOpacity style={styles.addMaterialBtn} onPress={handleAddMaterial} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={16} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
               </View>
             )}
             {materialsDelivered.length === 0 && (
@@ -1276,7 +1277,7 @@ export default function DailyReportScreen() {
                 <Text style={styles.materialText}>{mat}</Text>
                 {!isLocked && (
                   <TouchableOpacity onPress={() => handleRemoveMaterial(idx)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={themeColors.danger} />
+                    <X size={14} color={themeColors.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -1285,7 +1286,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <AlertTriangle size={18} color={themeColors.danger} />
+              <AlertTriangle size={18} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Issues & Delays</Text>
             </View>
             {!isLocked ? (
@@ -1310,7 +1311,7 @@ export default function DailyReportScreen() {
               by email). */}
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <HomeIcon size={18} color={themeColors.accent} />
+              <HomeIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Homeowner update</Text>
               {hsPublished && (
                 <View style={hsStyles.publishedPill}>
@@ -1331,12 +1332,12 @@ export default function DailyReportScreen() {
               >
                 {hsGenerating ? (
                   <>
-                    <RefreshCw size={14} color={themeColors.accent} />
+                    <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={hsStyles.aiBtnText}>Writing the homeowner version…</Text>
                   </>
                 ) : (
                   <>
-                    <Sparkles size={14} color={themeColors.accent} />
+                    <MageAIMark size={14} color={themeColors.accent} />
                     <Text style={hsStyles.aiBtnText}>{homeownerSummary ? 'Re-generate from notes' : 'Generate from today\'s notes'}</Text>
                   </>
                 )}
@@ -1397,7 +1398,7 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <HardHat size={18} color={themeColors.danger} />
+              <HardHat size={18} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Safety & Incident</Text>
             </View>
             {!isLocked ? (
@@ -1502,19 +1503,19 @@ export default function DailyReportScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
-              <ImageIcon size={18} color={themeColors.accent} />
+              <ImageIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.sectionTitle}>Photos ({photos.length}/10)</Text>
             </View>
             {!isLocked && (
               <View style={styles.photoActions}>
                 {Platform.OS !== 'web' && (
                   <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
-                    <Camera size={16} color={themeColors.accent} />
+                    <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.photoBtnText}>Take Photo</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} activeOpacity={0.7}>
-                  <ImageIcon size={16} color={themeColors.accent} />
+                  <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.photoBtnText}>From Library</Text>
                 </TouchableOpacity>
               </View>
@@ -1527,7 +1528,7 @@ export default function DailyReportScreen() {
                 {photos.map((photo) => (
                   <View key={photo.id} style={styles.photoCard}>
                     <View style={styles.photoPlaceholder}>
-                      <Camera size={20} color={themeColors.textMuted} />
+                      <Camera size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                       <Text style={styles.photoTimestamp}>
                         {new Date(photo.timestamp).toLocaleTimeString()}
                       </Text>
@@ -1537,7 +1538,7 @@ export default function DailyReportScreen() {
                         style={styles.photoRemoveBtn}
                         onPress={() => handleRemovePhoto(photo.id)}
                         activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                        <X size={12} color={themeColors.danger} />
+                        <X size={12} color={themeColors.danger} strokeWidth={1.75} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1572,19 +1573,19 @@ export default function DailyReportScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Report To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
               {contactPicked ? (
                 <View style={styles.selectedRecipientCard}>
-                  <User size={16} color={themeColors.accent} />
+                  <User size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
                   <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={themeColors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -1613,7 +1614,7 @@ export default function DailyReportScreen() {
                       onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
                       activeOpacity={0.7}
                     >
-                      <BookUser size={14} color={themeColors.accent} />
+                      <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.pickContactText}>Pick from Contacts</Text>
                     </TouchableOpacity>
                   )}
@@ -1634,7 +1635,7 @@ export default function DailyReportScreen() {
                 accessibilityState={{ checked: saveToProjectFiles }}
               >
                 <View style={styles.toggleIconWrap}>
-                  <FolderOpen size={16} color={themeColors.accent} />
+                  <FolderOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.toggleTitle}>Save copy to project files</Text>
@@ -1653,7 +1654,7 @@ export default function DailyReportScreen() {
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
-                  <Send size={16} color={"#FFFFFF"} />
+                  <Send size={16} color={"#FFFFFF"} strokeWidth={1.75} />
                   <Text style={styles.sendBtnText}>
                     {sendRecipientEmail.trim() ? 'Send' : (saveToProjectFiles ? 'Save' : 'Send')}
                   </Text>
@@ -1700,7 +1701,7 @@ export default function DailyReportScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Work Progress</Text>
               <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalHelper}>Pick a task and the percent complete you observed today.</Text>
@@ -1730,7 +1731,7 @@ export default function DailyReportScreen() {
                         <Text style={styles.pickerTitle} numberOfLines={1}>{t.title || 'Untitled'}</Text>
                         <Text style={styles.pickerMeta}>{t.phase} · {(t.progress ?? 0)}%</Text>
                       </View>
-                      <Plus size={16} color={themeColors.accent} />
+                      <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
                     </TouchableOpacity>
                   );
                 })}
@@ -1779,7 +1780,7 @@ export default function DailyReportScreen() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Manpower</Text>
                 <TouchableOpacity onPress={() => setShowManpowerModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Trade</Text>

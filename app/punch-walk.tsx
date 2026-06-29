@@ -30,8 +30,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Camera, Mic, Check, X, Undo2, MapPin,
-  AlertTriangle, ChevronRight, Plus, Flag, Sparkles,
+  AlertTriangle, ChevronRight, Plus, Flag,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -314,7 +315,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
@@ -334,7 +335,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
           {/* Location — sticky context bar */}
           <View style={styles.locationRow}>
-            <MapPin size={14} color={themeColors.accent} />
+            <MapPin size={14} color={themeColors.accent} strokeWidth={1.75} />
             <TextInput
               style={styles.locationInput}
               value={draft.location}
@@ -346,7 +347,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             />
             {draft.location.length > 0 && (
               <TouchableOpacity onPress={() => setDraft(d => ({ ...d, location: '' }))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={themeColors.textMuted} />
+                <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
           </View>
@@ -372,11 +373,11 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                 {draft.matchedKeyword && (
                   <Text style={styles.metaChipHint}>· {draft.matchedKeyword}</Text>
                 )}
-                <ChevronRight size={10} color={themeColors.textMuted} />
+                <ChevronRight size={10} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.metaChip, { backgroundColor: `${priorityColor}18` }]} onPress={cyclePriority}>
-                <Flag size={11} color={priorityColor} />
+                <Flag size={11} color={priorityColor} strokeWidth={1.75} />
                 <Text style={[styles.metaChipText, { color: priorityColor }]}>{draft.priority.toUpperCase()}</Text>
               </TouchableOpacity>
 
@@ -390,7 +391,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
               <View style={styles.photoPreview}>
                 <Image source={{ uri: draft.photoUri }} style={styles.photoImg} />
                 <TouchableOpacity style={styles.photoRemove} onPress={() => setDraft(d => ({ ...d, photoUri: undefined }))} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={12} color="#fff" />
+                  <X size={12} color="#fff" strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             )}
@@ -413,7 +414,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
               />
             </View>
             <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera}>
-              <Camera size={18} color={themeColors.text} />
+              <Camera size={18} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.cameraBtnText}>Photo</Text>
             </TouchableOpacity>
           </View>
@@ -427,12 +428,12 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             onPress={() => router.push({ pathname: '/ai-punch' as never, params: { projectId } as never })}
             activeOpacity={0.85}
           >
-            <Sparkles size={16} color={themeColors.accent} />
+            <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.aiPunchBtnTitle}>AI Punch from Photos</Text>
               <Text style={styles.aiPunchBtnSub}>Take a few photos, AI builds the punch list</Text>
             </View>
-            <ChevronRight size={16} color={themeColors.accent} />
+            <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
 
           {/* Photo Triage — broader sibling that doesn't assume the
@@ -444,12 +445,12 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             onPress={() => router.push({ pathname: '/photo-triage' as never, params: { projectId } as never })}
             activeOpacity={0.85}
           >
-            <Sparkles size={16} color={themeColors.accent} />
+            <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.aiPunchBtnTitle}>AI Photo Triage</Text>
               <Text style={styles.aiPunchBtnSub}>Mixed batch — sorts to punch, RFI, daily report, progress</Text>
             </View>
-            <ChevronRight size={16} color={themeColors.accent} />
+            <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -459,7 +460,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             activeOpacity={0.85}
             testID="walk-save"
           >
-            <Check size={18} color={'#FFFFFF'} />
+            <Check size={18} color={'#FFFFFF'} strokeWidth={1.75} />
             <Text style={styles.saveBtnText}>Save & keep walking</Text>
           </TouchableOpacity>
 
@@ -479,7 +480,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                     <Text style={styles.sessionMeta}>{c.location} · {c.trade} · {c.priority}</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleUndo(c.id)} hitSlop={12}>
-                    <Undo2 size={14} color={themeColors.textMuted} />
+                    <Undo2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -488,7 +489,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
           {session.length === 0 && (
             <View style={styles.emptyCard}>
-              <Mic size={18} color={themeColors.textMuted} />
+              <Mic size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyText}>
                 Tap the mic below and say what you see. Walk mode is built for capturing 30 items in 10 minutes — don{'\u2019'}t worry about getting the trade or priority right, you can fix them later from the punch list screen.
               </Text>
@@ -504,7 +505,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pick trade</Text>
               <TouchableOpacity onPress={() => setShowTradeOverride(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 12 }}>
@@ -519,7 +520,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                 >
                   <View style={[styles.metaDot, { backgroundColor: tradeColor(t) }]} />
                   <Text style={styles.tradeOptionText}>{t}</Text>
-                  {draft.trade === t && <Check size={14} color={themeColors.accent} />}
+                  {draft.trade === t && <Check size={14} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -545,7 +546,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
           <Text style={styles.headerTitle}>Pick a project</Text>
@@ -554,18 +555,18 @@ function ProjectPicker({ projects, onPick, onBack }: {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
-            <AlertTriangle size={18} color={Colors.warning} />
+            <AlertTriangle size={18} color={Colors.warning} strokeWidth={1.75} />
             <Text style={styles.emptyText}>No projects on file. Create one first, then come back to walk punch items.</Text>
           </View>
         ) : (
           projects.map(p => (
             <TouchableOpacity key={p.id} style={styles.pickerRow} onPress={() => onPick(p.id)}>
-              <Plus size={14} color={themeColors.accent} />
+              <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.pickerRowTitle}>{p.name}</Text>
                 {p.status && <Text style={styles.pickerRowSub}>{p.status}</Text>}
               </View>
-              <ChevronRight size={14} color={themeColors.textMuted} />
+              <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           ))
         )}

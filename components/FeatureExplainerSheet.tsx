@@ -97,7 +97,7 @@ function FeatureExplainerSheetImpl({
             onPress={onClose}
             style={styles.closeBtn}
             activeOpacity={0.7}
-            testID="feature-explainer-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+            testID="feature-explainer-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView
@@ -133,11 +133,11 @@ function FeatureExplainerSheetImpl({
               activeOpacity={0.7}
               testID="feature-explainer-video"
             >
-              <PlayCircle size={18} color={themeColors.accent} />
+              <PlayCircle size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={[Type.subheadEmphasized, { color: themeColors.accent, flex: 1 }]}>
                 Watch a 30-second example
               </Text>
-              <ExternalLink size={14} color={themeColors.textMuted} />
+              <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
 
@@ -148,7 +148,7 @@ function FeatureExplainerSheetImpl({
               activeOpacity={0.7}
               testID="feature-explainer-tour"
             >
-              <PlayCircle size={18} color={themeColors.accent} />
+              <PlayCircle size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={[Type.subheadEmphasized, { color: themeColors.accent, flex: 1 }]}>
                 Walk me through it
               </Text>

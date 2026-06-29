@@ -220,7 +220,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate, 
   if (lanes.length === 0) {
     return (
       <View style={styles.empty}>
-        <Users size={28} color={themeColors.textMuted} />
+        <Users size={28} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.emptyTitle}>No resources yet</Text>
         <Text style={styles.emptyText}>
           Assign a crew name or add resources in project settings to see the lane view.
@@ -240,7 +240,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate, 
   return (
     <View style={styles.container}>
       <View style={styles.toolbar}>
-        <Users size={16} color={themeColors.accent} />
+        <Users size={16} color={themeColors.accent} strokeWidth={1.75} />
         <View style={styles.toolbarTitleBlock}>
           <Text style={styles.toolbarTitle} numberOfLines={1}>
             {projectName ? `${projectName} · Resources` : 'Resources'}
@@ -303,7 +303,7 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate, 
                       <Text style={styles.laneName} numberOfLines={1}>{lane.name}</Text>
                       {overloaded && (
                         <View style={styles.overloadBadge}>
-                          <AlertTriangle size={10} color={themeColors.danger} />
+                          <AlertTriangle size={10} color={themeColors.danger} strokeWidth={1.75} />
                         </View>
                       )}
                     </View>

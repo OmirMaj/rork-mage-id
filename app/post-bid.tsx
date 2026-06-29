@@ -169,7 +169,7 @@ export default function PostBidScreen() {
             <Text style={styles.certToggleText}>
               {selectedCerts.length === 0 ? 'None selected' : `${selectedCerts.length} selected`}
             </Text>
-            <ChevronDown size={16} color={themeColors.textSecondary} />
+            <ChevronDown size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
 
           {showCertPicker && (
@@ -195,7 +195,7 @@ export default function PostBidScreen() {
                 return (
                   <TouchableOpacity key={certId} style={styles.selectedCertBadge} onPress={() => toggleCert(certId)}>
                     <Text style={styles.selectedCertText}>{info?.shortLabel ?? certId}</Text>
-                    <X size={12} color={themeColors.accent} />
+                    <X size={12} color={themeColors.accent} strokeWidth={1.75} />
                   </TouchableOpacity>
                 );
               })}

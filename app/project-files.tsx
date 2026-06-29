@@ -46,7 +46,7 @@ export default function ProjectFilesScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.center}>
-          <AlertTriangle size={28} color={Colors.warning} />
+          <AlertTriangle size={28} color={Colors.warning} strokeWidth={1.75} />
           <Text style={styles.notFoundTitle}>Project not found</Text>
           <Text style={styles.notFoundBody}>
             This project link may be expired or you may not have access. Open the
@@ -68,7 +68,7 @@ export default function ProjectFilesScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Files</Text>
         <View style={{ width: 32 }} />

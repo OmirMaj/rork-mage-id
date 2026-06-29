@@ -49,7 +49,7 @@ function SectionHeader({ title, icon, count, expanded, onToggle }: {
       {count !== undefined && (
         <View style={styles.badge}><Text style={styles.badgeText}>{count}</Text></View>
       )}
-      {expanded ? <ChevronUp size={16} color={themeColors.textMuted} /> : <ChevronDown size={16} color={themeColors.textMuted} />}
+      {expanded ? <ChevronUp size={16} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />}
     </TouchableOpacity>
   );
 }
@@ -64,8 +64,8 @@ function TaskRow({ task }: { task: ScheduleTask }) {
       <View style={[styles.taskPhaseBar, { backgroundColor: phaseColor }]} />
       <View style={styles.taskContent}>
         <View style={styles.taskTitleRow}>
-          {task.isMilestone && <Flag size={11} color={Colors.warning} />}
-          {task.isCriticalPath && <GitBranch size={11} color={themeColors.danger} />}
+          {task.isMilestone && <Flag size={11} color={Colors.warning} strokeWidth={1.75} />}
+          {task.isCriticalPath && <GitBranch size={11} color={themeColors.danger} strokeWidth={1.75} />}
           <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
         </View>
         <Text style={styles.taskMeta}>{task.phase} · {task.durationDays}d</Text>
@@ -437,7 +437,7 @@ export default function ClientViewScreen() {
     return (
       <View style={styles.notFoundContainer}>
         <Stack.Screen options={{ title: 'Client Portal', headerShown: false }} />
-        <Globe size={48} color={themeColors.textMuted} />
+        <Globe size={48} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.notFoundTitle}>Portal Not Found</Text>
         <Text style={styles.notFoundSubtitle}>This portal link may be expired or invalid.</Text>
       </View>
@@ -506,7 +506,7 @@ export default function ClientViewScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.passcodeCard}>
           <View style={styles.passcodeIconWrap}>
-            <Lock size={32} color={themeColors.accent} />
+            <Lock size={32} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.passcodeTitle}>Protected Portal</Text>
           <Text style={styles.passcodeSub}>{project.name}</Text>
@@ -569,7 +569,7 @@ export default function ClientViewScreen() {
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={styles.headerBrand}>
-            <Globe size={22} color="#FFF" />
+            <Globe size={22} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.headerBrandText}>Client Portal</Text>
           </View>
           <Text style={styles.headerProjectName}>{project.name}</Text>
@@ -587,7 +587,7 @@ export default function ClientViewScreen() {
         {/* Welcome message */}
         {!!portal.welcomeMessage && (
           <View style={styles.welcomeCard}>
-            <MessageSquare size={16} color={themeColors.accent} />
+            <MessageSquare size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.welcomeText}>{portal.welcomeMessage}</Text>
           </View>
         )}
@@ -621,7 +621,7 @@ export default function ClientViewScreen() {
         <View style={styles.section}>
           <SectionHeader
             title="Messages"
-            icon={<MessageSquare size={18} color={themeColors.accent} />}
+            icon={<MessageSquare size={18} color={themeColors.accent} strokeWidth={1.75} />}
             count={messages.length || undefined}
             expanded={expanded.messages}
             onToggle={() => toggleSection('messages')}
@@ -630,7 +630,7 @@ export default function ClientViewScreen() {
             <View style={styles.sectionBody}>
               {messages.length === 0 ? (
                 <View style={styles.msgEmpty}>
-                  <MessageSquare size={20} color={themeColors.textMuted} />
+                  <MessageSquare size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.msgEmptyTitle}>Ask us anything.</Text>
                   <Text style={styles.msgEmptyHint}>
                     Questions about the schedule, finishes, or anything on-site — this goes straight to your GC.
@@ -678,7 +678,7 @@ export default function ClientViewScreen() {
                   style={[styles.msgSendBtn, (!composeBody.trim() || sendingMsg) && styles.msgSendBtnDisabled]}
                   onPress={handleSendMessage}
                   disabled={!composeBody.trim() || sendingMsg}
-                  activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send"><Send size={16} color="#fff" /></TouchableOpacity>
+                  activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send"><Send size={16} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
               </View>
             </View>
           )}
@@ -689,7 +689,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Project Schedule"
-              icon={<CalendarDays size={18} color={themeColors.info} />}
+              icon={<CalendarDays size={18} color={themeColors.info} strokeWidth={1.75} />}
               count={tasks.length}
               expanded={expanded.schedule}
               onToggle={() => toggleSection('schedule')}
@@ -721,7 +721,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Budget Summary"
-              icon={<BarChart3 size={18} color={themeColors.success} />}
+              icon={<BarChart3 size={18} color={themeColors.success} strokeWidth={1.75} />}
               expanded={expanded.budget}
               onToggle={() => toggleSection('budget')}
             />
@@ -839,7 +839,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Invoices"
-              icon={<DollarSign size={18} color={Colors.warning} />}
+              icon={<DollarSign size={18} color={Colors.warning} strokeWidth={1.75} />}
               count={invoices.length}
               expanded={expanded.invoices}
               onToggle={() => toggleSection('invoices')}
@@ -875,7 +875,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Change Orders"
-              icon={<FileText size={18} color={themeColors.danger} />}
+              icon={<FileText size={18} color={themeColors.danger} strokeWidth={1.75} />}
               count={changeOrders.length}
               expanded={expanded.changeOrders}
               onToggle={() => toggleSection('changeOrders')}
@@ -910,7 +910,7 @@ export default function ClientViewScreen() {
                             onPress={() => openApprovalFlow(co, 'reject')}
                             activeOpacity={0.85}
                           >
-                            <ThumbsDown size={14} color={themeColors.danger} />
+                            <ThumbsDown size={14} color={themeColors.danger} strokeWidth={1.75} />
                             <Text style={[styles.coActionText, { color: themeColors.danger }]}>Reject</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -918,14 +918,14 @@ export default function ClientViewScreen() {
                             onPress={() => openApprovalFlow(co, 'approve')}
                             activeOpacity={0.85}
                           >
-                            <FileSignature size={14} color="#FFF" />
+                            <FileSignature size={14} color="#FFF" strokeWidth={1.75} />
                             <Text style={[styles.coActionText, { color: '#FFF' }]}>Sign & Approve</Text>
                           </TouchableOpacity>
                         </View>
                       )}
                       {co.status === 'approved' && co.approvers?.some(a => a.role === 'Client' && a.status === 'approved') && (
                         <View style={styles.coSignedBanner}>
-                          <ShieldCheck size={12} color={themeColors.success} />
+                          <ShieldCheck size={12} color={themeColors.success} strokeWidth={1.75} />
                           <Text style={styles.coSignedBannerText}>
                             Approved by {co.approvers.find(a => a.role === 'Client' && a.status === 'approved')?.name} on{' '}
                             {new Date(co.approvers.find(a => a.role === 'Client' && a.status === 'approved')?.responseDate ?? co.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -945,7 +945,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Site Photos"
-              icon={<ImageIcon size={18} color={Colors.purple} />}
+              icon={<ImageIcon size={18} color={Colors.purple} strokeWidth={1.75} />}
               count={photos.length}
               expanded={expanded.photos}
               onToggle={() => toggleSection('photos')}
@@ -970,7 +970,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Daily Reports"
-              icon={<ClipboardList size={18} color="#32ADE6" />}
+              icon={<ClipboardList size={18} color="#32ADE6" strokeWidth={1.75} />}
               count={dailyReports.length}
               expanded={expanded.dailyReports}
               onToggle={() => toggleSection('dailyReports')}
@@ -999,7 +999,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Punch List"
-              icon={<CheckCircle2 size={18} color={themeColors.success} />}
+              icon={<CheckCircle2 size={18} color={themeColors.success} strokeWidth={1.75} />}
               count={punchItems.filter(p => p.status !== 'closed').length}
               expanded={expanded.punchList}
               onToggle={() => toggleSection('punchList')}
@@ -1032,7 +1032,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="RFIs"
-              icon={<MessageSquare size={18} color={Colors.warning} />}
+              icon={<MessageSquare size={18} color={Colors.warning} strokeWidth={1.75} />}
               count={rfis.filter(r => r.status === 'open').length}
               expanded={expanded.rfis}
               onToggle={() => toggleSection('rfis')}
@@ -1065,7 +1065,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Documents"
-              icon={<FileText size={18} color="#8E8E93" />}
+              icon={<FileText size={18} color="#8E8E93" strokeWidth={1.75} />}
               count={documents.length}
               expanded={expanded.documents}
               onToggle={() => toggleSection('documents')}
@@ -1074,7 +1074,7 @@ export default function ClientViewScreen() {
               <View style={styles.sectionBody}>
                 {documents.length === 0 ? (
                   <View style={styles.emptyDocs}>
-                    <FileText size={20} color={themeColors.textMuted} />
+                    <FileText size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.emptyDocsText}>No documents shared yet.</Text>
                     <Text style={styles.emptyDocsHint}>Contracts, lien waivers, permits, and COIs will appear here.</Text>
                   </View>
@@ -1108,7 +1108,7 @@ export default function ClientViewScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Globe size={14} color={themeColors.textMuted} />
+          <Globe size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.footerText}>Powered by MAGE ID · Secure client portal</Text>
         </View>
       </ScrollView>
@@ -1126,7 +1126,7 @@ export default function ClientViewScreen() {
               <Text style={styles.modalTitle}>
                 {approvalMode === 'approve' ? 'Sign & Approve' : 'Reject Change Order'}
               </Text>
-              <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
@@ -1176,7 +1176,7 @@ export default function ClientViewScreen() {
                   </View>
                   {signaturePaths.length > 0 && (
                     <View style={styles.signatureConfirm}>
-                      <Check size={14} color={themeColors.success} />
+                      <Check size={14} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={styles.signatureConfirmText}>Signature captured</Text>
                     </View>
                   )}
@@ -1211,8 +1211,8 @@ export default function ClientViewScreen() {
                 disabled={submittingApproval}
               >
                 {approvalMode === 'approve'
-                  ? <FileSignature size={15} color="#FFF" />
-                  : <ThumbsDown size={15} color="#FFF" />
+                  ? <FileSignature size={15} color="#FFF" strokeWidth={1.75} />
+                  : <ThumbsDown size={15} color="#FFF" strokeWidth={1.75} />
                 }
                 <Text style={styles.modalSubmitText}>
                   {approvalMode === 'approve' ? 'Approve & Sign' : 'Submit Rejection'}
@@ -1233,7 +1233,7 @@ export default function ClientViewScreen() {
         <View style={styles.lbBackdrop}>
           <View style={styles.lbHeader}>
             <TouchableOpacity onPress={() => setLightboxIndex(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close lightbox">
-              <X size={22} color="#FFF" />
+              <X size={22} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.lbCaption} numberOfLines={1}>
               {lightboxIndex !== null ? [

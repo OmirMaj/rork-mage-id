@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Crown, Building2, CheckCircle2, X, Sparkles, Shield, Smartphone, Apple } from 'lucide-react-native';
+import { Crown, Building2, CheckCircle2, X, Shield, Smartphone, Apple } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -232,12 +233,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
             <Text style={styles.headerTitle}>Continue on Mobile</Text>
-            <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             <View style={[styles.heroIconWrap, { backgroundColor: tierColor + '15' }]}>
-              <Smartphone size={36} color={tierColor} />
+              <Smartphone size={36} color={tierColor} strokeWidth={1.75} />
             </View>
 
             <Text style={styles.featureName}>{feature}</Text>
@@ -254,7 +255,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             <View style={styles.benefitsBox}>
               {benefits.map((b, idx) => (
                 <View key={idx} style={styles.benefitRow}>
-                  <CheckCircle2 size={16} color={tierColor} />
+                  <CheckCircle2 size={16} color={tierColor} strokeWidth={1.75} />
                   <Text style={styles.benefitText}>{b}</Text>
                 </View>
               ))}
@@ -268,7 +269,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               }}
               testID="paywall-open-app-store"
             >
-              <Apple size={18} color="#fff" />
+              <Apple size={18} color="#fff" strokeWidth={1.75} />
               <Text style={styles.upgradeBtnText}>Open in App Store</Text>
             </TouchableOpacity>
 
@@ -280,7 +281,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               }}
               testID="paywall-open-play-store"
             >
-              <Smartphone size={18} color="#fff" />
+              <Smartphone size={18} color="#fff" strokeWidth={1.75} />
               <Text style={styles.upgradeBtnText}>Open in Google Play</Text>
             </TouchableOpacity>
 
@@ -289,7 +290,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             </TouchableOpacity>
 
             <View style={styles.trustRow}>
-              <Shield size={13} color={themeColors.textSecondary} />
+              <Shield size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.trustText}>
                 Sign in on the mobile app with the same email and your subscription
                 will sync to this account automatically.
@@ -307,7 +308,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
         <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8 }]}>
           <View style={{ width: 36 }} />
           <Text style={styles.headerTitle}>Upgrade Required</Text>
-          <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -323,7 +324,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
           <View style={styles.benefitsBox}>
             {benefits.map((b, idx) => (
               <View key={idx} style={styles.benefitRow}>
-                <CheckCircle2 size={16} color={tierColor} />
+                <CheckCircle2 size={16} color={tierColor} strokeWidth={1.75} />
                 <Text style={styles.benefitText}>{b}</Text>
               </View>
             ))}
@@ -410,7 +411,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Sparkles size={18} color="#fff" />
+                <MageAIMark size={18} color="#fff" />
                 <Text style={styles.upgradeBtnText}>
                   {!isLoading && !tierPackageAvailable ? `${tierLabel} unavailable` : `Upgrade to ${tierLabel}`}
                 </Text>
@@ -423,7 +424,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
           </TouchableOpacity>
 
           <View style={styles.trustRow}>
-            <Shield size={13} color={themeColors.textSecondary} />
+            <Shield size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.trustText}>
               Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
             </Text>

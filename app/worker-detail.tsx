@@ -81,22 +81,22 @@ export default function WorkerDetailScreen() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Clock size={18} color={themeColors.accent} />
+            <Clock size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Experience</Text>
             <Text style={styles.statValue}>{worker.yearsExperience} years</Text>
           </View>
           <View style={styles.statCard}>
-            <DollarSign size={18} color={themeColors.accent} />
+            <DollarSign size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Rate</Text>
             <Text style={styles.statValue}>${worker.hourlyRate}/hr</Text>
           </View>
           <View style={styles.statCard}>
-            <MapPin size={18} color={themeColors.textSecondary} />
+            <MapPin size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Location</Text>
             <Text style={styles.statValue}>{worker.city}, {worker.state}</Text>
           </View>
           <View style={styles.statCard}>
-            <Briefcase size={18} color={themeColors.info} />
+            <Briefcase size={18} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Past Projects</Text>
             <Text style={styles.statValue}>{worker.pastProjects.length}</Text>
           </View>
@@ -112,7 +112,7 @@ export default function WorkerDetailScreen() {
             <Text style={styles.sectionTitle}>Licenses & Certifications</Text>
             {worker.licenses.map((lic, i) => (
               <View key={i} style={styles.licenseItem}>
-                <Award size={14} color={themeColors.accent} />
+                <Award size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.licenseLabel}>{lic}</Text>
               </View>
             ))}
@@ -154,7 +154,7 @@ export default function WorkerDetailScreen() {
 
         <View style={styles.actionSection}>
           <TouchableOpacity style={styles.messageBtn} onPress={handleMessage}>
-            <MessageCircle size={16} color="#FFF" />
+            <MessageCircle size={16} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.messageBtnText}>Message {worker.name.split(' ')[0]}</Text>
           </TouchableOpacity>
           <View style={styles.contactRow}>
@@ -163,11 +163,11 @@ export default function WorkerDetailScreen() {
               subject: `Quick question — ${worker.name}`,
               body: [`Hi ${worker.name.split(' ')[0]},`, '', '', ...mailSignOff()],
             }))}>
-              <Mail size={16} color={themeColors.accent} />
+              <Mail size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.contactBtnText}>Email</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`tel:${worker.phone}`)}>
-              <Phone size={16} color={themeColors.accent} />
+              <Phone size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.contactBtnText}>Call</Text>
             </TouchableOpacity>
           </View>

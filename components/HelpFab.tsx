@@ -100,7 +100,7 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
           <View style={styles.handle} />
           <View style={styles.head}>
             <Text style={styles.title}>Need a hand?</Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <Text style={styles.subtitle}>
@@ -109,18 +109,18 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
 
           <TouchableOpacity style={styles.row} onPress={handleVideos} activeOpacity={0.85} testID="help-fab-videos">
             <View style={[styles.rowIcon, { backgroundColor: themeColors.accent + '14' }]}>
-              <Play size={16} color={themeColors.accent} />
+              <Play size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>Watch the demo videos</Text>
               <Text style={styles.rowSub}>90-second tour, full walkthrough, and a clip per feature.</Text>
             </View>
-            <ExternalLink size={14} color={themeColors.textMuted} />
+            <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.row} onPress={handleReplayTutorial} activeOpacity={0.85} testID="help-fab-tutorial">
             <View style={[styles.rowIcon, { backgroundColor: Colors.warning + '14' }]}>
-              <BookOpen size={16} color={Colors.warning} />
+              <BookOpen size={16} color={Colors.warning} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>Replay the tutorial</Text>
@@ -130,13 +130,13 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
 
           <TouchableOpacity style={styles.row} onPress={handleEmail} activeOpacity={0.85} testID="help-fab-email">
             <View style={[styles.rowIcon, { backgroundColor: themeColors.success + '14' }]}>
-              <Mail size={16} color={themeColors.success} />
+              <Mail size={16} color={themeColors.success} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>Email support</Text>
               <Text style={styles.rowSub}>{SUPPORT_EMAIL} — usually under 4 hours.</Text>
             </View>
-            <ExternalLink size={14} color={themeColors.textMuted} />
+            <ExternalLink size={14} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       </Modal>

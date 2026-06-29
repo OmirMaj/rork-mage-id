@@ -227,14 +227,14 @@ export default function LienWaiversScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
           <Text style={styles.title}>Proof of Payment</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
-          <Plus size={14} color="#FFF" />
+          <Plus size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.addBtnText}>New</Text>
         </TouchableOpacity>
       </View>
@@ -260,21 +260,21 @@ export default function LienWaiversScreen() {
 
         {!loading && waivers.length === 0 && (
           <View style={styles.emptyCard}>
-            <ShieldCheck size={28} color={themeColors.accent} />
+            <ShieldCheck size={28} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No waivers yet</Text>
             <Text style={styles.emptyBody}>
               Generate a lien waiver after every sub payment. Banks ask for them on every draw.
               We'll auto-fill the sub's name, paid amount, and through-date — you just pick the type.
             </Text>
             <TouchableOpacity style={styles.bigCta} onPress={() => setAddModal(true)}>
-              <Plus size={14} color="#FFF" />
+              <Plus size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.bigCtaText}>New waiver</Text>
             </TouchableOpacity>
           </View>
         )}
 
         <View style={styles.disclaimer}>
-          <AlertTriangle size={14} color={Colors.warning} />
+          <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
           <Text style={styles.disclaimerText}>
             Generic 4-type waivers cover ~38 states. CA, TX, FL, GA, AZ require state-specific
             statutory forms — consult an attorney for those.
@@ -360,7 +360,7 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
 
       {waiver.subSignature && (
         <View style={styles.sigPreview}>
-          <FileSignature size={12} color={themeColors.success} />
+          <FileSignature size={12} color={themeColors.success} strokeWidth={1.75} />
           <Text style={styles.sigPreviewText}>
             Signed by <Text style={{ fontWeight: '800' }}>{waiver.subSignature.name}</Text> on {new Date(waiver.subSignature.signedAt).toLocaleDateString()}
           </Text>
@@ -371,30 +371,30 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
         <TouchableOpacity style={styles.actionSecondary} onPress={onExport} disabled={exporting}>
           {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
             <>
-              <FileDown size={13} color={themeColors.text} />
+              <FileDown size={13} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.actionSecondaryText}>PDF</Text>
             </>
           )}
         </TouchableOpacity>
         {waiver.status === 'requested' && (
           <TouchableOpacity style={styles.actionPrimary} onPress={onMarkSigned}>
-            <FileSignature size={13} color="#FFF" />
+            <FileSignature size={13} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.actionPrimaryText}>Mark signed</Text>
           </TouchableOpacity>
         )}
         {waiver.status === 'signed' && (
           <TouchableOpacity style={styles.actionPrimary} onPress={onMarkReceived}>
-            <CheckCircle2 size={13} color="#FFF" />
+            <CheckCircle2 size={13} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.actionPrimaryText}>Mark received</Text>
           </TouchableOpacity>
         )}
         {(waiver.status === 'requested' || waiver.status === 'signed') && (
           <TouchableOpacity style={styles.actionGhost} onPress={onMarkVoid}>
-            <XCircle size={13} color={Colors.warning} />
+            <XCircle size={13} color={Colors.warning} strokeWidth={1.75} />
             <Text style={styles.actionGhostText}>Void</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.actionGhost} onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={13} color={themeColors.danger} /></TouchableOpacity>
+        <TouchableOpacity style={styles.actionGhost} onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
       </View>
     </View>
   );
@@ -525,7 +525,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
               onPress={handleSubmit}
               disabled={!subName.trim() || !Number(amount) || Number(amount) <= 0}
             >
-              <Plus size={14} color="#FFF" />
+              <Plus size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.modalConfirmText}>Create</Text>
             </TouchableOpacity>
           </View>

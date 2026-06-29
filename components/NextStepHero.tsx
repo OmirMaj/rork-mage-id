@@ -282,7 +282,7 @@ export function NextStepHero(props: NextStepHeroProps) {
         <Text style={styles.bodyText} numberOfLines={3}>{step.body}</Text>
         <View style={styles.ctaRow}>
           <Text style={[styles.ctaText, { color: accent }]}>{step.cta}</Text>
-          <ChevronRight size={14} color={accent} />
+          <ChevronRight size={14} color={accent} strokeWidth={1.75} />
         </View>
       </View>
     </TouchableOpacity>

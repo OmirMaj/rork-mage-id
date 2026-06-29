@@ -14,9 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Boxes, ClipboardCheck, CalendarRange, Check, Sparkles,
+  ChevronLeft, Boxes, ClipboardCheck, CalendarRange, Check,
   ArrowRight, AlertTriangle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -158,7 +159,7 @@ function GenerativeSetupInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Generative Setup · MAGE</Text>
@@ -179,7 +180,7 @@ function GenerativeSetupInner() {
           />
         ) : !hasEstimate ? (
           <View style={styles.infoCard}>
-            <Sparkles size={26} color={t.accent} strokeWidth={1.7} />
+            <MageAIMark size={26} color={t.accent} />
             <Text style={styles.infoTitle}>Build an estimate first</Text>
             <Text style={styles.infoBody}>
               Generative Setup breaks your estimate into buyout packages and a submittal
@@ -196,7 +197,7 @@ function GenerativeSetupInner() {
 
             {/* Buyout packages */}
             <SectionCard
-              icon={<Boxes size={18} color={t.accent} />}
+              icon={<Boxes size={18} color={t.accent} strokeWidth={1.75} />}
               title="Buyout packages"
               count={plan?.packages.length ?? 0}
               subtitle={
@@ -226,7 +227,7 @@ function GenerativeSetupInner() {
 
             {/* Submittal log */}
             <SectionCard
-              icon={<ClipboardCheck size={18} color={t.info} />}
+              icon={<ClipboardCheck size={18} color={t.info} strokeWidth={1.75} />}
               title="Submittal log starter"
               count={plan?.submittals.length ?? 0}
               subtitle={
@@ -250,7 +251,7 @@ function GenerativeSetupInner() {
 
             {/* Draft schedule */}
             <SectionCard
-              icon={<CalendarRange size={18} color={t.success} />}
+              icon={<CalendarRange size={18} color={t.success} strokeWidth={1.75} />}
               title="Draft schedule"
               count={null}
               subtitle={
@@ -266,7 +267,7 @@ function GenerativeSetupInner() {
             >
               {hasSchedule && includeSchedule && (
                 <View style={styles.warnRow}>
-                  <AlertTriangle size={14} color={t.danger} />
+                  <AlertTriangle size={14} color={t.danger} strokeWidth={1.75} />
                   <Text style={styles.warnText}>Your current schedule will be overwritten.</Text>
                 </View>
               )}
@@ -299,7 +300,7 @@ function GenerativeSetupInner() {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <Sparkles size={17} color="#fff" />
+                <MageAIMark size={17} color="#fff" />
                 <Text style={styles.ctaText}>Generate setup</Text>
               </>
             )}
@@ -378,7 +379,7 @@ function SuccessView({
 
       <TouchableOpacity style={styles.successPrimary} onPress={onOpenBuyout} activeOpacity={0.85}>
         <Text style={styles.successPrimaryText}>Open buyout</Text>
-        <ArrowRight size={16} color="#fff" />
+        <ArrowRight size={16} color="#fff" strokeWidth={1.75} />
       </TouchableOpacity>
       <TouchableOpacity style={styles.successLink} onPress={onOpenMargin} activeOpacity={0.8}>
         <Text style={styles.successLinkText}>See projected margin</Text>

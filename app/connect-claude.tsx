@@ -15,8 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, Plus, Copy, Trash2, ShieldCheck, KeyRound, Info, Check, AlertTriangle,
+  Plus, Copy, Trash2, ShieldCheck, KeyRound, Info, Check, AlertTriangle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -127,7 +128,7 @@ export default function ConnectClaudeScreen() {
   if (!user) {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top }]}>
-        <KeyRound size={28} color={themeColors.textSecondary} />
+        <KeyRound size={28} color={themeColors.textSecondary} strokeWidth={1.75} />
         <Text style={styles.emptyText}>Sign in to connect Claude to your data.</Text>
       </View>
     );
@@ -140,14 +141,14 @@ export default function ConnectClaudeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><Sparkles size={24} color={themeColors.accent} /></View>
+          <View style={styles.heroIcon}><MageAIMark size={24} color={themeColors.accent} /></View>
           <Text style={styles.heroTitle}>Connect Claude</Text>
           <Text style={styles.heroSub}>
             Ask Claude (on claude.ai or Claude Desktop) about your business — &quot;what&apos;s overdue?&quot;,
             &quot;how much am I owed?&quot;, &quot;which RFIs are open?&quot; — answered from your live MAGE ID data.
           </Text>
           <View style={styles.roBadge}>
-            <ShieldCheck size={13} color={themeColors.success} />
+            <ShieldCheck size={13} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.roBadgeText}>Read-only. Claude can view your data but never change it. Revoke any time.</Text>
           </View>
         </View>
@@ -156,20 +157,20 @@ export default function ConnectClaudeScreen() {
         {freshToken && connectUrl && (
           <View style={styles.freshCard}>
             <View style={styles.freshHeader}>
-              <AlertTriangle size={15} color={themeColors.accent} />
+              <AlertTriangle size={15} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.freshTitle}>Save this now — it won&apos;t be shown again</Text>
             </View>
 
             <Text style={styles.fieldLabel}>Connector URL (paste into Claude)</Text>
             <TouchableOpacity style={styles.codeRow} onPress={() => copy(connectUrl, 'url')} activeOpacity={0.7}>
               <Text style={styles.codeText} numberOfLines={2}>{connectUrl}</Text>
-              {copied === 'url' ? <Check size={16} color={themeColors.success} /> : <Copy size={16} color={themeColors.accent} />}
+              {copied === 'url' ? <Check size={16} color={themeColors.success} strokeWidth={1.75} /> : <Copy size={16} color={themeColors.accent} strokeWidth={1.75} />}
             </TouchableOpacity>
 
             <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Token only (for header-based clients)</Text>
             <TouchableOpacity style={styles.codeRow} onPress={() => copy(freshToken, 'tok')} activeOpacity={0.7}>
               <Text style={styles.codeText} numberOfLines={1}>{freshToken}</Text>
-              {copied === 'tok' ? <Check size={16} color={themeColors.success} /> : <Copy size={16} color={themeColors.accent} />}
+              {copied === 'tok' ? <Check size={16} color={themeColors.success} strokeWidth={1.75} /> : <Copy size={16} color={themeColors.accent} strokeWidth={1.75} />}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.dismissBtn} onPress={() => setFreshToken(null)} activeOpacity={0.8}>
@@ -196,7 +197,7 @@ export default function ConnectClaudeScreen() {
             activeOpacity={0.85}
             testID="create-mcp-token"
           >
-            {creating ? <ActivityIndicator color="#FFFFFF" /> : <><Plus size={16} color="#FFFFFF" /><Text style={styles.createBtnText}>Create token</Text></>}
+            {creating ? <ActivityIndicator color="#FFFFFF" /> : <><Plus size={16} color="#FFFFFF" strokeWidth={1.75} /><Text style={styles.createBtnText}>Create token</Text></>}
           </TouchableOpacity>
         </View>
 
@@ -209,7 +210,7 @@ export default function ConnectClaudeScreen() {
           <Step n={4} text='Ask away: "What is overdue right now?" or "How much money is unpaid across all jobs?"' last />
         </View>
         <View style={styles.hintCard}>
-          <Info size={14} color={themeColors.textSecondary} />
+          <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.hintText}>
             Server URL: {MCP_URL}{'\n'}
             The token authenticates the connection — keep it private; it grants read access to your data.
@@ -229,7 +230,7 @@ export default function ConnectClaudeScreen() {
               return (
                 <View key={t.id} style={styles.tokenRow}>
                   <View style={[styles.tokenIcon, revoked && { opacity: 0.4 }]}>
-                    <KeyRound size={16} color={themeColors.accent} />
+                    <KeyRound size={16} color={themeColors.accent} strokeWidth={1.75} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.tokenName, revoked && styles.tokenRevoked]}>
@@ -241,7 +242,7 @@ export default function ConnectClaudeScreen() {
                   </View>
                   {!revoked && (
                     <TouchableOpacity onPress={() => revokeToken(t)} hitSlop={10} testID={`revoke-${t.id}`}>
-                      <Trash2 size={18} color={themeColors.danger} />
+                      <Trash2 size={18} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   )}
                 </View>

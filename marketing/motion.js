@@ -201,7 +201,7 @@
     blobLoop();
 
     // Magnetic pull on .magnetic buttons
-    let magnets = document.querySelectorAll('.magnetic');
+    let magnets = document.querySelectorAll('.magnetic, .nav-cta, .btn-primary');
     magnets.forEach(function (btn) {
       let strength = 0.28;
       let radius = 90;
@@ -238,6 +238,131 @@
   // =========================================================
   // Form: light-weight validation + success state
   // =========================================================
+  // =========================================================
+  // Scroll-progress hairline
+  // =========================================================
+  let prog = document.querySelector('.scroll-progress');
+  if (!prog) {
+    // Auto-inject on every page that loads motion.js (no per-page markup needed).
+    prog = document.createElement('div');
+    prog.className = 'scroll-progress';
+    prog.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(prog, document.body.firstChild);
+  }
+  if (prog) {
+    let setProg = function () {
+      let h = document.documentElement;
+      let max = h.scrollHeight - h.clientHeight;
+      let p = max > 0 ? h.scrollTop / max : 0;
+      prog.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+    };
+    window.addEventListener('scroll', setProg, { passive: true });
+    setProg();
+  }
+
+  // =========================================================
+  // Staggered group reveals — children animate in sequence
+  // =========================================================
+  ['.moat-grid', '.cta-row', '.pillar-bullets', '.hero-meta'].forEach(function (sel) {
+    document.querySelectorAll(sel).forEach(function (group) {
+      let kids = group.querySelectorAll('.reveal, .reveal-word, .meta-tick');
+      kids.forEach(function (k, i) { k.style.setProperty('--d', String(i)); });
+    });
+  });
+
+  // =========================================================
+  // Tilt-on-hover for cards (desktop, fine pointer only)
+  // =========================================================
+  if (isFinePointer && !reduceMotion) {
+    document.querySelectorAll('.moat-card, [data-tilt]').forEach(function (card) {
+      card.classList.add('tilt');
+      card.addEventListener('mousemove', function (e) {
+        let r = card.getBoundingClientRect();
+        let px = (e.clientX - r.left) / r.width - 0.5;
+        let py = (e.clientY - r.top) / r.height - 0.5;
+        card.style.transform = 'perspective(720px) rotateX(' + (-py * 5).toFixed(2) + 'deg) rotateY(' + (px * 6).toFixed(2) + 'deg) translateY(-4px)';
+      });
+      card.addEventListener('mouseleave', function () { card.style.transform = ''; });
+    });
+  }
+
+  // =========================================================
+  // Smooth scroll (Lenis) — auto-loaded, synced with GSAP/ScrollTrigger
+  // =========================================================
+  if (!reduceMotion) {
+    let ls = document.createElement('script');
+    ls.src = 'https://unpkg.com/lenis@1.1.14/dist/lenis.min.js';
+    ls.onload = function () {
+      if (!window.Lenis) return;
+      let lenis = new window.Lenis({ duration: 1.05, smoothWheel: true });
+      if (window.gsap && window.ScrollTrigger) {
+        lenis.on('scroll', window.ScrollTrigger.update);
+        window.gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
+        window.gsap.ticker.lagSmoothing(0);
+      } else {
+        let raf = function (t) { lenis.raf(t); requestAnimationFrame(raf); };
+        requestAnimationFrame(raf);
+      }
+    };
+    document.head.appendChild(ls);
+  }
+
+  // =========================================================
+  // Hero spotlight follows the cursor (interactive amber glow)
+  // =========================================================
+  let hero = document.querySelector('.hero');
+  let spot = document.querySelector('.hero-spotlight');
+  if (hero && spot && isFinePointer && !reduceMotion) {
+    spot.style.transition = 'left 0.25s var(--ease), top 0.25s var(--ease)';
+    hero.addEventListener('mousemove', function (e) {
+      let r = hero.getBoundingClientRect();
+      spot.style.left = (e.clientX - r.left) + 'px';
+      spot.style.top = (e.clientY - r.top) + 'px';
+      spot.style.transform = 'translate(-50%, -50%)';
+    });
+  }
+
+  // =========================================================
+  // Page-load intro curtain (once per session, reduced-motion safe)
+  // =========================================================
+  try {
+    if (!reduceMotion && !sessionStorage.getItem('mage-intro-v1')) {
+      sessionStorage.setItem('mage-intro-v1', '1');
+      document.documentElement.classList.add('intro-on');
+      let ov = document.createElement('div');
+      ov.className = 'intro';
+      ov.setAttribute('aria-hidden', 'true');
+      ov.innerHTML = '<div class="intro-inner"><svg class="intro-spark" width="46" height="46" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 L13.4 9 L21 12 L13.4 15 L12 23 L10.6 15 L3 12 L10.6 9 Z" fill="#FF6A1A"/></svg><span class="intro-word">MAGE&nbsp;ID</span></div>';
+      document.body.appendChild(ov);
+      setTimeout(function () { ov.classList.add('intro-out'); document.documentElement.classList.remove('intro-on'); }, 1250);
+      setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 2200);
+    }
+  } catch (e) { document.documentElement.classList.remove('intro-on'); }
+
+  // =========================================================
+  // Hero headline: always reveal (the A/B swapper may show a variant
+  // that was display:none when the reveal observer ran, so force it in).
+  // =========================================================
+  setTimeout(function () {
+    let hw = document.querySelectorAll('.hero-title .reveal-word');
+    for (let i = 0; i < hw.length; i++) hw[i].classList.add('is-in');
+  }, 80);
+
+  // =========================================================
+  // Scroll-velocity skew on marquees (the band leans with scroll speed)
+  // =========================================================
+  let mqTracks = document.querySelectorAll('.marquee-track');
+  if (mqTracks.length && !reduceMotion) {
+    let lastY = window.scrollY, vel = 0;
+    (function velLoop() {
+      let y = window.scrollY;
+      vel += ((y - lastY) - vel) * 0.18; lastY = y;
+      let sk = Math.max(-10, Math.min(10, vel * 0.35));
+      for (let i = 0; i < mqTracks.length; i++) mqTracks[i].style.transform = 'skewX(' + sk.toFixed(2) + 'deg)';
+      requestAnimationFrame(velLoop);
+    })();
+  }
+
   let form = document.querySelector('.cta-form');
   if (form) {
     form.addEventListener('submit', function (e) {

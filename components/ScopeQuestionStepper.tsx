@@ -9,8 +9,8 @@
 
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { Building2, DollarSign, Home, Sparkles, Wrench } from 'lucide-react-native';
-import type { LucideIcon } from 'lucide-react-native';
+import { Building2, DollarSign, Home, Wrench } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -25,7 +25,7 @@ const ICONS = {
   building: Building2,
   dollar: DollarSign,
   home: Home,
-  sparkles: Sparkles,
+  sparkles: MageAIMark,
   wrench: Wrench,
 } as const;
 
@@ -56,7 +56,7 @@ function StepCard({
   step: ScopeStep;
   styles: StylesFor;
   accent: string;
-  Icon: LucideIcon;
+  Icon: React.ComponentType<{ size?: number; color?: string }>;
   children: React.ReactNode;
 }) {
   return (

@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, CalendarDays, ChevronRight, FileText, X,
+  CalendarDays, ChevronRight, FileText, X,
   CheckCircle2, Clock, Plus, Folder, FolderPlus,
 } from 'lucide-react-native';
+import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
@@ -331,7 +332,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         >
           <View style={s.heroSection}>
             <View style={s.heroIconWrap}>
-              <CalendarDays size={28} color="#FF9F0A" />
+              <MageSchedule size={28} color="#FF6A1A" />
             </View>
             <Text style={s.heroTitle}>Quick Schedule Builder</Text>
             <Text style={s.heroDesc}>
@@ -341,7 +342,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
           <View style={s.aiSection}>
             <View style={s.aiHeader}>
-              <Sparkles size={18} color="#FF9F0A" />
+              <MageAIMark size={18} color="#FF6A1A" />
               <Text style={s.aiTitle}>Generate with AI</Text>
             </View>
             <Text style={s.aiDesc}>
@@ -369,7 +370,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Sparkles size={16} color="#FFF" />
+                    <MageAIMark size={16} color="#FFF" />
                     <Text style={s.aiBtnText}>Generate (New Project)</Text>
                   </>
                 )}
@@ -414,7 +415,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               <Text style={s.templateName}>Blank schedule</Text>
               <Text style={s.templateMeta}>Build it your way — start with no tasks and add them one by one.</Text>
             </View>
-            <ChevronRight size={18} color={Colors.textMuted} />
+            <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
 
           <Text style={[s.sectionTitle, { marginTop: 24 }]}>Start from Template</Text>
@@ -432,13 +433,13 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               testID={`schedule-template-${template.id}`}
             >
               <View style={s.templateIconWrap}>
-                <FileText size={20} color={Colors.primary} />
+                <FileText size={20} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={s.templateInfo}>
                 <Text style={s.templateName}>{template.name}</Text>
                 <Text style={s.templateMeta}>{template.tasks.length} tasks · {template.tasks.filter(t => t.isMilestone).length} milestones</Text>
               </View>
-              <ChevronRight size={18} color={Colors.textMuted} />
+              <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           ))}
 
@@ -453,12 +454,12 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   activeOpacity={0.7}
                 >
                   <View style={s.existingIconWrap}>
-                    <CheckCircle2 size={18} color={Colors.success} />
+                    <CheckCircle2 size={18} color={Colors.success} strokeWidth={1.75} />
                   </View>
                   <View style={s.templateInfo}>
                     <Text style={s.templateName}>{project.name}</Text>
                     <View style={s.existingMeta}>
-                      <Clock size={12} color={Colors.textMuted} />
+                      <Clock size={12} color={Colors.textMuted} strokeWidth={1.75} />
                       <Text style={s.templateMeta}>
                         {project.schedule?.tasks.length} tasks · {project.schedule?.totalDurationDays}d
                       </Text>
@@ -471,7 +472,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       )}
                     </View>
                   </View>
-                  <ChevronRight size={18} color={Colors.textMuted} />
+                  <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
             </>
@@ -485,7 +486,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Select Project</Text>
               <TouchableOpacity onPress={() => setShowProjectPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 400 }}>
@@ -541,13 +542,13 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               testID="template-action-new"
             >
               <View style={[s.actionIcon, { backgroundColor: Colors.primary + '15' }]}>
-                <FolderPlus size={20} color={Colors.primary} />
+                <FolderPlus size={20} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.actionTitle}>Create as new project</Text>
                 <Text style={s.actionSub}>Spin up a fresh project named after this template</Text>
               </View>
-              <ChevronRight size={18} color={Colors.textMuted} />
+              <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             {projects.length > 0 && (
@@ -566,13 +567,13 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 testID="template-action-existing"
               >
                 <View style={[s.actionIcon, { backgroundColor: Colors.success + '15' }]}>
-                  <Folder size={20} color={Colors.success} />
+                  <Folder size={20} color={Colors.success} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.actionTitle}>Add to existing project</Text>
                   <Text style={s.actionSub}>Pick a project — schedule will replace its current one</Text>
                 </View>
-                <ChevronRight size={18} color={Colors.textMuted} />
+                <ChevronRight size={18} color={Colors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
 
@@ -601,7 +602,7 @@ const s = StyleSheet.create({
   },
   heroIconWrap: {
     width: 56, height: 56, borderRadius: Tokens.radius.panel,
-    backgroundColor: '#FF9F0A' + '15',
+    backgroundColor: '#FF6A1A' + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
@@ -639,10 +640,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FF9F0A',
+    backgroundColor: '#FF6A1A',
     borderRadius: Tokens.radius.lg,
     paddingVertical: 15,
-    shadowColor: '#FF9F0A',
+    shadowColor: '#FF6A1A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 10,

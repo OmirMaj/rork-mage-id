@@ -28,8 +28,9 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, CheckCircle2, Circle, AlertCircle, ChevronRight,
   ShoppingCart, CheckSquare, ShieldCheck, BookOpen, Receipt,
-  ScrollText, Footprints, Send, Sparkles,
+  ScrollText, Footprints, Send,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -306,7 +307,7 @@ export default function HandoverScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -338,7 +339,7 @@ export default function HandoverScreen() {
           {/* Progress hero */}
           <View style={[styles.heroCard, allDone && styles.heroCardDone]}>
             <View style={styles.heroHead}>
-              {allDone ? <Sparkles size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={themeColors.accent} />}
+              {allDone ? <MageAIMark size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={themeColors.accent} strokeWidth={1.75} />}
               <Text style={[styles.heroTitle, allDone && { color: Colors.successDark }]}>
                 {allDone ? 'Ready to hand over' : `${doneCount} of ${total} done`}
               </Text>
@@ -416,7 +417,7 @@ function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: 
         {item.ctaLabel && !item.manual && item.status !== 'done' && (
           <View style={styles.rowCta}>
             <Text style={styles.rowCtaText}>{item.ctaLabel}</Text>
-            <ChevronRight size={13} color={themeColors.accent} />
+            <ChevronRight size={13} color={themeColors.accent} strokeWidth={1.75} />
           </View>
         )}
         {item.manual && (

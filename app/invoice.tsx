@@ -9,8 +9,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
-  Link2, Copy, Share2, Zap, FileText, Receipt,
+  Link2, Copy, Share2, FileText, Receipt,
 } from 'lucide-react-native';
+import { MageAIMark, MageInvoice } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -829,7 +830,7 @@ function InvoiceInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Invoices' }} />
         <EmptyState
-          icon={<Receipt size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageInvoice size={36} color={themeColors.accent} />}
           title="No invoice open yet"
           message="Invoices live inside a project so they roll up to the right billing total. To create one:"
           steps={[
@@ -973,7 +974,7 @@ function InvoiceInner() {
                   <Text style={[styles.termsOptionText, paymentTerms === opt.value && styles.termsOptionTextActive]}>
                     {opt.label}
                   </Text>
-                  {paymentTerms === opt.value && <Check size={16} color={themeColors.accent} />}
+                  {paymentTerms === opt.value && <Check size={16} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -981,7 +982,7 @@ function InvoiceInner() {
 
           <View style={styles.termsRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Percent size={14} color={themeColors.textSecondary} />
+              <Percent size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.fieldLabelInline}>Retention</Text>
             </View>
             {!isLocked ? (
@@ -1044,7 +1045,7 @@ function InvoiceInner() {
                   <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
                   {!isLocked && (
                     <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={14} color={themeColors.danger} />
+                      <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1125,7 +1126,7 @@ function InvoiceInner() {
               activeOpacity={0.85}
               testID="release-retention-btn"
             >
-              <Unlock size={16} color={themeColors.accent} />
+              <Unlock size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.releaseRetentionBtnText}>Release Retention</Text>
               <Text style={styles.releaseRetentionBtnMeta}>{formatCurrency(retentionPending)} pending</Text>
             </TouchableOpacity>
@@ -1167,7 +1168,7 @@ function InvoiceInner() {
             <View style={styles.payLinkCard}>
               <View style={styles.payLinkHeader}>
                 <View style={styles.payLinkIconWrap}>
-                  <Zap size={18} color={themeColors.accent} />
+                  <MageAIMark size={18} color={themeColors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.payLinkTitle}>Stripe Payment Link</Text>
@@ -1182,7 +1183,7 @@ function InvoiceInner() {
               {existingInvoice.payLinkUrl ? (
                 <>
                   <View style={styles.payLinkUrlBox}>
-                    <Link2 size={14} color={themeColors.textSecondary} />
+                    <Link2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                     <Text style={styles.payLinkUrlText} numberOfLines={1} ellipsizeMode="middle">
                       {existingInvoice.payLinkUrl}
                     </Text>
@@ -1194,7 +1195,7 @@ function InvoiceInner() {
                       activeOpacity={0.7}
                       testID="copy-pay-link-btn"
                     >
-                      <Copy size={14} color={themeColors.accent} />
+                      <Copy size={14} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.payLinkActionText}>Copy</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1203,7 +1204,7 @@ function InvoiceInner() {
                       activeOpacity={0.7}
                       testID="share-pay-link-btn"
                     >
-                      <Share2 size={14} color={themeColors.accent} />
+                      <Share2 size={14} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.payLinkActionText}>Share</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1260,7 +1261,7 @@ function InvoiceInner() {
                     </>
                   ) : (
                     <>
-                      <Zap size={16} color={"#FFFFFF"} />
+                      <MageAIMark size={16} color={"#FFFFFF"} />
                       <Text style={styles.payLinkGenerateText}>Generate Payment Link</Text>
                     </>
                   )}
@@ -1310,7 +1311,7 @@ function InvoiceInner() {
               activeOpacity={0.85}
             >
               <View style={styles.aiaCtaIconWrap}>
-                <FileSpreadsheet size={20} color={themeColors.accent} />
+                <FileSpreadsheet size={20} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.aiaCtaTitle}>Generate AIA G702/G703</Text>
@@ -1343,7 +1344,7 @@ function InvoiceInner() {
               testID="invoice-to-lien-waiver-cta"
             >
               <View style={styles.aiaCtaIconWrap}>
-                <FileText size={20} color={themeColors.accent} />
+                <FileText size={20} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.aiaCtaTitle}>Collect a lien waiver</Text>
@@ -1377,7 +1378,7 @@ function InvoiceInner() {
                 activeOpacity={0.7}
                 testID="mark-paid-btn"
               >
-                <CreditCard size={16} color={themeColors.success} />
+                <CreditCard size={16} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={styles.markPaidBtnText}>Record Payment</Text>
               </TouchableOpacity>
             )}
@@ -1393,7 +1394,7 @@ function InvoiceInner() {
                 <Button
                   label="Send & Save"
                   onPress={handleSendPress}
-                  iconLeft={<Send size={16} color="#FFFFFF" />}
+                  iconLeft={<Send size={16} color="#FFFFFF" strokeWidth={1.75} />}
                   fullWidth
                   testID="send-invoice-btn"
                 />
@@ -1410,7 +1411,7 @@ function InvoiceInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Record Payment</Text>
                 <TouchableOpacity onPress={() => setShowPaymentModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -1441,7 +1442,7 @@ function InvoiceInner() {
               </View>
 
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleMarkPaid} activeOpacity={0.85}>
-                <Check size={18} color={"#FFFFFF"} />
+                <Check size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>Record Payment</Text>
               </TouchableOpacity>
             </View>
@@ -1456,7 +1457,7 @@ function InvoiceInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Release Retention</Text>
                 <TouchableOpacity onPress={() => setShowRetentionModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -1510,7 +1511,7 @@ function InvoiceInner() {
               />
 
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleReleaseRetention} activeOpacity={0.85}>
-                <Unlock size={18} color={"#FFFFFF"} />
+                <Unlock size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>Release</Text>
               </TouchableOpacity>
             </View>
@@ -1525,19 +1526,19 @@ function InvoiceInner() {
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Invoice To</Text>
                 <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
               {contactPicked ? (
                 <View style={styles.selectedRecipientCard}>
-                  <User size={16} color={themeColors.accent} />
+                  <User size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
                   <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={themeColors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -1566,7 +1567,7 @@ function InvoiceInner() {
                       onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
                       activeOpacity={0.7}
                     >
-                      <BookUser size={14} color={themeColors.accent} />
+                      <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.pickContactText}>Pick from Contacts</Text>
                     </TouchableOpacity>
                   )}
@@ -1578,7 +1579,7 @@ function InvoiceInner() {
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
-                  <Send size={16} color={"#FFFFFF"} />
+                  <Send size={16} color={"#FFFFFF"} strokeWidth={1.75} />
                   <Text style={styles.sendBtnText}>Send</Text>
                 </TouchableOpacity>
               </View>

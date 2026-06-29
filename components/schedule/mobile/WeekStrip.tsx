@@ -186,7 +186,7 @@ export function WeekStrip({ selectedDate, onSelectDate }: WeekStripProps) {
             accessibilityRole="button"
             accessibilityLabel="Previous week"
           >
-            <ChevronLeft size={15} color={colors.textMuted} />
+            <ChevronLeft size={15} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => shiftWeek(1)}
@@ -195,7 +195,7 @@ export function WeekStrip({ selectedDate, onSelectDate }: WeekStripProps) {
             accessibilityRole="button"
             accessibilityLabel="Next week"
           >
-            <ChevronRight size={15} color={colors.textMuted} />
+            <ChevronRight size={15} color={colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       </View>

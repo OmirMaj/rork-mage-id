@@ -296,7 +296,7 @@ function AreaTakeoffInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Visual Takeoff · MAGE</Text>
@@ -304,7 +304,7 @@ function AreaTakeoffInner() {
         </View>
         {imageUri ? (
           <TouchableOpacity onPress={pickImage} style={styles.headerBtn} hitSlop={12} accessibilityLabel="New image">
-            <ImagePlus size={20} color={t.accent} />
+            <ImagePlus size={20} color={t.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : <View style={styles.headerBtn} />}
       </View>
@@ -326,19 +326,19 @@ function AreaTakeoffInner() {
               <Text style={styles.sheetListLabel}>Plans on this project</Text>
               {projectSheets.slice(0, 6).map(s => (
                 <TouchableOpacity key={s.id} style={styles.sheetRow} onPress={() => loadSheet(s.id, s.imageUri)} activeOpacity={0.7} testID={`takeoff-sheet-${s.id}`}>
-                  <FileImage size={18} color={t.accent} />
+                  <FileImage size={18} color={t.accent} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sheetName} numberOfLines={1}>{s.name}</Text>
                     {getCalibrationForPlan(s.id) ? <Text style={styles.sheetCal}>scale saved · ready to trace</Text> : <Text style={styles.sheetCalMuted}>needs scale</Text>}
                   </View>
-                  <ChevronLeft size={16} color={t.textMuted} style={{ transform: [{ rotate: '180deg' }] }} />
+                  <ChevronLeft size={16} color={t.textMuted} style={{ transform: [{ rotate: '180deg' }] }} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
           <TouchableOpacity style={styles.primaryBtn} onPress={pickImage} activeOpacity={0.85} testID="takeoff-pick">
-            <ImagePlus size={18} color={Colors.textOnAccent} />
+            <ImagePlus size={18} color={Colors.textOnAccent} strokeWidth={1.75} />
             <Text style={styles.primaryBtnText}>Pick a plan or photo</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -346,16 +346,16 @@ function AreaTakeoffInner() {
         <ScrollView contentContainerStyle={{ paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
           {/* Kind toggle */}
           <View style={styles.kindRow}>
-            <KindBtn active={kind === 'area'} icon={<Square size={14} color={kind === 'area' ? Colors.textOnAccent : t.text} />} label="Area" onPress={() => switchKind('area')} t={t} styles={styles} />
-            <KindBtn active={kind === 'linear'} icon={<Minus size={14} color={kind === 'linear' ? Colors.textOnAccent : t.text} />} label="Linear" onPress={() => switchKind('linear')} t={t} styles={styles} />
-            <KindBtn active={kind === 'count'} icon={<Hash size={14} color={kind === 'count' ? Colors.textOnAccent : t.text} />} label="Count" onPress={() => switchKind('count')} t={t} styles={styles} />
+            <KindBtn active={kind === 'area'} icon={<Square size={14} color={kind === 'area' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label="Area" onPress={() => switchKind('area')} t={t} styles={styles} />
+            <KindBtn active={kind === 'linear'} icon={<Minus size={14} color={kind === 'linear' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label="Linear" onPress={() => switchKind('linear')} t={t} styles={styles} />
+            <KindBtn active={kind === 'count'} icon={<Hash size={14} color={kind === 'count' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label="Count" onPress={() => switchKind('count')} t={t} styles={styles} />
           </View>
 
           {/* Mode toggle (scale not needed for count) */}
           {needsScale && (
             <View style={styles.modeRow}>
-              <ModeBtn active={mode === 'calibrate'} icon={<Ruler size={15} color={mode === 'calibrate' ? Colors.textOnAccent : t.text} />} label={calibration ? 'Scale set' : 'Set scale'} onPress={() => setMode('calibrate')} t={t} styles={styles} />
-              <ModeBtn active={mode === 'draw'} icon={<PenTool size={15} color={mode === 'draw' ? Colors.textOnAccent : t.text} />} label={kind === 'area' ? 'Trace area' : 'Run line'} onPress={() => setMode('draw')} disabled={!calibration} t={t} styles={styles} />
+              <ModeBtn active={mode === 'calibrate'} icon={<Ruler size={15} color={mode === 'calibrate' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label={calibration ? 'Scale set' : 'Set scale'} onPress={() => setMode('calibrate')} t={t} styles={styles} />
+              <ModeBtn active={mode === 'draw'} icon={<PenTool size={15} color={mode === 'draw' ? Colors.textOnAccent : t.text} strokeWidth={1.75} />} label={kind === 'area' ? 'Trace area' : 'Run line'} onPress={() => setMode('draw')} disabled={!calibration} t={t} styles={styles} />
             </View>
           )}
 
@@ -409,12 +409,12 @@ function AreaTakeoffInner() {
             <View style={styles.canvasTools}>
               {mode === 'draw' && kind !== 'count' && (
                 <TouchableOpacity style={styles.toolBtn} onPress={() => { setFreehand(f => !f); setDrawPoints([]); setLastAdded(null); }} hitSlop={8} testID="takeoff-freehand">
-                  <Spline size={16} color={freehand ? t.accent : t.text} />
+                  <Spline size={16} color={freehand ? t.accent : t.text} strokeWidth={1.75} />
                   <Text style={[styles.toolText, freehand && { color: t.accent }]}>{freehand ? 'Freehand' : 'Tap to place'}</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.toolBtn} onPress={undoPoint} hitSlop={8} testID="takeoff-undo"><Undo2 size={16} color={t.text} /><Text style={styles.toolText}>Undo</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.toolBtn} onPress={clearPoints} hitSlop={8} testID="takeoff-clear"><Trash2 size={16} color={t.danger} /><Text style={[styles.toolText, { color: t.danger }]}>Clear</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.toolBtn} onPress={undoPoint} hitSlop={8} testID="takeoff-undo"><Undo2 size={16} color={t.text} strokeWidth={1.75} /><Text style={styles.toolText}>Undo</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.toolBtn} onPress={clearPoints} hitSlop={8} testID="takeoff-clear"><Trash2 size={16} color={t.danger} strokeWidth={1.75} /><Text style={[styles.toolText, { color: t.danger }]}>Clear</Text></TouchableOpacity>
             </View>
           </View>
 
@@ -466,7 +466,7 @@ function AreaTakeoffInner() {
                     {/* Add to estimate — the loop-closer */}
                     {canAddToEstimate && pricing?.matched && (
                       <TouchableOpacity style={styles.addBtn} onPress={handleAddToEstimate} activeOpacity={0.85} testID="takeoff-add-to-estimate">
-                        <Plus size={16} color={Colors.textOnAccent} />
+                        <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
                         <Text style={styles.addBtnText}>Add to {project?.name ? 'this estimate' : 'estimate'}</Text>
                       </TouchableOpacity>
                     )}
@@ -480,14 +480,14 @@ function AreaTakeoffInner() {
 
             {lastAdded && (
               <View style={styles.added}>
-                <CheckCircle2 size={16} color={t.success} />
+                <CheckCircle2 size={16} color={t.success} strokeWidth={1.75} />
                 <Text style={styles.addedText}>Added {lastAdded} to the estimate. Trace another, or change kind.</Text>
               </View>
             )}
           </View>
 
           <TouchableOpacity style={styles.crossLink} onPress={() => router.push('/cost-database' as any)} activeOpacity={0.7} testID="takeoff-costdb-link">
-            <Library size={16} color={t.accent} />
+            <Library size={16} color={t.accent} strokeWidth={1.75} />
             <Text style={styles.crossLinkText}>Rates come from your Cost Database</Text>
           </TouchableOpacity>
 
@@ -520,7 +520,7 @@ function AreaTakeoffInner() {
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirm} onPress={confirmDistance} testID="takeoff-distance-confirm">
-                <Check size={16} color={Colors.textOnAccent} />
+                <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
                 <Text style={styles.modalConfirmText}>Set scale</Text>
               </TouchableOpacity>
             </View>

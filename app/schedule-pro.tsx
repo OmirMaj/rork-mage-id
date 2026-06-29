@@ -33,7 +33,8 @@ import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon, CloudRain } from 'lucide-react-native';
+import { ChevronLeft, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon, CloudRain } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -1273,7 +1274,7 @@ function ScheduleProScreenInner() {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ title: 'Schedule Pro' }} />
-        <Zap size={28} color={themeColors.accent} />
+        <MageAIMark size={28} color={themeColors.accent} />
         <Text style={styles.emptyTitle}>Best on a bigger screen</Text>
         <Text style={styles.emptyBody}>
           Schedule Pro is built for laptops and iPad. On a phone, the
@@ -1309,7 +1310,7 @@ function ScheduleProScreenInner() {
       {/* Custom header — the RN stack header is too cramped for our action row */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <ChevronLeft size={20} color={themeColors.accent} />
+          <ChevronLeft size={20} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.headerBackText}>Back</Text>
         </TouchableOpacity>
 
@@ -1349,7 +1350,7 @@ function ScheduleProScreenInner() {
               The "+ Add Task" affordance now lives inline in the SchedulerHeader
               between VIEW and Export (Phase 27 audit feedback), so it's removed
               from this toolbar to avoid two Add-Task buttons on the same row. */}
-          <HeaderBtn icon={Sparkles} label="AI" onPress={() => setShowAI(true)} highlighted />
+          <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setShowAI(true)} highlighted />
           <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
           <HeaderBtn icon={RefreshCcw} label="Reflow" onPress={handleReflow} />
@@ -1357,7 +1358,7 @@ function ScheduleProScreenInner() {
           <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
           <HeaderBtn icon={CalendarPlus} label="iCal" onPress={() => { void handleExportIcs(); }} />
           <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />
-          <HeaderBtn icon={Sparkles} label="Demo" onPress={handleLoadDemo} />
+          <HeaderBtn icon={MageAIMark} label="Demo" onPress={handleLoadDemo} />
           <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={history.length === 0} />
           <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={future.length === 0} />
           <HeaderBtn

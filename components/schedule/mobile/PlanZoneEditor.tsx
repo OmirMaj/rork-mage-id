@@ -225,7 +225,7 @@ export function PlanZoneEditor({
         <Text style={styles.headerTitle}>Edit Zones</Text>
         <Text style={styles.headerHint}>Drag to draw · tap to edit</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <X size={18} color={colors.text} />
+          <X size={18} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -343,7 +343,7 @@ export function PlanZoneEditor({
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>Edit Zone</Text>
             <TouchableOpacity onPress={saveZoneEdit}>
-              <Check size={18} color={colors.accent} />
+              <Check size={18} color={colors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -359,7 +359,7 @@ export function PlanZoneEditor({
 
           {/* Link tasks */}
           <View style={styles.linkHeader}>
-            <Link2 size={14} color={colors.textMuted} />
+            <Link2 size={14} color={colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.fieldLabel}>Linked tasks</Text>
           </View>
           {tasks.length === 0 ? (
@@ -376,7 +376,7 @@ export function PlanZoneEditor({
                     activeOpacity={0.7}
                   >
                     <View style={[styles.checkbox, linked && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
-                      {linked && <Check size={10} color="#fff" />}
+                      {linked && <Check size={10} color="#fff" strokeWidth={1.75} />}
                     </View>
                     <Text style={[styles.taskRowText, linked && { color: colors.text }]} numberOfLines={1}>
                       {t.title}
@@ -394,7 +394,7 @@ export function PlanZoneEditor({
               onPress={() => deleteZone(editingZone.id)}
               activeOpacity={0.7}
             >
-              <Trash2 size={14} color="#FF3B30" />
+              <Trash2 size={14} color="#FF3B30" strokeWidth={1.75} />
               <Text style={styles.deleteBtnText}>Delete Zone</Text>
             </TouchableOpacity>
           )}

@@ -41,9 +41,9 @@ function Stepper({ value, onDec, onInc }: { value: string; onDec: () => void; on
   const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.stepper}>
-      <TouchableOpacity style={styles.stepBtn} onPress={onDec} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Minus size={15} color={colors.text} /></TouchableOpacity>
+      <TouchableOpacity style={styles.stepBtn} onPress={onDec} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Minus size={15} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
       <Text style={styles.stepVal} numberOfLines={1}>{value}</Text>
-      <TouchableOpacity style={styles.stepBtn} onPress={onInc} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Plus size={15} color={colors.text} /></TouchableOpacity>
+      <TouchableOpacity style={styles.stepBtn} onPress={onInc} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Plus size={15} color={colors.text} strokeWidth={1.75} /></TouchableOpacity>
     </View>
   );
 }
@@ -121,7 +121,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
           {/* header */}
           <View style={styles.hd}>
             <View style={[styles.iconTile, { backgroundColor: phaseColor + '22' }]}>
-              <Layers size={18} color={phaseColor} />
+              <Layers size={18} color={phaseColor} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <TextInput
@@ -141,7 +141,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
               <Text style={[styles.pctText, { color: phaseColor }]}>{pctDraft}%</Text>
             </View>
             <TouchableOpacity style={styles.close} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={18} color={colors.textMuted} />
+              <X size={18} color={colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -198,7 +198,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
                 <TaskChecklist items={checklist} onToggle={toggleChecklist} onAdd={addChecklist} />
 
                 <TouchableOpacity style={styles.deleteBtn} activeOpacity={0.8} onPress={handleDelete} testID="task-delete">
-                  <Trash2 size={16} color={colors.danger} />
+                  <Trash2 size={16} color={colors.danger} strokeWidth={1.75} />
                   <Text style={styles.deleteText}>Delete task</Text>
                 </TouchableOpacity>
 

@@ -27,9 +27,10 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ChevronRight, Sparkles, CheckCircle2, FileDown,
+  ChevronLeft, ChevronRight, CheckCircle2, FileDown,
   RotateCcw, Users,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -295,7 +296,7 @@ function EstimateWizardScreenInner() {
           </View>
 
           <View style={styles.resultHero}>
-            <CheckCircle2 size={28} color={themeColors.success} />
+            <CheckCircle2 size={28} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.resultHeroTitle}>Construction Estimate</Text>
             <TapeRollNumber
               value={result.total}
@@ -545,7 +546,7 @@ function EstimateWizardScreenInner() {
                 disabled={sharingPdf}
                 testID="wizard-view-project"
               >
-                <CheckCircle2 size={18} color="#FFF" />
+                <CheckCircle2 size={18} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.resultPrimaryText} numberOfLines={1}>
                   Saved to {scopedProject.name} — open project
                 </Text>
@@ -562,7 +563,7 @@ function EstimateWizardScreenInner() {
                 <ActivityIndicator size="small" color={projectId && scopedProject ? themeColors.text : '#FFF'} />
               ) : (
                 <>
-                  <FileDown size={18} color={projectId && scopedProject ? themeColors.text : '#FFF'} />
+                  <FileDown size={18} color={projectId && scopedProject ? themeColors.text : '#FFF'} strokeWidth={1.75} />
                   <Text style={projectId && scopedProject ? styles.resultSecondaryText : styles.resultPrimaryText}>
                     {Platform.OS === 'web' ? 'Open PDF preview' : 'Download & share PDF'}
                   </Text>
@@ -576,7 +577,7 @@ function EstimateWizardScreenInner() {
               disabled={sharingPdf}
               testID="wizard-reset"
             >
-              <RotateCcw size={16} color={themeColors.text} />
+              <RotateCcw size={16} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.resultSecondaryText}>Start a new estimate</Text>
             </TouchableOpacity>
           </View>
@@ -611,7 +612,7 @@ function EstimateWizardScreenInner() {
             activeOpacity={0.8}
             testID="wizard-back"
           >
-            <ChevronLeft size={18} color={themeColors.text} />
+            <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.secondaryText}>{step === 0 ? 'Cancel' : 'Back'}</Text>
           </TouchableOpacity>
           {step < TOTAL_STEPS - 1 ? (
@@ -623,7 +624,7 @@ function EstimateWizardScreenInner() {
               testID="wizard-next"
             >
               <Text style={styles.primaryText}>Next</Text>
-              <ChevronRight size={18} color="#FFF" />
+              <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -637,7 +638,7 @@ function EstimateWizardScreenInner() {
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <>
-                  <Sparkles size={18} color="#FFF" />
+                  <MageAIMark size={18} color="#FFF" />
                   <Text style={styles.primaryText}>Generate Estimate</Text>
                 </>
               )}

@@ -7,8 +7,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Globe, Copy, Send, Sparkles, Eye, Quote,
+  ChevronLeft, Globe, Copy, Send, Eye, Quote,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -105,7 +106,7 @@ export default function PublicProfileSetupScreen() {
           title: 'Public Profile',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -117,7 +118,7 @@ export default function PublicProfileSetupScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIcon}>
-            <Globe size={20} color={themeColors.accent} />
+            <Globe size={20} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroEyebrow}>Free portfolio page</Text>
           <Text style={styles.heroTitle}>{project.name}</Text>
@@ -135,7 +136,7 @@ export default function PublicProfileSetupScreen() {
           <View style={styles.togglesCard}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
-                <Sparkles size={18} color={themeColors.accent} />
+                <MageAIMark size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Publish project page</Text>
                   <Text style={styles.toggleDesc}>Anyone with the link can view it; you can unpublish anytime.</Text>
@@ -157,23 +158,23 @@ export default function PublicProfileSetupScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Share link</Text>
               <View style={styles.linkBox}>
-                <Globe size={14} color={themeColors.textMuted} />
+                <Globe size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.linkText} numberOfLines={1}>{publicUrl}</Text>
               </View>
               <View style={styles.shareRow}>
                 <TouchableOpacity style={styles.shareBtn} onPress={handleCopy}>
-                  <Copy size={16} color={themeColors.text} />
+                  <Copy size={16} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.shareBtnText}>Copy</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.shareBtn, styles.shareBtnPrimary]} onPress={handleShare}>
-                  <Send size={16} color="#FFF" />
+                  <Send size={16} color="#FFF" strokeWidth={1.75} />
                   <Text style={[styles.shareBtnText, { color: '#FFF' }]}>Share</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.shareBtn}
                   onPress={() => publicUrl && Platform.OS === 'web' && (window as unknown as { open: (url: string, target: string) => void }).open(publicUrl, '_blank')}
                 >
-                  <Eye size={16} color={themeColors.text} />
+                  <Eye size={16} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.shareBtnText}>Preview</Text>
                 </TouchableOpacity>
               </View>
@@ -220,7 +221,7 @@ export default function PublicProfileSetupScreen() {
               <Text style={styles.sectionTitle}>Client testimonial (optional)</Text>
               <Text style={styles.sectionSubtitle}>Shows up as a pull-quote on the public page if you fill both.</Text>
               <View style={styles.quoteRow}>
-                <Quote size={14} color={themeColors.accent} />
+                <Quote size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <TextInput
                   style={[styles.input, styles.inputMulti, { flex: 1 }]}
                   value={profile.testimonialQuote ?? ''}

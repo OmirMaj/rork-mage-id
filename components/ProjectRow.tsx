@@ -97,7 +97,7 @@ const ProjectRow = React.memo(function ProjectRow({ project, onPress, onLongPres
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{project.name}</Text>
         {project.location ? (
           <View style={styles.locationRow}>
-            <MapPin size={11} color={colors.textMuted} />
+            <MapPin size={11} color={colors.textMuted} strokeWidth={1.75} />
             <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1}>{project.location}</Text>
           </View>
         ) : null}

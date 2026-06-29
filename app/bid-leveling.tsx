@@ -14,7 +14,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Scale, Sparkles, Trophy, BadgeDollarSign, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, Scale, Trophy, BadgeDollarSign, AlertTriangle } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -101,7 +102,7 @@ function BidLevelingInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Bid Leveling · MAGE</Text>
@@ -130,7 +131,7 @@ function BidLevelingInner() {
             return (
               <View style={[styles.recoCard, { borderColor: t.success + '55' }]}>
                 <View style={styles.recoHead}>
-                  <Trophy size={16} color={t.success} />
+                  <Trophy size={16} color={t.success} strokeWidth={1.75} />
                   <Text style={styles.recoLabel}>BEST VALUE</Text>
                 </View>
                 <Text style={styles.recoVendor}>{rec.vendor}</Text>
@@ -145,7 +146,7 @@ function BidLevelingInner() {
 
           {/* AI level CTA + summary */}
           <TouchableOpacity style={[styles.aiBtn, aiBusy && { opacity: 0.7 }]} onPress={aiLevel} disabled={aiBusy} activeOpacity={0.85} testID="bid-ai-level">
-            {aiBusy ? <ActivityIndicator size="small" color={t.accent} /> : <Sparkles size={16} color={t.accent} />}
+            {aiBusy ? <ActivityIndicator size="small" color={t.accent} /> : <MageAIMark size={16} color={t.accent} />}
             <Text style={styles.aiBtnText}>{aiBusy ? 'Leveling exclusions…' : 'AI-level the exclusions'}</Text>
           </TouchableOpacity>
           {aiMsg && <Text style={styles.aiMsg}>{aiMsg}</Text>}
@@ -157,7 +158,7 @@ function BidLevelingInner() {
 
           {report.outlierCount > 0 && (
             <View style={styles.warn}>
-              <AlertTriangle size={15} color={t.danger} />
+              <AlertTriangle size={15} color={t.danger} strokeWidth={1.75} />
               <Text style={styles.warnText}>
                 <Text style={{ fontWeight: '800', color: t.danger }}>{report.outlierCount}</Text> bid{report.outlierCount === 1 ? '' : 's'} suspiciously low vs the field — likely missing scope. Read the exclusions before awarding.
               </Text>
@@ -190,7 +191,7 @@ function BidRow({ b, t, styles }: { b: LeveledBid; t: ThemeColors; styles: Retur
           <Text style={styles.bidVendor} numberOfLines={1}>{b.vendor}</Text>
           <View style={styles.badgeRow}>
             {b.isRecommended && <Badge label="Best value" color={t.success} styles={styles} />}
-            {b.isCheapestRaw && <Badge label="Cheapest bid" color={t.accent} styles={styles} icon={<BadgeDollarSign size={10} color={t.accent} />} />}
+            {b.isCheapestRaw && <Badge label="Cheapest bid" color={t.accent} styles={styles} icon={<BadgeDollarSign size={10} color={t.accent} strokeWidth={1.75} />} />}
             {b.outlierLow && <Badge label="Suspiciously low" color={t.danger} styles={styles} />}
           </View>
         </View>

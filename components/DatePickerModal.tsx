@@ -144,7 +144,7 @@ export default function DatePickerModal({
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={20} color={themeColors.textMuted} />
+              <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -193,7 +193,7 @@ export default function DatePickerModal({
 
           {/* Confirm */}
           <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm} activeOpacity={0.85}>
-            <Check size={16} color={themeColors.surface} />
+            <Check size={16} color={themeColors.surface} strokeWidth={1.75} />
             <Text style={styles.confirmText}>
               Use {MONTHS[month]} {day}, {year}
             </Text>

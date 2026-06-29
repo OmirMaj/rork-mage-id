@@ -175,7 +175,7 @@ export default function RfpResponsesReviewScreen() {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <AlertTriangle size={28} color={Colors.warning} />
+        <AlertTriangle size={28} color={Colors.warning} strokeWidth={1.75} />
         <Text style={styles.emptyTitle}>Not your project</Text>
         <Text style={styles.emptyBody}>Only the homeowner who posted this RFP can review bids.</Text>
         <TouchableOpacity style={styles.backCta} onPress={() => router.back()}>
@@ -191,7 +191,7 @@ export default function RfpResponsesReviewScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Bids received</Text>
@@ -236,7 +236,7 @@ export default function RfpResponsesReviewScreen() {
 
         {!isLoading && sortedResponses.length === 0 && (
           <View style={styles.emptyCard}>
-            <Inbox size={28} color={themeColors.textMuted} />
+            <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No bids yet</Text>
             <Text style={styles.emptyBody}>
               Contractors near you will see your project and start submitting bids. New bids show up here automatically.
@@ -261,7 +261,7 @@ export default function RfpResponsesReviewScreen() {
               <View style={styles.cardHead}>
                 <View style={styles.identityWrap}>
                   <View style={styles.identityIcon}>
-                    <Building2 size={16} color={themeColors.accent} />
+                    <Building2 size={16} color={themeColors.accent} strokeWidth={1.75} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.identityName} numberOfLines={1}>{r.company_name ?? 'Anonymous contractor'}</Text>
@@ -272,13 +272,13 @@ export default function RfpResponsesReviewScreen() {
                 </View>
                 {isAwardedRow && (
                   <View style={styles.awardedPill}>
-                    <Trophy size={10} color={themeColors.success} />
+                    <Trophy size={10} color={themeColors.success} strokeWidth={1.75} />
                     <Text style={styles.awardedPillText}>AWARDED</Text>
                   </View>
                 )}
                 {isShortlist && (
                   <View style={styles.shortlistPill}>
-                    <Star size={10} color={Colors.warning} />
+                    <Star size={10} color={Colors.warning} strokeWidth={1.75} />
                     <Text style={styles.shortlistPillText}>SHORTLIST</Text>
                   </View>
                 )}
@@ -291,7 +291,7 @@ export default function RfpResponsesReviewScreen() {
 
               {r.view_site_requested ? (
                 <View style={styles.siteVisitRow}>
-                  <Eye size={12} color={Colors.warning} />
+                  <Eye size={12} color={Colors.warning} strokeWidth={1.75} />
                   <Text style={styles.siteVisitText}>Wants a site visit before quoting</Text>
                 </View>
               ) : (
@@ -305,7 +305,7 @@ export default function RfpResponsesReviewScreen() {
 
               {r.scope_description && (
                 <View style={styles.messageBox}>
-                  <MessageSquare size={12} color={themeColors.textMuted} />
+                  <MessageSquare size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.messageText} numberOfLines={6}>{r.scope_description}</Text>
                 </View>
               )}
@@ -313,13 +313,13 @@ export default function RfpResponsesReviewScreen() {
               <View style={styles.contactRow}>
                 {r.proposer_email && (
                   <View style={styles.contactItem}>
-                    <Mail size={11} color={themeColors.textMuted} />
+                    <Mail size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.contactText}>{r.proposer_email}</Text>
                   </View>
                 )}
                 {r.proposer_phone && (
                   <View style={styles.contactItem}>
-                    <Phone size={11} color={themeColors.textMuted} />
+                    <Phone size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                     <Text style={styles.contactText}>{r.proposer_phone}</Text>
                   </View>
                 )}
@@ -334,7 +334,7 @@ export default function RfpResponsesReviewScreen() {
                       disabled={isBusy}
                     >
                       {isBusy ? <ActivityIndicator size="small" color={Colors.warning} />
-                        : (<><Star size={13} color={Colors.warning} /><Text style={[styles.actionBtnText, { color: Colors.warning }]}>Shortlist</Text></>)}
+                        : (<><Star size={13} color={Colors.warning} strokeWidth={1.75} /><Text style={[styles.actionBtnText, { color: Colors.warning }]}>Shortlist</Text></>)}
                     </TouchableOpacity>
                   )}
                   {isShortlist && (
@@ -343,7 +343,7 @@ export default function RfpResponsesReviewScreen() {
                       onPress={() => updateStatus(r.id, 'submitted')}
                       disabled={isBusy}
                     >
-                      <Star size={13} color={themeColors.textMuted} />
+                      <Star size={13} color={themeColors.textMuted} strokeWidth={1.75} />
                       <Text style={[styles.actionBtnText, { color: themeColors.textMuted }]}>Remove from shortlist</Text>
                     </TouchableOpacity>
                   )}
@@ -360,7 +360,7 @@ export default function RfpResponsesReviewScreen() {
                     disabled={isBusy}
                   >
                     {isBusy ? <ActivityIndicator size="small" color="#FFF" />
-                      : (<><Trophy size={13} color="#FFF" /><Text style={[styles.actionBtnText, { color: '#FFF' }]}>Award</Text><ChevronRight size={11} color="#FFF" /></>)}
+                      : (<><Trophy size={13} color="#FFF" strokeWidth={1.75} /><Text style={[styles.actionBtnText, { color: '#FFF' }]}>Award</Text><ChevronRight size={11} color="#FFF" strokeWidth={1.75} /></>)}
                   </TouchableOpacity>
                 </View>
               )}

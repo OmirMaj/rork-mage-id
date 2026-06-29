@@ -4,8 +4,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  Sparkles, Zap, TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target,
+  TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target, XCircle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -132,7 +133,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       <View style={styles.container} testID={testID}>
         <View style={styles.heroRow}>
           <View style={styles.iconWrap}>
-            <Sparkles size={18} color={"#FF6A1A"} />
+            <MageAIMark size={18} color={"#FF6A1A"} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>AI Go/No-Go Analysis</Text>
@@ -154,7 +155,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <>
-              <Zap size={15} color="#FFF" />
+              <MageAIMark size={15} color="#FFF" />
               <Text style={styles.runBtnText}>
                 {profileReady ? 'Run Go/No-Go Score' : 'Set Up & Score'}
               </Text>
@@ -184,12 +185,12 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
     return (
       <View style={[styles.container, { borderColor: "#C84038" + '40' }]} testID={testID}>
         <View style={styles.heroRow}>
-          <AlertTriangle size={18} color={"#C84038"} />
+          <AlertTriangle size={18} color={"#C84038"} strokeWidth={1.75} />
           <Text style={[styles.title, { color: "#C84038" }]}>Scoring Failed</Text>
         </View>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.runBtn} onPress={() => void runScore(true)} activeOpacity={0.85}>
-          <RefreshCw size={14} color="#FFF" />
+          <RefreshCw size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.runBtnText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -206,17 +207,17 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
     <View style={styles.container} testID={testID}>
       <View style={styles.heroRow}>
         <View style={styles.iconWrap}>
-          <Sparkles size={18} color={"#FF6A1A"} />
+          <MageAIMark size={18} color={"#FF6A1A"} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>AI Go/No-Go Analysis</Text>
           <Text style={styles.subtitle}>Cached · tap refresh to re-score</Text>
         </View>
         <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Refresh">
-          <RefreshCw size={14} color={"#9AA3AD"} />
+          <RefreshCw size={14} color={"#9AA3AD"} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Settings">
-          <Settings size={14} color={"#9AA3AD"} />
+          <Settings size={14} color={"#9AA3AD"} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
@@ -232,7 +233,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
             <View style={[styles.barFill, { width: `${Math.min(100, score.matchScore)}%`, backgroundColor: color }]} />
           </View>
           <View style={styles.winRow}>
-            <Target size={12} color={"#9AA3AD"} />
+            <Target size={12} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.winText}>
               <Text style={styles.winPct}>{winPct}%</Text> est. win probability
             </Text>
@@ -242,12 +243,18 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
       {/* Recommendation pill */}
       <View style={[styles.decisionPill, {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
         backgroundColor: decision === 'go' ? "#2E7D44" + '18' : decision === 'review' ? Colors.warning + '18' : "#C84038" + '18',
       }]}>
+        {(() => {
+          const dc = decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warning : "#C84038";
+          const DIcon = decision === 'go' ? CheckCircle2 : decision === 'review' ? AlertTriangle : XCircle;
+          return <DIcon size={14} color={dc} strokeWidth={2} />;
+        })()}
         <Text style={[styles.decisionPillText, {
           color: decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warning : "#C84038",
         }]}>
-          {decision === 'go' ? '✓ Recommend pursuing' : decision === 'review' ? '⚠ Worth reviewing' : '✕ Recommend passing'}
+          {decision === 'go' ? 'Recommend pursuing' : decision === 'review' ? 'Worth reviewing' : 'Recommend passing'}
         </Text>
       </View>
 
@@ -255,7 +262,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       {score.matchReasons && score.matchReasons.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <CheckCircle2 size={14} color={"#2E7D44"} />
+            <CheckCircle2 size={14} color={"#2E7D44"} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Why it fits</Text>
           </View>
           {score.matchReasons.map((reason, i) => (
@@ -271,7 +278,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       {score.concerns && score.concerns.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <AlertTriangle size={14} color={Colors.warning} />
+            <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Concerns</Text>
           </View>
           {score.concerns.map((concern, i) => (
@@ -287,7 +294,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       {score.bidStrategy ? (
         <View style={[styles.section, { backgroundColor: "#FF6A1A" + '0C', borderRadius: Tokens.radius.card, padding: 12 }]}>
           <View style={styles.sectionHeader}>
-            <TrendingUp size={14} color={"#FF6A1A"} />
+            <TrendingUp size={14} color={"#FF6A1A"} strokeWidth={1.75} />
             <Text style={[styles.sectionTitle, { color: "#FF6A1A" }]}>Bid Strategy</Text>
           </View>
           <Text style={styles.strategyText}>{score.bidStrategy}</Text>

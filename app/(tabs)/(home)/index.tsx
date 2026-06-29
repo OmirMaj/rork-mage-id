@@ -10,9 +10,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
-  Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
+  Search, ChevronDown, ChevronUp, HardHat, Bell, CheckCircle2,
   Wallet,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -458,7 +459,7 @@ export default function HomeScreen() {
             paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
           }}
         >
-          <Sparkles size={18} color="#FFF" strokeWidth={2.2} />
+          <MageAIMark size={18} color="#FFF" />
           <View style={{ flex: 1 }}>
             <Text style={{ color: Colors.textOnAccent, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
             <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: Type.caption2.fontSize, marginTop: 2 }}>
@@ -474,7 +475,7 @@ export default function HomeScreen() {
             testID="ai-briefing-toggle"
           >
             <View style={styles.aiBriefingToggleLeft}>
-              <Sparkles size={14} color={themeColors.accent} strokeWidth={2.2} />
+              <MageAIMark size={14} color={themeColors.accent} />
               <Text style={styles.aiBriefingToggleText}>
                 {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
               </Text>
@@ -714,7 +715,7 @@ export default function HomeScreen() {
                           {entry.activeTaskTitles.join(' · ')}
                         </Text>
                       </View>
-                      <ChevronRight size={14} color={themeColors.textMuted} />
+                      <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -740,7 +741,7 @@ export default function HomeScreen() {
                 testID="stripe-connect-home-banner"
               >
                 <View style={styles.stripeBannerIcon}>
-                  <Wallet size={20} color="#FFFFFF" />
+                  <Wallet size={20} color="#FFFFFF" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.stripeBannerTitle}>Get paid in one tap</Text>
@@ -748,7 +749,7 @@ export default function HomeScreen() {
                     Connect Stripe so clients can pay invoices from their phone. Takes 2 minutes.
                   </Text>
                 </View>
-                <ChevronRight size={18} color="#FFFFFF" style={{ opacity: 0.85 }} />
+                <ChevronRight size={18} color="#FFFFFF" style={{ opacity: 0.85 }} strokeWidth={1.75} />
                 <TouchableOpacity
                   onPress={handleDismissStripeBanner}
                   hitSlop={8}
@@ -756,7 +757,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Dismiss"
                 >
-                  <X size={14} color="#FFFFFF" />
+                  <X size={14} color="#FFFFFF" strokeWidth={1.75} />
                 </TouchableOpacity>
               </TouchableOpacity>
             )}
@@ -794,7 +795,7 @@ export default function HomeScreen() {
                 }}
                 testID="samples-banner"
               >
-                <Sparkles size={20} color={themeColors.accent} strokeWidth={2} />
+                <MageAIMark size={20} color={themeColors.accent} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 15, fontWeight: '700', color: themeColors.text }}>
                     These are sample projects
@@ -803,7 +804,7 @@ export default function HomeScreen() {
                     Tap to create your own and start for real.
                   </Text>
                 </View>
-                <ChevronRight size={18} color={themeColors.textMuted} />
+                <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ) : projects.length > 0 ? (
               <NextStepHero
@@ -839,7 +840,7 @@ export default function HomeScreen() {
               <View style={styles.createModalHeader}>
                 <Text style={styles.createModalTitle}>New Project</Text>
                 <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -924,7 +925,7 @@ export default function HomeScreen() {
                 <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
                 <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
               </View>
-              <ChevronRight size={18} color={themeColors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
@@ -933,7 +934,7 @@ export default function HomeScreen() {
                 <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
                 <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>
               </View>
-              <ChevronRight size={18} color={themeColors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.laterBtn} onPress={() => handleNextStep('later')} activeOpacity={0.7}>

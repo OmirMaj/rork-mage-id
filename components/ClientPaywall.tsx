@@ -25,7 +25,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { CheckCircle2, X, Sparkles, FileText, Home as HomeIcon, Briefcase } from 'lucide-react-native';
+import { CheckCircle2, X, FileText, Home as HomeIcon, Briefcase } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -142,7 +143,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             style={styles.closeBtn}
             testID="client-paywall-close"
           >
-            <X size={22} color={themeColors.text} />
+            <X size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>
@@ -178,7 +179,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             <View style={styles.perPostCard}>
               <View style={styles.perPostHead}>
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.textMuted + '22' }]}>
-                  <FileText size={18} color={themeColors.text} />
+                  <FileText size={18} color={themeColors.text} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.perPostTitle}>Pay per project</Text>
@@ -227,7 +228,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             </View>
             <View style={styles.subCardHead}>
               <View style={[styles.iconWrap, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-                <HomeIcon size={18} color="#FFF" />
+                <HomeIcon size={18} color="#FFF" strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.subCardTitle, { color: '#FFF' }]}>Pro</Text>
@@ -263,7 +264,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                 <ActivityIndicator size="small" color={themeColors.accent} />
               ) : (
                 <>
-                  <Sparkles size={14} color={themeColors.accent} />
+                  <MageAIMark size={14} color={themeColors.accent} />
                   <Text style={[styles.subCtaText, { color: themeColors.accent }]}>
                     Start {CLIENT_PRICING.TRIAL_DAYS}-day free trial
                   </Text>
@@ -279,7 +280,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
           <View style={styles.subCard}>
             <View style={styles.subCardHead}>
               <View style={[styles.iconWrap, { backgroundColor: themeColors.accent + '22' }]}>
-                <Briefcase size={18} color={themeColors.accent} />
+                <Briefcase size={18} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.subCardTitle}>Property Manager</Text>
@@ -315,7 +316,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
                 <>
-                  <Sparkles size={14} color="#FFF" />
+                  <MageAIMark size={14} color="#FFF" />
                   <Text style={[styles.subCtaText, { color: '#FFF' }]}>
                     Start {CLIENT_PRICING.TRIAL_DAYS}-day free trial
                   </Text>

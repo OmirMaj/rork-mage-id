@@ -36,12 +36,12 @@ export function TaskChecklist({ items, onToggle, onAdd }: TaskChecklistProps) {
       </View>
       {items.map((it) => (
         <TouchableOpacity key={it.id} style={styles.row} activeOpacity={0.7} onPress={() => onToggle(it.id)} testID={`checklist-${it.id}`}>
-          {it.done ? <CheckCircle2 size={20} color={colors.success} /> : <Circle size={20} color={colors.textMuted} />}
+          {it.done ? <CheckCircle2 size={20} color={colors.success} strokeWidth={1.75} /> : <Circle size={20} color={colors.textMuted} strokeWidth={1.75} />}
           <Text style={[styles.label, it.done ? styles.labelDone : null]} numberOfLines={2}>{it.label}</Text>
         </TouchableOpacity>
       ))}
       <View style={styles.addRow}>
-        <Plus size={18} color={colors.accent} />
+        <Plus size={18} color={colors.accent} strokeWidth={1.75} />
         <TextInput
           style={styles.input}
           value={draft}

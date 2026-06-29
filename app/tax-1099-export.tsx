@@ -161,7 +161,7 @@ export default function Tax1099ExportScreen() {
           title: '1099-NEC Export',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -169,7 +169,7 @@ export default function Tax1099ExportScreen() {
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <FileSpreadsheet size={20} color={themeColors.accent} />
+            <FileSpreadsheet size={20} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroTitle}>Year-end 1099-NEC export</Text>
           <Text style={styles.heroBody}>
@@ -186,7 +186,7 @@ export default function Tax1099ExportScreen() {
               activeOpacity={0.85}
               style={[styles.yearChip, year === y && styles.yearChipActive]}
             >
-              <Calendar size={12} color={year === y ? '#FFF' : themeColors.textMuted} />
+              <Calendar size={12} color={year === y ? '#FFF' : themeColors.textMuted} strokeWidth={1.75} />
               <Text style={[styles.yearChipText, year === y && styles.yearChipTextActive]}>{y}</Text>
             </TouchableOpacity>
           ))}
@@ -212,7 +212,7 @@ export default function Tax1099ExportScreen() {
 
             {(totals.missingTin > 0 || totals.missingW9 > 0 || totals.missingAddress > 0) && (
               <View style={styles.warnBanner}>
-                <AlertTriangle size={14} color="#7A4500" />
+                <AlertTriangle size={14} color="#7A4500" strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.warnTitle}>Gaps to chase before filing</Text>
                   <Text style={styles.warnBody}>
@@ -249,7 +249,7 @@ export default function Tax1099ExportScreen() {
                   )}
                   {!r.required1099 && r.totalPaid > 0 && (
                     <View style={[styles.flag, { backgroundColor: themeColors.success + '14', borderColor: themeColors.success }]}>
-                      <CheckCircle2 size={11} color={themeColors.success} />
+                      <CheckCircle2 size={11} color={themeColors.success} strokeWidth={1.75} />
                     </View>
                   )}
                 </View>
@@ -266,7 +266,7 @@ export default function Tax1099ExportScreen() {
                 ? <ActivityIndicator color="#FFF" />
                 : (
                   <>
-                    <Share2 size={16} color="#FFF" />
+                    <Share2 size={16} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.exportBtnText}>Export CSV ({year})</Text>
                   </>
                 )}

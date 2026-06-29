@@ -293,7 +293,7 @@ export default function BidDetailScreen() {
                 </View>
                 <Text style={styles.bidTitle}>{title}</Text>
                 {department ? <Text style={styles.agency}>{department}</Text> : null}
-                {(city || state) ? <View style={styles.locationRow}><MapPin size={14} color={themeColors.textSecondary} /><Text style={styles.locationText}>{[city, state].filter(Boolean).join(', ')}</Text></View> : null}
+                {(city || state) ? <View style={styles.locationRow}><MapPin size={14} color={themeColors.textSecondary} strokeWidth={1.75} /><Text style={styles.locationText}>{[city, state].filter(Boolean).join(', ')}</Text></View> : null}
               </View>
               {description ? <View style={styles.section}><Text style={styles.sectionTitle}>Description</Text><Text style={styles.description}>{description}</Text></View> : null}
               {scopeOfWork ? <View style={styles.section}><Text style={styles.sectionTitle}>Scope of Work</Text><Text style={styles.description}>{scopeOfWork}</Text></View> : null}
@@ -314,7 +314,7 @@ export default function BidDetailScreen() {
                 {qualifiedCompanies.length === 0 ? <Text style={styles.noResults}>No companies match</Text> : qualifiedCompanies.slice(0, 5).map(company => (
                   <TouchableOpacity key={company.id} style={styles.companyRow} onPress={() => { if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: '/company-detail' as any, params: { id: company.id } }); }}>
                     <View style={styles.companyInfo}><Text style={styles.companyName}>{company.companyName}</Text><Text style={styles.companyMeta}>{company.city}, {company.state}</Text></View>
-                    <ChevronRight size={16} color={themeColors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -322,9 +322,9 @@ export default function BidDetailScreen() {
             <View style={bidDesktopStyles.sideCol}>
               {trackedBid && <View style={[styles.statusBadgeLarge, { backgroundColor: STATUS_COLORS[trackedBid.status]?.bg ?? Colors.infoLight, marginBottom: 12 }]}><Text style={[styles.statusBadgeLargeText, { color: STATUS_COLORS[trackedBid.status]?.text ?? Colors.infoDark }]}>{STATUS_LABELS[trackedBid.status]}</Text></View>}
               <View style={[styles.statsGrid, { padding: 0, flexDirection: 'column' as const }]}>
-                <View style={[styles.statCard, { width: '100%' as any }]}><DollarSign size={18} color={themeColors.accent} /><Text style={styles.statLabel}>Estimated Value</Text><Text style={styles.statValue}>{formatCurrency(estimatedValue)}</Text></View>
-                <View style={[styles.statCard, { width: '100%' as any }]}><Clock size={18} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} /><Text style={styles.statLabel}>Deadline</Text><Text style={[styles.statValue, countdown.urgent && { color: themeColors.danger }]}>{countdown.text}</Text><Text style={styles.statSub}>{formatDate(deadline)}</Text></View>
-                <View style={[styles.statCard, { width: '100%' as any }]}><Shield size={18} color={themeColors.accent} /><Text style={styles.statLabel}>Bond Required</Text><Text style={styles.statValue}>{formatCurrency(bondRequired)}</Text></View>
+                <View style={[styles.statCard, { width: '100%' as any }]}><DollarSign size={18} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.statLabel}>Estimated Value</Text><Text style={styles.statValue}>{formatCurrency(estimatedValue)}</Text></View>
+                <View style={[styles.statCard, { width: '100%' as any }]}><Clock size={18} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} strokeWidth={1.75} /><Text style={styles.statLabel}>Deadline</Text><Text style={[styles.statValue, countdown.urgent && { color: themeColors.danger }]}>{countdown.text}</Text><Text style={styles.statSub}>{formatDate(deadline)}</Text></View>
+                <View style={[styles.statCard, { width: '100%' as any }]}><Shield size={18} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.statLabel}>Bond Required</Text><Text style={styles.statValue}>{formatCurrency(bondRequired)}</Text></View>
               </View>
               {(contactEmail || contactPhone) ? (
                 <View style={[styles.contactCard, { marginTop: 12 }]}>
@@ -341,19 +341,19 @@ export default function BidDetailScreen() {
                       '',
                       ...mailSignOff(),
                     ],
-                  }))}><Mail size={16} color="#FFF" /><Text style={styles.contactBtnText}>Email</Text></TouchableOpacity> : null}
-                    {contactPhone ? <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}><Phone size={16} color="#FFF" /><Text style={styles.contactBtnText}>Call</Text></TouchableOpacity> : null}
+                  }))}><Mail size={16} color="#FFF" strokeWidth={1.75} /><Text style={styles.contactBtnText}>Email</Text></TouchableOpacity> : null}
+                    {contactPhone ? <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}><Phone size={16} color="#FFF" strokeWidth={1.75} /><Text style={styles.contactBtnText}>Call</Text></TouchableOpacity> : null}
                   </View>
-                  {sourceUrl ? <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(sourceUrl)}><Globe size={14} color={themeColors.accent} /><Text style={styles.sourceLinkText}>{sourceName || 'View on Portal'}</Text><ExternalLink size={12} color={themeColors.accent} /></TouchableOpacity> : null}
+                  {sourceUrl ? <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(sourceUrl)}><Globe size={14} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.sourceLinkText}>{sourceName || 'View on Portal'}</Text><ExternalLink size={12} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity> : null}
                 </View>
               ) : null}
               <View style={[styles.contactActions, { marginTop: 12, flexDirection: 'column' as const, gap: 8 }]}>
                 <TouchableOpacity style={[styles.actionBtn, trackedBid ? styles.actionBtnSaved : styles.actionBtnOutline, { width: '100%' as any, justifyContent: 'center' as const }]} onPress={handleToggleSave} activeOpacity={0.8}>
-                  <Heart size={18} color={trackedBid ? '#FFF' : themeColors.accent} fill={trackedBid ? '#FFF' : 'none'} />
+                  <Heart size={18} color={trackedBid ? '#FFF' : themeColors.accent} fill={trackedBid ? '#FFF' : 'none'} strokeWidth={1.75} />
                   <Text style={[styles.actionBtnText, trackedBid ? styles.actionBtnTextSaved : styles.actionBtnTextOutline]}>{trackedBid ? 'Saved' : 'Save Bid'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, styles.actionBtnTrack, { width: '100%' as any }]} onPress={() => setShowStatusPicker(true)} activeOpacity={0.8}>
-                  <Bookmark size={18} color="#FFF" />
+                  <Bookmark size={18} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.actionBtnTextWhite}>{trackedBid ? STATUS_LABELS[trackedBid.status] : 'Track Status'}</Text>
                 </TouchableOpacity>
               </View>
@@ -389,7 +389,7 @@ export default function BidDetailScreen() {
 
           {(city || state) ? (
             <View style={styles.locationRow}>
-              <MapPin size={14} color={themeColors.textSecondary} />
+              <MapPin size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
               <Text style={styles.locationText}>{[city, state].filter(Boolean).join(', ')}</Text>
             </View>
           ) : null}
@@ -397,23 +397,23 @@ export default function BidDetailScreen() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <DollarSign size={18} color={themeColors.accent} />
+            <DollarSign size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Estimated Value</Text>
             <Text style={styles.statValue}>{formatCurrency(estimatedValue)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Shield size={18} color={themeColors.accent} />
+            <Shield size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Bond Required</Text>
             <Text style={styles.statValue}>{formatCurrency(bondRequired)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Clock size={18} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} />
+            <Clock size={18} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Deadline</Text>
             <Text style={[styles.statValue, countdown.urgent && { color: themeColors.danger }]}>{countdown.text}</Text>
             <Text style={styles.statSub}>{formatDate(deadline)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Building2 size={18} color={themeColors.textSecondary} />
+            <Building2 size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Category</Text>
             <Text style={styles.statValue}>{BID_CATEGORY_LABELS[category] ? BID_CATEGORY_LABELS[category] : (category || 'General')}</Text>
           </View>
@@ -439,7 +439,7 @@ export default function BidDetailScreen() {
             <View style={styles.dateGrid}>
               {postedDate ? (
                 <View style={styles.dateItem}>
-                  <Calendar size={14} color={themeColors.textSecondary} />
+                  <Calendar size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <View>
                     <Text style={styles.dateLabel}>Posted</Text>
                     <Text style={styles.dateValue}>{formatDate(postedDate)}</Text>
@@ -448,7 +448,7 @@ export default function BidDetailScreen() {
               ) : null}
               {deadline ? (
                 <View style={styles.dateItem}>
-                  <Clock size={14} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} />
+                  <Clock size={14} color={countdown.urgent ? themeColors.danger : themeColors.textSecondary} strokeWidth={1.75} />
                   <View>
                     <Text style={styles.dateLabel}>Deadline</Text>
                     <Text style={[styles.dateValue, countdown.urgent && { color: themeColors.danger }]}>{formatDate(deadline)}</Text>
@@ -457,7 +457,7 @@ export default function BidDetailScreen() {
               ) : null}
               {preBidDate ? (
                 <View style={styles.dateItem}>
-                  <Users size={14} color={themeColors.info} />
+                  <Users size={14} color={themeColors.info} strokeWidth={1.75} />
                   <View>
                     <Text style={styles.dateLabel}>Pre-Bid Conference</Text>
                     <Text style={styles.dateValue}>{formatDate(preBidDate)}</Text>
@@ -474,14 +474,14 @@ export default function BidDetailScreen() {
             <View style={styles.reqGrid}>
               {naicsCode ? (
                 <View style={styles.reqItem}>
-                  <Tag size={13} color={themeColors.textSecondary} />
+                  <Tag size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.reqLabel}>NAICS Code</Text>
                   <Text style={styles.reqValue}>{naicsCode}</Text>
                 </View>
               ) : null}
               {solicitationNumber ? (
                 <View style={styles.reqItem}>
-                  <FileText size={13} color={themeColors.textSecondary} />
+                  <FileText size={13} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.reqLabel}>Solicitation #</Text>
                   <Text style={styles.reqValue}>{solicitationNumber}</Text>
                 </View>
@@ -543,7 +543,7 @@ export default function BidDetailScreen() {
                     })}
                   </View>
                 </View>
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ))
           )}
@@ -569,28 +569,28 @@ export default function BidDetailScreen() {
                       ...mailSignOff(),
                     ],
                   }))}>
-                    <Mail size={16} color="#FFF" />
+                    <Mail size={16} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.contactBtnText}>Email</Text>
                   </TouchableOpacity>
                 ) : null}
                 {contactPhone ? (
                   <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}>
-                    <Phone size={16} color="#FFF" />
+                    <Phone size={16} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.contactBtnText}>Call</Text>
                   </TouchableOpacity>
                 ) : null}
                 {applyUrl ? (
                   <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.accent }]} onPress={() => void Linking.openURL(applyUrl)}>
-                    <ExternalLink size={16} color="#FFF" />
+                    <ExternalLink size={16} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.contactBtnText}>Apply</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
               {documentsUrl ? (
                 <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(documentsUrl)}>
-                  <FileText size={14} color={themeColors.accent} />
+                  <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.sourceLinkText}>View Documents</Text>
-                  <ExternalLink size={12} color={themeColors.accent} />
+                  <ExternalLink size={12} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               ) : null}
               {sourceUrl ? (
@@ -598,9 +598,9 @@ export default function BidDetailScreen() {
                   if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   void Linking.openURL(sourceUrl);
                 }}>
-                  <Globe size={14} color={themeColors.accent} />
+                  <Globe size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.sourceLinkText}>{sourceName || 'View on Procurement Portal'}</Text>
-                  <ExternalLink size={12} color={themeColors.accent} />
+                  <ExternalLink size={12} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -632,7 +632,7 @@ export default function BidDetailScreen() {
           onPress={handleToggleSave}
           activeOpacity={0.8}
         >
-          <Heart size={18} color={trackedBid ? '#FFF' : themeColors.accent} fill={trackedBid ? '#FFF' : 'none'} />
+          <Heart size={18} color={trackedBid ? '#FFF' : themeColors.accent} fill={trackedBid ? '#FFF' : 'none'} strokeWidth={1.75} />
           <Text style={[styles.actionBtnText, trackedBid ? styles.actionBtnTextSaved : styles.actionBtnTextOutline]}>
             {trackedBid ? 'Saved' : 'Save'}
           </Text>
@@ -643,11 +643,11 @@ export default function BidDetailScreen() {
           onPress={() => setShowStatusPicker(true)}
           activeOpacity={0.8}
         >
-          <Bookmark size={18} color="#FFF" />
+          <Bookmark size={18} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.actionBtnTextWhite}>
             {trackedBid ? STATUS_LABELS[trackedBid.status] : 'Track Status'}
           </Text>
-          <ChevronDown size={14} color="rgba(255,255,255,0.7)" />
+          <ChevronDown size={14} color="rgba(255,255,255,0.7)" strokeWidth={1.75} />
         </TouchableOpacity>
 
         {sourceUrl ? (
@@ -655,7 +655,7 @@ export default function BidDetailScreen() {
             style={[styles.actionBtn, styles.actionBtnPortal]}
             onPress={() => void Linking.openURL(sourceUrl)}
             activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Open website">
-            <Globe size={18} color={themeColors.accent} />
+            <Globe size={18} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : null}
       </View>}

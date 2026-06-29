@@ -74,14 +74,14 @@
     background: var(--amber); border-radius: 1px;
   }
   .hero h1 {
-    font-family: 'Fraunces', serif;
+    font-family: 'Space Grotesk', serif;
     font-weight: 700; line-height: 1.04;
     letter-spacing: -0.025em;
     font-size: clamp(34px, 6vw, 64px);
     margin-bottom: 14px;
     max-width: 18ch;
   }
-  .hero h1 em { font-style: italic; color: var(--amber); }
+  .hero h1 em { font-style: normal; color: var(--amber); }
   .hero-meta {
     color: rgba(255,255,255,0.72); font-size: 14.5px;
     line-height: 1.55;
@@ -118,7 +118,7 @@
     margin-bottom: 6px;
   }
   .stat-value {
-    font-family: 'Fraunces', serif;
+    font-family: 'Space Grotesk', serif;
     font-size: clamp(20px, 2.4vw, 28px);
     font-weight: 700; letter-spacing: -0.02em;
     line-height: 1.1; color: var(--text);
@@ -141,7 +141,7 @@
     margin-bottom: 48px;
   }
   .story h2 {
-    font-family: 'Fraunces', serif;
+    font-family: 'Space Grotesk', serif;
     font-size: clamp(24px, 3.4vw, 36px);
     font-weight: 700; letter-spacing: -0.022em; line-height: 1.18;
     margin-bottom: 16px;
@@ -197,15 +197,15 @@
   }
   .testimonial-inner { position: relative; z-index: 1; max-width: 680px; }
   .testimonial-mark {
-    font-family: 'Fraunces', serif;
+    font-family: 'Space Grotesk', serif;
     font-size: 76px; font-weight: 800; line-height: 0.7;
     color: var(--amber); margin-bottom: 12px;
     height: 36px;
   }
   .testimonial-quote {
-    font-family: 'Fraunces', serif;
+    font-family: 'Space Grotesk', serif;
     font-size: clamp(22px, 2.6vw, 30px);
-    font-weight: 500; font-style: italic;
+    font-weight: 500; font-style: normal;
     line-height: 1.35; letter-spacing: -0.01em;
     margin-bottom: 18px;
   }
@@ -229,7 +229,7 @@
     width: 56px; height: 56px; border-radius: 14px;
     background: var(--ink); color: var(--amber);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Fraunces', serif;
+    font-family: 'Space Grotesk', serif;
     font-size: 28px; font-weight: 800;
     flex-shrink: 0;
   }
@@ -241,7 +241,7 @@
     text-transform: uppercase; margin-bottom: 4px;
   }
   .credit-name {
-    font-family: 'Fraunces', serif;
+    font-family: 'Space Grotesk', serif;
     font-size: 22px; font-weight: 700;
     letter-spacing: -0.018em; margin-bottom: 4px;
   }
@@ -298,7 +298,7 @@
     border: 1px solid var(--bone-2);
   }
   .fallback-card h1 {
-    font-family: 'Fraunces', serif; font-size: 26px; font-weight: 700; margin-bottom: 12px;
+    font-family: 'Space Grotesk', serif; font-size: 26px; font-weight: 700; margin-bottom: 12px;
   }
   .fallback-card p { color: var(--text-2); font-size: 14.5px; margin-bottom: 24px; }
 </style>
@@ -629,5 +629,6 @@
   render(data);
 })();
 </script>
+  <script src="/motion.js" defer></script>
 </body>
 </html>

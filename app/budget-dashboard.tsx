@@ -10,8 +10,8 @@ import Paywall from '@/components/Paywall';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, TrendingDown, DollarSign, Clock, Target, BarChart3,
-  Sparkles,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Svg, { Path, Line } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -269,7 +269,7 @@ Be specific and actionable. Use construction industry terminology.`;
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <Sparkles size={16} color="#fff" />
+                <MageAIMark size={16} color="#fff" />
                 <Text style={styles.forecastBtnText}>{forecast ? 'Regenerate Forecast' : 'Generate Forecast'}</Text>
               </>
             )}

@@ -37,7 +37,6 @@ import {
   Link2,
   Minus,
   Plus,
-  Sparkles,
   Target,
   Trash2,
   Users,
@@ -45,9 +44,9 @@ import {
   BarChart3,
   LayoutGrid,
   FileText,
-  Zap,
   Save,
 } from 'lucide-react-native';
+import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -904,17 +903,17 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </View>
             {task.isMilestone && (
               <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}>
-                <Flag size={9} color={themeColors.info} />
+                <Flag size={9} color={themeColors.info} strokeWidth={1.75} />
                 <Text style={[styles.tagChipText, { color: themeColors.info }]}>Milestone</Text>
               </View>
             )}
             {task.isCriticalPath && (
               <View style={[styles.tagChip, { backgroundColor: '#FF3B3014' }]}>
-                <GitBranch size={9} color={themeColors.danger} />
+                <GitBranch size={9} color={themeColors.danger} strokeWidth={1.75} />
               </View>
             )}
             {task.isWeatherSensitive && (
-              <Cloud size={12} color={themeColors.info} />
+              <Cloud size={12} color={themeColors.info} strokeWidth={1.75} />
             )}
           </View>
           {variance !== null && variance !== 0 && (
@@ -966,17 +965,17 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
   const renderFieldMode = useCallback(() => (
     <View style={styles.fieldModeContainer}>
       <View style={styles.fieldModeHeader}>
-        <Zap size={20} color={themeColors.accent} />
+        <MageAIMark size={20} color={themeColors.accent} />
         <Text style={styles.fieldModeTitle}>Field Update Mode</Text>
         <TouchableOpacity style={styles.fieldModeClose} onPress={() => setIsFieldMode(false)} accessibilityRole="button" accessibilityLabel="Close">
-          <X size={18} color={themeColors.textMuted} />
+          <X size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
       <Text style={styles.fieldModeSubtitle}>Today's tasks — tap to update progress</Text>
 
       {todayTasks.length === 0 && (
         <View style={styles.fieldModeEmpty}>
-          <CheckCircle2 size={32} color={themeColors.success} />
+          <CheckCircle2 size={32} color={themeColors.success} strokeWidth={1.75} />
           <Text style={styles.fieldModeEmptyText}>No tasks scheduled for today</Text>
         </View>
       )}
@@ -1026,7 +1025,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <View key={crew} style={styles.resourceCard}>
             <View style={styles.resourceCardHeader}>
               <View style={styles.resourceCrewInfo}>
-                <Users size={14} color={themeColors.accent} />
+                <Users size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.resourceCrewName}>{crew}</Text>
               </View>
               <Text style={styles.resourceCrewMeta}>{tasks.length} tasks · {totalDays}d</Text>
@@ -1135,7 +1134,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               const missed = !hit && dr.end < new Date();
               return (
                 <View key={m.id} style={styles.summaryMilestoneRow}>
-                  <Flag size={12} color={hit ? themeColors.success : missed ? themeColors.danger : themeColors.accent} />
+                  <Flag size={12} color={hit ? themeColors.success : missed ? themeColors.danger : themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.summaryMilestoneName}>{m.title}</Text>
                   <View style={[styles.summaryMilestoneChip, {
                     backgroundColor: hit ? '#34C75914' : missed ? '#FF3B3014' : '#FF950014'
@@ -1170,7 +1169,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.summarySectionTitle}>Risks</Text>
             {activeSchedule.riskItems.map(risk => (
               <View key={risk.id} style={styles.summaryRiskRow}>
-                <AlertTriangle size={13} color={risk.severity === 'high' ? themeColors.danger : themeColors.accent} />
+                <AlertTriangle size={13} color={risk.severity === 'high' ? themeColors.danger : themeColors.accent} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.summaryRiskTitle}>{risk.title}</Text>
                   <Text style={styles.summaryRiskDetail}>{risk.detail}</Text>
@@ -1261,7 +1260,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'New Task'}</Text>
                   <TouchableOpacity onPress={() => setIsEditModalOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={themeColors.textMuted} />
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
@@ -1378,21 +1377,21 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 </View>
 
                 <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Flag size={14} color={themeColors.accent} /><Text style={styles.toggleLabel}>Milestone</Text></View>
+                  <View style={styles.toggleInfo}><Flag size={14} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Milestone</Text></View>
                   <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: themeColors.line, true: themeColors.accent }} thumbColor="#FFF" />
                 </View>
                 <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><GitBranch size={14} color={themeColors.danger} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
+                  <View style={styles.toggleInfo}><GitBranch size={14} color={themeColors.danger} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
                   <Switch value={taskDraft.isCriticalPath} onValueChange={val => setTaskDraft(p => ({ ...p, isCriticalPath: val }))} trackColor={{ false: themeColors.line, true: themeColors.danger }} thumbColor="#FFF" />
                 </View>
                 <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Cloud size={14} color={themeColors.info} /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
+                  <View style={styles.toggleInfo}><Cloud size={14} color={themeColors.info} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
                   <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: themeColors.line, true: themeColors.info }} thumbColor="#FFF" />
                 </View>
 
                 <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>
                 <TouchableOpacity style={styles.depPickerBtn} onPress={() => setShowDepPicker(true)}>
-                  <Link2 size={14} color={themeColors.info} />
+                  <Link2 size={14} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={styles.depPickerBtnText}>{taskDraft.dependencyLinks.length > 0 ? `${taskDraft.dependencyLinks.length} predecessor${taskDraft.dependencyLinks.length > 1 ? 's' : ''} linked` : 'Tap to link predecessors'}</Text>
                 </TouchableOpacity>
                 {/* Dep type and lag per link */}
@@ -1467,7 +1466,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <Pressable style={[styles.modalCard, { maxHeight: '80%' }]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Link Predecessors</Text>
-              <TouchableOpacity onPress={() => setShowDepPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowDepPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 400 }}>
               {sortedTasks.filter(t => t.id !== editingTask?.id).map(task => {
@@ -1475,7 +1474,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 return (
                   <TouchableOpacity key={task.id} style={[styles.depOption, isSelected && styles.depOptionSelected]} onPress={() => toggleDep(task.id)}>
                     <View style={[styles.depCheckbox, isSelected && styles.depCheckboxSelected]}>
-                      {isSelected && <CheckCircle2 size={14} color="#FFF" />}
+                      {isSelected && <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.depOptionTitle}>{task.title}</Text>
@@ -1500,7 +1499,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.bottomSheetHandle} />
               <View style={styles.aiHeader}>
-                <Sparkles size={22} color={themeColors.accent} />
+                <MageAIMark size={22} color={themeColors.accent} />
                 <Text style={styles.aiTitle}>AI Schedule Builder</Text>
               </View>
               <Text style={styles.aiSubtitle}>
@@ -1524,7 +1523,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 {isAILoading ? (
                   <ActivityIndicator color="#FFF" size="small" />
                 ) : (
-                  <Sparkles size={16} color="#FFF" />
+                  <MageAIMark size={16} color="#FFF" />
                 )}
                 <Text style={styles.aiGenerateBtnText}>
                   {isAILoading ? 'Building your schedule...' : 'Generate Schedule'}
@@ -1554,7 +1553,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Schedule Templates</Text>
               <TouchableOpacity onPress={() => setIsTemplatePickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -1571,7 +1570,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       {template.taskCount} tasks · {template.typicalDuration}
                     </Text>
                   </View>
-                  <ChevronRight size={16} color={themeColors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -1658,7 +1657,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               activeOpacity={0.85}
               testID="open-schedule-pro"
             >
-              <Zap size={14} color={"#FFFFFF"} />
+              <MageAIMark size={14} color={"#FFFFFF"} />
               <Text style={desktopStyles.proBtnText}>Pro</Text>
             </TouchableOpacity>
           )}
@@ -1666,13 +1665,13 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             style={styles.fab}
             onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setQuickAddCount(0); setIsQuickAddOpen(true); }}
             activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add">
-            <Plus size={18} color="#FFF" />
+            <Plus size={18} color="#FFF" strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
         {activeSchedule && (
           <View style={styles.projectStartBar}>
-            <CalendarDays size={14} color={themeColors.textMuted} />
+            <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.projectStartLabel}>Starts</Text>
             <Text style={styles.projectStartValue}>{projectStartDate.toLocaleDateString()}</Text>
             <TouchableOpacity
@@ -1750,7 +1749,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                         <TouchableOpacity style={styles.phaseHeader} onPress={() => togglePhaseCollapse(phase)} activeOpacity={0.7}>
                           <View style={styles.phaseHeaderLeft}>
                             <View style={[styles.phaseColorDot, { backgroundColor: getPhaseColor(phase) }]} />
-                            <ChevronRight size={14} color={themeColors.textSecondary} style={isCollapsed ? undefined : { transform: [{ rotate: '90deg' }] }} />
+                            <ChevronRight size={14} color={themeColors.textSecondary} style={isCollapsed ? undefined : { transform: [{ rotate: '90deg' }] }} strokeWidth={1.75} />
                             <Text style={styles.phaseHeaderName}>{phase}</Text>
                           </View>
                           <View style={styles.phaseHeaderRight}>
@@ -1775,7 +1774,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       activeOpacity={0.85}
                       testID="scenario-banner"
                     >
-                      <GitBranch size={13} color={themeColors.accent} />
+                      <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.scenarioBannerText} numberOfLines={1}>
                         Viewing What-If scenario (read-only). Tap to manage.
                       </Text>
@@ -1783,11 +1782,11 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   )}
                   <View style={styles.ganttControls}>
                     <TouchableOpacity style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]} onPress={() => setIsVerticalGantt(false)}>
-                      <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : themeColors.textSecondary} />
+                      <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
                       <Text style={[styles.ganttOrientBtnText, !isVerticalGantt && styles.ganttOrientBtnTextActive]}>Horizontal</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.ganttOrientBtn, isVerticalGantt && styles.ganttOrientBtnActive]} onPress={() => setIsVerticalGantt(true)}>
-                      <CalendarDays size={12} color={isVerticalGantt ? '#FFF' : themeColors.textSecondary} />
+                      <CalendarDays size={12} color={isVerticalGantt ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
                       <Text style={[styles.ganttOrientBtnText, isVerticalGantt && styles.ganttOrientBtnTextActive]}>Vertical</Text>
                     </TouchableOpacity>
                     <View style={{ flex: 1 }} />
@@ -1795,7 +1794,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       <Text style={[styles.baselineToggleText, showBaseline && styles.baselineToggleTextActive]}>Baseline</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.saveBaselineBtn} onPress={handleSaveBaseline}>
-                      <Save size={13} color={themeColors.accent} />
+                      <Save size={13} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.saveBaselineBtnText}>Save Baseline</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -1803,7 +1802,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       onPress={() => setShowScenariosModal(true)}
                       testID="scenarios-open-btn"
                     >
-                      <GitBranch size={13} color={themeColors.accent} />
+                      <GitBranch size={13} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.saveBaselineBtnText}>What-If</Text>
                     </TouchableOpacity>
                   </View>
@@ -1828,7 +1827,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Project</Text>
                 <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={{ maxHeight: 400 }}>
@@ -1883,7 +1882,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   activeOpacity={0.85}
                   testID="save-project-start-date"
                 >
-                  <Check size={16} color="#FFF" />
+                  <Check size={16} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.addTaskBtnText}>Save</Text>
                 </TouchableOpacity>
               </View>
@@ -2004,7 +2003,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   Project starts {projectStartDate.toLocaleDateString()} · leave custom date blank to chain after the last task
                 </Text>
                 <TouchableOpacity style={styles.addTaskBtn} onPress={handleQuickAdd} activeOpacity={0.85}>
-                  <Plus size={16} color="#FFF" />
+                  <Plus size={16} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.addTaskBtnText}>Add Task</Text>
                 </TouchableOpacity>
               </View>
@@ -2022,7 +2021,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     <View style={styles.modalHeader}>
                       <Text style={[styles.modalTitle, { flex: 1, marginRight: 12 }]}>{task.title}</Text>
                       <TouchableOpacity onPress={() => setTaskDetailModal(null)} accessibilityRole="button" accessibilityLabel="Close">
-                        <X size={20} color={themeColors.textMuted} />
+                        <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.detailProgressRow}>
@@ -2043,7 +2042,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                         <Text style={styles.detailEditBtnText}>Edit Task</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }} accessibilityRole="button" accessibilityLabel="Delete">
-                        <Trash2 size={16} color={themeColors.danger} />
+                        <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                   </ScrollView>
@@ -2126,7 +2125,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
         {!selectedProject && (
           <View style={styles.emptyPrompt}>
-            <CalendarDays size={40} color={themeColors.textMuted} />
+            <MageSchedule size={40} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No Project Selected</Text>
             <Text style={styles.emptyDesc}>Select a project above to view or create a schedule.</Text>
           </View>
@@ -2134,7 +2133,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
         {selectedProject && !hasScheduleData && (
           <View style={styles.emptySchedule}>
-            <CalendarDays size={44} color={themeColors.accent} />
+            <MageSchedule size={44} color={themeColors.accent} />
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
@@ -2143,40 +2142,40 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               onPress={() => router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId } } as any)}
               testID="open-schedule-wizard"
             >
-              <CalendarDays size={20} color={themeColors.accent} />
+              <CalendarDays size={20} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.emptyActionTitle}>Guided 4-step setup</Text>
                 <Text style={styles.emptyActionDesc}>Pick a template, tune tasks, preview the timeline, save</Text>
               </View>
-              <ChevronRight size={16} color={themeColors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.emptyAction} onPress={() => setIsAIBuilderOpen(true)}>
-              <Sparkles size={20} color={themeColors.accent} />
+              <MageAIMark size={20} color={themeColors.accent} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.emptyActionTitle}>Generate with AI</Text>
                 <Text style={styles.emptyActionDesc}>Describe your project, get a full schedule in seconds</Text>
               </View>
-              <ChevronRight size={16} color={themeColors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.emptyAction} onPress={() => setIsTemplatePickerOpen(true)}>
-              <FileText size={20} color={themeColors.accent} />
+              <FileText size={20} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.emptyActionTitle}>Start from Template</Text>
                 <Text style={styles.emptyActionDesc}>Kitchen, bathroom, new home, and more</Text>
               </View>
-              <ChevronRight size={16} color={themeColors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             {hasEstimate && (
               <TouchableOpacity style={styles.emptyAction} onPress={handleBuildFromEstimate}>
-                <BarChart3 size={20} color={themeColors.info} />
+                <BarChart3 size={20} color={themeColors.info} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.emptyActionTitle}>Build from Estimate</Text>
                   <Text style={styles.emptyActionDesc}>Auto-generate tasks from your estimate line items</Text>
                 </View>
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
 
@@ -2184,7 +2183,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               style={styles.emptyManualBtn}
               onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setIsQuickAddOpen(true); }}
             >
-              <Plus size={16} color={"#FFFFFF"} />
+              <Plus size={16} color={"#FFFFFF"} strokeWidth={1.75} />
               <Text style={styles.emptyManualBtnText}>Add Tasks Manually</Text>
             </TouchableOpacity>
           </View>
@@ -2194,12 +2193,12 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <>
             {weatherAlerts.length > 0 && (
               <View style={styles.weatherBanner}>
-                <CloudRain size={16} color={themeColors.accent} />
+                <CloudRain size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.weatherBannerText}>
                   {weatherAlerts.length} weather alert{weatherAlerts.length > 1 ? 's' : ''} for upcoming tasks
                 </Text>
                 <TouchableOpacity onPress={() => setWeatherAlerts([])} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={themeColors.textMuted} />
+                  <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             )}
@@ -2253,19 +2252,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <TouchableOpacity
                   style={styles.weatherBtn}
                   onPress={fetchWeather} accessibilityRole="button" accessibilityLabel="Cloud">
-                  <Cloud size={13} color={themeColors.info} />
+                  <Cloud size={13} color={themeColors.info} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.fieldModeBtn, isFieldMode && styles.fieldModeBtnActive]}
                   onPress={() => setIsFieldMode(!isFieldMode)} accessibilityRole="button" accessibilityLabel="Power">
-                  <Zap size={13} color={isFieldMode ? '#FFF' : themeColors.accent} />
+                  <MageAIMark size={13} color={isFieldMode ? '#FFF' : themeColors.accent} />
                 </TouchableOpacity>
               </View>
             </ScrollView>
 
             {activeSchedule && !isFieldMode && (
               <View style={styles.projectStartBar}>
-                <CalendarDays size={14} color={themeColors.textMuted} />
+                <CalendarDays size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.projectStartLabel}>Starts</Text>
                 <Text style={styles.projectStartValue}>{projectStartDate.toLocaleDateString()}</Text>
                 <TouchableOpacity
@@ -2348,7 +2347,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                               <ChevronRight
                                 size={14}
                                 color={themeColors.textSecondary}
-                                style={isCollapsed ? undefined : { transform: [{ rotate: '90deg' }] }}
+                                style={isCollapsed ? undefined : { transform: [{ rotate: '90deg' }] }} strokeWidth={1.75}
                               />
                               <Text style={styles.phaseHeaderName}>{phase}</Text>
                             </View>
@@ -2380,14 +2379,14 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                         style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]}
                         onPress={() => setIsVerticalGantt(false)}
                       >
-                        <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : themeColors.textSecondary} />
+                        <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
                         <Text style={[styles.ganttOrientBtnText, !isVerticalGantt && styles.ganttOrientBtnTextActive]}>Horizontal</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.ganttOrientBtn, isVerticalGantt && styles.ganttOrientBtnActive]}
                         onPress={() => setIsVerticalGantt(true)}
                       >
-                        <CalendarDays size={12} color={isVerticalGantt ? '#FFF' : themeColors.textSecondary} />
+                        <CalendarDays size={12} color={isVerticalGantt ? '#FFF' : themeColors.textSecondary} strokeWidth={1.75} />
                         <Text style={[styles.ganttOrientBtnText, isVerticalGantt && styles.ganttOrientBtnTextActive]}>Vertical</Text>
                       </TouchableOpacity>
                       <View style={{ flex: 1 }} />
@@ -2400,7 +2399,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.saveBaselineBtn} onPress={handleSaveBaseline}>
-                        <Save size={13} color={themeColors.accent} />
+                        <Save size={13} color={themeColors.accent} strokeWidth={1.75} />
                         <Text style={styles.saveBaselineBtnText}>Save Baseline</Text>
                       </TouchableOpacity>
                     </View>
@@ -2473,21 +2472,21 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             onPress={() => setIsShareSheetOpen(true)}
             activeOpacity={0.85}
             testID="open-share-sheet" accessibilityRole="button" accessibilityLabel="Open document">
-            <FileText size={18} color={themeColors.accent} />
+            <FileText size={18} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fabSecondary}
             onPress={() => setIsQuickBuildOpen(true)}
             activeOpacity={0.85}
             testID="open-quick-build" accessibilityRole="button" accessibilityLabel="Power">
-            <Zap size={18} color={themeColors.accent} />
+            <MageAIMark size={18} color={themeColors.accent} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fab}
             onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setQuickAddCount(0); setIsQuickAddOpen(true); }}
             activeOpacity={0.85}
             testID="open-quick-add" accessibilityRole="button" accessibilityLabel="Add">
-            <Plus size={22} color="#FFF" />
+            <Plus size={22} color="#FFF" strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       )}
@@ -2499,7 +2498,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Project</Text>
               <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 400 }}>
@@ -2556,7 +2555,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 activeOpacity={0.85}
                 testID="save-project-start-date-mobile"
               >
-                <Check size={16} color="#FFF" />
+                <Check size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.addTaskBtnText}>Save</Text>
               </TouchableOpacity>
             </View>
@@ -2701,11 +2700,11 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <View style={styles.stepperRow}>
                     <Pressable style={styles.stepperBtn} onPress={() =>
                       setTaskDraft(prev => ({ ...prev, durationDays: String(Math.max(0, parseInt(prev.durationDays) - 1)) }))
-                    }><Minus size={14} color={themeColors.text} /></Pressable>
+                    }><Minus size={14} color={themeColors.text} strokeWidth={1.75} /></Pressable>
                     <Text style={styles.stepperValue}>{taskDraft.durationDays}d</Text>
                     <Pressable style={styles.stepperBtn} onPress={() =>
                       setTaskDraft(prev => ({ ...prev, durationDays: String(parseInt(prev.durationDays) + 1) }))
-                    }><Plus size={14} color={themeColors.text} /></Pressable>
+                    }><Plus size={14} color={themeColors.text} strokeWidth={1.75} /></Pressable>
                   </View>
                 </View>
                 <View style={styles.quickAddField}>
@@ -2713,11 +2712,11 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <View style={styles.stepperRow}>
                     <Pressable style={styles.stepperBtn} onPress={() =>
                       setTaskDraft(prev => ({ ...prev, crewSize: String(Math.max(1, parseInt(prev.crewSize) - 1)) }))
-                    }><Minus size={14} color={themeColors.text} /></Pressable>
+                    }><Minus size={14} color={themeColors.text} strokeWidth={1.75} /></Pressable>
                     <Text style={styles.stepperValue}>{taskDraft.crewSize}</Text>
                     <Pressable style={styles.stepperBtn} onPress={() =>
                       setTaskDraft(prev => ({ ...prev, crewSize: String(parseInt(prev.crewSize) + 1) }))
-                    }><Plus size={14} color={themeColors.text} /></Pressable>
+                    }><Plus size={14} color={themeColors.text} strokeWidth={1.75} /></Pressable>
                   </View>
                 </View>
               </View>
@@ -2727,27 +2726,27 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   style={[styles.quickAddToggle, taskDraft.isMilestone && styles.quickAddToggleActive]}
                   onPress={() => setTaskDraft(prev => ({ ...prev, isMilestone: !prev.isMilestone }))}
                 >
-                  <Flag size={12} color={taskDraft.isMilestone ? '#FFF' : themeColors.accent} />
+                  <Flag size={12} color={taskDraft.isMilestone ? '#FFF' : themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.quickAddToggleText, taskDraft.isMilestone && styles.quickAddToggleTextActive]}>Milestone</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickAddToggle, taskDraft.isCriticalPath && { backgroundColor: themeColors.danger }]}
                   onPress={() => setTaskDraft(prev => ({ ...prev, isCriticalPath: !prev.isCriticalPath }))}
                 >
-                  <GitBranch size={12} color={taskDraft.isCriticalPath ? '#FFF' : themeColors.danger} />
+                  <GitBranch size={12} color={taskDraft.isCriticalPath ? '#FFF' : themeColors.danger} strokeWidth={1.75} />
                   <Text style={[styles.quickAddToggleText, taskDraft.isCriticalPath && { color: '#FFF' }]}>Critical</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickAddToggle, taskDraft.isWeatherSensitive && { backgroundColor: themeColors.info }]}
                   onPress={() => setTaskDraft(prev => ({ ...prev, isWeatherSensitive: !prev.isWeatherSensitive }))}
                 >
-                  <Cloud size={12} color={taskDraft.isWeatherSensitive ? '#FFF' : themeColors.info} />
+                  <Cloud size={12} color={taskDraft.isWeatherSensitive ? '#FFF' : themeColors.info} strokeWidth={1.75} />
                   <Text style={[styles.quickAddToggleText, taskDraft.isWeatherSensitive && { color: '#FFF' }]}>Weather</Text>
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity style={styles.addTaskBtn} onPress={handleQuickAdd} activeOpacity={0.85} testID="quick-add-btn">
-                <Plus size={16} color="#FFF" />
+                <Plus size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.addTaskBtnText}>Add Task</Text>
               </TouchableOpacity>
 
@@ -2776,7 +2775,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <View style={styles.modalHeader}>
                     <Text style={[styles.modalTitle, { flex: 1, marginRight: 12 }]}>{task.title}</Text>
                     <TouchableOpacity onPress={() => setTaskDetailModal(null)} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={20} color={themeColors.textMuted} />
+                      <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
 
@@ -2785,9 +2784,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                       <Text style={[styles.statusChipText, { color: statusColor }]}>{getStatusLabel(task.status)}</Text>
                     </View>
-                    {task.isMilestone && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Flag size={10} color={themeColors.info} /><Text style={[styles.tagChipText, { color: themeColors.info }]}>Milestone</Text></View>}
-                    {task.isCriticalPath && <View style={[styles.tagChip, { backgroundColor: '#FF3B3014' }]}><GitBranch size={10} color={themeColors.danger} /><Text style={[styles.tagChipText, { color: themeColors.danger }]}>Critical</Text></View>}
-                    {task.isWeatherSensitive && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Cloud size={10} color={themeColors.info} /><Text style={[styles.tagChipText, { color: themeColors.info }]}>Weather</Text></View>}
+                    {task.isMilestone && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Flag size={10} color={themeColors.info} strokeWidth={1.75} /><Text style={[styles.tagChipText, { color: themeColors.info }]}>Milestone</Text></View>}
+                    {task.isCriticalPath && <View style={[styles.tagChip, { backgroundColor: '#FF3B3014' }]}><GitBranch size={10} color={themeColors.danger} strokeWidth={1.75} /><Text style={[styles.tagChipText, { color: themeColors.danger }]}>Critical</Text></View>}
+                    {task.isWeatherSensitive && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Cloud size={10} color={themeColors.info} strokeWidth={1.75} /><Text style={[styles.tagChipText, { color: themeColors.info }]}>Weather</Text></View>}
                   </View>
 
                   <View style={styles.detailGrid}>
@@ -2888,7 +2887,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       return (
                         <View style={styles.delayImpactSection}>
                           <View style={styles.delayImpactHeader}>
-                            <AlertTriangle size={14} color={themeColors.danger} />
+                            <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
                             <Text style={styles.delayImpactTitle}>Schedule Impact</Text>
                           </View>
                           <Text style={styles.delayImpactBody}>
@@ -2930,7 +2929,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     return (
                       <View style={styles.weatherImpactSection}>
                         <View style={styles.weatherImpactHeader}>
-                          <Cloud size={14} color={themeColors.info} />
+                          <Cloud size={14} color={themeColors.info} strokeWidth={1.75} />
                           <Text style={styles.weatherImpactTitle}>Weather Impact</Text>
                         </View>
                         <View style={styles.weatherImpactForecastRow}>
@@ -2982,7 +2981,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                           }
                         }}
                       >
-                        <Camera size={13} color={themeColors.accent} />
+                        <Camera size={13} color={themeColors.accent} strokeWidth={1.75} />
                         <Text style={styles.addPhotoBtnText}>Add Photo</Text>
                       </TouchableOpacity>
                     </View>
@@ -3010,7 +3009,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       <Text style={styles.detailEditBtnText}>Edit Task</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={16} color={themeColors.danger} />
+                      <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                 </ScrollView>

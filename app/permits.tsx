@@ -121,7 +121,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
 
         {isInspectionUpcoming && (
           <View style={styles.inspectionAlert}>
-            <Calendar size={13} color={Colors.purple} />
+            <Calendar size={13} color={Colors.purple} strokeWidth={1.75} />
             <Text style={styles.inspectionAlertText}>
               Inspection in {daysUntilInspection} day{daysUntilInspection !== 1 ? 's' : ''} — {new Date(permit.inspectionDate!).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </Text>
@@ -130,14 +130,14 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
 
         {permit.status === 'inspection_failed' && permit.inspectionNotes && (
           <View style={styles.failedAlert}>
-            <AlertTriangle size={13} color={Colors.errorDark} />
+            <AlertTriangle size={13} color={Colors.errorDark} strokeWidth={1.75} />
             <Text style={styles.failedAlertText} numberOfLines={2}>{permit.inspectionNotes}</Text>
           </View>
         )}
 
         {permit.attachmentUri && (
           <View style={styles.attachRow}>
-            <FileText size={12} color={themeColors.textSecondary} />
+            <FileText size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.attachText}>Permit document attached</Text>
           </View>
         )}
@@ -397,7 +397,7 @@ export default function PermitsScreen() {
         headerTintColor: themeColors.accent,
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         headerRight: () => (
-          <TouchableOpacity onPress={openNewForm} style={{ paddingHorizontal: 12, paddingVertical: 6 }} testID="new-permit-btn" accessibilityRole="button" accessibilityLabel="Add"><Plus size={22} color={themeColors.accent} /></TouchableOpacity>
+          <TouchableOpacity onPress={openNewForm} style={{ paddingHorizontal: 12, paddingVertical: 6 }} testID="new-permit-btn" accessibilityRole="button" accessibilityLabel="Add"><Plus size={22} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
         ),
       }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
@@ -418,7 +418,7 @@ export default function PermitsScreen() {
             >
               <View style={styles.nextInspectionTop}>
                 <View style={[styles.nextInspectionBadge, { backgroundColor: urgent ? '#FFEBEE' : '#F3E5F5' }]}>
-                  <Calendar size={14} color={urgent ? Colors.errorDark : Colors.purple} />
+                  <Calendar size={14} color={urgent ? Colors.errorDark : Colors.purple} strokeWidth={1.75} />
                   <Text style={[styles.nextInspectionBadgeText, { color: urgent ? Colors.errorDark : Colors.purple }]}>
                     Next inspection · {dayLabel}
                   </Text>
@@ -444,7 +444,7 @@ export default function PermitsScreen() {
         {blockers.length > 0 && (
           <View style={styles.blockersCard}>
             <View style={styles.blockersHeader}>
-              <AlertTriangle size={14} color={Colors.errorDark} />
+              <AlertTriangle size={14} color={Colors.errorDark} strokeWidth={1.75} />
               <Text style={styles.blockersTitle}>
                 {blockers.length} permit{blockers.length === 1 ? '' : 's'} blocking work
               </Text>
@@ -465,28 +465,28 @@ export default function PermitsScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: themeColors.accent + '14' }]}>
-              <ClipboardCheck size={16} color={themeColors.accent} />
+              <ClipboardCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.statValue}>{permits.length}</Text>
             <Text style={styles.statLabel}>Total</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: '#F3E5F5' }]}>
-              <Calendar size={16} color={Colors.purple} />
+              <Calendar size={16} color={Colors.purple} strokeWidth={1.75} />
             </View>
             <Text style={[styles.statValue, { color: Colors.purple }]}>{stats.upcomingInspections}</Text>
             <Text style={styles.statLabel}>Upcoming</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: Colors.warningLight }]}>
-              <Clock size={16} color={Colors.warningDark} />
+              <Clock size={16} color={Colors.warningDark} strokeWidth={1.75} />
             </View>
             <Text style={[styles.statValue, { color: Colors.warningDark }]}>{stats.pending}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: Colors.successLight }]}>
-              <Check size={16} color={Colors.successDark} />
+              <Check size={16} color={Colors.successDark} strokeWidth={1.75} />
             </View>
             <Text style={[styles.statValue, { color: Colors.successDark }]}>{stats.passed}</Text>
             <Text style={styles.statLabel}>Passed</Text>
@@ -541,11 +541,11 @@ export default function PermitsScreen() {
         <View style={styles.listSection}>
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
-              <ClipboardCheck size={32} color={themeColors.textMuted} />
+              <ClipboardCheck size={32} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No permits yet</Text>
               <Text style={styles.emptySub}>Tap + above to log your first permit. We&apos;ll track inspections and renewal dates from there.</Text>
               <TouchableOpacity style={styles.emptyCta} onPress={openNewForm}>
-                <Plus size={16} color="#fff" />
+                <Plus size={16} color="#fff" strokeWidth={1.75} />
                 <Text style={styles.emptyCtaText}>New Permit</Text>
               </TouchableOpacity>
             </View>
@@ -563,7 +563,7 @@ export default function PermitsScreen() {
             <Pressable style={[styles.modalCard, { paddingTop: Platform.OS === 'web' ? insetTopWeb : 16 }]} onPress={() => undefined}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingPermit ? 'Edit Permit' : 'New Permit'}</Text>
-                <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} /></TouchableOpacity>
+                <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
               </View>
 
               {editingPermit && (
@@ -590,7 +590,7 @@ export default function PermitsScreen() {
                 <Text style={styles.formLabel}>Project *</Text>
                 <TouchableOpacity style={styles.formPicker} onPress={() => setPickerOpen(pickerOpen === 'project' ? null : 'project')}>
                   <Text style={styles.formPickerText}>{selectedProjectName}</Text>
-                  <ChevronDown size={16} color={themeColors.textMuted} />
+                  <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
                 {pickerOpen === 'project' && (
                   <View style={styles.pickerOptions}>
@@ -611,7 +611,7 @@ export default function PermitsScreen() {
                 <Text style={styles.formLabel}>Type</Text>
                 <TouchableOpacity style={styles.formPicker} onPress={() => setPickerOpen(pickerOpen === 'type' ? null : 'type')}>
                   <Text style={styles.formPickerText}>{(PERMIT_TYPE_INFO[form.type]?.label) ?? form.type}</Text>
-                  <ChevronDown size={16} color={themeColors.textMuted} />
+                  <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
                 {pickerOpen === 'type' && (
                   <View style={styles.pickerOptions}>
@@ -641,7 +641,7 @@ export default function PermitsScreen() {
                       <Text style={styles.formPickerText}>
                         {form.specialInspectionCategory ? SPECIAL_INSPECTION_LABELS[form.specialInspectionCategory] : 'Pick a category'}
                       </Text>
-                      <ChevronDown size={16} color={themeColors.textMuted} />
+                      <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                     {pickerOpen === 'specialCategory' && (
                       <View style={styles.pickerOptions}>
@@ -692,7 +692,7 @@ export default function PermitsScreen() {
                 <Text style={styles.formLabel}>Status</Text>
                 <TouchableOpacity style={styles.formPicker} onPress={() => setPickerOpen(pickerOpen === 'status' ? null : 'status')}>
                   <Text style={styles.formPickerText}>{(PERMIT_STATUS_INFO[form.status]?.label) ?? form.status}</Text>
-                  <ChevronDown size={16} color={themeColors.textMuted} />
+                  <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
                 {pickerOpen === 'status' && (
                   <View style={styles.pickerOptions}>
@@ -790,7 +790,7 @@ export default function PermitsScreen() {
 
                 <Text style={styles.formLabel}>Permit Document</Text>
                 <TouchableOpacity style={styles.attachBtn} onPress={handleAttach} activeOpacity={0.7}>
-                  <Camera size={16} color={themeColors.accent} />
+                  <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.attachBtnText}>
                     {form.attachmentUri ? 'Replace attachment' : 'Attach permit scan'}
                   </Text>
@@ -802,10 +802,10 @@ export default function PermitsScreen() {
 
               <View style={styles.formActions}>
                 {editingPermit && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} /></TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="permit-save-btn">
-                  <Save size={16} color="#fff" />
+                  <Save size={16} color="#fff" strokeWidth={1.75} />
                   <Text style={styles.saveBtnText}>{editingPermit ? 'Update' : 'Create Permit'}</Text>
                 </TouchableOpacity>
               </View>

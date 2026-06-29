@@ -57,19 +57,19 @@ export default function WeatherRescheduleModal({
       <TouchableOpacity activeOpacity={1} style={styles.backdrop} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
-            <CloudRain size={16} color={t.accent} />
+            <CloudRain size={16} color={t.accent} strokeWidth={1.75} />
             <Text style={styles.title}>Weather reschedule</Text>
             <Text style={styles.subtitle} numberOfLines={1}>
               Forecast vs. your weather-sensitive tasks.
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={18} color={t.textSecondary} />
+              <X size={18} color={t.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
           {!hasImpact ? (
             <View style={styles.emptyWrap}>
-              <CheckCircle2 size={30} color={t.success} />
+              <CheckCircle2 size={30} color={t.success} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No weather delays ahead</Text>
               <Text style={styles.emptyBody}>
                 No rained-out days fall on a weather-sensitive task in the forecast window.
@@ -118,7 +118,7 @@ export default function WeatherRescheduleModal({
                       {im.startSlipDays > 0 ? (
                         <View style={styles.shiftRow}>
                           <Text style={styles.shiftFrom}>{dateForDay(projectStartDate, im.originalStartDay)}</Text>
-                          <ArrowRight size={11} color={t.textMuted} />
+                          <ArrowRight size={11} color={t.textMuted} strokeWidth={1.75} />
                           <Text style={styles.shiftTo}>{dateForDay(projectStartDate, im.newStartDay)}</Text>
                         </View>
                       ) : (

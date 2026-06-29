@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Image,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Camera, Sparkles, Check } from 'lucide-react-native';
+import { Camera, Check } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -85,7 +86,7 @@ export default React.memo(function AIDFRFromPhotos({
     <View style={styles.wrap}>
       <View style={styles.header}>
         <View style={styles.headerIconWrap}>
-          <Camera size={16} color={themeColors.accent} />
+          <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Draft from today&apos;s photos</Text>
@@ -117,7 +118,7 @@ export default React.memo(function AIDFRFromPhotos({
               )}
               {isSel && (
                 <View style={styles.checkBadge}>
-                  <Check size={11} color="#FFF" />
+                  <Check size={11} color="#FFF" strokeWidth={1.75} />
                 </View>
               )}
               {p.tag ? (
@@ -137,7 +138,7 @@ export default React.memo(function AIDFRFromPhotos({
         {loading ? (
           <ActivityIndicator size="small" color="#FFF" />
         ) : (
-          <Sparkles size={15} color="#FFF" />
+          <MageAIMark size={15} color="#FFF" />
         )}
         <Text style={styles.btnText}>
           {loading

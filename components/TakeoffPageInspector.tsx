@@ -145,7 +145,7 @@ function TakeoffPageInspectorImpl({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent={false}>
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               Page {activePage}{drawingMeta ? ` · ${drawingMeta.type}` : ''}
@@ -156,11 +156,11 @@ function TakeoffPageInspectorImpl({
           </View>
           <View style={styles.zoomGroup}>
             <TouchableOpacity onPress={() => setZoom(z => Math.max(0.5, z - 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom out">
-              <ZoomOut size={18} color={themeColors.text} />
+              <ZoomOut size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.zoomText}>{Math.round(zoom * 100)}%</Text>
             <TouchableOpacity onPress={() => setZoom(z => Math.min(3, z + 0.25))} hitSlop={8} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Zoom in">
-              <ZoomIn size={18} color={themeColors.text} />
+              <ZoomIn size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
         </View>
@@ -205,13 +205,13 @@ function TakeoffPageInspectorImpl({
                   style={[styles.pageNav, styles.pageNavLeft]}
                   onPress={() => goPage(-1)}
                   hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-                  <ChevronLeft size={20} color="#FFF" />
+                  <ChevronLeft size={20} color="#FFF" strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.pageNav, styles.pageNavRight]}
                   onPress={() => goPage(1)}
                   hitSlop={8} accessibilityRole="button" accessibilityLabel="Open">
-                  <ChevronRight size={20} color="#FFF" />
+                  <ChevronRight size={20} color="#FFF" strokeWidth={1.75} />
                 </TouchableOpacity>
                 <View style={styles.pagePill}>
                   <Text style={styles.pagePillText}>

@@ -191,7 +191,7 @@ export default function QuickUpdateClarifier({
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={onClose}
-              testID="clarifier-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} /></TouchableOpacity>
+              testID="clarifier-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={"#9AA3AD"} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           {/* Action chips */}
@@ -281,7 +281,7 @@ export default function QuickUpdateClarifier({
             )}
           </View>
           <View style={styles.searchRow}>
-            <Search size={14} color={"#9AA3AD"} />
+            <Search size={14} color={"#9AA3AD"} strokeWidth={1.75} />
             <TextInput
               style={styles.searchInput}
               value={query}
@@ -330,7 +330,7 @@ export default function QuickUpdateClarifier({
                     </View>
                     {active && (
                       <View style={styles.tick}>
-                        <CheckCircle2 size={16} color={"#FF6A1A"} />
+                        <CheckCircle2 size={16} color={"#FF6A1A"} strokeWidth={1.75} />
                       </View>
                     )}
                   </TouchableOpacity>

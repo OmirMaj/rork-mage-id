@@ -79,7 +79,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
             <Text style={s.headerTitle}>Productivity Calc</Text>
             <Text style={s.headerSub}>Crew output & cost estimator</Text>
           </View>
-          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {selectedRate ? (
@@ -92,12 +92,12 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
             <View style={s.crewCard}>
               <View style={s.crewRow}>
-                <Users size={14} color={Colors.primary} />
+                <Users size={14} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={s.crewLabel}>Crew:</Text>
                 <Text style={s.crewValue}>{selectedRate.crew}</Text>
               </View>
               <View style={s.crewRow}>
-                <Clock size={14} color={Colors.accent} />
+                <Clock size={14} color={Colors.accent} strokeWidth={1.75} />
                 <Text style={s.crewLabel}>Daily Output:</Text>
                 <Text style={s.crewValue}>{selectedRate.dailyOutput} {selectedRate.unit}/day</Text>
               </View>
@@ -143,7 +143,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
                 <View style={s.scheduleCard}>
                   <View style={s.scheduleRow}>
-                    <Clock size={14} color={Colors.info} />
+                    <Clock size={14} color={Colors.info} strokeWidth={1.75} />
                     <Text style={s.scheduleLabel}>Estimated Duration:</Text>
                     <Text style={s.scheduleValue}>
                       {calculation.daysToComplete < 1
@@ -152,7 +152,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                     </Text>
                   </View>
                   <View style={s.scheduleRow}>
-                    <Users size={14} color={Colors.info} />
+                    <Users size={14} color={Colors.info} strokeWidth={1.75} />
                     <Text style={s.scheduleLabel}>Crew:</Text>
                     <Text style={s.scheduleValue}>{selectedRate.crew}</Text>
                   </View>
@@ -164,7 +164,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
 
                 {onAddToEstimate && (
                   <TouchableOpacity style={s.addBtn} onPress={handleAddToEstimate} activeOpacity={0.85}>
-                    <DollarSign size={16} color={Colors.textOnPrimary} />
+                    <DollarSign size={16} color={Colors.textOnPrimary} strokeWidth={1.75} />
                     <Text style={s.addBtnText}>Add to Estimate</Text>
                   </TouchableOpacity>
                 )}
@@ -175,7 +175,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
         ) : (
           <View style={s.body}>
             <View style={s.searchBar}>
-              <Search size={16} color={Colors.textMuted} />
+              <Search size={16} color={Colors.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={s.searchInput}
                 value={query}
@@ -185,7 +185,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
               />
               {query.length > 0 && (
                 <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={Colors.textMuted} />
+                  <X size={14} color={Colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -222,7 +222,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                       onPress={() => setExpandedId(isExpanded ? null : rate.id)}
                     >
                       <Text style={s.expandText}>{rate.dailyOutput} {rate.unit}/day</Text>
-                      {isExpanded ? <ChevronUp size={12} color={Colors.textMuted} /> : <ChevronDown size={12} color={Colors.textMuted} />}
+                      {isExpanded ? <ChevronUp size={12} color={Colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={12} color={Colors.textMuted} strokeWidth={1.75} />}
                     </TouchableOpacity>
                     {isExpanded && (
                       <View style={s.expandedContent}>

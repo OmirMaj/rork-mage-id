@@ -115,7 +115,7 @@ export default function HardHatTap({
               },
             ]}
           >
-            <HardHat size={hatSize} color={hatColor} fill={hatColor + '40'} />
+            <HardHat size={hatSize} color={hatColor} fill={hatColor + '40'} strokeWidth={1.75} />
           </Animated.View>
         )}
       </Animated.View>

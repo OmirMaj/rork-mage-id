@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, ActivityIndicator, Animated, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, Clock, Lightbulb } from 'lucide-react-native';
+import { Clock } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -108,7 +109,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
     return (
       <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
         <View style={styles.header}>
-          <Sparkles size={12} color={"#FF6A1A"} />
+          <MageAIMark size={12} color={"#FF6A1A"} />
           <Text style={styles.headerTitle}>Payment Prediction</Text>
         </View>
         <Animated.View style={[styles.skeleton, { opacity }]} />
@@ -125,7 +126,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
   return (
     <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.header}>
-        <Sparkles size={12} color={"#FF6A1A"} />
+        <MageAIMark size={12} color={"#FF6A1A"} />
         <Text style={styles.headerTitle}>Payment Prediction</Text>
         <Text style={styles.aiTag}>AI-generated</Text>
       </View>
@@ -148,7 +149,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
 
       {result.tip ? (
         <View style={styles.tipRow}>
-          <Lightbulb size={12} color={"#1565C0"} />
+          <MageAIMark size={12} color={"#1565C0"} />
           <Text style={styles.tipText}>{result.tip}</Text>
         </View>
       ) : null}

@@ -25,11 +25,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileUp, Sparkles, ShieldAlert, Eye, AlertTriangle, CheckCircle2,
-  HelpCircle, FileText, RefreshCw, ChevronRight, Crown, Zap, Ruler, Square,
+  ChevronLeft, FileUp, ShieldAlert, Eye, AlertTriangle, CheckCircle2,
+  HelpCircle, FileText, RefreshCw, ChevronRight, Crown, Ruler, Square,
   DoorOpen, AppWindow, Paintbrush, Wrench, Boxes, Pencil, BookOpen, Search,
   Gavel, X,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -543,7 +544,7 @@ function TakeoffInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Quantity takeoff</Text>
@@ -594,7 +595,7 @@ function TakeoffInner() {
               </View>
               {!isBusinessTier && (
                 <View style={styles.upsell}>
-                  <Crown size={12} color={themeColors.accent} />
+                  <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
                     Pro Takeoff is included with Business. Sonnet 4.6 (highest accuracy on stamped scans) is included with Enterprise.
                   </Text>
@@ -602,7 +603,7 @@ function TakeoffInner() {
               )}
               {isBusinessTier && !isEnterpriseTier && (
                 <View style={styles.upsell}>
-                  <Crown size={12} color={themeColors.accent} />
+                  <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
                     Sonnet 4.6 (highest accuracy on stamped + marked-up scans) is included with Enterprise.
                   </Text>
@@ -638,14 +639,14 @@ function TakeoffInner() {
 
             <TouchableOpacity style={styles.uploadCard} onPress={handlePick} activeOpacity={0.85}>
               <View style={styles.uploadIcon}>
-                <FileUp size={34} color={themeColors.accent} />
+                <FileUp size={34} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <Text style={styles.uploadTitle}>Upload a drawings PDF</Text>
               <Text style={styles.uploadBody}>
                 Architectural plans + schedules. Up to 16 pages. The AI reads dimensions, schedules, and callouts to produce LF / SF / EA / CY quantities.
               </Text>
               <View style={styles.uploadCta}>
-                <Sparkles size={14} color="#FFF" />
+                <MageAIMark size={14} color="#FFF" />
                 <Text style={styles.uploadCtaText}>Pick a PDF</Text>
               </View>
               <Text style={styles.uploadHint}>
@@ -660,7 +661,7 @@ function TakeoffInner() {
               testID="open-analyzer-link"
             >
               <View style={styles.sisterToolIconWrap}>
-                <Sparkles size={16} color={themeColors.accent} />
+                <MageAIMark size={16} color={themeColors.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sisterToolTitle}>Want a priced estimate instead?</Text>
@@ -668,14 +669,14 @@ function TakeoffInner() {
                   The AI Drawing Estimator returns a CSI-organized estimate with unit pricing, contingency, and a reasoning trail per line.
                 </Text>
               </View>
-              <ChevronRight size={16} color={themeColors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </>
         )}
 
         {error && step === 'idle' && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={themeColors.danger} />
+            <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.errorRetry} onPress={() => setError(null)}>
               <Text style={styles.errorRetryText}>Dismiss</Text>
@@ -792,7 +793,7 @@ function BuyoutPreviewModal({
               {projectName ? `Drafts for ${projectName}` : 'Pick a project — buyouts attach to a project.'}
             </Text>
           </View>
-          <TouchableOpacity onPress={onCancel} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={onCancel} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
           {drafts.map((d, idx) => {
@@ -848,7 +849,7 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const meta = MODEL_DISPLAY[modelKey];
-  const Icon = modelKey === 'gemini-2.5-pro' ? Crown : Zap;
+  const Icon = modelKey === 'gemini-2.5-pro' ? Crown : MageAIMark;
   return (
     <TouchableOpacity
       style={[
@@ -1004,18 +1005,18 @@ function ResultView({
           {modelMeta && (
             <View style={styles.modelBadge}>
               {modelUsed === 'gemini-2.5-pro'
-                ? <Crown size={10} color={themeColors.accent} />
-                : <Zap size={10} color={themeColors.textMuted} />}
+                ? <Crown size={10} color={themeColors.accent} strokeWidth={1.75} />
+                : <MageAIMark size={10} color={themeColors.textMuted} />}
               <Text style={styles.modelBadgeText}>{modelMeta.label}</Text>
             </View>
           )}
-          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={themeColors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <Text style={styles.summaryTitle}>{result.summary}</Text>
         <Text style={styles.summarySub}>{result.confidenceExplanation}</Text>
 
         <View style={styles.scaleRow}>
-          <Ruler size={14} color={themeColors.accent} />
+          <Ruler size={14} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.scaleText} numberOfLines={1}>
             Scale: {result.scale.label}
           </Text>
@@ -1067,26 +1068,26 @@ function ResultView({
         <TouchableOpacity style={styles.teaserCard} onPress={onUpgrade} activeOpacity={0.85}>
           <View style={styles.teaserHead}>
             <View style={styles.teaserIcon}>
-              <Crown size={16} color={themeColors.accent} />
+              <Crown size={16} color={themeColors.accent} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.teaserEyebrow}>Business tier · Pro Takeoff</Text>
               <Text style={styles.teaserTitle}>Want sharper counts on this set?</Text>
             </View>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </View>
           <Text style={styles.teaserBody}>
             Pro Takeoff reads schedules more reliably, escalates ambiguous wall heights to concerns, and won&apos;t guess at unlabeled areas — better numbers when drawings are incomplete.
           </Text>
           <View style={styles.teaserCta}>
             <Text style={styles.teaserCtaText}>Upgrade to Business</Text>
-            <ChevronRight size={14} color="#FFF" />
+            <ChevronRight size={14} color="#FFF" strokeWidth={1.75} />
           </View>
         </TouchableOpacity>
       )}
 
       {/* Pages the AI saw */}
-      <SectionHeader icon={<Eye size={16} color={themeColors.accent} />} title="Pages the AI read" />
+      <SectionHeader icon={<Eye size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Pages the AI read" />
       <Text style={styles.sectionHelper}>
         Verify these match what you uploaded. If a page is &quot;poor,&quot; rerun with a higher-resolution scan. Tap a thumbnail to inspect the page + every quantity extracted from it.
       </Text>
@@ -1117,7 +1118,7 @@ function ResultView({
                 <Text style={styles.drawingType}>{d.type}</Text>
                 <Text style={styles.drawingScope} numberOfLines={3}>{d.scope}</Text>
               </View>
-              <ChevronRight size={14} color={themeColors.textMuted} />
+              <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           );
         })}
@@ -1126,7 +1127,7 @@ function ResultView({
       {/* Walls */}
       {result.walls.length > 0 && (
         <QuantitySection
-          icon={<Ruler size={16} color={themeColors.accent} />}
+          icon={<Ruler size={16} color={themeColors.accent} strokeWidth={1.75} />}
           title={`Walls (${result.walls.length})`}
           helper="Length × height × 2 sides → finishable surface area."
         >
@@ -1158,7 +1159,7 @@ function ResultView({
       {/* Floor areas */}
       {result.floorAreas.length > 0 && (
         <QuantitySection
-          icon={<Square size={16} color={themeColors.accent} />}
+          icon={<Square size={16} color={themeColors.accent} strokeWidth={1.75} />}
           title={`Floor areas (${result.floorAreas.length})`}
           helper="Net floor SF per room. Subtotals what you'll bid for finishes + structure."
         >
@@ -1190,7 +1191,7 @@ function ResultView({
       {/* Doors */}
       {result.doors.length > 0 && (
         <QuantitySection
-          icon={<DoorOpen size={16} color={themeColors.accent} />}
+          icon={<DoorOpen size={16} color={themeColors.accent} strokeWidth={1.75} />}
           title={`Doors (${result.doors.length} types)`}
           helper="Door schedule. Counts are by mark/type."
         >
@@ -1221,7 +1222,7 @@ function ResultView({
       {/* Windows */}
       {result.windows.length > 0 && (
         <QuantitySection
-          icon={<AppWindow size={16} color={themeColors.accent} />}
+          icon={<AppWindow size={16} color={themeColors.accent} strokeWidth={1.75} />}
           title={`Windows (${result.windows.length} types)`}
           helper="Window schedule. Counts are by mark/type."
         >
@@ -1284,7 +1285,7 @@ function ResultView({
       {/* Bulk materials */}
       {result.bulkMaterials.length > 0 && (
         <QuantitySection
-          icon={<Boxes size={16} color={themeColors.accent} />}
+          icon={<Boxes size={16} color={themeColors.accent} strokeWidth={1.75} />}
           title={`Bulk materials (${result.bulkMaterials.length})`}
           helper="Concrete, gravel base, asphalt — anything measured in volume or weight."
         >
@@ -1315,7 +1316,7 @@ function ResultView({
       {result.concerns.length > 0 && (
         <>
           <SectionHeader
-            icon={<ShieldAlert size={16} color={themeColors.accent} />}
+            icon={<ShieldAlert size={16} color={themeColors.accent} strokeWidth={1.75} />}
             title="Areas of concern"
           />
           <Text style={styles.sectionHelper}>
@@ -1349,7 +1350,7 @@ function ResultView({
 
       {result.doubleCheck.length > 0 && (
         <>
-          <SectionHeader icon={<HelpCircle size={16} color={themeColors.accent} />} title="Double-check before bidding" />
+          <SectionHeader icon={<HelpCircle size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Double-check before bidding" />
           <View style={styles.checklistCard}>
             {result.doubleCheck.map((item, idx) => (
               <View key={idx} style={styles.checklistRow}>
@@ -1363,7 +1364,7 @@ function ResultView({
 
       {result.missingScopes.length > 0 && (
         <>
-          <SectionHeader icon={<AlertTriangle size={16} color={themeColors.accent} />} title="Scopes not in these drawings" />
+          <SectionHeader icon={<AlertTriangle size={16} color={themeColors.accent} strokeWidth={1.75} />} title="Scopes not in these drawings" />
           <View style={styles.checklistCard}>
             {result.missingScopes.map((item, idx) => (
               <View key={idx} style={styles.checklistRow}>
@@ -1384,13 +1385,13 @@ function ResultView({
           <Text style={styles.ctaSecondaryText}>Run again</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.ctaPrimary} onPress={onConvert}>
-          <CheckCircle2 size={16} color="#FFF" />
+          <CheckCircle2 size={16} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.ctaPrimaryText}>Convert to estimate</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.ctaBarSecondary}>
         <TouchableOpacity style={styles.ctaPrimary} onPress={onPreviewBuyouts}>
-          <Gavel size={16} color="#FFF" />
+          <Gavel size={16} color="#FFF" strokeWidth={1.75} />
           <Text style={styles.ctaPrimaryText}>Generate sub-trade buyout packages</Text>
         </TouchableOpacity>
       </View>
@@ -1432,7 +1433,7 @@ function FinishesSection({
 
   return (
     <QuantitySection
-      icon={<Paintbrush size={16} color={themeColors.accent} />}
+      icon={<Paintbrush size={16} color={themeColors.accent} strokeWidth={1.75} />}
       title={`Finishes (${finishes.length})`}
       helper="Paint, flooring, base, casing — grouped by surface."
     >
@@ -1495,7 +1496,7 @@ function FixturesSection({
 
   return (
     <QuantitySection
-      icon={<Wrench size={16} color={themeColors.accent} />}
+      icon={<Wrench size={16} color={themeColors.accent} strokeWidth={1.75} />}
       title={`Fixtures (${fixtures.length})`}
       helper="Plumbing, electrical, HVAC, appliances — grouped by trade."
     >
@@ -1642,7 +1643,7 @@ function EditableRow({
           <Text style={[styles.rowQtyUnit, rejected && styles.rowTextRejected]}>{unit}</Text>
           {!rejected && (
             <TouchableOpacity onPress={() => { setDraft(String(quantity)); setEditing(true); }} hitSlop={6} accessibilityRole="button" accessibilityLabel="Edit">
-              <Pencil size={12} color={themeColors.textMuted} />
+              <Pencil size={12} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
           {onToggleReject && (
@@ -1655,7 +1656,7 @@ function EditableRow({
               {rejected ? (
                 <Text style={styles.rowRestoreText}>Restore</Text>
               ) : (
-                <X size={14} color={themeColors.danger} />
+                <X size={14} color={themeColors.danger} strokeWidth={1.75} />
               )}
             </TouchableOpacity>
           )}
@@ -1676,7 +1677,7 @@ function EditableRow({
             hitSlop={6}
             style={styles.rowSourceLink}
           >
-            <Eye size={11} color={themeColors.accent} />
+            <Eye size={11} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.rowSourceLinkText}>pp. {sourcePages.join(', ')}</Text>
           </TouchableOpacity>
         ) : (
@@ -1700,7 +1701,7 @@ function EditableRow({
       </View>
       {specEntry && (
         <View style={styles.specInline}>
-          <BookOpen size={11} color={themeColors.accent} />
+          <BookOpen size={11} color={themeColors.accent} strokeWidth={1.75} />
           <View style={{ flex: 1 }}>
             <Text style={styles.specInlineTitle} numberOfLines={1}>
               {specEntry.manufacturer ?? 'Spec'}{specEntry.product ? ` · ${specEntry.product}` : ''}
@@ -1739,7 +1740,7 @@ function BulkRejectToolbar({
   return (
     <View style={styles.bulkRejectCard}>
       <View style={styles.bulkRejectHead}>
-        <ShieldAlert size={14} color={themeColors.accent} />
+        <ShieldAlert size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.bulkRejectTitle}>Clean up low-confidence rows</Text>
       </View>
       <Text style={styles.bulkRejectHelper}>
@@ -1752,7 +1753,7 @@ function BulkRejectToolbar({
             onPress={onDropLow}
             activeOpacity={0.85}
           >
-            <X size={12} color={themeColors.danger} />
+            <X size={12} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.bulkRejectBtnText}>Drop {lowConfCount} low-confidence</Text>
           </TouchableOpacity>
         )}
@@ -1762,7 +1763,7 @@ function BulkRejectToolbar({
             onPress={onDropLowAndMedium}
             activeOpacity={0.85}
           >
-            <X size={12} color={themeColors.danger} />
+            <X size={12} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.bulkRejectBtnText}>Drop {lowConfCount + mediumConfCount} low + medium</Text>
           </TouchableOpacity>
         )}
@@ -1772,7 +1773,7 @@ function BulkRejectToolbar({
             onPress={onRestore}
             activeOpacity={0.85}
           >
-            <RefreshCw size={12} color={themeColors.accent} />
+            <RefreshCw size={12} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={[styles.bulkRejectBtnText, { color: themeColors.accent }]}>Restore all</Text>
           </TouchableOpacity>
         )}
@@ -1813,7 +1814,7 @@ function SpecMatchCard({
       <View style={styles.specCard}>
         <View style={styles.specCardHead}>
           <View style={styles.specCardIcon}>
-            <BookOpen size={16} color={themeColors.accent} />
+            <BookOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.specCardTitle}>Spec book matched</Text>
@@ -1856,7 +1857,7 @@ function SpecMatchCard({
     <View style={styles.specCard}>
       <View style={styles.specCardHead}>
         <View style={styles.specCardIcon}>
-          <BookOpen size={16} color={themeColors.accent} />
+          <BookOpen size={16} color={themeColors.accent} strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.specCardTitle}>Match callouts to the spec book</Text>
@@ -1869,12 +1870,12 @@ function SpecMatchCard({
       </View>
       {error && (
         <View style={[styles.errorCard, { marginBottom: 0 }]}>
-          <AlertTriangle size={14} color={themeColors.danger} />
+          <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
       <TouchableOpacity style={styles.specCardCta} onPress={onMatch} activeOpacity={0.85}>
-        <Search size={14} color="#FFF" />
+        <Search size={14} color="#FFF" strokeWidth={1.75} />
         <Text style={styles.specCardCtaText}>Pick spec book PDF</Text>
       </TouchableOpacity>
     </View>

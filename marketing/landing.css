@@ -1,6 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 /* =============================================================
    MAGE ID — marketing landing page
-   Design: industrial concrete × tech premium. Fraunces + Inter.
+   Design: industrial concrete × tech premium. Space Grotesk + mono.
    Motion: scroll-driven reveals + pinned pillars via GSAP.
    ============================================================= */
 
@@ -22,8 +24,8 @@
   --amber-glow: rgba(255, 106, 26, 0.35);
 
   /* Type */
-  --ff-serif: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --ff-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --ff-serif: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ff-sans: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
   --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
 
   /* Scale */
@@ -357,7 +359,7 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
 .hero-title .reveal-word:nth-child(2) { --i: 1; }
 .hero-title .reveal-word:nth-child(3) { --i: 2; }
 .hero-title em {
-  font-style: italic;
+  font-style: normal;
   font-weight: 600;
   color: var(--amber);
   font-variation-settings: "opsz" 144;
@@ -454,7 +456,7 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
   color: #fff;
 }
 .problem-headline em {
-  font-style: italic;
+  font-style: normal;
   color: var(--amber);
   font-weight: 600;
 }
@@ -1183,7 +1185,7 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
   color: #fff;
 }
 .cta-h em {
-  font-style: italic;
+  font-style: normal;
   font-weight: 600;
   color: var(--amber);
 }
@@ -1277,4 +1279,155 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
   }
   .reveal, .reveal-word { opacity: 1; transform: none; }
   .cursor-blob { display: none; }
+}
+
+/* ============================================================
+   Editorial motion layer (recent.design-inspired). Additive —
+   shared across every marketing page via landing.css.
+   ============================================================ */
+
+/* Scroll-progress hairline (amber), pinned to the very top */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; height: 2px; width: 100%;
+  transform: scaleX(0); transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--amber), var(--amber-hot));
+  z-index: 1000; pointer-events: none;
+}
+
+/* Hero words wipe up out of a mask (in addition to the rise/fade) */
+.hero-title .reveal-word {
+  clip-path: inset(-0.12em -0.06em 110% -0.06em);
+  transition: opacity 0.95s var(--ease-out),
+              transform 0.95s var(--ease-out),
+              clip-path 0.95s var(--ease-out);
+}
+.hero-title .reveal-word.is-in { clip-path: inset(-0.12em -0.06em -0.28em -0.06em); }
+
+/* Kinetic marquee band */
+.marquee {
+  overflow: hidden; background: var(--ink);
+  border-top: 1px solid rgba(244, 239, 230, 0.08);
+  border-bottom: 1px solid rgba(244, 239, 230, 0.08);
+  padding: 22px 0; user-select: none;
+}
+.marquee-track { display: inline-flex; white-space: nowrap; will-change: transform, translate; translate: 0; animation: marquee 30s linear infinite; }
+.marquee { will-change: transform; transition: transform 0.2s ease-out; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee-item {
+  font-family: var(--ff-serif); font-weight: 600; font-style: normal;
+  font-size: clamp(1.35rem, 3.2vw, 2.4rem); letter-spacing: -0.015em;
+  color: var(--cream); padding: 0 6px; opacity: 0.92;
+}
+.marquee-item .dot { color: var(--amber); font-style: normal; padding: 0 22px; }
+@keyframes marquee { from { translate: 0; } to { translate: -50% 0; } }
+
+/* Tilt + lift on interactive cards */
+.tilt { transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease); transform-style: preserve-3d; }
+.moat-card { transition: transform 0.3s var(--ease), border-color 0.3s var(--ease), box-shadow 0.3s var(--ease); }
+.moat-card:hover { transform: translateY(-4px); border-color: rgba(255, 106, 26, 0.35); box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.7); }
+
+/* Staggered group reveals (set by JS via --d) */
+.reveal[style*="--d"], .reveal-word[style*="--d"] { transition-delay: calc(var(--d) * 80ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+  .hero-title .reveal-word { clip-path: none; }
+}
+
+/* ============================================================
+   "Cool stuff" layer 2 — smooth-scroll feel, blur-in reveals,
+   nav underlines, reverse marquee. Shared across every page.
+   ============================================================ */
+
+/* Blur-in on every reveal (premium focus-pull feel) */
+.reveal, .reveal-word {
+  filter: blur(8px);
+  transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out), filter 0.9s var(--ease-out);
+}
+.reveal.is-in, .reveal-word.is-in { filter: blur(0); }
+
+/* Animated amber underline on nav links */
+.nav-links a::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -4px;
+  height: 1.5px; background: var(--amber);
+  transform: scaleX(0); transform-origin: 0 50%;
+  transition: transform 0.32s var(--ease);
+}
+.nav-links a:hover::after { transform: scaleX(1); }
+
+/* Reverse-direction marquee (rhythm near the footer) */
+.marquee-rev .marquee-track { animation-direction: reverse; animation-duration: 38s; }
+.marquee-rev .marquee-item { color: var(--fog); }
+.marquee-rev .marquee-item .dot { color: var(--amber); }
+
+/* Lenis smooth-scroll hook */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-word { filter: none; }
+}
+
+/* Hero product visual (phone) */
+@media (min-width: 961px) {
+  .hero-content {
+    display: grid; grid-template-columns: 1.05fr 0.95fr;
+    gap: clamp(30px, 5vw, 64px); align-items: center; max-width: 1200px;
+  }
+}
+.hero-copy { min-width: 0; }
+.hero-visual { display: flex; justify-content: center; }
+.phone {
+  width: min(320px, 80vw); border-radius: 38px; padding: 10px;
+  background: linear-gradient(160deg, #23282f, #0e1116);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 44px 90px -32px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: rotate(2.5deg);
+  animation: heroFloat 6s var(--ease) infinite;
+}
+.phone img { width: 100%; display: block; border-radius: 30px; }
+@keyframes heroFloat {
+  0%, 100% { transform: rotate(2.5deg) translateY(0); }
+  50% { transform: rotate(2.5deg) translateY(-12px); }
+}
+@media (max-width: 960px) { .hero-visual { display: none; } }
+@media (prefers-reduced-motion: reduce) { .phone { animation: none; } }
+
+/* ============================================================
+   PEAK ANIMATION — intro curtain, hero aurora, pillar clip-reveal
+   ============================================================ */
+
+/* Page-load intro curtain (overlay injected by motion.js) */
+.intro {
+  position: fixed; inset: 0; z-index: 9999; background: var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.85s cubic-bezier(0.76, 0, 0.24, 1);
+}
+.intro.intro-out { transform: translateY(-101%); }
+html.intro-on, html.intro-on body { overflow: hidden; }
+.intro-inner { display: flex; align-items: center; gap: 16px; opacity: 0; transform: translateY(14px); animation: introIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.12s forwards; }
+.intro-spark { animation: introSpark 1.1s ease-in-out infinite alternate; }
+.intro-word { font-family: var(--ff-serif); font-weight: 700; font-size: clamp(30px, 7vw, 60px); letter-spacing: -0.03em; color: var(--cream); }
+.intro-word b { color: var(--amber); font-weight: 700; }
+@keyframes introIn { to { opacity: 1; transform: none; } }
+@keyframes introSpark { from { transform: rotate(0deg) scale(1); } to { transform: rotate(90deg) scale(1.18); } }
+
+/* Hero aurora — slow amber sweep behind everything */
+.hero::after {
+  content: ""; position: absolute; inset: -25%; z-index: -2; pointer-events: none;
+  background: conic-gradient(from 0deg at 32% 28%, transparent 0%, var(--amber-soft) 18%, transparent 42%, transparent 100%);
+  filter: blur(90px); opacity: 0.55; animation: auroraSpin 26s linear infinite;
+}
+@keyframes auroraSpin { to { transform: rotate(360deg); } }
+
+/* Pillar mockups wipe in (clip) on top of the existing parallax */
+.pillar-mockup { clip-path: inset(0 0 0 8%); }
+.pillar.is-in .pillar-mockup { clip-path: inset(0 0 0 0); transition: clip-path 1s cubic-bezier(0.16,1,0.3,1) 0.15s, opacity 0.8s, transform 0.8s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero::after { animation: none; }
+  .intro-spark { animation: none; }
+  .pillar-mockup { clip-path: none; }
 }

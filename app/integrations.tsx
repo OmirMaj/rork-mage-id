@@ -62,7 +62,7 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
           <View style={styles.cardNameRow}>
             <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
             {item.tier === 'link' && (
-              <ExternalLink size={12} color={themeColors.textMuted} style={{ marginLeft: 4 }} />
+              <ExternalLink size={12} color={themeColors.textMuted} style={{ marginLeft: 4 }} strokeWidth={1.75} />
             )}
           </View>
           <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
@@ -196,10 +196,10 @@ export default function IntegrationsScreen() {
         </View>
         <View style={styles.heroSection}>
           <View style={styles.heroIconWrap}>
-            <Wifi size={28} color={themeColors.accent} />
+            <Wifi size={28} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroTitle}>Integrations Hub</Text>
-          <Text style={styles.heroSubtitle}>Connect your favorite tools and services</Text>
+          <Text style={styles.heroSubtitle}>QuickBooks, plans, and payments — wired into your jobs.</Text>
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
               <Text style={[styles.heroStatValue, { color: themeColors.accent }]}>{connectedCount}</Text>
@@ -244,7 +244,7 @@ export default function IntegrationsScreen() {
 
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
-            <Search size={32} color={themeColors.textMuted} />
+            <Search size={32} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No integrations found</Text>
             <Text style={styles.emptyDesc}>Try a different category or search term</Text>
           </View>

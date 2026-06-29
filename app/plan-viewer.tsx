@@ -323,7 +323,7 @@ function PlanViewerScreenInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-            <ChevronLeft size={22} color={themeColors.text} />
+            <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sheet not found</Text>
         </View>
@@ -338,7 +338,7 @@ function PlanViewerScreenInner() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           {sheet.sheetNumber ? <Text style={styles.headerEyebrow}>{sheet.sheetNumber}</Text> : null}
@@ -523,7 +523,7 @@ function PlanViewerScreenInner() {
       {/* Mode hint line (measure / calibrate) */}
       {(mode === 'measure' || mode === 'calibrate') && (
         <View style={styles.hintBar}>
-          <Ruler size={14} color={themeColors.accent} />
+          <Ruler size={14} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.hintText}>
             {mode === 'measure'
               ? (scaleFtPerPx
@@ -535,7 +535,7 @@ function PlanViewerScreenInner() {
                  pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
           </Text>
           <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <X size={14} color={themeColors.textSecondary} />
+            <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
       )}
@@ -546,14 +546,14 @@ function PlanViewerScreenInner() {
           style={[styles.toolBtn, mode === 'pin' && styles.toolBtnActive]}
           onPress={() => switchMode('pin')}
         >
-          <MapPin size={18} color={mode === 'pin' ? '#FFFFFF' : themeColors.text} />
+          <MapPin size={18} color={mode === 'pin' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, mode === 'pin' && styles.toolBtnTextActive]}>Pin</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.toolBtn, mode === 'draw' && styles.toolBtnActive]}
           onPress={() => switchMode('draw')}
         >
-          <Pencil size={18} color={mode === 'draw' ? '#FFFFFF' : themeColors.text} />
+          <Pencil size={18} color={mode === 'draw' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, mode === 'draw' && styles.toolBtnTextActive]}>Draw</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -561,7 +561,7 @@ function PlanViewerScreenInner() {
           onPress={() => switchMode('measure')}
           disabled={!scaleFtPerPx}
         >
-          <Ruler size={18} color={!scaleFtPerPx ? themeColors.textMuted : mode === 'measure' ? '#FFFFFF' : themeColors.text} />
+          <Ruler size={18} color={!scaleFtPerPx ? themeColors.textMuted : mode === 'measure' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
           <Text style={[
             styles.toolBtnText,
             mode === 'measure' && styles.toolBtnTextActive,
@@ -572,13 +572,13 @@ function PlanViewerScreenInner() {
           style={[styles.toolBtn, mode === 'calibrate' && styles.toolBtnActive]}
           onPress={() => switchMode('calibrate')}
         >
-          <Check size={18} color={mode === 'calibrate' ? '#FFFFFF' : (calibration ? themeColors.success : themeColors.text)} />
+          <Check size={18} color={mode === 'calibrate' ? '#FFFFFF' : (calibration ? themeColors.success : themeColors.text)} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, mode === 'calibrate' && styles.toolBtnTextActive]}>
             {calibration ? 'Re-cal' : 'Calibrate'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.toolBtn} onPress={undoLastMarkup} disabled={markups.length === 0}>
-          <Undo2 size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} />
+          <Undo2 size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Undo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.toolBtn} onPress={() => {
@@ -588,7 +588,7 @@ function PlanViewerScreenInner() {
             { text: 'Clear', style: 'destructive', onPress: () => markups.forEach(m => deletePlanMarkup(m.id)) },
           ]);
         }} disabled={markups.length === 0}>
-          <Eraser size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} />
+          <Eraser size={18} color={markups.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.toolBtnText, markups.length === 0 && styles.toolBtnTextDisabled]}>Clear</Text>
         </TouchableOpacity>
       </View>
@@ -648,11 +648,11 @@ function PlanViewerScreenInner() {
           <View style={[styles.modalCard, { paddingBottom: 24 }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ruler size={16} color={themeColors.accent} />
+                <Ruler size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.modalTitle}>Set scale</Text>
               </View>
               <TouchableOpacity onPress={() => { setCalibrationInput(null); setPointBuffer([]); }} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.emptyHint}>
@@ -670,7 +670,7 @@ function PlanViewerScreenInner() {
               <Text style={styles.unitLabel}>ft</Text>
             </View>
             <TouchableOpacity style={[styles.primaryBtn, { marginTop: 10 }]} onPress={confirmCalibration}>
-              <Check size={16} color={'#FFFFFF'} />
+              <Check size={16} color={'#FFFFFF'} strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>Set scale</Text>
             </TouchableOpacity>
           </View>
@@ -724,13 +724,13 @@ function PinDetailModal({
           <View style={styles.modalHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={[styles.modalPinBadge, { backgroundColor: pin.color ?? PIN_COLORS[pin.kind] }]}>
-                <MapPin size={12} color={themeColors.surface} />
+                <MapPin size={12} color={themeColors.surface} strokeWidth={1.75} />
               </View>
               <Text style={styles.modalTitle}>
                 {view === 'main' ? 'Pin' : view === 'photo' ? 'Link a photo' : 'Link a punch item'}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           {view === 'main' && (
@@ -750,17 +750,17 @@ function PinDetailModal({
                   style={styles.linkCell}
                   onPress={onAddPhoto}
                 >
-                  <Camera size={16} color={themeColors.accent} />
+                  <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.linkCellTitle}>Take photo</Text>
                   <Text style={styles.linkCellSub}>Shoot & pin it here</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('photo')}>
-                  <ImageIcon size={16} color={themeColors.accent} />
+                  <ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.linkCellTitle}>Existing photo</Text>
                   <Text style={styles.linkCellSub}>Link one already on file</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('punch')}>
-                  <ClipboardList size={16} color={themeColors.accent} />
+                  <ClipboardList size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.linkCellTitle}>Punch item</Text>
                   <Text style={styles.linkCellSub}>Link to open punch</Text>
                 </TouchableOpacity>
@@ -769,15 +769,15 @@ function PinDetailModal({
               {/* RFI from this drawing location — Pin, Ask, Done. */}
               {linkedRfi ? (
                 <TouchableOpacity style={styles.linkedRow} onPress={onOpenRfi} activeOpacity={0.8} testID="pin-open-rfi">
-                  <FileText size={14} color={PIN_COLORS.rfi} />
+                  <FileText size={14} color={PIN_COLORS.rfi} strokeWidth={1.75} />
                   <Text style={styles.linkedText} numberOfLines={1}>RFI #{linkedRfi.number}: {linkedRfi.subject}</Text>
-                  <ChevronRight size={16} color={themeColors.textSecondary} />
+                  <ChevronRight size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={styles.rfiBtn} onPress={onRaiseRfi} activeOpacity={0.85} testID="pin-raise-rfi">
-                  <FileText size={16} color={themeColors.accent} />
+                  <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.rfiBtnText}>Raise RFI from this location</Text>
-                  <ChevronRight size={16} color={themeColors.accent} />
+                  <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
 
@@ -786,16 +786,16 @@ function PinDetailModal({
                   <Image source={{ uri: linkedPhoto.uri }} style={styles.linkedThumb} />
                   <Text style={styles.linkedText}>Photo linked</Text>
                   <TouchableOpacity onPress={() => onUpdate({ linkedPhotoId: undefined, kind: 'note' })} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={themeColors.textSecondary} />
+                    <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               )}
               {linkedPunch && (
                 <View style={styles.linkedRow}>
-                  <ClipboardList size={14} color={themeColors.accent} />
+                  <ClipboardList size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.linkedText} numberOfLines={2}>{linkedPunch.description}</Text>
                   <TouchableOpacity onPress={() => onUpdate({ linkedPunchItemId: undefined, kind: 'note' })} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={14} color={themeColors.textSecondary} />
+                    <X size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               )}
@@ -806,7 +806,7 @@ function PinDetailModal({
                   { text: 'Delete', style: 'destructive', onPress: onDelete },
                 ]);
               }}>
-                <Trash2 size={15} color={themeColors.danger} />
+                <Trash2 size={15} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.deleteBtnText}>Delete pin</Text>
               </TouchableOpacity>
             </>
@@ -843,7 +843,7 @@ function PhotoPicker({ photos, onPick, onBack }: {
   return (
     <View>
       <TouchableOpacity onPress={onBack} style={styles.backLink}>
-        <ChevronLeft size={14} color={themeColors.accent} />
+        <ChevronLeft size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.backLinkText}>Back</Text>
       </TouchableOpacity>
       {photos.length === 0 ? (
@@ -872,7 +872,7 @@ function PunchPicker({ items, onPick, onBack }: {
   return (
     <View>
       <TouchableOpacity onPress={onBack} style={styles.backLink}>
-        <ChevronLeft size={14} color={themeColors.accent} />
+        <ChevronLeft size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.backLinkText}>Back</Text>
       </TouchableOpacity>
       {open.length === 0 ? (
@@ -881,12 +881,12 @@ function PunchPicker({ items, onPick, onBack }: {
         <ScrollView style={{ maxHeight: 260 }}>
           {open.map(pi => (
             <TouchableOpacity key={pi.id} onPress={() => onPick(pi.id)} style={styles.punchRow}>
-              <ClipboardList size={14} color={themeColors.accent} />
+              <ClipboardList size={14} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.punchRowTitle} numberOfLines={2}>{pi.description}</Text>
                 {pi.location ? <Text style={styles.punchRowSub}>{pi.location}</Text> : null}
               </View>
-              <Check size={14} color={themeColors.accent} />
+              <Check size={14} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ))}
         </ScrollView>

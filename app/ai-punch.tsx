@@ -21,8 +21,9 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { generateUUID } from '@/utils/generateId';
 import {
-  Camera, ImagePlus, Sparkles, X, Trash2, ChevronRight, Save, AlertCircle,
+  Camera, ImagePlus, X, Trash2, ChevronRight, Save, AlertCircle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -379,7 +380,7 @@ export default function AiPunchScreen() {
               feels the same surface across the app. */}
           <View style={styles.hero}>
             <View style={styles.heroIconWrap}>
-              <Sparkles size={28} color={"#FF6A1A"} />
+              <MageAIMark size={28} color={"#FF6A1A"} />
             </View>
             <Text style={styles.heroTitle}>AI Punch from Photos</Text>
             <Text style={styles.heroSub}>
@@ -395,11 +396,11 @@ export default function AiPunchScreen() {
               <View style={styles.section}>
                 <View style={styles.sourceRow}>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handleTakePhoto} activeOpacity={0.85}>
-                    <Camera size={16} color={"#FF6A1A"} />
+                    <Camera size={16} color={"#FF6A1A"} strokeWidth={1.75} />
                     <Text style={styles.sourceBtnText}>Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handlePickFromCameraRoll} activeOpacity={0.85}>
-                    <ImagePlus size={16} color={"#FF6A1A"} />
+                    <ImagePlus size={16} color={"#FF6A1A"} strokeWidth={1.75} />
                     <Text style={styles.sourceBtnText}>Photo library</Text>
                   </TouchableOpacity>
                 </View>
@@ -418,7 +419,7 @@ export default function AiPunchScreen() {
                           style={styles.thumbRemove}
                           onPress={() => setPickedPhotos(prev => prev.filter(x => x.id !== p.id))}
                           hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                          <X size={12} color="#FFF" />
+                          <X size={12} color="#FFF" strokeWidth={1.75} />
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -470,7 +471,7 @@ export default function AiPunchScreen() {
           {!!error && (
             <View style={styles.section}>
               <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={"#C84038"} />
+                <AlertCircle size={14} color={"#C84038"} strokeWidth={1.75} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             </View>
@@ -483,7 +484,7 @@ export default function AiPunchScreen() {
           {!!notice && (
             <View style={styles.section}>
               <View style={styles.noticeBanner}>
-                <AlertCircle size={14} color={Colors.warning} />
+                <AlertCircle size={14} color={Colors.warning} strokeWidth={1.75} />
                 <Text style={styles.noticeText}>{notice}</Text>
               </View>
             </View>
@@ -537,11 +538,11 @@ export default function AiPunchScreen() {
                         {!item.saved ? (
                           <>
                             <TouchableOpacity style={styles.discardBtn} onPress={() => updateReviewItem(item.id, { discarded: true })}>
-                              <Trash2 size={14} color={"#C84038"} />
+                              <Trash2 size={14} color={"#C84038"} strokeWidth={1.75} />
                               <Text style={styles.discardBtnText}>Discard</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.saveOneBtn} onPress={() => handleSaveOne(item)} activeOpacity={0.85}>
-                              <Save size={14} color="#FFF" />
+                              <Save size={14} color="#FFF" strokeWidth={1.75} />
                               <Text style={styles.saveOneBtnText}>Save</Text>
                             </TouchableOpacity>
                           </>
@@ -573,9 +574,9 @@ export default function AiPunchScreen() {
                 </>
               ) : (
                 <>
-                  <Sparkles size={16} color="#FFF" />
+                  <MageAIMark size={16} color="#FFF" />
                   <Text style={styles.fabPrimaryText}>Run AI · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
-                  <ChevronRight size={16} color="#FFF" />
+                  <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
                 </>
               )}
             </TouchableOpacity>
@@ -593,7 +594,7 @@ export default function AiPunchScreen() {
                 </>
               ) : (
                 <>
-                  <Save size={16} color="#FFF" />
+                  <Save size={16} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.fabPrimaryText}>Save all {pendingCount} item{pendingCount === 1 ? '' : 's'}</Text>
                 </>
               )}
@@ -605,7 +606,7 @@ export default function AiPunchScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.fabPrimaryText}>Open punch list</Text>
-              <ChevronRight size={16} color="#FFF" />
+              <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
             </TouchableOpacity>
           )}
         </View>

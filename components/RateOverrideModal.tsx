@@ -245,7 +245,7 @@ function RateOverrideModalImpl({
               accessibilityRole="button"
               accessibilityLabel={subForm ? 'Back' : 'Close'}
             >
-              <ChevronLeft size={18} color={themeColors.text} />
+              <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
             <Text style={styles.title}>
               {subForm
@@ -261,7 +261,7 @@ function RateOverrideModalImpl({
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <X size={18} color={themeColors.text} />
+              <X size={18} color={themeColors.text} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -313,7 +313,7 @@ function RateOverrideModalImpl({
                   onPress={handleSubFormSave}
                   activeOpacity={0.85}
                 >
-                  <CheckCircle2 size={14} color="#FFF" />
+                  <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.primaryBtnText}>
                     {subForm.editingId ? 'Save changes' : 'Add override'}
                   </Text>
@@ -352,7 +352,7 @@ function RateOverrideModalImpl({
                           <ChevronLeft
                             size={14}
                             color={themeColors.accent}
-                            style={{ transform: [{ rotate: '180deg' }] }}
+                            style={{ transform: [{ rotate: '180deg' }] }} strokeWidth={1.75}
                           />
                           <Text style={[styles.rowBtnText, { color: themeColors.accent }]}>Edit</Text>
                         </TouchableOpacity>
@@ -363,13 +363,13 @@ function RateOverrideModalImpl({
                           accessibilityRole="button"
                           accessibilityLabel={`Delete ${display}`}
                         >
-                          <Trash2 size={13} color="#FF3B30" />
+                          <Trash2 size={13} color="#FF3B30" strokeWidth={1.75} />
                         </TouchableOpacity>
                       </View>
                     );
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddLabor} activeOpacity={0.8}>
-                    <Plus size={14} color={themeColors.accent} />
+                    <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>＋ Labor rate</Text>
                   </TouchableOpacity>
                 </View>
@@ -398,7 +398,7 @@ function RateOverrideModalImpl({
                           <ChevronLeft
                             size={14}
                             color={themeColors.accent}
-                            style={{ transform: [{ rotate: '180deg' }] }}
+                            style={{ transform: [{ rotate: '180deg' }] }} strokeWidth={1.75}
                           />
                           <Text style={[styles.rowBtnText, { color: themeColors.accent }]}>Edit</Text>
                         </TouchableOpacity>
@@ -409,13 +409,13 @@ function RateOverrideModalImpl({
                           accessibilityRole="button"
                           accessibilityLabel={`Delete ${display}`}
                         >
-                          <Trash2 size={13} color="#FF3B30" />
+                          <Trash2 size={13} color="#FF3B30" strokeWidth={1.75} />
                         </TouchableOpacity>
                       </View>
                     );
                   })}
                   <TouchableOpacity style={styles.addRowBtn} onPress={openAddMaterial} activeOpacity={0.8}>
-                    <Plus size={14} color={themeColors.accent} />
+                    <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={[styles.addRowBtnText, { color: themeColors.accent }]}>＋ Material price</Text>
                   </TouchableOpacity>
                 </View>
@@ -438,7 +438,7 @@ function RateOverrideModalImpl({
                   onPress={onClose}
                   activeOpacity={0.85}
                 >
-                  <CheckCircle2 size={14} color="#FFF" />
+                  <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.primaryBtnText}>Done</Text>
                 </TouchableOpacity>
               </View>

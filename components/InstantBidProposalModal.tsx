@@ -15,7 +15,8 @@ import {
   ActivityIndicator, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Zap, Sparkles, Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
+import { Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -119,17 +120,17 @@ export default function InstantBidProposalModal({
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.head}>
-            <View style={styles.headIcon}><Zap size={16} color="#FFF" /></View>
+            <View style={styles.headIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Instant Bid</Text>
               <Text style={styles.sub} numberOfLines={1}>for {lead.name}</Text>
             </View>
-            <TouchableOpacity onPress={handleClose} hitSlop={8}><X size={20} color={colors.textMuted} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} hitSlop={8}><X size={20} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           {sent ? (
             <View style={styles.sentWrap}>
-              <View style={styles.sentIcon}><CheckCircle2 size={36} color={colors.success} /></View>
+              <View style={styles.sentIcon}><CheckCircle2 size={36} color={colors.success} strokeWidth={1.75} /></View>
               <Text style={styles.sentTitle}>Proposal logged</Text>
               <Text style={styles.sentBody}>
                 {lead.name} is now in the Proposal stage and the send is on their timeline.
@@ -154,7 +155,7 @@ export default function InstantBidProposalModal({
               >
                 {generating
                   ? <ActivityIndicator size="small" color="#FFF" />
-                  : <><Sparkles size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft proposal</Text></>}
+                  : <><MageAIMark size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft proposal</Text></>}
               </TouchableOpacity>
             </View>
           ) : (
@@ -180,14 +181,14 @@ export default function InstantBidProposalModal({
                           </View>
                           <Text style={styles.tierTagline}>{tier.tagline}</Text>
                         </View>
-                        <View style={[styles.radio, active && styles.radioActive]}>{active && <Check size={12} color="#FFF" />}</View>
+                        <View style={[styles.radio, active && styles.radioActive]}>{active && <Check size={12} color="#FFF" strokeWidth={1.75} />}</View>
                       </View>
                       <Text style={styles.tierAmount}>{formatMoney(tier.amount)}</Text>
                       {tier.financingLine ? <Text style={styles.tierFinancing}>{tier.financingLine}</Text> : null}
                       <View style={styles.tierIncl}>
                         {tier.inclusions.slice(0, 4).map((inc, i) => (
                           <View key={i} style={styles.inclRow}>
-                            <CheckCircle2 size={11} color={colors.success} />
+                            <CheckCircle2 size={11} color={colors.success} strokeWidth={1.75} />
                             <Text style={styles.inclText} numberOfLines={1}>{inc}</Text>
                           </View>
                         ))}
@@ -199,11 +200,11 @@ export default function InstantBidProposalModal({
 
               <View style={styles.actionRow}>
                 <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85} testID="lead-bid-share">
-                  <Share2 size={15} color={colors.accent} />
+                  <Share2 size={15} color={colors.accent} strokeWidth={1.75} />
                   <Text style={styles.shareBtnText}>Share</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.primaryBtn, { flex: 1 }]} onPress={handleMarkSent} activeOpacity={0.85} testID="lead-bid-mark-sent">
-                  <Check size={16} color="#FFF" />
+                  <Check size={16} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.primaryBtnText}>Mark proposal sent</Text>
                 </TouchableOpacity>
               </View>

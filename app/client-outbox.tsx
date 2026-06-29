@@ -206,7 +206,7 @@ export default function ClientOutboxScreen() {
           style={styles.backBtn}
           accessibilityLabel="Back"
         >
-          <ChevronLeft size={22} color={colors.text} />
+          <ChevronLeft size={22} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>Client Outbox</Text>
@@ -254,7 +254,7 @@ export default function ClientOutboxScreen() {
               disabled={busy}
               testID="outbox-send-all"
             >
-              <Send size={16} color="#FFFFFF" />
+              <Send size={16} color="#FFFFFF" strokeWidth={1.75} />
               <Text style={styles.primaryText}>
                 {busy ? 'Sending…' : `Send all ${drafts.length} to client`}
               </Text>

@@ -23,6 +23,7 @@ import {
   ChevronLeft, FileText, Plus, Trash2, DollarSign, Calendar, Send,
   CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight,
 } from 'lucide-react-native';
+import { MageContract } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -405,7 +406,7 @@ export default function ContractScreen() {
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <EmptyState
-          icon={<FileSignature size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageContract size={36} color={themeColors.accent} />}
           title="No contract open yet"
           message="Contracts (scope, payment schedule, allowances, signatures) live inside a project. To start one:"
           steps={[
@@ -438,7 +439,7 @@ export default function ContractScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -453,7 +454,7 @@ export default function ContractScreen() {
             contract screen reads as part of the same design language. */}
         <View style={styles.contractHero}>
           <View style={styles.contractHeroIcon}>
-            <FileSignature size={26} color={themeColors.accent} />
+            <FileSignature size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.contractHeroTitle}>Construction Agreement</Text>
           <Text style={styles.contractHeroSub}>
@@ -484,7 +485,7 @@ export default function ContractScreen() {
           />
           <Text style={[styles.cardLabel, { marginTop: 14 }]}>Contract value</Text>
           <View style={styles.amountField}>
-            <DollarSign size={16} color={themeColors.textMuted} />
+            <DollarSign size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
               style={[styles.amountInput, isLocked && styles.inputDisabled]}
               value={String(contract.contractValue || '')}
@@ -525,7 +526,7 @@ export default function ContractScreen() {
             </View>
             {!isLocked && (
               <TouchableOpacity style={styles.smallBtn} onPress={addMilestone}>
-                <Plus size={14} color={themeColors.accent} />
+                <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.smallBtnText}>Add</Text>
               </TouchableOpacity>
             )}
@@ -583,7 +584,7 @@ export default function ContractScreen() {
             </View>
             {!isLocked && (
               <TouchableOpacity style={styles.smallBtn} onPress={addAllowance}>
-                <Plus size={14} color={themeColors.accent} />
+                <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.smallBtnText}>Add</Text>
               </TouchableOpacity>
             )}
@@ -599,7 +600,7 @@ export default function ContractScreen() {
                 placeholderTextColor={themeColors.textMuted}
               />
               <View style={styles.allowanceAmountField}>
-                <DollarSign size={12} color={themeColors.textMuted} />
+                <DollarSign size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                 <TextInput
                   style={[styles.allowanceAmount, isLocked && styles.inputDisabled]}
                   value={String(a.amount || '')}
@@ -612,7 +613,7 @@ export default function ContractScreen() {
               </View>
               {!isLocked && (
                 <TouchableOpacity onPress={() => removeAllowance(a.id)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={themeColors.danger} />
+                  <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -673,14 +674,14 @@ export default function ContractScreen() {
               onPress={handleSaveDraft}
               variant="secondary"
               loading={saving}
-              iconLeft={<Edit3 size={14} color={themeColors.text} />}
+              iconLeft={<Edit3 size={14} color={themeColors.text} strokeWidth={1.75} />}
               style={{ flex: 1 }}
             />
             <Button
               label="Sign & send"
               onPress={() => setSignatureModal(true)}
               disabled={!scheduleMatchesValue || saving}
-              iconLeft={<FileSignature size={16} color="#FFF" />}
+              iconLeft={<FileSignature size={16} color="#FFF" strokeWidth={1.75} />}
               style={{ flex: 1 }}
             />
           </View>
@@ -688,7 +689,7 @@ export default function ContractScreen() {
 
         {contract.status === 'sent' && (
           <View style={styles.statusBanner}>
-            <Send size={16} color={themeColors.accent} />
+            <Send size={16} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
               <Text style={styles.statusBannerTitle}>Sent to the homeowner</Text>
               <Text style={styles.statusBannerBody}>
@@ -701,7 +702,7 @@ export default function ContractScreen() {
         {contract.status === 'signed' && (
           <>
             <View style={[styles.statusBanner, { backgroundColor: themeColors.success + '0D', borderColor: themeColors.success + '30' }]}>
-              <CheckCircle2 size={16} color={themeColors.success} />
+              <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.statusBannerTitle, { color: themeColors.success }]}>Signed by both parties</Text>
                 <Text style={styles.statusBannerBody}>
@@ -717,7 +718,7 @@ export default function ContractScreen() {
                 accessibilityLabel="Seal and save signed PDF"
                 testID="contract-seal-btn"
               >
-                <FileText size={16} color="#FFF" />
+                <FileText size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.primaryBtnText}>Seal &amp; save signed PDF</Text>
               </TouchableOpacity>
             )}
@@ -729,7 +730,7 @@ export default function ContractScreen() {
                 accessibilityLabel="Download sealed signed PDF"
                 testID="contract-download-sealed-btn"
               >
-                <FileText size={16} color="#FFF" />
+                <FileText size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.primaryBtnText}>Download signed PDF</Text>
               </TouchableOpacity>
             )}
@@ -739,7 +740,7 @@ export default function ContractScreen() {
               accessibilityRole="button"
               accessibilityLabel="Create first invoice"
             >
-              <Plus size={16} color="#FFF" />
+              <Plus size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>Create first invoice</Text>
             </TouchableOpacity>
           </>
@@ -806,7 +807,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
         </View>
         <View style={{ flex: 1 }} />
         {!locked && (
-          <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.milestoneTrash} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.danger} /></TouchableOpacity>
+          <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.milestoneTrash} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
         )}
       </View>
 
@@ -830,7 +831,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
         <View style={styles.milestoneFieldCol}>
           <Text style={styles.milestoneFieldLabel}>Amount</Text>
           <View style={styles.milestoneAmountBox}>
-            <DollarSign size={14} color={themeColors.textMuted} />
+            <DollarSign size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
               style={[styles.milestoneAmountInput, locked && styles.inputDisabled]}
               value={String(milestone.amount ?? '')}
@@ -934,7 +935,7 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
             >
               {signing ? <ActivityIndicator size="small" color="#FFF" /> : (
                 <>
-                  <FileSignature size={14} color="#FFF" />
+                  <FileSignature size={14} color="#FFF" strokeWidth={1.75} />
                   <Text style={styles.modalConfirmText}>Sign & send</Text>
                 </>
               )}

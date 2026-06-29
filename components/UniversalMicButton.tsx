@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
-  Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle, Sparkles,
+  Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle,
   CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -431,7 +432,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           accessibilityLabel="Voice action"
           testID="universal-mic-fab"
         >
-          <Mic size={20} color="#FFF" />
+          <Mic size={20} color="#FFF" strokeWidth={1.75} />
         </TouchableOpacity>
       )}
       {shouldRender && variant === 'inline' && (
@@ -441,7 +442,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           activeOpacity={0.85}
           testID="universal-mic-inline"
         >
-          <Mic size={16} color={themeColors.accent} />
+          <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.inlineBtnText}>Voice action</Text>
         </TouchableOpacity>
       )}
@@ -454,7 +455,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                 <Text style={styles.modalEyebrow}>Speak it, we&apos;ll draft it</Text>
                 <Text style={styles.modalTitle}>Voice action</Text>
               </View>
-              <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} /></TouchableOpacity>
+              <TouchableOpacity style={styles.closeBtn} onPress={handleClose} hitSlop={6} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             {/* Project picker — render any time the user hasn't pinned
@@ -658,7 +659,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                       style={styles.ctaPrimary}
                       onPress={handleConfirm}
                     >
-                      <Sparkles size={14} color="#FFF" />
+                      <MageAIMark size={14} color="#FFF" />
                       <Text style={styles.ctaPrimaryText}>
                         Create {kindCTA}
                       </Text>

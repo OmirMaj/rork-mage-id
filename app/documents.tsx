@@ -58,7 +58,7 @@ function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => v
 
         {isExpiringSoon && (
           <View style={styles.expiryWarning}>
-            <AlertCircle size={12} color={Colors.warningDark} />
+            <AlertCircle size={12} color={Colors.warningDark} strokeWidth={1.75} />
             <Text style={styles.expiryWarningText}>
               Expires {new Date(doc.expiresAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
@@ -257,7 +257,7 @@ export default function DocumentsScreen() {
             anchor as the rest of the app. */}
         <View style={styles.docsHero}>
           <View style={styles.docsHeroIcon}>
-            <FileText size={26} color={themeColors.accent} />
+            <FileText size={26} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.docsHeroTitle}>Documents</Text>
           <Text style={styles.docsHeroSub}>
@@ -267,7 +267,7 @@ export default function DocumentsScreen() {
         <View style={styles.alertsRow}>
           {stats.pending > 0 && (
             <View style={[styles.alertCard, { backgroundColor: Colors.warningLight, borderColor: '#FFE0B2' }]}>
-              <PenTool size={16} color={Colors.warningDark} />
+              <PenTool size={16} color={Colors.warningDark} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.alertTitle, { color: Colors.warningDark }]}>{stats.pending} Awaiting Signature</Text>
                 <Text style={styles.alertDesc}>Documents need attention</Text>
@@ -276,7 +276,7 @@ export default function DocumentsScreen() {
           )}
           {stats.expiringSoon > 0 && (
             <View style={[styles.alertCard, { backgroundColor: Colors.errorLight, borderColor: '#FFCDD2' }]}>
-              <AlertCircle size={16} color={Colors.errorDark} />
+              <AlertCircle size={16} color={Colors.errorDark} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.alertTitle, { color: Colors.errorDark }]}>{stats.expiringSoon} Expiring Soon</Text>
                 <Text style={styles.alertDesc}>COIs expiring within 30 days</Text>
@@ -333,7 +333,7 @@ export default function DocumentsScreen() {
         <View style={styles.listSection}>
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
-              <FileText size={32} color={themeColors.textMuted} />
+              <FileText size={32} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyTitle}>No documents found</Text>
             </View>
           ) : (

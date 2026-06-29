@@ -16,7 +16,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { ChevronLeft, Trophy, TrendingUp, Target, Gem, Lightbulb } from 'lucide-react-native';
+import { ChevronLeft, Trophy, TrendingUp, Target, Gem } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -108,7 +109,7 @@ function WinOptimizerInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Win Optimizer · MAGE</Text>
@@ -186,7 +187,7 @@ function WinOptimizerInner() {
             {/* Recommended hero */}
             <View style={[styles.hero, { borderColor: t.accent }]}>
               <View style={styles.heroTopRow}>
-                <Trophy size={16} color={t.accent} />
+                <Trophy size={16} color={t.accent} strokeWidth={1.75} />
                 <Text style={styles.heroLabel}>Recommended bid</Text>
                 <View style={{ flex: 1 }} />
                 <View style={[styles.confChip, { backgroundColor: confColor + '22' }]}>
@@ -221,17 +222,17 @@ function WinOptimizerInner() {
             {/* Three options */}
             <Text style={styles.sectionTitle}>Your options</Text>
             <OptionCard
-              icon={<Target size={16} color={t.success} />}
+              icon={<Target size={16} color={t.success} strokeWidth={1.75} />}
               tag="Price to win" tagColor={t.success}
               point={result.aggressive} t={t} styles={styles}
             />
             <OptionCard
-              icon={<TrendingUp size={16} color={t.accent} />}
+              icon={<TrendingUp size={16} color={t.accent} strokeWidth={1.75} />}
               tag="Recommended" tagColor={t.accent} highlight
               point={result.recommended} t={t} styles={styles}
             />
             <OptionCard
-              icon={<Gem size={16} color={t.accentHot} />}
+              icon={<Gem size={16} color={t.accentHot} strokeWidth={1.75} />}
               tag="Hold margin" tagColor={t.accentHot}
               point={result.premium} t={t} styles={styles}
             />
@@ -241,7 +242,7 @@ function WinOptimizerInner() {
             <View style={styles.driversCard}>
               {result.drivers.map((d, i) => (
                 <View key={i} style={[styles.driverRow, i > 0 && styles.driverBorder]}>
-                  <Lightbulb size={14} color={t.accent} style={{ marginTop: 2 }} />
+                  <View style={{ marginTop: 2 }}><MageAIMark size={14} color={t.accent} /></View>
                   <Text style={styles.driverText}>{d}</Text>
                 </View>
               ))}

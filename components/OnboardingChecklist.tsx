@@ -35,9 +35,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform } 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
-  CheckCircle2, Circle, ArrowRight, X, Sparkles, FolderPlus, Calculator,
+  CheckCircle2, Circle, ArrowRight, X, FolderPlus, Calculator,
   Receipt, Building2, Wallet,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -192,7 +193,7 @@ function OnboardingChecklistImpl({
       <View style={styles.head}>
         <View style={styles.headLeft}>
           <View style={styles.headIcon}>
-            <Sparkles size={14} color={colors.accent} />
+            <MageAIMark size={14} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Get up and running</Text>
@@ -203,7 +204,7 @@ function OnboardingChecklistImpl({
             </Text>
           </View>
         </View>
-        <TouchableOpacity onPress={handleDismiss} hitSlop={10} style={styles.closeBtn} testID="onboarding-checklist-dismiss" accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={colors.textMuted} /></TouchableOpacity>
+        <TouchableOpacity onPress={handleDismiss} hitSlop={10} style={styles.closeBtn} testID="onboarding-checklist-dismiss" accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
       <View style={styles.progressTrack}>
@@ -223,7 +224,7 @@ function OnboardingChecklistImpl({
             >
               <View style={styles.itemLeft}>
                 {item.done ? (
-                  <CheckCircle2 size={18} color={colors.success} />
+                  <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} />
                 ) : (
                   <Circle size={18} color={colors.textMuted} strokeWidth={1.8} />
                 )}
@@ -235,7 +236,7 @@ function OnboardingChecklistImpl({
               {!item.done && (
                 <View style={styles.itemCta}>
                   <Text style={styles.itemCtaText}>{item.cta}</Text>
-                  <ArrowRight size={12} color={colors.accent} />
+                  <ArrowRight size={12} color={colors.accent} strokeWidth={1.75} />
                 </View>
               )}
             </TouchableOpacity>

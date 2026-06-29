@@ -266,14 +266,14 @@ export default function ReportInboxScreen() {
         <View style={styles.rowRight}>
           {item.overdue && (
             <View style={styles.overduePill}>
-              <AlertTriangle size={10} color={themeColors.danger} />
+              <AlertTriangle size={10} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={styles.overduePillText}>OVERDUE</Text>
             </View>
           )}
           <View style={[styles.badge, { backgroundColor: item.badgeBg }]}>
             <Text style={[styles.badgeText, { color: item.badgeColor }]}>{item.badgeText}</Text>
           </View>
-          <ChevronRight size={14} color={themeColors.textMuted} />
+          <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
       </TouchableOpacity>
     );
@@ -285,7 +285,7 @@ export default function ReportInboxScreen() {
         title: 'Report Inbox',
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-            <ChevronLeft size={22} color={themeColors.accent} />
+            <ChevronLeft size={22} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>Back</Text>
           </TouchableOpacity>
         ),
@@ -304,7 +304,7 @@ export default function ReportInboxScreen() {
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon={<ArrowDownRight size={32} color={themeColors.accent} />}
+          icon={<ArrowDownRight size={32} color={themeColors.accent} strokeWidth={1.75} />}
           title="Nothing in this slice"
           message="Report Inbox shows DFRs, RFIs, submittals, invoices, and change orders across every project. To populate it:"
           steps={[

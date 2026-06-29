@@ -170,7 +170,7 @@ function ProjectCard({ project, onPress, onLongPress, index = 0 }: ProjectCardPr
               </Text>
               {project.location ? (
                 <View style={styles.locationRow}>
-                  <MapPin size={11} color={colors.textMuted} />
+                  <MapPin size={11} color={colors.textMuted} strokeWidth={1.75} />
                   <Text style={[Type.monoCaption, { color: colors.textMuted }]} numberOfLines={1}>
                     {project.location}
                   </Text>

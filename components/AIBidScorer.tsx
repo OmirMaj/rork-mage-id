@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, X, CheckCircle2, Settings } from 'lucide-react-native';
+import { X, CheckCircle2, Settings } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,7 +33,7 @@ export function AIMatchBadge({ score }: { score: number }) {
   const badge = getMatchBadge(score);
   return (
     <View style={[badgeStyles.container, { backgroundColor: badge.bg }]}>
-      <Sparkles size={10} color={badge.color} />
+      <MageAIMark size={10} color={badge.color} />
       <Text style={[badgeStyles.text, { color: badge.color }]}>{badge.label}</Text>
     </View>
   );
@@ -85,7 +86,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
       <View style={[setupStyles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <View style={setupStyles.header}>
           <Text style={setupStyles.title}>Company AI Profile</Text>
-          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={setupStyles.content}>
           <Text style={setupStyles.sectionTitle}>Specialties</Text>

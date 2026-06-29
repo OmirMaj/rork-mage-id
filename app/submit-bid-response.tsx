@@ -13,9 +13,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Send, DollarSign, MessageSquare, Eye, Sparkles,
-  AlertTriangle, FileText, Zap, Check, CheckCircle2,
+  ChevronLeft, Send, DollarSign, MessageSquare, Eye,
+  AlertTriangle, FileText, Check, CheckCircle2,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -242,7 +243,7 @@ export default function SubmitBidResponseScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Submit your bid</Text>
@@ -258,7 +259,7 @@ export default function SubmitBidResponseScreen() {
         {/* ⚡ Instant Bid — one-tap AI-drafted Good/Better/Best proposal */}
         <View style={styles.instantCard}>
           <View style={styles.instantHead}>
-            <View style={styles.instantIcon}><Zap size={16} color="#FFF" /></View>
+            <View style={styles.instantIcon}><MageAIMark size={16} color="#FFF" /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.instantTitle}>Instant Bid</Text>
               <Text style={styles.instantSub}>
@@ -277,7 +278,7 @@ export default function SubmitBidResponseScreen() {
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
               <>
-                <Sparkles size={15} color="#FFF" />
+                <MageAIMark size={15} color="#FFF" />
                 <Text style={styles.instantBtnText}>{proposal ? 'Regenerate draft' : 'Draft my bid'}</Text>
               </>
             )}
@@ -313,7 +314,7 @@ export default function SubmitBidResponseScreen() {
                         <Text style={styles.tierTagline}>{tier.tagline}</Text>
                       </View>
                       <View style={[styles.tierRadio, active && styles.tierRadioActive]}>
-                        {active && <Check size={12} color="#FFF" />}
+                        {active && <Check size={12} color="#FFF" strokeWidth={1.75} />}
                       </View>
                     </View>
                     <Text style={styles.tierAmount}>{formatMoney(tier.amount)}</Text>
@@ -321,7 +322,7 @@ export default function SubmitBidResponseScreen() {
                     <View style={styles.tierIncl}>
                       {tier.inclusions.slice(0, 4).map((inc, i) => (
                         <View key={i} style={styles.tierInclRow}>
-                          <CheckCircle2 size={11} color={themeColors.success} />
+                          <CheckCircle2 size={11} color={themeColors.success} strokeWidth={1.75} />
                           <Text style={styles.tierInclText} numberOfLines={1}>{inc}</Text>
                         </View>
                       ))}
@@ -348,7 +349,7 @@ export default function SubmitBidResponseScreen() {
             onPress={() => setViewSiteFirst(v => !v)}
             activeOpacity={0.85}
           >
-            <Eye size={16} color={viewSiteFirst ? themeColors.accent : themeColors.textMuted} />
+            <Eye size={16} color={viewSiteFirst ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
             <Text style={[styles.toggleText, viewSiteFirst && styles.toggleTextActive]}>
               {viewSiteFirst ? 'Requesting a site visit before quoting' : 'Request site visit before quoting'}
             </Text>
@@ -360,7 +361,7 @@ export default function SubmitBidResponseScreen() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Estimate amount *</Text>
             <View style={styles.amountField}>
-              <DollarSign size={16} color={themeColors.textMuted} />
+              <DollarSign size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={styles.amountInput}
                 value={estimateAmount}
@@ -406,7 +407,7 @@ export default function SubmitBidResponseScreen() {
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Submitting as</Text>
           <View style={styles.identityRow}>
-            <FileText size={14} color={themeColors.accent} />
+            <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.identityText}>
               {company?.companyName ?? user?.name ?? user?.email ?? 'Anonymous'}
               {company?.city && company?.state ? ` · ${company.city}, ${company.state}` : ''}
@@ -421,7 +422,7 @@ export default function SubmitBidResponseScreen() {
 
         {error && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={themeColors.danger} />
+            <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -436,7 +437,7 @@ export default function SubmitBidResponseScreen() {
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <>
-              {viewSiteFirst ? <MessageSquare size={16} color="#FFF" /> : <Send size={16} color="#FFF" />}
+              {viewSiteFirst ? <MessageSquare size={16} color="#FFF" strokeWidth={1.75} /> : <Send size={16} color="#FFF" strokeWidth={1.75} />}
               <Text style={styles.submitBtnText}>
                 {viewSiteFirst ? 'Send site-visit request' : 'Send bid'}
               </Text>

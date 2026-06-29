@@ -23,8 +23,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import {
-  Plus, Phone, Mail, Clock, TrendingUp, Mic, Sparkles, ChevronRight, Upload,
+  Plus, Phone, Mail, Clock, TrendingUp, Mic, ChevronRight, Upload,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -131,7 +132,7 @@ export default function LeadsScreen() {
               accessibilityLabel="Import clients"
               testID="leads-import"
             >
-              <Upload size={20} color={themeColors.accent} />
+              <Upload size={20} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -165,7 +166,7 @@ export default function LeadsScreen() {
 
         {leads.length === 0 && (
           <View style={styles.emptyBanner}>
-            <Sparkles size={20} color={themeColors.accent} />
+            <MageAIMark size={20} color={themeColors.accent} />
             <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
             <Text style={styles.emptyBannerBody}>
               Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
@@ -176,7 +177,7 @@ export default function LeadsScreen() {
               activeOpacity={0.85}
               testID="leads-empty-import"
             >
-              <Upload size={15} color="#FFF" />
+              <Upload size={15} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.emptyImportBtnText}>Import your existing clients</Text>
             </TouchableOpacity>
           </View>
@@ -225,7 +226,7 @@ export default function LeadsScreen() {
             onPress={() => router.push({ pathname: '/lead-detail' as never, params: { mode: 'new' } as never })}
             activeOpacity={0.85}
           >
-            <Plus size={18} color={themeColors.text} />
+            <Plus size={18} color={themeColors.text} strokeWidth={1.75} />
             <Text style={styles.fabSecondaryText}>Add by hand</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -234,9 +235,9 @@ export default function LeadsScreen() {
             disabled={creating}
             activeOpacity={0.85}
           >
-            <Mic size={18} color="#FFF" />
+            <Mic size={18} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.fabPrimaryText}>{creating ? 'Adding…' : 'New lead by voice'}</Text>
-            <Sparkles size={12} color="#FFF" />
+            <MageAIMark size={12} color="#FFF" />
           </TouchableOpacity>
         </View>
 
@@ -276,7 +277,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
         <Text style={styles.cardName} numberOfLines={1}>{lead.name}</Text>
         {lead.score != null && (
           <View style={[styles.scoreBadge, lead.score >= 8 && styles.scoreBadgeHot]}>
-            <Sparkles size={10} color={lead.score >= 8 ? '#FFF' : themeColors.accent} />
+            <MageAIMark size={10} color={lead.score >= 8 ? '#FFF' : themeColors.accent} />
             <Text style={[styles.scoreBadgeText, lead.score >= 8 && styles.scoreBadgeTextHot]}>{lead.score}</Text>
           </View>
         )}
@@ -288,7 +289,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
       </View>
       {waiting && (
         <View style={[styles.waitingPill, overdue && styles.waitingPillOverdue]}>
-          <Clock size={11} color={overdue ? '#FFF' : Colors.warning} />
+          <Clock size={11} color={overdue ? '#FFF' : Colors.warning} strokeWidth={1.75} />
           <Text style={[styles.waitingText, overdue && styles.waitingTextOverdue]}>
             {ageHours < 1 ? 'just now' : `waiting ${ageHours}h`}
           </Text>
@@ -296,7 +297,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
       )}
       {!!lead.phone && (
         <View style={styles.cardContactRow}>
-          <Phone size={11} color={themeColors.textMuted} />
+          <Phone size={11} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.cardContactText} numberOfLines={1}>{lead.phone}</Text>
         </View>
       )}

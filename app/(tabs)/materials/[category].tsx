@@ -139,14 +139,14 @@ export default function CategoryDetailScreen() {
           <View style={styles.itemLeft}>
             <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
             <View style={styles.itemMeta}>
-              <Truck size={10} color={themeColors.textMuted} />
+              <Truck size={10} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.itemSupplier} numberOfLines={1}>{item.supplier}</Text>
               <Text style={styles.itemDot}>·</Text>
               <Text style={styles.itemUnit}>per {item.unit}</Text>
             </View>
             {item.sku && (
               <View style={styles.skuRow}>
-                <Tag size={9} color={themeColors.textMuted} />
+                <Tag size={9} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.skuText}>SKU {item.sku}</Text>
               </View>
             )}
@@ -180,7 +180,7 @@ export default function CategoryDetailScreen() {
             }}
             activeOpacity={0.7}
           >
-            <Bell size={13} color={hasAlert ? themeColors.accent : themeColors.textMuted} />
+            <Bell size={13} color={hasAlert ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
             <Text style={[styles.alertBtnText, hasAlert && { color: themeColors.accent }]}>
               {hasAlert ? 'Alert Set' : 'Set Alert'}
             </Text>
@@ -197,14 +197,14 @@ export default function CategoryDetailScreen() {
           >
             {justAdded ? (
               <>
-                <CheckCircle size={13} color={themeColors.success} />
+                <CheckCircle size={13} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={[styles.addBtnText, { color: themeColors.success }]}>
                   Added · {inCartQty} in cart
                 </Text>
               </>
             ) : (
               <>
-                <Plus size={13} color={inCartQty > 0 ? themeColors.accent : themeColors.accent} />
+                <Plus size={13} color={inCartQty > 0 ? themeColors.accent : themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.addBtnText, { color: themeColors.accent }]}>
                   {inCartQty > 0 ? `Add (${inCartQty})` : 'Add'}
                 </Text>
@@ -234,7 +234,7 @@ export default function CategoryDetailScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
           testID="back-btn" accessibilityRole="button" accessibilityLabel="Back">
-          <ArrowLeft size={20} color={themeColors.text} />
+          <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={[styles.headerEmoji, { backgroundColor: meta.color + '15' }]}>
           <CategoryIcon size={22} color={meta.color} strokeWidth={2} />
@@ -247,7 +247,7 @@ export default function CategoryDetailScreen() {
 
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Search size={15} color={themeColors.textMuted} />
+          <Search size={15} color={themeColors.textMuted} strokeWidth={1.75} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -262,7 +262,7 @@ export default function CategoryDetailScreen() {
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <View style={styles.clearBtn}>
-                <X size={10} color="#fff" />
+                <X size={10} color="#fff" strokeWidth={1.75} />
               </View>
             </TouchableOpacity>
           )}
@@ -271,7 +271,7 @@ export default function CategoryDetailScreen() {
 
       {categoryAlerts.length > 0 && (
         <View style={styles.alertsBar}>
-          <Bell size={12} color={themeColors.accent} />
+          <Bell size={12} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.alertsBarText}>{categoryAlerts.length} active alert{categoryAlerts.length > 1 ? 's' : ''} in this category</Text>
         </View>
       )}
@@ -290,8 +290,8 @@ export default function CategoryDetailScreen() {
         getItemLayout={undefined}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Search size={36} color={themeColors.textMuted} />
-            <Text style={styles.emptyTitle}>No results</Text>
+            <Search size={36} color={themeColors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.emptyTitle}>No materials match that</Text>
             <Text style={styles.emptyDesc}>Try a different search term</Text>
           </View>
         }
@@ -308,7 +308,7 @@ export default function CategoryDetailScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Set Price Alert</Text>
               <TouchableOpacity onPress={() => setAlertModal(null)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             {alertModal && (
@@ -344,7 +344,7 @@ export default function CategoryDetailScreen() {
                 />
 
                 <TouchableOpacity style={styles.modalSaveBtn} onPress={handleCreateAlert} activeOpacity={0.85}>
-                  <Bell size={16} color="#fff" />
+                  <Bell size={16} color="#fff" strokeWidth={1.75} />
                   <Text style={styles.modalSaveBtnText}>Set Alert</Text>
                 </TouchableOpacity>
               </>

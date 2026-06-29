@@ -139,11 +139,11 @@ export default function WorkOrderScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={8}><ChevronLeft size={26} color={themeColors.accent} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={8}><ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
           <Text style={styles.headerTitle}>Work order</Text>
         </View>
         <View style={styles.missingWrap}>
-          <AlertTriangle size={28} color={themeColors.textMuted} />
+          <AlertTriangle size={28} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.missingText}>This work order could not be found.</Text>
         </View>
       </View>
@@ -158,18 +158,18 @@ export default function WorkOrderScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Work order</Text>
         <TouchableOpacity onPress={handleDelete} hitSlop={8} accessibilityLabel="Delete work order">
-          <Trash2 size={18} color={themeColors.danger} />
+          <Trash2 size={18} color={themeColors.danger} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
         {/* Title + status */}
         <View style={styles.titleRow}>
-          <View style={styles.titleIcon}><Wrench size={20} color={themeColors.accent} /></View>
+          <View style={styles.titleIcon}><Wrench size={20} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{wo.title}</Text>
             {!!property && (
@@ -178,7 +178,7 @@ export default function WorkOrderScreen() {
                 onPress={() => router.push({ pathname: '/managed-property' as never, params: { propertyId: property.id } as never })}
                 hitSlop={6}
               >
-                <Building2 size={12} color={themeColors.textMuted} />
+                <Building2 size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.propLinkText} numberOfLines={1}>{property.name}</Text>
               </TouchableOpacity>
             )}
@@ -202,7 +202,7 @@ export default function WorkOrderScreen() {
         {/* Assigned-to banner */}
         {wo.status === 'assigned' && !!wo.assignedContactName && (
           <View style={styles.assignedBanner}>
-            <UserCheck size={16} color={themeColors.accent} />
+            <UserCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.assignedText}>
               Dispatched to <Text style={{ fontWeight: '800' }}>{wo.assignedContactName}</Text>
               {wo.assignedAt ? ` · ${new Date(wo.assignedAt).toLocaleDateString()}` : ''}
@@ -214,12 +214,12 @@ export default function WorkOrderScreen() {
         <Text style={styles.sectionLabel}>Get it done</Text>
         <View style={styles.bridgeRow}>
           <TouchableOpacity style={styles.bridgeBtn} onPress={() => setDispatchOpen(true)} activeOpacity={0.85} testID="wo-dispatch">
-            <View style={styles.bridgeIcon}><UserCheck size={18} color={themeColors.accent} /></View>
+            <View style={styles.bridgeIcon}><UserCheck size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
             <Text style={styles.bridgeTitle}>Dispatch to contractor</Text>
             <Text style={styles.bridgeSub}>Assign someone from your contacts</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bridgeBtn} onPress={postForBids} activeOpacity={0.85} testID="wo-post-bids">
-            <View style={styles.bridgeIcon}><Send size={18} color={themeColors.accent} /></View>
+            <View style={styles.bridgeIcon}><Send size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
             <Text style={styles.bridgeTitle}>Post for bids</Text>
             <Text style={styles.bridgeSub}>Let verified contractors compete</Text>
           </TouchableOpacity>
@@ -250,13 +250,13 @@ export default function WorkOrderScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHead}>
-              <View style={styles.modalHeadIcon}><Users size={15} color="#FFF" /></View>
+              <View style={styles.modalHeadIcon}><Users size={15} color="#FFF" strokeWidth={1.75} /></View>
               <Text style={styles.modalTitle}>Dispatch to…</Text>
-              <TouchableOpacity onPress={() => setDispatchOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setDispatchOpen(false)} hitSlop={8}><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             {sortedContacts.length === 0 ? (
               <View style={styles.noContacts}>
-                <Users size={24} color={themeColors.textMuted} />
+                <Users size={24} color={themeColors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.noContactsText}>
                   No contacts yet. Add the contractors you work with in the Contacts screen, then dispatch work orders to them in one tap.
                 </Text>
@@ -270,11 +270,11 @@ export default function WorkOrderScreen() {
                       <View style={styles.contactMeta}>
                         <View style={styles.roleChip}><Text style={styles.roleChipText}>{c.role}</Text></View>
                         {!!c.phone && (
-                          <View style={styles.contactPhone}><Phone size={10} color={themeColors.textMuted} /><Text style={styles.contactPhoneText}>{c.phone}</Text></View>
+                          <View style={styles.contactPhone}><Phone size={10} color={themeColors.textMuted} strokeWidth={1.75} /><Text style={styles.contactPhoneText}>{c.phone}</Text></View>
                         )}
                       </View>
                     </View>
-                    <Check size={16} color={themeColors.accent} />
+                    <Check size={16} color={themeColors.accent} strokeWidth={1.75} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>

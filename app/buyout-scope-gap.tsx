@@ -13,8 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ScanSearch, Copy, Sparkles, Boxes,
+  ChevronLeft, ScanSearch, Copy, Boxes,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -113,7 +114,7 @@ function BuyoutScopeGapInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Scope-Gap Audit · MAGE</Text>
@@ -146,7 +147,7 @@ function BuyoutScopeGapInner() {
               onPress={() => router.replace({ pathname: '/generative-setup', params: { projectId: project.id } } as any)}
               activeOpacity={0.85}
             >
-              <Sparkles size={15} color={t.accent} />
+              <MageAIMark size={15} color={t.accent} />
               <Text style={styles.infoBtnText}>Set up buyout</Text>
             </TouchableOpacity>
           </View>
@@ -202,7 +203,7 @@ function BuyoutScopeGapInner() {
             {report.overlapItems.length > 0 && (
               <View style={styles.overlapCard}>
                 <View style={styles.overlapHead}>
-                  <Copy size={16} color={t.accentHot} />
+                  <Copy size={16} color={t.accentHot} strokeWidth={1.75} />
                   <Text style={styles.overlapTitle}>Possible double-buy</Text>
                 </View>
                 <Text style={styles.overlapSub}>
@@ -239,7 +240,7 @@ function BuyoutScopeGapInner() {
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
                       <>
-                        <Sparkles size={15} color="#fff" />
+                        <MageAIMark size={15} color="#fff" />
                         <Text style={styles.aiBtnText}>Find commonly-missed scope</Text>
                       </>
                     )}

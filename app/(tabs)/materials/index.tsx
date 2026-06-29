@@ -190,7 +190,7 @@ export default function MaterialsScreen() {
               <Text style={styles.categoryName}>{item.label}</Text>
               {alertCount > 0 && (
                 <View style={styles.categoryAlertDot}>
-                  <Bell size={9} color={themeColors.accent} />
+                  <Bell size={9} color={themeColors.accent} strokeWidth={1.75} />
                 </View>
               )}
             </View>
@@ -240,7 +240,7 @@ export default function MaterialsScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Open cart with ${cartCount} item${cartCount === 1 ? '' : 's'}`}
             >
-              <ShoppingCart size={14} color="#fff" />
+              <ShoppingCart size={14} color="#fff" strokeWidth={1.75} />
               <Text style={styles.cartPillText}>Cart ({cartCount})</Text>
             </TouchableOpacity>
           )}
@@ -250,7 +250,7 @@ export default function MaterialsScreen() {
               onPress={() => setShowAlerts(!showAlerts)}
               activeOpacity={0.7}
             >
-              <Bell size={15} color={showAlerts ? themeColors.accent : themeColors.accent} />
+              <Bell size={15} color={showAlerts ? themeColors.accent : themeColors.accent} strokeWidth={1.75} />
               {triggeredAlerts.length > 0 && (
                 <View style={styles.alertBadge}>
                   <Text style={styles.alertBadgeText}>{triggeredAlerts.length}</Text>
@@ -264,7 +264,7 @@ export default function MaterialsScreen() {
             activeOpacity={0.7}
             testID="refresh-prices"
           >
-            <RefreshCw size={15} color={themeColors.accent} />
+            <RefreshCw size={15} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.refreshBtnText}>Refresh</Text>
           </TouchableOpacity>
         </View>
@@ -275,7 +275,7 @@ export default function MaterialsScreen() {
         onPress={() => setShowLocationPicker(!showLocationPicker)}
         activeOpacity={0.7}
       >
-        <MapPin size={14} color={themeColors.accent} />
+        <MapPin size={14} color={themeColors.accent} strokeWidth={1.75} />
         <Text style={styles.locationText}>
           Pricing for <Text style={styles.locationBold}>{selectedCity}</Text>
           {' '}({regionInfo?.label ?? 'US Average'})
@@ -283,7 +283,7 @@ export default function MaterialsScreen() {
         <View style={styles.locationMultiplier}>
           <Text style={styles.multiplierText}>{locationMultiplier > 1 ? '+' : ''}{((locationMultiplier - 1) * 100).toFixed(0)}%</Text>
         </View>
-        <ChevronDown size={14} color={themeColors.textSecondary} />
+        <ChevronDown size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
       </TouchableOpacity>
 
       {showLocationPicker && (
@@ -344,14 +344,14 @@ export default function MaterialsScreen() {
       )}
 
       <View style={styles.updatedRow}>
-        <Clock size={11} color={themeColors.textMuted} />
+        <Clock size={11} color={themeColors.textMuted} strokeWidth={1.75} />
         <Text style={styles.updatedText}>Prices updated {formatTime(lastUpdated)} · {selectedCity} rates · Pull to refresh</Text>
-        <Wifi size={11} color={themeColors.success} />
+        <Wifi size={11} color={themeColors.success} strokeWidth={1.75} />
       </View>
 
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Search size={15} color={themeColors.textMuted} />
+          <Search size={15} color={themeColors.textMuted} strokeWidth={1.75} />
           <TextInput
             style={styles.searchInput}
             value={searchQuery}
@@ -366,7 +366,7 @@ export default function MaterialsScreen() {
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <View style={styles.clearBtn}>
-                <X size={10} color="#fff" />
+                <X size={10} color="#fff" strokeWidth={1.75} />
               </View>
             </TouchableOpacity>
           )}
@@ -411,7 +411,7 @@ export default function MaterialsScreen() {
                       if (Platform.OS !== 'web') void Haptics.selectionAsync();
                     }}
                   >
-                    {alert.isPaused ? <Play size={12} color={themeColors.accent} /> : <Pause size={12} color={Colors.warning} />}
+                    {alert.isPaused ? <Play size={12} color={themeColors.accent} strokeWidth={1.75} /> : <Pause size={12} color={Colors.warning} strokeWidth={1.75} />}
                     <Text style={[styles.alertActionText, { color: alert.isPaused ? themeColors.accent : Colors.warning }]}>
                       {alert.isPaused ? 'Resume' : 'Pause'}
                     </Text>
@@ -423,7 +423,7 @@ export default function MaterialsScreen() {
                       if (Platform.OS !== 'web') void Haptics.selectionAsync();
                     }}
                   >
-                    <Trash2 size={12} color={themeColors.danger} />
+                    <Trash2 size={12} color={themeColors.danger} strokeWidth={1.75} />
                     <Text style={[styles.alertActionText, { color: themeColors.danger }]}>Delete</Text>
                   </TouchableOpacity>
                 </View>
@@ -434,13 +434,13 @@ export default function MaterialsScreen() {
       )}
 
       <View style={styles.savingsBanner}>
-        <TrendingDown size={14} color={themeColors.success} />
+        <TrendingDown size={14} color={themeColors.success} strokeWidth={1.75} />
         <Text style={styles.savingsText}>Bulk pricing saves up to 25% — tap a category to browse</Text>
       </View>
 
       {filteredCategories.length === 0 ? (
         <View style={styles.emptyState}>
-          <Search size={40} color={themeColors.textMuted} />
+          <Search size={40} color={themeColors.textMuted} strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>No categories found</Text>
           <Text style={styles.emptyDesc}>Try a different search term</Text>
         </View>

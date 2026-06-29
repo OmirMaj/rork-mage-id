@@ -13,14 +13,13 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  Zap,
   Send,
   Check,
   AlertCircle,
   ChevronDown,
   HardHat,
-  Sparkles,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -450,7 +449,7 @@ export default function QuickFieldUpdate() {
     <View style={styles.wrap}>
       <View style={styles.titleRow}>
         <View style={styles.titleIconWrap}>
-          <Zap size={14} color={themeColors.accent} />
+          <MageAIMark size={14} color={themeColors.accent} />
         </View>
         <Text style={styles.title}>Quick Field Update</Text>
       </View>
@@ -463,12 +462,12 @@ export default function QuickFieldUpdate() {
         activeOpacity={projectsWithSchedule.length > 1 ? 0.7 : 1}
         testID="qfu-project-chip"
       >
-        <HardHat size={12} color={themeColors.textSecondary} />
+        <HardHat size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
         <Text style={styles.projectChipText} numberOfLines={1}>
           {selectedProject?.name ?? '—'}
         </Text>
         {projectsWithSchedule.length > 1 && (
-          <ChevronDown size={12} color={themeColors.textMuted} />
+          <ChevronDown size={12} color={themeColors.textMuted} strokeWidth={1.75} />
         )}
       </TouchableOpacity>
 
@@ -522,7 +521,7 @@ export default function QuickFieldUpdate() {
               activeOpacity={0.75}
               testID={`qfu-suggestion-${t.id}`}
             >
-              <Sparkles size={10} color={themeColors.accent} />
+              <MageAIMark size={10} color={themeColors.accent} />
               <Text style={styles.suggestLabel} numberOfLines={1}>
                 {t.title}
               </Text>
@@ -541,9 +540,9 @@ export default function QuickFieldUpdate() {
           ]}
         >
           {feedback.kind === 'success' ? (
-            <Check size={12} color={themeColors.success} />
+            <Check size={12} color={themeColors.success} strokeWidth={1.75} />
           ) : (
-            <AlertCircle size={12} color={Colors.warning} />
+            <AlertCircle size={12} color={Colors.warning} strokeWidth={1.75} />
           )}
           <Text
             style={[

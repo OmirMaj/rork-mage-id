@@ -232,7 +232,7 @@ export default function PDFPreSendSheet({
                 <Text style={styles.headerTitle}>Send {docLabel}</Text>
                 <Text style={styles.headerSubtitle}>{projectName}</Text>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <ScrollView
@@ -242,7 +242,7 @@ export default function PDFPreSendSheet({
             >
               <Text style={styles.fieldLabel}>FILE NAME</Text>
               <View style={styles.fileNameRow}>
-                <FileText size={16} color={themeColors.accent} />
+                <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <TextInput
                   style={styles.fileNameInput}
                   value={fileName}
@@ -264,8 +264,8 @@ export default function PDFPreSendSheet({
                   {sections.filter(s => s.enabled).length} of {sections.length} sections selected
                 </Text>
                 {showSections
-                  ? <ChevronUp size={16} color={themeColors.textSecondary} />
-                  : <ChevronDown size={16} color={themeColors.textSecondary} />
+                  ? <ChevronUp size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
+                  : <ChevronDown size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
                 }
               </TouchableOpacity>
               {showSections && (
@@ -287,7 +287,7 @@ export default function PDFPreSendSheet({
               <Text style={styles.fieldLabel}>RECIPIENT</Text>
               {recipientName ? (
                 <View style={styles.selectedRecipient}>
-                  <User size={14} color={themeColors.accent} />
+                  <User size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <View style={styles.selectedRecipientInfo}>
                     <Text style={styles.selectedRecipientName}>{recipientName}</Text>
                     <Text style={styles.selectedRecipientEmail}>{recipient}</Text>
@@ -295,12 +295,12 @@ export default function PDFPreSendSheet({
                   <TouchableOpacity
                     onPress={() => { setRecipient(''); setRecipientName(''); }}
                     style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={themeColors.textMuted} />
+                    <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.recipientRow}>
-                  <User size={16} color={themeColors.textMuted} />
+                  <User size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   <TextInput
                     style={styles.recipientInput}
                     value={recipient}
@@ -320,7 +320,7 @@ export default function PDFPreSendSheet({
                   activeOpacity={0.7}
                   testID="pdf-pick-contact-btn"
                 >
-                  <BookUser size={14} color={themeColors.accent} />
+                  <BookUser size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.pickContactText}>Pick from Contacts</Text>
                 </TouchableOpacity>
               ) : null}
@@ -348,7 +348,7 @@ export default function PDFPreSendSheet({
                   activeOpacity={0.85}
                   testID="pdf-send-email-btn"
                 >
-                  <Mail size={16} color={'#FFFFFF'} />
+                  <Mail size={16} color={'#FFFFFF'} strokeWidth={1.75} />
                   <Text style={styles.emailBtnText}>Send via Email</Text>
                 </TouchableOpacity>
               ) : null}
@@ -358,7 +358,7 @@ export default function PDFPreSendSheet({
                 activeOpacity={0.85}
                 testID="pdf-share-btn"
               >
-                <Send size={16} color={recipient.trim() ? themeColors.accent : '#FFFFFF'} />
+                <Send size={16} color={recipient.trim() ? themeColors.accent : '#FFFFFF'} strokeWidth={1.75} />
                 <Text style={[styles.shareBtnText, !recipient.trim() && styles.shareBtnTextFull]}>
                   {recipient.trim() ? 'Share Sheet' : 'Generate & Share'}
                 </Text>

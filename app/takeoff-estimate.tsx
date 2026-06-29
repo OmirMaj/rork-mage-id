@@ -38,9 +38,10 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Sparkles, Save, Plus, Trash2, AlertTriangle,
+  ChevronLeft, Save, Plus, Trash2, AlertTriangle,
   RefreshCw, Pencil, Check,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -337,13 +338,13 @@ function TakeoffEstimateInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-            <ChevronLeft size={22} color={themeColors.text} />
+            <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Priced Estimate</Text>
           <View style={{ width: 28 }} />
         </View>
         <View style={styles.center}>
-          <AlertTriangle size={36} color={Colors.warning} />
+          <AlertTriangle size={36} color={Colors.warning} strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>No takeoff to price</Text>
           <Text style={styles.emptyBody}>
             Run an AI Takeoff first — upload your plan PDFs and let the AI count walls, doors, and finishes. Then come back here and we&apos;ll turn those quantities into a priced estimate.
@@ -352,7 +353,7 @@ function TakeoffEstimateInner() {
             style={styles.primaryBtn}
             onPress={() => router.replace({ pathname: '/takeoff', params: projectId ? { projectId } : {} } as never)}
           >
-            <Sparkles size={16} color={themeColors.surface} />
+            <MageAIMark size={16} color={themeColors.surface} />
             <Text style={styles.primaryBtnText}>Run AI Takeoff</Text>
           </TouchableOpacity>
         </View>
@@ -366,7 +367,7 @@ function TakeoffEstimateInner() {
 
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>FROM TAKEOFF</Text>
@@ -374,7 +375,7 @@ function TakeoffEstimateInner() {
         </View>
         {!pricing && lines.length > 0 ? (
           <TouchableOpacity onPress={handleRegenerate} style={styles.headerBack}>
-            <RefreshCw size={18} color={themeColors.textSecondary} />
+            <RefreshCw size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : (
           <View style={{ width: 28 }} />
@@ -395,7 +396,7 @@ function TakeoffEstimateInner() {
         {/* Pricing failed */}
         {pricingError && !pricing && (
           <View style={[styles.banner, { backgroundColor: Colors.errorLight }]}>
-            <AlertTriangle size={16} color={Colors.errorDark} />
+            <AlertTriangle size={16} color={Colors.errorDark} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.bannerText, { color: Colors.errorDark }]}>{pricingError}</Text>
               <TouchableOpacity onPress={() => takeoff && void runPricing(takeoff)} style={{ marginTop: 6 }}>
@@ -408,7 +409,7 @@ function TakeoffEstimateInner() {
         {/* Source summary */}
         {!pricing && lines.length > 0 && (
           <View style={styles.sourceCard}>
-            <Sparkles size={14} color={themeColors.accent} />
+            <MageAIMark size={14} color={themeColors.accent} />
             <Text style={styles.sourceText}>
               Auto-generated from {countQuantities(takeoff)} takeoff items. Tap any line to edit description, quantity, or unit price. Add custom lines for anything the AI missed.
             </Text>
@@ -439,7 +440,7 @@ function TakeoffEstimateInner() {
         {/* Add line button */}
         {!pricing && (
           <TouchableOpacity style={styles.addLineBtn} onPress={addLine}>
-            <Plus size={16} color={themeColors.accent} />
+            <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.addLineText}>Add line item</Text>
           </TouchableOpacity>
         )}
@@ -480,7 +481,7 @@ function TakeoffEstimateInner() {
           >
             {saving
               ? <ActivityIndicator size="small" color={themeColors.surface} />
-              : <Save size={16} color={themeColors.surface} />}
+              : <Save size={16} color={themeColors.surface} strokeWidth={1.75} />}
             <Text style={styles.saveBtnText}>
               {saving ? 'Saving…' : project ? `Save to ${project.name}` : 'Save Estimate'}
             </Text>
@@ -536,7 +537,7 @@ function LineRow({
           </Text>
         </View>
         <Text style={styles.lineTotal}>{formatMoney(line.quantity * line.unitPrice)}</Text>
-        <Pencil size={14} color={themeColors.textMuted} style={{ marginLeft: 8 }} />
+        <Pencil size={14} color={themeColors.textMuted} style={{ marginLeft: 8 }} strokeWidth={1.75} />
       </TouchableOpacity>
     );
   }
@@ -592,7 +593,7 @@ function LineRow({
       </View>
       <View style={styles.editActionsRow}>
         <TouchableOpacity onPress={onRemove} style={styles.deleteBtn}>
-          <Trash2 size={14} color={Colors.errorDark} />
+          <Trash2 size={14} color={Colors.errorDark} strokeWidth={1.75} />
           <Text style={[styles.deleteBtnText]}>Delete line</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }} />
@@ -608,7 +609,7 @@ function LineRow({
           })}
           style={styles.commitBtn}
         >
-          <Check size={14} color={themeColors.surface} />
+          <Check size={14} color={themeColors.surface} strokeWidth={1.75} />
           <Text style={styles.commitBtnText}>Done</Text>
         </TouchableOpacity>
       </View>

@@ -25,9 +25,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Plus, Mic, Sparkles, X, Save, Trophy, AlertTriangle, CheckCircle2,
+  Plus, Mic, X, Save, Trophy, AlertTriangle, CheckCircle2,
   Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown, Scale,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -446,7 +447,7 @@ export default function BuyoutPackageScreen() {
             <View style={styles.section}>
               {allowanceItems.length > 0 && pkg.status !== 'awarded' && (
                 <View style={[styles.warningCard, { backgroundColor: '#0D6CB112', borderLeftColor: '#0D6CB1' }]}>
-                  <AlertTriangle size={14} color="#0D6CB1" />
+                  <AlertTriangle size={14} color="#0D6CB1" strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.warningTitle}>Contains {allowanceItems.length} allowance item{allowanceItems.length === 1 ? '' : 's'}</Text>
                     <Text style={styles.warningBody}>
@@ -459,7 +460,7 @@ export default function BuyoutPackageScreen() {
               )}
               {lowCoverage && (
                 <View style={styles.warningCard}>
-                  <AlertTriangle size={14} color={Colors.warning} />
+                  <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.warningTitle}>Coverage risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
                     <Text style={styles.warningBody}>Industry best practice is 3+ qualified bids per package. Send the RFQ to more subs before awarding.</Text>
@@ -468,7 +469,7 @@ export default function BuyoutPackageScreen() {
               )}
               {stale && (
                 <View style={styles.warningCard}>
-                  <AlertTriangle size={14} color={Colors.warning} />
+                  <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.warningTitle}>Stale package · {daysSinceOpened} days open</Text>
                     <Text style={styles.warningBody}>Material pricing windows are typically 30 days. Award soon or re-bid to avoid expired numbers.</Text>
@@ -494,7 +495,7 @@ export default function BuyoutPackageScreen() {
                   </>
                 ) : (
                   <>
-                    <Sparkles size={16} color="#FFF" />
+                    <MageAIMark size={16} color="#FFF" />
                     <Text style={styles.levelBtnText}>{levelingResult ? 'Re-run AI leveling' : 'Run AI leveling'}</Text>
                   </>
                 )}
@@ -504,20 +505,20 @@ export default function BuyoutPackageScreen() {
                 onPress={() => router.push({ pathname: '/bid-leveling', params: { packageId: pkg.id } })}
                 activeOpacity={0.85}
               >
-                <Scale size={15} color={themeColors.accent} />
+                <Scale size={15} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.levelLinkBtnText}>Open leveling board</Text>
-                <ArrowRight size={14} color={themeColors.accent} />
+                <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
               {!!levelingResult?.summary && (
                 <View style={styles.levelingSummary}>
                   <View style={styles.levelingSummaryHead}>
-                    <Sparkles size={14} color={themeColors.accent} />
+                    <MageAIMark size={14} color={themeColors.accent} />
                     <Text style={styles.levelingSummaryHeadText}>AI leveling summary</Text>
                   </View>
                   <Text style={styles.levelingSummaryBody}>{levelingResult.summary}</Text>
                   {!!levelingResult.recommendedWinnerReason && (
                     <View style={styles.recommendation}>
-                      <Trophy size={14} color={themeColors.success} />
+                      <Trophy size={14} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={styles.recommendationText}>{levelingResult.recommendedWinnerReason}</Text>
                     </View>
                   )}
@@ -554,7 +555,7 @@ export default function BuyoutPackageScreen() {
                           <Text style={styles.bidVendor} numberOfLines={1}>{bid.vendorName ?? 'Subcontractor'}</Text>
                           {isWinner && (
                             <View style={styles.winnerBadge}>
-                              <Trophy size={10} color="#FFF" />
+                              <Trophy size={10} color="#FFF" strokeWidth={1.75} />
                               <Text style={styles.winnerBadgeText}>AI PICK</Text>
                             </View>
                           )}
@@ -565,13 +566,13 @@ export default function BuyoutPackageScreen() {
                           )}
                           {bid.status === 'awarded' && (
                             <View style={styles.awardedBadge}>
-                              <CheckCircle2 size={10} color="#FFF" />
+                              <CheckCircle2 size={10} color="#FFF" strokeWidth={1.75} />
                               <Text style={styles.awardedBadgeText}>AWARDED</Text>
                             </View>
                           )}
                           {outlier && (
                             <View style={styles.outlierBadge}>
-                              <AlertTriangle size={10} color="#FFF" />
+                              <AlertTriangle size={10} color="#FFF" strokeWidth={1.75} />
                               <Text style={styles.outlierBadgeText}>
                                 {outlier.kind === 'low' ? `${outlier.pct.toFixed(0)}% LOW` : `${outlier.pct.toFixed(0)}% HIGH`}
                               </Text>
@@ -588,7 +589,7 @@ export default function BuyoutPackageScreen() {
                         {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
                       </View>
                       <TouchableOpacity onPress={() => deleteBidPackageBid(bid.id)} hitSlop={10} style={styles.bidDelete} accessibilityRole="button" accessibilityLabel="Delete">
-                        <Trash2 size={14} color={themeColors.textMuted} />
+                        <Trash2 size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
 
@@ -627,16 +628,16 @@ export default function BuyoutPackageScreen() {
                     )}
                     {!!bid.normalizedAdjustmentReason && (
                       <View style={styles.adjReason}>
-                        <Sparkles size={11} color={themeColors.accent} />
+                        <MageAIMark size={11} color={themeColors.accent} />
                         <Text style={styles.adjReasonText}>{bid.normalizedAdjustmentReason}</Text>
                       </View>
                     )}
 
                     {pkg.status !== 'awarded' && (
                       <TouchableOpacity style={styles.awardBtn} onPress={() => handleAward(bid)} activeOpacity={0.85}>
-                        <Trophy size={14} color="#FFF" />
+                        <Trophy size={14} color="#FFF" strokeWidth={1.75} />
                         <Text style={styles.awardBtnText}>Award · {formatMoney(total)}</Text>
-                        <ArrowRight size={14} color="#FFF" />
+                        <ArrowRight size={14} color="#FFF" strokeWidth={1.75} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -653,9 +654,9 @@ export default function BuyoutPackageScreen() {
                 onPress={() => router.push({ pathname: '/project-detail' as never, params: { id: pkg.projectId } as never })}
                 activeOpacity={0.85}
               >
-                <Briefcase size={16} color={themeColors.accent} />
+                <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.openCommitmentText}>Open project · view this commitment</Text>
-                <ChevronUp size={16} color={themeColors.accent} style={{ transform: [{ rotate: '90deg' }] }} />
+                <ChevronUp size={16} color={themeColors.accent} style={{ transform: [{ rotate: '90deg' }] }} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
           )}
@@ -672,7 +673,7 @@ export default function BuyoutPackageScreen() {
                 activeOpacity={0.85}
                 testID="generate-a401"
               >
-                <FileDown size={16} color={themeColors.accent} />
+                <FileDown size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.openCommitmentText}>Generate A401-style subcontract PDF</Text>
               </TouchableOpacity>
             </View>
@@ -681,7 +682,7 @@ export default function BuyoutPackageScreen() {
           {/* Delete package */}
           <View style={styles.section}>
             <TouchableOpacity onPress={handleDeletePackage} style={styles.deletePkgBtn} activeOpacity={0.7}>
-              <Trash2 size={14} color={themeColors.danger} />
+              <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={styles.deletePkgText}>Delete this package</Text>
             </TouchableOpacity>
           </View>
@@ -691,13 +692,13 @@ export default function BuyoutPackageScreen() {
         {pkg.status !== 'awarded' && (
           <View style={[styles.fabRow, { bottom: insets.bottom + 18 }]}>
             <TouchableOpacity style={styles.fabSecondary} onPress={() => setShowAddBid(true)} activeOpacity={0.85}>
-              <Plus size={16} color={themeColors.text} />
+              <Plus size={16} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.fabSecondaryText}>Add by hand</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.fabPrimary} onPress={() => setVoiceOpen(true)} activeOpacity={0.85}>
-              <Mic size={16} color="#FFF" />
+              <Mic size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.fabPrimaryText}>Add bid by voice</Text>
-              <Sparkles size={12} color="#FFF" />
+              <MageAIMark size={12} color="#FFF" />
             </TouchableOpacity>
           </View>
         )}
@@ -723,7 +724,7 @@ export default function BuyoutPackageScreen() {
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Log a bid</Text>
               <TouchableOpacity onPress={() => setShowAddBid(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={22} color={themeColors.text} />
+                <X size={22} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -740,7 +741,7 @@ export default function BuyoutPackageScreen() {
             </ScrollView>
             <View style={[styles.modalFoot, { paddingBottom: insets.bottom + 12 }]}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddBid} activeOpacity={0.85}>
-                <Save size={16} color="#FFF" />
+                <Save size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.saveBtnText}>Save bid</Text>
               </TouchableOpacity>
             </View>

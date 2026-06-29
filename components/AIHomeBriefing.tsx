@@ -4,7 +4,8 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, AlertTriangle, CheckCircle2, ChevronRight, TrendingDown } from 'lucide-react-native';
+import { AlertTriangle, CheckCircle2, ChevronRight, TrendingDown } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -111,7 +112,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Sparkles size={14} color={themeColors.accent} />
+            <MageAIMark size={14} color={themeColors.accent} />
             <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
           </View>
         </View>
@@ -128,7 +129,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Sparkles size={14} color={themeColors.accent} />
+          <MageAIMark size={14} color={themeColors.accent} />
           <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
         </View>
         <Text style={styles.aiLabel}>AI-generated</Text>
@@ -159,7 +160,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         <View style={styles.urgentSection}>
           {result.urgentItems.map((item, idx) => (
             <View key={idx} style={styles.urgentRow}>
-              <AlertTriangle size={12} color={Colors.error} />
+              <AlertTriangle size={12} color={Colors.error} strokeWidth={1.75} />
               <Text style={styles.urgentText}>{item}</Text>
             </View>
           ))}
@@ -174,7 +175,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
             activeOpacity={0.7}
           >
             <Text style={styles.viewFullText}>View Full Analysis</Text>
-            <ChevronRight size={14} color={Colors.primary} />
+            <ChevronRight size={14} color={Colors.primary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : <View />}
         <Text style={styles.usageText}>{usageText}</Text>

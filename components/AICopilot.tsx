@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
-  FlatList, KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
+  FlatList, KeyboardAvoidingView, Platform, ActivityIndicator,
   Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, Send, X, AlertTriangle, Lightbulb, ChevronRight } from 'lucide-react-native';
+import { Send, X, AlertTriangle, ChevronRight } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
+import MageCraneBuild from '@/components/MageCraneBuild';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -57,7 +59,7 @@ const MessageBubble = React.memo(function MessageBubble({ message, styles, color
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
         {!isUser && (
           <View style={styles.aiLabel}>
-            <Sparkles size={10} color={colors.accent} />
+            <MageAIMark size={10} color={colors.accent} />
             <Text style={styles.aiLabelText}>MAGE AI</Text>
           </View>
         )}
@@ -70,8 +72,8 @@ const MessageBubble = React.memo(function MessageBubble({ message, styles, color
               const palette = getPriorityPalette(colors, item.priority);
               return (
                 <View key={idx} style={[styles.actionChip, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-                  {item.priority === 'urgent' && <AlertTriangle size={11} color={palette.text} />}
-                  {item.priority === 'suggestion' && <Lightbulb size={11} color={palette.text} />}
+                  {item.priority === 'urgent' && <AlertTriangle size={11} color={palette.text} strokeWidth={1.75} />}
+                  {item.priority === 'suggestion' && <MageAIMark size={11} color={palette.text} />}
                   <Text style={[styles.actionChipText, { color: palette.text }]}>{item.text}</Text>
                 </View>
               );
@@ -142,23 +144,11 @@ export default function AICopilot() {
   const [isLoading, setIsLoading] = useState(false);
   const [usageText, setUsageText] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const refreshUsage = useCallback(async () => {
     const stats = await getAIUsageStats(tier as any);
     setUsageText(`${stats.used}/${stats.limit} AI requests used today`);
   }, [tier]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1500, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
 
   useEffect(() => {
     if (isOpen) {
@@ -258,13 +248,13 @@ export default function AICopilot() {
           on web to keep the AI FAB clear of typical scrollable content
           edges. Matches the same +48 offset on UniversalMicButton so
           the two FABs stay vertically aligned. */}
-      <Animated.View style={[styles.fab, { bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0), transform: [{ scale: pulseAnim }] }]}>
+      <View style={[styles.fab, { bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0) }]}>
         <TouchableOpacity
           onPress={handleOpen}
           style={styles.fabButton}
           activeOpacity={0.8}
-          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><Sparkles size={22} color={'#FFFFFF'} /></TouchableOpacity>
-      </Animated.View>
+          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><MageCraneBuild size={40} color="#FFFFFF" accentColor="#FF6A1A" /></TouchableOpacity>
+      </View>
 
       <Modal visible={isOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -274,10 +264,10 @@ export default function AICopilot() {
           >
             <View style={styles.modalHeader}>
               <View style={styles.headerLeft}>
-                <Sparkles size={18} color={colors.accent} />
+                <MageAIMark size={18} color={colors.accent} />
                 <Text style={styles.headerTitle}>MAGE AI Copilot</Text>
               </View>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <View style={styles.projectBadge}>
@@ -289,7 +279,7 @@ export default function AICopilot() {
             {messages.length === 0 && !isLoading ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
-                  <Sparkles size={32} color={colors.accent} />
+                  <MageAIMark size={32} color={colors.accent} />
                 </View>
                 <Text style={styles.emptyTitle}>Ask me anything about your project</Text>
                 <Text style={styles.emptySubtitle}>I have access to your schedule, estimate, and project data.</Text>
@@ -301,7 +291,7 @@ export default function AICopilot() {
                       onPress={() => handleSend(prompt)}
                     >
                       <Text style={styles.suggestText}>{prompt}</Text>
-                      <ChevronRight size={14} color={colors.accent} />
+                      <ChevronRight size={14} color={colors.accent} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -346,7 +336,7 @@ export default function AICopilot() {
                   onPress={() => handleSend()}
                   style={[styles.sendBtn, (!input.trim() || isLoading) && styles.sendBtnDisabled]}
                   disabled={!input.trim() || isLoading} accessibilityRole="button" accessibilityLabel="Send">
-                  <Send size={18} color={input.trim() && !isLoading ? '#FFFFFF' : colors.textMuted} />
+                  <Send size={18} color={input.trim() && !isLoading ? '#FFFFFF' : colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -364,10 +354,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     zIndex: 999,
   },
   fabButton: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     borderRadius: Tokens.radius.full,
-    backgroundColor: t.accent,
+    backgroundColor: '#0B0D10',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     shadowColor: t.accent,

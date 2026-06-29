@@ -14,7 +14,8 @@ import {
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, BrainCircuit, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -108,10 +109,10 @@ function ProjectMemoryInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <View style={styles.headerIcon}><BrainCircuit size={15} color={themeColors.accent} /></View>
+          <View style={styles.headerIcon}><MageAIMark size={15} color={themeColors.accent} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>Project Memory</Text>
             <Text style={styles.headerSub} numberOfLines={1}>{project?.name ?? 'Ask this project’s history'}</Text>
@@ -133,7 +134,7 @@ function ProjectMemoryInner() {
         >
           {empty ? (
             <View style={styles.emptyWrap}>
-              <View style={styles.emptyIcon}><BrainCircuit size={26} color={themeColors.accent} /></View>
+              <View style={styles.emptyIcon}><MageAIMark size={26} color={themeColors.accent} /></View>
               <Text style={styles.emptyTitle}>Ask this project anything</Text>
               <Text style={styles.emptyBody}>
                 I&apos;ve read {docs.length} record{docs.length === 1 ? '' : 's'} from this job — RFIs, daily reports,
@@ -152,7 +153,7 @@ function ProjectMemoryInner() {
               <View key={i}>
                 <View style={[styles.bubbleRow, turn.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}>
                   {turn.role === 'assistant' && turn.error && (
-                    <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} />
+                    <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
                   )}
                   <View style={[styles.bubble, turn.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
                     <Text style={turn.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{turn.text}</Text>

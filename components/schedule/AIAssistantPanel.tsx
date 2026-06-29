@@ -20,17 +20,15 @@ import {
 } from 'react-native';
 import {
   X,
-  Sparkles,
   ShieldAlert,
-  Zap,
   Target,
   MessageSquare,
   Mic,
-  Wand2,
   ArrowRight,
   Check,
   AlertTriangle,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -317,7 +315,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.headerIconWrap}>
-              <Sparkles size={16} color={themeColors.accent} />
+              <MageAIMark size={16} color={themeColors.accent} />
             </View>
             <View>
               <Text style={styles.headerTitle}>AI Schedule Assistant</Text>
@@ -328,7 +326,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               </Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.textSecondary} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         {/* Mode switcher (always visible) */}
@@ -338,20 +336,20 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           contentContainerStyle={styles.modeRow}
         >
           {selectedCount > 0 && (
-            <ModeChip icon={Sparkles} label={`Bulk (${selectedCount})`} active={mode === 'bulk'} onPress={() => setMode('bulk')} />
+            <ModeChip icon={MageAIMark} label={`Bulk (${selectedCount})`} active={mode === 'bulk'} onPress={() => setMode('bulk')} />
           )}
           <ModeChip icon={ShieldAlert} label="Risks"      active={mode === 'risks'}    onPress={handleDetectRisks} />
-          <ModeChip icon={Zap}          label="Optimize"   active={mode === 'optimize'} onPress={handleOptimize} />
+          <ModeChip icon={MageAIMark}   label="Optimize"   active={mode === 'optimize'} onPress={handleOptimize} />
           <ModeChip icon={Target}       label="Explain CP" active={mode === 'explain'}  onPress={handleExplain} />
           <ModeChip icon={MessageSquare} label="Ask"       active={mode === 'ask'}      onPress={() => setMode('ask')} />
           <ModeChip icon={Mic}          label="As-built"  active={mode === 'asbuilt'}  onPress={() => setMode('asbuilt')} />
-          <ModeChip icon={Wand2}        label="Generate"   active={mode === 'generate'} onPress={() => setMode('generate')} />
+          <ModeChip icon={MageAIMark}   label="Generate"   active={mode === 'generate'} onPress={() => setMode('generate')} />
         </ScrollView>
 
         {/* Selection summary strip — informs the user that bulk ops are scoped. */}
         {selectedCount > 0 && mode === 'bulk' && (
           <View style={styles.selectionStrip}>
-            <Sparkles size={12} color={themeColors.accent} />
+            <MageAIMark size={12} color={themeColors.accent} />
             <Text style={styles.selectionStripText} numberOfLines={2}>
               Bulk editing {selectedCount} task{selectedCount === 1 ? '' : 's'}:{' '}
               <Text style={styles.selectionStripNames}>
@@ -372,7 +370,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           )}
           {error && (
             <View style={styles.errorCard}>
-              <AlertTriangle size={14} color={themeColors.danger} />
+              <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -461,7 +459,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   <View style={styles.cardHeader}>
                     <Text style={styles.cardTitle}>{asBuiltPatches.length} update(s) proposed</Text>
                     <TouchableOpacity style={styles.applyAllBtn} onPress={handleAsBuiltApplyAll}>
-                      <Check size={12} color="#fff" />
+                      <Check size={12} color="#fff" strokeWidth={1.75} />
                       <Text style={styles.applyAllBtnText}>Apply all</Text>
                     </TouchableOpacity>
                   </View>
@@ -473,7 +471,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
                       <TouchableOpacity style={styles.applyBtn} onPress={() => handleAsBuiltApply(p)} accessibilityRole="button" accessibilityLabel="Confirm">
-                        <Check size={12} color={themeColors.accent} />
+                        <Check size={12} color={themeColors.accent} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -512,14 +510,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     )}
                     {bulkResult.patches.length > 0 && (
                       <TouchableOpacity style={styles.applyAllBtn} onPress={handleBulkApplyAll}>
-                        <Check size={12} color="#fff" />
+                        <Check size={12} color="#fff" strokeWidth={1.75} />
                         <Text style={styles.applyAllBtnText}>Apply all</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                   {bulkResult.errorKind === 'validation' && (
                     <View style={styles.partialBanner}>
-                      <AlertTriangle size={12} color={Colors.warning} />
+                      <AlertTriangle size={12} color={Colors.warning} strokeWidth={1.75} />
                       <Text style={styles.partialBannerText}>
                         Partial result — AI response didn't fully match the expected shape. Review carefully before applying.
                       </Text>
@@ -536,7 +534,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
                       <TouchableOpacity style={styles.applyBtn} onPress={() => handleBulkApplyOne(p)} accessibilityRole="button" accessibilityLabel="Confirm">
-                        <Check size={12} color={themeColors.accent} />
+                        <Check size={12} color={themeColors.accent} strokeWidth={1.75} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -552,7 +550,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                   earned-value / cash-flow panels populate immediately. */}
               {linkedEstimate && linkedEstimate.items.length > 0 && !genPreview && (
                 <QuickBtn
-                  icon={Wand2}
+                  icon={MageAIMark}
                   title="Generate from my estimate"
                   sub={`${linkedEstimate.items.length} item${linkedEstimate.items.length === 1 ? '' : 's'} · $${Math.round(linkedEstimate.grandTotal).toLocaleString()} → cost-loaded plan`}
                   onPress={handleGenerateFromEstimate}
@@ -598,7 +596,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                       <Text style={styles.secondaryBtnText}>Discard</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.primaryBtn} onPress={handleGenerateApply}>
-                      <Check size={12} color="#fff" />
+                      <Check size={12} color="#fff" strokeWidth={1.75} />
                       <Text style={styles.primaryBtnText}>Apply to project</Text>
                     </TouchableOpacity>
                   </View>
@@ -689,7 +687,7 @@ function HomeCard({
       <Text style={styles.sectionLabel}>Quick actions</Text>
       <View style={styles.quickGrid}>
         {empty ? (
-          <QuickBtn icon={Wand2} title="Generate schedule" sub="Describe project → full plan" onPress={onGenerate} featured />
+          <QuickBtn icon={MageAIMark} title="Generate schedule" sub="Describe project → full plan" onPress={onGenerate} featured />
         ) : (
           <>
             <QuickBtn icon={ShieldAlert} title="Detect risks" sub="Scan for logic issues" onPress={onRisks} featured />
@@ -717,7 +715,7 @@ function QuickBtn({
         <Text style={[styles.quickBtnTitle, featured && { color: '#fff' }]}>{title}</Text>
         <Text style={[styles.quickBtnSub, featured && { color: 'rgba(255,255,255,0.8)' }]}>{sub}</Text>
       </View>
-      <ArrowRight size={14} color={featured ? '#fff' : themeColors.textSecondary} />
+      <ArrowRight size={14} color={featured ? '#fff' : themeColors.textSecondary} strokeWidth={1.75} />
     </TouchableOpacity>
   );
 }
@@ -821,7 +819,7 @@ function InputBar({
       >
         {busy
           ? <ActivityIndicator size="small" color="#fff" />
-          : <ArrowRight size={16} color="#fff" />}
+          : <ArrowRight size={16} color="#fff" strokeWidth={1.75} />}
       </TouchableOpacity>
     </View>
   );

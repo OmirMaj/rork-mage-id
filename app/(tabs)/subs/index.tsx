@@ -118,11 +118,11 @@ function LicenseVerificationCard({
         </View>
         <View style={vStyles.actionsRow}>
           <TouchableOpacity onPress={openLookup} activeOpacity={0.85} style={vStyles.actionBtn}>
-            <ExternalLink size={12} color={Colors.primary} />
+            <ExternalLink size={12} color={Colors.primary} strokeWidth={1.75} />
             <Text style={vStyles.actionBtnText}>{target?.directDeepLink ? 'Verify' : 'Open board'}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => onMarkVerified('license')} activeOpacity={0.85} style={vStyles.actionBtn}>
-            <CheckCircle size={12} color={Colors.success} />
+            <CheckCircle size={12} color={Colors.success} strokeWidth={1.75} />
             <Text style={[vStyles.actionBtnText, { color: Colors.success }]}>Mark verified</Text>
           </TouchableOpacity>
         </View>
@@ -138,7 +138,7 @@ function LicenseVerificationCard({
           </View>
         </View>
         <TouchableOpacity onPress={() => onMarkVerified('coi')} activeOpacity={0.85} style={vStyles.actionBtn}>
-          <CheckCircle size={12} color={Colors.success} />
+          <CheckCircle size={12} color={Colors.success} strokeWidth={1.75} />
           <Text style={[vStyles.actionBtnText, { color: Colors.success }]}>Mark verified</Text>
         </TouchableOpacity>
       </View>
@@ -339,7 +339,7 @@ export default function SubsScreen() {
       >
         <View style={styles.subCardTop}>
           <View style={[styles.tradeIcon, { backgroundColor: statusColor + '15' }]}>
-            <Users size={16} color={statusColor} />
+            <Users size={16} color={statusColor} strokeWidth={1.75} />
           </View>
           <View style={styles.subCardInfo}>
             <Text style={styles.subName}>{item.companyName}</Text>
@@ -354,13 +354,13 @@ export default function SubsScreen() {
           <View style={styles.subCardMeta}>
             {item.phone ? (
               <View style={styles.metaItem}>
-                <Phone size={11} color={Colors.textMuted} />
+                <Phone size={11} color={Colors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.metaText}>{item.phone}</Text>
               </View>
             ) : null}
             {item.email ? (
               <View style={styles.metaItem}>
-                <Mail size={11} color={Colors.textMuted} />
+                <Mail size={11} color={Colors.textMuted} strokeWidth={1.75} />
                 <Text style={styles.metaText} numberOfLines={1}>{item.email}</Text>
               </View>
             ) : null}
@@ -384,10 +384,10 @@ export default function SubsScreen() {
               <Text style={styles.largeTitle}>Subs</Text>
               <View style={styles.headerBtns}>
                 <TouchableOpacity style={styles.inviteBtn} onPress={handleInviteSubs} activeOpacity={0.8} testID="invite-subs" accessibilityRole="button" accessibilityLabel="Invite subs">
-                  <UserPlus size={15} color={Colors.primary} />
+                  <UserPlus size={15} color={Colors.primary} strokeWidth={1.75} />
                   <Text style={styles.inviteBtnText}>Invite</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color="#fff" /></TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color="#fff" strokeWidth={1.75} /></TouchableOpacity>
               </View>
             </View>
 
@@ -398,7 +398,7 @@ export default function SubsScreen() {
               testID="open-prequal-manager"
             >
               <View style={styles.prequalIcon}>
-                <ShieldCheck size={18} color={Colors.primary} />
+                <ShieldCheck size={18} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.prequalTitle}>Prequal + COI tracking</Text>
@@ -408,7 +408,7 @@ export default function SubsScreen() {
                     : `${prequalSummary.approved} approved · ${prequalSummary.pending} pending${prequalSummary.issues > 0 ? ` · ${prequalSummary.issues} issue${prequalSummary.issues === 1 ? '' : 's'}` : ''}`}
                 </Text>
               </View>
-              <ChevronRight size={16} color={Colors.textMuted} />
+              <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -418,7 +418,7 @@ export default function SubsScreen() {
               testID="open-sub-portals"
             >
               <View style={styles.prequalIcon}>
-                <HardHat size={18} color={Colors.primary} />
+                <HardHat size={18} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.prequalTitle}>Sub portals</Text>
@@ -426,7 +426,7 @@ export default function SubsScreen() {
                   Self-serve link per sub — they review scope, submit invoices, see payment status
                 </Text>
               </View>
-              <ChevronRight size={16} color={Colors.textMuted} />
+              <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             {/* COI Vault — central place to upload + validate every sub's
@@ -440,7 +440,7 @@ export default function SubsScreen() {
               testID="open-coi-vault"
             >
               <View style={styles.prequalIcon}>
-                <ShieldCheck size={18} color={Colors.primary} />
+                <ShieldCheck size={18} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.prequalTitle}>COI vault</Text>
@@ -448,7 +448,7 @@ export default function SubsScreen() {
                   Upload Certificates of Insurance — AI checks expirations + endorsements
                 </Text>
               </View>
-              <ChevronRight size={16} color={Colors.textMuted} />
+              <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
 
             {stats.total > 0 && (
@@ -470,7 +470,7 @@ export default function SubsScreen() {
 
             <View style={styles.searchWrap}>
               <View style={styles.searchBar}>
-                <Search size={15} color={Colors.textMuted} />
+                <Search size={15} color={Colors.textMuted} strokeWidth={1.75} />
                 <TextInput
                   style={styles.searchInput}
                   value={searchQuery}
@@ -481,7 +481,7 @@ export default function SubsScreen() {
                 />
                 {searchQuery.length > 0 && (
                   <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <View style={styles.clearBtn}><X size={10} color={Colors.textMuted} /></View>
+                    <View style={styles.clearBtn}><X size={10} color={Colors.textMuted} strokeWidth={1.75} /></View>
                   </TouchableOpacity>
                 )}
               </View>
@@ -512,14 +512,14 @@ export default function SubsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Users size={48} color={Colors.textMuted} />
+            <Users size={48} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>{searchQuery ? 'No Results' : 'No Subcontractors'}</Text>
             <Text style={styles.emptyDesc}>
               {searchQuery ? 'Try a different search.' : 'Add your first subcontractor to start tracking compliance.'}
             </Text>
             {!searchQuery && (
               <TouchableOpacity style={styles.emptyBtn} onPress={openCreate} activeOpacity={0.7}>
-                <Plus size={16} color="#fff" />
+                <Plus size={16} color="#fff" strokeWidth={1.75} />
                 <Text style={styles.emptyBtnText}>Add Subcontractor</Text>
               </TouchableOpacity>
             )}
@@ -535,7 +535,7 @@ export default function SubsScreen() {
                 <View style={styles.formHeader}>
                   <Text style={styles.formTitle}>{editingSub ? 'Edit Subcontractor' : 'Add Subcontractor'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={Colors.textMuted} />
+                    <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
@@ -672,7 +672,7 @@ export default function SubsScreen() {
                   disabled={uploadingW9}
                   style={[styles.input, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, opacity: uploadingW9 ? 0.6 : 1 }]}
                 >
-                  <Upload size={14} color={Colors.primary} />
+                  <Upload size={14} color={Colors.primary} strokeWidth={1.75} />
                   <Text style={{ color: Colors.primary, fontWeight: '700' as const, fontSize: Type.footnote.fontSize, flex: 1 }}>
                     {uploadingW9 ? 'Uploading…' : (w9DocPath ? 'Replace W-9 (current on file)' : 'Pick W-9 PDF')}
                   </Text>
@@ -707,29 +707,29 @@ export default function SubsScreen() {
                   <View style={styles.formHeader}>
                     <Text style={styles.formTitle}>{sub.companyName}</Text>
                     <TouchableOpacity onPress={() => setShowDetail(null)} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={20} color={Colors.textMuted} />
+                      <X size={20} color={Colors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
 
                   <View style={[styles.detailStatusBar, { backgroundColor: statusColor + '12', borderLeftColor: statusColor }]}>
-                    {status === 'compliant' ? <CheckCircle size={16} color={statusColor} /> : status === 'expiring_soon' ? <Clock size={16} color={statusColor} /> : <AlertTriangle size={16} color={statusColor} />}
+                    {status === 'compliant' ? <CheckCircle size={16} color={statusColor} strokeWidth={1.75} /> : status === 'expiring_soon' ? <Clock size={16} color={statusColor} strokeWidth={1.75} /> : <AlertTriangle size={16} color={statusColor} strokeWidth={1.75} />}
                     <Text style={[styles.detailStatusText, { color: statusColor }]}>{getStatusLabel(status)}</Text>
                   </View>
 
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>CONTACT</Text>
-                    {sub.contactName ? <View style={styles.detailRow}><Users size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>{sub.contactName}</Text></View> : null}
-                    {sub.phone ? <View style={styles.detailRow}><Phone size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>{sub.phone}</Text></View> : null}
-                    {sub.email ? <View style={styles.detailRow}><Mail size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>{sub.email}</Text></View> : null}
-                    {sub.address ? <View style={styles.detailRow}><MapPin size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>{sub.address}</Text></View> : null}
+                    {sub.contactName ? <View style={styles.detailRow}><Users size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.contactName}</Text></View> : null}
+                    {sub.phone ? <View style={styles.detailRow}><Phone size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.phone}</Text></View> : null}
+                    {sub.email ? <View style={styles.detailRow}><Mail size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.email}</Text></View> : null}
+                    {sub.address ? <View style={styles.detailRow}><MapPin size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>{sub.address}</Text></View> : null}
                   </View>
 
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>COMPLIANCE</Text>
-                    <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not set'}</Text></View>
-                    <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>License Expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
-                    <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>COI Expiry: {sub.coiExpiry || 'Not set'}</Text></View>
-                    <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.success : Colors.textMuted} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
+                    <View style={styles.detailRow}><Shield size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License: {sub.licenseNumber || 'Not set'}</Text></View>
+                    <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>License Expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
+                    <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>COI Expiry: {sub.coiExpiry || 'Not set'}</Text></View>
+                    <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.success : Colors.textMuted} strokeWidth={1.75} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
 
                     {/* Verification badges + deep-link to state board.
                         Two paths:
@@ -791,7 +791,7 @@ export default function SubsScreen() {
                       <Text style={styles.editDetailBtnText}>Edit</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.deleteDetailBtn} onPress={() => handleDelete(sub)} activeOpacity={0.7}>
-                      <Trash2 size={16} color={Colors.error} />
+                      <Trash2 size={16} color={Colors.error} strokeWidth={1.75} />
                       <Text style={styles.deleteDetailBtnText}>Delete</Text>
                     </TouchableOpacity>
                   </View>

@@ -117,7 +117,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
                   <Text style={s.modelName}>{model.buildingType}</Text>
                   <Text style={s.modelDesc} numberOfLines={1}>{model.description}</Text>
                 </View>
-                <ChevronRight size={16} color={Colors.textMuted} />
+                <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
               </View>
               <View style={s.modelCardBottom}>
                 <Text style={s.modelRange}>${midRange.low}-${midRange.high}/SF</Text>
@@ -165,7 +165,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
         <Text style={s.fieldLabel}>Square Footage</Text>
         <View style={s.sqftRow}>
           <TouchableOpacity style={s.sqftBtn} onPress={() => setSqftInput(String(Math.max(0, sqft - 100)))}>
-            <MinusIcon size={18} color={Colors.primary} />
+            <MinusIcon size={18} color={Colors.primary} strokeWidth={1.75} />
           </TouchableOpacity>
           <TextInput
             style={s.sqftInput}
@@ -192,7 +192,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
         {costResult && (
           <View style={s.resultCard}>
             <View style={s.resultHeader}>
-              <Calculator size={16} color={Colors.primary} />
+              <Calculator size={16} color={Colors.primary} strokeWidth={1.75} />
               <Text style={s.resultTitle}>Estimated Cost Range</Text>
             </View>
             {locationFactor !== 1 && (
@@ -202,19 +202,19 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
             )}
             <View style={s.resultRow}>
               <View style={s.resultCol}>
-                <TrendingDown size={14} color={Colors.success} />
+                <TrendingDown size={14} color={Colors.success} strokeWidth={1.75} />
                 <Text style={s.resultLabel}>Low</Text>
                 <Text style={s.resultValueLow}>{formatCurrency(costResult.low)}</Text>
                 <Text style={s.resultPerSf}>${costResult.perSfLow}/SF</Text>
               </View>
               <View style={[s.resultCol, s.resultColMid]}>
-                <Calculator size={14} color={Colors.primary} />
+                <Calculator size={14} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={s.resultLabel}>Mid</Text>
                 <Text style={s.resultValueMid}>{formatCurrency(costResult.mid)}</Text>
                 <Text style={s.resultPerSf}>${costResult.perSfMid}/SF</Text>
               </View>
               <View style={s.resultCol}>
-                <TrendingUp size={14} color={Colors.error} />
+                <TrendingUp size={14} color={Colors.error} strokeWidth={1.75} />
                 <Text style={s.resultLabel}>High</Text>
                 <Text style={s.resultValueHigh}>{formatCurrency(costResult.high)}</Text>
                 <Text style={s.resultPerSf}>${costResult.perSfHigh}/SF</Text>
@@ -237,7 +237,7 @@ const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, o
             <Text style={s.headerTitle}>Quick Estimate</Text>
             <Text style={s.headerSub}>Square foot cost calculator</Text>
           </View>
-          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
         <View style={s.body}>
           {step === 1 && renderStep1()}

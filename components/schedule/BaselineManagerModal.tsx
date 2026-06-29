@@ -192,7 +192,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.header}>
-            <Bookmark size={18} color={themeColors.accent} />
+            <Bookmark size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.title}>
               {mode.kind === 'list' ? 'Baselines' :
                mode.kind === 'capture' ? 'New baseline' :
@@ -201,7 +201,7 @@ export default function BaselineManagerModal(props: BaselineManagerModalProps) {
                'Variance'}
             </Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={18} color={themeColors.textMuted} />
+              <X size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -298,7 +298,7 @@ function ListView(props: {
       <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
         {baselines.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Bookmark size={20} color={themeColors.textMuted} />
+            <Bookmark size={20} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyText}>
               No baselines yet. Capture one to lock in the current plan as a target.
             </Text>
@@ -328,14 +328,14 @@ function ListView(props: {
                 <View style={styles.baselineActions}>
                   {!isActive && (
                     <TouchableOpacity onPress={() => onActivate(b)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={`Activate ${b.name}`}>
-                      <ChevronRight size={14} color={themeColors.accent} />
+                      <ChevronRight size={14} color={themeColors.accent} strokeWidth={1.75} />
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity onPress={() => onRename(b.id)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={`Rename ${b.name}`}>
-                    <Pencil size={13} color={themeColors.textMuted} />
+                    <Pencil size={13} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => onDelete(b.id)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel={`Delete ${b.name}`}>
-                    <Trash2 size={13} color={themeColors.danger} />
+                    <Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -346,11 +346,11 @@ function ListView(props: {
 
       <View style={styles.footerRow}>
         <TouchableOpacity style={[styles.footerBtn, styles.footerBtnSecondary]} onPress={onCompare} disabled={baselines.length === 0} accessibilityRole="button">
-          <GitCompare size={14} color={baselines.length === 0 ? themeColors.textMuted : themeColors.text} />
+          <GitCompare size={14} color={baselines.length === 0 ? themeColors.textMuted : themeColors.text} strokeWidth={1.75} />
           <Text style={[styles.footerBtnText, baselines.length === 0 && { color: themeColors.textMuted }]}>Compare</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, styles.footerBtnPrimary]} onPress={onCapture} accessibilityRole="button">
-          <Plus size={14} color="#FFF" />
+          <Plus size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={[styles.footerBtnText, { color: '#FFF' }]}>Capture new</Text>
         </TouchableOpacity>
       </View>
@@ -404,7 +404,7 @@ function CaptureView(props: {
           <Text style={styles.footerBtnText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerBtn, styles.footerBtnPrimary]} onPress={props.onSubmit} accessibilityRole="button">
-          <Check size={14} color="#FFF" />
+          <Check size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={[styles.footerBtnText, { color: '#FFF' }]}>{props.isRename ? 'Save' : 'Capture'}</Text>
         </TouchableOpacity>
       </View>
@@ -491,7 +491,7 @@ function ComparePicker(props: {
           disabled={!compareA}
           accessibilityRole="button"
         >
-          <GitCompare size={14} color="#FFF" />
+          <GitCompare size={14} color="#FFF" strokeWidth={1.75} />
           <Text style={[styles.footerBtnText, { color: '#FFF' }]}>Show variance</Text>
         </TouchableOpacity>
       </View>
@@ -523,7 +523,7 @@ function CompareResult(props: {
 
       {diff.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Check size={20} color={themeColors.success} />
+          <Check size={20} color={themeColors.success} strokeWidth={1.75} />
           <Text style={styles.emptyText}>Plans match exactly. No variance.</Text>
         </View>
       ) : (

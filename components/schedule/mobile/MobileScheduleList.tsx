@@ -44,14 +44,14 @@ function SwipeRow({ done, onDone, onDelete, children }: { done: boolean; onDone:
         style={[styles.swipeBtn, { backgroundColor: colors.success }]}
         onPress={() => { ref.current?.close(); onDone(); }}
       >
-        {done ? <RotateCcw size={17} color="#FFFFFF" /> : <Check size={18} color="#FFFFFF" />}
+        {done ? <RotateCcw size={17} color="#FFFFFF" strokeWidth={1.75} /> : <Check size={18} color="#FFFFFF" strokeWidth={1.75} />}
         <Text style={styles.swipeTxt}>{done ? 'Undo' : 'Done'}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.swipeBtn, { backgroundColor: colors.danger }]}
         onPress={() => { ref.current?.close(); onDelete(); }}
       >
-        <Trash2 size={17} color="#FFFFFF" />
+        <Trash2 size={17} color="#FFFFFF" strokeWidth={1.75} />
         <Text style={styles.swipeTxt}>Delete</Text>
       </TouchableOpacity>
     </View>
@@ -100,7 +100,7 @@ export function MobileScheduleList({
         return (
           <View key={ph.phase} style={styles.group}>
             <TouchableOpacity style={styles.phead} activeOpacity={0.7} onPress={() => onTogglePhase(ph.phase)}>
-              {collapsed ? <ChevronRight size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+              {collapsed ? <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={16} color={colors.textMuted} strokeWidth={1.75} />}
               <View style={[styles.dot, { backgroundColor: color }]} />
               <Text style={styles.pname} numberOfLines={1}>{ph.phase}</Text>
               <Text style={styles.ptasks}>{ph.tasks.length}</Text>
@@ -122,10 +122,10 @@ export function MobileScheduleList({
                       <TouchableOpacity style={[styles.row, i > 0 ? styles.rowDivider : null]} activeOpacity={0.7} onPress={() => onPressTask(t)}>
                         {crit && <View style={[styles.critEdge, { backgroundColor: colors.danger }]} />}
                         {done
-                          ? <CheckCircle2 size={18} color={colors.success} />
+                          ? <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} />
                           : t.status === 'in_progress'
-                            ? <CircleDot size={18} color={color} />
-                            : <Circle size={18} color={colors.textMuted} />}
+                            ? <CircleDot size={18} color={color} strokeWidth={1.75} />
+                            : <Circle size={18} color={colors.textMuted} strokeWidth={1.75} />}
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <View style={styles.titleRow}>
                             <Text style={[styles.tname, done ? styles.tnameDone : null]} numberOfLines={1}>{t.title}</Text>
@@ -144,7 +144,7 @@ export function MobileScheduleList({
         );
       })}
       <TouchableOpacity style={styles.addRow} activeOpacity={0.7} onPress={onAddTask} testID="mobile-list-add">
-        <Plus size={16} color={colors.accent} />
+        <Plus size={16} color={colors.accent} strokeWidth={1.75} />
         <Text style={styles.addText}>New Work Package</Text>
       </TouchableOpacity>
     </ScrollView>

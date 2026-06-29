@@ -8,9 +8,10 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, TrendingDown, DollarSign, Plus, X, Trash2, Edit3,
-  AlertTriangle, CheckCircle, Sparkles, ChevronDown, ChevronUp,
+  AlertTriangle, CheckCircle, ChevronDown, ChevronUp,
   Calendar, Clock, Wallet, BarChart3, RefreshCw,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -461,7 +462,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             onPress={() => setShowSetup(true)}
             style={{ padding: 6 }}
             activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Edit">
-            <Edit3 size={20} color={themeColors.accent} />
+            <Edit3 size={20} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         ),
       }} />
@@ -494,7 +495,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           <View style={styles.heroRow}>
             <View style={styles.heroLeft}>
               <View style={styles.heroLabelRow}>
-                <Wallet size={12} color="rgba(255,255,255,0.85)" />
+                <Wallet size={12} color="rgba(255,255,255,0.85)" strokeWidth={1.75} />
                 <Text style={styles.heroLabel}>
                   Current Balance
                   {effectiveStartingBalance !== (cashFlowData?.startingBalance ?? 0) ? ' · auto' : ''}
@@ -521,17 +522,17 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               {/* Status pill + projected end-of-horizon delta */}
               <View style={styles.heroSubRow}>
                 <View style={[styles.heroStatusPill, { backgroundColor: healthStatus.bg }]}>
-                  {healthStatus.kind === 'healthy' && <CheckCircle size={11} color={healthStatus.color} />}
-                  {healthStatus.kind === 'watch' && <AlertTriangle size={11} color={healthStatus.color} />}
-                  {healthStatus.kind === 'danger' && <AlertTriangle size={11} color={healthStatus.color} />}
+                  {healthStatus.kind === 'healthy' && <CheckCircle size={11} color={healthStatus.color} strokeWidth={1.75} />}
+                  {healthStatus.kind === 'watch' && <AlertTriangle size={11} color={healthStatus.color} strokeWidth={1.75} />}
+                  {healthStatus.kind === 'danger' && <AlertTriangle size={11} color={healthStatus.color} strokeWidth={1.75} />}
                   <Text style={[styles.heroStatusText, { color: healthStatus.color }]}>{healthStatus.label}</Text>
                 </View>
                 {forecast.length > 0 && (
                   <View style={styles.heroDelta}>
                     {summary.netProfit >= 0 ? (
-                      <TrendingUp size={11} color="#D6FFE3" />
+                      <TrendingUp size={11} color="#D6FFE3" strokeWidth={1.75} />
                     ) : (
-                      <TrendingDown size={11} color="#FFE0E0" />
+                      <TrendingDown size={11} color="#FFE0E0" strokeWidth={1.75} />
                     )}
                     <Text style={[styles.heroDeltaText, { color: summary.netProfit >= 0 ? '#D6FFE3' : '#FFE0E0' }]}>
                       {summary.netProfit >= 0 ? '+' : ''}{formatCurrencyShort(summary.netProfit)} · {forecastWeeks}w
@@ -547,7 +548,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 setShowEditBalance(true);
               }}
               activeOpacity={0.75} accessibilityRole="button" accessibilityLabel="Edit">
-              <Edit3 size={14} color={themeColors.surface} />
+              <Edit3 size={14} color={themeColors.surface} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -619,7 +620,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           <View style={styles.section}>
             <View style={styles.dangerCard}>
               <View style={styles.dangerHeader}>
-                <AlertTriangle size={18} color={themeColors.danger} />
+                <AlertTriangle size={18} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.dangerTitle}>Danger Zone</Text>
               </View>
               {summary.dangerWeeks.map((dw, i) => (
@@ -642,21 +643,21 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={styles.weekDetailCard}>
               <View style={styles.weekDetailRow}>
                 <View style={styles.weekDetailItem}>
-                  <TrendingUp size={16} color={themeColors.success} />
+                  <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} />
                   <Text style={styles.weekDetailLabel}>Income</Text>
                   <Text style={[styles.weekDetailValue, { color: themeColors.success }]}>
                     {formatCurrency(selectedWeekData.totalIncome)}
                   </Text>
                 </View>
                 <View style={styles.weekDetailItem}>
-                  <TrendingDown size={16} color={themeColors.danger} />
+                  <TrendingDown size={16} color={themeColors.danger} strokeWidth={1.75} />
                   <Text style={styles.weekDetailLabel}>Expenses</Text>
                   <Text style={[styles.weekDetailValue, { color: themeColors.danger }]}>
                     {formatCurrency(selectedWeekData.totalExpenses)}
                   </Text>
                 </View>
                 <View style={styles.weekDetailItem}>
-                  <Wallet size={16} color={themeColors.info} />
+                  <Wallet size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={styles.weekDetailLabel}>Balance</Text>
                   <Text style={[styles.weekDetailValue, { color: selectedWeekData.runningBalance < 0 ? themeColors.danger : themeColors.text }]}>
                     {formatCurrency(selectedWeekData.runningBalance)}
@@ -701,7 +702,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={[styles.summaryItem, { borderLeftColor: themeColors.success, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
                 <View style={[styles.summaryIcon, { backgroundColor: themeColors.success + '15' }]}>
-                  <TrendingUp size={14} color={themeColors.success} />
+                  <TrendingUp size={14} color={themeColors.success} strokeWidth={1.75} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Total Income</Text>
@@ -710,7 +711,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={[styles.summaryItem, { borderLeftColor: themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
                 <View style={[styles.summaryIcon, { backgroundColor: themeColors.danger + '15' }]}>
-                  <TrendingDown size={14} color={themeColors.danger} />
+                  <TrendingDown size={14} color={themeColors.danger} strokeWidth={1.75} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Total Expenses</Text>
@@ -719,7 +720,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={[styles.summaryItem, { borderLeftColor: summary.netProfit >= 0 ? themeColors.success : themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
                 <View style={[styles.summaryIcon, { backgroundColor: (summary.netProfit >= 0 ? themeColors.success : themeColors.danger) + '15' }]}>
-                  <DollarSign size={14} color={summary.netProfit >= 0 ? themeColors.success : themeColors.danger} />
+                  <DollarSign size={14} color={summary.netProfit >= 0 ? themeColors.success : themeColors.danger} strokeWidth={1.75} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Net Profit</Text>
@@ -740,7 +741,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={[styles.summaryItem, { borderLeftColor: summary.lowestBalance < 0 ? themeColors.danger : themeColors.info, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
                 <View style={[styles.summaryIcon, { backgroundColor: (summary.lowestBalance < 0 ? themeColors.danger : themeColors.info) + '15' }]}>
-                  <Wallet size={14} color={summary.lowestBalance < 0 ? themeColors.danger : themeColors.info} />
+                  <Wallet size={14} color={summary.lowestBalance < 0 ? themeColors.danger : themeColors.info} strokeWidth={1.75} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Lowest Balance</Text>
@@ -754,10 +755,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('expenses')} activeOpacity={0.7}>
-            <DollarSign size={18} color={themeColors.danger} />
+            <DollarSign size={18} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Monthly Expenses</Text>
             <Text style={styles.sectionAmount}>{formatCurrencyShort(totalMonthlyExpenses)}/mo</Text>
-            {expandedSections.expenses ? <ChevronUp size={18} color={themeColors.textMuted} /> : <ChevronDown size={18} color={themeColors.textMuted} />}
+            {expandedSections.expenses ? <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
           </TouchableOpacity>
 
           {expandedSections.expenses && (
@@ -770,7 +771,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   </View>
                   <Text style={styles.expenseListAmount}>{formatCurrency(exp.amount)}</Text>
                   <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.expenseDeleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                    <Trash2 size={14} color={themeColors.danger} />
+                    <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -778,7 +779,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <Text style={styles.emptyListText}>No recurring expenses added yet</Text>
               )}
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
-                <Plus size={16} color={themeColors.accent} />
+                <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.addItemText}>Add Expense</Text>
               </TouchableOpacity>
             </View>
@@ -787,12 +788,12 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('income')} activeOpacity={0.7}>
-            <TrendingUp size={18} color={themeColors.success} />
+            <TrendingUp size={18} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.sectionTitle}>Expected Income</Text>
             <Text style={[styles.sectionAmount, { color: themeColors.success }]}>
               {formatCurrencyShort(totalPending)} pending
             </Text>
-            {expandedSections.income ? <ChevronUp size={18} color={themeColors.textMuted} /> : <ChevronDown size={18} color={themeColors.textMuted} />}
+            {expandedSections.income ? <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
           </TouchableOpacity>
 
           {expandedSections.income && (
@@ -829,7 +830,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                     </View>
                     <Text style={styles.incomeListAmount}>{formatCurrency(ep.amount)}</Text>
                     <TouchableOpacity onPress={() => handleRemovePayment(ep.id)} style={styles.expenseDeleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={14} color={themeColors.danger} />
+                      <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                 );
@@ -839,7 +840,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <Text style={styles.emptyListText}>No income expected. Add invoices or expected payments.</Text>
               )}
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
-                <Plus size={16} color={themeColors.success} />
+                <Plus size={16} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={[styles.addItemText, { color: themeColors.success }]}>Add Expected Payment</Text>
               </TouchableOpacity>
             </View>
@@ -857,7 +858,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             {aiLoading ? (
               <ActivityIndicator size="small" color={"#FFFFFF"} />
             ) : (
-              <Sparkles size={18} color={"#FFFFFF"} />
+              <MageAIMark size={18} color={"#FFFFFF"} />
             )}
             <Text style={styles.aiButtonText}>
               {aiLoading ? 'Analyzing...' : 'Get AI Advice'}
@@ -870,14 +871,14 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             activeOpacity={0.85}
             testID="payment-forecast-btn"
           >
-            <TrendingUp size={18} color={"#FFFFFF"} />
+            <TrendingUp size={18} color={"#FFFFFF"} strokeWidth={1.75} />
             <Text style={styles.aiButtonText}>Payment Forecast</Text>
           </TouchableOpacity>
 
           {showAiResults && aiAnalysis && (
             <View style={styles.aiResultsCard}>
               <View style={styles.aiResultsHeader}>
-                <Sparkles size={16} color={themeColors.accent} />
+                <MageAIMark size={16} color={themeColors.accent} />
                 <Text style={styles.aiResultsTitle}>AI Cash Flow Analysis</Text>
                 <View style={[styles.healthBadge, { backgroundColor: healthColor(aiAnalysis.overallHealth) + '20' }]}>
                   <Text style={[styles.healthBadgeText, { color: healthColor(aiAnalysis.overallHealth) }]}>
@@ -893,7 +894,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <Text style={styles.aiSectionTitle}>Critical Weeks</Text>
                   {(aiAnalysis.criticalWeeks ?? []).map((cw, i) => (
                     <View key={i} style={styles.criticalWeekRow}>
-                      <AlertTriangle size={14} color={themeColors.danger} />
+                      <AlertTriangle size={14} color={themeColors.danger} strokeWidth={1.75} />
                       <Text style={styles.criticalWeekText}>
                         Week {cw.weekNumber}: {formatCurrency(cw.balance)} — {cw.problem}
                       </Text>
@@ -930,14 +931,17 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <Text style={styles.aiSectionTitle}>Billing Optimizations</Text>
                   {(aiAnalysis.billingOptimizations ?? []).map((opt, i) => (
                     <View key={i} style={styles.bulletRow}>
-                      <CheckCircle size={14} color={themeColors.success} />
+                      <CheckCircle size={14} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={styles.bulletText}>{opt}</Text>
                     </View>
                   ))}
                 </View>
               )}
 
-              <Text style={styles.aiGenLabel}>✨ AI-generated</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <MageAIMark size={12} color={themeColors.accent} />
+                <Text style={styles.aiGenLabel}>AI-generated</Text>
+              </View>
             </View>
           )}
         </View>
@@ -956,7 +960,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Balance</Text>
                 <TouchableOpacity onPress={() => setShowEditBalance(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Current Bank Balance</Text>
@@ -985,7 +989,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Expense</Text>
                 <TouchableOpacity onPress={() => setShowAddExpense(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -1014,7 +1018,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </View>
               </ScrollView>
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAddExpense} activeOpacity={0.85}>
-                <Plus size={18} color={"#FFFFFF"} />
+                <Plus size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>Add Expense</Text>
               </TouchableOpacity>
             </View>
@@ -1029,7 +1033,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Expected Payment</Text>
                 <TouchableOpacity onPress={() => setShowAddPayment(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Description</Text>
@@ -1053,7 +1057,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 })}
               </View>
               <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: themeColors.success }]} onPress={handleAddPayment} activeOpacity={0.85}>
-                <Plus size={18} color={"#FFFFFF"} />
+                <Plus size={18} color={"#FFFFFF"} strokeWidth={1.75} />
                 <Text style={styles.modalSaveBtnText}>Add Payment</Text>
               </TouchableOpacity>
             </View>

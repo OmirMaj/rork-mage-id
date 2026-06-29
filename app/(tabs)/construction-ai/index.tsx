@@ -27,11 +27,12 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Gavel, MapPin, Hammer, AlertTriangle, CheckCircle, Sparkles,
-  ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp, Zap,
+  Gavel, MapPin, Hammer, AlertTriangle, CheckCircle,
+  ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
@@ -53,7 +54,7 @@ import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanRev
 const CATEGORIES = [
   { key: 'residential', label: 'Residential', icon: Home },
   { key: 'commercial', label: 'Commercial', icon: Building2 },
-  { key: 'electrical', label: 'Electrical', icon: Zap },
+  { key: 'electrical', label: 'Electrical', icon: MageAIMark },
   { key: 'plumbing', label: 'Plumbing', icon: Droplets },
   { key: 'structural', label: 'Structural', icon: HardHat },
   { key: 'egress_fire', label: 'Egress / Fire', icon: AlertTriangle },
@@ -240,7 +241,7 @@ export default function ConstructionAITab() {
       <View style={[styles.container, { paddingTop: insets.top + 16, paddingHorizontal: 24 }]}>
         <View style={styles.lockedHero}>
           <View style={styles.lockedIconWrap}>
-            <Gavel size={36} color={Colors.primary} />
+            <Gavel size={36} color={Colors.primary} strokeWidth={1.75} />
           </View>
           <Text style={styles.lockedTitle}>Construction AI</Text>
           <Text style={styles.lockedBody}>
@@ -253,7 +254,7 @@ export default function ConstructionAITab() {
             activeOpacity={0.85}
             testID="construction-ai-upgrade"
           >
-            <Sparkles size={18} color="#FFF" />
+            <MageAIMark size={18} color="#FFF" />
             <Text style={styles.lockedCtaText}>Upgrade to Pro</Text>
           </TouchableOpacity>
         </View>
@@ -555,7 +556,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             activeOpacity={0.8}
             testID="mode-toggle-code"
           >
-            <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} />
+            <Gavel size={14} color={mode === 'code' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.modeToggleText, mode === 'code' && styles.modeToggleTextActive]}>Code Check</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -564,7 +565,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             activeOpacity={0.8}
             testID="mode-toggle-roadmap"
           >
-            <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} />
+            <Map size={14} color={mode === 'roadmap' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.modeToggleText, mode === 'roadmap' && styles.modeToggleTextActive]}>Project Roadmap</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -573,7 +574,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             activeOpacity={0.8}
             testID="mode-toggle-plan"
           >
-            <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} />
+            <ShieldCheck size={14} color={mode === 'plan' ? '#FFF' : Colors.textSecondary} strokeWidth={1.75} />
             <Text style={[styles.modeToggleText, mode === 'plan' && styles.modeToggleTextActive]}>Plan Review</Text>
           </TouchableOpacity>
         </View>
@@ -586,7 +587,7 @@ Be specific to the cited location if possible. If the location is not in the US,
           >
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <Gavel size={28} color={Colors.primary} />
+                <Gavel size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <Text style={styles.heroTitle}>Construction AI</Text>
               <Text style={styles.heroSubtitle}>
@@ -596,7 +597,7 @@ Be specific to the cited location if possible. If the location is not in the US,
 
             <Text style={styles.label}>Location (city, state)</Text>
             <View style={styles.inputRow}>
-              <MapPin size={16} color={Colors.textMuted} />
+              <MapPin size={16} color={Colors.textMuted} strokeWidth={1.75} />
               <TextInput
                 value={location}
                 onChangeText={setLocation}
@@ -626,7 +627,7 @@ Be specific to the cited location if possible. If the location is not in the US,
             </View>
 
             <View style={styles.presetHeader}>
-              <Zap size={14} color={Colors.primary} />
+              <MageAIMark size={14} color={Colors.primary} />
               <Text style={styles.presetHeaderText}>Popular questions</Text>
             </View>
             <View style={styles.presetList}>
@@ -674,7 +675,7 @@ Be specific to the cited location if possible. If the location is not in the US,
               activeOpacity={0.85}
               testID="code-check-run"
             >
-              <Sparkles size={18} color="#FFF" />
+              <MageAIMark size={18} color="#FFF" />
               <Text style={styles.runBtnText}>Run Code Check</Text>
             </TouchableOpacity>
 
@@ -689,7 +690,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                 activeOpacity={0.8}
                 testID="code-check-reopen"
               >
-                <BookOpen size={16} color={Colors.primary} />
+                <BookOpen size={16} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={styles.reopenText}>View last result</Text>
               </TouchableOpacity>
             ) : null}
@@ -702,7 +703,7 @@ Be specific to the cited location if possible. If the location is not in the US,
           >
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <FileText size={28} color={Colors.primary} />
+                <FileText size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <Text style={styles.heroTitle}>Project Roadmap</Text>
               <Text style={styles.heroSubtitle}>
@@ -745,7 +746,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                   activeOpacity={0.85}
                   testID="roadmap-generate"
                 >
-                  <Sparkles size={18} color="#FFF" />
+                  <MageAIMark size={18} color="#FFF" />
                   <Text style={styles.runBtnText}>Generate Roadmap</Text>
                 </TouchableOpacity>
                 <Text style={styles.quotaText}>
@@ -767,7 +768,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                 {/* Flags banner */}
                 {flags.length > 0 ? (
                   <View style={styles.flagsBanner}>
-                    <Flag size={14} color={Colors.error} />
+                    <Flag size={14} color={Colors.error} strokeWidth={1.75} />
                     <View style={{ flex: 1, gap: 4 }}>
                       {flags.map((f) => (
                         <Text
@@ -789,7 +790,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                   activeOpacity={0.85}
                   testID="roadmap-regenerate"
                 >
-                  <RefreshCw size={16} color={scopeStale ? '#FFF' : Colors.primary} />
+                  <RefreshCw size={16} color={scopeStale ? '#FFF' : Colors.primary} strokeWidth={1.75} />
                   <Text style={[styles.regenBtnText, scopeStale && styles.regenBtnTextHighlighted]}>
                     {scopeStale ? 'Regenerate (scope changed)' : 'Regenerate'}
                   </Text>
@@ -875,7 +876,7 @@ Be specific to the cited location if possible. If the location is not in the US,
           >
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <ShieldCheck size={28} color={Colors.primary} />
+                <ShieldCheck size={28} color={Colors.primary} strokeWidth={1.75} />
               </View>
               <Text style={styles.heroTitle}>Plan Review</Text>
               <Text style={styles.heroSubtitle}>
@@ -885,7 +886,7 @@ Be specific to the cited location if possible. If the location is not in the US,
 
             {/* Disclaimer banner (always visible) */}
             <View style={styles.planDisclaimer}>
-              <AlertTriangle size={14} color="#FF9500" />
+              <AlertTriangle size={14} color="#FF9500" strokeWidth={1.75} />
               <Text style={styles.planDisclaimerText}>{PLAN_REVIEW_DISCLAIMER}</Text>
             </View>
 
@@ -952,7 +953,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                     activeOpacity={0.85}
                     testID="run-plan-review"
                   >
-                    <Sparkles size={18} color="#FFF" />
+                    <MageAIMark size={18} color="#FFF" />
                     <Text style={styles.runBtnText}>
                       {planLoading ? 'Reviewing…' : existingReview ? 'Re-review for code' : 'Review for code'}
                     </Text>
@@ -997,7 +998,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                                     testID={`finding-status-${f.id}`}
                                   >
                                     <Text style={styles.findingStatusText}>{FINDING_STATUS_LABEL[f.status]}</Text>
-                                    <ChevronRight size={10} color={Colors.primary} />
+                                    <ChevronRight size={10} color={Colors.primary} strokeWidth={1.75} />
                                   </TouchableOpacity>
                                 </View>
                               ))}
@@ -1062,7 +1063,7 @@ function RoadmapPermitRow({
           <Text style={[styles.statusChipText, { color: PERMIT_STATUS_COLORS[permit.status] }]}>
             {permit.status}
           </Text>
-          <ChevronRight size={10} color={PERMIT_STATUS_COLORS[permit.status]} />
+          <ChevronRight size={10} color={PERMIT_STATUS_COLORS[permit.status]} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
       {permit.description ? (
@@ -1075,7 +1076,7 @@ function RoadmapPermitRow({
           style={styles.addToPermitsBtn}
           testID={`add-to-permits-${permit.id}`}
         >
-          <PlusCircle size={13} color={Colors.primary} />
+          <PlusCircle size={13} color={Colors.primary} strokeWidth={1.75} />
           <Text style={styles.addToPermitsBtnText}>Add to Permits</Text>
         </TouchableOpacity>
       ) : (
@@ -1085,10 +1086,10 @@ function RoadmapPermitRow({
           style={styles.linkedBadge}
           testID={`open-permit-${permit.id}`}
         >
-          <CheckCircle size={12} color={Colors.success} />
+          <CheckCircle size={12} color={Colors.success} strokeWidth={1.75} />
           <Text style={styles.linkedBadgeText}>Added to Permits</Text>
           <Text style={styles.linkedBadgeLink}>View</Text>
-          <ChevronRight size={11} color={Colors.primary} />
+          <ChevronRight size={11} color={Colors.primary} strokeWidth={1.75} />
         </TouchableOpacity>
       )}
     </View>
@@ -1133,7 +1134,7 @@ function RoadmapInspectionRow({
           <Text style={[styles.statusChipText, { color: INSP_STATUS_COLORS[inspection.status] }]}>
             {inspection.status}
           </Text>
-          <ChevronRight size={10} color={INSP_STATUS_COLORS[inspection.status]} />
+          <ChevronRight size={10} color={INSP_STATUS_COLORS[inspection.status]} strokeWidth={1.75} />
         </TouchableOpacity>
       </View>
       {inspection.description ? (
@@ -1185,7 +1186,7 @@ function RoadmapLoadingModal({ visible }: { visible: boolean }) {
           <View style={styles.loadingIconStack}>
             <Animated.View style={[styles.loadingPulse, { transform: [{ scale }], opacity }]} />
             <Animated.View style={{ transform: [{ rotate }] }}>
-              <FileText size={44} color={Colors.primary} />
+              <FileText size={44} color={Colors.primary} strokeWidth={1.75} />
             </Animated.View>
           </View>
           <Text style={styles.loadingTitle}>Generating Roadmap</Text>
@@ -1267,7 +1268,7 @@ function LoadingModal({ visible }: { visible: boolean }) {
               ]}
             />
             <Animated.View style={{ transform: [{ rotate }] }}>
-              <Gavel size={44} color={Colors.primary} />
+              <Gavel size={44} color={Colors.primary} strokeWidth={1.75} />
             </Animated.View>
           </View>
           <Text style={styles.loadingTitle}>Running Code Check</Text>
@@ -1310,14 +1311,14 @@ function ResultModal({
       <View style={[styles.resultContainer, { paddingTop: Platform.OS === 'ios' ? 8 : insets.top + 8 }]}>
         <View style={styles.resultHeader}>
           <View style={styles.resultHeaderIcon}>
-            <Gavel size={20} color={Colors.primary} />
+            <Gavel size={20} color={Colors.primary} strokeWidth={1.75} />
           </View>
           <Text style={styles.resultHeaderTitle}>Code Check Result</Text>
           <TouchableOpacity
             onPress={onClose}
             style={styles.resultCloseBtn}
             testID="code-check-close"
-            activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
+            activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} strokeWidth={1.75} /></TouchableOpacity>
         </View>
 
         <ScrollView
@@ -1327,7 +1328,7 @@ function ResultModal({
           {result.summary ? (
             <View style={[styles.resultCard, styles.resultSummaryCard]}>
               <View style={styles.resultCardHeader}>
-                <BookOpen size={16} color={Colors.primary} />
+                <BookOpen size={16} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={styles.resultCardTitle}>Summary</Text>
               </View>
               <Text style={styles.resultBody}>{result.summary}</Text>
@@ -1438,8 +1439,8 @@ function AccordionSection({
         </View>
         <View style={{ flex: 1 }} />
         {expanded
-          ? <ChevronUp size={16} color={Colors.textMuted} />
-          : <ChevronDown size={16} color={Colors.textMuted} />
+          ? <ChevronUp size={16} color={Colors.textMuted} strokeWidth={1.75} />
+          : <ChevronDown size={16} color={Colors.textMuted} strokeWidth={1.75} />
         }
       </TouchableOpacity>
       {expanded ? <View style={styles.accordionBody}>{children}</View> : null}

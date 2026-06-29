@@ -161,7 +161,7 @@ export default function CompanyProfileScreen() {
           headerTitleStyle: { fontWeight: '700', color: themeColors.text },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
           headerRight: () => (
@@ -183,7 +183,7 @@ export default function CompanyProfileScreen() {
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: '#1A6B3C' }]}>
-              <Building2 size={14} color="#fff" />
+              <Building2 size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Company Name</Text>
             <TextInput
@@ -199,7 +199,7 @@ export default function CompanyProfileScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
-              <TypeIcon size={14} color="#fff" />
+              <TypeIcon size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Tagline</Text>
             <TextInput
@@ -215,7 +215,7 @@ export default function CompanyProfileScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-              <User size={14} color="#fff" />
+              <User size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Contact Name</Text>
             <TextInput
@@ -231,7 +231,7 @@ export default function CompanyProfileScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <Phone size={14} color="#fff" />
+              <Phone size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Phone</Text>
             <TextInput
@@ -248,7 +248,7 @@ export default function CompanyProfileScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Mail size={14} color="#fff" />
+              <Mail size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Email</Text>
             <TextInput
@@ -266,7 +266,7 @@ export default function CompanyProfileScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <MapPin size={14} color="#fff" />
+              <MapPin size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Address</Text>
             <TextInput
@@ -282,7 +282,7 @@ export default function CompanyProfileScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: '#AF52DE' }]}>
-              <Award size={14} color="#fff" />
+              <Award size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>License #</Text>
             <TextInput
@@ -307,11 +307,11 @@ export default function CompanyProfileScreen() {
               <Image source={{ uri: logoUri }} style={styles.logoPreview} contentFit="contain" />
               <View style={styles.logoActions}>
                 <TouchableOpacity style={styles.logoChangeBtn} onPress={handlePickLogo} activeOpacity={0.7}>
-                  <Camera size={14} color={themeColors.accent} />
+                  <Camera size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.logoChangeBtnText}>Change</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.logoRemoveBtn} onPress={handleRemoveLogo} activeOpacity={0.7}>
-                  <Trash2 size={14} color={themeColors.danger} />
+                  <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                   <Text style={styles.logoRemoveBtnText}>Remove</Text>
                 </TouchableOpacity>
               </View>
@@ -319,7 +319,7 @@ export default function CompanyProfileScreen() {
           ) : (
             <TouchableOpacity style={styles.logoUploadRow} onPress={handlePickLogo} activeOpacity={0.7} testID="upload-logo">
               <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
-                <ImageIcon size={14} color="#fff" />
+                <ImageIcon size={14} color="#fff" strokeWidth={1.75} />
               </View>
               <Text style={styles.rowLabel}>Upload Logo</Text>
             </TouchableOpacity>
@@ -336,7 +336,7 @@ export default function CompanyProfileScreen() {
               <View style={styles.signaturePreviewBox}>
                 <Text style={styles.signaturePreviewLabel}>Your saved signature</Text>
                 <View style={styles.signatureMiniPreview}>
-                  <PenTool size={16} color={themeColors.accent} />
+                  <PenTool size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.signatureSavedText}>Signature saved ({signatureData.length} strokes)</Text>
                 </View>
               </View>
@@ -346,7 +346,7 @@ export default function CompanyProfileScreen() {
                   onPress={() => setShowSignatureModal(true)}
                   activeOpacity={0.7}
                 >
-                  <PenTool size={14} color={themeColors.accent} />
+                  <PenTool size={14} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.signatureRedrawBtnText}>Redraw</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -358,7 +358,7 @@ export default function CompanyProfileScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Trash2 size={14} color={themeColors.danger} />
+                  <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
                   <Text style={styles.signatureRemoveBtnText}>Remove</Text>
                 </TouchableOpacity>
               </View>
@@ -371,7 +371,7 @@ export default function CompanyProfileScreen() {
               testID="draw-signature"
             >
               <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                <PenTool size={14} color="#fff" />
+                <PenTool size={14} color="#fff" strokeWidth={1.75} />
               </View>
               <Text style={styles.rowLabel}>Draw Signature</Text>
             </TouchableOpacity>
@@ -379,7 +379,7 @@ export default function CompanyProfileScreen() {
         </View>
 
         <View style={styles.pdfPreviewNote}>
-          <FileText size={14} color={themeColors.info} />
+          <FileText size={14} color={themeColors.info} strokeWidth={1.75} />
           <Text style={styles.pdfPreviewNoteText}>
             Your company info, logo, and signature appear on every PDF estimate, invoice, and the client-portal invite email.
           </Text>
@@ -389,7 +389,7 @@ export default function CompanyProfileScreen() {
             action so a long page doesn't force the user to scroll back up
             to the headerRight to save. */}
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.85} testID="company-profile-save">
-          <Save size={16} color="#fff" />
+          <Save size={16} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveButtonText}>Save Company Info</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -405,7 +405,7 @@ export default function CompanyProfileScreen() {
             <View style={styles.sigModalHeader}>
               <Text style={styles.sigModalTitle}>Draw Your Signature</Text>
               <TouchableOpacity onPress={() => setShowSignatureModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.sigModalDesc}>

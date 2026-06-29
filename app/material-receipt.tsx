@@ -22,8 +22,9 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, Camera, ImagePlus, Sparkles, Receipt, Trash2, Check, AlertTriangle, BookOpen,
+  ChevronLeft, Camera, ImagePlus, Receipt, Trash2, Check, AlertTriangle, BookOpen,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -192,7 +193,7 @@ function MaterialReceiptInner() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Material Receipt · MAGE</Text>
@@ -227,11 +228,11 @@ function MaterialReceiptInner() {
         ) : (
           <View style={styles.captureRow}>
             <TouchableOpacity style={styles.captureBtn} onPress={() => pickImage('camera')} activeOpacity={0.85}>
-              <Camera size={22} color={t.accent} />
+              <Camera size={22} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.captureText}>Snap invoice</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.captureBtn} onPress={() => pickImage('library')} activeOpacity={0.85}>
-              <ImagePlus size={22} color={t.accent} />
+              <ImagePlus size={22} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.captureText}>From library</Text>
             </TouchableOpacity>
           </View>
@@ -240,21 +241,21 @@ function MaterialReceiptInner() {
         {/* Extract CTA */}
         {imageUri && !draft && (
           <TouchableOpacity style={[styles.aiBtn, busy && { opacity: 0.7 }]} onPress={extract} disabled={busy} activeOpacity={0.85} testID="receipt-extract">
-            {busy ? <ActivityIndicator size="small" color="#FFF" /> : <Sparkles size={16} color="#FFF" />}
+            {busy ? <ActivityIndicator size="small" color="#FFF" /> : <MageAIMark size={16} color="#FFF" />}
             <Text style={styles.aiBtnText}>{busy ? 'Reading the invoice…' : 'Extract line items'}</Text>
           </TouchableOpacity>
         )}
 
         {error && (
           <View style={styles.warn}>
-            <AlertTriangle size={15} color={t.danger} />
+            <AlertTriangle size={15} color={t.danger} strokeWidth={1.75} />
             <Text style={styles.warnText}>{error}</Text>
           </View>
         )}
 
         {saved && !draft && (
           <View style={[styles.warn, { backgroundColor: t.success + '14' }]}>
-            <Check size={15} color={t.success} />
+            <Check size={15} color={t.success} strokeWidth={1.75} />
             <Text style={[styles.warnText, { color: t.text }]}>Saved. The prices fed your Cost Database — snap another or head back.</Text>
           </View>
         )}
@@ -296,7 +297,7 @@ function MaterialReceiptInner() {
                 <View style={styles.lineTop}>
                   <TextInput value={l.description} onChangeText={v => patchLine(l.id, { description: v })} style={[styles.field, styles.lineDesc]} placeholder="Item" placeholderTextColor={t.textMuted} />
                   <TouchableOpacity onPress={() => removeLine(l.id)} hitSlop={8} style={styles.lineDel}>
-                    <Trash2 size={15} color={t.textMuted} />
+                    <Trash2 size={15} color={t.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
                 <TextInput value={l.category ?? ''} onChangeText={v => patchLine(l.id, { category: v })} style={[styles.field, styles.lineCat]} placeholder="Category (e.g. Framing)" placeholderTextColor={t.textMuted} />
@@ -332,12 +333,12 @@ function MaterialReceiptInner() {
             </View>
 
             <View style={styles.priceBookNote}>
-              <BookOpen size={14} color={t.accent} />
+              <BookOpen size={14} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.priceBookText}>Saving feeds <Text style={{ fontWeight: '800', color: t.text }}>{sampleCount}</Text> price{sampleCount === 1 ? '' : 's'} into your Cost Database.</Text>
             </View>
 
             <TouchableOpacity style={styles.saveBtn} onPress={save} activeOpacity={0.85} testID="receipt-save">
-              <Check size={16} color="#FFF" />
+              <Check size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.saveBtnText}>Save receipt</Text>
             </TouchableOpacity>
           </View>
@@ -349,7 +350,7 @@ function MaterialReceiptInner() {
             <Text style={styles.sectionTitle}>Logged for {project?.name ?? 'this project'}</Text>
             {existing.map(r => (
               <View key={r.id} style={styles.histCard}>
-                <Receipt size={16} color={t.textSecondary} />
+                <Receipt size={16} color={t.textSecondary} strokeWidth={1.75} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.histVendor} numberOfLines={1}>{r.vendor}</Text>
                   <Text style={styles.histMeta}>{r.lines.length} item{r.lines.length === 1 ? '' : 's'}{r.receiptDate ? ` · ${r.receiptDate}` : ''}</Text>

@@ -143,27 +143,27 @@ export default function DataImportScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><FolderInput size={24} color={themeColors.accent} /></View>
+          <View style={styles.heroIcon}><FolderInput size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.heroTitle}>Import data</Text>
           <Text style={styles.heroSub}>
             Bring in a MAGE ID export (.json) — restore a backup, move to a new device, or carry your
             book of business over when you switch tools.
           </Text>
           <View style={styles.roBadge}>
-            <ShieldCheck size={13} color={themeColors.success} />
+            <ShieldCheck size={13} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.roBadgeText}>Non-destructive: records are merged by id. Nothing you already have is overwritten or deleted.</Text>
           </View>
         </View>
 
         {/* Pick */}
         <TouchableOpacity style={styles.pickBtn} onPress={pickFile} disabled={busy} activeOpacity={0.85} testID="pick-import-file">
-          {busy ? <ActivityIndicator color={themeColors.accent} /> : <><Upload size={18} color={themeColors.accent} /><Text style={styles.pickBtnText}>{parsed ? 'Choose a different file' : 'Choose export file (.json)'}</Text></>}
+          {busy ? <ActivityIndicator color={themeColors.accent} /> : <><Upload size={18} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.pickBtnText}>{parsed ? 'Choose a different file' : 'Choose export file (.json)'}</Text></>}
         </TouchableOpacity>
 
         {parsed && (
           <>
             <View style={styles.fileRow}>
-              <FileJson size={16} color={themeColors.accent} />
+              <FileJson size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.fileName} numberOfLines={1}>{fileName}</Text>
               {parsed.exportedAt && <Text style={styles.fileMeta}>{parsed.exportedAt.slice(0, 10)}</Text>}
             </View>
@@ -185,7 +185,7 @@ export default function DataImportScreen() {
               <>
                 <Text style={styles.sectionLabel}>IN THE FILE, NOT IMPORTED YET</Text>
                 <View style={styles.hintCard}>
-                  <Info size={14} color={themeColors.textSecondary} />
+                  <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   <Text style={styles.hintText}>
                     {deferredFound.map(d => `${d.label} (${d.count})`).join(', ')}.{'\n'}
                     These stay safely in your file. Importing them losslessly is a follow-up — projects, contacts and subs come in now.
@@ -196,14 +196,14 @@ export default function DataImportScreen() {
 
             {result ? (
               <View style={styles.resultCard}>
-                <CheckCircle2 size={22} color={themeColors.success} />
+                <CheckCircle2 size={22} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={styles.resultTitle}>Imported {importedTotal} record(s)</Text>
                 <Text style={styles.resultDetail}>
                   {result.projects} project(s) · {result.contacts} contact(s) · {result.subcontractors} sub(s)
                 </Text>
                 <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()} activeOpacity={0.85}>
                   <Text style={styles.doneBtnText}>Done</Text>
-                  <ArrowRight size={16} color={Colors.textOnAccent} />
+                  <ArrowRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -215,7 +215,7 @@ export default function DataImportScreen() {
                 testID="run-import"
               >
                 {importing ? <ActivityIndicator color={Colors.textOnAccent} /> : (
-                  <><FolderInput size={18} color={Colors.textOnAccent} /><Text style={styles.importBtnText}>{totalToAdd > 0 ? `Import ${totalToAdd} record(s)` : 'Nothing new to import'}</Text></>
+                  <><FolderInput size={18} color={Colors.textOnAccent} strokeWidth={1.75} /><Text style={styles.importBtnText}>{totalToAdd > 0 ? `Import ${totalToAdd} record(s)` : 'Nothing new to import'}</Text></>
                 )}
               </TouchableOpacity>
             )}
@@ -224,7 +224,7 @@ export default function DataImportScreen() {
 
         {!parsed && !busy && (
           <View style={styles.hintCard}>
-            <AlertTriangle size={14} color={themeColors.textSecondary} />
+            <AlertTriangle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.hintText}>
               Need a file? On any device with your data, go to Settings → Export my data → JSON, then bring that .json here.
             </Text>

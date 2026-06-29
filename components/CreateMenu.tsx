@@ -28,8 +28,9 @@ import {
   Search, X, ChevronRight, ChevronLeft, FolderPlus, Calculator, CalendarDays, FileText,
   Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
-  Wallet, MessageSquare, Ruler, Sparkles, Lock, FileCheck, type LucideIcon,
+  Wallet, MessageSquare, Ruler, Lock, FileCheck, type LucideIcon,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -104,7 +105,7 @@ const OPTIONS: CreateOption[] = [
   // Tools
   { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', category: 'tools', scoped: true },
   { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', category: 'tools', tier: 'pro', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
-  { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: Sparkles, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
+  { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: MageAIMark as unknown as LucideIcon, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
 ];
 
 const CATEGORY_LABELS: Record<CreateOption['category'], string> = {
@@ -254,13 +255,13 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
           <>
             <View style={styles.headerRow}>
               <TouchableOpacity onPress={() => setPickFor(null)} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-                <ChevronLeft size={18} color={themeColors.text} />
+                <ChevronLeft size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
               <Text style={[Type.title2, { color: themeColors.text, flex: 1, textAlign: 'center' }]} numberOfLines={1}>
                 {pickFor.label} → which project?
               </Text>
               <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
@@ -284,7 +285,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                       {p.status.replace(/_/g, ' ')}
                     </Text>
                   </View>
-                  <ChevronRight size={16} color={themeColors.textMuted} />
+                  <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -293,11 +294,11 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
           <>
             <View style={styles.headerRow}>
               <Text style={[Type.title2, { color: themeColors.text }]}>Create new…</Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <View style={styles.searchRow}>
-              <Search size={16} color={themeColors.textMuted} />
+              <Search size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               <TextInput
                 style={[styles.searchInput, Type.body]}
                 placeholder="Search for anything you can create…"
@@ -309,7 +310,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
               />
               {!!query && (
                 <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={14} color={themeColors.textMuted} />
+                  <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               )}
             </View>
@@ -355,7 +356,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
                           </View>
                         ) : null;
                       })()}
-                      <ChevronRight size={16} color={themeColors.textMuted} />
+                      <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   ))}
                 </View>

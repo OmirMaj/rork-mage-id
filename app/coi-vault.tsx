@@ -22,7 +22,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
   ChevronLeft, Shield, ShieldCheck, ShieldAlert, ShieldX, Plus,
-  Sparkles, Upload, Trash2, AlertTriangle, CheckCircle2, Clock,
+  Upload, Trash2, AlertTriangle, CheckCircle2, Clock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -31,6 +31,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { FeatureHeader } from '@/components/FeatureHeader';
+import { MageCOI } from '@/components/icons';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { validateCOIImage, recomputeValidation } from '@/utils/coiValidator';
@@ -182,7 +183,7 @@ function COIVaultInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={() => setActiveSubId(null)} hitSlop={10} style={styles.headerBack}>
-            <ChevronLeft size={22} color={"#FF6A1A"} />
+            <ChevronLeft size={22} color={"#FF6A1A"} strokeWidth={1.75} />
             <Text style={styles.headerBackText}>All subs</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -193,7 +194,7 @@ function COIVaultInner() {
           >
             {validating
               ? <ActivityIndicator size="small" color="#fff" />
-              : <><Upload size={14} color="#fff" /><Text style={styles.uploadBtnText}>Upload COI</Text></>}
+              : <><Upload size={14} color="#fff" strokeWidth={1.75} /><Text style={styles.uploadBtnText}>Upload COI</Text></>}
           </TouchableOpacity>
         </View>
 
@@ -206,7 +207,7 @@ function COIVaultInner() {
 
           {subCOIs.length === 0 ? (
             <View style={styles.emptyState}>
-              <Shield size={36} color={"#9AA3AD"} />
+              <MageCOI size={36} color={"#9AA3AD"} />
               <Text style={styles.emptyTitle}>No COIs yet</Text>
               <Text style={styles.emptyBody}>
                 Upload the sub's Certificate of Insurance — MAGE ID will read the dates,
@@ -283,7 +284,7 @@ function COIVaultInner() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
         {subcontractors.length === 0 ? (
           <View style={styles.emptyState}>
-            <Shield size={36} color={"#9AA3AD"} />
+            <Shield size={36} color={"#9AA3AD"} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No subs yet</Text>
             <Text style={styles.emptyBody}>
               Add subs from the Subcontractors screen first, then come back here to upload their COIs.
@@ -347,7 +348,7 @@ function COICard({
           <Text style={styles.coiTitle}>Certificate uploaded {new Date(coi.uploadedAt).toLocaleDateString()}</Text>
           <Text style={styles.coiMeta}>{label}{v?.confidence != null ? ` · AI confidence ${v.confidence}%` : ''}</Text>
         </View>
-        <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={"#C84038"} /></TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={"#C84038"} strokeWidth={1.75} /></TouchableOpacity>
       </View>
 
       {coi.fileUri ? (

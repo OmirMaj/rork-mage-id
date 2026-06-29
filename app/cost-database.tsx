@@ -11,7 +11,8 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronDown, ChevronRight, Library, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { MageCostDb } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -77,7 +78,7 @@ function CostDatabaseInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Cost Database · MAGE</Text>
@@ -88,7 +89,7 @@ function CostDatabaseInner() {
 
       {db.entries.length === 0 ? (
         <EmptyState
-          icon={<Library size={36} color={t.accent} strokeWidth={1.6} />}
+          icon={<MageCostDb size={36} color={t.accent} />}
           title="No price history yet"
           message="Your cost database learns what work actually costs from every job you close. To build it:"
           steps={[
@@ -141,12 +142,12 @@ function CostDatabaseInner() {
                     <Text style={styles.rateVal}>{formatRate(e.suggestedRate)}</Text>
                     <Text style={styles.rateSub}>±{Math.round(e.variability * 100)}%</Text>
                   </View>
-                  {isOpen ? <ChevronDown size={18} color={t.textMuted} /> : <ChevronRight size={18} color={t.textMuted} />}
+                  {isOpen ? <ChevronDown size={18} color={t.textMuted} strokeWidth={1.75} /> : <ChevronRight size={18} color={t.textMuted} strokeWidth={1.75} />}
                 </TouchableOpacity>
 
                 {(bidsLow || bidsHigh) && (
                   <View style={styles.biasRow}>
-                    {bidsLow ? <TrendingUp size={12} color={t.danger} /> : <TrendingDown size={12} color={t.success} />}
+                    {bidsLow ? <TrendingUp size={12} color={t.danger} strokeWidth={1.75} /> : <TrendingDown size={12} color={t.success} strokeWidth={1.75} />}
                     <Text style={[styles.biasText, { color: bidsLow ? t.danger : t.success }]}>
                       You bid this ~{Math.abs(Math.round(e.bidBias * 100))}% {bidsLow ? 'under' : 'over'} actual cost
                     </Text>

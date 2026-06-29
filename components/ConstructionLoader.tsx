@@ -1,29 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { Colors } from '@/constants/colors';
+import Svg, { G, Line, Path, Rect, Polyline } from 'react-native-svg';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 
 /**
- * Stacking-bricks construction animation used across the app wherever a
- * loading indicator is needed — app cold start, context hydration, screen-
- * level spinners, etc. Three blocks rise into position one at a time (with
- * a spring-like ease), the whole stack takes a single breath, then resets
- * and loops.
+ * House-construction loading animation used across the app wherever a loading
+ * indicator is needed — app cold start, context hydration, screen-level
+ * spinners, etc. A house BUILDS itself one part at a time: foundation slab →
+ * the two walls → the roof → window + door → and finally the amber spark is
+ * set on top. The finished house takes a single breath, then fades and loops.
  *
- * Built on the built-in Animated API (no Reanimated dep) so it runs on
- * iOS, Android, and web identically. The animation driver is NOT native
- * because opacity + translate + scale on the same View would split drivers;
- * perf is still fine because we're animating ~4 Views at 60fps.
+ * This replaces the old stacking-bricks loader — same construction metaphor,
+ * but it reads as something getting BUILT (a home/building) rather than an
+ * abstract stack, matching the crane "AI" mark's hand-crafted language.
+ *
+ * Built on the built-in Animated API (no Reanimated dep) against
+ * react-native-svg, so it runs on iOS, Android, and web identically. SVG
+ * props can't use the native driver, so the driver is JS-side; perf is fine
+ * because we animate ~7 small groups.
  *
  * Sizes:
- *   - sm  used inline (cards, list spinners)   → 32×32 total
- *   - md  default for screens                  → 60×60 total
- *   - lg  app cold-start, big empty states     → 96×96 total
+ *   - sm  used inline (cards, list spinners)
+ *   - md  default for screens
+ *   - lg  app cold-start, big empty states
  *
- * Accessibility: we label the animation container so screen readers
- * announce "Loading" once instead of narrating every frame.
+ * Accessibility: we label the animation container so screen readers announce
+ * "Loading" once instead of narrating every frame.
  */
 
 type LoaderSize = 'sm' | 'md' | 'lg';
@@ -44,26 +48,27 @@ interface ConstructionLoaderProps {
   labelIntervalMs?: number;
   /** Wrapper style override — e.g. flex:1 for full-screen centering. */
   style?: ViewStyle;
-  /** Override colors if you need the loader on a non-default background. */
+  /** Primary build color (walls/door/window). Defaults to theme accent. */
   colorTop?: string;
+  /** Roof color. Defaults to theme accent. */
   colorMid?: string;
+  /** Foundation color. Defaults to theme accent. */
   colorBase?: string;
 }
 
-const SIZE_MAP: Record<LoaderSize, { brickW: number; brickH: number; gap: number; labelSize: number }> = {
-  sm: { brickW: 26, brickH: 7, gap: 2, labelSize: 11 },
-  md: { brickW: 48, brickH: 12, gap: 3, labelSize: 13 },
-  lg: { brickW: 80, brickH: 20, gap: 4, labelSize: 15 },
+const SIZE_MAP: Record<LoaderSize, { svg: number; labelSize: number }> = {
+  sm: { svg: 36, labelSize: 11 },
+  md: { svg: 64, labelSize: 13 },
+  lg: { svg: 100, labelSize: 15 },
 };
 
-// Timing constants tuned to feel "construction-paced": confident, deliberate,
-// not frantic. Total cycle ≈ 1.8s — long enough to feel intentional, short
-// enough that nobody wonders if the app has hung.
-const STAGGER_MS = 180;
-const HOLD_MS = 260;
-const FADE_OUT_MS = 260;
-const BREATHE_UP_MS = 220;
-const BREATHE_DOWN_MS = 220;
+const AG = Animated.createAnimatedComponent(G);
+
+// viewBox is 0 0 64 58. Parts build bottom-up, then the spark.
+const STAGGER_MS = 150;
+const PLACE_MS = 300;
+const HOLD_MS = 280;
+const FADE_OUT_MS = 280;
 
 export default function ConstructionLoader({
   size = 'md',
@@ -92,91 +97,49 @@ export default function ConstructionLoader({
   }, [rotating, labels, labelIntervalMs]);
 
   const shownLabel = rotating ? labels![Math.min(labelIdx, labels!.length - 1)] : label;
-  const brick1 = useRef(new Animated.Value(0)).current; // base (bottom)
-  const brick2 = useRef(new Animated.Value(0)).current; // middle
-  const brick3 = useRef(new Animated.Value(0)).current; // top
+
+  // One value per built part: foundation, L wall, R wall, roof, window, door, spark.
+  const p = useRef([0, 0, 0, 0, 0, 0, 0].map(() => new Animated.Value(0))).current;
   const breathe = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     let mounted = true;
-
-    const buildOne = (val: Animated.Value) =>
-      Animated.timing(val, {
-        toValue: 1,
-        duration: 280,
-        easing: Easing.out(Easing.back(1.4)), // slight overshoot → "placed"
-        useNativeDriver: true,
-      });
-
-    const fadeOut = (val: Animated.Value) =>
-      Animated.timing(val, {
-        toValue: 0,
-        duration: FADE_OUT_MS,
-        easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
-      });
+    const place = (v: Animated.Value) =>
+      Animated.timing(v, { toValue: 1, duration: PLACE_MS, easing: Easing.out(Easing.back(1.3)), useNativeDriver: false });
+    const fade = (v: Animated.Value) =>
+      Animated.timing(v, { toValue: 0, duration: FADE_OUT_MS, easing: Easing.in(Easing.quad), useNativeDriver: false });
 
     const cycle = Animated.sequence([
-      Animated.stagger(STAGGER_MS, [buildOne(brick1), buildOne(brick2), buildOne(brick3)]),
+      Animated.stagger(STAGGER_MS, p.map(place)),
       Animated.delay(HOLD_MS),
-      // Single breath — the stack takes a quick inhale/exhale to feel alive.
       Animated.sequence([
-        Animated.timing(breathe, {
-          toValue: 1.06,
-          duration: BREATHE_UP_MS,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(breathe, {
-          toValue: 1,
-          duration: BREATHE_DOWN_MS,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
+        Animated.timing(breathe, { toValue: 1.05, duration: 220, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+        Animated.timing(breathe, { toValue: 1, duration: 220, easing: Easing.in(Easing.quad), useNativeDriver: false }),
       ]),
-      Animated.delay(120),
-      Animated.parallel([fadeOut(brick1), fadeOut(brick2), fadeOut(brick3)]),
+      Animated.delay(140),
+      Animated.parallel(p.map(fade)),
     ]);
-
     const loop = Animated.loop(cycle);
 
-    const tick = () => {
-      if (!mounted) return;
-      // Reset opacity-tracked values before each loop. `Animated.loop` already
-      // resets but we go belt-and-suspenders because the cycle mutates three
-      // different values at different times.
-      brick1.setValue(0);
-      brick2.setValue(0);
-      brick3.setValue(0);
+    if (mounted) {
+      p.forEach(v => v.setValue(0));
       breathe.setValue(1);
-    };
+      loop.start();
+    }
+    return () => { mounted = false; loop.stop(); };
+  }, [p, breathe]);
 
-    tick();
-    loop.start();
-    return () => {
-      mounted = false;
-      loop.stop();
-    };
-  }, [brick1, brick2, brick3, breathe]);
+  // Each part fades in and rises a few units into place.
+  const part = (i: number) => ({
+    opacity: p[i],
+    translateY: p[i].interpolate({ inputRange: [0, 1], outputRange: [5, 0] }),
+  });
 
-  const buildBrickStyle = (val: Animated.Value) => {
-    return {
-      opacity: val,
-      transform: [
-        {
-          translateY: val.interpolate({
-            inputRange: [0, 1],
-            outputRange: [dims.brickH + dims.gap + 4, 0],
-          }),
-        },
-        { scale: breathe },
-      ],
-    };
-  };
-
-  const top = colorTop ?? themeColors.accent;
-  const mid = colorMid ?? themeColors.accent + 'CC';
-  const base = colorBase ?? themeColors.accent + '99';
+  const main = colorTop ?? themeColors.accent;
+  const roof = colorMid ?? themeColors.accent;
+  const base = colorBase ?? themeColors.accent;
+  const spark = themeColors.accent;
+  const s = { strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' as const };
 
   return (
     <View
@@ -186,58 +149,25 @@ export default function ConstructionLoader({
       accessibilityLabel={shownLabel ?? 'Loading'}
       testID="construction-loader"
     >
-      <View
-        style={[
-          styles.stack,
-          {
-            width: dims.brickW + 8,
-            height: dims.brickH * 3 + dims.gap * 2,
-          },
-        ]}
-      >
-        {/* Top brick — narrower by design to suggest a "roof" taper */}
-        <Animated.View
-          style={[
-            styles.brick,
-            {
-              width: dims.brickW * 0.7,
-              height: dims.brickH,
-              backgroundColor: top,
-              borderRadius: Math.max(2, dims.brickH * 0.2),
-              top: 0,
-            },
-            buildBrickStyle(brick3),
-          ]}
-        />
-        {/* Middle brick */}
-        <Animated.View
-          style={[
-            styles.brick,
-            {
-              width: dims.brickW * 0.88,
-              height: dims.brickH,
-              backgroundColor: mid,
-              borderRadius: Math.max(2, dims.brickH * 0.2),
-              top: dims.brickH + dims.gap,
-            },
-            buildBrickStyle(brick2),
-          ]}
-        />
-        {/* Base brick */}
-        <Animated.View
-          style={[
-            styles.brick,
-            {
-              width: dims.brickW,
-              height: dims.brickH,
-              backgroundColor: base,
-              borderRadius: Math.max(2, dims.brickH * 0.2),
-              top: (dims.brickH + dims.gap) * 2,
-            },
-            buildBrickStyle(brick1),
-          ]}
-        />
-      </View>
+      <Animated.View style={{ transform: [{ scale: breathe }] }}>
+        <Svg width={dims.svg} height={dims.svg * 58 / 64} viewBox="0 0 64 58" fill="none">
+          {/* foundation slab */}
+          <AG {...part(0)}><Line x1={8} y1={50} x2={56} y2={50} stroke={base} strokeWidth={3} {...s} /></AG>
+          {/* walls */}
+          <AG {...part(1)}><Line x1={16} y1={50} x2={16} y2={27} stroke={main} strokeWidth={2.6} {...s} /></AG>
+          <AG {...part(2)}><Line x1={48} y1={50} x2={48} y2={27} stroke={main} strokeWidth={2.6} {...s} /></AG>
+          {/* roof */}
+          <AG {...part(3)}><Polyline points="12,28 32,13 52,28" stroke={roof} strokeWidth={2.6} {...s} /></AG>
+          {/* window */}
+          <AG {...part(4)}><Rect x={20.5} y={31} width={7} height={7} rx={1} stroke={main} strokeWidth={1.9} {...s} /></AG>
+          {/* door */}
+          <AG {...part(5)}><Path d="M28 50 L28 38 L36 38 L36 50" stroke={main} strokeWidth={2} {...s} /></AG>
+          {/* amber spark, set on top */}
+          <AG {...part(6)}>
+            <Path d="M32 4 L33.1 7.4 L36.5 8.5 L33.1 9.6 L32 13 L30.9 9.6 L27.5 8.5 L30.9 7.4 Z" fill={spark} />
+          </AG>
+        </Svg>
+      </Animated.View>
       {!!shownLabel && (
         <Text style={[styles.label, { fontSize: dims.labelSize }]} numberOfLines={1}>
           {shownLabel}
@@ -252,15 +182,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-  },
-  stack: {
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    position: 'relative',
-  },
-  brick: {
-    position: 'absolute',
-    alignSelf: 'center',
   },
   label: {
     color: t.textSecondary,

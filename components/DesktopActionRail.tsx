@@ -90,7 +90,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
                   <Text style={styles.rowSubtitle} numberOfLines={1}>{item.subtitle}</Text>
                 ) : null}
               </View>
-              <ChevronRight size={14} color={colors.textMuted} />
+              <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           ))}
           {items.length > top.length && (

@@ -24,13 +24,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
-  Sparkles, MessageSquare, FileText, Calendar, Users,
+  MessageSquare, FileText, Calendar, Users,
   ClipboardList, Camera, ListChecks, Layers, Clock, ImageIcon,
   Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
   Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
   PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
   Ruler, ScanLine, HardHat, ScanSearch,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -62,7 +63,7 @@ export default function DiscoverToolsScreen() {
             accessibilityLabel="Back"
             testID="tools-back-btn"
           >
-            <ArrowLeft size={20} color={themeColors.text} />
+            <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.headerTitleStack}>
             <Text style={styles.headerTitle}>Tools</Text>
@@ -83,7 +84,7 @@ export default function DiscoverToolsScreen() {
             against competitors that don't have them. */}
         <Section title="AI HUB" styles={styles}>
           <NavRow
-            Icon={Sparkles}
+            Icon={MageAIMark}
             title="Construction AI"
             subtitle="Building code check, scope assistant"
             tone="accent"
@@ -475,7 +476,7 @@ export default function DiscoverToolsScreen() {
         {!hasProjects && (
           <View style={styles.emptyWrap}>
             <EmptyState
-              icon={<Wrench size={32} color={Colors.primary} />}
+              icon={<Wrench size={32} color={Colors.primary} strokeWidth={1.75} />}
               title="More tools unlock with projects"
               message="Most tools (Daily reports, Compliance, Closeout, Reporting) are project-aware. Create your first project to unlock them."
               actionLabel="Open Projects"

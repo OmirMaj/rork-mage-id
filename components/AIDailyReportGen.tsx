@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -58,7 +58,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
       {isLoading ? (
         <ActivityIndicator size="small" color={"#FFFFFF"} />
       ) : (
-        <Sparkles size={16} color={"#FFFFFF"} />
+        <MageAIMark size={16} color={"#FFFFFF"} />
       )}
       <Text style={styles.btnText}>
         {isLoading ? 'Generating...' : 'Auto-Generate from Schedule'}

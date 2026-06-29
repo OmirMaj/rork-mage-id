@@ -63,7 +63,7 @@ export default function SharedPhotosScreen() {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-photos-no-token">
         <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
-        <AlertCircle size={28} color={Colors.warning} />
+        <AlertCircle size={28} color={Colors.warning} strokeWidth={1.75} />
         <Text style={styles.errorTitle}>No share token</Text>
         <Text style={styles.errorBody}>This link is missing the data it needs. Ask the contractor for a fresh share link.</Text>
       </View>
@@ -74,7 +74,7 @@ export default function SharedPhotosScreen() {
     return (
       <View style={[styles.errorRoot, { paddingTop: insets.top + 32 }]} testID="shared-photos-bad-token">
         <Stack.Screen options={{ title: 'Photo timeline', headerShown: false }} />
-        <AlertCircle size={28} color={themeColors.danger} />
+        <AlertCircle size={28} color={themeColors.danger} strokeWidth={1.75} />
         <Text style={styles.errorTitle}>Couldn&apos;t open this link</Text>
         <Text style={styles.errorBody}>The share data is corrupted or this link is from an older version of MAGE ID. Ask the contractor for a fresh link.</Text>
       </View>
@@ -111,7 +111,7 @@ export default function SharedPhotosScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerIconCircle}>
-            <CameraIcon size={22} color={themeColors.accent} />
+            <CameraIcon size={22} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle} numberOfLines={2}>{payload.n}</Text>
@@ -124,7 +124,7 @@ export default function SharedPhotosScreen() {
 
         {/* Read-only banner */}
         <View style={styles.banner}>
-          <Lock size={14} color={themeColors.info} />
+          <Lock size={14} color={themeColors.info} strokeWidth={1.75} />
           <Text style={styles.bannerText}>
             Read-only photo timeline shared by {payload.gc ?? 'your contractor'}. No account needed.
           </Text>
@@ -133,7 +133,7 @@ export default function SharedPhotosScreen() {
         {/* Empty */}
         {photoCount === 0 && (
           <View style={styles.emptyCard}>
-            <ImageIcon size={22} color={themeColors.textMuted} />
+            <ImageIcon size={22} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No photos in this share</Text>
             <Text style={styles.emptyBody}>The contractor hasn&apos;t added any photos yet, or this share was built before any photos were taken.</Text>
           </View>
@@ -180,7 +180,7 @@ export default function SharedPhotosScreen() {
                       {caption ? (
                         <View style={styles.tileCaptionWrap}>
                           {p.loc ? (
-                            <MapPin size={10} color={'#FFFFFF'} style={{ marginRight: 4 }} />
+                            <MapPin size={10} color={'#FFFFFF'} style={{ marginRight: 4 }} strokeWidth={1.75} />
                           ) : null}
                           <Text style={styles.tileCaption} numberOfLines={2}>{caption}</Text>
                         </View>

@@ -29,8 +29,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft, Plus, MapPin, Trash2, Image as ImageIcon,
-  ChevronRight, AlertTriangle, FileImage, X, Check, FileText, Sparkles,
+  ChevronRight, AlertTriangle, FileImage, X, Check, FileText,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -220,18 +221,18 @@ export default function PlansScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={themeColors.text} />
+          <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>{project.name}</Text>
           <Text style={styles.headerTitle}>Plans</Text>
         </View>
         <TouchableOpacity onPress={handleImportPdf} style={styles.ghostBtn} disabled={pdfImporting || importing}>
-          {pdfImporting ? <ActivityIndicator size="small" color={themeColors.text} /> : <FileText size={15} color={themeColors.text} />}
+          {pdfImporting ? <ActivityIndicator size="small" color={themeColors.text} /> : <FileText size={15} color={themeColors.text} strokeWidth={1.75} />}
           <Text style={styles.ghostBtnText}>{pdfImporting ? 'Working' : 'PDF'}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleImport} style={styles.primaryBtn} disabled={importing || pdfImporting}>
-          {importing ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Plus size={16} color="#FFFFFF" />}
+          {importing ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Plus size={16} color="#FFFFFF" strokeWidth={1.75} />}
           <Text style={styles.primaryBtnText}>{importing ? 'Opening' : 'Image'}</Text>
         </TouchableOpacity>
       </View>
@@ -254,16 +255,16 @@ export default function PlansScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {sheets.length === 0 ? (
           <View style={styles.emptyCard}>
-            <FileImage size={28} color={themeColors.textMuted} />
+            <FileImage size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No plan sheets yet</Text>
             <Text style={styles.emptyText}>Import a multi-page PDF and we'll convert each sheet automatically, or pick a single image (PNG/JPG).</Text>
             <View style={styles.emptyBtnRow}>
               <TouchableOpacity onPress={handleImportPdf} style={[styles.primaryBtn]} disabled={pdfImporting || importing}>
-                {pdfImporting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <FileText size={16} color="#FFFFFF" />}
+                {pdfImporting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <FileText size={16} color="#FFFFFF" strokeWidth={1.75} />}
                 <Text style={styles.primaryBtnText}>{pdfImporting ? 'Working' : 'Import PDF'}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleImport} style={[styles.ghostBtn]} disabled={importing || pdfImporting}>
-                {importing ? <ActivityIndicator size="small" color={themeColors.text} /> : <ImageIcon size={15} color={themeColors.text} />}
+                {importing ? <ActivityIndicator size="small" color={themeColors.text} /> : <ImageIcon size={15} color={themeColors.text} strokeWidth={1.75} />}
                 <Text style={styles.ghostBtnText}>{importing ? 'Opening' : 'Import image'}</Text>
               </TouchableOpacity>
             </View>
@@ -298,16 +299,16 @@ export default function PlansScreen() {
                   <Text style={styles.sheetName} numberOfLines={2}>{s.name}</Text>
                   <View style={styles.sheetMetaRow}>
                     <View style={styles.metaPill}>
-                      <MapPin size={11} color={themeColors.accent} />
+                      <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.metaPillText}>{pinCount} {pinCount === 1 ? 'pin' : 'pins'}</Text>
                     </View>
                     <Text style={styles.sheetDate}>{new Date(s.updatedAt).toLocaleDateString()}</Text>
                   </View>
                 </View>
                 <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={styles.iconBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={16} color={themeColors.danger} />
+                  <Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} />
                 </TouchableOpacity>
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             );
           })
@@ -336,12 +337,12 @@ export default function PlansScreen() {
             style={styles.compareBtn}
             testID="compare-drawings-cta"
           >
-            <Sparkles size={16} color={themeColors.accent} />
+            <MageAIMark size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.compareBtnTitle}>AI compare to revision</Text>
               <Text style={styles.compareBtnSub}>Pick a sheet + upload its new rev — AI flags every change</Text>
             </View>
-            <ChevronRight size={16} color={themeColors.accent} />
+            <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -353,7 +354,7 @@ export default function PlansScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New sheet</Text>
               <TouchableOpacity onPress={() => setNewSheet(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             {newSheet?.uri ? (
@@ -375,7 +376,7 @@ export default function PlansScreen() {
               style={styles.input}
             />
             <TouchableOpacity style={styles.primaryBtn} onPress={confirmImport}>
-              <Check size={16} color="#FFFFFF" />
+              <Check size={16} color="#FFFFFF" strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>Save & open</Text>
             </TouchableOpacity>
           </View>
@@ -400,7 +401,7 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
     <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
           <Text style={styles.headerTitle}>Pick a project</Text>
@@ -409,7 +410,7 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
-            <ImageIcon size={28} color={themeColors.textMuted} />
+            <ImageIcon size={28} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No projects yet</Text>
             <Text style={styles.emptyText}>Plans attach to a project so every pin (punch items, photos, RFIs) ties back to a job. Create a project first, then come back here to import drawings.</Text>
             <TouchableOpacity onPress={onBack} style={[styles.primaryBtn, { marginTop: 12 }]}>
@@ -419,12 +420,12 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
         ) : (
           projects.map(p => (
             <TouchableOpacity key={p.id} style={styles.pickerRow} onPress={() => onPick(p.id)}>
-              <ImageIcon size={14} color={themeColors.accent} />
+              <ImageIcon size={14} color={themeColors.accent} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.pickerRowTitle}>{p.name}</Text>
                 {p.status && <Text style={styles.pickerRowSub}>{p.status}</Text>}
               </View>
-              <ChevronRight size={14} color={themeColors.textMuted} />
+              <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           ))
         )}
@@ -440,7 +441,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
     <View style={[styles.root, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
           <Text style={styles.headerTitle}>Pro feature</Text>
@@ -448,7 +449,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
       </View>
       <View style={{ padding: 24 }}>
         <View style={styles.emptyCard}>
-          <FileImage size={28} color={themeColors.accent} />
+          <FileImage size={28} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.emptyTitle}>Plan markup is a Pro feature</Text>
           <Text style={styles.emptyText}>Upgrade to Pro to import drawings, drop pins tied to photos and punch items, and annotate sheets with the crew.</Text>
           <TouchableOpacity onPress={onUpgrade} style={[styles.primaryBtn, { marginTop: 14 }]}>

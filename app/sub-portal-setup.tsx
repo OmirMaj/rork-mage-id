@@ -362,7 +362,7 @@ function SubPortalSetupScreenInner() {
           title: 'Sub Portal',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -374,7 +374,7 @@ function SubPortalSetupScreenInner() {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <HardHat size={22} color={themeColors.accent} />
+            <HardHat size={22} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroEyebrow}>Sub portal</Text>
           <Text style={styles.heroTitle}>{sub.companyName}</Text>
@@ -402,16 +402,16 @@ function SubPortalSetupScreenInner() {
             One link to review their scope, submit invoices, and track payment — no account needed.
           </Text>
           <View style={styles.linkBox}>
-            <Link size={14} color={themeColors.textMuted} />
+            <Link size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.linkText} numberOfLines={1}>{portalUrl}</Text>
           </View>
           <View style={styles.shareRow}>
             <TouchableOpacity style={styles.shareBtn} onPress={handleCopy} activeOpacity={0.85}>
-              <Copy size={16} color={themeColors.text} />
+              <Copy size={16} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.shareBtnText}>Copy</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
-              <Send size={16} color={themeColors.text} />
+              <Send size={16} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.shareBtnText}>Share</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -420,7 +420,7 @@ function SubPortalSetupScreenInner() {
               disabled={emailing}
               activeOpacity={0.85}
             >
-              <Mail size={16} color="#FFF" />
+              <Mail size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={[styles.shareBtnText, { color: '#FFF' }]}>
                 {emailing ? 'Sending…' : 'Email invite'}
               </Text>
@@ -439,7 +439,7 @@ function SubPortalSetupScreenInner() {
           <View style={styles.togglesCard}>
             <View style={[styles.toggleRow, styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <RefreshCw size={18} color={themeColors.accent} />
+                <RefreshCw size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Portal enabled</Text>
                   <Text style={styles.toggleDesc}>Disable to revoke the link</Text>
@@ -454,7 +454,7 @@ function SubPortalSetupScreenInner() {
             </View>
             <View style={[styles.toggleRow, link.requirePasscode && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <Lock size={18} color={themeColors.accent} />
+                <Lock size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Require passcode</Text>
                   <Text style={styles.toggleDesc}>4-digit code shared separately</Text>
@@ -487,7 +487,7 @@ function SubPortalSetupScreenInner() {
           <Text style={styles.sectionTitle}>Scope shared on portal</Text>
           {commitments.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Building2 size={28} color={themeColors.textMuted} />
+              <Building2 size={28} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyText}>No commitments for this sub yet.</Text>
               <Text style={styles.emptySub}>Add a commitment to scope what they&apos;re billing against.</Text>
             </View>
@@ -526,7 +526,7 @@ function SubPortalSetupScreenInner() {
           </View>
           {submitted.invoices.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Inbox size={28} color={themeColors.textMuted} />
+              <Inbox size={28} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.emptyText}>No invoices submitted yet.</Text>
               <Text style={styles.emptySub}>You&apos;ll see them here as soon as they&apos;re sent through the portal.</Text>
             </View>
@@ -577,7 +577,7 @@ function SubPortalSetupScreenInner() {
                           onPress={() => handleReject(inv.id)}
                           disabled={submitted.isResponding}
                         >
-                          <X size={14} color={themeColors.text} />
+                          <X size={14} color={themeColors.text} strokeWidth={1.75} />
                           <Text style={styles.invCtaText}>Reject</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -585,7 +585,7 @@ function SubPortalSetupScreenInner() {
                           onPress={() => handleApprove(inv.id)}
                           disabled={submitted.isResponding}
                         >
-                          <Check size={14} color="#FFF" />
+                          <Check size={14} color="#FFF" strokeWidth={1.75} />
                           <Text style={[styles.invCtaText, { color: '#FFF' }]}>Approve</Text>
                         </TouchableOpacity>
                       </View>
@@ -597,7 +597,7 @@ function SubPortalSetupScreenInner() {
                           onPress={() => handleMarkPaid(inv.id)}
                           disabled={submitted.isResponding}
                         >
-                          <Check size={14} color="#FFF" />
+                          <Check size={14} color="#FFF" strokeWidth={1.75} />
                           <Text style={[styles.invCtaText, { color: '#FFF' }]}>Mark paid</Text>
                         </TouchableOpacity>
                       </View>

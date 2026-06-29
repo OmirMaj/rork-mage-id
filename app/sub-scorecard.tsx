@@ -94,7 +94,7 @@ function SubScorecardInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Sub Scorecard · MAGE</Text>
@@ -133,7 +133,7 @@ function SubScorecardInner() {
                     <Text style={styles.cardTrade}>{card.trade}</Text>
                     {bestInTrade && (
                       <View style={styles.bestChip}>
-                        <Award size={11} color={t.success} />
+                        <Award size={11} color={t.success} strokeWidth={1.75} />
                         <Text style={styles.bestChipText}>Best {card.trade}</Text>
                       </View>
                     )}
@@ -144,8 +144,8 @@ function SubScorecardInner() {
                   <Text style={styles.scoreOutOf}>/ 100</Text>
                 </View>
                 {expanded
-                  ? <ChevronUp size={16} color={t.textMuted} />
-                  : <ChevronDown size={16} color={t.textMuted} />}
+                  ? <ChevronUp size={16} color={t.textMuted} strokeWidth={1.75} />
+                  : <ChevronDown size={16} color={t.textMuted} strokeWidth={1.75} />}
               </View>
 
               <Text style={styles.topDriver} numberOfLines={expanded ? undefined : 2}>{card.topDriver}</Text>

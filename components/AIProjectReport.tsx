@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, X, CheckCircle2, AlertTriangle, Target, FileText } from 'lucide-react-native';
+import { X, CheckCircle2, AlertTriangle, Target, FileText } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -80,7 +81,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
         {isLoading ? (
           <ActivityIndicator size="small" color={themeColors.accent} />
         ) : (
-          <Sparkles size={16} color={themeColors.accent} />
+          <MageAIMark size={16} color={themeColors.accent} />
         )}
         <Text style={styles.triggerText}>{isLoading ? 'Generating Report...' : 'AI Project Report'}</Text>
       </TouchableOpacity>
@@ -95,11 +96,11 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <View style={styles.headerLeft}>
-              <Sparkles size={16} color={themeColors.accent} />
+              <MageAIMark size={16} color={themeColors.accent} />
               <Text style={styles.modalTitle}>Project Status Report</Text>
             </View>
             <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={22} color={themeColors.textSecondary} />
+              <X size={22} color={themeColors.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -117,12 +118,12 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
 
               <View style={styles.twoCol}>
                 <View style={[styles.statusCard, { borderLeftColor: themeColors.info }]}>
-                  <FileText size={14} color={themeColors.info} />
+                  <FileText size={14} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={styles.statusLabel}>Schedule Status</Text>
                   <Text style={styles.statusText}>{result.scheduleStatus}</Text>
                 </View>
                 <View style={[styles.statusCard, { borderLeftColor: themeColors.success }]}>
-                  <FileText size={14} color={themeColors.success} />
+                  <FileText size={14} color={themeColors.success} strokeWidth={1.75} />
                   <Text style={styles.statusLabel}>Budget Status</Text>
                   <Text style={styles.statusText}>{result.budgetStatus}</Text>
                 </View>
@@ -133,7 +134,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Key Accomplishments</Text>
                   {(result.keyAccomplishments ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <CheckCircle2 size={13} color={themeColors.success} />
+                      <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={styles.listText}>{item}</Text>
                     </View>
                   ))}
@@ -145,7 +146,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Issues & Risks</Text>
                   {(result.issuesAndRisks ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <AlertTriangle size={13} color={Colors.warning} />
+                      <AlertTriangle size={13} color={Colors.warning} strokeWidth={1.75} />
                       <Text style={styles.listText}>{item}</Text>
                     </View>
                   ))}
@@ -157,7 +158,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Next Milestones</Text>
                   {(result.nextMilestones ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <Target size={13} color={themeColors.accent} />
+                      <Target size={13} color={themeColors.accent} strokeWidth={1.75} />
                       <Text style={styles.listText}>{item}</Text>
                     </View>
                   ))}
@@ -169,7 +170,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                   <Text style={styles.sectionTitle}>Recommendations</Text>
                   {(result.recommendations ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
-                      <Sparkles size={13} color={themeColors.accent} />
+                      <MageAIMark size={13} color={themeColors.accent} />
                       <Text style={[styles.listText, { color: themeColors.accent, fontWeight: '500' as const }]}>{item}</Text>
                     </View>
                   ))}

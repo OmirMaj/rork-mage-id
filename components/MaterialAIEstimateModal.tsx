@@ -15,8 +15,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  X, Sparkles, CheckCircle, Lightbulb, HardHat, Percent, Hash, RefreshCw,
+  X, CheckCircle, HardHat, Percent, Hash, RefreshCw,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -152,7 +153,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIcon}>
-                <Sparkles size={18} color={Colors.surface} />
+                <MageAIMark size={18} color={Colors.surface} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.headerTitle}>Ask AI</Text>
@@ -166,7 +167,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
               accessibilityLabel="Close"
               testID="ai-modal-close"
             >
-              <X size={20} color={Colors.text} />
+              <X size={20} color={Colors.text} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -216,7 +217,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                 </>
               ) : (
                 <>
-                  {result ? <RefreshCw size={16} color={Colors.surface} /> : <Sparkles size={16} color={Colors.surface} />}
+                  {result ? <RefreshCw size={16} color={Colors.surface} strokeWidth={1.75} /> : <MageAIMark size={16} color={Colors.surface} />}
                   <Text style={styles.generateBtnText}>{result ? 'Regenerate' : 'Generate suggestions'}</Text>
                 </>
               )}
@@ -259,7 +260,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             {result && result.overallRecommendations.length > 0 && (
               <View style={styles.recBlock}>
                 <View style={styles.recHeader}>
-                  <Lightbulb size={14} color={Colors.warning} />
+                  <MageAIMark size={14} color={Colors.warning} />
                   <Text style={styles.recHeaderText}>Overall recommendations</Text>
                 </View>
                 {result.overallRecommendations.map((r, idx) => (
@@ -274,7 +275,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
             {result && (result.laborEstimateRange.low > 0 || result.laborEstimateRange.high > 0) && (
               <View style={styles.laborBlock}>
                 <View style={styles.recHeader}>
-                  <HardHat size={14} color={Colors.accent} />
+                  <HardHat size={14} color={Colors.accent} strokeWidth={1.75} />
                   <Text style={styles.recHeaderText}>Labor estimate range</Text>
                 </View>
                 <Text style={styles.laborRange}>
@@ -307,7 +308,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                       <View style={styles.suggestionRow}>
                         <View style={styles.suggestionLeft}>
                           <View style={styles.suggestionMetric}>
-                            <Hash size={11} color={Colors.textSecondary} />
+                            <Hash size={11} color={Colors.textSecondary} strokeWidth={1.75} />
                             <Text style={styles.suggestionMetricLabel}>Quantity</Text>
                           </View>
                           <Text style={styles.suggestionValue}>
@@ -329,7 +330,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                         >
                           {qtyApplied ? (
                             <>
-                              <CheckCircle size={13} color={Colors.success} />
+                              <CheckCircle size={13} color={Colors.success} strokeWidth={1.75} />
                               <Text style={[styles.applyBtnText, { color: Colors.success }]}>Applied</Text>
                             </>
                           ) : (
@@ -341,7 +342,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                       <View style={styles.suggestionRow}>
                         <View style={styles.suggestionLeft}>
                           <View style={styles.suggestionMetric}>
-                            <Percent size={11} color={Colors.textSecondary} />
+                            <Percent size={11} color={Colors.textSecondary} strokeWidth={1.75} />
                             <Text style={styles.suggestionMetricLabel}>Markup</Text>
                           </View>
                           <Text style={styles.suggestionValue}>
@@ -363,7 +364,7 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
                         >
                           {markupApplied ? (
                             <>
-                              <CheckCircle size={13} color={Colors.success} />
+                              <CheckCircle size={13} color={Colors.success} strokeWidth={1.75} />
                               <Text style={[styles.applyBtnText, { color: Colors.success }]}>Applied</Text>
                             </>
                           ) : (

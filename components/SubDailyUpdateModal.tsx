@@ -193,7 +193,7 @@ function SubDailyUpdateModalImpl({
               <Text style={styles.title}>Today&apos;s update</Text>
               <Text style={styles.sub}>{task.title}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
           </View>
 
           <ScrollView
@@ -238,7 +238,7 @@ function SubDailyUpdateModalImpl({
             <View style={[styles.section, styles.row2]}>
               <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
-                  <Clock size={11} color={themeColors.textMuted} />
+                  <Clock size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.label}>Hours worked</Text>
                 </View>
                 <TextInput
@@ -252,7 +252,7 @@ function SubDailyUpdateModalImpl({
               </View>
               <View style={{ flex: 1 }}>
                 <View style={styles.labelRow}>
-                  <Users size={11} color={themeColors.textMuted} />
+                  <Users size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.label}>Crew on site</Text>
                 </View>
                 <TextInput
@@ -283,7 +283,7 @@ function SubDailyUpdateModalImpl({
             {/* Blocker */}
             <View style={styles.section}>
               <View style={styles.labelRow}>
-                <AlertTriangle size={11} color={Colors.warning} />
+                <AlertTriangle size={11} color={Colors.warning} strokeWidth={1.75} />
                 <Text style={styles.label}>Blocker (optional)</Text>
               </View>
               <TextInput
@@ -313,7 +313,7 @@ function SubDailyUpdateModalImpl({
                       style={styles.photoRemove}
                       onPress={() => handleRemovePhoto(i)}
                       hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={11} color="#FFF" />
+                      <Trash2 size={11} color="#FFF" strokeWidth={1.75} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -322,7 +322,7 @@ function SubDailyUpdateModalImpl({
                   onPress={() => handleAddPhoto(Platform.OS === 'web' ? 'library' : 'camera')}
                   activeOpacity={0.85}
                 >
-                  <Camera size={18} color={themeColors.accent} />
+                  <Camera size={18} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
                 </TouchableOpacity>
                 {Platform.OS !== 'web' && (
@@ -331,7 +331,7 @@ function SubDailyUpdateModalImpl({
                     onPress={() => handleAddPhoto('library')}
                     activeOpacity={0.85}
                   >
-                    <Plus size={18} color={themeColors.accent} />
+                    <Plus size={18} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.photoAddLabel}>Library</Text>
                   </TouchableOpacity>
                 )}
@@ -354,13 +354,13 @@ function SubDailyUpdateModalImpl({
               disabled={busy}
               activeOpacity={0.85}
             >
-              <CheckCircle2 size={14} color="#FFF" />
+              <CheckCircle2 size={14} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.primaryBtnText}>
                 {busy ? 'Sending…' : (gcEmail ? 'Save + email GC' : gcPhone ? 'Save + text GC' : 'Save')}
               </Text>
               {gcEmail
-                ? <Mail size={12} color="rgba(255,255,255,0.85)" />
-                : gcPhone ? <MessageSquare size={12} color="rgba(255,255,255,0.85)" /> : null}
+                ? <Mail size={12} color="rgba(255,255,255,0.85)" strokeWidth={1.75} />
+                : gcPhone ? <MessageSquare size={12} color="rgba(255,255,255,0.85)" strokeWidth={1.75} /> : null}
             </TouchableOpacity>
           </View>
         </View>

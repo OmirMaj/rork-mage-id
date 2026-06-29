@@ -283,14 +283,14 @@ export default function PaymentsScreen() {
         <View style={styles.heroCards}>
           <View style={[styles.heroCard, { flex: 1.2 }]}>
             <View style={[styles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
-              <ArrowDownRight size={18} color={Colors.successDark} />
+              <ArrowDownRight size={18} color={Colors.successDark} strokeWidth={1.75} />
             </View>
             <Text style={[styles.heroValue, { color: Colors.successDark }]}>{formatMoney(stats.received)}</Text>
             <Text style={styles.heroLabel}>Received</Text>
           </View>
           <View style={styles.heroCard}>
             <View style={[styles.heroIconWrap, { backgroundColor: Colors.warningLight }]}>
-              <Clock size={18} color={Colors.warningDark} />
+              <Clock size={18} color={Colors.warningDark} strokeWidth={1.75} />
             </View>
             <Text style={[styles.heroValue, { color: Colors.warningDark }]}>{formatMoney(stats.pending)}</Text>
             <Text style={styles.heroLabel}>Pending</Text>
@@ -311,7 +311,7 @@ export default function PaymentsScreen() {
         </View>
 
         <TouchableOpacity style={styles.sendButton} onPress={handleSendInvoice} activeOpacity={0.85}>
-          <Send size={18} color="#fff" />
+          <Send size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.sendButtonText}>Send Payment Request</Text>
         </TouchableOpacity>
 
@@ -334,7 +334,7 @@ export default function PaymentsScreen() {
           {filtered.length === 0 ? (
             <View style={{ minHeight: 360 }}>
               <EmptyState
-                icon={<CreditCard size={32} color={themeColors.accent} />}
+                icon={<CreditCard size={32} color={themeColors.accent} strokeWidth={1.75} />}
                 title="No payments yet"
                 message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
                 steps={[

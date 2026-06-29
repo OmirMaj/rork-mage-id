@@ -19,7 +19,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, ArrowUp, AlertTriangle } from 'lucide-react-native';
-import { MageIntelligence } from '@/components/icons';
+import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -78,10 +78,10 @@ export default function AskMageScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <View style={styles.headerIcon}><MageIntelligence size={16} color={themeColors.accent} accentColor={themeColors.accent} /></View>
+          <View style={styles.headerIcon}><MageAIMark size={16} color={themeColors.accent} accentColor={themeColors.accent} /></View>
           <View>
             <Text style={styles.headerTitle}>Ask MAGE</Text>
             <Text style={styles.headerSub}>Answers across your whole business</Text>
@@ -103,7 +103,7 @@ export default function AskMageScreen() {
         >
           {empty ? (
             <View style={styles.emptyWrap}>
-              <View style={styles.emptyIcon}><MageIntelligence size={28} color={themeColors.accent} accentColor={themeColors.accent} /></View>
+              <View style={styles.emptyIcon}><MageAIMark size={28} color={themeColors.accent} accentColor={themeColors.accent} /></View>
               <Text style={styles.emptyTitle}>Ask me anything about your business</Text>
               <Text style={styles.emptyBody}>
                 I can see your projects, invoices, schedules, leads, change orders and RFIs.
@@ -130,7 +130,7 @@ export default function AskMageScreen() {
                 style={[styles.bubbleRow, t.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}
               >
                 {t.role === 'assistant' && t.error && (
-                  <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} />
+                  <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
                 )}
                 <View style={[styles.bubble, t.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
                   <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>

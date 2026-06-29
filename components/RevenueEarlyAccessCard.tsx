@@ -145,7 +145,7 @@ export function RevenueEarlyAccessCard(props: RevenueEarlyAccessCardProps) {
     >
       <View style={styles.iconWrap}>
         {state === 'done' ? (
-          <CheckCircle2 size={20} color={colors.success} />
+          <CheckCircle2 size={20} color={colors.success} strokeWidth={1.75} />
         ) : (
           <Icon size={20} color={colors.accent} />
         )}
@@ -176,7 +176,7 @@ export function RevenueEarlyAccessCard(props: RevenueEarlyAccessCardProps) {
         )}
       </View>
       {state === 'idle' && (
-        <ChevronRight size={18} color={colors.textMuted} />
+        <ChevronRight size={18} color={colors.textMuted} strokeWidth={1.75} />
       )}
       {(state === 'saving' || state === 'checking') && (
         <ActivityIndicator size="small" color={colors.accent} />

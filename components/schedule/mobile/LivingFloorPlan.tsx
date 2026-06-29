@@ -47,7 +47,7 @@ export function LivingFloorPlan({ project, planSheetId, zones, pins, photoById, 
   if (!imageUri) {
     return (
       <View style={{ flex: 1, paddingTop: 24 }}>
-        <EmptyState icon={<FolderOpen size={36} color={colors.accent} />} title="No floor plan yet"
+        <EmptyState icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />} title="No floor plan yet"
           message="Add a floor plan to start the Living Floor Plan." actionLabel="Add Floor Plan" onAction={onAddPlan ?? (() => {})} />
       </View>
     );
@@ -71,7 +71,7 @@ export function LivingFloorPlan({ project, planSheetId, zones, pins, photoById, 
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 24 }}>
         <View style={styles.head}>
           <Text style={styles.title}>Living Floor Plan</Text>
-          {!readOnly && <TouchableOpacity style={styles.editBtn} onPress={onEdit} testID="living-plan-edit"><Pencil size={14} color={colors.accent} /><Text style={styles.editText}>Edit zones</Text></TouchableOpacity>}
+          {!readOnly && <TouchableOpacity style={styles.editBtn} onPress={onEdit} testID="living-plan-edit"><Pencil size={14} color={colors.accent} strokeWidth={1.75} /><Text style={styles.editText}>Edit zones</Text></TouchableOpacity>}
         </View>
         <View style={[styles.planWrap, { aspectRatio: aspect }]} onLayout={(e: LayoutChangeEvent) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
           <Image source={{ uri: imageUri }} style={StyleSheet.absoluteFill} resizeMode="contain" />
@@ -100,7 +100,7 @@ export function LivingFloorPlan({ project, planSheetId, zones, pins, photoById, 
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
           <View style={styles.sheetHead}>
             <Text style={styles.sheetTitle}>{openZone?.label}</Text>
-            <TouchableOpacity onPress={() => setOpenZone(null)}><X size={18} color={colors.textMuted} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setOpenZone(null)}><X size={18} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
           </View>
           {openZone && (() => {
             const lt = linkedTasksFor(openZone);

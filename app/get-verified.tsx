@@ -136,7 +136,7 @@ export default function GetVerifiedScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.successWrap}>
-          <View style={styles.successIcon}><CheckCircle2 size={40} color={themeColors.success} /></View>
+          <View style={styles.successIcon}><CheckCircle2 size={40} color={themeColors.success} strokeWidth={1.75} /></View>
           <Text style={styles.successTitle}>Request submitted</Text>
           <Text style={styles.successBody}>
             Our team will review your license and verify your account, usually within 1–2 business days.
@@ -156,7 +156,7 @@ export default function GetVerifiedScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Trust & credibility</Text>
@@ -170,7 +170,7 @@ export default function GetVerifiedScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.pitch}>
-          <View style={styles.pitchIcon}><ShieldCheck size={20} color={themeColors.success} /></View>
+          <View style={styles.pitchIcon}><ShieldCheck size={20} color={themeColors.success} strokeWidth={1.75} /></View>
           <Text style={styles.pitchText}>
             Verified pros win more work. Homeowners can post projects open only to verified
             contractors — submit your license and we&apos;ll review it.
@@ -223,12 +223,12 @@ export default function GetVerifiedScreen() {
             <View style={styles.docPreview}>
               <Image source={{ uri: docUri }} style={styles.docImage} resizeMode="cover" />
               <TouchableOpacity style={styles.docRemove} onPress={() => setDocUri(null)} hitSlop={8}>
-                <X size={14} color="#FFF" />
+                <X size={14} color="#FFF" strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity style={styles.docPick} onPress={pickDocument} activeOpacity={0.85}>
-              <Camera size={16} color={themeColors.accent} />
+              <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.docPickText}>Add document</Text>
             </TouchableOpacity>
           )}
@@ -236,7 +236,7 @@ export default function GetVerifiedScreen() {
 
         {error && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={themeColors.danger} />
+            <AlertTriangle size={16} color={themeColors.danger} strokeWidth={1.75} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -252,7 +252,7 @@ export default function GetVerifiedScreen() {
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <>
-              <Send size={16} color="#FFF" />
+              <Send size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.submitBtnText}>Submit for verification</Text>
             </>
           )}

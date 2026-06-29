@@ -195,7 +195,7 @@ export default function EntityActionSheet({
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
             <TouchableOpacity onPress={onClose} accessibilityLabel="Close" style={styles.closeBtn}>
-              <X size={18} color={colors.textSecondary} />
+              <X size={18} color={colors.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 

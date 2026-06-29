@@ -132,7 +132,7 @@ export default function SummaryScreen() {
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
         <Text style={styles.heading}>Summary</Text>
         <EmptyState
-          icon={<FolderOpen size={36} color={themeColors.accent} />}
+          icon={<FolderOpen size={36} color={themeColors.accent} strokeWidth={1.75} />}
           title="No projects yet"
           message="Your daily briefing rolls up today's schedule, this week, money, and what needs you — across every project. To populate it:"
           steps={[

@@ -93,12 +93,8 @@ export default function MessagesScreen() {
     );
   }, [senderId]);
 
-  const onlineIndicator = (
-    <View style={styles.headerRight}>
-      <View style={styles.onlineDot} />
-      <Text style={styles.onlineText}>Online</Text>
-    </View>
-  );
+  // No real presence signal is wired yet, so we don't fake an "Online" status.
+  const onlineIndicator = null;
 
   // Direct sidebar hits land here without a conversation id. Show how to
   // open one instead of an empty screen with no context.
@@ -157,7 +153,7 @@ export default function MessagesScreen() {
         {!isAtBottom && (
           <Animated.View style={[styles.scrollToBottomBtn, { opacity: scrollIndicatorAnim }]}>
             <TouchableOpacity onPress={scrollToBottom} style={styles.scrollBtnInner}>
-              <ChevronDown size={18} color={themeColors.accent} />
+              <ChevronDown size={18} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.scrollBtnText}>New messages</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -178,7 +174,7 @@ export default function MessagesScreen() {
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
             onPress={handleSend}
             disabled={!text.trim()}
-            testID="send-button" accessibilityRole="button" accessibilityLabel="Send"><Send size={18} color={text.trim() ? '#FFF' : themeColors.textMuted} /></TouchableOpacity>
+            testID="send-button" accessibilityRole="button" accessibilityLabel="Send"><Send size={18} color={text.trim() ? '#FFF' : themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </View>

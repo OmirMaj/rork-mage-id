@@ -8,8 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Info, Printer, Check, Save,
-  ShieldAlert, CheckCircle2, FileText,
+  ShieldAlert, CheckCircle2,
 } from 'lucide-react-native';
+import { MagePayApp } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -457,7 +458,7 @@ function AIAPayAppScreenInner() {
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
         <EmptyState
-          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MagePayApp size={36} color={themeColors.accent} />}
           title="No AIA pay app open yet"
           message="AIA pay applications (G702 / G703) bill against an existing progress invoice. To start one:"
           steps={[
@@ -488,7 +489,7 @@ function AIAPayAppScreenInner() {
           title: 'Progress Billing',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={themeColors.accent} />
+              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
             </TouchableOpacity>
           ),
         }}
@@ -799,8 +800,8 @@ function AIAPayAppScreenInner() {
             activeOpacity={0.85}
           >
             {savedFlash
-              ? <Check size={18} color={themeColors.accent} />
-              : <Save size={18} color={themeColors.accent} />
+              ? <Check size={18} color={themeColors.accent} strokeWidth={1.75} />
+              : <Save size={18} color={themeColors.accent} strokeWidth={1.75} />
             }
             <Text style={styles.saveBtnText}>
               {savedFlash ? 'Saved to project' : 'Save to project'}
@@ -814,7 +815,7 @@ function AIAPayAppScreenInner() {
           >
             {generating
               ? <ActivityIndicator size="small" color="#FFF" />
-              : <Printer size={18} color="#FFF" />
+              : <Printer size={18} color="#FFF" strokeWidth={1.75} />
             }
             <Text style={styles.generateBtnText}>
               {generating ? 'Generating…' : 'Generate PDF'}
@@ -836,7 +837,7 @@ function AIAPayAppScreenInner() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalIconWrap}>
-              <ShieldAlert size={26} color="#C26A00" />
+              <ShieldAlert size={26} color="#C26A00" strokeWidth={1.75} />
             </View>
             <Text style={styles.modalTitle}>Heads up — quick legal note</Text>
             <Text style={styles.modalBody}>
@@ -868,7 +869,7 @@ function AIAPayAppScreenInner() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalIconWrap}>
-              <ShieldAlert size={24} color="#C26A00" />
+              <ShieldAlert size={24} color="#C26A00" strokeWidth={1.75} />
             </View>
             <Text style={styles.modalTitle}>Ready to certify?</Text>
             <Text style={styles.modalBody}>

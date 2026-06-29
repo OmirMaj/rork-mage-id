@@ -54,7 +54,7 @@ export function TodayOnSite({ tasks, jobCount, onPressTask }: TodayOnSiteProps) 
                 <Text style={[styles.flagText, { color: colors.danger }]}>CRIT</Text>
               </View>
             ) : (
-              <ChevronRight size={16} color={colors.textMuted} />
+              <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.75} />
             )}
           </TouchableOpacity>
         ))

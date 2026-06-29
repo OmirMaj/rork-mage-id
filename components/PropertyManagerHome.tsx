@@ -23,8 +23,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Building2, ChevronRight, MapPin, Wrench, ClipboardList, Send,
-  Sun, Moon, Sunrise, Sunset, X, Sparkles,
+  Sun, Moon, Sunrise, Sunset, X,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -151,7 +152,7 @@ export default function PropertyManagerHome() {
                   Track maintenance, log work orders, and dispatch them to your contractors.
                 </Text>
               </View>
-              <ChevronRight size={18} color="#FFF" />
+              <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
             </LinearGradient>
           </TouchableOpacity>
         </FadeRise>
@@ -170,7 +171,7 @@ export default function PropertyManagerHome() {
           <FadeRise delay={200}>
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconWrap}>
-                <ClipboardList size={28} color={themeColors.accent} />
+                <ClipboardList size={28} color={themeColors.accent} strokeWidth={1.75} />
               </View>
               <Text style={styles.emptyTitle}>Your portfolio starts here</Text>
               <Text style={styles.emptyBody}>
@@ -208,7 +209,7 @@ export default function PropertyManagerHome() {
                       <Text style={styles.propName} numberOfLines={1}>{p.name}</Text>
                       {!!p.address && (
                         <View style={styles.propMeta}>
-                          <MapPin size={11} color={themeColors.textMuted} />
+                          <MapPin size={11} color={themeColors.textMuted} strokeWidth={1.75} />
                           <Text style={styles.propMetaText} numberOfLines={1}>{p.address}</Text>
                         </View>
                       )}
@@ -220,7 +221,7 @@ export default function PropertyManagerHome() {
                     {openCount > 0 && (
                       <View style={styles.openBadge}><Text style={styles.openBadgeText}>{openCount}</Text></View>
                     )}
-                    <ChevronRight size={16} color={themeColors.textMuted} />
+                    <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </FadeRise>
               );
@@ -240,10 +241,10 @@ export default function PropertyManagerHome() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <View style={styles.modalHead}>
-              <View style={styles.modalHeadIcon}><Building2 size={16} color="#FFF" /></View>
+              <View style={styles.modalHeadIcon}><Building2 size={16} color="#FFF" strokeWidth={1.75} /></View>
               <Text style={styles.modalTitle}>Add a property</Text>
               <TouchableOpacity onPress={() => { setAddOpen(false); resetDraft(); }} hitSlop={8}>
-                <X size={20} color={themeColors.textMuted} />
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
             <Text style={styles.fieldLabel}>Name</Text>
@@ -279,7 +280,7 @@ export default function PropertyManagerHome() {
               activeOpacity={0.85}
               testID="pm-add-submit"
             >
-              <Sparkles size={15} color="#FFF" />
+              <MageAIMark size={15} color="#FFF" />
               <Text style={styles.modalCtaText}>Add property</Text>
             </TouchableOpacity>
           </View>

@@ -193,7 +193,7 @@ export default function RfpDetailScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={themeColors.accent} />
+          <ChevronLeft size={26} color={themeColors.accent} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Homeowner RFP</Text>
@@ -221,31 +221,31 @@ export default function RfpDetailScreen() {
           <View style={styles.metaPills}>
             {isAwarded && (
               <View style={[styles.pill, { backgroundColor: themeColors.success + '20' }]}>
-                <Trophy size={10} color={themeColors.success} />
+                <Trophy size={10} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={[styles.pillText, { color: themeColors.success }]}>AWARDED</Text>
               </View>
             )}
             {isOpen && (
               <View style={[styles.pill, { backgroundColor: themeColors.accent + '20' }]}>
-                <Clock size={10} color={themeColors.accent} />
+                <Clock size={10} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.pillText, { color: themeColors.accent }]}>OPEN FOR BIDS</Text>
               </View>
             )}
             {rfp.verified_only && (
               <View style={[styles.pill, { backgroundColor: themeColors.accent + '18' }]}>
-                <ShieldCheck size={10} color={themeColors.accent} />
+                <ShieldCheck size={10} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={[styles.pillText, { color: themeColors.accent }]}>VERIFIED PROS ONLY</Text>
               </View>
             )}
             {rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: themeColors.success + '15' }]}>
-                <ShieldCheck size={10} color={themeColors.success} />
+                <ShieldCheck size={10} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={[styles.pillText, { color: themeColors.success }]}>ADDRESS VERIFIED</Text>
               </View>
             )}
             {!rfp.address_verified && (
               <View style={[styles.pill, { backgroundColor: Colors.warning + '15' }]}>
-                <AlertTriangle size={10} color={Colors.warning} />
+                <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
                 <Text style={[styles.pillText, { color: Colors.warning }]}>UNVERIFIED ADDRESS</Text>
               </View>
             )}
@@ -255,7 +255,7 @@ export default function RfpDetailScreen() {
         {/* Location + budget */}
         <View style={styles.card}>
           <View style={styles.cardRow}>
-            <MapPin size={14} color={themeColors.textMuted} />
+            <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.cardRowText}>
               {[rfp.city, rfp.state].filter(Boolean).join(', ') || 'Location pending'}
               {' '}<Text style={styles.cardRowMuted}>(exact address shared after homeowner accepts a site visit)</Text>
@@ -263,7 +263,7 @@ export default function RfpDetailScreen() {
           </View>
           {(rfp.budget_min || rfp.budget_max) && (
             <View style={styles.cardRow}>
-              <FileText size={14} color={themeColors.textMuted} />
+              <FileText size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.cardRowText}>
                 Budget {rfp.budget_min ? formatMoney(rfp.budget_min) : '—'} to {rfp.budget_max ? formatMoney(rfp.budget_max) : '—'}
               </Text>
@@ -271,12 +271,12 @@ export default function RfpDetailScreen() {
           )}
           {rfp.desired_start && (
             <View style={styles.cardRow}>
-              <Calendar size={14} color={themeColors.textMuted} />
+              <Calendar size={14} color={themeColors.textMuted} strokeWidth={1.75} />
               <Text style={styles.cardRowText}>Desired start: {rfp.desired_start}</Text>
             </View>
           )}
           <View style={styles.cardRow}>
-            <Calendar size={14} color={themeColors.textMuted} />
+            <Calendar size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <Text style={styles.cardRowText}>
               Bids due {new Date(rfp.deadline).toLocaleDateString()}
             </Text>
@@ -300,9 +300,9 @@ export default function RfpDetailScreen() {
                 const name = url.split('/').pop()?.replace(/^\d+_/, '') ?? 'attachment';
                 return (
                   <TouchableOpacity key={url} style={styles.drawingItem} onPress={() => openAttachment(url)}>
-                    <FileText size={16} color={themeColors.accent} />
+                    <FileText size={16} color={themeColors.accent} strokeWidth={1.75} />
                     <Text style={styles.drawingName} numberOfLines={1}>{decodeURIComponent(name)}</Text>
-                    <ChevronRight size={14} color={themeColors.textMuted} />
+                    <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 );
               })}
@@ -313,7 +313,7 @@ export default function RfpDetailScreen() {
         {/* Pre-bid Q&A */}
         <View style={styles.qaCard}>
           <View style={styles.qaHead}>
-            <HelpCircle size={14} color={themeColors.accent} />
+            <HelpCircle size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.qaTitle}>Questions & answers</Text>
             {(questions?.length ?? 0) > 0 && (
               <View style={styles.qaCount}>
@@ -350,7 +350,7 @@ export default function RfpDetailScreen() {
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <MessageSquare size={13} color="#FFF" />
+                    <MessageSquare size={13} color="#FFF" strokeWidth={1.75} />
                     <Text style={styles.qaAskBtnText}>Ask</Text>
                   </>
                 )}
@@ -373,7 +373,7 @@ export default function RfpDetailScreen() {
                   </View>
                   {q.answer ? (
                     <View style={styles.qaAnswer}>
-                      <CheckCircle2 size={11} color={themeColors.success} />
+                      <CheckCircle2 size={11} color={themeColors.success} strokeWidth={1.75} />
                       <Text style={styles.qaAnswerText}>{q.answer}</Text>
                     </View>
                   ) : isOwner ? (
@@ -392,7 +392,7 @@ export default function RfpDetailScreen() {
         {/* CTA */}
         {!isOwner && isOpen && !existingResponse && (
           <TouchableOpacity style={styles.primaryCta} onPress={handleSubmit} activeOpacity={0.85}>
-            <Send size={16} color="#FFF" />
+            <Send size={16} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.primaryCtaText}>Submit your estimate</Text>
           </TouchableOpacity>
         )}
@@ -408,7 +408,7 @@ export default function RfpDetailScreen() {
         {!isOwner && existingResponse && (
           <View style={styles.responseCard}>
             <View style={styles.responseHead}>
-              <ImageIcon size={14} color={themeColors.success} />
+              <ImageIcon size={14} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.responseTitle}>You submitted an estimate</Text>
             </View>
             <Text style={styles.responseDetail}>
@@ -422,7 +422,7 @@ export default function RfpDetailScreen() {
         {isOwner && (
           <View style={styles.ownerActions}>
             <TouchableOpacity style={[styles.primaryCta, { flex: 1 }]} onPress={handleReview}>
-              <FileText size={16} color="#FFF" />
+              <FileText size={16} color="#FFF" strokeWidth={1.75} />
               <Text style={styles.primaryCtaText}>Review bids</Text>
             </TouchableOpacity>
             {/* Edit button removed pre-launch — the in-place edit flow isn't

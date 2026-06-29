@@ -149,7 +149,7 @@ export default function DataExportScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <View style={styles.heroIcon}><FolderDown size={24} color={themeColors.accent} /></View>
+          <View style={styles.heroIcon}><FolderDown size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.heroTitle}>Export my data</Text>
           <Text style={styles.heroSub}>
             Bundle every project, invoice, RFI, photo, and daily report into a portable file you own.
@@ -164,7 +164,7 @@ export default function DataExportScreen() {
             onPress={() => { setScope('all'); setProjectId(undefined); }}
             activeOpacity={0.8}
           >
-            <Package size={14} color={scope === 'all' ? '#FFFFFF' : themeColors.text} />
+            <Package size={14} color={scope === 'all' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
             <Text style={[styles.segmentTxt, scope === 'all' && styles.segmentTxtActive]}>All projects</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -172,7 +172,7 @@ export default function DataExportScreen() {
             onPress={() => setScope('project')}
             activeOpacity={0.8}
           >
-            <CheckCircle2 size={14} color={scope === 'project' ? '#FFFFFF' : themeColors.text} />
+            <CheckCircle2 size={14} color={scope === 'project' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
             <Text style={[styles.segmentTxt, scope === 'project' && styles.segmentTxtActive]}>Single project</Text>
           </TouchableOpacity>
         </View>
@@ -195,7 +195,7 @@ export default function DataExportScreen() {
                       <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
                       <Text style={styles.projectRowMeta}>{p.type} · {p.location}</Text>
                     </View>
-                    {active && <CheckCircle2 size={18} color={themeColors.accent} />}
+                    {active && <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />}
                   </TouchableOpacity>
                 );
               })
@@ -210,7 +210,7 @@ export default function DataExportScreen() {
             onPress={() => setFormat('json')}
             activeOpacity={0.8}
           >
-            <FileJson size={14} color={format === 'json' ? '#FFFFFF' : themeColors.text} />
+            <FileJson size={14} color={format === 'json' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
             <Text style={[styles.segmentTxt, format === 'json' && styles.segmentTxtActive]}>JSON</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -218,7 +218,7 @@ export default function DataExportScreen() {
             onPress={() => setFormat('csv')}
             activeOpacity={0.8}
           >
-            <FileSpreadsheet size={14} color={format === 'csv' ? '#FFFFFF' : themeColors.text} />
+            <FileSpreadsheet size={14} color={format === 'csv' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
             <Text style={[styles.segmentTxt, format === 'csv' && styles.segmentTxtActive]}>CSV</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -226,13 +226,13 @@ export default function DataExportScreen() {
             onPress={() => setFormat('both')}
             activeOpacity={0.8}
           >
-            <Download size={14} color={format === 'both' ? '#FFFFFF' : themeColors.text} />
+            <Download size={14} color={format === 'both' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
             <Text style={[styles.segmentTxt, format === 'both' && styles.segmentTxtActive]}>Both</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.hintCard}>
-          <Info size={14} color={themeColors.textSecondary} />
+          <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
           <Text style={styles.hintTxt}>
             JSON is a single complete bundle (lossless). CSV is one file per entity, great for Excel and Google Sheets.
           </Text>
@@ -240,7 +240,7 @@ export default function DataExportScreen() {
 
         <Text style={styles.sectionLabel}>OPTIONS</Text>
         <View style={styles.row}>
-          <View style={styles.rowIcon}><ImageIcon size={16} color={themeColors.accent} /></View>
+          <View style={styles.rowIcon}><ImageIcon size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>Include photo URLs</Text>
             <Text style={styles.rowSub}>Turn off if local file:// paths bloat the export.</Text>
@@ -257,7 +257,7 @@ export default function DataExportScreen() {
             since the packet is per-project. We disable + dim if scope is
             "all" so the user understands why it's unavailable. */}
         <View style={[styles.row, scope !== 'project' && { opacity: 0.5 }]}>
-          <View style={styles.rowIcon}><FileJson size={16} color={themeColors.accent} /></View>
+          <View style={styles.rowIcon}><FileJson size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>Closeout PDF (handoff packet)</Text>
             <Text style={styles.rowSub}>
@@ -276,7 +276,7 @@ export default function DataExportScreen() {
         </View>
 
         <View style={styles.row}>
-          <View style={styles.rowIcon}><Info size={16} color={themeColors.accent} /></View>
+          <View style={styles.rowIcon}><Info size={16} color={themeColors.accent} strokeWidth={1.75} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>README.txt orientation file</Text>
             <Text style={styles.rowSub}>Plain-text file describing what each export piece is — useful for non-technical recipients.</Text>
@@ -296,7 +296,7 @@ export default function DataExportScreen() {
           activeOpacity={0.85}
           style={styles.presetBtn}
         >
-          <Package size={14} color={themeColors.accent} />
+          <Package size={14} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.presetText}>Use &quot;Full project archive&quot; preset</Text>
         </TouchableOpacity>
 
@@ -328,10 +328,10 @@ export default function DataExportScreen() {
                     activeOpacity={0.7}
                   >
                     {uri.endsWith('.csv')
-                      ? <FileSpreadsheet size={16} color={themeColors.accent} />
-                      : <FileJson size={16} color={themeColors.accent} />}
+                      ? <FileSpreadsheet size={16} color={themeColors.accent} strokeWidth={1.75} />
+                      : <FileJson size={16} color={themeColors.accent} strokeWidth={1.75} />}
                     <Text style={styles.fileName} numberOfLines={1}>{name}</Text>
-                    <Share2 size={14} color={themeColors.textSecondary} />
+                    <Share2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   </TouchableOpacity>
                 );
               })}
@@ -351,7 +351,7 @@ export default function DataExportScreen() {
             <ActivityIndicator color={'#FFFFFF'} />
           ) : (
             <>
-              <Download size={18} color={'#FFFFFF'} />
+              <Download size={18} color={'#FFFFFF'} strokeWidth={1.75} />
               <Text style={styles.primaryBtnTxt}>Generate & share</Text>
             </>
           )}

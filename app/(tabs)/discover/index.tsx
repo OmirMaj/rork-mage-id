@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   Gavel, Building2, Briefcase, ExternalLink,
-  Plus, Search, Award, Sparkles, CalendarDays, ChevronRight, DollarSign,
+  Plus, Search, Award, CalendarDays, ChevronRight, DollarSign,
   Wrench, Share2, CreditCard, FileSignature, Truck,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -106,7 +107,7 @@ const TABS: TabDef[] = [
   { id: 'bids', label: 'Public Bids', icon: Gavel },
   { id: 'companies', label: 'Companies', icon: Building2 },
   { id: 'hire', label: 'Direct Hire', icon: Briefcase },
-  { id: 'estimate', label: 'Estimator', icon: Sparkles },
+  { id: 'estimate', label: 'Estimator', icon: MageAIMark },
   { id: 'schedule', label: 'Schedule', icon: CalendarDays },
   // 'materials' tile removed — the standalone Materials browser is
   // redundant now that the Estimator surfaces the same category filter
@@ -159,7 +160,7 @@ function NavigationCard({
               <Text style={[styles.navCountText, { color: countColor }]}>{count}</Text>
             </View>
           )}
-          <ChevronRight size={18} color={themeColors.textMuted} />
+          <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -250,7 +251,7 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Plus size={16} color={Colors.accent} />
+              <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>Post Bid</Text>
           </TouchableOpacity>
@@ -260,7 +261,7 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Plus size={16} color={Colors.accent} />
+              <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>Post Job</Text>
           </TouchableOpacity>
@@ -270,7 +271,7 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Search size={16} color={Colors.accent} />
+              <Search size={16} color={Colors.accent} strokeWidth={1.75} />
             </View>
             <Text style={styles.quickActionLabel}>My Profile</Text>
           </TouchableOpacity>
@@ -293,7 +294,7 @@ export default function DiscoverScreen() {
           iconColor={Colors.accent}
           iconBg={Colors.accent + '15'}
           title="Tools"
-          subtitle="Every cross-project workflow in one place"
+          subtitle="Takeoffs, RFIs, punch lists — across all your jobs"
           onPress={() => navigateTo('/(tabs)/discover/tools')}
         />
 
@@ -310,7 +311,7 @@ export default function DiscoverScreen() {
             previous rainbow (5 different system-color hexes) was pure
             decoration — color carried no meaning, just noise. */}
         <NavigationCard
-          icon={Sparkles}
+          icon={MageAIMark}
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="Estimator"
@@ -360,7 +361,7 @@ export default function DiscoverScreen() {
         </View>
 
         <NavigationCard
-          icon={Sparkles}
+          icon={MageAIMark}
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="MAGE ID Bids"
@@ -439,7 +440,7 @@ export default function DiscoverScreen() {
               <Text style={styles.bidSourceName}>{source.name}</Text>
               <Text style={styles.bidSourceDesc} numberOfLines={2}>{source.description}</Text>
               <View style={styles.bidSourceFooter}>
-                <ExternalLink size={12} color={source.color} />
+                <ExternalLink size={12} color={source.color} strokeWidth={1.75} />
                 <Text style={[styles.bidSourceLink, { color: source.color }]}>Open Portal</Text>
               </View>
             </TouchableOpacity>
@@ -448,7 +449,7 @@ export default function DiscoverScreen() {
 
         <View style={styles.tipCard}>
           <View style={styles.tipHeader}>
-            <Award size={16} color={Colors.primary} />
+            <Award size={16} color={Colors.primary} strokeWidth={1.75} />
             <Text style={styles.tipTitle}>Pro Tip</Text>
           </View>
           <Text style={styles.tipText}>

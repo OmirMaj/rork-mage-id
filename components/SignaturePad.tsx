@@ -143,7 +143,7 @@ export default function SignaturePad({
           onPress={handleClear}
           activeOpacity={0.7}
         >
-          <Trash2 size={14} color={themeColors.danger} />
+          <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
           <Text style={styles.clearBtnText}>Clear</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -152,7 +152,7 @@ export default function SignaturePad({
           activeOpacity={hasPaths ? 0.7 : 1}
           disabled={!hasPaths}
         >
-          <Check size={14} color={hasPaths ? '#FFFFFF' : themeColors.textMuted} />
+          <Check size={14} color={hasPaths ? '#FFFFFF' : themeColors.textMuted} strokeWidth={1.75} />
           <Text style={[styles.saveBtnText, !hasPaths && styles.saveBtnTextDisabled]}>
             Save Signature
           </Text>

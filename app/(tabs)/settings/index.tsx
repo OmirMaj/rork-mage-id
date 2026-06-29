@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -476,7 +477,7 @@ export default function SettingsScreen() {
               </View>
             </View>
             <View style={{ flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-              <ChevronRight size={18} color={themeColors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
               <TouchableOpacity
                 style={styles.profileSignOutBtn}
                 onPress={() => {
@@ -494,7 +495,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.7}
                 testID="logout-button" accessibilityRole="button" accessibilityLabel="Sign out">
-                <LogOut size={16} color={themeColors.textSecondary} />
+                <LogOut size={16} color={themeColors.textSecondary} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -515,7 +516,7 @@ export default function SettingsScreen() {
             testID="settings-persona-row"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Repeat size={14} color="#fff" />
+              <Repeat size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
@@ -539,7 +540,7 @@ export default function SettingsScreen() {
                 })()}
               </Text>
             </View>
-            <ChevronRight size={18} color={themeColors.textMuted} />
+            <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -547,7 +548,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Sparkles size={14} color="#fff" />
+              <MageAIMark size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Today: {aiUsed} of {aiLimit} requests</Text>
@@ -559,7 +560,7 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Sparkles size={14} color="#fff" />
+              <MageAIMark size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Advanced: {aiSmartUsed} of {aiSmartLimit}</Text>
@@ -580,7 +581,7 @@ export default function SettingsScreen() {
                 this and the bar fill were hardcoded #7C3AED, drifting
                 silently when the user picked a theme. */}
             <View style={[styles.iconWrap, { backgroundColor: Colors.purple }]}>
-              <FileText size={14} color="#fff" />
+              <FileText size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
@@ -616,7 +617,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <MapPin size={14} color="#fff" />
+              <MapPin size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Location</Text>
             <TextInput
@@ -632,7 +633,7 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleToggleUnits} activeOpacity={0.6}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-              <Ruler size={14} color="#fff" />
+              <Ruler size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Units</Text>
             <View style={styles.rowRight}>
@@ -656,11 +657,11 @@ export default function SettingsScreen() {
             testID="settings-appearance"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Palette size={14} color="#fff" />
+              <Palette size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Appearance</Text>
             <View style={styles.rowRight}>
-              <ChevronRight size={18} color={themeColors.textMuted} />
+              <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
             </View>
           </TouchableOpacity>
         </View>
@@ -669,7 +670,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Percent size={14} color="#fff" />
+              <Percent size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Sales Tax Rate</Text>
             <View style={styles.rowRight}>
@@ -689,7 +690,7 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <ShieldCheck size={14} color="#fff" />
+              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Contingency Rate</Text>
             <View style={styles.rowRight}>
@@ -728,7 +729,7 @@ export default function SettingsScreen() {
             testID="pdf-naming-toggle"
           >
             <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
-              <Hash size={14} color="#fff" />
+              <Hash size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Auto-Name PDFs</Text>
             <Switch
@@ -747,7 +748,7 @@ export default function SettingsScreen() {
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                  <TypeIcon size={14} color="#fff" />
+                  <TypeIcon size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Prefix</Text>
                 <TextInput
@@ -770,7 +771,7 @@ export default function SettingsScreen() {
                 activeOpacity={0.6}
               >
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-                  <Building2 size={14} color="#fff" />
+                  <Building2 size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Include Project Name</Text>
                 <Switch
@@ -794,7 +795,7 @@ export default function SettingsScreen() {
                 activeOpacity={0.6}
               >
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                  <FileText size={14} color="#fff" />
+                  <FileText size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Include Document Type</Text>
                 <Switch
@@ -818,7 +819,7 @@ export default function SettingsScreen() {
                 activeOpacity={0.6}
               >
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-                  <Info size={14} color="#fff" />
+                  <Info size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Include Date</Text>
                 <Switch
@@ -835,7 +836,7 @@ export default function SettingsScreen() {
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
                 <View style={[styles.iconWrap, { backgroundColor: '#AF52DE' }]}>
-                  <Ruler size={14} color="#fff" />
+                  <Ruler size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Separator</Text>
                 <View style={styles.pdfSepPicker}>
@@ -863,7 +864,7 @@ export default function SettingsScreen() {
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                  <Hash size={14} color="#fff" />
+                  <Hash size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Next Number</Text>
                 <TextInput
@@ -889,7 +890,7 @@ export default function SettingsScreen() {
         </View>
         {pdfNaming.enabled && pdfNamingPreview ? (
           <View style={styles.pdfPreviewNote}>
-            <FileText size={14} color={themeColors.accent} />
+            <FileText size={14} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.pdfPreviewNoteText, { color: themeColors.textSecondary, fontWeight: '600' as const, marginBottom: 2 }]}>Preview</Text>
               <Text style={[styles.pdfPreviewNoteText, { color: themeColors.text }]} numberOfLines={1}>{pdfNamingPreview}</Text>
@@ -944,7 +945,7 @@ export default function SettingsScreen() {
                 activeOpacity={0.6}
               >
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                  <ScanFace size={14} color="#fff" />
+                  <ScanFace size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Face ID / Touch ID</Text>
                 <Switch
@@ -970,7 +971,7 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Bell size={14} color="#fff" />
+              <Bell size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Push & email preferences</Text>
@@ -997,10 +998,10 @@ export default function SettingsScreen() {
             testID="payments-setup-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <Wallet size={14} color="#fff" />
+              <Wallet size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Set up payments</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           {/* Payments dashboard — was an orphan route until May 2026 audit
               wiring. Shows received-vs-pending across all invoices, paid
@@ -1013,10 +1014,10 @@ export default function SettingsScreen() {
             testID="payments-dashboard-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <Wallet size={14} color="#fff" />
+              <Wallet size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Payments dashboard</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -1035,7 +1036,7 @@ export default function SettingsScreen() {
               styles.iconWrap,
               { backgroundColor: qboConnected ? '#2CA01C' : qboReauth ? themeColors.danger : themeColors.accent },
             ]}>
-              {qboConnected ? <Check size={14} color="#fff" /> : <ExternalLink size={14} color="#fff" />}
+              {qboConnected ? <Check size={14} color="#fff" strokeWidth={1.75} /> : <ExternalLink size={14} color="#fff" strokeWidth={1.75} />}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
@@ -1054,7 +1055,7 @@ export default function SettingsScreen() {
                 </Text>
               ) : null}
             </View>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -1073,10 +1074,10 @@ export default function SettingsScreen() {
             testID="public-profile-setup-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <UserCircle size={14} color="#fff" />
+              <UserCircle size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Edit public profile</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
@@ -1085,10 +1086,10 @@ export default function SettingsScreen() {
             testID="get-verified-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <ShieldCheck size={14} color="#fff" />
+              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Get verified</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -1101,10 +1102,10 @@ export default function SettingsScreen() {
             testID="contacts-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-              <User size={14} color="#fff" />
+              <User size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Contacts</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -1120,10 +1121,10 @@ export default function SettingsScreen() {
             testID="data-export-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <FolderDown size={14} color="#fff" />
+              <FolderDown size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
@@ -1132,10 +1133,10 @@ export default function SettingsScreen() {
             testID="connect-claude-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.text }]}>
-              <Sparkles size={14} color="#fff" />
+              <MageAIMark size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Connect Claude (AI assistant)</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.row}
@@ -1144,10 +1145,10 @@ export default function SettingsScreen() {
             testID="data-import-link"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <FolderInput size={14} color="#fff" />
+              <FolderInput size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Import data</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -1165,10 +1166,10 @@ export default function SettingsScreen() {
                 testID="dev-seeder-link"
               >
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                  <Database size={14} color="#fff" />
+                  <Database size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <Text style={[styles.rowLabel, { flex: 1 }]}>Demo data seeder</Text>
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
           </>
@@ -1183,7 +1184,7 @@ export default function SettingsScreen() {
             <View style={styles.supplierRegistered}>
               <View style={styles.supplierRegisteredHeader}>
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-                  <Store size={14} color="#fff" />
+                  <Store size={14} color="#fff" strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={styles.rowLabel}>{supplierProfile.companyName}</Text>
@@ -1192,11 +1193,11 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.supplierRegisteredMeta}>
                 <View style={styles.supplierMetaChip}>
-                  <Package size={10} color={themeColors.info} />
+                  <Package size={10} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={styles.supplierMetaText}>{supplierProfile.categories.length} categories</Text>
                 </View>
                 <View style={styles.supplierMetaChip}>
-                  <Truck size={10} color={themeColors.textMuted} />
+                  <Truck size={10} color={themeColors.textMuted} strokeWidth={1.75} />
                   <Text style={styles.supplierMetaText}>{supplierProfile.deliveryOptions.length} delivery options</Text>
                 </View>
               </View>
@@ -1205,7 +1206,7 @@ export default function SettingsScreen() {
                 onPress={() => setShowSupplierForm(true)}
                 activeOpacity={0.7}
               >
-                <PenTool size={14} color={themeColors.accent} />
+                <PenTool size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.supplierEditBtnText}>Edit Profile</Text>
               </TouchableOpacity>
             </View>
@@ -1217,20 +1218,20 @@ export default function SettingsScreen() {
               testID="register-supplier"
             >
               <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                <Store size={14} color="#fff" />
+                <Store size={14} color="#fff" strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Register as Supplier</Text>
                 <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textSecondary }}>List your materials for sale</Text>
               </View>
-              <ChevronRight size={16} color={themeColors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
         </View>
 
         <Text style={styles.sectionHeader}>SUBSCRIPTION PLAN</Text>
         <Text style={styles.sectionSubtext}>
-          Upgrade to unlock premium features for your business.
+          Go Pro for AI takeoffs, pay apps, and unlimited projects.
         </Text>
         <View style={styles.group}>
           <View style={{ padding: 16, gap: 12 }}>
@@ -1249,7 +1250,7 @@ export default function SettingsScreen() {
                 label: 'Pro',
                 price: '$29/mo',
                 color: themeColors.accent,
-                icon: Zap,
+                icon: MageAIMark,
                 features: ['Unlimited projects', 'Full estimate + markup', 'Schedule maker (all views)', 'Branded PDF export', 'Change orders & invoicing', 'Daily field reports', 'Material price alerts', 'Cloud sync'],
                 disabled: [],
               },
@@ -1312,13 +1313,13 @@ export default function SettingsScreen() {
                   <View style={styles.planFeatures}>
                     {plan.features.map((f, i) => (
                       <View key={i} style={styles.planFeatureRow}>
-                        <Check size={12} color={plan.color} />
+                        <Check size={12} color={plan.color} strokeWidth={1.75} />
                         <Text style={styles.planFeatureText}>{f}</Text>
                       </View>
                     ))}
                     {plan.disabled.map((f, i) => (
                       <View key={`d-${i}`} style={styles.planFeatureRow}>
-                        <X size={12} color={themeColors.textMuted} />
+                        <X size={12} color={themeColors.textMuted} strokeWidth={1.75} />
                         <Text style={[styles.planFeatureText, { color: themeColors.textMuted }]}>{f}</Text>
                       </View>
                     ))}
@@ -1365,7 +1366,7 @@ export default function SettingsScreen() {
               accessibilityLabel="Manage subscription in app store"
             >
               <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                <Wallet size={14} color="#fff" />
+                <Wallet size={14} color="#fff" strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Manage Subscription</Text>
@@ -1373,7 +1374,7 @@ export default function SettingsScreen() {
                   Cancel anytime in the {Platform.OS === 'android' ? 'Play Store' : 'App Store'} — no support call needed
                 </Text>
               </View>
-              <ChevronRight size={16} color={themeColors.textMuted} />
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
         )}
@@ -1387,10 +1388,10 @@ export default function SettingsScreen() {
             testID="show-tutorial"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <BookOpen size={14} color="#fff" />
+              <BookOpen size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Show Tutorial</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity
@@ -1414,10 +1415,10 @@ export default function SettingsScreen() {
             testID="contact-support"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <MessageCircle size={14} color="#fff" />
+              <MessageCircle size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Contact Support</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -1435,7 +1436,7 @@ export default function SettingsScreen() {
                   testID={`faq-${i}`}
                 >
                   <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                    <HelpCircle size={14} color="#fff" />
+                    <HelpCircle size={14} color="#fff" strokeWidth={1.75} />
                   </View>
                   <Text style={[styles.rowLabel, { flex: 1 }]} numberOfLines={isOpen ? undefined : 2}>
                     {item.q}
@@ -1443,7 +1444,7 @@ export default function SettingsScreen() {
                   <ChevronRight
                     size={16}
                     color={themeColors.textMuted}
-                    style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
+                    style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }} strokeWidth={1.75}
                   />
                 </TouchableOpacity>
                 {isOpen ? (
@@ -1463,7 +1464,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Info size={14} color="#fff" />
+              <Info size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <View style={styles.aboutBlock}>
               <Text style={styles.rowLabel}>MAGE ID</Text>
@@ -1473,7 +1474,7 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <View style={[styles.row, { opacity: 0.7 }]}>
             <View style={[styles.iconWrap, { backgroundColor: themeColors.textMuted }]}>
-              <ChevronRight size={14} color="#fff" />
+              <ChevronRight size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Version</Text>
             <Text style={styles.rowValue}>1.0.0</Text>
@@ -1498,10 +1499,10 @@ export default function SettingsScreen() {
             accessibilityLabel="Privacy Policy"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
-              <ShieldCheck size={14} color="#fff" />
+              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Privacy Policy</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity
@@ -1517,10 +1518,10 @@ export default function SettingsScreen() {
             accessibilityLabel="Terms of Service"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
-              <FileText size={14} color="#fff" />
+              <FileText size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Terms of Service</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity
@@ -1536,10 +1537,10 @@ export default function SettingsScreen() {
             accessibilityLabel="Do Not Sell or Share My Personal Information"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
-              <ShieldCheck size={14} color="#fff" />
+              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Do Not Sell My Info (CA)</Text>
-            <ChevronRight size={16} color={themeColors.textMuted} />
+            <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         </View>
 
@@ -1547,14 +1548,14 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <TouchableOpacity style={styles.row} onPress={handleClearAll} activeOpacity={0.6} testID="clear-all">
             <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <Trash2 size={14} color="#fff" />
+              <Trash2 size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Clear All Projects & Data</Text>
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleDeleteAccount} activeOpacity={0.6} testID="delete-account">
             <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <UserCircle size={14} color="#fff" />
+              <UserCircle size={14} color="#fff" strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Delete Account</Text>
@@ -1626,7 +1627,7 @@ export default function SettingsScreen() {
                   activeOpacity={0.7}
                   testID="sup-close"
                 >
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 

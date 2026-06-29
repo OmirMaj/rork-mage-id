@@ -9,7 +9,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronDown, X, Sparkles, Search } from 'lucide-react-native';
+import { ChevronDown, X, Search } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -81,7 +82,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
         >
           {triggerLabel}
         </Text>
-        <ChevronDown size={14} color={themeColors.textMuted} />
+        <ChevronDown size={14} color={themeColors.textMuted} strokeWidth={1.75} />
       </TouchableOpacity>
 
       <Modal
@@ -100,7 +101,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <X size={20} color={themeColors.textMuted} />
+              <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -111,7 +112,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
               activeOpacity={0.85}
               testID="csi-suggest"
             >
-              <Sparkles size={14} color={themeColors.accent} />
+              <MageAIMark size={14} color={themeColors.accent} />
               <Text style={styles.suggestText} numberOfLines={1}>
                 Suggested · {csiDivisionLabel(suggested)}
               </Text>
@@ -119,7 +120,7 @@ export function CSIDivisionPicker(props: CSIDivisionPickerProps): React.JSX.Elem
           )}
 
           <View style={styles.searchRow}>
-            <Search size={14} color={themeColors.textMuted} />
+            <Search size={14} color={themeColors.textMuted} strokeWidth={1.75} />
             <TextInput
               style={styles.searchInput}
               value={query}

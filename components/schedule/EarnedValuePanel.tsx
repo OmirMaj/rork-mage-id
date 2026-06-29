@@ -60,7 +60,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
       >
         <View style={styles.tileHead}>
           <View style={styles.tileIcon}>
-            <DollarSign size={14} color={"#FF6A1A"} />
+            <DollarSign size={14} color={"#FF6A1A"} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.tileLabel}>Planned vs. Earned</Text>
@@ -84,7 +84,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Money on the schedule</Text>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8} style={styles.modalCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={18} color={themeColors.text} />
+                <X size={18} color={themeColors.text} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
 
@@ -177,7 +177,7 @@ function EarnedValuePanelImpl({ snapshot, tasks }: EarnedValuePanelProps) {
                           {formatMoneyCompact(load!.earnedValue)} earned
                         </Text>
                       </View>
-                      <ChevronRight size={14} color={"#9AA3AD"} />
+                      <ChevronRight size={14} color={"#9AA3AD"} strokeWidth={1.75} />
                     </View>
                   );
                 })}

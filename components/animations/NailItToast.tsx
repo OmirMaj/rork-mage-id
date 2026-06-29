@@ -138,9 +138,9 @@ export function NailItToastHost() {
       ]}>
         <View style={styles.checkBubble}>
           {isError ? (
-            <AlertTriangle size={18} color={themeColors.danger} />
+            <AlertTriangle size={18} color={themeColors.danger} strokeWidth={1.75} />
           ) : (
-            <CheckCircle2 size={18} color={themeColors.success} fill={Colors.successLight} />
+            <CheckCircle2 size={18} color={themeColors.success} fill={Colors.successLight} strokeWidth={1.75} />
           )}
         </View>
         <Text style={styles.message} numberOfLines={2}>{active.message}</Text>
@@ -159,7 +159,7 @@ export function NailItToastHost() {
                 },
               ]}
             >
-              <Hammer size={20} color={Colors.warning} />
+              <Hammer size={20} color={Colors.warning} strokeWidth={1.75} />
             </Animated.View>
             <Animated.View
               pointerEvents="none"

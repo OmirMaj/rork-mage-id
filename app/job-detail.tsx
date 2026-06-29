@@ -92,29 +92,29 @@ export default function JobDetailScreen() {
           <Text style={styles.title}>{job.title}</Text>
           <Text style={styles.company}>{job.companyName}</Text>
           <View style={styles.metaRow}>
-            <MapPin size={14} color={themeColors.textSecondary} />
+            <MapPin size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.metaText}>{job.city}, {job.state}</Text>
           </View>
         </View>
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <DollarSign size={18} color={themeColors.accent} />
+            <DollarSign size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Pay</Text>
             <Text style={styles.statValue}>{formatPay(job.payMin, job.payMax, job.payType)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Briefcase size={18} color={themeColors.accent} />
+            <Briefcase size={18} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Trade</Text>
             <Text style={styles.statValue}>{getTradeLabel(job.tradeCategory)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Award size={18} color={themeColors.info} />
+            <Award size={18} color={themeColors.info} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Experience</Text>
             <Text style={styles.statValue}>{EXP_LABELS[job.experienceLevel]}</Text>
           </View>
           <View style={styles.statCard}>
-            <Clock size={18} color={themeColors.textSecondary} />
+            <Clock size={18} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.statLabel}>Start Date</Text>
             <Text style={styles.statValue}>{job.startDate}</Text>
           </View>
@@ -130,7 +130,7 @@ export default function JobDetailScreen() {
             <Text style={styles.sectionTitle}>Required Licenses & Certifications</Text>
             {job.requiredLicenses.map((lic, i) => (
               <View key={i} style={styles.licenseItem}>
-                <Award size={14} color={themeColors.accent} />
+                <Award size={14} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.licenseLabel}>{lic}</Text>
               </View>
             ))}
@@ -159,7 +159,7 @@ export default function JobDetailScreen() {
                   <Text style={styles.workerName}>{w.name}</Text>
                   <Text style={styles.workerMeta}>{w.yearsExperience}yr exp · ${w.hourlyRate}/hr</Text>
                 </View>
-                <ChevronRight size={16} color={themeColors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             ))
           )}
@@ -172,11 +172,11 @@ export default function JobDetailScreen() {
             onPress={handleApply}
             disabled={applied}
           >
-            <Send size={16} color="#FFF" />
+            <Send size={16} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.applyBtnText}>{applied ? 'Applied' : 'Apply Now'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.messageBtn} onPress={handleMessage}>
-            <Building2 size={16} color={themeColors.accent} />
+            <Building2 size={16} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.messageBtnText}>Message Company</Text>
           </TouchableOpacity>
         </View>

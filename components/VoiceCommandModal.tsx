@@ -8,8 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   Mic, Send, X, CheckCircle2, AlertTriangle, HelpCircle,
-  RotateCcw, ChevronRight, Clock, Sparkles, MessageSquare,
+  RotateCcw, ChevronRight, Clock, MessageSquare,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
@@ -82,9 +83,9 @@ const HistoryItem = React.memo(function HistoryItem({
       activeOpacity={0.7}
     >
       {item.success ? (
-        <CheckCircle2 size={13} color={Colors.success} />
+        <CheckCircle2 size={13} color={Colors.success} strokeWidth={1.75} />
       ) : (
-        <X size={13} color={Colors.error} />
+        <X size={13} color={Colors.error} strokeWidth={1.75} />
       )}
       <Text style={histStyles.historyText} numberOfLines={1}>{item.spokenText}</Text>
       <Text style={histStyles.historyTime}>{timeAgo}</Text>
@@ -306,7 +307,7 @@ export default function VoiceCommandModal({
           testID="voice-command-input"
         />
         <View style={s.inputHint}>
-          <Mic size={14} color={Colors.textMuted} />
+          <Mic size={14} color={Colors.textMuted} strokeWidth={1.75} />
           <Text style={s.inputHintText}>Tap mic on keyboard to speak</Text>
         </View>
       </View>
@@ -321,7 +322,7 @@ export default function VoiceCommandModal({
             activeOpacity={0.7}
           >
             <Text style={s.chipText}>{cmd.label}</Text>
-            <ChevronRight size={11} color={Colors.textSecondary} />
+            <ChevronRight size={11} color={Colors.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         ))}
       </View>
@@ -354,19 +355,19 @@ export default function VoiceCommandModal({
   const renderSuccess = () => (
     <View style={s.stateContainer}>
       <View style={s.successIcon}>
-        <CheckCircle2 size={36} color={Colors.success} />
+        <CheckCircle2 size={36} color={Colors.success} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>Done!</Text>
       <Text style={s.stateMessage}>{resultMessage}</Text>
       <View style={s.actionRow}>
         {undoAction && (
           <TouchableOpacity style={s.undoBtn} onPress={handleUndo} activeOpacity={0.7}>
-            <RotateCcw size={14} color={Colors.primary} />
+            <RotateCcw size={14} color={Colors.primary} strokeWidth={1.75} />
             <Text style={s.undoBtnText}>Undo</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
-          <Mic size={14} color="#fff" />
+          <Mic size={14} color="#fff" strokeWidth={1.75} />
           <Text style={s.newCmdBtnText}>New Command</Text>
         </TouchableOpacity>
       </View>
@@ -376,16 +377,16 @@ export default function VoiceCommandModal({
   const renderBatchSuccess = () => (
     <View style={s.stateContainer}>
       <View style={s.successIcon}>
-        <CheckCircle2 size={36} color={Colors.success} />
+        <CheckCircle2 size={36} color={Colors.success} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>{batchResults.filter(r => r.success).length} updates applied</Text>
       <View style={s.batchList}>
         {batchResults.map((r, i) => (
           <View key={i} style={s.batchItem}>
             {r.success ? (
-              <CheckCircle2 size={14} color={Colors.success} />
+              <CheckCircle2 size={14} color={Colors.success} strokeWidth={1.75} />
             ) : (
-              <AlertTriangle size={14} color={Colors.error} />
+              <AlertTriangle size={14} color={Colors.error} strokeWidth={1.75} />
             )}
             <Text style={[s.batchItemText, !r.success && { color: Colors.error }]}>{r.message}</Text>
           </View>
@@ -394,7 +395,7 @@ export default function VoiceCommandModal({
       <View style={s.actionRow}>
         {undoAction && (
           <TouchableOpacity style={s.undoBtn} onPress={handleUndo} activeOpacity={0.7}>
-            <RotateCcw size={14} color={Colors.primary} />
+            <RotateCcw size={14} color={Colors.primary} strokeWidth={1.75} />
             <Text style={s.undoBtnText}>Undo All</Text>
           </TouchableOpacity>
         )}
@@ -408,7 +409,7 @@ export default function VoiceCommandModal({
   const renderError = () => (
     <View style={s.stateContainer}>
       <View style={s.errorIcon}>
-        <HelpCircle size={36} color={Colors.warning} />
+        <HelpCircle size={36} color={Colors.warning} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>Didn't catch that</Text>
       <Text style={s.stateMessage}>{resultMessage}</Text>
@@ -429,7 +430,7 @@ export default function VoiceCommandModal({
   const renderClarification = () => (
     <View style={s.stateContainer}>
       <View style={s.clarifyIcon}>
-        <HelpCircle size={36} color={Colors.info} />
+        <HelpCircle size={36} color={Colors.info} strokeWidth={1.75} />
       </View>
       <Text style={s.stateTitle}>Which task?</Text>
       <Text style={s.stateMessage}>
@@ -448,7 +449,7 @@ export default function VoiceCommandModal({
               <Text style={s.clarifyTaskName}>{task.title}</Text>
               <Text style={s.clarifyTaskMeta}>{task.phase} · {task.progress}%</Text>
             </View>
-            <ChevronRight size={14} color={Colors.textMuted} />
+            <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
           </TouchableOpacity>
         ))}
       </View>
@@ -477,14 +478,14 @@ export default function VoiceCommandModal({
             <View style={s.handle} />
             <View style={s.header}>
               <View style={s.headerLeft}>
-                <Mic size={18} color={Colors.primary} />
+                <Mic size={18} color={Colors.primary} strokeWidth={1.75} />
                 <Text style={s.headerTitle}>MAGE Voice</Text>
                 <View style={s.aiBadge}>
-                  <Sparkles size={9} color={Colors.primary} />
+                  <MageAIMark size={9} color={Colors.primary} />
                   <Text style={s.aiBadgeText}>AI</Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
 
             <ScrollView
@@ -509,7 +510,7 @@ export default function VoiceCommandModal({
                   disabled={!inputText.trim()}
                   activeOpacity={0.7}
                   testID="voice-send-btn" accessibilityRole="button" accessibilityLabel="Send">
-                  <Send size={18} color={inputText.trim() ? '#fff' : Colors.textMuted} />
+                  <Send size={18} color={inputText.trim() ? '#fff' : Colors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
             )}

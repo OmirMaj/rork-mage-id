@@ -3,15 +3,21 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from '
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Home, Wrench, Settings, BarChart3, CalendarDays,
-  FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
+  Home, Wrench, Settings, BarChart3,
+  FileText, Building2, Search, HardHat, Gavel, Lock,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
-  Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
-  PenTool, Store, Clock, Sparkles, ChevronDown, ChevronRight,
-  FolderKanban, ScrollText, UserPlus, Handshake, Bot, ListChecks,
-  FileQuestion, FileCheck, Presentation, Truck, FileSignature, Banknote,
-  PieChart, LineChart, Coins, Gauge, Library, BellRing,
+  Users, ShieldCheck, Bell, Briefcase,
+  PenTool, Store, Clock, ChevronDown, ChevronRight,
+  ScrollText, UserPlus, Handshake, ListChecks,
+  Presentation,
+  PieChart, LineChart, Coins, BellRing,
 } from 'lucide-react-native';
+import {
+  MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
+  MageRFI, MageSubmittal, MagePayApp, MageChangeOrder, MageTakeoff,
+  MagePunch, MageMargin, MagePlans, MageCostDb, MageEquipment,
+  MageDailyReport, MageInvoice, MageContract,
+} from '@/components/icons';
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
@@ -22,7 +28,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 interface NavItem {
   key: string;
   label: string;
-  icon: typeof Home;
+  // Accepts lucide icons AND the bespoke MageAIMark (a plain function
+  // component, so `typeof Home`'s ForwardRef type would reject it).
+  icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   route: string;
   section: string;
   // Optional feature gate — when set, sidebar shows a small lock badge if
@@ -44,13 +52,13 @@ interface NavItem {
 // context). Account is pinned to the bottom of the rail, dimmed.
 const NAV_ITEMS: NavItem[] = [
   // ── WORKSPACE — global landing surfaces
-  { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'WORKSPACE' },
-  { key: 'home',              label: 'Projects',         icon: FolderKanban,    route: '/(tabs)/(home)',                   section: 'WORKSPACE' },
-  { key: 'ask-mage',          label: 'Ask MAGE',         icon: Sparkles,        route: '/ask',                              section: 'WORKSPACE' },
-  { key: 'margin-board',      label: 'Margin Board',     icon: Gauge,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'summary',           label: 'Summary',          icon: MageSummary, route: '/(tabs)/summary',                  section: 'WORKSPACE' },
+  { key: 'home',              label: 'Projects',         icon: MageProject,    route: '/(tabs)/(home)',                   section: 'WORKSPACE' },
+  { key: 'ask-mage',          label: 'Ask MAGE',         icon: MageAIMark,      route: '/ask',                              section: 'WORKSPACE' },
+  { key: 'margin-board',      label: 'Margin Board',     icon: MageMargin,           route: '/portfolio-margin',                 section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
-  { key: 'cost-database',     label: 'Cost Database',    icon: Library,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
-  { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: PenTool,         route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
 
   // ── FIND WORK — marketplace / bids / suppliers
   { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK' },
@@ -63,29 +71,29 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
   { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
   { key: 'hire',              label: 'Hire',             icon: Handshake,       route: '/(tabs)/discover/hire',            section: 'NETWORK' },
-  { key: 'construction-ai',   label: 'Construction AI',  icon: Bot,             route: '/(tabs)/construction-ai',          section: 'NETWORK' },
+  { key: 'construction-ai',   label: 'Construction AI',  icon: MageAIMark,      route: '/(tabs)/construction-ai',          section: 'NETWORK' },
 
   // ── PROJECT · OVERVIEW
-  { key: 'estimate',          label: 'Estimate',         icon: Calculator,      route: '/(tabs)/discover/estimate',        section: 'OVERVIEW' },
-  { key: 'schedule',          label: 'Schedule',         icon: CalendarDays,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
+  { key: 'estimate',          label: 'Estimate',         icon: MageEstimate,      route: '/(tabs)/discover/estimate',        section: 'OVERVIEW' },
+  { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
   { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
-  { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'OVERVIEW' },
+  { key: 'plans',             label: 'Plans',            icon: MagePlans,       route: '/plans',                            section: 'OVERVIEW' },
   { key: 'weekly-snapshot',   label: 'Weekly Snapshot',  icon: TrendingUp,      route: '/weekly-snapshot',                  section: 'OVERVIEW' },
 
   // ── PROJECT · FIELD OPS
-  { key: 'daily-report',      label: 'Daily Report',     icon: ClipboardList,   route: '/daily-report',                     section: 'FIELD OPS' },
+  { key: 'daily-report',      label: 'Daily Report',     icon: MageDailyReport, route: '/daily-report',                     section: 'FIELD OPS' },
   { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS' },
   { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
-  { key: 'punch-list',        label: 'Punch List',       icon: ListChecks,      route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
-  { key: 'rfi',               label: 'RFIs',             icon: FileQuestion,    route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
-  { key: 'submittal',         label: 'Submittals',       icon: FileCheck,       route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
+  { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
+  { key: 'rfi',               label: 'RFIs',             icon: MageRFI,    route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
+  { key: 'submittal',         label: 'Submittals',       icon: MageSubmittal,       route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
   { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS' },
-  { key: 'equipment',         label: 'Equipment',        icon: Truck,           route: '/(tabs)/equipment',                section: 'FIELD OPS', requires: 'equipment_rental' },
+  { key: 'equipment',         label: 'Equipment',        icon: MageEquipment,           route: '/(tabs)/equipment',                section: 'FIELD OPS', requires: 'equipment_rental' },
 
   // ── PROJECT · FINANCIALS
-  { key: 'invoice',           label: 'Invoices',         icon: Receipt,         route: '/invoice',                          section: 'FINANCIALS' },
-  { key: 'change-order',      label: 'Change Orders',    icon: FileSignature,   route: '/change-order',                     section: 'FINANCIALS', requires: 'change_orders_invoicing' },
-  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: Banknote,        route: '/aia-pay-app',                      section: 'FINANCIALS', requires: 'aia_pay_app' },
+  { key: 'invoice',           label: 'Invoices',         icon: MageInvoice,     route: '/invoice',                          section: 'FINANCIALS' },
+  { key: 'change-order',      label: 'Change Orders',    icon: MageChangeOrder,   route: '/change-order',                     section: 'FINANCIALS', requires: 'change_orders_invoicing' },
+  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: MagePayApp,        route: '/aia-pay-app',                      section: 'FINANCIALS', requires: 'aia_pay_app' },
   { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', requires: 'full_budget_dashboard' },
   { key: 'job-costing',       label: 'Job Costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', requires: 'job_costing' },
   { key: 'cash-flow',         label: 'Cash Flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCIALS', requires: 'cash_flow_forecaster' },
@@ -94,7 +102,7 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── PROJECT · CLIENT
   { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT' },
-  { key: 'contract',          label: 'Contracts',        icon: FileText,        route: '/contract',                         section: 'CLIENT' },
+  { key: 'contract',          label: 'Contracts',        icon: MageContract,    route: '/contract',                         section: 'CLIENT' },
   { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT' },
   { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT' },
 
@@ -267,7 +275,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     >
       <View style={styles.brandSection}>
         <View style={[styles.brandIcon, { backgroundColor: colors.accent }]}>
-          <Wrench size={20} color={'#FFFFFF'} />
+          <Wrench size={20} color={'#FFFFFF'} strokeWidth={1.75} />
         </View>
         <Text style={styles.brandName}>MAGE ID</Text>
         <Text style={styles.brandTagline}>Construction Suite</Text>

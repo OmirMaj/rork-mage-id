@@ -92,7 +92,7 @@ function EstimateCalibrationInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Estimate Calibration · MAGE</Text>
@@ -155,9 +155,9 @@ function EstimateCalibrationInner() {
             onPress={() => router.push('/cost-database' as any)}
             activeOpacity={0.8}
           >
-            <Scale size={16} color={t.accent} />
+            <Scale size={16} color={t.accent} strokeWidth={1.75} />
             <Text style={styles.linkRowText}>Open your Cost Database</Text>
-            <ArrowRight size={16} color={t.accent} />
+            <ArrowRight size={16} color={t.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -182,11 +182,11 @@ function CategoryCard({
     <View style={[styles.card, { borderLeftColor: dc }]}>
       <View style={styles.cardHead}>
         {c.direction === 'under' ? (
-          <TrendingUp size={16} color={dc} />
+          <TrendingUp size={16} color={dc} strokeWidth={1.75} />
         ) : c.direction === 'over' ? (
-          <TrendingDown size={16} color={dc} />
+          <TrendingDown size={16} color={dc} strokeWidth={1.75} />
         ) : (
-          <CheckCircle2 size={16} color={dc} />
+          <CheckCircle2 size={16} color={dc} strokeWidth={1.75} />
         )}
         <Text style={styles.cardTitle} numberOfLines={1}>{c.category}</Text>
         <Text style={[styles.cardPct, { color: dc }]}>{pct >= 0 ? '+' : ''}{pct}%</Text>
@@ -205,7 +205,7 @@ function CategoryCard({
         isApplied ? (
           <View style={styles.appliedRow}>
             <View style={styles.appliedBadge}>
-              <CheckCircle2 size={14} color={t.success} />
+              <CheckCircle2 size={14} color={t.success} strokeWidth={1.75} />
               <Text style={[styles.appliedText, { color: t.success }]}>Correction ×{(applied ?? 1).toFixed(2)} applied</Text>
             </View>
             <TouchableOpacity onPress={onRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove correction for ${c.category}`}>
@@ -220,7 +220,7 @@ function CategoryCard({
             accessibilityRole="button"
             accessibilityLabel={`Apply correction for ${c.category}`}
           >
-            <SlidersHorizontal size={14} color={t.bg} />
+            <SlidersHorizontal size={14} color={t.bg} strokeWidth={1.75} />
             <Text style={[styles.applyBtnText, { color: t.bg }]}>Apply ×{c.suggestedMultiplier.toFixed(2)} correction</Text>
           </TouchableOpacity>
         )

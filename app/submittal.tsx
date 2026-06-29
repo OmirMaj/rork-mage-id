@@ -6,7 +6,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send, FileText } from 'lucide-react-native';
+import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send } from 'lucide-react-native';
+import { MageSubmittal } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -262,7 +263,7 @@ function SubmittalScreenInner() {
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Submittals' }} />
         <EmptyState
-          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageSubmittal size={36} color={themeColors.accent} />}
           title="No submittal open yet"
           message="Submittals route product specs through the architect for sign-off, then attach to the project's record. To start one:"
           steps={[
@@ -406,7 +407,7 @@ function SubmittalScreenInner() {
           <>
             {!showAddCycle ? (
               <TouchableOpacity style={styles.addCycleBtn} onPress={() => setShowAddCycle(true)} activeOpacity={0.7}>
-                <Plus size={16} color={themeColors.accent} />
+                <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.addCycleBtnText}>Add Review Cycle</Text>
               </TouchableOpacity>
             ) : (
@@ -453,17 +454,17 @@ function SubmittalScreenInner() {
           <>
             <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
-              <Link2 size={15} color={themeColors.info} />
+              <Link2 size={15} color={themeColors.info} strokeWidth={1.75} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
                 {linkedTask ? linkedTask.title : 'None — tap to link a task'}
               </Text>
-              <ChevronDown size={16} color={themeColors.textMuted} />
+              <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
             {linkedTask && (
               <View style={styles.linkedTaskBadge}>
                 <Text style={styles.linkedTaskPhase}>{linkedTask.phase}</Text>
                 <Text style={styles.linkedTaskName} numberOfLines={1}>{linkedTask.title}</Text>
-                <TouchableOpacity onPress={() => setLinkedTaskId('')} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.danger} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setLinkedTaskId('')} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
               </View>
             )}
           </>
@@ -482,7 +483,7 @@ function SubmittalScreenInner() {
         )}
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">
-          <Save size={18} color="#fff" />
+          <Save size={18} color="#fff" strokeWidth={1.75} />
           <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
         </TouchableOpacity>
 
@@ -493,11 +494,11 @@ function SubmittalScreenInner() {
         {existingSubmittal && (
           <View style={styles.exportRow}>
             <TouchableOpacity style={styles.exportBtn} onPress={handleSharePDF} activeOpacity={0.7} testID="submittal-share-pdf">
-              <Share2 size={16} color={themeColors.accent} />
+              <Share2 size={16} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.exportBtnText}>Share PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.exportBtn, styles.exportBtnPrimary]} onPress={() => setShowEmailSend(true)} activeOpacity={0.7} testID="submittal-email">
-              <Send size={16} color="#fff" />
+              <Send size={16} color="#fff" strokeWidth={1.75} />
               <Text style={[styles.exportBtnText, { color: '#fff' }]}>Send to Reviewer</Text>
             </TouchableOpacity>
           </View>
@@ -509,7 +510,7 @@ function SubmittalScreenInner() {
           <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
-              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
               <TouchableOpacity style={[styles.taskOption, !linkedTaskId && styles.taskOptionActive]} onPress={() => { setLinkedTaskId(''); setShowTaskPicker(false); }}>
@@ -517,7 +518,7 @@ function SubmittalScreenInner() {
               </TouchableOpacity>
               {scheduleTasks.map(task => (
                 <TouchableOpacity key={task.id} style={[styles.taskOption, linkedTaskId === task.id && styles.taskOptionActive]} onPress={() => { setLinkedTaskId(task.id); setShowTaskPicker(false); }}>
-                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={themeColors.accent} />}
+                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={themeColors.accent} strokeWidth={1.75} />}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.taskOptionText, linkedTaskId === task.id && styles.taskOptionTextActive]} numberOfLines={1}>{task.title}</Text>
                     <Text style={styles.taskOptionMeta}>{task.phase} · {task.durationDays}d</Text>
@@ -539,7 +540,7 @@ function SubmittalScreenInner() {
               <View style={styles.emailModalHeader}>
                 <Text style={styles.emailModalTitle}>Send Submittal</Text>
                 <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close" accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.emailFieldLabel}>Reviewer name</Text>
@@ -579,7 +580,7 @@ function SubmittalScreenInner() {
                 activeOpacity={0.85}
                 testID="submittal-email-send"
               >
-                <Send size={16} color="#fff" />
+                <Send size={16} color="#fff" strokeWidth={1.75} />
                 <Text style={styles.emailSendBtnText}>{sending ? 'Sending…' : 'Send'}</Text>
               </TouchableOpacity>
             </Pressable>

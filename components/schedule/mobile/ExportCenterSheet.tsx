@@ -80,15 +80,15 @@ export function ExportCenterSheet({ visible, onClose, project, tasks, startDateI
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 16, maxHeight: '88%' }]}>
         <View style={styles.grab} />
-        <View style={styles.headRow}><Text style={styles.title}>Export schedule</Text><TouchableOpacity onPress={onClose}><X size={20} color={colors.textMuted} /></TouchableOpacity></View>
+        <View style={styles.headRow}><Text style={styles.title}>Export schedule</Text><TouchableOpacity onPress={onClose}><X size={20} color={colors.textMuted} strokeWidth={1.75} /></TouchableOpacity></View>
         <ScrollView showsVerticalScrollIndicator={false}>
           <Text style={styles.section}>One-tap</Text>
-          <Preset icon={<FileText size={18} color={colors.accent} />} label="Client Report" sub="A3 · summary + gantt · for the owner" onPress={() => runReport({ paperSizeChoice: 'a3', secs: ['kpis','critPath','risks','milestones','gantt','phaseProgress'] })} styles={styles} />
-          <Preset icon={<Hammer size={18} color={colors.accent} />} label="Field Gantt" sub="Arch D · look-ahead + big gantt · trailer wall" onPress={() => runReport({ paperSizeChoice: 'arch_d', secs: ['kpis','lookahead','risks','gantt'], singleWallSheet: true })} styles={styles} />
-          <Preset icon={<FileStack size={18} color={colors.accent} />} label="Full Dossier" sub="Auto size · everything + task register" onPress={() => runReport({ paperSizeChoice: 'auto', secs: [...ALL_SECTIONS, 'register'], showPredecessors: true })} styles={styles} />
-          <Preset icon={<Sheet size={18} color={colors.accent} />} label="CSV" sub="Open in Excel · 1 row per task" onPress={runCsv} styles={styles} />
-          <Preset icon={<ShareIcon size={18} color={colors.accent} />} label="Share link" sub="Read-only · no login" onPress={runShare} styles={styles} />
-          <Preset icon={<CalendarPlus size={18} color={colors.accent} />} label="iCal" sub="Add to Apple/Google Calendar" onPress={() => { onExportIcal(); onClose(); }} styles={styles} />
+          <Preset icon={<FileText size={18} color={colors.accent} strokeWidth={1.75} />} label="Client Report" sub="A3 · summary + gantt · for the owner" onPress={() => runReport({ paperSizeChoice: 'a3', secs: ['kpis','critPath','risks','milestones','gantt','phaseProgress'] })} styles={styles} />
+          <Preset icon={<Hammer size={18} color={colors.accent} strokeWidth={1.75} />} label="Field Gantt" sub="Arch D · look-ahead + big gantt · trailer wall" onPress={() => runReport({ paperSizeChoice: 'arch_d', secs: ['kpis','lookahead','risks','gantt'], singleWallSheet: true })} styles={styles} />
+          <Preset icon={<FileStack size={18} color={colors.accent} strokeWidth={1.75} />} label="Full Dossier" sub="Auto size · everything + task register" onPress={() => runReport({ paperSizeChoice: 'auto', secs: [...ALL_SECTIONS, 'register'], showPredecessors: true })} styles={styles} />
+          <Preset icon={<Sheet size={18} color={colors.accent} strokeWidth={1.75} />} label="CSV" sub="Open in Excel · 1 row per task" onPress={runCsv} styles={styles} />
+          <Preset icon={<ShareIcon size={18} color={colors.accent} strokeWidth={1.75} />} label="Share link" sub="Read-only · no login" onPress={runShare} styles={styles} />
+          <Preset icon={<CalendarPlus size={18} color={colors.accent} strokeWidth={1.75} />} label="iCal" sub="Add to Apple/Google Calendar" onPress={() => { onExportIcal(); onClose(); }} styles={styles} />
 
           <TouchableOpacity style={styles.customToggle} onPress={() => setShowCustom((v) => !v)}><Text style={styles.customToggleText}>{showCustom ? '▾ Customize' : '▸ Customize'}</Text></TouchableOpacity>
           {showCustom && (

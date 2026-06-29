@@ -138,7 +138,7 @@ function SwipeableTaskCard({
     >
       <View style={s.swipeBackground}>
         <View style={s.swipeBgContent}>
-          <ChevronRight size={16} color="#FFF" />
+          <ChevronRight size={16} color="#FFF" strokeWidth={1.75} />
           <Text style={s.swipeBgText}>+25%</Text>
         </View>
         <Animated.View

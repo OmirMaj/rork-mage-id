@@ -281,14 +281,14 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Prequalification · MAGE</Text>
           <Text style={styles.headerTitle}>{subCompanyName}</Text>
         </View>
         {dirty && (
           <View style={styles.savingChip}>
-            <Save size={12} color={themeColors.textSecondary} />
+            <Save size={12} color={themeColors.textSecondary} strokeWidth={1.75} />
             <Text style={styles.savingChipText}>Saving…</Text>
           </View>
         )}
@@ -301,7 +301,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 160 + insets.bottom }} keyboardShouldPersistTaps="handled">
           {/* Intro */}
           <View style={styles.introCard}>
-            <ShieldCheck size={18} color={themeColors.accent} />
+            <ShieldCheck size={18} color={themeColors.accent} strokeWidth={1.75} />
             <View style={{ flex: 1 }}>
               <Text style={styles.introTitle}>About this form</Text>
               <Text style={styles.introBody}>
@@ -329,7 +329,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
           </View>
 
           {/* ── Financials ──────────────────────────────── */}
-          <SectionHeader icon={<DollarSign size={14} color={themeColors.accent} />} title="Company & Financials" />
+          <SectionHeader icon={<DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Company & Financials" />
 
           <Field label="Years in business"
             value={financials.yearsInBusiness?.toString() ?? ''}
@@ -367,7 +367,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             placeholder="Bank name & contact" />
 
           {/* ── Insurance ──────────────────────────────── */}
-          <SectionHeader icon={<ShieldCheck size={14} color={themeColors.accent} />} title="Insurance" />
+          <SectionHeader icon={<ShieldCheck size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Insurance" />
 
           <Row>
             <View style={{ flex: 1 }}>
@@ -425,7 +425,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             onValueChange={(v) => patchIns({ waiverOfSubrogation: v })} />
 
           {/* ── Safety ──────────────────────────────── */}
-          <SectionHeader icon={<HardHat size={14} color={themeColors.accent} />} title="Safety Record" />
+          <SectionHeader icon={<HardHat size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Safety Record" />
 
           <Text style={styles.helperText}>
             3-year EMR (Experience Modification Rate). Lower is better — 1.0 is industry average.
@@ -454,7 +454,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             onValueChange={(v) => patchSafety({ hadRecordableIncident: v })} />
 
           {/* ── Licenses ──────────────────────────────── */}
-          <SectionHeader icon={<BadgeCheck size={14} color={themeColors.accent} />} title="Licenses" />
+          <SectionHeader icon={<BadgeCheck size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Licenses" />
 
           {licenses.length === 0 && (
             <Text style={styles.helperText}>
@@ -490,19 +490,19 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
                 </View>
               </Row>
               <TouchableOpacity onPress={() => removeLicense(lic.id)} style={styles.removeBtn} hitSlop={8}>
-                <Trash2 size={13} color={themeColors.danger} />
+                <Trash2 size={13} color={themeColors.danger} strokeWidth={1.75} />
                 <Text style={styles.removeBtnText}>Remove license</Text>
               </TouchableOpacity>
             </View>
           ))}
 
           <TouchableOpacity onPress={addLicense} style={styles.addLicenseBtn}>
-            <Plus size={14} color={themeColors.accent} />
+            <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
             <Text style={styles.addLicenseText}>Add license</Text>
           </TouchableOpacity>
 
           {/* ── W-9 ──────────────────────────────── */}
-          <SectionHeader icon={<FileText size={14} color={themeColors.accent} />} title="Tax / W-9" />
+          <SectionHeader icon={<FileText size={14} color={themeColors.accent} strokeWidth={1.75} />} title="Tax / W-9" />
           <ToggleRow label="W-9 on file with this GC"
             value={w9OnFile}
             onValueChange={toggleW9} />
@@ -517,7 +517,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       <View style={[styles.submitBar, { paddingBottom: 12 + insets.bottom }]}>
         {isSubmitted ? (
           <View style={styles.submittedChip}>
-            <CheckCircle2 size={16} color={themeColors.success} />
+            <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
             <Text style={styles.submittedText}>
               {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
             </Text>
@@ -528,7 +528,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             onPress={handleSubmit}
             activeOpacity={0.8}
           >
-            <Send size={16} color={'#FFFFFF'} />
+            <Send size={16} color={'#FFFFFF'} strokeWidth={1.75} />
             <Text style={styles.submitBtnText}>
               {preview.overall === 'pass' ? 'Submit for review' : 'Submit anyway'}
             </Text>
@@ -556,7 +556,7 @@ function ErrorState({ title, body, onBack }: { title: string; body: string; onBa
   return (
     <View style={[styles.root, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <AlertTriangle size={32} color={Colors.warning} />
+      <AlertTriangle size={32} color={Colors.warning} strokeWidth={1.75} />
       <Text style={styles.errorTitle}>{title}</Text>
       <Text style={styles.errorBody}>{body}</Text>
       <TouchableOpacity onPress={onBack} style={styles.errorBtn}>

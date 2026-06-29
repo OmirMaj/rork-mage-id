@@ -20,8 +20,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Phone, Mail, MapPin, ChevronRight, MessageSquare, Calendar, Clock,
-  Trash2, Save, Sparkles, ArrowRight, Briefcase, Mic, X, Zap,
+  Trash2, Save, ArrowRight, Briefcase, Mic, X,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -214,12 +215,12 @@ export default function LeadDetailScreen() {
                 <>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                     onPress={() => Linking.openURL(`tel:${existing.phone}`)}>
-                    <Phone size={16} color={themeColors.text} />
+                    <Phone size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.quickBtnText}>Call</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                     onPress={() => Linking.openURL(`sms:${existing.phone}`)}>
-                    <MessageSquare size={16} color={themeColors.text} />
+                    <MessageSquare size={16} color={themeColors.text} strokeWidth={1.75} />
                     <Text style={styles.quickBtnText}>Text</Text>
                   </TouchableOpacity>
                 </>
@@ -241,14 +242,14 @@ export default function LeadDetailScreen() {
                       ...mailSignOff(),
                     ],
                   }))}>
-                  <Mail size={16} color={themeColors.text} />
+                  <Mail size={16} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.quickBtnText}>Email</Text>
                 </TouchableOpacity>
               )}
               {!!existing.address && (
                 <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
                   onPress={() => Linking.openURL(`maps:?q=${encodeURIComponent(existing.address!)}`)}>
-                  <MapPin size={16} color={themeColors.text} />
+                  <MapPin size={16} color={themeColors.text} strokeWidth={1.75} />
                   <Text style={styles.quickBtnText}>Map</Text>
                 </TouchableOpacity>
               )}
@@ -259,7 +260,7 @@ export default function LeadDetailScreen() {
           {score != null && (
             <View style={styles.scoreCard}>
               <View style={[styles.scoreCircle, score >= 8 && styles.scoreCircleHot]}>
-                <Sparkles size={14} color={score >= 8 ? '#FFF' : themeColors.accent} />
+                <MageAIMark size={14} color={score >= 8 ? '#FFF' : themeColors.accent} />
                 <Text style={[styles.scoreCircleText, score >= 8 && styles.scoreCircleTextHot]}>{score}</Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -308,16 +309,16 @@ export default function LeadDetailScreen() {
                 until the deal's decided (won/lost). */}
             {existing && stage !== 'won' && stage !== 'lost' && (
               <TouchableOpacity style={styles.proposalBtn} onPress={() => setShowProposal(true)} activeOpacity={0.85} testID="lead-draft-proposal">
-                <Zap size={16} color="#FFF" />
+                <MageAIMark size={16} color="#FFF" />
                 <Text style={styles.proposalBtnText}>Draft Instant Bid proposal</Text>
-                <Sparkles size={13} color="#FFF" />
+                <MageAIMark size={13} color="#FFF" />
               </TouchableOpacity>
             )}
             {existing && stage === 'won' && !existing.convertedProjectId && (
               <TouchableOpacity style={styles.convertBtn} onPress={handleConvert} activeOpacity={0.85}>
-                <Briefcase size={16} color="#FFF" />
+                <Briefcase size={16} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.convertBtnText}>Convert to project</Text>
-                <ArrowRight size={16} color="#FFF" />
+                <ArrowRight size={16} color="#FFF" strokeWidth={1.75} />
               </TouchableOpacity>
             )}
             {existing?.convertedProjectId && (
@@ -326,9 +327,9 @@ export default function LeadDetailScreen() {
                 onPress={() => router.replace({ pathname: '/project-detail' as never, params: { id: existing.convertedProjectId } as never })}
                 activeOpacity={0.85}
               >
-                <Briefcase size={16} color={themeColors.accent} />
+                <Briefcase size={16} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.convertedBtnText}>Open the project</Text>
-                <ChevronRight size={16} color={themeColors.accent} />
+                <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
             )}
           </View>
@@ -428,7 +429,7 @@ export default function LeadDetailScreen() {
                   placeholderTextColor={themeColors.textMuted}
                 />
                 <TouchableOpacity style={styles.touchVoiceBtn} onPress={() => setVoiceLogOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Record">
-                  <Mic size={16} color={themeColors.accent} />
+                  <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.touchAddBtn, !touchBody.trim() && styles.touchAddBtnDisabled]}
@@ -463,7 +464,7 @@ export default function LeadDetailScreen() {
         {/* Sticky bottom save bar */}
         <View style={[styles.saveBar, { paddingBottom: insets.bottom + 12 }]}>
           {existing && (
-            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} /></TouchableOpacity>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={themeColors.danger} strokeWidth={1.75} /></TouchableOpacity>
           )}
           <TouchableOpacity
             style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
@@ -471,7 +472,7 @@ export default function LeadDetailScreen() {
             disabled={!canSave}
             activeOpacity={0.85}
           >
-            <Save size={16} color="#FFF" />
+            <Save size={16} color="#FFF" strokeWidth={1.75} />
             <Text style={styles.saveBtnText}>{isNew ? 'Save lead' : 'Save changes'}</Text>
           </TouchableOpacity>
         </View>

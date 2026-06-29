@@ -132,7 +132,7 @@ function NavRowImpl({
           {meta}
         </Text>
       )}
-      {chevron && <ChevronRight size={18} color={colors.textMuted} />}
+      {chevron && <ChevronRight size={18} color={colors.textMuted} strokeWidth={1.75} />}
     </TouchableOpacity>
   );
 }

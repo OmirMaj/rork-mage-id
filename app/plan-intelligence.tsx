@@ -26,9 +26,10 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ScanSearch, FileImage, Sparkles, X, Check,
+  ChevronLeft, ScanSearch, FileImage, X, Check,
   StickyNote, Plus, RefreshCw, GraduationCap,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors } from '@/constants/colors';
@@ -218,7 +219,7 @@ function PlanIntelligenceInner() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={t.text} />
+          <ChevronLeft size={22} color={t.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Plan Intelligence · MAGE</Text>
@@ -226,7 +227,7 @@ function PlanIntelligenceInner() {
         </View>
         {phase === 'review' ? (
           <TouchableOpacity onPress={() => setPhase('pick')} style={styles.headerBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="New analysis">
-            <RefreshCw size={18} color={t.textSecondary} />
+            <RefreshCw size={18} color={t.textSecondary} strokeWidth={1.75} />
           </TouchableOpacity>
         ) : (
           <View style={styles.headerBtn} />
@@ -249,7 +250,7 @@ function PlanIntelligenceInner() {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* Memory status — the trust-builder. */}
           <View style={styles.memoryChip}>
-            <GraduationCap size={14} color={trainedLine ? t.accent : t.textMuted} />
+            <GraduationCap size={14} color={trainedLine ? t.accent : t.textMuted} strokeWidth={1.75} />
             <Text style={[styles.memoryChipText, trainedLine ? { color: t.text } : null]}>
               {trainedLine ?? 'Untrained — corrections you make here teach the AI for next time'}
             </Text>
@@ -274,7 +275,7 @@ function PlanIntelligenceInner() {
                     {projects.map(p => (
                       <TouchableOpacity key={p.id} style={styles.pickRow} onPress={() => setProjectId(p.id)} activeOpacity={0.8}>
                         <Text style={styles.pickRowTitle} numberOfLines={1}>{p.name}</Text>
-                        <Plus size={16} color={t.accent} />
+                        <Plus size={16} color={t.accent} strokeWidth={1.75} />
                       </TouchableOpacity>
                     ))}
                   </>
@@ -283,7 +284,7 @@ function PlanIntelligenceInner() {
                 <>
                   {session && (
                     <TouchableOpacity style={styles.resumeCard} onPress={restoreSession} activeOpacity={0.85}>
-                      <Sparkles size={16} color={t.accent} />
+                      <MageAIMark size={16} color={t.accent} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.resumeTitle}>Resume last session</Text>
                         <Text style={styles.resumeSub}>{session.rooms.length} rooms · saved {new Date(session.updatedAt).toLocaleDateString()}</Text>
@@ -294,13 +295,13 @@ function PlanIntelligenceInner() {
                   <Text style={styles.sectionTitle}>Pick a plan sheet</Text>
                   {planSheets.map(s => (
                     <TouchableOpacity key={s.id} style={styles.pickRow} onPress={() => void runAnalysis(s.imageUri, s.id, s.width, s.height)} activeOpacity={0.8}>
-                      <FileImage size={16} color={t.textSecondary} />
+                      <FileImage size={16} color={t.textSecondary} strokeWidth={1.75} />
                       <Text style={styles.pickRowTitle} numberOfLines={1}>{s.name}</Text>
-                      <Sparkles size={16} color={t.accent} />
+                      <MageAIMark size={16} color={t.accent} />
                     </TouchableOpacity>
                   ))}
                   <TouchableOpacity style={[styles.pickRow, styles.pickRowDashed]} onPress={() => void pickFromLibrary()} activeOpacity={0.8}>
-                    <Plus size={16} color={t.accent} />
+                    <Plus size={16} color={t.accent} strokeWidth={1.75} />
                     <Text style={[styles.pickRowTitle, { color: t.accent }]}>Pick a plan image from your library</Text>
                   </TouchableOpacity>
                   {planSheets.length === 0 && (
@@ -364,7 +365,7 @@ function PlanIntelligenceInner() {
                   </View>
                   {(r.note || r.aiNote) ? (
                     <View style={styles.roomNoteRow}>
-                      <StickyNote size={12} color={t.textMuted} />
+                      <StickyNote size={12} color={t.textMuted} strokeWidth={1.75} />
                       <Text style={styles.roomNoteText} numberOfLines={2}>{r.note || r.aiNote}</Text>
                     </View>
                   ) : null}
@@ -373,7 +374,7 @@ function PlanIntelligenceInner() {
 
               {addedNote ? (
                 <View style={styles.addedBanner}>
-                  <Check size={15} color={t.success} />
+                  <Check size={15} color={t.success} strokeWidth={1.75} />
                   <Text style={styles.addedBannerText}>{addedNote}</Text>
                 </View>
               ) : null}
@@ -394,12 +395,12 @@ function PlanIntelligenceInner() {
             onPress={handleTeach}
             activeOpacity={0.85}
           >
-            <GraduationCap size={16} color={taught ? t.success : t.accent} />
+            <GraduationCap size={16} color={taught ? t.success : t.accent} strokeWidth={1.75} />
             <Text style={[styles.footerBtnGhostText, taught && { color: t.success }]}>{taught ? 'Taught' : 'Teach AI'}</Text>
           </TouchableOpacity>
           {project?.linkedEstimate ? (
             <TouchableOpacity style={styles.footerBtn} onPress={handleAddToEstimate} activeOpacity={0.85}>
-              <Plus size={16} color={Colors.textOnAccent} />
+              <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
               <Text style={styles.footerBtnText}>Add to estimate</Text>
             </TouchableOpacity>
           ) : null}
@@ -465,7 +466,7 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
           <View style={styles.modalHead}>
             <Text style={styles.modalTitle}>{room?.name ?? 'Room'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={20} color={t.textSecondary} />
+              <X size={20} color={t.textSecondary} strokeWidth={1.75} />
             </TouchableOpacity>
           </View>
 
@@ -502,7 +503,7 @@ function RoomEditModal({ room, onClose, onSave, t, styles }: {
           </View>
 
           <TouchableOpacity style={styles.modalSave} onPress={save} activeOpacity={0.85}>
-            <Check size={16} color={Colors.textOnAccent} />
+            <Check size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
             <Text style={styles.modalSaveText}>Save room</Text>
           </TouchableOpacity>
         </View>
