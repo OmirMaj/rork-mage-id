@@ -238,6 +238,54 @@
   // =========================================================
   // Form: light-weight validation + success state
   // =========================================================
+  // =========================================================
+  // Scroll-progress hairline
+  // =========================================================
+  let prog = document.querySelector('.scroll-progress');
+  if (!prog) {
+    // Auto-inject on every page that loads motion.js (no per-page markup needed).
+    prog = document.createElement('div');
+    prog.className = 'scroll-progress';
+    prog.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(prog, document.body.firstChild);
+  }
+  if (prog) {
+    let setProg = function () {
+      let h = document.documentElement;
+      let max = h.scrollHeight - h.clientHeight;
+      let p = max > 0 ? h.scrollTop / max : 0;
+      prog.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+    };
+    window.addEventListener('scroll', setProg, { passive: true });
+    setProg();
+  }
+
+  // =========================================================
+  // Staggered group reveals — children animate in sequence
+  // =========================================================
+  ['.moat-grid', '.cta-row', '.pillar-bullets', '.hero-meta'].forEach(function (sel) {
+    document.querySelectorAll(sel).forEach(function (group) {
+      let kids = group.querySelectorAll('.reveal, .reveal-word, .meta-tick');
+      kids.forEach(function (k, i) { k.style.setProperty('--d', String(i)); });
+    });
+  });
+
+  // =========================================================
+  // Tilt-on-hover for cards (desktop, fine pointer only)
+  // =========================================================
+  if (isFinePointer && !reduceMotion) {
+    document.querySelectorAll('.moat-card, [data-tilt]').forEach(function (card) {
+      card.classList.add('tilt');
+      card.addEventListener('mousemove', function (e) {
+        let r = card.getBoundingClientRect();
+        let px = (e.clientX - r.left) / r.width - 0.5;
+        let py = (e.clientY - r.top) / r.height - 0.5;
+        card.style.transform = 'perspective(720px) rotateX(' + (-py * 5).toFixed(2) + 'deg) rotateY(' + (px * 6).toFixed(2) + 'deg) translateY(-4px)';
+      });
+      card.addEventListener('mouseleave', function () { card.style.transform = ''; });
+    });
+  }
+
   let form = document.querySelector('.cta-form');
   if (form) {
     form.addEventListener('submit', function (e) {

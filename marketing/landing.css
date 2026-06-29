@@ -1278,3 +1278,55 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
   .reveal, .reveal-word { opacity: 1; transform: none; }
   .cursor-blob { display: none; }
 }
+
+/* ============================================================
+   Editorial motion layer (recent.design-inspired). Additive —
+   shared across every marketing page via landing.css.
+   ============================================================ */
+
+/* Scroll-progress hairline (amber), pinned to the very top */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; height: 2px; width: 100%;
+  transform: scaleX(0); transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--amber), var(--amber-hot));
+  z-index: 1000; pointer-events: none;
+}
+
+/* Hero words wipe up out of a mask (in addition to the rise/fade) */
+.hero-title .reveal-word {
+  clip-path: inset(-0.12em -0.06em 110% -0.06em);
+  transition: opacity 0.95s var(--ease-out),
+              transform 0.95s var(--ease-out),
+              clip-path 0.95s var(--ease-out);
+}
+.hero-title .reveal-word.is-in { clip-path: inset(-0.12em -0.06em -0.28em -0.06em); }
+
+/* Kinetic marquee band */
+.marquee {
+  overflow: hidden; background: var(--ink);
+  border-top: 1px solid rgba(244, 239, 230, 0.08);
+  border-bottom: 1px solid rgba(244, 239, 230, 0.08);
+  padding: 22px 0; user-select: none;
+}
+.marquee-track { display: inline-flex; white-space: nowrap; will-change: transform; animation: marquee 30s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee-item {
+  font-family: var(--ff-serif); font-weight: 500; font-style: italic;
+  font-size: clamp(1.35rem, 3.2vw, 2.4rem); letter-spacing: -0.015em;
+  color: var(--cream); padding: 0 6px; opacity: 0.92;
+}
+.marquee-item .dot { color: var(--amber); font-style: normal; padding: 0 22px; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* Tilt + lift on interactive cards */
+.tilt { transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease); transform-style: preserve-3d; }
+.moat-card { transition: transform 0.3s var(--ease), border-color 0.3s var(--ease), box-shadow 0.3s var(--ease); }
+.moat-card:hover { transform: translateY(-4px); border-color: rgba(255, 106, 26, 0.35); box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.7); }
+
+/* Staggered group reveals (set by JS via --d) */
+.reveal[style*="--d"], .reveal-word[style*="--d"] { transition-delay: calc(var(--d) * 80ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+  .hero-title .reveal-word { clip-path: none; }
+}
