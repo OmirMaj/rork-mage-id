@@ -1,6 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 /* =============================================================
    MAGE ID — marketing landing page
-   Design: industrial concrete × tech premium. Fraunces + Inter.
+   Design: industrial concrete × tech premium. Space Grotesk + mono.
    Motion: scroll-driven reveals + pinned pillars via GSAP.
    ============================================================= */
 
@@ -22,8 +24,8 @@
   --amber-glow: rgba(255, 106, 26, 0.35);
 
   /* Type */
-  --ff-serif: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --ff-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --ff-serif: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ff-sans: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
   --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
 
   /* Scale */
@@ -357,7 +359,7 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
 .hero-title .reveal-word:nth-child(2) { --i: 1; }
 .hero-title .reveal-word:nth-child(3) { --i: 2; }
 .hero-title em {
-  font-style: italic;
+  font-style: normal;
   font-weight: 600;
   color: var(--amber);
   font-variation-settings: "opsz" 144;
@@ -454,7 +456,7 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
   color: #fff;
 }
 .problem-headline em {
-  font-style: italic;
+  font-style: normal;
   color: var(--amber);
   font-weight: 600;
 }
@@ -1183,7 +1185,7 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
   color: #fff;
 }
 .cta-h em {
-  font-style: italic;
+  font-style: normal;
   font-weight: 600;
   color: var(--amber);
 }
@@ -1311,7 +1313,7 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
 .marquee-track { display: inline-flex; white-space: nowrap; will-change: transform; animation: marquee 30s linear infinite; }
 .marquee:hover .marquee-track { animation-play-state: paused; }
 .marquee-item {
-  font-family: var(--ff-serif); font-weight: 500; font-style: italic;
+  font-family: var(--ff-serif); font-weight: 600; font-style: normal;
   font-size: clamp(1.35rem, 3.2vw, 2.4rem); letter-spacing: -0.015em;
   color: var(--cream); padding: 0 6px; opacity: 0.92;
 }
