@@ -286,6 +286,42 @@
     });
   }
 
+  // =========================================================
+  // Smooth scroll (Lenis) — auto-loaded, synced with GSAP/ScrollTrigger
+  // =========================================================
+  if (!reduceMotion) {
+    let ls = document.createElement('script');
+    ls.src = 'https://unpkg.com/lenis@1.1.14/dist/lenis.min.js';
+    ls.onload = function () {
+      if (!window.Lenis) return;
+      let lenis = new window.Lenis({ duration: 1.05, smoothWheel: true });
+      if (window.gsap && window.ScrollTrigger) {
+        lenis.on('scroll', window.ScrollTrigger.update);
+        window.gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
+        window.gsap.ticker.lagSmoothing(0);
+      } else {
+        let raf = function (t) { lenis.raf(t); requestAnimationFrame(raf); };
+        requestAnimationFrame(raf);
+      }
+    };
+    document.head.appendChild(ls);
+  }
+
+  // =========================================================
+  // Hero spotlight follows the cursor (interactive amber glow)
+  // =========================================================
+  let hero = document.querySelector('.hero');
+  let spot = document.querySelector('.hero-spotlight');
+  if (hero && spot && isFinePointer && !reduceMotion) {
+    spot.style.transition = 'left 0.25s var(--ease), top 0.25s var(--ease)';
+    hero.addEventListener('mousemove', function (e) {
+      let r = hero.getBoundingClientRect();
+      spot.style.left = (e.clientX - r.left) + 'px';
+      spot.style.top = (e.clientY - r.top) + 'px';
+      spot.style.transform = 'translate(-50%, -50%)';
+    });
+  }
+
   let form = document.querySelector('.cta-form');
   if (form) {
     form.addEventListener('submit', function (e) {

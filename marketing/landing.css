@@ -1332,3 +1332,39 @@ img.brand-mark { max-width: 32px; max-height: 32px; }
   .marquee-track { animation: none; }
   .hero-title .reveal-word { clip-path: none; }
 }
+
+/* ============================================================
+   "Cool stuff" layer 2 — smooth-scroll feel, blur-in reveals,
+   nav underlines, reverse marquee. Shared across every page.
+   ============================================================ */
+
+/* Blur-in on every reveal (premium focus-pull feel) */
+.reveal, .reveal-word {
+  filter: blur(8px);
+  transition: opacity 0.9s var(--ease-out), transform 0.9s var(--ease-out), filter 0.9s var(--ease-out);
+}
+.reveal.is-in, .reveal-word.is-in { filter: blur(0); }
+
+/* Animated amber underline on nav links */
+.nav-links a::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -4px;
+  height: 1.5px; background: var(--amber);
+  transform: scaleX(0); transform-origin: 0 50%;
+  transition: transform 0.32s var(--ease);
+}
+.nav-links a:hover::after { transform: scaleX(1); }
+
+/* Reverse-direction marquee (rhythm near the footer) */
+.marquee-rev .marquee-track { animation-direction: reverse; animation-duration: 38s; }
+.marquee-rev .marquee-item { color: var(--fog); }
+.marquee-rev .marquee-item .dot { color: var(--amber); }
+
+/* Lenis smooth-scroll hook */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-word { filter: none; }
+}
