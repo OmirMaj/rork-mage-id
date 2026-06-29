@@ -199,7 +199,7 @@ export default function IntegrationsScreen() {
             <Wifi size={28} color={themeColors.accent} strokeWidth={1.75} />
           </View>
           <Text style={styles.heroTitle}>Integrations Hub</Text>
-          <Text style={styles.heroSubtitle}>Connect your favorite tools and services</Text>
+          <Text style={styles.heroSubtitle}>QuickBooks, plans, and payments — wired into your jobs.</Text>
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
               <Text style={[styles.heroStatValue, { color: themeColors.accent }]}>{connectedCount}</Text>

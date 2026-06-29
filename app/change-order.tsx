@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool,
 } from 'lucide-react-native';
+import { MageChangeOrder } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
 import { Colors } from '@/constants/colors';
@@ -472,7 +473,7 @@ function ChangeOrderInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Change Orders' }} />
         <EmptyState
-          icon={<PenTool size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MageChangeOrder size={36} color={themeColors.accent} />}
           title="No change order open yet"
           message="Change orders adjust an existing project's contract amount, so they live inside the project. To start one:"
           steps={[

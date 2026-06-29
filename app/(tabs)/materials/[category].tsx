@@ -291,7 +291,7 @@ export default function CategoryDetailScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Search size={36} color={themeColors.textMuted} strokeWidth={1.75} />
-            <Text style={styles.emptyTitle}>No results</Text>
+            <Text style={styles.emptyTitle}>No materials match that</Text>
             <Text style={styles.emptyDesc}>Try a different search term</Text>
           </View>
         }

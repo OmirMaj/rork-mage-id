@@ -1231,7 +1231,7 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHeader}>SUBSCRIPTION PLAN</Text>
         <Text style={styles.sectionSubtext}>
-          Upgrade to unlock premium features for your business.
+          Go Pro for AI takeoffs, pay apps, and unlimited projects.
         </Text>
         <View style={styles.group}>
           <View style={{ padding: 16, gap: 12 }}>

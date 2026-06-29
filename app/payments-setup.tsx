@@ -243,7 +243,7 @@ export default function PaymentsSetupScreen() {
 
           <View style={styles.finRow}>
             <Text style={styles.heroSub}>Offer financing on estimates & invoices</Text>
-            <Switch value={finEnabled} onValueChange={(v) => saveFinancing(v)} testID="financing-enable" />
+            <Switch value={finEnabled} onValueChange={(v) => saveFinancing(v)} trackColor={{ false: themeColors.line, true: themeColors.accent }} thumbColor="#FFFFFF" testID="financing-enable" />
           </View>
 
           <TextInput style={styles.finInput} value={finPartner} onChangeText={setFinPartner}

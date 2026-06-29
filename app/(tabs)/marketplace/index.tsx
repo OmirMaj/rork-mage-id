@@ -10,6 +10,7 @@ import {
   ChevronRight, Package, CheckCircle,
   Store, Award, DollarSign,
 } from 'lucide-react-native';
+import { MageMaterials } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { MOCK_SUPPLIERS, MOCK_LISTINGS, SUPPLIER_CATEGORIES } from '@/mocks/suppliers';
 import type { Supplier, SupplierListing } from '@/types';
@@ -369,7 +370,7 @@ export default function MarketplaceScreen() {
             )}
             {viewMode === 'listings' && filteredListings.length === 0 && (
               <View style={styles.emptyState}>
-                <Package size={40} color={Colors.textMuted} strokeWidth={1.75} />
+                <MageMaterials size={40} color={Colors.textMuted} />
                 <Text style={styles.emptyTitle}>No products match yet</Text>
                 <Text style={styles.emptyDesc}>
                   Try a broader category, clear your search, or switch to the Suppliers tab to browse vendors first.

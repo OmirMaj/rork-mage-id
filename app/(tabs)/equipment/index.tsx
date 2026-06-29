@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Truck, Plus, AlertTriangle, X, ChevronDown, Crown,
 } from 'lucide-react-native';
+import { MageEquipment } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -142,7 +143,7 @@ export default function EquipmentScreen() {
           // uses, so Equipment now reads as part of the same design
           // language instead of an orphan.
           <EmptyState
-            icon={<Truck size={40} color={themeColors.accent} strokeWidth={1.6} />}
+            icon={<MageEquipment size={40} color={themeColors.accent} />}
             title="Track your fleet"
             message="Owned + rented gear in one list. See daily rates, maintenance schedule, and which job each piece is on."
             actionLabel="Add equipment"
@@ -163,7 +164,7 @@ export default function EquipmentScreen() {
               >
                 <View style={styles.equipCardHeader}>
                   <View style={styles.equipIconWrap}>
-                    <Truck size={20} color={Colors.primary} strokeWidth={1.75} />
+                    <MageEquipment size={20} color={Colors.primary} />
                   </View>
                   <View style={styles.equipCardInfo}>
                     <Text style={styles.equipName} numberOfLines={1}>{equip.name}</Text>

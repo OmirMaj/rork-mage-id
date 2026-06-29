@@ -10,7 +10,7 @@ import {
   CalendarDays, ChevronRight, FileText, X,
   CheckCircle2, Clock, Plus, Folder, FolderPlus,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
@@ -332,7 +332,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         >
           <View style={s.heroSection}>
             <View style={s.heroIconWrap}>
-              <CalendarDays size={28} color="#FF9F0A" strokeWidth={1.75} />
+              <MageSchedule size={28} color="#FF6A1A" />
             </View>
             <Text style={s.heroTitle}>Quick Schedule Builder</Text>
             <Text style={s.heroDesc}>
@@ -342,7 +342,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
           <View style={s.aiSection}>
             <View style={s.aiHeader}>
-              <MageAIMark size={18} color="#FF9F0A" />
+              <MageAIMark size={18} color="#FF6A1A" />
               <Text style={s.aiTitle}>Generate with AI</Text>
             </View>
             <Text style={s.aiDesc}>

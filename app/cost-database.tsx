@@ -11,7 +11,8 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronDown, ChevronRight, Library, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { MageCostDb } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -88,7 +89,7 @@ function CostDatabaseInner() {
 
       {db.entries.length === 0 ? (
         <EmptyState
-          icon={<Library size={36} color={t.accent} strokeWidth={1.6} />}
+          icon={<MageCostDb size={36} color={t.accent} />}
           title="No price history yet"
           message="Your cost database learns what work actually costs from every job you close. To build it:"
           steps={[

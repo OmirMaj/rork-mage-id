@@ -17,7 +17,7 @@ import {
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
   Clock, Lock,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
@@ -1545,16 +1545,16 @@ export default function ProjectDetailScreen() {
             { key: 'invoices', label: 'Invoices', icon: Receipt, color: colorFor('invoices'), count: projectInvoices.length },
             { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: colorFor('dailyReports'), count: dailyReports.length },
             { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
-            { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: colorFor('punchList'), count: punchItems.length },
-            { key: 'rfis', label: 'RFIs', icon: FileText, color: colorFor('rfis'), count: projectRFIs.length },
-            { key: 'submittals', label: 'Submittals', icon: FileText, color: colorFor('submittals'), count: projectSubmittals.length },
+            { key: 'punchList', label: 'Punch List', icon: MagePunch, color: colorFor('punchList'), count: punchItems.length },
+            { key: 'rfis', label: 'RFIs', icon: MageRFI, color: colorFor('rfis'), count: projectRFIs.length },
+            { key: 'submittals', label: 'Submittals', icon: MageSubmittal, color: colorFor('submittals'), count: projectSubmittals.length },
             { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
             { key: 'permits', label: 'Permits', icon: Shield, color: colorFor('permits'), count: projectPermits.length },
             { key: 'projectFiles', label: 'Project Files', icon: FolderOpen, color: colorFor('projectFiles'), count: null as number | null },
             { key: 'scope', label: 'Scope', icon: ClipboardList, color: colorFor('scope'), count: null as number | null },
             ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: colorFor('budget'), count: null as number | null }] : []),
             { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
-            { key: 'plans', label: 'Plans', icon: Layers, color: colorFor('plans'), count: projectPlans.length },
+            { key: 'plans', label: 'Plans', icon: MagePlans, color: colorFor('plans'), count: projectPlans.length },
             { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
             { key: 'communications', label: 'Communications', icon: Mail, color: colorFor('communications'), count: commEvents.length },
             { key: 'activity', label: 'Activity', icon: Activity, color: colorFor('activity'), count: null as number | null },

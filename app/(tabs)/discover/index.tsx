@@ -294,7 +294,7 @@ export default function DiscoverScreen() {
           iconColor={Colors.accent}
           iconBg={Colors.accent + '15'}
           title="Tools"
-          subtitle="Every cross-project workflow in one place"
+          subtitle="Takeoffs, RFIs, punch lists — across all your jobs"
           onPress={() => navigateTo('/(tabs)/discover/tools')}
         />
 

@@ -10,6 +10,7 @@ import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
   Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter,
 } from 'lucide-react-native';
+import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -320,7 +321,7 @@ function PunchListScreenInner() {
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Punch List' }} />
         <EmptyState
-          icon={<ListChecks size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          icon={<MagePunch size={36} color={themeColors.accent} />}
           title="No punch list open yet"
           message="Punch lists are tied to a project so each item links to its trade and location. To start one:"
           steps={[
@@ -527,7 +528,7 @@ function PunchListScreenInner() {
           activeOpacity={0.7}
           testID="apply-punch-template"
         >
-          <ListChecks size={16} color={themeColors.accent} strokeWidth={1.75} />
+          <MagePunch size={16} color={themeColors.accent} />
           <Text style={styles.addItemBtnText}>Apply trade template</Text>
         </TouchableOpacity>
 

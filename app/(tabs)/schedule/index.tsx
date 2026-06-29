@@ -46,7 +46,7 @@ import {
   FileText,
   Save,
 } from 'lucide-react-native';
-import { MageAIMark } from '@/components/icons';
+import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -2125,7 +2125,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
         {!selectedProject && (
           <View style={styles.emptyPrompt}>
-            <CalendarDays size={40} color={themeColors.textMuted} strokeWidth={1.75} />
+            <MageSchedule size={40} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No Project Selected</Text>
             <Text style={styles.emptyDesc}>Select a project above to view or create a schedule.</Text>
           </View>
@@ -2133,7 +2133,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
         {selectedProject && !hasScheduleData && (
           <View style={styles.emptySchedule}>
-            <CalendarDays size={44} color={themeColors.accent} strokeWidth={1.75} />
+            <MageSchedule size={44} color={themeColors.accent} />
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
