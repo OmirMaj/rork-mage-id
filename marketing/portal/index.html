@@ -2468,7 +2468,7 @@
     contractSignNamePlaceholder: 'Type your full legal name',
     contractSignButton: 'Sign & make binding',
     contractFinePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. The signed PDF will be available in this portal and emailed to you.',
-    closeoutPrint: '🖨️ Print / Save as PDF',
+    closeoutPrint: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print / Save as PDF',
     closeoutDelivered: 'DELIVERED',
     closeoutFinalized: 'FINALIZED',
     closeoutFinishesTitle: 'Finishes & fixtures installed',
@@ -3761,7 +3761,7 @@
     // (photoData[idx]) is unchanged.
     function figure(p, idx) {
       var cap = p.caption ? '<div class="photo-caption">'+esc(p.caption)+'</div>' : '';
-      var badge = (p.markup && p.markup.length) ? '<span class="photo-markup-badge" title="Has markup">✏️</span>' : '';
+      var badge = (p.markup && p.markup.length) ? '<span class="photo-markup-badge" title="Has markup"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>' : '';
       var sizeClass = (idx % 7 === 0) ? ' photo-tall' : (idx % 5 === 0) ? ' photo-wide' : '';
       var animDelay = (idx * 35);
       return '<figure class="photo'+sizeClass+'" data-photo="'+idx+'" style="animation-delay:'+animDelay+'ms">' +
@@ -3848,8 +3848,8 @@
             (d.weather ? '<div class="dfr-weather">'+esc(d.weather)+'</div>' : '') +
           '</div>' +
           '<div class="dfr-stats">' +
-            (d.totalManpower ? '<div class="dfr-stat">👷 <strong>'+d.totalManpower+'</strong> on site</div>' : '') +
-            (d.totalManHours ? '<div class="dfr-stat">⏱ <strong>'+d.totalManHours+'</strong> hours</div>' : '') +
+            (d.totalManpower ? '<div class="dfr-stat"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg> <strong>'+d.totalManpower+'</strong> on site</div>' : '') +
+            (d.totalManHours ? '<div class="dfr-stat"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg> <strong>'+d.totalManHours+'</strong> hours</div>' : '') +
           '</div>' +
           (d.workPerformed
             ? '<div class="dfr-work">'+esc(d.workPerformed)+'</div>'
@@ -5253,7 +5253,7 @@
     if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature) {
       actions.push({
         priority: 1,
-        icon: '📝',
+        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L13 14l-4 1 1-4z"/></svg>',
         title: 'Contract waiting for your signature',
         body: 'Review the scope, payment schedule, and warranty, then counter-sign to make it binding.',
         target: 'sec-contract',
@@ -5266,7 +5266,7 @@
     if (pendingCO.length > 0 && data.coApprovalEnabled) {
       actions.push({
         priority: 2,
-        icon: '✏️',
+        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
         title: pendingCO.length + ' change order' + (pendingCO.length === 1 ? '' : 's') + ' need your approval',
         body: 'Review the changes and approve or decline.',
         target: 'sec-changeOrders',
@@ -5279,7 +5279,7 @@
     if (pendingSelections.length > 0) {
       actions.push({
         priority: 3,
-        icon: '🎨',
+        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M12 2a10 10 0 1 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.5-1.5H17a5 5 0 0 0 5-5c0-4.97-4.5-9-10-9z"/><circle cx="7.5" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="16.5" cy="11" r="1" fill="currentColor" stroke="none"/></svg>',
         title: pendingSelections.length + ' selection' + (pendingSelections.length === 1 ? '' : 's') + ' to make',
         body: 'Pick finishes, fixtures, and materials to keep the schedule on track.',
         target: 'sec-selections',
@@ -5292,7 +5292,7 @@
     if (unpaid.length > 0) {
       actions.push({
         priority: 4,
-        icon: '💳',
+        icon: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
         title: 'Invoice awaiting payment',
         body: 'View the invoice and pay online.',
         target: 'sec-invoices',
