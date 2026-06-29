@@ -1368,3 +1368,28 @@ html.lenis, html.lenis body { height: auto; }
 @media (prefers-reduced-motion: reduce) {
   .reveal, .reveal-word { filter: none; }
 }
+
+/* Hero product visual (phone) */
+@media (min-width: 961px) {
+  .hero-content {
+    display: grid; grid-template-columns: 1.05fr 0.95fr;
+    gap: clamp(30px, 5vw, 64px); align-items: center; max-width: 1200px;
+  }
+}
+.hero-copy { min-width: 0; }
+.hero-visual { display: flex; justify-content: center; }
+.phone {
+  width: min(320px, 80vw); border-radius: 38px; padding: 10px;
+  background: linear-gradient(160deg, #23282f, #0e1116);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 44px 90px -32px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: rotate(2.5deg);
+  animation: heroFloat 6s var(--ease) infinite;
+}
+.phone img { width: 100%; display: block; border-radius: 30px; }
+@keyframes heroFloat {
+  0%, 100% { transform: rotate(2.5deg) translateY(0); }
+  50% { transform: rotate(2.5deg) translateY(-12px); }
+}
+@media (max-width: 960px) { .hero-visual { display: none; } }
+@media (prefers-reduced-motion: reduce) { .phone { animation: none; } }
