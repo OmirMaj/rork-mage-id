@@ -4,7 +4,7 @@
    Selectors preserved so existing HTML doesn't need to change.
    ============================================================= */
 
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
 
 :root {
   --ink: #0B0D10;
@@ -22,8 +22,8 @@
   --amber-soft: rgba(255, 106, 26, 0.16);
   --amber-glow: rgba(255, 106, 26, 0.35);
 
-  --ff-serif: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --ff-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --ff-serif: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --ff-sans: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
   --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
 
   /* Legacy variables kept so any old inline styles keep resolving */
@@ -193,7 +193,7 @@ nav.links a.active, .links a.active { color: var(--amber); }
   font-variation-settings: "opsz" 144;
 }
 .hero h1 em {
-  font-style: italic;
+  font-style: normal;
   font-weight: 600;
   color: var(--amber);
   background: none;
@@ -280,7 +280,7 @@ nav.links a.active, .links a.active { color: var(--amber); }
   border-radius: 16px;
 }
 .hero-stat-value {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Space Grotesk', Georgia, serif;
   font-size: clamp(2rem, 3.6vw, 2.6rem);
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -684,7 +684,7 @@ nav.links a.active, .links a.active { color: var(--amber); }
   color: #fff;
 }
 .cta-band h2 em {
-  font-style: italic; font-weight: 600; color: var(--amber);
+  font-style: normal; font-weight: 600; color: var(--amber);
 }
 .cta-band p {
   color: var(--fog);
@@ -864,7 +864,7 @@ main > .wrap > h1 {
   color: #F4EFE6;
 }
 .feature-pair-text h2 em {
-  font-style: italic;
+  font-style: normal;
   color: var(--amber);
 }
 .feature-pair-text .eyebrow {
@@ -950,4 +950,53 @@ main > .wrap > h1 {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ============================================================
+   Editorial motion layer — shared on every /styles.css page.
+   Mirrors landing.css so the whole site feels like one product.
+   ============================================================ */
+em { font-style: normal; }
+
+/* Scroll-progress hairline (auto-injected by motion.js) */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; height: 2px; width: 100%;
+  transform: scaleX(0); transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--amber), var(--amber-hot));
+  z-index: 1000; pointer-events: none;
+}
+
+/* Reveal-on-enter (motion.js adds .is-in) */
+.reveal { opacity: 0; transform: translateY(28px); filter: blur(8px); transition: opacity 0.9s var(--ease-out, ease), transform 0.9s var(--ease-out, ease), filter 0.9s var(--ease-out, ease); }
+.reveal.is-in { opacity: 1; transform: none; filter: blur(0); }
+
+/* Animated amber underline on nav links */
+nav.links a, .links a { position: relative; }
+nav.links a::after, .links a::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -4px;
+  height: 1.5px; background: var(--amber);
+  transform: scaleX(0); transform-origin: 0 50%;
+  transition: transform 0.32s cubic-bezier(0.22,0.61,0.36,1);
+}
+nav.links a:hover::after, .links a:hover::after { transform: scaleX(1); }
+
+/* Kinetic marquee (for pages that include a .marquee band) */
+.marquee { overflow: hidden; background: var(--ink); border-top: 1px solid rgba(244,239,230,0.08); border-bottom: 1px solid rgba(244,239,230,0.08); padding: 22px 0; user-select: none; }
+.marquee-track { display: inline-flex; white-space: nowrap; will-change: transform; animation: marquee 30s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee-rev .marquee-track { animation-direction: reverse; animation-duration: 38s; }
+.marquee-item { font-family: var(--ff-serif); font-weight: 600; font-size: clamp(1.35rem, 3.2vw, 2.4rem); letter-spacing: -0.015em; color: var(--cream); padding: 0 6px; }
+.marquee-item .dot { color: var(--amber); padding: 0 22px; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* Tilt + lift on cards */
+.tilt { transition: transform 0.3s cubic-bezier(0.22,0.61,0.36,1); transform-style: preserve-3d; }
+
+/* Lenis smooth-scroll hooks */
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; filter: none; }
+  .marquee-track { animation: none; }
 }
