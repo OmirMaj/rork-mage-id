@@ -201,7 +201,7 @@
     blobLoop();
 
     // Magnetic pull on .magnetic buttons
-    let magnets = document.querySelectorAll('.magnetic');
+    let magnets = document.querySelectorAll('.magnetic, .nav-cta, .btn-primary');
     magnets.forEach(function (btn) {
       let strength = 0.28;
       let radius = 90;
@@ -320,6 +320,47 @@
       spot.style.top = (e.clientY - r.top) + 'px';
       spot.style.transform = 'translate(-50%, -50%)';
     });
+  }
+
+  // =========================================================
+  // Page-load intro curtain (once per session, reduced-motion safe)
+  // =========================================================
+  try {
+    if (!reduceMotion && !sessionStorage.getItem('mage-intro-v1')) {
+      sessionStorage.setItem('mage-intro-v1', '1');
+      document.documentElement.classList.add('intro-on');
+      let ov = document.createElement('div');
+      ov.className = 'intro';
+      ov.setAttribute('aria-hidden', 'true');
+      ov.innerHTML = '<div class="intro-inner"><svg class="intro-spark" width="46" height="46" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 L13.4 9 L21 12 L13.4 15 L12 23 L10.6 15 L3 12 L10.6 9 Z" fill="#FF6A1A"/></svg><span class="intro-word">MAGE&nbsp;ID</span></div>';
+      document.body.appendChild(ov);
+      setTimeout(function () { ov.classList.add('intro-out'); document.documentElement.classList.remove('intro-on'); }, 1250);
+      setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 2200);
+    }
+  } catch (e) { document.documentElement.classList.remove('intro-on'); }
+
+  // =========================================================
+  // Hero headline: always reveal (the A/B swapper may show a variant
+  // that was display:none when the reveal observer ran, so force it in).
+  // =========================================================
+  setTimeout(function () {
+    let hw = document.querySelectorAll('.hero-title .reveal-word');
+    for (let i = 0; i < hw.length; i++) hw[i].classList.add('is-in');
+  }, 80);
+
+  // =========================================================
+  // Scroll-velocity skew on marquees (the band leans with scroll speed)
+  // =========================================================
+  let mqTracks = document.querySelectorAll('.marquee-track');
+  if (mqTracks.length && !reduceMotion) {
+    let lastY = window.scrollY, vel = 0;
+    (function velLoop() {
+      let y = window.scrollY;
+      vel += ((y - lastY) - vel) * 0.18; lastY = y;
+      let sk = Math.max(-10, Math.min(10, vel * 0.35));
+      for (let i = 0; i < mqTracks.length; i++) mqTracks[i].style.transform = 'skewX(' + sk.toFixed(2) + 'deg)';
+      requestAnimationFrame(velLoop);
+    })();
   }
 
   let form = document.querySelector('.cta-form');
