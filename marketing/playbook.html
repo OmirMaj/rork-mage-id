@@ -132,8 +132,10 @@
       position: relative;
     }
     .pb-voice::before {
-      content: '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>  Say:';
+      content: 'Say:';
       display: block;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23FF6A1A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='11' rx='3'/%3E%3Cpath d='M5 10a7 7 0 0 0 14 0M12 17v4'/%3E%3C/svg%3E") no-repeat left center;
+      padding-left: 17px;
       font-family: 'Inter', sans-serif;
       font-style: normal;
       font-size: 11px;
@@ -368,6 +370,18 @@
           with the fields filled in. You review, tap Create, done.
         </p>
 
+        <div class="feature-row" style="margin: 28px 0 8px;">
+          <div>
+            <h2>Talk. The AI does the typing.</h2>
+            <p>
+              One button, every screen. Describe what happened in plain language and Mage AI
+              parses it into the right record — RFI, change order, punch item, lead, invoice —
+              with the fields already filled. You just confirm.
+            </p>
+          </div>
+          <div class="screenshot phone" data-label="Mage AI · Ask anything"><img src="/screenshots/screens/08-ai-copilot.png" alt="Mage AI copilot parsing a spoken command into a structured record" /></div>
+        </div>
+
         <div class="pb-card">
           <h3>What you can say</h3>
           <p>Start with the action word, then describe like you're texting a friend:</p>
@@ -443,6 +457,18 @@
 
         <div class="pb-voice">"New project: Smith kitchen remodel at 123 Main, San Diego, eighty thousand budget."</div>
         <div class="pb-voice-result">Creates a project with name "Smith Kitchen Remodel," type "remodel," location "123 Main, San Diego," target budget $80,000. Lands you on the project detail screen, ready for everything else.</div>
+
+        <div class="feature-row reverse" style="margin: 28px 0 8px;">
+          <div>
+            <h2>Every job, one tap away.</h2>
+            <p>
+              The moment a project exists it lands on your dashboard with budget, schedule
+              health, and what needs attention next. No spreadsheet, no project picker — just
+              the work in front of you.
+            </p>
+          </div>
+          <div class="screenshot phone" data-label="Projects · Live dashboard"><img src="/screenshots/screens/01-projects.png" alt="Projects list with budget and schedule status for each job" /></div>
+        </div>
 
         <div class="pb-card">
           <h3>What gets unlocked</h3>
