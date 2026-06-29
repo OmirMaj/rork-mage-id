@@ -49,9 +49,10 @@ import {
 // looks identical regardless of any custom-primary the user might set
 // later in Settings. Two screens, one continuous look.
 const BRAND = {
-  green: '#1A6B3C',
-  greenDeep: '#0F4526',
-  greenAccent: '#2A9055',
+  // Brand amber on ink (the green preset was off-brand).
+  green: '#FF6A1A',
+  greenDeep: '#0B0D10',
+  greenAccent: '#FF8533',
   orange: '#FF6A1A',
   orangeHot: '#FF8533',
   cream: '#F4EFE6',

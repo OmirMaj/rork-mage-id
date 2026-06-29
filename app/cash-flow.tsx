@@ -938,7 +938,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </View>
               )}
 
-              <Text style={styles.aiGenLabel}>✨ AI-generated</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <MageAIMark size={12} color={themeColors.accent} />
+                <Text style={styles.aiGenLabel}>AI-generated</Text>
+              </View>
             </View>
           )}
         </View>

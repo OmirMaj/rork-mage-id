@@ -4,7 +4,7 @@ import {
   Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { RefreshCw, TrendingUp, ArrowRight } from 'lucide-react-native';
+import { RefreshCw, TrendingUp, ArrowRight, Tag, ClipboardList } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -30,9 +30,9 @@ interface Props {
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 const REC_STYLES = {
-  rent: { label: 'Keep Renting', icon: '🔄', color: "#1565C0", bg: Colors.infoLight },
-  buy: { label: 'Buy It', icon: '🏷️', color: "#2E7D44", bg: Colors.successLight },
-  lease: { label: 'Consider Leasing', icon: '📋', color: Colors.warning, bg: Colors.warningLight },
+  rent: { label: 'Keep Renting', Icon: RefreshCw, color: "#1565C0", bg: Colors.infoLight },
+  buy: { label: 'Buy It', Icon: Tag, color: "#2E7D44", bg: Colors.successLight },
+  lease: { label: 'Consider Leasing', Icon: ClipboardList, color: Colors.warning, bg: Colors.warningLight },
 } as const;
 
 export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTier }: Props) {
@@ -102,7 +102,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       </View>
 
       <View style={[styles.recBadge, { backgroundColor: rec.bg }]}>
-        <Text style={styles.recIcon}>{rec.icon}</Text>
+        <rec.Icon size={15} color={rec.color} strokeWidth={2} />
         <Text style={[styles.recLabel, { color: rec.color }]}>RECOMMENDATION: {rec.label.toUpperCase()}</Text>
       </View>
 

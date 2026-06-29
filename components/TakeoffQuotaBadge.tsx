@@ -65,7 +65,7 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
         activeOpacity={0.85}
       >
         <View style={styles.iconWrap}>
-          <Crown size={14} color="#7C3AED" strokeWidth={1.75} />
+          <Crown size={14} color="#FF6A1A" strokeWidth={1.75} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.upgradeTitle}>Takeoffs are a Pro feature</Text>
@@ -152,7 +152,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 14, gap: 10,
   },
   upgradeRow: {
-    backgroundColor: '#7C3AED' + '14',
+    backgroundColor: '#FF6A1A' + '14',
     borderRadius: Tokens.radius.md,
   },
   iconWrap: {
@@ -162,7 +162,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
-  upgradeTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#7C3AED' },
+  upgradeTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FF6A1A' },
   subtitle: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
   muted: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   meter: {
@@ -183,7 +183,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#FF6A1A',
   },
   upgradePillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.surface },
 });

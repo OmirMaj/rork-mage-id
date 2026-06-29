@@ -6,7 +6,12 @@
 
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { FileText, FileSpreadsheet, Share2, Calendar, Printer, ChevronRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+
+const OPT_ICON: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
+  pdf: FileText, csv: FileSpreadsheet, share: Share2, ical: Calendar, print: Printer,
+};
 
 export interface ExportSheetProps {
   visible: boolean;
@@ -65,14 +70,6 @@ export function ExportSheet(props: ExportSheetProps) {
     },
   ];
 
-  const ICON_MAP: Record<string, string> = {
-    pdf: '📄',
-    csv: '📊',
-    share: '🔗',
-    ical: '📅',
-    print: '🖨️',
-  };
-
   return (
     <Modal
       visible={props.visible}
@@ -93,14 +90,14 @@ export function ExportSheet(props: ExportSheetProps) {
             }}
             style={styles.opt}
           >
-            <Text style={[styles.optIcon, { color: o.iconColor }]}>
-              {ICON_MAP[o.key]}
-            </Text>
+            <View style={{ width: 28, alignItems: 'center' }}>
+              {(() => { const I = OPT_ICON[o.key]; return I ? <I size={20} color={o.iconColor} strokeWidth={1.75} /> : null; })()}
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.optLabel}>{o.label}</Text>
               <Text style={styles.optSub}>{o.sub}</Text>
             </View>
-            <Text style={styles.chev}>{'›'}</Text>
+            <ChevronRight size={18} color={Colors.textSecondary} strokeWidth={1.75} />
           </Pressable>
         ))}
       </View>

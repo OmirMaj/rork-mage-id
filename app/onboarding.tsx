@@ -61,11 +61,14 @@ import { track, AnalyticsEvents } from '@/utils/analytics';
 // looks identical regardless of any custom-primary the user has set
 // later in Settings. The splash IS the brand.
 const BRAND = {
-  green: '#1A6B3C',
-  greenDeep: '#0F4526',
-  greenAccent: '#2A9055',
+  // Hero gradient is brand amber on ink (the green preset was off-brand — the
+  // documented brand is amber/ink; see constants/colors.ts).
+  green: '#FF6A1A',
+  greenDeep: '#0B0D10',
+  greenAccent: '#FF8533',
   orange: '#FF6A1A',
   orangeHot: '#FF8533',
+  orangeDeep: '#C2410C',
   cream: '#F4EFE6',
   ink: '#0B0D10',
   fog: 'rgba(244,239,230,0.62)',

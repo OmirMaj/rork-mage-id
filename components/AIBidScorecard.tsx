@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target,
+  TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target, XCircle,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -243,12 +243,18 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
       {/* Recommendation pill */}
       <View style={[styles.decisionPill, {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
         backgroundColor: decision === 'go' ? "#2E7D44" + '18' : decision === 'review' ? Colors.warning + '18' : "#C84038" + '18',
       }]}>
+        {(() => {
+          const dc = decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warning : "#C84038";
+          const DIcon = decision === 'go' ? CheckCircle2 : decision === 'review' ? AlertTriangle : XCircle;
+          return <DIcon size={14} color={dc} strokeWidth={2} />;
+        })()}
         <Text style={[styles.decisionPillText, {
           color: decision === 'go' ? "#2E7D44" : decision === 'review' ? Colors.warning : "#C84038",
         }]}>
-          {decision === 'go' ? '✓ Recommend pursuing' : decision === 'review' ? '⚠ Worth reviewing' : '✕ Recommend passing'}
+          {decision === 'go' ? 'Recommend pursuing' : decision === 'review' ? 'Worth reviewing' : 'Recommend passing'}
         </Text>
       </View>
 
