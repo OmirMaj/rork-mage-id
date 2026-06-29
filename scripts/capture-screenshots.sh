@@ -28,7 +28,7 @@
 set -euo pipefail
 
 # --- config -----------------------------------------------------------------
-DEVICE_NAME="${DEVICE_NAME:-iPhone 16 Pro Max}"   # 1290x2796 canvas. Override via env.
+DEVICE_NAME="${DEVICE_NAME:-iPhone 15 Pro Max}"   # 1290x2796 canvas. Override via env.
 BUNDLE_ID="${BUNDLE_ID:-com.mageid.app}"
 SCHEME="${SCHEME:-rork-app}"
 SETTLE="${SETTLE:-2.5}"                            # seconds to let a screen render

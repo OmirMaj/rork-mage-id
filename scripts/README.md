@@ -27,8 +27,9 @@ marketing pages.
 
 ## Notes
 
-- Device defaults to **iPhone 16 Pro Max** (the App-Store 1290×2796 canvas).
-  Override with `DEVICE_NAME="iPhone 15 Pro Max" ./scripts/capture-screenshots.sh …`.
+- Device defaults to **iPhone 15 Pro Max** (the App-Store 1290×2796 canvas;
+  the 16 Pro Max uses the same canvas). Override with
+  `DEVICE_NAME="iPhone 16 Pro Max" ./scripts/capture-screenshots.sh …`.
 - The script sets a clean 9:41 / full-battery status bar automatically.
 - `deeplink` mode opens `rork-app:///<route>` for each screen. Screens that need
   a specific record id (e.g. a single project) can't be deep-linked blind —
