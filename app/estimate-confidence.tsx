@@ -9,19 +9,23 @@
 //
 // Pure read over utils/estimateConfidence + utils/costDatabase. No network.
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, ShieldCheck, AlertTriangle, HelpCircle, CheckCircle2, Info } from 'lucide-react-native';
+import { ChevronLeft, ShieldCheck, AlertTriangle, HelpCircle, CheckCircle2, Info, Wand2 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useEstimateCalibration } from '@/hooks/useEstimateCalibration';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import { buildCostDatabase } from '@/utils/costDatabase';
+import { applyCalibrationToEstimate } from '@/utils/applyCalibration';
+import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { computeEstimateConfidence, type EstimateLineCheck, type PriceFlag } from '@/utils/estimateConfidence';
 import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
@@ -64,7 +68,8 @@ function EstimateConfidenceInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, commitments } = useProjects();
+  const { projects, commitments, updateProject } = useProjects();
+  const { corrections } = useEstimateCalibration();
 
   const project = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
@@ -73,6 +78,33 @@ function EstimateConfidenceInner() {
     const db = buildCostDatabase(projects, commitments);
     return computeEstimateConfidence(project, db);
   }, [project, projects, commitments]);
+
+  // The payoff of the cost-learning moat: preview what applying the GC's saved
+  // per-category corrections would do to THIS estimate. Only offered when a
+  // correction actually matches a line here.
+  const calibPreview = useMemo(() => {
+    if (!project?.linkedEstimate || corrections.length === 0) return null;
+    return applyCalibrationToEstimate(project.linkedEstimate, corrections);
+  }, [project, corrections]);
+
+  const onApplyCalibration = useCallback(() => {
+    if (!project?.linkedEstimate || !calibPreview || calibPreview.changedCount === 0) return;
+    const delta = calibPreview.newGrandTotal - calibPreview.oldGrandTotal;
+    Alert.alert(
+      'Apply your cost corrections?',
+      `${calibPreview.changedCount} line${calibPreview.changedCount > 1 ? 's' : ''} across ${calibPreview.changedCategories.join(', ')} will be re-priced from your job history.\n\n${formatMoney(calibPreview.oldGrandTotal)} → ${formatMoney(calibPreview.newGrandTotal)}  (${delta >= 0 ? '+' : ''}${formatMoney(delta)})\n\nThe prior estimate is snapshotted so you can restore it.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Apply',
+          onPress: () => {
+            updateProject(project.id, commitEstimatePatch(project, calibPreview.estimate, { reason: 'pre_overwrite', note: 'Cost calibration applied' }));
+            if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ],
+    );
+  }, [project, calibPreview, updateProject]);
 
   const scoreColor = report
     ? report.score >= 70 ? t.success : report.score >= 40 ? t.accentHot : t.danger
@@ -121,6 +153,24 @@ function EstimateConfidenceInner() {
               </Text>
             </View>
           </View>
+
+          {calibPreview && calibPreview.changedCount > 0 && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={onApplyCalibration}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, marginBottom: 14, backgroundColor: t.accent + '14', borderWidth: 1, borderColor: t.accent + '40' }}
+              testID="apply-calibration-cta"
+            >
+              <Wand2 size={20} color={t.accent} strokeWidth={1.9} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: Type.subhead.fontSize, fontWeight: '800', color: t.text }}>Apply your cost corrections</Text>
+                <Text style={{ fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 2 }}>
+                  {calibPreview.changedCount} line{calibPreview.changedCount > 1 ? 's' : ''} · {formatMoney(calibPreview.oldGrandTotal)} → {formatMoney(calibPreview.newGrandTotal)}
+                </Text>
+              </View>
+              <ChevronLeft size={18} color={t.textMuted} strokeWidth={2} style={{ transform: [{ rotate: '180deg' }] }} />
+            </TouchableOpacity>
+          )}
 
           {!report.hasHistory && (
             <View style={styles.disclose}>
