@@ -24,6 +24,7 @@ import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
+import ThinkingStates from '@/components/ThinkingStates';
 import type { Project, RFI, ChangeOrder } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -613,8 +614,21 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
 
             {(step === 'parsing' || step === 'creating') && (
               <View style={styles.parsingWrap}>
-                <ActivityIndicator size="small" color={themeColors.accent} />
-                <Text style={styles.parsingText}>{step === 'parsing' ? 'Reading what you said…' : 'Saving your draft…'}</Text>
+                {step === 'parsing' ? (
+                  <ThinkingStates
+                    active
+                    steps={[
+                      'Reading what you said…',
+                      'Matching it to your projects…',
+                      'Drafting the right artifact…',
+                    ]}
+                  />
+                ) : (
+                  <>
+                    <ActivityIndicator size="small" color={themeColors.accent} />
+                    <Text style={styles.parsingText}>Saving your draft…</Text>
+                  </>
+                )}
               </View>
             )}
 

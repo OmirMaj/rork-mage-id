@@ -55,6 +55,13 @@ import {
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+const ESTIMATE_THINKING_STEPS = [
+  'Reading your scope…',
+  'Pricing from your history…',
+  'Checking your margin…',
+  'Assembling line items…',
+];
+
 export default function EstimateWizardScreen() {
   return <EstimateWizardScreenInner />;
 }
@@ -644,6 +651,7 @@ function EstimateWizardScreenInner() {
         visible={loading}
         title="Generating estimate…"
         subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
+        thinkingSteps={ESTIMATE_THINKING_STEPS}
         onCancel={cancelGenerate}
       />
       <UpgradeSheet

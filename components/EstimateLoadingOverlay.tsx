@@ -14,6 +14,7 @@ import {
   Modal, View, Text, StyleSheet, Animated, Easing, Platform, TouchableOpacity,
 } from 'react-native';
 import MageBuildScene from '@/components/MageBuildScene';
+import ThinkingStates from '@/components/ThinkingStates';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -31,6 +32,9 @@ interface Props {
    *  this on tap. The in-flight AI request is dropped (the AbortController
    *  is internal to mageAI, so we just stop waiting for it). */
   onCancel?: () => void;
+  /** When provided, replaces the static subtitle with a labeled thinking
+   *  sequence that advances while visible. */
+  thinkingSteps?: string[];
 }
 
 const FUN_FACTS: string[] = [
@@ -56,7 +60,7 @@ const FUN_FACTS: string[] = [
   "Drywall screws are slightly different from wood screws — coarser thread, sharper tip. Mixing them shows.",
 ];
 
-export default function EstimateLoadingOverlay({ visible, title, subtitle, onCancel }: Props) {
+export default function EstimateLoadingOverlay({ visible, title, subtitle, thinkingSteps, onCancel }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [factIdx, setFactIdx] = useState(0);
@@ -110,9 +114,13 @@ export default function EstimateLoadingOverlay({ visible, title, subtitle, onCan
           </View>
 
           <Text style={styles.title}>{title ?? 'Generating estimate…'}</Text>
-          <Text style={styles.subtitle}>
-            {subtitle ?? 'AI is pulling materials, labor, and pricing for your project. Hang tight — usually 8 to 30 seconds.'}
-          </Text>
+          {thinkingSteps && thinkingSteps.length > 0 ? (
+            <ThinkingStates steps={thinkingSteps} active={visible} />
+          ) : (
+            <Text style={styles.subtitle}>
+              {subtitle ?? 'AI is pulling materials, labor, and pricing for your project. Hang tight — usually 8 to 30 seconds.'}
+            </Text>
+          )}
 
           <View style={styles.dotsRow}>
             <Dot a={dot1} />
