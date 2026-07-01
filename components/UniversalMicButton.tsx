@@ -22,6 +22,8 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseVoiceAction, type VoiceActionResult } from '@/utils/voiceActionParser';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
+import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
+import UpgradeSheet from '@/components/UpgradeSheet';
 import type { Project, RFI, ChangeOrder } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -53,7 +55,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   const router = useRouter();
   const ctx = useProjects();
   const { addManualEntry } = useTimeEntries();
-  const { isProOrAbove } = useSubscription();
+  const { tier } = useSubscription();
   const insets = useSafeAreaInsets();
 
   const [open, setOpen] = useState(false);
@@ -61,6 +63,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   const [parsed, setParsed] = useState<VoiceActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(projectId);
+  const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
 
   const projectsList = ctx?.projects ?? [];
 
@@ -93,18 +96,23 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   }, [reset]);
 
   const handleOpen = useCallback(() => {
-    if (!isProOrAbove) {
-      router.push('/paywall' as never);
-      return;
-    }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setOpen(true);
     if (!pickedProjectId && project) setPickedProjectId(project.id);
-  }, [isProOrAbove, router, project, pickedProjectId]);
+  }, [project, pickedProjectId]);
 
   const handleTranscript = useCallback(async (transcript: string) => {
     if (!transcript || transcript.trim().length === 0) {
       setError('Didn\'t catch that — try again.');
+      setStep('idle');
+      return;
+    }
+    // Metered gate — a free user gets a few lifetime voice captures, then a
+    // wall. checkAILimit fails open on storage error so a hiccup never costs
+    // a trial or blocks value.
+    const gate = await checkAILimit(tier, 'fast', 'voiceCapture');
+    if (!gate.allowed) {
+      setUpgradeLimit(gate);
       setStep('idle');
       return;
     }
@@ -117,13 +125,15 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
       const result = await parseVoiceAction({ transcript, project });
       setParsed(result);
       setStep('reviewing');
+      // Increment ONLY on success — a failed parse never burns a trial.
+      void recordAIUsage('fast', 'voiceCapture');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[UniversalMic] parse failed', e);
       setError('AI couldn\'t parse that — try again.');
       setStep('idle');
     }
-  }, [project]);
+  }, [project, tier]);
 
   const handleConfirm = useCallback(async () => {
     if (!parsed) return;
@@ -596,8 +606,6 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                 <VoiceRecorder
                   onTranscriptReady={handleTranscript}
                   isLoading={false}
-                  isLocked={!isProOrAbove}
-                  onLockedPress={() => router.push('/paywall' as never)}
                 />
                 {error && <Text style={styles.errorText}>{error}</Text>}
               </View>
@@ -785,6 +793,12 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           </View>
         </View>
       </Modal>
+      <UpgradeSheet
+        visible={!!upgradeLimit}
+        limit={upgradeLimit}
+        featureLabel="Voice Capture"
+        onClose={() => setUpgradeLimit(null)}
+      />
     </>
   );
 }
