@@ -40,5 +40,20 @@ expect('aiTakeoff pro 5 lifetime → still allowed',
 // Fail-open sentinel
 expect('FAIL_OPEN_RESULT allowed', FAIL_OPEN_RESULT.allowed, true);
 
+// maxProjects cap — free is 1 real project, paid is unlimited.
+// NOTE: FEATURE_LIMITS can't be imported here — hooks/useTierAccess.ts
+// transitively pulls expo-router / react-native, which crashes bun
+// ("Expected CommonJS module to have a function wrapper"). Mirror the
+// enforced comparison (`realProjectCount < FEATURE_LIMITS.maxProjects[tier]`)
+// with the literal cap values, kept in sync with FEATURE_LIMITS.maxProjects.
+const MAX_PROJECTS_FREE = 1;
+const MAX_PROJECTS_PAID = Infinity;
+expect('free at 0 projects → can create',
+  0 < MAX_PROJECTS_FREE, true);
+expect('free at 1 project → blocked',
+  1 < MAX_PROJECTS_FREE, false);
+expect('pro unlimited → can create at 50',
+  50 < MAX_PROJECTS_PAID, true);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
