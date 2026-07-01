@@ -428,12 +428,55 @@ export function useTimeEntries() {
     [entries]
   );
 
+  // Log a COMPLETED shift in one shot (used by voice field-capture: "3 hours
+  // framing"). Unlike clockIn/clockOut, this records a finished entry with a
+  // known duration — clockIn defaults to 8:00 on the given day, clockOut is
+  // clockIn + hours, and totals are computed the same way the live flow does.
+  const addManualEntry = useCallback((args: {
+    projectId: string;
+    projectName: string;
+    workerName: string;
+    trade?: string;
+    hours: number;
+    notes?: string;
+    date?: string;
+  }): TimeEntry => {
+    const day = args.date ?? new Date().toISOString().split('T')[0];
+    const clockInDate = new Date(`${day}T08:00:00`);
+    const clockOutDate = new Date(clockInDate.getTime() + Math.max(args.hours, 0) * 3_600_000);
+    const { totalHours, overtimeHours } = computeShiftHours(
+      clockInDate.toISOString(), clockOutDate.toISOString(), 0,
+    );
+    const entry: TimeEntry = {
+      id: generateUUID(),
+      projectId: args.projectId,
+      projectName: args.projectName,
+      workerId: 'self',
+      workerName: args.workerName,
+      trade: args.trade ?? '',
+      clockIn: clockInDate.toISOString(),
+      clockOut: clockOutDate.toISOString(),
+      breakMinutes: 0,
+      totalHours,
+      overtimeHours,
+      status: 'clocked_out',
+      notes: args.notes,
+      date: day,
+    };
+    setEntries(prev => [entry, ...prev]);
+    if (userId && isSupabaseConfigured) {
+      void supabaseWrite('time_entries', 'insert', toDB(entry, userId));
+    }
+    return entry;
+  }, [userId]);
+
   return {
     entries,
     liveEntries,
     historyEntries,
     hydrated,
     clockIn,
+    addManualEntry,
     startBreak,
     resumeFromBreak,
     clockOut,
