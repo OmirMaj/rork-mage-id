@@ -2353,6 +2353,15 @@
       <div id="budget-banner" class="budget-banner" style="display:none"></div>
       <div id="sections"></div>
 
+      <div style="margin:30px 0 10px;padding:22px 20px;border:1px solid rgba(0,0,0,0.09);border-radius:18px;background:rgba(0,0,0,0.02);text-align:center">
+        <div style="font-size:16px;font-weight:800;margin-bottom:5px">Like being kept in the loop?</div>
+        <div style="font-size:13px;opacity:.72;margin-bottom:16px;line-height:1.5">This live portal was built with MAGE ID. Share it with someone planning a project — or set one up for yours.</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <a href="https://mageid.app?ref=portal" style="display:inline-block;padding:11px 18px;border-radius:11px;background:var(--amber,#FF6A1A);color:#fff;font-weight:700;font-size:14px;text-decoration:none">Get MAGE ID</a>
+          <button type="button" onclick="var b=this;var u=location.href;if(navigator.share){navigator.share({title:document.title,url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u);b.textContent='Link copied';}" style="padding:11px 18px;border-radius:11px;background:transparent;border:1px solid rgba(0,0,0,0.15);color:inherit;font-weight:700;font-size:14px;cursor:pointer">Share this portal</button>
+        </div>
+      </div>
+
       <footer class="portal-footer">
         <div class="portal-footer-row">
           <span class="footer-mark">M</span>
