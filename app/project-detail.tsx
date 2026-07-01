@@ -20,6 +20,7 @@ import {
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
+import BidConfidenceBadge from '@/components/BidConfidenceBadge';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -1261,6 +1262,9 @@ export default function ProjectDetailScreen() {
                 />
                 <Text style={styles.heroTapHint}>{heroLabel}{estimate ? ' · Tap for breakdown' : ''}</Text>
               </TouchableOpacity>
+              <View style={{ marginTop: 10, marginBottom: 2 }}>
+                <BidConfidenceBadge project={project} variant="hero" />
+              </View>
               <View style={styles.heroStatsRow}>
                 {estimate && (
                   <>
