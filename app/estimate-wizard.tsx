@@ -36,8 +36,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
-import { useTierAccess } from '@/hooks/useTierAccess';
-import Paywall from '@/components/Paywall';
+import UpgradeSheet from '@/components/UpgradeSheet';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
@@ -45,8 +44,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
-import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
-import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
 import type { CompanyBranding, LinkedEstimate, LinkedEstimateItem } from '@/types';
 import {
@@ -58,18 +56,6 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function EstimateWizardScreen() {
-  const router = useRouter();
-  const { canAccess } = useTierAccess();
-  if (!canAccess('ai_estimate_wizard')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="AI Estimate Wizard"
-        requiredTier="pro"
-        onClose={() => router.back()}
-      />
-    );
-  }
   return <EstimateWizardScreenInner />;
 }
 
@@ -89,6 +75,7 @@ function EstimateWizardScreenInner() {
   const [loading, setLoading] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
+  const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
 
   useEffect(() => {
     if (scopedProject?.scope) {
@@ -126,9 +113,9 @@ function EstimateWizardScreenInner() {
     // We use feature='quickEstimate' so the lifetime-trial counter (3 free
     // demos) and the smart-daily-cap both apply correctly per
     // utils/aiRateLimiter.ts FEATURE_CONFIG.
-    const limit = await checkAILimit(tier, 'smart', 'quickEstimate');
+    const limit = await checkAILimit(tier, 'smart', 'aiEstimateWizard');
     if (!limit.allowed) {
-      showAILimitAlert({ limit, router });
+      setUpgradeLimit(limit);
       return;
     }
 
@@ -195,7 +182,7 @@ function EstimateWizardScreenInner() {
         // recordAIUsage failure shouldn't gate the user seeing their estimate.
         // Only records on success — failed calls (timeout, MAX_TOKENS,
         // SAFETY) still shouldn't count against the quota.
-        void recordAIUsage('smart', 'quickEstimate');
+        void recordAIUsage('smart', 'aiEstimateWizard');
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
@@ -582,6 +569,12 @@ function EstimateWizardScreenInner() {
             </TouchableOpacity>
           </View>
         </ScrollView>
+        <UpgradeSheet
+          visible={!!upgradeLimit}
+          limit={upgradeLimit}
+          featureLabel="AI Estimate"
+          onClose={() => setUpgradeLimit(null)}
+        />
       </View>
     );
   }
@@ -652,6 +645,12 @@ function EstimateWizardScreenInner() {
         title="Generating estimate…"
         subtitle="Usually 20–40 seconds. Pulling materials, labor, and 2025 pricing."
         onCancel={cancelGenerate}
+      />
+      <UpgradeSheet
+        visible={!!upgradeLimit}
+        limit={upgradeLimit}
+        featureLabel="AI Estimate"
+        onClose={() => setUpgradeLimit(null)}
       />
     </View>
   );
