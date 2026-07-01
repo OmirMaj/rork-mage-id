@@ -35,8 +35,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform } 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
-  CheckCircle2, Circle, ArrowRight, X, FolderPlus, Calculator,
-  Receipt, Building2, Wallet,
+  CheckCircle2, Circle, ArrowRight, X, FolderPlus,
+  Receipt, Building2, Wallet, Mic,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -62,10 +62,13 @@ export interface OnboardingChecklistProps {
   estimateCount: number;
   stripeConnected: boolean;
   invoiceCount: number;
+  /** True once the user has used any metered-free wow feature (voice,
+   *  takeoff, or produced an estimate). Drives the value-first "Try it" step. */
+  triedWowFeature: boolean;
 }
 
 interface ChecklistItem {
-  key: 'companyInfo' | 'project' | 'estimate' | 'stripe' | 'invoice';
+  key: 'tryit' | 'companyInfo' | 'project' | 'estimate' | 'stripe' | 'invoice';
   title: string;
   done: boolean;
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
@@ -74,7 +77,7 @@ interface ChecklistItem {
 }
 
 function OnboardingChecklistImpl({
-  companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount,
+  companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount, triedWowFeature,
 }: OnboardingChecklistProps) {
   const router = useRouter();
   const { colors } = useTheme();
@@ -110,12 +113,12 @@ function OnboardingChecklistImpl({
 
   const items: ChecklistItem[] = useMemo(() => [
     {
-      key: 'companyInfo',
-      title: 'Add your company info',
-      done: companyInfoDone,
-      Icon: Building2,
-      href: '/company-profile',
-      cta: 'Add info',
+      key: 'tryit',
+      title: 'Try it: voice capture or an AI estimate',
+      done: triedWowFeature || estimateCount > 0,
+      Icon: Mic,
+      href: '/estimate-wizard',
+      cta: 'Try it free',
     },
     {
       key: 'project',
@@ -126,12 +129,12 @@ function OnboardingChecklistImpl({
       cta: 'Add a project',
     },
     {
-      key: 'estimate',
-      title: 'Build your first estimate',
-      done: estimateCount > 0,
-      Icon: Calculator,
-      href: '/estimate-wizard',
-      cta: 'Quick estimate',
+      key: 'companyInfo',
+      title: 'Add your company info',
+      done: companyInfoDone,
+      Icon: Building2,
+      href: '/company-profile',
+      cta: 'Add info',
     },
     {
       key: 'stripe',
@@ -149,7 +152,7 @@ function OnboardingChecklistImpl({
       href: '/invoice',
       cta: 'New invoice',
     },
-  ], [companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount]);
+  ], [triedWowFeature, companyInfoDone, projectCount, estimateCount, stripeConnected, invoiceCount]);
 
   const doneCount = items.filter(i => i.done).length;
   const total = items.length;

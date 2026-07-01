@@ -771,6 +771,7 @@ export default function HomeScreen() {
               estimateCount={estimateCount}
               stripeConnected={stripeConnected}
               invoiceCount={invoices.length}
+              triedWowFeature={milestones.voiceUsed || milestones.takeoffRun || estimateCount > 0}
             />
 
             {/* NextStepHero — the answer to "where do I start?" for users
