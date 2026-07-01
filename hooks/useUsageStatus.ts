@@ -20,8 +20,27 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 export type Tier = 'free' | 'pro' | 'business' | 'enterprise';
+
+/**
+ * Client-side fallback for the monthly takeoff-page cap, mirroring
+ * `MONTHLY_CAPS.*.takeoff_pages` in `supabase/functions/_shared/auth.ts`.
+ * Keep these IN SYNC with the server table.
+ *
+ * Used when the server `usage-status` fetch is unavailable (no session,
+ * offline, or the function errors). Without this, a paying customer would
+ * see "0 of 0 pages" — falsely implying they have no takeoff allowance —
+ * because the server-only cap defaults to 0. The daily AI counter already
+ * derives its cap client-side from tier; this brings takeoff in line.
+ */
+export const TAKEOFF_PAGES_CAP_BY_TIER: Record<Tier, number> = {
+  free: 0,
+  pro: 30,
+  business: 100,
+  enterprise: 300,
+};
 
 export interface FeatureUsage {
   used: number;
@@ -93,12 +112,23 @@ export function useTakeoffPagesQuota(): {
   refresh: () => void;
 } {
   const { status, isLoading, refresh } = useUsageStatus();
+  const { tier: clientTier } = useSubscription();
   const tp = status?.features?.takeoff_pages;
+
+  // Prefer authoritative server numbers when available. Otherwise fall back
+  // to the tier-derived cap so a paying customer never sees a misleading
+  // "0 of 0 pages" when the usage-status fetch is unavailable.
+  const fallbackTier: Tier | null =
+    clientTier && clientTier in TAKEOFF_PAGES_CAP_BY_TIER ? (clientTier as Tier) : null;
+  const fallbackCap = fallbackTier ? TAKEOFF_PAGES_CAP_BY_TIER[fallbackTier] : 0;
+
+  const cap = tp?.cap ?? fallbackCap;
+  const used = tp?.used ?? 0;
   return {
-    used: tp?.used ?? 0,
-    cap: tp?.cap ?? 0,
-    remaining: tp?.remaining ?? 0,
-    tier: status?.tier ?? null,
+    used,
+    cap,
+    remaining: tp?.remaining ?? Math.max(cap - used, 0),
+    tier: status?.tier ?? fallbackTier,
     isLoading,
     refresh,
   };

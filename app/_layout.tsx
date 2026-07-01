@@ -496,7 +496,7 @@ function RootLayoutNav() {
         }}
         testID="cold-start-loader"
       >
-        <ConstructionLoader size="lg" label="MAGE ID" />
+        <ConstructionLoader size="lg" scene="city" label="MAGE ID" />
       </View>
     );
   }
