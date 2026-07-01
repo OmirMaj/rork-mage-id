@@ -43,6 +43,8 @@ import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
+import UpgradeSheet from '@/components/UpgradeSheet';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -60,10 +62,22 @@ export default function DailyReportScreen() {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
     getPhotosForProject,
   } = useProjects();
-  const { isProOrAbove } = useSubscription();
+  const { tier } = useSubscription();
   const { isFree } = useTierAccess();
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [showVoiceBanner, setShowVoiceBanner] = useState(false);
+  const [voiceLimit, setVoiceLimit] = useState<LimitCheck | null>(null);
+  const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
+  const [gateRefresh, setGateRefresh] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void checkAILimit(tier, 'fast', 'voiceCapture').then(l => { if (!cancelled) setVoiceLimit(l); });
+    return () => { cancelled = true; };
+  }, [tier, gateRefresh]);
+
+  const voiceBlocked = voiceLimit ? !voiceLimit.allowed : false;
+  const openVoiceUpgrade = useCallback(() => { setUpgradeLimit(voiceLimit); }, [voiceLimit]);
   // Tracks which fields the AI populated in the most recent voice
   // pass. We use this to render a "here's what I heard" preview card
   // so the GC can verify before saving — no more silent auto-fill.
@@ -852,6 +866,8 @@ export default function DailyReportScreen() {
                   }
                   setVoiceParsed(Object.keys(populated).length > 0 ? populated : null);
                   setShowVoiceBanner(true);
+                  void recordAIUsage('fast', 'voiceCapture');
+                  setGateRefresh(n => n + 1);
                   if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
                   console.log('[DFR] Voice auto-fill complete');
                 } catch (err) {
@@ -865,8 +881,8 @@ export default function DailyReportScreen() {
                 }
               }}
               isLoading={voiceLoading}
-              isLocked={!isProOrAbove}
-              onLockedPress={() => router.push('/paywall' as any)}
+              isLocked={voiceBlocked}
+              onLockedPress={openVoiceUpgrade}
               title="Dictate today's report"
               contextLine={project?.name ? `for ${project.name}` : undefined}
               suggestions={[
@@ -942,8 +958,8 @@ export default function DailyReportScreen() {
                 projectName={project.name}
                 weatherStr={[weather.conditions, weather.temperature].filter(Boolean).join(' · ') || 'Clear'}
                 photos={todaysProjectPhotos}
-                isLocked={!isProOrAbove}
-                onLockedPress={() => router.push('/paywall' as any)}
+                isLocked={voiceBlocked}
+                onLockedPress={openVoiceUpgrade}
                 onGenerated={(parsed) => {
                   if (parsed.weather && !weather.temperature) setWeather({ ...parsed.weather, isManual: false });
                   if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
@@ -951,6 +967,8 @@ export default function DailyReportScreen() {
                   if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
                   if (parsed.issuesAndDelays && !issuesAndDelays) setIssuesAndDelays(parsed.issuesAndDelays);
                   setShowVoiceBanner(true);
+                  void recordAIUsage('fast', 'voiceCapture');
+                  setGateRefresh(n => n + 1);
                 }}
               />
             </View>
@@ -1830,6 +1848,12 @@ export default function DailyReportScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <UpgradeSheet
+        visible={!!upgradeLimit}
+        limit={upgradeLimit}
+        featureLabel="Voice Capture"
+        onClose={() => setUpgradeLimit(null)}
+      />
     </View>
   );
 }
