@@ -107,6 +107,9 @@ export type AIFeature =
   | 'quickEstimate'      // free: 3 lifetime trials
   | 'scheduleBuilder'    // free: 3 lifetime trials
   | 'estimateValidation' // free: 3 lifetime trials
+  | 'voiceCapture'       // free: 3 lifetime trials (marquee field feature)
+  | 'aiEstimateWizard'   // free: 2 lifetime trials
+  | 'aiTakeoff'          // free: 1 lifetime trial
   // Pro+ only — too expensive for free tier
   | 'weeklyAnalysis'
   | 'bidLeveling'
@@ -143,6 +146,9 @@ const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick Estimate' },
   scheduleBuilder:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'AI Schedule Builder' },
   estimateValidation: { tier: 'smart', freeLifetimeCap: 3, displayName: 'Estimate Validation' },
+  voiceCapture:       { tier: 'fast',  freeLifetimeCap: 3, displayName: 'Voice Capture' },
+  aiEstimateWizard:   { tier: 'smart', freeLifetimeCap: 2, displayName: 'AI Estimate' },
+  aiTakeoff:          { tier: 'smart', freeLifetimeCap: 1, displayName: 'AI Takeoff' },
 
   // Pro+ only — high-value features that require subscription
   weeklyAnalysis:     { tier: 'smart', proOnly: true, displayName: 'Weekly Full Analysis' },
