@@ -866,7 +866,7 @@ export default function DailyReportScreen() {
                   }
                   setVoiceParsed(Object.keys(populated).length > 0 ? populated : null);
                   setShowVoiceBanner(true);
-                  void recordAIUsage('fast', 'voiceCapture');
+                  await recordAIUsage('fast', 'voiceCapture');
                   setGateRefresh(n => n + 1);
                   if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
                   console.log('[DFR] Voice auto-fill complete');
@@ -967,8 +967,7 @@ export default function DailyReportScreen() {
                   if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
                   if (parsed.issuesAndDelays && !issuesAndDelays) setIssuesAndDelays(parsed.issuesAndDelays);
                   setShowVoiceBanner(true);
-                  void recordAIUsage('fast', 'voiceCapture');
-                  setGateRefresh(n => n + 1);
+                  recordAIUsage('fast', 'voiceCapture').then(() => setGateRefresh(n => n + 1));
                 }}
               />
             </View>
