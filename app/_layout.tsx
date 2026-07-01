@@ -9,7 +9,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
-import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
+import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
 import { BidsProvider } from "@/contexts/BidsContext";
@@ -316,49 +316,11 @@ function OfflineSyncManager() {
   return null;
 }
 
-// Keys for the 3-day free-tier onboarding-paywall re-show gate. First-seen
-// is stamped once by the paywall screen itself; last-seen is stamped on
-// every show (close or open) so the gate can skip same-day reopens.
-const PAYWALL_GATE_FIRST_KEY = 'buildwise_onboarding_paywall_first_at';
-const PAYWALL_GATE_LAST_KEY = 'buildwise_onboarding_paywall_last_at';
-const PAYWALL_GATE_WINDOW_DAYS = 3;
-
-// Pure helper so the gate decision is testable without mounting the layout.
-// Returns true when the paywall should be re-shown on this cold boot.
-function shouldShowOnboardingPaywallGate(params: {
-  firstSeenIso: string | null;
-  lastSeenIso: string | null;
-  now: Date;
-}): boolean {
-  const { firstSeenIso, lastSeenIso, now } = params;
-  // If first-seen is missing, the user hasn't hit the paywall post-onboarding
-  // yet. Don't preempt here — the onboarding screen's own redirect will
-  // handle it when they finish/skip.
-  if (!firstSeenIso) return false;
-  const first = new Date(firstSeenIso);
-  const ageDays = (now.getTime() - first.getTime()) / (1000 * 60 * 60 * 24);
-  if (!Number.isFinite(ageDays) || ageDays > PAYWALL_GATE_WINDOW_DAYS) return false;
-  // Don't show more than once per calendar day. We compare Y-M-D strings
-  // rather than millisecond deltas so a user who dismisses at 11pm doesn't
-  // get re-shown at 1am — the check is "did we already show today?"
-  if (lastSeenIso) {
-    const last = new Date(lastSeenIso);
-    const sameDay =
-      last.getFullYear() === now.getFullYear() &&
-      last.getMonth() === now.getMonth() &&
-      last.getDate() === now.getDate();
-    if (sameDay) return false;
-  }
-  return true;
-}
-
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { hasSeenOnboarding, userRole, isLoading: projectLoading, projects } = useProjects();
-  const { tier } = useSubscription();
-  const paywallGateRanRef = useRef(false);
+  const { hasSeenOnboarding, userRole, isLoading: projectLoading } = useProjects();
 
   useEffect(() => {
     if (authLoading || projectLoading || hasSeenOnboarding === null) return;
@@ -412,50 +374,7 @@ function RootLayoutNav() {
       router.replace('/(tabs)/(home)' as any);
       return;
     }
-
-    // 3-day free-tier paywall re-show gate. Runs at most once per
-    // mount — if the user dismisses we don't re-queue it mid-session,
-    // only on the next cold boot. Gate only fires when we've resolved
-    // a concrete tier; while tier is still hydrating from RC, skip.
-    //
-    // Launch-readiness audit (2026-05-16): also require the user to have
-    // created at least one REAL (non-sample) project. Pre-fix, a brand-new
-    // user who finished onboarding but hadn't built anything got the
-    // gesture-locked paywall re-shoved at them every cold boot for 3 days
-    // before ever seeing value — a documented abandonment driver. The
-    // auto-seeded "Sample — …" projects don't count as engagement.
-    const hasRealProject = projects.some(p => !p.name.startsWith('Sample — '));
-    if (
-      isAuthenticated &&
-      hasSeenOnboarding &&
-      tier === 'free' &&
-      hasRealProject &&
-      !inOnboardingPaywall &&
-      !inOnboarding &&
-      !paywallGateRanRef.current
-    ) {
-      paywallGateRanRef.current = true;
-      (async () => {
-        try {
-          const [firstSeenIso, lastSeenIso] = await Promise.all([
-            AsyncStorage.getItem(PAYWALL_GATE_FIRST_KEY),
-            AsyncStorage.getItem(PAYWALL_GATE_LAST_KEY),
-          ]);
-          const show = shouldShowOnboardingPaywallGate({
-            firstSeenIso,
-            lastSeenIso,
-            now: new Date(),
-          });
-          if (show) {
-            console.log('[Layout] 3-day gate: showing onboarding paywall');
-            router.push('/onboarding-paywall' as never);
-          }
-        } catch (err) {
-          console.log('[Layout] paywall gate check failed', err);
-        }
-      })();
-    }
-  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router, tier, projects]);
+  }, [isAuthenticated, hasSeenOnboarding, userRole, authLoading, projectLoading, segments, router]);
 
   // Audit-2026-05-21 W1 (HIGH): per-route document.title on web.
   //
