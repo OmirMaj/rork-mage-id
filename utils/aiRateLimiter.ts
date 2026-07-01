@@ -234,18 +234,30 @@ async function getLifetimeUsage(): Promise<LifetimeUsage> {
 }
 
 /**
- * Check whether the user can run the given AI feature. Pass `feature` for
- * per-feature gating (preferred). Pass just `requestTier` for the legacy
- * generic check (still works for existing callsites).
+ * Returned when a storage read fails inside checkAILimit. Fail OPEN for a
+ * signed-in user — a lost read should never cost a trial or block value.
+ * recordAIUsage still only runs on success, so nothing is incremented here.
  */
-export async function checkAILimit(
+export const FAIL_OPEN_RESULT: LimitCheck = { allowed: true, remaining: 0 };
+
+/**
+ * PURE gating decision — no storage, no await. checkAILimit reads storage
+ * then delegates here; the validate script tests this directly.
+ *
+ * @param dailyCount       total AI calls used today (usage.count)
+ * @param dailySmartCount  smart-tier calls used today (usage.tier.smart)
+ * @param lifetimeUsed     lifetime uses of `feature` (0 if no feature / no cap)
+ */
+export function evaluateLimit(
   subscriptionTier: SubscriptionTierKey,
   requestTier: RequestTier,
-  feature?: AIFeature,
-): Promise<LimitCheck> {
+  feature: AIFeature | undefined,
+  dailyCount: number,
+  dailySmartCount: number,
+  lifetimeUsed: number,
+): LimitCheck {
   const limits = LIMITS[subscriptionTier];
-  const usage = await getDailyUsage();
-  const dailyRemaining = limits.daily - usage.count;
+  const dailyRemaining = limits.daily - dailyCount;
 
   // 1. Pro-only feature gate (free users can't use it at all)
   if (feature && subscriptionTier === 'free') {
@@ -261,13 +273,15 @@ export async function checkAILimit(
     }
   }
 
-  // 2. Free-tier lifetime cap (e.g. 3 Quick Estimates ever)
+  // 2. Free-tier lifetime cap (e.g. 3 Voice Captures ever). When trials
+  //    remain, this feature's free allowance is governed by the lifetime
+  //    cap, NOT the daily/smart quotas — so allow immediately. Without this
+  //    early return, the free smart-daily cap of 0 would block metered
+  //    features before the user could ever spend a trial.
   if (feature && subscriptionTier === 'free') {
     const cfg = FEATURE_CONFIG[feature];
     if (cfg?.freeLifetimeCap !== undefined) {
-      const lifetime = await getLifetimeUsage();
-      const used = lifetime[feature] ?? 0;
-      if (used >= cfg.freeLifetimeCap) {
+      if (lifetimeUsed >= cfg.freeLifetimeCap) {
         return {
           allowed: false,
           remaining: 0,
@@ -276,13 +290,12 @@ export async function checkAILimit(
           message: `You've used your ${cfg.freeLifetimeCap} free ${cfg.displayName ?? 'AI'} trials. Upgrade to Pro for unlimited use.`,
         };
       }
+      return { allowed: true, remaining: cfg.freeLifetimeCap - lifetimeUsed - 1 };
     }
   }
 
-  // 3. Daily total cap. The upgrade ladder is free → pro → business →
-  //    enterprise; enterprise users see no upgrade CTA, just a reset
-  //    countdown (handled at render time by the modal).
-  if (usage.count >= limits.daily) {
+  // 3. Daily total cap.
+  if (dailyCount >= limits.daily) {
     const nextTier = subscriptionTier === 'free' ? 'pro'
       : subscriptionTier === 'pro' ? 'business'
       : subscriptionTier === 'business' ? 'enterprise'
@@ -304,7 +317,7 @@ export async function checkAILimit(
   }
 
   // 4. Smart-tier daily cap (Pro/Business only — free has 0 smart by design)
-  if (requestTier === 'smart' && usage.tier.smart >= limits.smart) {
+  if (requestTier === 'smart' && dailySmartCount >= limits.smart) {
     const nextTier = subscriptionTier === 'free' ? 'pro'
       : subscriptionTier === 'pro' ? 'business'
       : subscriptionTier === 'business' ? 'enterprise'
@@ -328,6 +341,34 @@ export async function checkAILimit(
   }
 
   return { allowed: true, remaining: dailyRemaining - 1 };
+}
+
+/**
+ * Check whether the user can run the given AI feature. Pass `feature` for
+ * per-feature gating (preferred). Pass just `requestTier` for the legacy
+ * generic check (still works for existing callsites).
+ */
+export async function checkAILimit(
+  subscriptionTier: SubscriptionTierKey,
+  requestTier: RequestTier,
+  feature?: AIFeature,
+): Promise<LimitCheck> {
+  try {
+    const usage = await getDailyUsage();
+    const lifetime = feature ? await getLifetimeUsage() : {};
+    const lifetimeUsed = feature ? (lifetime[feature] ?? 0) : 0;
+    return evaluateLimit(
+      subscriptionTier,
+      requestTier,
+      feature,
+      usage.count,
+      usage.tier.smart,
+      lifetimeUsed,
+    );
+  } catch (err) {
+    console.warn('[aiRateLimiter] checkAILimit read failed — failing open', err);
+    return FAIL_OPEN_RESULT;
+  }
 }
 
 /**
