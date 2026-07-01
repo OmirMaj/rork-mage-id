@@ -14,6 +14,7 @@ import type {
 } from '@/types';
 import { getUIStrings } from './portalLanguages';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { computeProjectProgress } from '@/utils/projectProgress';
 
 /**
  * Per-item visibility gate. Undefined `portalState` is grandfathered as Sent
@@ -70,7 +71,7 @@ function renderSerialized<T>(item: T & { portalState?: PortalState }, serialize:
 // v3 added: clientCanSetBudget toggle, submitBudget config, project.targetBudget.
 // v2 added: invoice.lineItems summary, aiaPayApps section, hero photo +
 // schedule anchors.
-export const PORTAL_SNAPSHOT_VERSION = 7;
+export const PORTAL_SNAPSHOT_VERSION = 8;
 
 export interface PortalSnapshot {
   v: number;
@@ -249,6 +250,10 @@ export interface PortalSnapshot {
     // v3: an agreed-on contract value when no estimate exists yet. Falls
     // through to the budget stat so clients see a number they can react to.
     targetBudget?: { amount: number; setBy: 'client' | 'gc'; note?: string };
+    // v8: live overall percent-complete, rolled up from schedule tasks. Drives
+    // the portal's "live progress" trust signal in the hero. Omitted when there
+    // is no schedule to roll up.
+    progressPct?: number;
   };
   sections: {
     schedule?: {
@@ -911,6 +916,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       startDate,
       targetDate,
       targetBudget: projectTargetBudget,
+      progressPct: (() => { const p = computeProjectProgress(project); return p.hasSchedule ? p.pct : undefined; })(),
     },
     sections,
   };
