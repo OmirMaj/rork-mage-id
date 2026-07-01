@@ -36,7 +36,6 @@ export default function SignupScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -49,7 +48,6 @@ export default function SignupScreen() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
-  const confirmRef = useRef<TextInput>(null);
 
   const shake = useCallback(() => {
     Animated.sequence([
@@ -96,7 +94,7 @@ export default function SignupScreen() {
   const handleSignup = useCallback(async () => {
     setErrorMessage('');
 
-    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+    if (!name.trim() || !email.trim() || !password.trim()) {
       setErrorMessage('Please fill in all fields');
       shake();
       if (Platform.OS !== 'web') {
@@ -107,15 +105,6 @@ export default function SignupScreen() {
 
     if (password.length < 8) {
       setErrorMessage('Password must be at least 8 characters');
-      shake();
-      if (Platform.OS !== 'web') {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match');
       shake();
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -151,7 +140,7 @@ export default function SignupScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [name, email, password, confirmPassword, signup, buttonScale, shake]);
+  }, [name, email, password, signup, buttonScale, shake]);
 
   return (
     <View style={styles.container}>
@@ -295,8 +284,8 @@ export default function SignupScreen() {
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
-                  returnKeyType="next"
-                  onSubmitEditing={() => confirmRef.current?.focus()}
+                  returnKeyType="go"
+                  onSubmitEditing={handleSignup}
                   testID="signup-password"
                 />
                 <TouchableOpacity
@@ -312,24 +301,6 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Confirm Password</Text>
-              <View style={styles.inputWrapper}>
-                <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
-                <TextInput
-                  ref={confirmRef}
-                  style={styles.input}
-                  placeholder="Re-enter password"
-                  placeholderTextColor={themeColors.textMuted}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showPassword}
-                  returnKeyType="go"
-                  onSubmitEditing={handleSignup}
-                  testID="signup-confirm"
-                />
-              </View>
-            </View>
           </Animated.View>
 
           <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
