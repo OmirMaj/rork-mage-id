@@ -49,7 +49,6 @@ Derived from `hooks/useTierAccess.ts` (`REQUIRED_TIER`, `FEATURE_LIMITS`), `util
 
 **Free — $0 forever · 1 project · no credit card**
 - 1 active project
-- Client portal (1 homeowner)
 - Daily reports + voice-to-log
 - Basic schedule (manual Gantt)
 - Geo-tagged photo capture
@@ -88,7 +87,7 @@ Derived from `hooks/useTierAccess.ts` (`REQUIRED_TIER`, `FEATURE_LIMITS`), `util
 - Named CSM + priority support
 
 **Two gating notes for the owner (from Task 2 reconciliation; do NOT block copy):**
-1. `client_portal` has `REQUIRED_TIER='pro'` in `useTierAccess.ts`, but `FEATURE_LIMITS` documents a "1 free project + client portal" promise (`hooks/useTierAccess.ts:107`). Marketing keeps "Client portal (1 homeowner)" on Free per the documented promise. Flag: confirm the app actually grants a 1-homeowner portal on Free, or tighten the code gate.
+1. DECISION (owner, 2026-07-02): client portal is **Pro-gated** (matches `REQUIRED_TIER='pro'` in `useTierAccess.ts`). The Free tier MUST NOT claim client portal on any page or card; the client portal appears ONLY on Pro+ cards ("Live client portals"). Any "Client portal (1 homeowner)" line shown for a Free card in later task steps is SUPERSEDED — omit it. Do NOT re-add it to Free.
 2. `photo_documentation` is `REQUIRED_TIER='pro'`, but basic geo-tagged photo capture inside daily reports is ungated. Marketing keeps "Geo-tagged photo capture" on Free (basic capture); advanced photo documentation stays a Pro line.
 
 ---
@@ -437,7 +436,6 @@ Rewrite the hero around the spine, convert `#moat` into a SHOWN "Bid Confidence"
   ```html
             <ul class="tier-list">
               <li>1 active project</li>
-              <li>Client portal (1 homeowner)</li>
               <li>Daily reports + voice-to-log</li>
               <li>Basic schedule (manual Gantt)</li>
               <li>Geo-tagged photo capture</li>
@@ -520,7 +518,6 @@ Remove the standalone 14-day trial headline, keep Free = $0 forever · 1 project
   ```html
         <ul class="tier-features">
           <li>1 active project</li>
-          <li>Client portal (1 homeowner)</li>
           <li>Daily reports + voice-to-log</li>
           <li>Basic schedule (manual Gantt)</li>
           <li>Geo-tagged photo capture</li>
@@ -571,7 +568,11 @@ Remove the standalone 14-day trial headline, keep Free = $0 forever · 1 project
   After:
   `<p>Start free on your first project — no card required. On paid plans, monthly plans don't refund partial months; annual plans get a prorated refund within 30 days.</p>`
 
-- [ ] **FAQ "Starter free forever" (473-474) — align wording to Free = $0 forever · 1 project.** Confirm it still says "One active project … client portal for one homeowner." Keep; no contradiction.
+- [ ] **FAQ "Starter free forever" (473-474) — align wording to Free = $0 forever · 1 project AND strip any client-portal claim (Pro-gated per owner decision).** If the copy says "client portal for one homeowner" on Free, REMOVE that clause so Free reads "One active project, daily reports, basic schedule, and a few free AI trials." Before:
+  `<p><strong>Starter is free forever.</strong> One active project, plus a client portal for one homeowner, so you can run a job end to end before you pay.</p>`
+  After:
+  `<p><strong>Starter is free forever.</strong> One active project, daily reports, a basic schedule, and a few free AI trials — so you can run a job before you pay. The live client portal is a Pro feature.</p>`
+  (If the actual on-page wording differs, keep the structure: no client-portal-on-Free claim.)
 
 - [ ] **Grep assertions (pricing).** All must hold:
   - `grep -cE "14-day free trial" pricing.html` → `0` (standalone headline gone)
