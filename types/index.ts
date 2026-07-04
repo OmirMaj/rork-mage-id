@@ -464,6 +464,13 @@ export interface ScheduleTask {
   dependencies: string[];
   dependencyLinks?: DependencyLink[];
   notes: string;
+  /** AI-generated one-line reason for this task's sequencing + duration basis.
+   *  Populated by the generative scheduler; surfaced in the review screen and
+   *  on tap. Distinct from the free-text `notes` field. */
+  rationale?: string;
+  /** True when the generator guessed the duration/sequence (no cost-DB / crew
+   *  basis). Surfaced as a flag in the review screen so the GC can confirm. */
+  assumption?: boolean;
   status: TaskStatus;
   isMilestone?: boolean;
   /** Level of Effort — task spans from earliest predecessor start to

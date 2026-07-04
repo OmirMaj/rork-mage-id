@@ -12,7 +12,8 @@
     "test:health": "bun run scripts/validate-schedule-health.ts",
     "test:barlabel": "bun run scripts/validate-bar-label.ts",
     "test:gating": "bun run scripts/validate-activation-gating.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating",
+    "test:sched-schema": "bun run scripts/validate-schedule-gen-schema.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
