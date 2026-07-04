@@ -820,7 +820,11 @@ Rules:
   }
 
   return {
-    ok: !res.errorKind,
+    // A 'validation' partial is still a usable, token-spending success (some
+    // patches parsed) — meter it. Only hard failures reach the !res.success
+    // early-return above (ok:false). No-op today (aiBulkEdit passes no Zod
+    // schema so 'validation' is unreachable here), but correct if one is added.
+    ok: !res.errorKind || res.errorKind === 'validation',
     patches,
     summary: raw.summary ?? (patches.length === 0 ? 'No changes proposed.' : `${patches.length} task(s) to update.`),
     fromCache: res.fromCache,
