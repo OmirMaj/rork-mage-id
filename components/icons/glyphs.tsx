@@ -25,6 +25,7 @@ function glyph(render: (args: RenderArgs) => React.ReactNode) {
       </Svg>
     ),
   );
+  C.displayName = 'MageGlyph';
   return C;
 }
 
