@@ -128,6 +128,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/handover': 'Handover',
     '/weekly-snapshot': 'Weekly snapshot',
     '/schedule-pro': 'Schedule',
+    '/schedule-review': 'Review schedule',
     '/schedule-wizard': 'Schedule wizard',
     '/shared-schedule': 'Schedule',
     '/estimate-wizard': 'Estimate',
@@ -644,6 +645,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="generative-setup"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="schedule-review"
         options={{ headerShown: false }}
       />
       <Stack.Screen

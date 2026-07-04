@@ -9,6 +9,12 @@ export interface AutoScheduleResult {
   linkedItemCount: number;
 }
 
+// Ephemeral handoff so the generator screen can pass a draft to the review
+// screen without serializing large task arrays through navigation params.
+let pendingDraft: AutoScheduleResult | null = null;
+export function stashDraft(d: AutoScheduleResult) { pendingDraft = d; }
+export function takeDraft(): AutoScheduleResult | null { const d = pendingDraft; pendingDraft = null; return d; }
+
 function buildEstimateSummary(estimate: LinkedEstimate): { summary: string; categoryMap: Map<string, string[]> } {
   const byCategory: Record<string, { names: string[]; totalQty: number; totalCost: number; itemIds: string[] }> = {};
   estimate.items.forEach(item => {

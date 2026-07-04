@@ -28,7 +28,7 @@ import EmptyState from '@/components/EmptyState';
 import {
   buildSetupPlan, packagePlanToBidPackage, submittalPlanToSubmittal,
 } from '@/utils/generativeSetup';
-import { generateScheduleFromEstimate } from '@/utils/autoScheduleFromEstimate';
+import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -115,7 +115,7 @@ function GenerativeSetupInner() {
       if (includeSchedule && project.linkedEstimate) {
         try {
           const r = await generateScheduleFromEstimate(project, project.linkedEstimate);
-          updateProject(project.id, { schedule: r.schedule });
+          stashDraft(r);
           scheduleCreated = true;
         } catch (e) {
           scheduleError = e instanceof Error ? e.message : 'Schedule generation failed';
@@ -174,6 +174,7 @@ function GenerativeSetupInner() {
             result={result}
             styles={styles}
             t={t}
+            onReviewSchedule={() => router.push({ pathname: '/schedule-review', params: { projectId: project.id } } as any)}
             onOpenBuyout={() => router.replace({ pathname: '/buyout', params: { projectId: project.id } } as any)}
             onOpenMargin={() => router.replace({ pathname: '/living-estimate', params: { projectId: project.id } } as any)}
             onDone={() => router.back()}
@@ -349,11 +350,12 @@ function SectionCard({
 }
 
 function SuccessView({
-  result, styles, t, onOpenBuyout, onOpenMargin, onDone,
+  result, styles, t, onReviewSchedule, onOpenBuyout, onOpenMargin, onDone,
 }: {
   result: ApplyResult;
   styles: ReturnType<typeof makeStyles>;
   t: ThemeColors;
+  onReviewSchedule: () => void;
   onOpenBuyout: () => void;
   onOpenMargin: () => void;
   onDone: () => void;
@@ -377,9 +379,26 @@ function SuccessView({
         )}
       </View>
 
-      <TouchableOpacity style={styles.successPrimary} onPress={onOpenBuyout} activeOpacity={0.85}>
-        <Text style={styles.successPrimaryText}>Open buyout</Text>
-        <ArrowRight size={16} color="#fff" strokeWidth={1.75} />
+      {result.scheduleCreated && (
+        <TouchableOpacity style={styles.successPrimary} onPress={onReviewSchedule} activeOpacity={0.85}>
+          <CalendarRange size={16} color="#fff" strokeWidth={1.75} />
+          <Text style={styles.successPrimaryText}>Review schedule</Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={result.scheduleCreated ? styles.successLink : styles.successPrimary}
+        onPress={onOpenBuyout}
+        activeOpacity={0.85}
+      >
+        {result.scheduleCreated ? (
+          <Text style={styles.successLinkText}>Open buyout</Text>
+        ) : (
+          <>
+            <Text style={styles.successPrimaryText}>Open buyout</Text>
+            <ArrowRight size={16} color="#fff" strokeWidth={1.75} />
+          </>
+        )}
       </TouchableOpacity>
       <TouchableOpacity style={styles.successLink} onPress={onOpenMargin} activeOpacity={0.8}>
         <Text style={styles.successLinkText}>See projected margin</Text>
