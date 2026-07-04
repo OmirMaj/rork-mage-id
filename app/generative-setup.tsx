@@ -64,7 +64,7 @@ function GenerativeSetupInner() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const {
     getProject, getBidPackagesForProject, getSubmittalsForProject,
-    addBidPackage, addSubmittal, updateProject,
+    addBidPackage, addSubmittal,
   } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -127,7 +127,7 @@ function GenerativeSetupInner() {
     } finally {
       setApplying(false);
     }
-  }, [project, plan, includePackages, includeSubmittals, includeSchedule, addBidPackage, addSubmittal, updateProject]);
+  }, [project, plan, includePackages, includeSubmittals, includeSchedule, addBidPackage, addSubmittal]);
 
   if (!project) {
     return (

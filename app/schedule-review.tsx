@@ -7,7 +7,7 @@
 // "Use this schedule". Nothing is written to the project until then.
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -18,6 +18,8 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import EmptyState from '@/components/EmptyState';
 import { takeDraft, generateScheduleFromEstimate } from '@/utils/autoScheduleFromEstimate';
+import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
+import { SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScheduleTask } from '@/types';
@@ -37,7 +39,9 @@ export default function ScheduleReviewScreen() {
 
   const [draft] = useState(() => takeDraft());
   const [tasks, setTasks] = useState<ScheduleTask[]>(draft?.tasks ?? []);
-  const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+
+  const canRegenerate = !!project?.linkedEstimate;
 
   const byPhase = useMemo(() => {
     const m = new Map<string, ScheduleTask[]>();
@@ -45,32 +49,53 @@ export default function ScheduleReviewScreen() {
       const k = task.phase || 'General';
       m.set(k, [...(m.get(k) ?? []), task]);
     });
-    return Array.from(m.entries());
+    // Sort phases into canonical SCHEDULE_PHASES order; unknown phases sort last.
+    const order = (phase: string) => {
+      const idx = (SCHEDULE_PHASES as readonly string[]).indexOf(phase);
+      return idx === -1 ? SCHEDULE_PHASES.length : idx;
+    };
+    return Array.from(m.entries()).sort((a, b) => order(a[0]) - order(b[0]));
   }, [tasks]);
 
   const assumptionCount = useMemo(() => tasks.filter(x => x.assumption).length, [tasks]);
 
   const accept = useCallback(() => {
     if (!project || !draft) return;
-    updateProject(project.id, { schedule: { ...draft.schedule, tasks } });
+    // Rebuild so the persisted schedule's cached task-derived fields
+    // (criticalPathDays, healthScore, phases, …) reflect the accepted tasks
+    // rather than draft.schedule's values computed from the original draft.
+    const rebuilt = buildScheduleFromTasks(
+      draft.schedule.name ?? 'Schedule',
+      project.id,
+      tasks,
+      draft.schedule.baseline ?? null,
+    );
+    updateProject(project.id, { schedule: { ...draft.schedule, ...rebuilt, tasks } });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
   }, [project, draft, tasks, updateProject, router]);
 
-  const regeneratePhase = useCallback(async (phase: string) => {
-    if (!project?.linkedEstimate) return;
-    setRegenerating(phase);
+  // Whole-draft regenerate — re-runs generation and replaces the ENTIRE draft.
+  // A per-phase splice was broken: fresh ids dangle every retained/injected
+  // dependency link across phases, silently losing sequencing.
+  const regenerate = useCallback(async () => {
+    if (!project?.linkedEstimate || regenerating) return;
+    setRegenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate);
-      const freshForPhase = fresh.tasks.filter(x => (x.phase || 'General') === phase);
-      setTasks(prev => [...prev.filter(x => (x.phase || 'General') !== phase), ...freshForPhase]);
+      if (fresh.tasks.length === 0) {
+        Alert.alert('Couldn\'t regenerate', 'The generator returned no tasks. Your current draft is unchanged.');
+        return;
+      }
+      setTasks(fresh.tasks);
     } catch (e) {
-      console.warn('[schedule-review] regenerate failed:', e);
+      const message = e instanceof Error ? e.message : 'Something went wrong while regenerating the schedule.';
+      Alert.alert('Couldn\'t regenerate', message);
     } finally {
-      setRegenerating(null);
+      setRegenerating(false);
     }
-  }, [project]);
+  }, [project, regenerating]);
 
   // Empty state — nothing was stashed (deep link / reload).
   if (!draft) {
@@ -123,7 +148,6 @@ export default function ScheduleReviewScreen() {
         </View>
 
         {byPhase.map(([phase, phaseTasks]) => {
-          const busy = regenerating === phase;
           return (
             <View key={phase} style={styles.card}>
               <View style={styles.cardHead}>
@@ -131,26 +155,6 @@ export default function ScheduleReviewScreen() {
                   <Text style={styles.cardTitle}>{phase}</Text>
                   <Text style={styles.cardSub}>{phaseTasks.length} task{phaseTasks.length === 1 ? '' : 's'}</Text>
                 </View>
-                <TouchableOpacity
-                  style={[styles.regenBtn, busy && styles.regenBtnBusy]}
-                  onPress={() => regeneratePhase(phase)}
-                  disabled={!!regenerating || !project?.linkedEstimate}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Regenerate ${phase}`}
-                >
-                  {busy ? (
-                    <>
-                      <ActivityIndicator size="small" color={t.accent} />
-                      <Text style={styles.regenText}>Regenerating…</Text>
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCcw size={13} color={t.accent} strokeWidth={2} />
-                      <Text style={styles.regenText}>Regenerate</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
               </View>
 
               <View style={styles.cardBody}>
@@ -180,16 +184,42 @@ export default function ScheduleReviewScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity
-          style={[styles.cta, (!project || !!regenerating) && styles.ctaDisabled]}
-          onPress={accept}
-          disabled={!project || !!regenerating}
-          activeOpacity={0.85}
-          testID="accept-schedule"
-        >
-          <Check size={17} color={Colors.textOnAccent} strokeWidth={2.5} />
-          <Text style={styles.ctaText}>Use this schedule</Text>
-        </TouchableOpacity>
+        <View style={styles.footerRow}>
+          {canRegenerate && (
+            <TouchableOpacity
+              style={[styles.regenBtn, regenerating && styles.regenBtnBusy]}
+              onPress={regenerate}
+              disabled={regenerating}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Regenerate schedule"
+            >
+              {regenerating ? (
+                <>
+                  <ActivityIndicator size="small" color={t.accent} />
+                  <Text style={styles.regenText}>Regenerating…</Text>
+                </>
+              ) : (
+                <>
+                  <RefreshCcw size={15} color={t.accent} strokeWidth={2} />
+                  <Text style={styles.regenText}>Regenerate</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.cta, (!project || regenerating) && styles.ctaDisabled]}
+            onPress={accept}
+            disabled={!project || regenerating}
+            activeOpacity={0.85}
+            testID="accept-schedule"
+            accessibilityRole="button"
+            accessibilityLabel="Use this schedule"
+          >
+            <Check size={17} color={Colors.textOnAccent} strokeWidth={2.5} />
+            <Text style={styles.ctaText}>Use this schedule</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -221,8 +251,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cardSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
 
   regenBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    paddingHorizontal: 14, paddingVertical: 15, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: t.accentSoft, backgroundColor: t.accentSoft,
   },
   regenBtnBusy: { opacity: 0.7 },
@@ -248,7 +278,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12, backgroundColor: t.bg,
     borderTopWidth: 1, borderTopColor: t.line,
   },
+  footerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   cta: {
+    flex: 1,
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
     gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 16,
   },
