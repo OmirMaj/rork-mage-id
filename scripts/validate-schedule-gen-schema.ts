@@ -26,7 +26,17 @@ expect('assumption is optional', autoScheduleTaskSchema.safeParse(noAssumption).
 const normalized = normalizeGeneratedTask({ id: 't2', name: 'Roofing', phase: 'Roofing', duration: 3, predecessorIds: [] }, 1);
 expect('normalize defaults rationale to ""', normalized.rationale, '');
 expect('normalize defaults assumption to true when no basis given', normalized.assumption, true);
-expect('normalize clamps crewSize into 1..8', normalized.crewSize, 2);
+expect('normalize defaults crewSize to 2 when absent', normalized.crewSize, 2);
+
+// crewSize clamp path (the actual Math.min/max, not the default branch)
+expect('normalize clamps crewSize above 8 → 8', normalizeGeneratedTask({ crewSize: 20 }, 0).crewSize, 8);
+expect('normalize clamps crewSize below 1 → 1', normalizeGeneratedTask({ crewSize: 0 }, 0).crewSize, 1);
+expect('normalize rounds fractional crewSize', normalizeGeneratedTask({ crewSize: 3.4 }, 0).crewSize, 3);
+
+// other lenient defaults
+expect('normalize coerces unknown phase → General', normalizeGeneratedTask({ phase: 'Bogus' }, 0).phase, 'General');
+expect('normalize defaults missing duration → 3', normalizeGeneratedTask({ id: 'x' }, 0).duration, 3);
+expect('normalize coerces non-array predecessorIds → []', normalizeGeneratedTask({ predecessorIds: 'nope' as any }, 0).predecessorIds, []);
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 if (fail > 0) process.exit(1);
