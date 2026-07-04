@@ -11,7 +11,12 @@
     "test:colors": "bun run scripts/validate-schedule-colors.ts",
     "test:health": "bun run scripts/validate-schedule-health.ts",
     "test:barlabel": "bun run scripts/validate-bar-label.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel",
+    "test:gating": "bun run scripts/validate-activation-gating.ts",
+    "test:sched-schema": "bun run scripts/validate-schedule-gen-schema.ts",
+    "test:sched-history": "bun run scripts/validate-schedule-history.ts",
+    "test:sched-depcycle": "bun run scripts/validate-schedule-depcycle.ts",
+    "test:sched-copilot": "bun run scripts/validate-schedule-copilot-meter.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },

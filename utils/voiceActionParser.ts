@@ -21,7 +21,7 @@ import { mageAI } from '@/utils/mageAI';
 import type { Project, ScheduleTask } from '@/types';
 
 export const voiceActionSchema = z.object({
-  kind: z.enum(['rfi', 'co', 'note', 'project', 'punch', 'invoice', 'submittal', 'lead', 'unsure']).catch('unsure').default('unsure'),
+  kind: z.enum(['rfi', 'co', 'note', 'project', 'punch', 'invoice', 'submittal', 'lead', 'field_update', 'unsure']).catch('unsure').default('unsure'),
   // Why we chose this kind. Surfaces in the confirmation toast so the GC
   // can see the AI's read and quickly correct it.
   reasoning: z.string().default(''),
@@ -79,6 +79,21 @@ export const voiceActionSchema = z.object({
   submittalSubmittedBy: z.string().default(''),
   submittalRequiredDate: z.string().default(''),
 
+  // Field-update fields — a single spoken log that fans out to several
+  // systems at once (the voice jobsite-OS differentiator). Any subset may be
+  // present; empty arrays / strings are skipped on apply.
+  fieldWorkPerformed: z.string().default(''),
+  fieldTimeEntries: z.array(z.object({
+    trade: z.string().default(''),
+    hours: z.number().default(0),
+    notes: z.string().default(''),
+  })).default([]),
+  fieldScheduleUpdates: z.array(z.object({
+    taskName: z.string().default(''),
+    progressPercent: z.number().default(0),
+  })).default([]),
+  fieldMaterials: z.array(z.string()).default([]),
+
   // Lead (CRM) fields
   leadName: z.string().default(''),
   leadPhone: z.string().default(''),
@@ -135,6 +150,7 @@ KINDS
 - invoice: Bill the client / send a bill / collect payment for work performed. ("invoice them for demolition, twenty-eight hundred", "bill 850 square feet of drywall at 2.50 a foot", "send an invoice for the kitchen demo", "I need to bill the homeowner", "draft a bill for ten hours of labor", "invoice the client", "create an invoice", "charge them for materials")
 - submittal: A submittal package (cut sheets, shop drawings). ("submit door hardware schedule, spec 08 71 00", "light fixture cut sheets for the kitchen by Friday")
 - lead: A NEW homeowner inquiry / sales lead — a potential customer the GC just talked to or got a message from. ("new lead: John Smith, 555 1234, kitchen remodel, found us on Houzz", "got a lead from referral — Jane wants a bathroom reno around 25 grand", "Patel family called about a two-story addition", "lead came in from Yelp, walk-in this morning")
+- field_update: A daily field log that reports MULTIPLE things at once about work already done on THIS project — hours worked, task progress, and/or materials delivered. Pick this when the contractor is logging their day rather than asking a question or creating one document. ("log 3 hours framing, floor 2 drywall is 80 percent, 40 sheets of drywall delivered", "put me down for 6 hours today, rough plumbing done, electrical is half way", "we finished the foundation, spent 8 hours, got the rebar delivered")
 - unsure: The intent is ambiguous and the contractor should re-record.
 
 OUTPUT RULES
@@ -146,6 +162,7 @@ OUTPUT RULES
 - For invoice: invoiceNotes, invoiceLineItems (array of {name, description, quantity, unit, unitPrice}).
 - For submittal: submittalTitle, submittalSpecSection, submittalSubmittedBy, submittalRequiredDate.
 - For lead: leadName (homeowner, title-case), leadPhone, leadEmail, leadAddress, leadProjectType (free-text like "Kitchen remodel"), leadScope (any extra detail), leadBudgetMin / leadBudgetMax (dollars), leadTimeline ("spring", "ASAP"), leadSource (referral/website/houzz/angi/yelp/thumbtack/google/facebook/instagram/walk_in/repeat/sign/truck/other), leadSourceOther (referrer name if applicable), leadScore (1-10 fit score — be honest), leadScoreReason (one short sentence).
+- For field_update: fieldWorkPerformed (a one-line summary of the day's work), fieldTimeEntries (array of {trade, hours, notes} — one per crew/trade whose hours were stated; "put me down for 6 hours" with no trade -> trade "General"), fieldScheduleUpdates (array of {taskName, progressPercent} — match taskName to the schedule items in CONTEXT when possible; "done"/"finished" = 100, "halfway" = 50, "almost done" = 90), fieldMaterials (array of short strings for materials delivered, e.g. "40 sheets 5/8 drywall"). Only include the sub-parts actually mentioned.
 - For unsure: leave fields blank, set reasoning to explain what was missing.
 
 Always set 'reasoning' to a one-sentence explanation of why you picked this kind, in the contractor's voice ("Sounds like an RFI because…").
@@ -183,6 +200,10 @@ ${transcript}`,
       submittalSpecSection: '',
       submittalSubmittedBy: '',
       submittalRequiredDate: '',
+      fieldWorkPerformed: '',
+      fieldTimeEntries: [],
+      fieldScheduleUpdates: [],
+      fieldMaterials: [],
       leadName: '',
       leadPhone: '',
       leadEmail: '',

@@ -1231,7 +1231,13 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHeader}>SUBSCRIPTION PLAN</Text>
         <Text style={styles.sectionSubtext}>
-          Go Pro for AI takeoffs, pay apps, and unlimited projects.
+          {tier === 'free'
+            ? 'Go Pro for AI takeoffs, pay apps, and unlimited projects.'
+            : tier === 'pro'
+            ? 'Upgrade to Business for subcontractor management and higher AI caps.'
+            : tier === 'business'
+            ? 'Upgrade to Enterprise for the highest AI caps and priority support.'
+            : "You're on Enterprise — our top plan. Thanks for building with MAGE."}
         </Text>
         <View style={styles.group}>
           <View style={{ padding: 16, gap: 12 }}>

@@ -28,11 +28,15 @@ import {
   Check,
   AlertTriangle,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import type { ScheduleTask, LinkedEstimate } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
@@ -90,6 +94,8 @@ type Mode = 'home' | 'risks' | 'optimize' | 'explain' | 'ask' | 'asbuilt' | 'gen
 export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
+  const router = useRouter();
   const {
     visible, onClose, tasks, cpm, projectStartDate, todayDayNumber,
     onApplyPatch, onApplyBulkPatches, onReplaceAll, onFocusTasks, selectedIds,
@@ -139,10 +145,27 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     return tasks.filter(t => selectedIds.has(t.id)).map(t => t.title);
   }, [tasks, selectedIds]);
 
+  // Meter every user-initiated copilot AI call under the 'scheduleCopilot'
+  // feature key. Free tier gets 3 lifetime trials across the whole panel;
+  // paid tiers fall under the smart daily quota. Mirrors the standard
+  // checkAILimit → showAILimitAlert → recordAIUsage pattern used by every
+  // other AI feature (see components/AIEstimateValidator.tsx). Call before
+  // the model call; on block it shows the shared upgrade affordance and the
+  // caller should bail. Record usage with the same key AFTER a successful call.
+  const gateCopilot = useCallback(async (): Promise<boolean> => {
+    const limit = await checkAILimit(tier, 'smart', 'scheduleCopilot');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return false;
+    }
+    return true;
+  }, [tier, router]);
+
   const handleBulkEdit = useCallback(() => {
     if (!bulkDraft.trim() || !selectedIds || selectedIds.size === 0) return;
     const instruction = bulkDraft.trim();
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiBulkEdit(tasks, cpm, Array.from(selectedIds), instruction);
       setCallStats(s => ({ total: s.total + 1, cached: s.cached + (res.fromCache ? 1 : 0) }));
       // Surface timeout / network / http failures as the panel error banner so
@@ -159,6 +182,9 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         setBulkResult(null);
         return;
       }
+      // Record usage only on the success path — a blocked/failed edit must not
+      // burn a free-tier lifetime trial.
+      void recordAIUsage('smart', 'scheduleCopilot');
       setBulkResult({
         summary: res.summary,
         patches: res.patches,
@@ -166,8 +192,9 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         errorKind: res.errorKind,
       });
     });
+  // run is intentionally omitted (declared below); it is a stable useCallback.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bulkDraft, selectedIds, tasks, cpm]);
+  }, [bulkDraft, selectedIds, tasks, cpm, gateCopilot]);
 
   const handleBulkApplyAll = useCallback(() => {
     if (!bulkResult) return;
@@ -213,44 +240,71 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const handleDetectRisks = useCallback(() => {
     setMode('risks');
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiDetectRisks(tasks, cpm);
       setRiskResult({ summary: res.summary, findings: res.findings });
+      // aiDetectRisks returns a fallback summary on failure instead of throwing;
+      // only meter a genuine result.
+      if (res.summary !== 'AI risk check failed. Try again.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
-  }, [tasks, cpm, run]);
+  }, [tasks, cpm, run, gateCopilot]);
 
   const handleOptimize = useCallback(() => {
     setMode('optimize');
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiOptimizeSchedule(tasks, cpm);
       setOptResult({ summary: res.summary, ideas: res.ideas });
+      // Fallback summary on failure (helper never throws) — don't meter it.
+      if (res.summary !== 'AI optimizer failed.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
-  }, [tasks, cpm, run]);
+  }, [tasks, cpm, run, gateCopilot]);
 
   const handleExplain = useCallback(() => {
     setMode('explain');
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiExplainCriticalPath(tasks, cpm);
       setExplainText(res.explanation);
+      // Fallback string on failure (helper never throws) — don't meter it.
+      if (res.explanation !== 'AI explainer unavailable right now.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
-  }, [tasks, cpm, run]);
+  }, [tasks, cpm, run, gateCopilot]);
 
   const handleAsk = useCallback(() => {
     if (!chatDraft.trim()) return;
     const question = chatDraft.trim();
-    setChatDraft('');
     run(async () => {
+      if (!(await gateCopilot())) return;
+      setChatDraft('');
       const res = await aiAskSchedule(tasks, cpm, question, projectStartDate);
       setChatHistory(h => [...h, { q: question, a: res.answer }]);
+      // 'No answer.' is the helper's empty-response fallback — only meter a
+      // real answer.
+      if (res.answer !== 'No answer.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
-  }, [chatDraft, tasks, cpm, projectStartDate, run]);
+  }, [chatDraft, tasks, cpm, projectStartDate, run, gateCopilot]);
 
   const handleAsBuiltParse = useCallback(() => {
     if (!asBuiltDraft.trim()) return;
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiLogAsBuilt(tasks, asBuiltDraft.trim(), todayDayNumber);
       setAsBuiltPatches(res.patches);
+      // Fallback summary on parse failure (helper never throws) — don't meter it.
+      if (res.summary !== 'Could not parse that.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
-  }, [asBuiltDraft, tasks, todayDayNumber, run]);
+  }, [asBuiltDraft, tasks, todayDayNumber, run, gateCopilot]);
 
   const handleAsBuiltApply = useCallback((p: AIAsBuiltPatch) => {
     onApplyPatch(p.taskId, p.patch);
@@ -266,17 +320,23 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const handleGenerate = useCallback(() => {
     if (!genDraft.trim()) return;
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiGenerateSchedule(genDraft.trim());
       setGenSource('text');
       setGenPreview(materializeGeneratedTasks(res.tasks));
+      // Fallback summary on failure (helper never throws) — don't meter it.
+      if (res.summary !== 'Generator failed.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
-  }, [genDraft, run]);
+  }, [genDraft, run, gateCopilot]);
 
   // One-tap, estimate-grounded generation. Tasks come back cost-linked, so the
   // earned-value and cash-flow panels populate the moment the plan is applied.
   const handleGenerateFromEstimate = useCallback(() => {
     if (!linkedEstimate || linkedEstimate.items.length === 0) return;
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiGenerateScheduleFromEstimate({
         items: linkedEstimate.items.map(it => ({
           materialId: it.materialId,
@@ -288,8 +348,12 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       });
       setGenSource('estimate');
       setGenPreview(materializeGeneratedTasks(res.tasks));
+      // Fallback summary on failure (helper never throws) — don't meter it.
+      if (res.summary !== 'Generator failed.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
-  }, [linkedEstimate, run]);
+  }, [linkedEstimate, run, gateCopilot]);
 
   const handleGenerateApply = useCallback(() => {
     if (!genPreview) return;

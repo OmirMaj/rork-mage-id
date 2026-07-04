@@ -1,34 +1,19 @@
-import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
+import { autoScheduleSchema, normalizeGeneratedTask, SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import type { Project, ScheduleTask, ProjectSchedule, DependencyLink, DependencyType, LinkedEstimate } from '@/types';
-
-const SCHEDULE_PHASES = [
-  'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
-  'MEP', 'Plumbing', 'Electrical', 'HVAC', 'Insulation',
-  'Drywall', 'Interior', 'Finishes', 'Landscaping', 'Inspections', 'General',
-] as const;
-
-const autoScheduleSchema = z.object({
-  tasks: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    phase: z.string(),
-    duration: z.number(),
-    predecessorIds: z.array(z.string()),
-    isMilestone: z.boolean(),
-    isCriticalPath: z.boolean(),
-    crewSize: z.number(),
-    wbs: z.string(),
-    linkedCategories: z.array(z.string()).optional(),
-  })),
-});
 
 export interface AutoScheduleResult {
   schedule: ProjectSchedule;
   tasks: ScheduleTask[];
   linkedItemCount: number;
 }
+
+// Ephemeral handoff so the generator screen can pass a draft to the review
+// screen without serializing large task arrays through navigation params.
+let pendingDraft: AutoScheduleResult | null = null;
+export function stashDraft(d: AutoScheduleResult) { pendingDraft = d; }
+export function takeDraft(): AutoScheduleResult | null { const d = pendingDraft; pendingDraft = null; return d; }
 
 function buildEstimateSummary(estimate: LinkedEstimate): { summary: string; categoryMap: Map<string, string[]> } {
   const byCategory: Record<string, { names: string[]; totalQty: number; totalCost: number; itemIds: string[] }> = {};
@@ -80,13 +65,14 @@ Estimate grand total: $${Math.round(estimate.grandTotal).toLocaleString()}
 
 INSTRUCTIONS:
 1. Return a JSON object with a "tasks" array.
-2. Each task must have: id (string like "t1","t2"), name, phase (one of: ${SCHEDULE_PHASES.join(', ')}), duration (working days, integer), predecessorIds (array of other task ids — FS dependencies), isMilestone (bool), isCriticalPath (bool), crewSize (integer 1-8), wbs (like "1.1","2.3"), linkedCategories (array of estimate category names this task draws from, e.g. ["concrete","lumber"]).
+2. Each task must have: id (string like "t1","t2"), name, phase (one of: ${SCHEDULE_PHASES.join(', ')}), duration (working days, integer), predecessorIds (array of other task ids — FS dependencies), isMilestone (bool), isCriticalPath (bool), crewSize (integer 1-8), wbs (like "1.1","2.3"), rationale (ONE sentence explaining WHY this task is sequenced here and how its duration was derived, e.g. "Framing precedes drywall; 5 days scaled from 1,800 SF at a 4-person crew"), assumption (bool — true if you GUESSED the duration/sequence rather than deriving it from the estimate quantities), linkedCategories (array of estimate category names this task draws from).
 3. Include a "Project Start" milestone (duration 0) and "Project Complete" milestone (duration 0).
 4. Generate 15-35 tasks based on scope. Use realistic durations scaled to sqft and grand total.
 5. Use category totals to weight durations — heavier categories (concrete/framing/MEP) get more days.
 6. Mark tasks on the longest chain as isCriticalPath: true.
 7. Link every task to the relevant estimate categories via linkedCategories so we can tie spend to schedule.
 8. If the estimate has almost no site-work materials but large finishes, skew the schedule toward interior work.
+9. Every task MUST include a non-empty rationale. Set assumption:true when the estimate lacks the quantities to size the task and you fell back to a rule of thumb.
 
 Output JSON only. No prose.`;
 
@@ -119,19 +105,8 @@ Output JSON only. No prose.`;
     throw new Error('AI returned no tasks');
   }
 
-  // Normalize
-  const safeTasks = taskArray.map((t: any, idx: number) => ({
-    id: t.id || `t${idx + 1}`,
-    name: t.name || t.title || `Task ${idx + 1}`,
-    phase: SCHEDULE_PHASES.includes(t.phase) ? t.phase : 'General',
-    duration: typeof t.duration === 'number' ? t.duration : 3,
-    predecessorIds: Array.isArray(t.predecessorIds) ? t.predecessorIds : [],
-    isMilestone: !!t.isMilestone,
-    isCriticalPath: !!t.isCriticalPath,
-    crewSize: typeof t.crewSize === 'number' ? Math.min(8, Math.max(1, Math.round(t.crewSize))) : 2,
-    wbs: t.wbs || `${idx + 1}.0`,
-    linkedCategories: Array.isArray(t.linkedCategories) ? t.linkedCategories.map((c: any) => String(c).toLowerCase()) : [],
-  }));
+  // Normalize (shared, testable — utils/scheduleGenSchema.ts)
+  const safeTasks = taskArray.map((t: any, idx: number) => normalizeGeneratedTask(t, idx));
 
   // Build real ScheduleTask objects
   const tasks: ScheduleTask[] = safeTasks.map((t, idx) => {
@@ -149,6 +124,8 @@ Output JSON only. No prose.`;
       dependencies: [],
       dependencyLinks: [],
       notes: '',
+      rationale: t.rationale,
+      assumption: t.assumption,
       status: 'not_started' as const,
       isMilestone: t.isMilestone,
       wbsCode: t.wbs,

@@ -20,6 +20,8 @@ import {
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
+import BidConfidenceBadge from '@/components/BidConfidenceBadge';
+import { computeProjectProgress } from '@/utils/projectProgress';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -1217,6 +1219,7 @@ export default function ProjectDetailScreen() {
   const collaborators = project.collaborators ?? [];
 
   const heroTotal = effectiveEstimateTotal(project);
+  const heroProgress = computeProjectProgress(project);
   const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
 
   return (
@@ -1261,6 +1264,17 @@ export default function ProjectDetailScreen() {
                 />
                 <Text style={styles.heroTapHint}>{heroLabel}{estimate ? ' · Tap for breakdown' : ''}</Text>
               </TouchableOpacity>
+              <View style={{ marginTop: 10, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <BidConfidenceBadge project={project} variant="hero" />
+                {heroProgress.hasSchedule && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
+                    <View style={{ width: 44, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' }}>
+                      <View style={{ width: `${heroProgress.pct}%`, height: 6, backgroundColor: '#FFFFFF' }} />
+                    </View>
+                    <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{heroProgress.pct}% done</Text>
+                  </View>
+                )}
+              </View>
               <View style={styles.heroStatsRow}>
                 {estimate && (
                   <>

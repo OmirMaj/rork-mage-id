@@ -26,6 +26,30 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import {
+  evaluateLimit,
+  FAIL_OPEN_RESULT,
+  FEATURE_CONFIG,
+  LIMITS,
+} from './aiRateLimiterCore';
+import type {
+  AIFeature,
+  FeatureConfig,
+  SubscriptionTierKey,
+  RequestTier,
+  LimitCheck,
+} from './aiRateLimiterCore';
+
+// Re-export the pure core so the public API of '@/utils/aiRateLimiter' is
+// unchanged for existing importers.
+export { evaluateLimit, FAIL_OPEN_RESULT, FEATURE_CONFIG, LIMITS } from './aiRateLimiterCore';
+export type {
+  AIFeature,
+  FeatureConfig,
+  SubscriptionTierKey,
+  RequestTier,
+  LimitCheck,
+} from './aiRateLimiterCore';
 
 const RATE_KEY = 'mage_ai_usage';
 const LIFETIME_KEY = 'mage_ai_lifetime';
@@ -89,105 +113,6 @@ interface LifetimeUsage {
   [feature: string]: number;
 }
 
-/** All AI features in the app — catalogued so we can gate them per-tier. */
-export type AIFeature =
-  // Fast / cheap — counted toward the daily fast quota
-  | 'voiceIntake'
-  | 'leadScoring'
-  | 'copilot'
-  | 'homeBriefing'
-  | 'invoicePrediction'
-  | 'subEvaluation'
-  | 'equipmentAdvice'
-  | 'homeownerSummary'
-  | 'changeOrderImpact'
-  | 'dailyReport'
-  | 'projectReport'
-  // Smart / expensive
-  | 'quickEstimate'      // free: 3 lifetime trials
-  | 'scheduleBuilder'    // free: 3 lifetime trials
-  | 'estimateValidation' // free: 3 lifetime trials
-  // Pro+ only — too expensive for free tier
-  | 'weeklyAnalysis'
-  | 'bidLeveling'
-  | 'photoAnalysis'
-  | 'drawingAnalysis'
-  | 'specBookExtract';
-
-interface FeatureConfig {
-  /** Cost class — affects daily quota bucket. */
-  tier: RequestTier;
-  /** If set, free users get this many TOTAL uses ever; then paywall. */
-  freeLifetimeCap?: number;
-  /** If true, feature is unavailable on free tier entirely. */
-  proOnly?: boolean;
-  /** Display name for paywall messages. */
-  displayName?: string;
-}
-
-const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
-  // Fast features — unlimited within daily quota
-  voiceIntake:        { tier: 'fast', displayName: 'Voice intake' },
-  leadScoring:        { tier: 'fast', displayName: 'Lead scoring' },
-  copilot:            { tier: 'fast', displayName: 'Construction AI' },
-  homeBriefing:       { tier: 'fast', displayName: 'Daily briefing' },
-  invoicePrediction:  { tier: 'fast', displayName: 'Invoice prediction' },
-  subEvaluation:      { tier: 'fast', displayName: 'Sub evaluation' },
-  equipmentAdvice:    { tier: 'fast', displayName: 'Equipment advice' },
-  homeownerSummary:   { tier: 'fast', displayName: 'Homeowner digest' },
-  changeOrderImpact:  { tier: 'fast', displayName: 'Change order impact' },
-  dailyReport:        { tier: 'fast', displayName: 'Daily report' },
-  projectReport:      { tier: 'fast', displayName: 'Project report' },
-
-  // Smart features — free gets a few trials, then paywall
-  quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick Estimate' },
-  scheduleBuilder:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'AI Schedule Builder' },
-  estimateValidation: { tier: 'smart', freeLifetimeCap: 3, displayName: 'Estimate Validation' },
-
-  // Pro+ only — high-value features that require subscription
-  weeklyAnalysis:     { tier: 'smart', proOnly: true, displayName: 'Weekly Full Analysis' },
-  bidLeveling:        { tier: 'smart', proOnly: true, displayName: 'AI Bid Leveling' },
-  photoAnalysis:      { tier: 'smart', proOnly: true, displayName: 'Photo Analysis' },
-  drawingAnalysis:    { tier: 'smart', proOnly: true, displayName: 'Drawing Analysis' },
-  specBookExtract:    { tier: 'smart', proOnly: true, displayName: 'Spec Book Extract' },
-};
-
-const LIMITS = {
-  // Daily caps for text-AI calls. Locked-in to keep a 50%+ gross margin
-  // even when a user maxes out every single day for a full month, given
-  // the published Pro / Business / Enterprise prices ($29 / $79 / $150).
-  // Worst-case Gemini cost per tier:
-  //   Free:        $0.30/mo  (negligible)
-  //   Pro:        $11.31/mo  (61% margin floor at $29)
-  //   Business:   $33.57/mo  (58% margin floor at $79)
-  //   Enterprise: $70.65/mo  (53% margin floor at $150)
-  // Smart-tier features on free are individually gated by lifetime cap or
-  // pro-only, so a generic smart-daily quota is redundant on free.
-  free:       { daily: 5,   smart: 0  },
-  pro:        { daily: 30,  smart: 6  },
-  business:   { daily: 80,  smart: 18 },
-  enterprise: { daily: 150, smart: 40 },
-} as const;
-
-export type SubscriptionTierKey = 'free' | 'pro' | 'business' | 'enterprise';
-export type RequestTier = 'fast' | 'smart';
-
-export interface LimitCheck {
-  allowed: boolean;
-  remaining: number;
-  message?: string;
-  /**
-   * Why it was blocked, so UI can branch on it (paywall vs. limit reached
-   * vs. resets-tomorrow). Set when `allowed === false`.
-   */
-  reason?: 'daily_cap' | 'lifetime_cap' | 'pro_only' | 'smart_cap';
-  /**
-   * Best-fit upgrade target — UI uses this to deep-link the paywall to the
-   * right plan instead of showing "Upgrade" generically.
-   */
-  upgradeTo?: 'pro' | 'business' | 'enterprise';
-}
-
 async function getDailyUsage(): Promise<DailyUsage> {
   const today = new Date().toISOString().split('T')[0];
 
@@ -243,91 +168,22 @@ export async function checkAILimit(
   requestTier: RequestTier,
   feature?: AIFeature,
 ): Promise<LimitCheck> {
-  const limits = LIMITS[subscriptionTier];
-  const usage = await getDailyUsage();
-  const dailyRemaining = limits.daily - usage.count;
-
-  // 1. Pro-only feature gate (free users can't use it at all)
-  if (feature && subscriptionTier === 'free') {
-    const cfg = FEATURE_CONFIG[feature];
-    if (cfg?.proOnly) {
-      return {
-        allowed: false,
-        remaining: 0,
-        reason: 'pro_only',
-        upgradeTo: 'pro',
-        message: `${cfg.displayName ?? feature} is a Pro feature. Upgrade to unlock unlimited use.`,
-      };
-    }
+  try {
+    const usage = await getDailyUsage();
+    const lifetime = feature ? await getLifetimeUsage() : {};
+    const lifetimeUsed = feature ? (lifetime[feature] ?? 0) : 0;
+    return evaluateLimit(
+      subscriptionTier,
+      requestTier,
+      feature,
+      usage.count,
+      usage.tier.smart,
+      lifetimeUsed,
+    );
+  } catch (err) {
+    console.warn('[aiRateLimiter] checkAILimit read failed — failing open', err);
+    return FAIL_OPEN_RESULT;
   }
-
-  // 2. Free-tier lifetime cap (e.g. 3 Quick Estimates ever)
-  if (feature && subscriptionTier === 'free') {
-    const cfg = FEATURE_CONFIG[feature];
-    if (cfg?.freeLifetimeCap !== undefined) {
-      const lifetime = await getLifetimeUsage();
-      const used = lifetime[feature] ?? 0;
-      if (used >= cfg.freeLifetimeCap) {
-        return {
-          allowed: false,
-          remaining: 0,
-          reason: 'lifetime_cap',
-          upgradeTo: 'pro',
-          message: `You've used your ${cfg.freeLifetimeCap} free ${cfg.displayName ?? 'AI'} trials. Upgrade to Pro for unlimited use.`,
-        };
-      }
-    }
-  }
-
-  // 3. Daily total cap. The upgrade ladder is free → pro → business →
-  //    enterprise; enterprise users see no upgrade CTA, just a reset
-  //    countdown (handled at render time by the modal).
-  if (usage.count >= limits.daily) {
-    const nextTier = subscriptionTier === 'free' ? 'pro'
-      : subscriptionTier === 'pro' ? 'business'
-      : subscriptionTier === 'business' ? 'enterprise'
-      : undefined;
-    const nextDailyCap = nextTier === 'pro' ? 30
-      : nextTier === 'business' ? 80
-      : nextTier === 'enterprise' ? 150
-      : null;
-    const message = subscriptionTier === 'enterprise'
-      ? "You've reached today's AI limit. Resets at midnight."
-      : `You've used today's ${limits.daily} AI requests. Upgrade to ${nextTier?.[0].toUpperCase()}${nextTier?.slice(1)} for ${nextDailyCap}/day.`;
-    return {
-      allowed: false,
-      remaining: 0,
-      reason: 'daily_cap',
-      upgradeTo: nextTier as 'pro' | 'business' | 'enterprise' | undefined,
-      message,
-    };
-  }
-
-  // 4. Smart-tier daily cap (Pro/Business only — free has 0 smart by design)
-  if (requestTier === 'smart' && usage.tier.smart >= limits.smart) {
-    const nextTier = subscriptionTier === 'free' ? 'pro'
-      : subscriptionTier === 'pro' ? 'business'
-      : subscriptionTier === 'business' ? 'enterprise'
-      : undefined;
-    const nextSmartCap = nextTier === 'pro' ? 6
-      : nextTier === 'business' ? 18
-      : nextTier === 'enterprise' ? 40
-      : null;
-    const message = subscriptionTier === 'free'
-      ? `Advanced AI requires Pro. Upgrade to unlock Quick Estimate, Schedule Builder, and more.`
-      : subscriptionTier === 'enterprise'
-        ? `You've used today's advanced AI. Try again tomorrow or use quick AI features instead.`
-        : `You've used today's ${limits.smart} advanced AI calls. Upgrade to ${nextTier?.[0].toUpperCase()}${nextTier?.slice(1)} for ${nextSmartCap}/day.`;
-    return {
-      allowed: false,
-      remaining: dailyRemaining,
-      reason: 'smart_cap',
-      upgradeTo: nextTier as 'pro' | 'business' | 'enterprise' | undefined,
-      message,
-    };
-  }
-
-  return { allowed: true, remaining: dailyRemaining - 1 };
 }
 
 /**

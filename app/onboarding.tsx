@@ -42,7 +42,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { ArrowRight, Check, Ruler, DollarSign, Mic } from 'lucide-react-native';
+import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -87,6 +87,8 @@ interface PreviewCard {
   Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   title: string;
   body: string;
+  /** Final card in the stack — renders the primary "try it" CTA. */
+  isTryIt?: boolean;
 }
 
 // Preview cards — what you actually get. Anchors the value prop without
@@ -104,14 +106,20 @@ const PREVIEW_CARDS: PreviewCard[] = [
     body: 'Drop in plans. Get walls, doors, finishes in seconds. Then turn them into sub bid packages.',
   },
   {
-    Icon: DollarSign,
-    title: 'Money on the schedule',
-    body: 'Cost-loaded Gantt with Planned vs Earned Value, AIA G702/G703 pay apps, 12-week cash flow.',
+    Icon: TrendingUp,
+    title: 'Every job makes your next bid smarter',
+    body: 'MAGE learns your real costs as you build. Each finished job sharpens the next estimate — a moat that compounds with every project.',
   },
   {
     Icon: Mic,
     title: 'Voice on the jobsite',
     body: 'Tap once, talk. AI logs your daily report, files the RFI, drafts the change order. Works offline.',
+  },
+  {
+    Icon: Check,
+    title: 'Your turn',
+    body: 'Try it free — build an AI estimate or dictate a report. See the wow before anything asks you to upgrade.',
+    isTryIt: true,
   },
 ];
 
@@ -123,6 +131,9 @@ export default function OnboardingScreen() {
   const { colors: themeColors } = useTheme();
 
   const [step, setStep] = useState<Step>('splash');
+
+  // Card-stack progressive disclosure — which preview card is showing.
+  const [cardIndex, setCardIndex] = useState(0);
 
   // ── Import-your-pipeline step state. The size band picked on the routing
   // step is held here until the import step finishes, so we can seed a tuned
@@ -440,36 +451,57 @@ export default function OnboardingScreen() {
             <Text style={styles.headlineItalic}>The whole job.</Text>
           </Animated.Text>
 
-          {/* Three preview cards. Each is a single-line title + short body
-              with a brand-color icon tile. No fake screenshots; the value
-              prop is encoded in the copy. */}
+          {/* Card-stack progressive disclosure — one beat at a time. Tap the
+              card (or the CTA) to reveal the next; the final "try it" card
+              advances the flow. Progress pips show position. */}
           <Animated.View style={[styles.previewList, { opacity: bodyOpacity }]}>
-            {PREVIEW_CARDS.map((card, i) => {
+            {(() => {
+              const card = PREVIEW_CARDS[Math.min(cardIndex, PREVIEW_CARDS.length - 1)];
               const Icon = card.Icon;
+              const isLast = cardIndex >= PREVIEW_CARDS.length - 1;
+              const advance = () => {
+                if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (isLast) { handlePreviewNext(); return; }
+                setCardIndex(i => i + 1);
+              };
               return (
-                <View key={i} style={styles.previewCard}>
-                  <View style={styles.previewIcon}>
-                    <Icon size={18} color={BRAND.orange} strokeWidth={2.2} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.previewTitle}>{card.title}</Text>
-                    <Text style={styles.previewBody}>{card.body}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </Animated.View>
+                <>
+                  <Pressable
+                    onPress={advance}
+                    style={({ pressed }) => [styles.previewCard, pressed && { opacity: 0.92 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={card.title}
+                    testID={`onboarding-preview-card-${cardIndex}`}
+                  >
+                    <View style={styles.previewIcon}>
+                      <Icon size={18} color={BRAND.orange} strokeWidth={2.2} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.previewTitle}>{card.title}</Text>
+                      <Text style={styles.previewBody}>{card.body}</Text>
+                    </View>
+                  </Pressable>
 
-          <Animated.View style={{ opacity: ctaOpacity, marginTop: 20, transform: [{ scale: ctaScale }] }}>
-            <Pressable
-              onPress={handlePreviewNext}
-              style={({ pressed }) => [styles.ctaPrimary, pressed && { opacity: 0.92 }]}
-              accessibilityLabel="Continue to setup"
-              testID="onboarding-preview-next"
-            >
-              <Text style={styles.ctaPrimaryText}>Sounds good</Text>
-              <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
-            </Pressable>
+                  <View style={styles.pipRow}>
+                    {PREVIEW_CARDS.map((_, i) => (
+                      <View key={i} style={[styles.pip, i === cardIndex && styles.pipActive]} />
+                    ))}
+                  </View>
+
+                  <Animated.View style={{ opacity: ctaOpacity, marginTop: 8, transform: [{ scale: ctaScale }] }}>
+                    <Pressable
+                      onPress={advance}
+                      style={({ pressed }) => [styles.ctaPrimary, styles.ctaWide, pressed && { opacity: 0.92 }]}
+                      accessibilityLabel={isLast ? 'Continue to setup' : 'Next'}
+                      testID="onboarding-preview-next"
+                    >
+                      <Text style={styles.ctaPrimaryText}>{isLast ? 'Let’s go' : 'Next'}</Text>
+                      <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
+                    </Pressable>
+                  </Animated.View>
+                </>
+              );
+            })()}
           </Animated.View>
 
           {/* Sign-in link — consistent with splash. Returning users
@@ -865,6 +897,22 @@ const styles = StyleSheet.create({
     color: BRAND.fog,
     marginTop: 4,
     lineHeight: 18,
+  },
+  pipRow: {
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    marginTop: 14,
+  },
+  pip: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(244,239,230,0.22)',
+  },
+  pipActive: {
+    backgroundColor: BRAND.cream,
+    width: 18,
   },
 
   // ── Routing card list ───────────────────────────────────────────

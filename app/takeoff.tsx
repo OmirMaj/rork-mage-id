@@ -37,8 +37,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
-import { useTierAccess } from '@/hooks/useTierAccess';
-import Paywall from '@/components/Paywall';
+import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
+import UpgradeSheet from '@/components/UpgradeSheet';
 import { uploadAndRenderPdf, countPdfPages, type RenderedPlanPage } from '@/utils/pdfRenderClient';
 import { confirmQuotaFits } from '@/utils/quotaPrecheck';
 import { TakeoffQuotaBadge } from '@/components/TakeoffQuotaBadge';
@@ -91,20 +91,6 @@ const MODEL_DISPLAY: Record<TakeoffModel, { label: string; tagline: string }> = 
 };
 
 export default function TakeoffScreen() {
-  const router = useRouter();
-  const { canAccess } = useTierAccess();
-  // Takeoff piggybacks on the same gate as the drawing analyzer because
-  // both burn Gemini Vision tokens at similar rates.
-  if (!canAccess('ai_estimate_wizard')) {
-    return (
-      <Paywall
-        visible={true}
-        feature="AI Quantity Takeoff"
-        requiredTier="pro"
-        onClose={() => router.back()}
-      />
-    );
-  }
   return <TakeoffInner />;
 }
 
@@ -115,7 +101,7 @@ function TakeoffInner() {
   const styles = useThemedStyles(makeStyles);
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, addBidPackage } = useProjects();
-  const { isBusinessTier, isEnterpriseTier } = useSubscription();
+  const { isBusinessTier, isEnterpriseTier, tier } = useSubscription();
   const { refresh: refreshQuota } = useUsageStatus();
 
   const [step, setStep] = useState<Step>('idle');
@@ -137,6 +123,7 @@ function TakeoffInner() {
   const [buyoutDrafts, setBuyoutDrafts] = useState<BuyoutPackageDraft[] | null>(null);
   const [buyoutBusy, setBuyoutBusy] = useState(false);
   const [verifications, setVerifications] = useState<TakeoffFieldVerification[]>([]);
+  const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
 
   const project = useMemo(() =>
     pickedProjectId ? getProject(pickedProjectId) : undefined,
@@ -191,6 +178,13 @@ function TakeoffInner() {
   const handlePick = useCallback(async () => {
     setError(null);
     try {
+      // Metered gate — a free user gets 1 lifetime AI takeoff, then a wall.
+      const gate = await checkAILimit(tier, 'smart', 'aiTakeoff');
+      if (!gate.allowed) {
+        setUpgradeLimit(gate);
+        return;
+      }
+
       const picked = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
         copyToCacheDirectory: true,
@@ -240,13 +234,16 @@ function TakeoffInner() {
       setStep('review');
       // Mark the onboarding milestone — drives the home-screen checklist.
       void markFirstTakeoffDone();
+      // Increment ONLY on a successful analysis — a cancelled pick or a
+      // failed analyze never burns the single free trial.
+      void recordAIUsage('smart', 'aiTakeoff');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[Takeoff] failed', e);
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [pickedProjectId, project, pickedModel, router, refreshQuota]);
+  }, [pickedProjectId, project, pickedModel, router, refreshQuota, tier]);
 
   const handleMatchSpecs = useCallback(async () => {
     if (!result) return;
@@ -768,6 +765,13 @@ function TakeoffInner() {
           onConfirm={handleCreateAllBuyouts}
         />
       )}
+
+      <UpgradeSheet
+        visible={!!upgradeLimit}
+        limit={upgradeLimit}
+        featureLabel="AI Takeoff"
+        onClose={() => setUpgradeLimit(null)}
+      />
     </View>
   );
 }

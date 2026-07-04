@@ -104,6 +104,9 @@ export const FEATURE_LIMITS = {
   ai_code_check_daily:    { free: 3, pro: 15,       business: 50,       enterprise: Infinity },
   ai_permit_roadmap_daily: { free: 2, pro: 15,       business: 50,       enterprise: Infinity },
   ai_plan_review_daily:    { free: 0, pro: 10,       business: 30,       enterprise: 60 },
+  // Free tier: 1 real project (the "1 free project + client portal" promise).
+  // Sample/demo projects are excluded by the caller before comparing.
+  maxProjects:             { free: 1, pro: Infinity, business: Infinity, enterprise: Infinity },
 } as const;
 
 function tierMeetsRequirement(
@@ -140,6 +143,11 @@ export function useTierAccess() {
     [],
   );
 
+  const canCreateProject = useCallback(
+    (realProjectCount: number): boolean => realProjectCount < FEATURE_LIMITS.maxProjects[tier],
+    [tier],
+  );
+
   // Tier-bucket helpers. Each "OrAbove" includes higher tiers — Enterprise
   // satisfies any Business/Pro check.
   const isProOrAbove = useMemo(() => tier === 'pro' || tier === 'business' || tier === 'enterprise', [tier]);
@@ -160,8 +168,9 @@ export function useTierAccess() {
       isEnterprise,
       canAccess,
       requiredTierFor,
+      canCreateProject,
     }),
-    [tier, isFree, isProOrAbove, isBusiness, isBusinessOrAbove, isEnterprise, canAccess, requiredTierFor],
+    [tier, isFree, isProOrAbove, isBusiness, isBusinessOrAbove, isEnterprise, canAccess, requiredTierFor, canCreateProject],
   );
 }
 

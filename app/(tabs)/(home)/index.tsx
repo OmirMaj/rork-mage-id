@@ -25,6 +25,8 @@ import AICopilot from '@/components/AICopilot';
 import AIHomeBriefing from '@/components/AIHomeBriefing';
 import SmartInbox from '@/components/SmartInbox';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { useSearch } from '@/contexts/SearchContext';
 import EntityActionSheet from '@/components/EntityActionSheet';
@@ -98,6 +100,23 @@ export default function HomeScreen() {
   // bouncing because the empty state taught them nothing.
   void user; // user kept available for future per-tier gates
   const showDemoSeed = true;
+
+  // Free tier is capped at 1 real project (Sample — … demo projects don't
+  // count). A free user at the cap gets the upgrade Paywall instead of the
+  // create modal. Paid tiers are unlimited (maxProjects: Infinity).
+  const { canCreateProject } = useTierAccess();
+  const [projectCapPaywall, setProjectCapPaywall] = useState(false);
+  const realProjectCount = useMemo(
+    () => projects.filter(p => !p.name.startsWith('Sample — ')).length,
+    [projects],
+  );
+  const handleCreatePress = useCallback(() => {
+    if (!canCreateProject(realProjectCount)) {
+      setProjectCapPaywall(true);
+      return;
+    }
+    setShowCreateModal(true);
+  }, [canCreateProject, realProjectCount]);
 
   // Tutorial is opt-in, never auto-opened. The launch-readiness audit
   // (2026-05-16) found a brand-new user landed behind a 20-step quiz modal
@@ -284,10 +303,10 @@ export default function HomeScreen() {
   useEffect(() => {
     if (openCreate && !openCreateConsumed.current) {
       openCreateConsumed.current = true;
-      setShowCreateModal(true);
+      handleCreatePress();
       router.setParams({ openCreate: undefined });
     }
-  }, [openCreate, router]);
+  }, [openCreate, router, handleCreatePress]);
 
   const filteredProjects = useMemo(
     () => statusBuckets[statusFilter],
@@ -771,6 +790,7 @@ export default function HomeScreen() {
               estimateCount={estimateCount}
               stripeConnected={stripeConnected}
               invoiceCount={invoices.length}
+              triedWowFeature={milestones.voiceUsed || milestones.takeoffRun || estimateCount > 0}
             />
 
             {/* NextStepHero — the answer to "where do I start?" for users
@@ -786,7 +806,7 @@ export default function HomeScreen() {
               // samples and point at project creation.
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={() => setShowCreateModal(true)}
+                onPress={handleCreatePress}
                 style={{
                   flexDirection: 'row', alignItems: 'center', gap: 12,
                   marginHorizontal: 16, marginBottom: 12, padding: 14, borderRadius: 14,
@@ -825,7 +845,7 @@ export default function HomeScreen() {
             title="Build something"
             message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail."
             actionLabel="Create your first project"
-            onAction={() => setShowCreateModal(true)}
+            onAction={handleCreatePress}
             secondaryLabel={showDemoSeed ? 'Try a sample project (small or large)' : undefined}
             onSecondaryAction={showDemoSeed ? handleSeedDemo : undefined}
           />
@@ -1031,7 +1051,13 @@ export default function HomeScreen() {
       <CreateMenu
         visible={showCreateMenu}
         onClose={() => setShowCreateMenu(false)}
-        onCreateProject={() => setShowCreateModal(true)}
+        onCreateProject={handleCreatePress}
+      />
+      <Paywall
+        visible={projectCapPaywall}
+        feature="Unlimited Projects"
+        requiredTier="pro"
+        onClose={() => setProjectCapPaywall(false)}
       />
     </View>
   );

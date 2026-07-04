@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
   Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle,
-  CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus,
+  CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus, ListChecks,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -17,10 +17,14 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTimeEntries } from '@/hooks/useTimeEntries';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseVoiceAction, type VoiceActionResult } from '@/utils/voiceActionParser';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { markFirstVoiceUsed } from '@/utils/onboardingProgress';
+import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
+import UpgradeSheet from '@/components/UpgradeSheet';
+import ThinkingStates from '@/components/ThinkingStates';
 import type { Project, RFI, ChangeOrder } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
@@ -51,7 +55,8 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   // visually no-ops when there's nothing to scope to.
   const router = useRouter();
   const ctx = useProjects();
-  const { isProOrAbove } = useSubscription();
+  const { addManualEntry } = useTimeEntries();
+  const { tier } = useSubscription();
   const insets = useSafeAreaInsets();
 
   const [open, setOpen] = useState(false);
@@ -59,6 +64,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   const [parsed, setParsed] = useState<VoiceActionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(projectId);
+  const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
 
   const projectsList = ctx?.projects ?? [];
 
@@ -91,18 +97,23 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   }, [reset]);
 
   const handleOpen = useCallback(() => {
-    if (!isProOrAbove) {
-      router.push('/paywall' as never);
-      return;
-    }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setOpen(true);
     if (!pickedProjectId && project) setPickedProjectId(project.id);
-  }, [isProOrAbove, router, project, pickedProjectId]);
+  }, [project, pickedProjectId]);
 
   const handleTranscript = useCallback(async (transcript: string) => {
     if (!transcript || transcript.trim().length === 0) {
       setError('Didn\'t catch that — try again.');
+      setStep('idle');
+      return;
+    }
+    // Metered gate — a free user gets a few lifetime voice captures, then a
+    // wall. checkAILimit fails open on storage error so a hiccup never costs
+    // a trial or blocks value.
+    const gate = await checkAILimit(tier, 'fast', 'voiceCapture');
+    if (!gate.allowed) {
+      setUpgradeLimit(gate);
       setStep('idle');
       return;
     }
@@ -115,13 +126,15 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
       const result = await parseVoiceAction({ transcript, project });
       setParsed(result);
       setStep('reviewing');
+      // Increment ONLY on success — a failed parse never burns a trial.
+      void recordAIUsage('fast', 'voiceCapture');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[UniversalMic] parse failed', e);
       setError('AI couldn\'t parse that — try again.');
       setStep('idle');
     }
-  }, [project]);
+  }, [project, tier]);
 
   const handleConfirm = useCallback(async () => {
     if (!parsed) return;
@@ -336,6 +349,86 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         handleClose();
         router.push({ pathname: '/lead-detail' as never, params: { leadId: newLead.id } as never });
+      } else if (parsed.kind === 'field_update') {
+        // The differentiator: ONE spoken log fans out to several systems —
+        // time entries, schedule progress, and a draft daily report that
+        // captures the work + materials. Everything created is a draft /
+        // reversible edit; the GC reviews the daily-report draft later.
+        const now = new Date().toISOString();
+        const today = now.split('T')[0];
+        const company = ctx.settings?.branding?.companyName ?? '';
+        const summaryParts: string[] = [];
+
+        // 1) Time — one completed entry per trade whose hours were stated.
+        const timeEntries = (parsed.fieldTimeEntries ?? []).filter(t => (t.hours ?? 0) > 0);
+        for (const te of timeEntries) {
+          addManualEntry({
+            projectId: proj.id,
+            projectName: proj.name,
+            workerName: company || 'Me',
+            trade: te.trade || 'General',
+            hours: te.hours,
+            notes: te.notes || undefined,
+            date: today,
+          });
+        }
+        const totalHrs = timeEntries.reduce((s, t) => s + (t.hours || 0), 0);
+        if (totalHrs > 0) summaryParts.push(`${totalHrs}h logged`);
+
+        // 2) Schedule — fuzzy-match spoken task names to real schedule items.
+        const schedule = proj.schedule;
+        const workProgress: { taskId: string; taskName: string; phase: string; pct: number }[] = [];
+        if (schedule && (parsed.fieldScheduleUpdates ?? []).length > 0) {
+          const norm = (s: string) => s.toLowerCase().trim();
+          const updatedTasks = schedule.tasks.map(t => {
+            const match = parsed.fieldScheduleUpdates.find(u =>
+              u.taskName && (norm(t.title).includes(norm(u.taskName)) || norm(u.taskName).includes(norm(t.title))));
+            if (!match) return t;
+            const pct = Math.max(0, Math.min(100, Math.round(match.progressPercent)));
+            workProgress.push({ taskId: t.id, taskName: t.title, phase: t.phase, pct });
+            const status: typeof t.status = pct >= 100 ? 'done' : pct > 0 ? 'in_progress' : t.status;
+            return { ...t, progress: pct, status };
+          });
+          if (workProgress.length > 0) {
+            ctx.updateProject(proj.id, { schedule: { ...schedule, tasks: updatedTasks } });
+            summaryParts.push(`${workProgress.length} task${workProgress.length > 1 ? 's' : ''} updated`);
+          }
+        }
+
+        // 3) Daily report draft — the connective record for the whole log.
+        const materials = parsed.fieldMaterials ?? [];
+        const workPerformed = parsed.fieldWorkPerformed
+          || workProgress.map(w => `${w.taskName} ${w.pct}%`).join(', ')
+          || 'Field update';
+        ctx.addDailyReport({
+          id: generateUUID(),
+          projectId: proj.id,
+          date: now,
+          weather: { temperature: '', conditions: '', wind: '', isManual: true },
+          manpower: timeEntries.map(te => ({
+            id: generateUUID(),
+            trade: te.trade || 'General',
+            company,
+            headcount: 1,
+            hoursWorked: te.hours,
+          })),
+          workPerformed,
+          workProgress: workProgress.length > 0 ? workProgress : undefined,
+          materialsDelivered: materials,
+          issuesAndDelays: '',
+          photos: [],
+          status: 'draft',
+          createdAt: now,
+          updatedAt: now,
+        } as never);
+        if (materials.length > 0) summaryParts.push(`${materials.length} material${materials.length > 1 ? 's' : ''} noted`);
+
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Field update saved',
+          `${summaryParts.join(' · ') || 'Draft daily report created'}. Saved as a daily-report draft you can finish anytime.`,
+          [{ text: 'OK', onPress: handleClose }],
+        );
       } else if (parsed.kind === 'submittal') {
         // Submittal: same pattern — route to the form with prefills,
         // then the user reviews + saves.
@@ -389,6 +482,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     : parsed?.kind === 'invoice' ? Receipt
     : parsed?.kind === 'submittal' ? FolderOpen
     : parsed?.kind === 'lead' ? UserPlus
+    : parsed?.kind === 'field_update' ? ListChecks
     : AlertTriangle;
   const kindLabel = parsed?.kind === 'rfi' ? 'Request for information'
     : parsed?.kind === 'co' ? 'Change order draft'
@@ -398,6 +492,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     : parsed?.kind === 'invoice' ? 'Invoice draft'
     : parsed?.kind === 'submittal' ? 'Submittal'
     : parsed?.kind === 'lead' ? 'New lead'
+    : parsed?.kind === 'field_update' ? 'Field update'
     : 'Not sure yet';
   const kindCTA = parsed?.kind === 'rfi' ? 'RFI'
     : parsed?.kind === 'co' ? 'change order'
@@ -407,6 +502,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     : parsed?.kind === 'invoice' ? 'invoice'
     : parsed?.kind === 'submittal' ? 'submittal'
     : parsed?.kind === 'lead' ? 'lead'
+    : parsed?.kind === 'field_update' ? 'field update'
     : '';
 
   // Hide self when there's nothing to scope to. Done in render (not via an
@@ -506,12 +602,11 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                   <Text style={styles.tipsLine}>&quot;Invoice them for demolition — twenty-eight hundred lump.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Submittal: light fixture cut sheets, spec twenty-six fifty-one zero zero.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Note: framing on second floor is half done.&quot;</Text>
+                  <Text style={styles.tipsLine}>&quot;Log 3 hours framing, floor 2 drywall 80%, 40 sheets of drywall delivered.&quot;</Text>
                 </View>
                 <VoiceRecorder
                   onTranscriptReady={handleTranscript}
                   isLoading={false}
-                  isLocked={!isProOrAbove}
-                  onLockedPress={() => router.push('/paywall' as never)}
                 />
                 {error && <Text style={styles.errorText}>{error}</Text>}
               </View>
@@ -519,8 +614,21 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
 
             {(step === 'parsing' || step === 'creating') && (
               <View style={styles.parsingWrap}>
-                <ActivityIndicator size="small" color={themeColors.accent} />
-                <Text style={styles.parsingText}>{step === 'parsing' ? 'Reading what you said…' : 'Saving your draft…'}</Text>
+                {step === 'parsing' ? (
+                  <ThinkingStates
+                    active
+                    steps={[
+                      'Reading what you said…',
+                      'Matching it to your projects…',
+                      'Drafting the right artifact…',
+                    ]}
+                  />
+                ) : (
+                  <>
+                    <ActivityIndicator size="small" color={themeColors.accent} />
+                    <Text style={styles.parsingText}>Saving your draft…</Text>
+                  </>
+                )}
               </View>
             )}
 
@@ -641,6 +749,33 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                     </View>
                   )}
 
+                  {parsed.kind === 'field_update' && (
+                    <View style={styles.previewBody}>
+                      {!!parsed.fieldWorkPerformed && <PreviewField label="Work performed" value={parsed.fieldWorkPerformed} multi />}
+                      {(parsed.fieldTimeEntries ?? []).filter(t => (t.hours ?? 0) > 0).map((t, i) => (
+                        <View key={`t${i}`} style={styles.lineItemRow}>
+                          <Text style={styles.lineItemName} numberOfLines={1}>{t.trade || 'General'} — time</Text>
+                          <Text style={styles.lineItemAmt}>{t.hours}h</Text>
+                        </View>
+                      ))}
+                      {(parsed.fieldScheduleUpdates ?? []).filter(u => !!u.taskName).map((u, i) => (
+                        <View key={`s${i}`} style={styles.lineItemRow}>
+                          <Text style={styles.lineItemName} numberOfLines={1}>{u.taskName}</Text>
+                          <Text style={styles.lineItemAmt}>{Math.round(u.progressPercent)}%</Text>
+                        </View>
+                      ))}
+                      {(parsed.fieldMaterials ?? []).length > 0 && (
+                        <PreviewField label="Materials" value={(parsed.fieldMaterials ?? []).join(', ')} multi />
+                      )}
+                      {!parsed.fieldWorkPerformed
+                        && (parsed.fieldTimeEntries ?? []).length === 0
+                        && (parsed.fieldScheduleUpdates ?? []).length === 0
+                        && (parsed.fieldMaterials ?? []).length === 0 && (
+                        <Text style={styles.previewNote}>Nothing detected to log — try again with hours, task progress, or materials.</Text>
+                      )}
+                    </View>
+                  )}
+
                   {parsed.kind === 'unsure' && (
                     <View style={styles.previewBody}>
                       <Text style={styles.unsureText}>
@@ -672,6 +807,12 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           </View>
         </View>
       </Modal>
+      <UpgradeSheet
+        visible={!!upgradeLimit}
+        limit={upgradeLimit}
+        featureLabel="Voice Capture"
+        onClose={() => setUpgradeLimit(null)}
+      />
     </>
   );
 }
