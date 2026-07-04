@@ -26,6 +26,7 @@ export type AIFeature =
   // Smart / expensive
   | 'quickEstimate'      // free: 3 lifetime trials
   | 'scheduleBuilder'    // free: 3 lifetime trials
+  | 'scheduleCopilot'    // free: 3 lifetime trials (NL what-if / edit copilot)
   | 'estimateValidation' // free: 3 lifetime trials
   | 'voiceCapture'       // free: 3 lifetime trials (marquee field feature)
   | 'aiEstimateWizard'   // free: 2 lifetime trials
@@ -65,6 +66,7 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   // Smart features — free gets a few trials, then paywall
   quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick Estimate' },
   scheduleBuilder:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'AI Schedule Builder' },
+  scheduleCopilot:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'Schedule Copilot' },
   estimateValidation: { tier: 'smart', freeLifetimeCap: 3, displayName: 'Estimate Validation' },
   voiceCapture:       { tier: 'fast',  freeLifetimeCap: 3, displayName: 'Voice Capture' },
   aiEstimateWizard:   { tier: 'smart', freeLifetimeCap: 2, displayName: 'AI Estimate' },

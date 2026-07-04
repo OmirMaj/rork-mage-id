@@ -28,11 +28,15 @@ import {
   Check,
   AlertTriangle,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import type { ScheduleTask, LinkedEstimate } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { Type } from '@/constants/typography';
@@ -90,6 +94,8 @@ type Mode = 'home' | 'risks' | 'optimize' | 'explain' | 'ask' | 'asbuilt' | 'gen
 export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { tier } = useSubscription();
+  const router = useRouter();
   const {
     visible, onClose, tasks, cpm, projectStartDate, todayDayNumber,
     onApplyPatch, onApplyBulkPatches, onReplaceAll, onFocusTasks, selectedIds,
@@ -143,7 +149,9 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     if (!bulkDraft.trim() || !selectedIds || selectedIds.size === 0) return;
     const instruction = bulkDraft.trim();
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiBulkEdit(tasks, cpm, Array.from(selectedIds), instruction);
+      void recordAIUsage('smart', 'scheduleCopilot');
       setCallStats(s => ({ total: s.total + 1, cached: s.cached + (res.fromCache ? 1 : 0) }));
       // Surface timeout / network / http failures as the panel error banner so
       // the user sees a distinct message rather than an empty result card.
@@ -210,47 +218,73 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     } finally { setBusy(false); }
   }, []);
 
+  // Meter every user-initiated copilot AI call under the 'scheduleCopilot'
+  // feature key. Free tier gets 3 lifetime trials across the whole panel;
+  // paid tiers fall under the smart daily quota. Mirrors the standard
+  // checkAILimit → showAILimitAlert → recordAIUsage pattern used by every
+  // other AI feature (see components/AIEstimateValidator.tsx). Call before
+  // the model call; on block it shows the shared upgrade affordance and the
+  // caller should bail. Record usage with the same key AFTER a successful call.
+  const gateCopilot = useCallback(async (): Promise<boolean> => {
+    const limit = await checkAILimit(tier, 'smart', 'scheduleCopilot');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return false;
+    }
+    return true;
+  }, [tier, router]);
+
   const handleDetectRisks = useCallback(() => {
     setMode('risks');
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiDetectRisks(tasks, cpm);
+      void recordAIUsage('smart', 'scheduleCopilot');
       setRiskResult({ summary: res.summary, findings: res.findings });
     });
-  }, [tasks, cpm, run]);
+  }, [tasks, cpm, run, gateCopilot]);
 
   const handleOptimize = useCallback(() => {
     setMode('optimize');
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiOptimizeSchedule(tasks, cpm);
+      void recordAIUsage('smart', 'scheduleCopilot');
       setOptResult({ summary: res.summary, ideas: res.ideas });
     });
-  }, [tasks, cpm, run]);
+  }, [tasks, cpm, run, gateCopilot]);
 
   const handleExplain = useCallback(() => {
     setMode('explain');
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiExplainCriticalPath(tasks, cpm);
+      void recordAIUsage('smart', 'scheduleCopilot');
       setExplainText(res.explanation);
     });
-  }, [tasks, cpm, run]);
+  }, [tasks, cpm, run, gateCopilot]);
 
   const handleAsk = useCallback(() => {
     if (!chatDraft.trim()) return;
     const question = chatDraft.trim();
-    setChatDraft('');
     run(async () => {
+      if (!(await gateCopilot())) return;
+      setChatDraft('');
       const res = await aiAskSchedule(tasks, cpm, question, projectStartDate);
+      void recordAIUsage('smart', 'scheduleCopilot');
       setChatHistory(h => [...h, { q: question, a: res.answer }]);
     });
-  }, [chatDraft, tasks, cpm, projectStartDate, run]);
+  }, [chatDraft, tasks, cpm, projectStartDate, run, gateCopilot]);
 
   const handleAsBuiltParse = useCallback(() => {
     if (!asBuiltDraft.trim()) return;
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiLogAsBuilt(tasks, asBuiltDraft.trim(), todayDayNumber);
+      void recordAIUsage('smart', 'scheduleCopilot');
       setAsBuiltPatches(res.patches);
     });
-  }, [asBuiltDraft, tasks, todayDayNumber, run]);
+  }, [asBuiltDraft, tasks, todayDayNumber, run, gateCopilot]);
 
   const handleAsBuiltApply = useCallback((p: AIAsBuiltPatch) => {
     onApplyPatch(p.taskId, p.patch);
@@ -266,17 +300,20 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const handleGenerate = useCallback(() => {
     if (!genDraft.trim()) return;
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiGenerateSchedule(genDraft.trim());
+      void recordAIUsage('smart', 'scheduleCopilot');
       setGenSource('text');
       setGenPreview(materializeGeneratedTasks(res.tasks));
     });
-  }, [genDraft, run]);
+  }, [genDraft, run, gateCopilot]);
 
   // One-tap, estimate-grounded generation. Tasks come back cost-linked, so the
   // earned-value and cash-flow panels populate the moment the plan is applied.
   const handleGenerateFromEstimate = useCallback(() => {
     if (!linkedEstimate || linkedEstimate.items.length === 0) return;
     run(async () => {
+      if (!(await gateCopilot())) return;
       const res = await aiGenerateScheduleFromEstimate({
         items: linkedEstimate.items.map(it => ({
           materialId: it.materialId,
@@ -286,10 +323,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           lineTotal: it.lineTotal,
         })),
       });
+      void recordAIUsage('smart', 'scheduleCopilot');
       setGenSource('estimate');
       setGenPreview(materializeGeneratedTasks(res.tasks));
     });
-  }, [linkedEstimate, run]);
+  }, [linkedEstimate, run, gateCopilot]);
 
   const handleGenerateApply = useCallback(() => {
     if (!genPreview) return;
