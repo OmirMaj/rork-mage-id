@@ -145,13 +145,28 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     return tasks.filter(t => selectedIds.has(t.id)).map(t => t.title);
   }, [tasks, selectedIds]);
 
+  // Meter every user-initiated copilot AI call under the 'scheduleCopilot'
+  // feature key. Free tier gets 3 lifetime trials across the whole panel;
+  // paid tiers fall under the smart daily quota. Mirrors the standard
+  // checkAILimit → showAILimitAlert → recordAIUsage pattern used by every
+  // other AI feature (see components/AIEstimateValidator.tsx). Call before
+  // the model call; on block it shows the shared upgrade affordance and the
+  // caller should bail. Record usage with the same key AFTER a successful call.
+  const gateCopilot = useCallback(async (): Promise<boolean> => {
+    const limit = await checkAILimit(tier, 'smart', 'scheduleCopilot');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return false;
+    }
+    return true;
+  }, [tier, router]);
+
   const handleBulkEdit = useCallback(() => {
     if (!bulkDraft.trim() || !selectedIds || selectedIds.size === 0) return;
     const instruction = bulkDraft.trim();
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiBulkEdit(tasks, cpm, Array.from(selectedIds), instruction);
-      void recordAIUsage('smart', 'scheduleCopilot');
       setCallStats(s => ({ total: s.total + 1, cached: s.cached + (res.fromCache ? 1 : 0) }));
       // Surface timeout / network / http failures as the panel error banner so
       // the user sees a distinct message rather than an empty result card.
@@ -167,6 +182,9 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         setBulkResult(null);
         return;
       }
+      // Record usage only on the success path — a blocked/failed edit must not
+      // burn a free-tier lifetime trial.
+      void recordAIUsage('smart', 'scheduleCopilot');
       setBulkResult({
         summary: res.summary,
         patches: res.patches,
@@ -174,8 +192,9 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         errorKind: res.errorKind,
       });
     });
+  // run is intentionally omitted (declared below); it is a stable useCallback.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bulkDraft, selectedIds, tasks, cpm]);
+  }, [bulkDraft, selectedIds, tasks, cpm, gateCopilot]);
 
   const handleBulkApplyAll = useCallback(() => {
     if (!bulkResult) return;
@@ -218,29 +237,17 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     } finally { setBusy(false); }
   }, []);
 
-  // Meter every user-initiated copilot AI call under the 'scheduleCopilot'
-  // feature key. Free tier gets 3 lifetime trials across the whole panel;
-  // paid tiers fall under the smart daily quota. Mirrors the standard
-  // checkAILimit → showAILimitAlert → recordAIUsage pattern used by every
-  // other AI feature (see components/AIEstimateValidator.tsx). Call before
-  // the model call; on block it shows the shared upgrade affordance and the
-  // caller should bail. Record usage with the same key AFTER a successful call.
-  const gateCopilot = useCallback(async (): Promise<boolean> => {
-    const limit = await checkAILimit(tier, 'smart', 'scheduleCopilot');
-    if (!limit.allowed) {
-      showAILimitAlert({ limit, router });
-      return false;
-    }
-    return true;
-  }, [tier, router]);
-
   const handleDetectRisks = useCallback(() => {
     setMode('risks');
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiDetectRisks(tasks, cpm);
-      void recordAIUsage('smart', 'scheduleCopilot');
       setRiskResult({ summary: res.summary, findings: res.findings });
+      // aiDetectRisks returns a fallback summary on failure instead of throwing;
+      // only meter a genuine result.
+      if (res.summary !== 'AI risk check failed. Try again.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
   }, [tasks, cpm, run, gateCopilot]);
 
@@ -249,8 +256,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiOptimizeSchedule(tasks, cpm);
-      void recordAIUsage('smart', 'scheduleCopilot');
       setOptResult({ summary: res.summary, ideas: res.ideas });
+      // Fallback summary on failure (helper never throws) — don't meter it.
+      if (res.summary !== 'AI optimizer failed.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
   }, [tasks, cpm, run, gateCopilot]);
 
@@ -259,8 +269,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiExplainCriticalPath(tasks, cpm);
-      void recordAIUsage('smart', 'scheduleCopilot');
       setExplainText(res.explanation);
+      // Fallback string on failure (helper never throws) — don't meter it.
+      if (res.explanation !== 'AI explainer unavailable right now.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
   }, [tasks, cpm, run, gateCopilot]);
 
@@ -271,8 +284,12 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       if (!(await gateCopilot())) return;
       setChatDraft('');
       const res = await aiAskSchedule(tasks, cpm, question, projectStartDate);
-      void recordAIUsage('smart', 'scheduleCopilot');
       setChatHistory(h => [...h, { q: question, a: res.answer }]);
+      // 'No answer.' is the helper's empty-response fallback — only meter a
+      // real answer.
+      if (res.answer !== 'No answer.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
   }, [chatDraft, tasks, cpm, projectStartDate, run, gateCopilot]);
 
@@ -281,8 +298,11 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiLogAsBuilt(tasks, asBuiltDraft.trim(), todayDayNumber);
-      void recordAIUsage('smart', 'scheduleCopilot');
       setAsBuiltPatches(res.patches);
+      // Fallback summary on parse failure (helper never throws) — don't meter it.
+      if (res.summary !== 'Could not parse that.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
   }, [asBuiltDraft, tasks, todayDayNumber, run, gateCopilot]);
 
@@ -302,9 +322,12 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     run(async () => {
       if (!(await gateCopilot())) return;
       const res = await aiGenerateSchedule(genDraft.trim());
-      void recordAIUsage('smart', 'scheduleCopilot');
       setGenSource('text');
       setGenPreview(materializeGeneratedTasks(res.tasks));
+      // Fallback summary on failure (helper never throws) — don't meter it.
+      if (res.summary !== 'Generator failed.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
   }, [genDraft, run, gateCopilot]);
 
@@ -323,9 +346,12 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           lineTotal: it.lineTotal,
         })),
       });
-      void recordAIUsage('smart', 'scheduleCopilot');
       setGenSource('estimate');
       setGenPreview(materializeGeneratedTasks(res.tasks));
+      // Fallback summary on failure (helper never throws) — don't meter it.
+      if (res.summary !== 'Generator failed.') {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
     });
   }, [linkedEstimate, run, gateCopilot]);
 
