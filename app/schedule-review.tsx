@@ -18,6 +18,9 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import EmptyState from '@/components/EmptyState';
 import { takeDraft, generateScheduleFromEstimate } from '@/utils/autoScheduleFromEstimate';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { Type } from '@/constants/typography';
@@ -34,6 +37,7 @@ export default function ScheduleReviewScreen() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { getProject, updateProject } = useProjects();
+  const { tier } = useSubscription();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
@@ -80,6 +84,11 @@ export default function ScheduleReviewScreen() {
   // dependency link across phases, silently losing sequencing.
   const regenerate = useCallback(async () => {
     if (!project?.linkedEstimate || regenerating) return;
+    const limit = await checkAILimit(tier, 'smart', 'scheduleBuilder');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return;
+    }
     setRegenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -89,13 +98,14 @@ export default function ScheduleReviewScreen() {
         return;
       }
       setTasks(fresh.tasks);
+      await recordAIUsage('smart', 'scheduleBuilder');
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Something went wrong while regenerating the schedule.';
       Alert.alert('Couldn\'t regenerate', message);
     } finally {
       setRegenerating(false);
     }
-  }, [project, regenerating]);
+  }, [project, regenerating, tier, router]);
 
   // Empty state — nothing was stashed (deep link / reload).
   if (!draft) {

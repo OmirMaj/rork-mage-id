@@ -29,6 +29,9 @@ import {
   buildSetupPlan, packagePlanToBidPackage, submittalPlanToSubmittal,
 } from '@/utils/generativeSetup';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { formatMoneyFull } from '@/utils/jobCostEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -61,6 +64,7 @@ function GenerativeSetupInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { tier } = useSubscription();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const {
     getProject, getBidPackagesForProject, getSubmittalsForProject,
@@ -113,13 +117,20 @@ function GenerativeSetupInner() {
         }
       }
       if (includeSchedule && project.linkedEstimate) {
-        try {
-          const r = await generateScheduleFromEstimate(project, project.linkedEstimate);
-          stashDraft(r);
-          scheduleCreated = true;
-        } catch (e) {
-          scheduleError = e instanceof Error ? e.message : 'Schedule generation failed';
-          console.warn('[generative-setup] schedule failed:', scheduleError);
+        const limit = await checkAILimit(tier, 'smart', 'scheduleBuilder');
+        if (!limit.allowed) {
+          showAILimitAlert({ limit, router });
+          scheduleError = 'AI limit reached';
+        } else {
+          try {
+            const r = await generateScheduleFromEstimate(project, project.linkedEstimate);
+            stashDraft(r);
+            scheduleCreated = true;
+            await recordAIUsage('smart', 'scheduleBuilder');
+          } catch (e) {
+            scheduleError = e instanceof Error ? e.message : 'Schedule generation failed';
+            console.warn('[generative-setup] schedule failed:', scheduleError);
+          }
         }
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -127,7 +138,7 @@ function GenerativeSetupInner() {
     } finally {
       setApplying(false);
     }
-  }, [project, plan, includePackages, includeSubmittals, includeSchedule, addBidPackage, addSubmittal]);
+  }, [project, plan, includePackages, includeSubmittals, includeSchedule, addBidPackage, addSubmittal, tier, router]);
 
   if (!project) {
     return (
