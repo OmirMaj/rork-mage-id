@@ -15,7 +15,15 @@ MAGE's scheduler already has **P6-grade depth** (real CPM: 4 dependency types, 8
 - **Nobody owns both sides:** Primavera P6 / MS Project have CPM depth but no field usability (40-hr learning curve, dated UI); Touchplan / Last Planner tools have field love but **no CPM engine at all** (users keep a *separate* P6). SMB tools (Buildertrend deep-but-overwhelming, JobTread simple-but-shallow) have neither.
 - **The AI vanguard's weak spot is explainability:** ALICE (generative optioneering) needs BIM and costs $50–150K/yr; nPlan (delay forecasting) is trained on 750K *large* projects; Planera "Manny" (Apr 2026) is the closest NL-copilot analog. Research explicitly flags **"missing explainability"** and fake-agentic marketing as the vanguard's soft underbelly. Adoption reality: ~45% of firms use *zero* AI; AEC trust in AI *fell* 80%→68% — so **AI must be embedded + explainable, not a scary premium bolt-on**, and specific ROI % must NOT be over-promised.
 
-**MAGE's wedge:** it already owns the hard part everyone misses on *one* side — a real CPM engine AND field collaboration (sub daily-updates) AND the **estimate + cost data** that is the input ALICE needs BIM for. Crucially, the generative bridge **already exists**: `utils/autoScheduleFromEstimate.ts` → `generateScheduleFromEstimate()` already Claude-generates phased CPM tasks (durations, deps, milestones, critical-path, crew, WBS, category links; zod-validated) and is already metered via the `scheduleBuilder` AI feature key. What's missing is: (1) it produces tasks with **no reasoning**, (2) it's **not surfaced** as a first-class, reviewable hero experience, and (3) Tier-0 stubs (**undo/redo**, **drag-to-create-dependencies**) make an AI-built schedule frustrating to own.
+**MAGE's wedge:** it already owns the hard part everyone misses on *one* side — a real CPM engine AND field collaboration (sub daily-updates) AND the **estimate + cost data** that is the input ALICE needs BIM for. Crucially, the generative bridge **already exists**: `utils/autoScheduleFromEstimate.ts` → `generateScheduleFromEstimate()` already Claude-generates phased CPM tasks (durations, deps, milestones, critical-path, crew, WBS, category links; zod-validated) and is already metered via the `scheduleBuilder` AI feature key.
+
+**Current-state reality (verified against code 2026-07-02 — this reframes the work to be much leaner than first assumed):**
+- **Generation exists but is fire-and-apply, with no reasoning.** `generative-setup.tsx:115` calls the generator → `updateProject({schedule})` directly. `autoScheduleSchema` has **no `rationale` and no `assumption`** field, and there is **no review step** — the schedule silently replaces whatever was there.
+- **The NL copilot is largely built.** `utils/scheduleAI.ts` already exports `aiAskSchedule` (preview-only Q&A), `aiDelayImpact` (what-if returning `{explanation, projectFinishDelta}` — reason included, no mutation), `aiExplainCriticalPath`, `aiDetectRisks` (with a "why this matters" detail), and `aiBulkEdit`; `AIAssistantPanel` has `onApplyPatch`/`onReplaceAll`/`onApplyBulkPatches`/`linkedEstimate`.
+- **Undo/redo is functional, not stubbed.** `schedule-pro.tsx` `commit` (~509) snapshots a bounded-20 history and clears redo; `handleEdit`, `handleDependencyCreate`, and `applyWeatherReschedule` all route through it; toolbar buttons are wired.
+- **Drag-to-create-dependencies is wired end-to-end.** `InteractiveGantt` fires `onDependencyCreate` (with the `wouldCreateCycle` guard) and `schedule-pro.tsx:1499` passes `handleDependencyCreate`, which persists via `commit`.
+
+So the **genuine v1 gap** is narrow and high-leverage: (1) generated tasks carry **no reasoning** and no assumption flag; (2) generation is **not a reviewable hero experience**; (3) the already-built pieces (undo/redo, drag-deps, copilot) have **no pure-fn test coverage** and the copilot's reasons aren't consistently surfaced. This is a *surface-explain-and-harden* effort, not a build-from-scratch one.
 
 ## Goal
 
@@ -49,13 +57,15 @@ Make MAGE **the scheduler small/mid GCs actually use** by turning the existing g
 - **How used:** drawer in Schedule Pro (already mounted) + `VoiceCommandModal`. Edits flow through the same `onEdit` path the grid/Gantt use (so CPM re-runs + undo captures them — see Unit 4).
 - **Depends on:** `scheduleAI`, `mageAI`, CPM engine, Unit 4 (undo), a new/again-metered AI feature key.
 
-### Unit 4 — Undo/redo (`app/schedule-pro.tsx`)
-- **What:** wire the **declared-but-unused** `history`/`future` refs into a real undo/redo stack. Every mutation (grid edit, Gantt drag, copilot edit, generation-accept) pushes a snapshot; undo/redo hotkeys + the existing toolbar buttons walk it. Bounded depth (e.g. 50).
-- **Depends on:** the single mutation entry point (`onEdit`) so all edits are captured uniformly.
+### Unit 4 — Undo/redo (`app/schedule-pro.tsx`) — HARDEN (already functional)
+- **Current:** `commit` (~509) already snapshots a bounded-20 history + clears redo; `handleEdit`/`handleDependencyCreate`/`applyWeatherReschedule` route through it; buttons wired.
+- **v1 gap:** (a) extract the push/undo/redo logic into a **pure, RN-free reducer** (`utils/scheduleHistory.ts`) so it's unit-testable (the current inline `setHistory`/`setFuture` closures can't run under `bun`); refactor `commit`/`handleUndo`/`handleRedo` to use it. (b) Ensure the **copilot's** apply paths (`onApplyPatch`/`onApplyBulkPatches`) route through `commit` so AI edits are undoable as a unit.
+- **Depends on:** the single mutation entry point (`commit`) so all edits are captured uniformly.
 
-### Unit 5 — Drag-to-create-dependencies (`components/schedule/InteractiveGantt.tsx`)
-- **What:** wire the **declared-but-never-called** `onDependencyCreate`: drag from a task bar edge to another bar draws a live link and creates the dependency (default FS, editable type/lag after). Reuse the existing `wouldCreateCycle` guard.
-- **Depends on:** existing PanResponder infra, GridPane dependency model, CPM re-run.
+### Unit 5 — Drag-to-create-dependencies (`components/schedule/InteractiveGantt.tsx`) — VERIFY + TEST (already wired)
+- **Current:** the Gantt fires `onDependencyCreate` (with the `wouldCreateCycle` guard at ~516) and `schedule-pro.tsx:1499` passes `handleDependencyCreate` (~718), which persists via `commit` with a dup-edge guard.
+- **v1 gap:** add pure-fn coverage asserting `wouldCreateCycle` rejects a cycle-forming drag and accepts a valid one (protects the guard against regressions); confirm the drag path is reachable in the web build. No re-implementation.
+- **Depends on:** existing PanResponder infra, `utils/cpm.wouldCreateCycle`, CPM re-run.
 
 ---
 
