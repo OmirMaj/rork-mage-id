@@ -69,6 +69,15 @@ import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
 import { PlanZoneEditor } from '@/components/schedule/mobile/PlanZoneEditor';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
+import {
+  emptyHistory,
+  pushHistory,
+  undo as histUndo,
+  redo as histRedo,
+  canUndo,
+  canRedo,
+  type HistoryState,
+} from '@/utils/scheduleHistory';
 import { resolveCalendarForTask } from '@/utils/scheduleResourceCalendars';
 import {
   countStaleLinkedEstimateItems, pruneStaleLinkedEstimateItems,
@@ -153,12 +162,14 @@ function ScheduleProScreenInner() {
   );
 
   // Local working copy so the grid feels instant; we debounce persistence.
-  // This is where Phase 4's undo stack will live.
-  const [workingTasks, setWorkingTasks] = useState<ScheduleTask[]>(
-    project?.schedule?.tasks ?? [],
+  // The undo/redo stacks live in a single HistoryState via the pure,
+  // unit-tested reducer in @/utils/scheduleHistory. `workingTasks` is the
+  // live present — deriving it (rather than a separate useState) guarantees
+  // the task state and the undo stacks can never drift out of sync.
+  const [hist, setHist] = useState<HistoryState<ScheduleTask[]>>(
+    () => emptyHistory(project?.schedule?.tasks ?? []),
   );
-  const [history, setHistory] = useState<ScheduleTask[][]>([]);
-  const [future, setFuture] = useState<ScheduleTask[][]>([]);
+  const workingTasks = hist.present;
 
   // Pane mode: which view(s) to render. Defaults based on width; user can
   // override via the segmented control in the header.
@@ -206,9 +217,8 @@ function ScheduleProScreenInner() {
   // Resync when the project changes (e.g. user switches projects in classic
   // screen and comes back). Only reset if the project identity itself changed.
   useEffect(() => {
-    setWorkingTasks(project?.schedule?.tasks ?? []);
-    setHistory([]);
-    setFuture([]);
+    // Full reload for a new project — reset the undo/redo stacks entirely.
+    setHist(emptyHistory(project?.schedule?.tasks ?? []));
     setNamedBaselines((project?.schedule?.baselines ?? []) as NamedBaseline[]);
   }, [project?.id]);
 
@@ -295,8 +305,8 @@ function ScheduleProScreenInner() {
   // underlying updates as the source of truth; this effect just keeps
   // the Gantt bar honest.
   //
-  // Loads sub updates once per project — the functional setWorkingTasks
-  // updater reads the latest task state without needing workingTasks in
+  // Loads sub updates once per project — the functional setHist updater
+  // reads the latest task state (h.present) without needing workingTasks in
   // deps. The `mutated` flag short-circuits no-op renders so the effect
   // is cheap even when there are no new updates.
   useEffect(() => {
@@ -311,7 +321,11 @@ function ScheduleProScreenInner() {
         const prev = latestByTask.get(u.taskId) ?? 0;
         if (u.progressPercent > prev) latestByTask.set(u.taskId, u.progressPercent);
       }
-      setWorkingTasks(prev => {
+      // Non-undoable refresh (progress rolled up from sub updates): replace
+      // the present in place without touching the undo/redo stacks — matches
+      // the pre-reducer behavior which bypassed the history snapshot.
+      setHist(h => {
+        const prev = h.present;
         let mutated = false;
         const next = prev.map(t => {
           const rollup = latestByTask.get(t.id);
@@ -321,7 +335,7 @@ function ScheduleProScreenInner() {
           }
           return t;
         });
-        return mutated ? next : prev;
+        return mutated ? { ...h, present: next } : h;
       });
     })();
     return () => { cancelled = true; };
@@ -381,7 +395,9 @@ function ScheduleProScreenInner() {
               workingTasks,
               project.linkedEstimate ?? undefined,
             );
-            setWorkingTasks(cleanedTasks);
+            // Non-undoable maintenance edit (matches pre-reducer behavior,
+            // which set workingTasks directly without a history snapshot).
+            setHist(h => ({ ...h, present: cleanedTasks }));
             if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             // Toast handled by the cleanup banner re-rendering with count=0
             // — no extra UI needed.
@@ -507,16 +523,12 @@ function ScheduleProScreenInner() {
   // -------------------------------------------------------------------------
 
   const commit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
-    setWorkingTasks(prev => {
-      const next = producer(prev);
-      // Push prev to undo stack, clear redo stack.
-      setHistory(h => {
-        const trimmed = h.length >= 20 ? h.slice(h.length - 19) : h;
-        return [...trimmed, prev];
-      });
-      setFuture([]);
+    setHist(h => {
+      const next = producer(h.present);
       schedulePersist(next);
-      return next;
+      // pushHistory snapshots the old present onto `past` (bounded to 20) and
+      // clears the redo stack — a new edit always invalidates redo.
+      return pushHistory(h, next, 20);
     });
   }, [schedulePersist]);
 
@@ -565,9 +577,9 @@ function ScheduleProScreenInner() {
   const applyWeatherReschedule = useCallback(() => {
     if (!project || !weatherResult) return;
     const next = weatherResult.tasks;
-    setHistory(h => [...(h.length >= 20 ? h.slice(h.length - 19) : h), workingTasksRef.current]);
-    setFuture([]);
-    setWorkingTasks(next);
+    // Undoable: snapshot the current present onto the undo stack, then set the
+    // cascaded tasks as the new present (redo stack cleared by pushHistory).
+    setHist(h => pushHistory(h, next, 20));
     const rebuilt = buildScheduleFromTasks(
       project.schedule?.name ?? project.name ?? 'Schedule',
       project.id,
@@ -1162,26 +1174,22 @@ function ScheduleProScreenInner() {
   // -------------------------------------------------------------------------
 
   const handleUndo = useCallback(() => {
-    setHistory(h => {
-      if (h.length === 0) return h;
-      const prev = h[h.length - 1];
-      setFuture(f => [workingTasks, ...f.slice(0, 19)]);
-      setWorkingTasks(prev);
-      schedulePersist(prev);
-      return h.slice(0, -1);
+    setHist(h => {
+      const n = histUndo(h);
+      if (n === h) return h; // nothing to undo — don't persist a no-op
+      schedulePersist(n.present);
+      return n;
     });
-  }, [workingTasks, schedulePersist]);
+  }, [schedulePersist]);
 
   const handleRedo = useCallback(() => {
-    setFuture(f => {
-      if (f.length === 0) return f;
-      const next = f[0];
-      setHistory(h => [...h, workingTasks].slice(-20));
-      setWorkingTasks(next);
-      schedulePersist(next);
-      return f.slice(1);
+    setHist(h => {
+      const n = histRedo(h);
+      if (n === h) return h; // nothing to redo — don't persist a no-op
+      schedulePersist(n.present);
+      return n;
     });
-  }, [workingTasks, schedulePersist]);
+  }, [schedulePersist]);
 
   // -------------------------------------------------------------------------
   // Project start date — anchors the Start/Finish columns
@@ -1359,8 +1367,8 @@ function ScheduleProScreenInner() {
           <HeaderBtn icon={CalendarPlus} label="iCal" onPress={() => { void handleExportIcs(); }} />
           <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />
           <HeaderBtn icon={MageAIMark} label="Demo" onPress={handleLoadDemo} />
-          <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={history.length === 0} />
-          <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={future.length === 0} />
+          <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} />
+          <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} />
           <HeaderBtn
             icon={Activity}
             label="CPM"

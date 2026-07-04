@@ -13,7 +13,8 @@
     "test:barlabel": "bun run scripts/validate-bar-label.ts",
     "test:gating": "bun run scripts/validate-activation-gating.ts",
     "test:sched-schema": "bun run scripts/validate-schedule-gen-schema.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema",
+    "test:sched-history": "bun run scripts/validate-schedule-history.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
