@@ -130,7 +130,7 @@ export default function SharedScheduleScreen() {
   }, [payload?.projectId]);
   const latestUpdates = useMemo(() => rollupLatest(subUpdates), [subUpdates]);
 
-  // ⚠️ All hooks below must run unconditionally — placed BEFORE any
+  // All hooks below must run unconditionally — placed BEFORE any
   // early return so React's render order stays stable across renders.
   // The if-payload-missing branch is the entire JSX leaf; we can't
   // early-return out of the hook list.

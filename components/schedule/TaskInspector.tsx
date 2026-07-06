@@ -20,7 +20,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInp
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { X, Anchor, Flag, Users, CalendarClock, Info, Camera, Bell, Plus, Trash2 } from 'lucide-react-native';
+import { X, Anchor, Flag, Users, CalendarClock, Info, Camera, Bell, Plus, Trash2, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -405,7 +405,7 @@ export default function TaskInspector({
                 <View style={[styles.tradeOptDot, { backgroundColor: Colors.tradeColors[k] }]} />
                 <Text style={styles.tradeOptLabel}>{tradeLabel(k)}</Text>
                 {tradeKeyForTask(task) === k && (
-                  <Text style={styles.tradeOptCheck}>{'✓'}</Text>
+                  <Check size={14} color={Colors.primary} strokeWidth={2.5} />
                 )}
               </TouchableOpacity>
             ))}

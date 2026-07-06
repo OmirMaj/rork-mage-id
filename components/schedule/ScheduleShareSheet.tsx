@@ -73,7 +73,7 @@ function ScheduleShareSheet({
         <tr>
           <td style="padding:8px 10px;border-bottom:1px solid #eee;">
             <span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:${phaseColor};margin-right:6px;"></span>
-            ${t.title}${t.isMilestone ? ' ⚑' : ''}${t.isCriticalPath ? ' ⚡' : ''}
+            ${t.title}${t.isMilestone ? ' [M]' : ''}${t.isCriticalPath ? ' [CP]' : ''}
           </td>
           <td style="padding:8px 10px;border-bottom:1px solid #eee;color:#666;">${t.phase}</td>
           <td style="padding:8px 10px;border-bottom:1px solid #eee;">${formatShortDate(dr.start)}</td>

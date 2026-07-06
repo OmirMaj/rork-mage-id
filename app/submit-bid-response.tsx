@@ -83,7 +83,7 @@ export default function SubmitBidResponseScreen() {
     },
   });
 
-  // ⚡ Generate a Good/Better/Best draft from the RFP in one tap. Fills the
+  // Generate a Good/Better/Best draft from the RFP in one tap. Fills the
   // amount/summary/message fields from the recommended tier so the contractor
   // can review + tweak, then send. Speed-to-lead made literal.
   const handleInstantBid = useCallback(async () => {
@@ -256,7 +256,7 @@ export default function SubmitBidResponseScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ⚡ Instant Bid — one-tap AI-drafted Good/Better/Best proposal */}
+        {/* Instant Bid — one-tap AI-drafted Good/Better/Best proposal */}
         <View style={styles.instantCard}>
           <View style={styles.instantHead}>
             <View style={styles.instantIcon}><MageAIMark size={16} color="#FFF" /></View>

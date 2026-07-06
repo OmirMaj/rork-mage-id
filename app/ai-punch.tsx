@@ -21,7 +21,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { generateUUID } from '@/utils/generateId';
 import {
-  Camera, ImagePlus, X, Trash2, ChevronRight, Save, AlertCircle,
+  Camera, ImagePlus, X, Trash2, ChevronRight, Save, AlertCircle, Check,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -455,7 +455,7 @@ export default function AiPunchScreen() {
                           <Image source={{ uri: ph.uri }} style={styles.galleryImg} />
                           {picked && (
                             <View style={styles.galleryCheck}>
-                              <Text style={styles.galleryCheckMark}>✓</Text>
+                              <Check size={Type.caption1.fontSize} color="#FFF" strokeWidth={2.5} />
                             </View>
                           )}
                         </TouchableOpacity>
@@ -547,7 +547,10 @@ export default function AiPunchScreen() {
                             </TouchableOpacity>
                           </>
                         ) : (
-                          <Text style={styles.savedFlag}>✓ Saved to punch list</Text>
+                          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                            <Check size={Type.caption1.fontSize} color={themeColors.success} strokeWidth={2.5} />
+                            <Text style={[styles.savedFlag, { flex: 0, textAlign: 'left' }]}>Saved to punch list</Text>
+                          </View>
                         )}
                       </View>
                     </View>

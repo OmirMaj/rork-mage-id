@@ -131,7 +131,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const [callStats, setCallStats] = useState<{ total: number; cached: number }>({ total: 0, cached: 0 });
 
   // Jump straight into bulk mode when the panel opens with a selection active.
-  // That's almost always what the user wants after clicking "✨ Ask AI" on the
+  // That's almost always what the user wants after clicking "Ask AI" on the
   // bulk bar — zero extra clicks to start typing their instruction.
   React.useEffect(() => {
     if (visible && selectedIds && selectedIds.size > 0 && mode === 'home') {
@@ -644,9 +644,12 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     {Math.max(...genPreview.map(t => t.startDay + Math.max(0, t.durationDays - 1)))} days.
                   </Text>
                   {genPreview.some(t => (t.linkedEstimateItems?.length ?? 0) > 0) && (
-                    <Text style={styles.cardSuggestion}>
-                      ✓ {genPreview.filter(t => (t.linkedEstimateItems?.length ?? 0) > 0).length} tasks cost-loaded — earned value & cash flow will populate on apply.
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                      <Check size={12} color={themeColors.accent} strokeWidth={2.5} />
+                      <Text style={[styles.cardSuggestion, { marginTop: 0, flex: 1 }]}>
+                        {genPreview.filter(t => (t.linkedEstimateItems?.length ?? 0) > 0).length} tasks cost-loaded — earned value & cash flow will populate on apply.
+                      </Text>
+                    </View>
                   )}
                   <View style={{ maxHeight: 220, marginTop: 8 }}>
                     <ScrollView>

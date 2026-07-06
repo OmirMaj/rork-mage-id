@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome } from 'lucide-react-native';
+import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome, CheckCircle2 } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -329,9 +329,10 @@ export default function LoginScreen() {
               />
             </View>
             {magicLinkSent ? (
-              <View style={styles.magicLinkSuccess}>
-                <Text style={styles.magicLinkSuccessText}>
-                  ✓ Check your inbox — we just sent a sign-in link to {email.trim()}.
+              <View style={[styles.magicLinkSuccess, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                <CheckCircle2 size={15} color={Colors.successDark} strokeWidth={2} />
+                <Text style={[styles.magicLinkSuccessText, { flex: 1 }]}>
+                  Check your inbox — we just sent a sign-in link to {email.trim()}.
                 </Text>
               </View>
             ) : (

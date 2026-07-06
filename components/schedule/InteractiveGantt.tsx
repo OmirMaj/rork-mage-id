@@ -46,6 +46,7 @@ import {
   type GestureResponderEvent,
 } from 'react-native';
 import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
+import { Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -2000,19 +2001,22 @@ function BarView({
           pointerEvents="none"
         />
       )}
-      {/* Bar label: "name · Nd" (+ ✓ when done), white 11pt semi-bold. Rendered
+      {/* Bar label: "name · Nd" (+ check when done), white 11pt semi-bold. Rendered
           only when the bar is wide enough to hold readable text (full/name modes).
           Narrower bars stay clean — the grid row + hover tooltip carry the name,
           which also removes the old inside+outside double-label on short bars. */}
       {(barLabelResult.mode === 'full' || barLabelResult.mode === 'name') && (
-        <View style={styles.barLabel}>
+        <View style={[styles.barLabel, { flexDirection: 'row', alignItems: 'center' }]}>
           <Text
-            style={{ color: barTextColor, fontSize: 11, fontWeight: '600' }}
+            style={{ color: barTextColor, fontSize: 11, fontWeight: '600', flex: 1 }}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
-            {(bar.task.title || 'Task')} · {bar.duration}d{bar.task.status === 'done' ? ' ✓' : ''}
+            {(bar.task.title || 'Task')} · {bar.duration}d
           </Text>
+          {bar.task.status === 'done' && (
+            <Check size={11} color={barTextColor} strokeWidth={2.5} />
+          )}
         </View>
       )}
       {/* Resize handle visual — subtle indicator on hover, no colored bar. */}
@@ -2114,7 +2118,10 @@ function BarView({
             style={[styles.chipBtn, styles.chipBtnDone]}
             activeOpacity={0.8}
           >
-            <Text style={[styles.chipBtnText, { color: '#fff' }]}>✓ Finish today</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Check size={10} color="#fff" strokeWidth={2.5} />
+              <Text style={[styles.chipBtnText, { color: '#fff' }]}>Finish today</Text>
+            </View>
           </TouchableOpacity>
         )}
       </View>

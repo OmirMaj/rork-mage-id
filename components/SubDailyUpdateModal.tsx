@@ -155,7 +155,7 @@ function SubDailyUpdateModalImpl({
         update.hoursWorked != null ? `  • Hours: ${update.hoursWorked}` : null,
         update.crewCount != null ? `  • Crew: ${update.crewCount}` : null,
         update.notes ? `  • Notes: ${update.notes}` : null,
-        update.blocker ? `  ⚠ BLOCKER: ${update.blocker}` : null,
+        update.blocker ? `  !! BLOCKER: ${update.blocker}` : null,
         '',
         `— ${subName}`,
         '',

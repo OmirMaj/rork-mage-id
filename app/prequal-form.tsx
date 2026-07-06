@@ -317,12 +317,15 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             borderLeftColor: preview.overall === 'pass' ? themeColors.success : preview.overall === 'fail' ? themeColors.danger : Colors.warning,
             backgroundColor: preview.overall === 'pass' ? Colors.successLight : preview.overall === 'fail' ? Colors.errorLight : Colors.warningLight,
           }]}>
-            <Text style={styles.checklistTitle}>
-              {preview.overall === 'pass' ? '✓ Ready to submit'
-                : preview.missingFields.length > 0
-                  ? `${preview.missingFields.length} field${preview.missingFields.length === 1 ? '' : 's'} left`
-                  : 'Review the flags below'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              {preview.overall === 'pass' && <CheckCircle2 size={Type.footnote.fontSize} color={themeColors.success} strokeWidth={2} />}
+              <Text style={styles.checklistTitle}>
+                {preview.overall === 'pass' ? 'Ready to submit'
+                  : preview.missingFields.length > 0
+                    ? `${preview.missingFields.length} field${preview.missingFields.length === 1 ? '' : 's'} left`
+                    : 'Review the flags below'}
+              </Text>
+            </View>
             {preview.missingFields.length > 0 && (
               <Text style={styles.checklistSub}>Missing: {preview.missingFields.join(', ')}</Text>
             )}

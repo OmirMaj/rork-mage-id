@@ -2416,7 +2416,7 @@ export default function ProjectDetailScreen() {
                         status: 'approved',
                         scheduleImpactApplied: shouldApplyImpact ? true : co.scheduleImpactApplied,
                       });
-                      // 🎉 Burst — change orders are real money/scope
+                      // Burst — change orders are real money/scope
                       // events; the GC celebrates each approval.
                       fireConfetti({ count: 35 });
                       if (shouldApplyImpact && project?.schedule) {

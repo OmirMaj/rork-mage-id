@@ -1406,9 +1406,12 @@ export default function DailyReportScreen() {
                 }}
                 testID="hs-publish-toggle"
               >
-                <Text style={[hsStyles.publishBtnText, hsPublished && hsStyles.publishBtnTextPublished]}>
-                  {hsPublished ? '✓ Showing in portal' : 'Publish to portal'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  {hsPublished && <CheckCircle2 size={Type.footnote.fontSize} color={themeColors.success} strokeWidth={2} />}
+                  <Text style={[hsStyles.publishBtnText, hsPublished && hsStyles.publishBtnTextPublished]}>
+                    {hsPublished ? 'Showing in portal' : 'Publish to portal'}
+                  </Text>
+                </View>
               </TouchableOpacity>
             )}
           </View>

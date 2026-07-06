@@ -20,6 +20,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Modal, Pressable, TextInput, Platform, StyleSheet } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { TRADE_KEYS, tradeLabel, type TradeKey } from '@/utils/scheduleColors';
 import type { ScheduleTask } from '@/types';
@@ -309,7 +310,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
                   >
                     <View style={[styles.dot, { backgroundColor: Colors.tradeColors[k] }]} />
                     <Text style={styles.tradeOptLabel}>{tradeLabel(k)}</Text>
-                    {tradeKey === k ? <Text style={styles.tradeCheck}>✓</Text> : null}
+                    {tradeKey === k ? <Check size={13} color={Colors.primary} strokeWidth={2.5} /> : null}
                   </Pressable>
                 ))}
               </Pressable>

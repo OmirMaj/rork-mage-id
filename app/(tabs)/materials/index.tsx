@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown, ShoppingCart,
+  ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown, ShoppingCart, BarChart3,
   // Category icons (rendered via CATEGORY_ICONS map below) — replaces
   // emoji-as-icon for visual consistency with the rest of the app
   TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
@@ -132,7 +132,7 @@ export default function MaterialsScreen() {
       .filter(cat => grouped[cat])
       .map(cat => {
         const items = grouped[cat];
-        const meta = CATEGORY_META[cat] ?? { color: themeColors.accent, emoji: '📦', iconName: 'Package', label: cat };
+        const meta = CATEGORY_META[cat] ?? { color: themeColors.accent, iconName: 'Package', label: cat };
         const prices = items.map(i => i.baseBulkPrice);
         const discounts = items.map(i => {
           if (i.baseRetailPrice <= 0) return 0;
@@ -462,9 +462,12 @@ export default function MaterialsScreen() {
         ListFooterComponent={
           <View style={{ paddingBottom: insets.bottom + 110 }}>
             <View style={styles.sourceNote}>
-              <Text style={styles.sourceText}>
-                📊 Prices sourced from major retailers, distributors, and regional wholesalers across the US. Updated in real-time with market variance.
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                <BarChart3 size={13} color={themeColors.textMuted} strokeWidth={1.75} />
+                <Text style={[styles.sourceText, { flex: 1 }]}>
+                  Prices sourced from major retailers, distributors, and regional wholesalers across the US. Updated in real-time with market variance.
+                </Text>
+              </View>
             </View>
           </View>
         }

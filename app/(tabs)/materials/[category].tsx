@@ -94,7 +94,7 @@ export default function CategoryDetailScreen() {
     );
   }, [allMaterials, searchQuery]);
 
-  const meta = CATEGORY_META[category ?? ''] ?? { color: themeColors.accent, emoji: '📦', iconName: 'Package', label: category ?? 'Materials' };
+  const meta = CATEGORY_META[category ?? ''] ?? { color: themeColors.accent, iconName: 'Package', label: category ?? 'Materials' };
   const CategoryIcon = CATEGORY_ICONS[meta.iconName] ?? Package;
 
   const calcDiscount = (retail: number, bulk: number) => {

@@ -346,7 +346,7 @@ export default function GridPane({
   const [draft, setDraft] = useState<string>('');
   const [cellError, setCellError] = useState<string | null>(null);
   // Anchor-picker popover. Shows the MAGE "Anchor" modal for a single task.
-  // Opens from the ⚓ glyph on the Start cell. We keep this as in-grid state
+  // Opens from the Anchor icon on the Start cell. We keep this as in-grid state
   // (rather than lifting to schedule-pro) because the trigger is per-row and
   // the modal is small; lifting would mean threading another callback.
   const [anchorFor, setAnchorFor] = useState<ScheduleTask | null>(null);

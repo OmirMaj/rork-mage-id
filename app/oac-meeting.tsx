@@ -22,7 +22,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Plus, RefreshCw, Send, CheckCircle2, Circle,
-  Mic, X, Users, Calendar, AlertTriangle, Clock, Upload,
+  Mic, X, Users, Calendar, AlertTriangle, AlertCircle, Check, Clock, Upload,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -495,9 +495,13 @@ function OACMeetingInner() {
                       </View>
                       {item.status && item.status !== 'info' ? (
                         <View style={[styles.itemPill, { backgroundColor: STATUS_COLOR[item.status] + '20' }]}>
-                          <Text style={[styles.itemPillText, { color: STATUS_COLOR[item.status] }]}>
-                            {item.status === 'urgent' ? '!' : item.status === 'warn' ? '⚠' : item.status === 'done' ? '✓' : ''}
-                          </Text>
+                          {item.status === 'urgent' ? (
+                            <AlertCircle size={13} color={STATUS_COLOR.urgent} strokeWidth={2} />
+                          ) : item.status === 'warn' ? (
+                            <AlertTriangle size={13} color={STATUS_COLOR.warn} strokeWidth={2} />
+                          ) : item.status === 'done' ? (
+                            <Check size={13} color={STATUS_COLOR.done} strokeWidth={2.5} />
+                          ) : null}
                         </View>
                       ) : null}
                     </View>
