@@ -74,6 +74,7 @@ export interface AIRiskFinding {
 }
 
 export interface AIRiskResult {
+  ok: boolean;
   findings: AIRiskFinding[];
   summary: string;
   cached?: boolean;
@@ -115,7 +116,7 @@ Return up to 6 findings, most important first.`;
   });
 
   if (!res.success || !res.data) {
-    return { findings: [], summary: 'AI risk check failed. Try again.', cached: res.cached };
+    return { ok: false, findings: [], summary: 'AI risk check failed. Try again.', cached: res.cached };
   }
 
   const raw = res.data as { summary?: string; findings?: {
@@ -140,6 +141,7 @@ Return up to 6 findings, most important first.`;
   }));
 
   return {
+    ok: true,
     summary: raw.summary || (findings.length > 0 ? `${findings.length} issues found` : 'Schedule looks clean.'),
     findings,
     cached: res.cached,
@@ -160,6 +162,7 @@ export interface AIOptimizationIdea {
 }
 
 export async function aiOptimizeSchedule(tasks: ScheduleTask[], cpm: CpmResult): Promise<{
+  ok: boolean;
   ideas: AIOptimizationIdea[];
   summary: string;
   cached?: boolean;
@@ -200,7 +203,7 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
   });
 
   if (!res.success || !res.data) {
-    return { ideas: [], summary: 'AI optimizer failed.', cached: res.cached };
+    return { ok: false, ideas: [], summary: 'AI optimizer failed.', cached: res.cached };
   }
 
   const raw = res.data as { summary?: string; ideas?: {
@@ -225,6 +228,7 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
   }));
 
   return {
+    ok: true,
     summary: raw.summary || `${ideas.length} ideas`,
     ideas,
     cached: res.cached,
@@ -236,6 +240,7 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
 // ---------------------------------------------------------------------------
 
 export async function aiExplainCriticalPath(tasks: ScheduleTask[], cpm: CpmResult): Promise<{
+  ok: boolean;
   explanation: string;
   cached?: boolean;
 }> {
@@ -271,7 +276,7 @@ Project finish: day ${cpm.projectFinish}`;
   });
 
   if (!res.success) {
-    return { explanation: 'AI explainer unavailable right now.', cached: res.cached };
+    return { ok: false, explanation: 'AI explainer unavailable right now.', cached: res.cached };
   }
   const raw = typeof res.data === 'string' ? res.data : (res.raw ?? '');
   // Defensive: even though the prompt asks for plain prose, strip any stray
@@ -282,7 +287,7 @@ Project finish: day ${cpm.projectFinish}`;
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
     .trim();
-  return { explanation, cached: res.cached };
+  return { ok: true, explanation, cached: res.cached };
 }
 
 // ---------------------------------------------------------------------------
@@ -334,7 +339,7 @@ export async function aiAskSchedule(
   cpm: CpmResult,
   question: string,
   projectStartDate: Date,
-): Promise<{ answer: string; cached?: boolean }> {
+): Promise<{ ok: boolean; answer: string; cached?: boolean }> {
   const serialized = serializeSchedule(tasks, cpm);
   const startStr = projectStartDate.toISOString().slice(0, 10);
   const prompt = `Answer the user's question using ONLY the schedule data below.
@@ -354,8 +359,11 @@ Question: ${question}`;
     // No cache — conversational answers shouldn't be reused
   });
 
+  // Success is driven by whether the model call itself succeeded — the
+  // 'No answer.' fallback is only reachable when res.success is false (no
+  // string data and no raw text), so ok mirrors res.success.
   const text = typeof res.data === 'string' ? res.data : (res.raw ?? 'No answer.');
-  return { answer: text.trim() };
+  return { ok: res.success, answer: text.trim() };
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +381,7 @@ export async function aiLogAsBuilt(
   tasks: ScheduleTask[],
   transcript: string,
   todayDayNumber: number,
-): Promise<{ patches: AIAsBuiltPatch[]; summary: string; cached?: boolean }> {
+): Promise<{ ok: boolean; patches: AIAsBuiltPatch[]; summary: string; cached?: boolean }> {
   const { byAlias, byId } = buildAliasMap(tasks);
   const simplified = tasks.map((t, i) => `T${i + 1}: ${t.title} (${t.status}, ${t.progress}% done)`).join('\n');
 
@@ -407,7 +415,7 @@ ${simplified}`;
   });
 
   if (!res.success || !res.data) {
-    return { patches: [], summary: 'Could not parse that.' };
+    return { ok: false, patches: [], summary: 'Could not parse that.' };
   }
 
   const raw = res.data as { summary?: string; updates?: {
@@ -437,7 +445,7 @@ ${simplified}`;
     }
     patches.push({ taskId: id, taskTitle: t.title, patch, rationale: u.rationale || '' });
   }
-  return { patches, summary: raw.summary || `${patches.length} update(s) parsed`, cached: res.cached };
+  return { ok: true, patches, summary: raw.summary || `${patches.length} update(s) parsed`, cached: res.cached };
 }
 
 // ---------------------------------------------------------------------------
@@ -463,6 +471,7 @@ export interface AIGeneratedTask {
 }
 
 export async function aiGenerateSchedule(description: string): Promise<{
+  ok: boolean;
   tasks: AIGeneratedTask[];
   summary: string;
   cached?: boolean;
@@ -502,7 +511,7 @@ ${description}`;
   });
 
   if (!res.success || !res.data) {
-    return { tasks: [], summary: 'Generator failed.' };
+    return { ok: false, tasks: [], summary: 'Generator failed.' };
   }
   const raw = res.data as { summary?: string; tasks?: AIGeneratedTask[] };
   const tasks = (raw.tasks ?? []).map(t => ({
@@ -514,7 +523,7 @@ ${description}`;
     crew: t.crew,
     isMilestone: t.isMilestone || t.durationDays === 0,
   }));
-  return { tasks, summary: raw.summary || `Generated ${tasks.length} tasks`, cached: res.cached };
+  return { ok: true, tasks, summary: raw.summary || `Generated ${tasks.length} tasks`, cached: res.cached };
 }
 
 // ---------------------------------------------------------------------------
@@ -542,6 +551,7 @@ export interface GenerateFromEstimateParams {
 }
 
 export async function aiGenerateScheduleFromEstimate(params: GenerateFromEstimateParams): Promise<{
+  ok: boolean;
   tasks: AIGeneratedTask[];
   summary: string;
   cached?: boolean;
@@ -549,7 +559,7 @@ export async function aiGenerateScheduleFromEstimate(params: GenerateFromEstimat
   // Cap prompt size; number the items so the model can reference them and we
   // can map the references back to materialIds.
   const items = params.items.slice(0, 120);
-  if (items.length === 0) return { tasks: [], summary: 'No estimate items to schedule.' };
+  if (items.length === 0) return { ok: false, tasks: [], summary: 'No estimate items to schedule.' };
 
   const itemLines = items.map((it, i) =>
     `[${i + 1}] ${it.name}${it.category ? ` (${it.category})` : ''}` +
@@ -596,7 +606,7 @@ ${itemLines}`;
   });
 
   if (!res.success || !res.data) {
-    return { tasks: [], summary: 'Generator failed.', cached: res.cached };
+    return { ok: false, tasks: [], summary: 'Generator failed.', cached: res.cached };
   }
   const raw = res.data as { summary?: string; tasks?: (AIGeneratedTask & { itemRefs?: number[] })[] };
   const tasks: AIGeneratedTask[] = (raw.tasks ?? []).map(t => {
@@ -617,6 +627,7 @@ ${itemLines}`;
     };
   });
   return {
+    ok: true,
     tasks,
     summary: raw.summary || `Generated ${tasks.length} tasks from ${items.length} estimate items`,
     cached: res.cached,
@@ -689,6 +700,7 @@ export async function aiBulkEdit(
   selectedIds: string[],
   instruction: string,
 ): Promise<{
+  ok: boolean;
   patches: AIBulkPatch[];
   summary: string;
   /** True when the response came from AsyncStorage cache, not the network. */
@@ -701,7 +713,7 @@ export async function aiBulkEdit(
   const selSet = new Set(selectedIds);
   const selected = tasks.filter(t => selSet.has(t.id));
   if (selected.length === 0) {
-    return { patches: [], summary: 'No tasks selected.' };
+    return { ok: false, patches: [], summary: 'No tasks selected.' };
   }
 
   const { byAlias, byId } = buildAliasMap(tasks);
@@ -757,6 +769,7 @@ Rules:
 
   if (!res.success || !res.data) {
     return {
+      ok: false,
       patches: [],
       summary: res.error || 'AI could not complete that edit.',
       fromCache: res.fromCache,
@@ -807,6 +820,11 @@ Rules:
   }
 
   return {
+    // A 'validation' partial is still a usable, token-spending success (some
+    // patches parsed) — meter it. Only hard failures reach the !res.success
+    // early-return above (ok:false). No-op today (aiBulkEdit passes no Zod
+    // schema so 'validation' is unreachable here), but correct if one is added.
+    ok: !res.errorKind || res.errorKind === 'validation',
     patches,
     summary: raw.summary ?? (patches.length === 0 ? 'No changes proposed.' : `${patches.length} task(s) to update.`),
     fromCache: res.fromCache,

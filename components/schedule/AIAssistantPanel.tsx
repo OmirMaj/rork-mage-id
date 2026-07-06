@@ -184,7 +184,9 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       }
       // Record usage only on the success path — a blocked/failed edit must not
       // burn a free-tier lifetime trial.
-      void recordAIUsage('smart', 'scheduleCopilot');
+      if (res.ok) {
+        void recordAIUsage('smart', 'scheduleCopilot');
+      }
       setBulkResult({
         summary: res.summary,
         patches: res.patches,
@@ -245,7 +247,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       setRiskResult({ summary: res.summary, findings: res.findings });
       // aiDetectRisks returns a fallback summary on failure instead of throwing;
       // only meter a genuine result.
-      if (res.summary !== 'AI risk check failed. Try again.') {
+      if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
@@ -258,7 +260,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       const res = await aiOptimizeSchedule(tasks, cpm);
       setOptResult({ summary: res.summary, ideas: res.ideas });
       // Fallback summary on failure (helper never throws) — don't meter it.
-      if (res.summary !== 'AI optimizer failed.') {
+      if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
@@ -271,7 +273,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       const res = await aiExplainCriticalPath(tasks, cpm);
       setExplainText(res.explanation);
       // Fallback string on failure (helper never throws) — don't meter it.
-      if (res.explanation !== 'AI explainer unavailable right now.') {
+      if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
@@ -287,7 +289,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       setChatHistory(h => [...h, { q: question, a: res.answer }]);
       // 'No answer.' is the helper's empty-response fallback — only meter a
       // real answer.
-      if (res.answer !== 'No answer.') {
+      if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
@@ -300,7 +302,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       const res = await aiLogAsBuilt(tasks, asBuiltDraft.trim(), todayDayNumber);
       setAsBuiltPatches(res.patches);
       // Fallback summary on parse failure (helper never throws) — don't meter it.
-      if (res.summary !== 'Could not parse that.') {
+      if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
@@ -325,7 +327,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       setGenSource('text');
       setGenPreview(materializeGeneratedTasks(res.tasks));
       // Fallback summary on failure (helper never throws) — don't meter it.
-      if (res.summary !== 'Generator failed.') {
+      if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
@@ -349,7 +351,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       setGenSource('estimate');
       setGenPreview(materializeGeneratedTasks(res.tasks));
       // Fallback summary on failure (helper never throws) — don't meter it.
-      if (res.summary !== 'Generator failed.') {
+      if (res.ok) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
