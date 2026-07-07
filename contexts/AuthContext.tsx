@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
+import { processOfflineQueue, getOfflineQueue } from '@/utils/offlineQueue';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -39,11 +40,22 @@ const LOCAL_USER_CACHE_KEYS = [
   'tertiary_sub_portal_links',
 ] as const;
 
-async function wipeLocalUserCache(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem('mageid_offline_queue');
-  } catch (err) {
-    console.log('[Auth] Failed to clear offline queue:', err);
+// The re-fetchable caches (buildwise_* / tertiary_*) are always safe to wipe —
+// they rehydrate from Supabase under the incoming JWT. The offline WRITE queue
+// (`mageid_offline_queue`) is the ONE cache that CANNOT be re-fetched, so
+// dropping it is opt-in. `dropOfflineQueue` defaults to true to preserve the
+// existing hard-wipe behavior of login/signup/logout/deleteAccount/OAuth (a
+// deliberate sign-out or fresh sign-in where losing the queue is intended).
+// Same-user re-auth paths (magic link / password reset) pass false so pending
+// offline writes survive — see onNewSessionEstablished.
+async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promise<void> {
+  const dropOfflineQueue = opts?.dropOfflineQueue ?? true;
+  if (dropOfflineQueue) {
+    try {
+      await AsyncStorage.removeItem('mageid_offline_queue');
+    } catch (err) {
+      console.log('[Auth] Failed to clear offline queue:', err);
+    }
   }
   try {
     await AsyncStorage.multiRemove(LOCAL_USER_CACHE_KEYS as unknown as string[]);
@@ -332,9 +344,45 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // DFRs/queued mutations flush under B's JWT. Idempotent — safe to call
   // even when the same user re-establishes their own session.
   const onNewSessionEstablished = useCallback(async () => {
-    await wipeLocalUserCache();
+    // Re-fetchable caches (projects/DFRs/RFIs + react-query) are always safe to
+    // nuke here — they rehydrate from Supabase under the new JWT. But the
+    // offline WRITE queue can't be re-fetched: unconditionally dropping it (the
+    // old behavior) silently loses pending offline writes when the SAME user
+    // re-establishes their session via a magic link or password reset.
+    //
+    // We can't cleanly read the prior user's id at this call site (the new
+    // session's onAuthStateChange has already run by the time this executes,
+    // and threading a prior-id through would require a lagging ref plumbed into
+    // every sign-in path). So we take the safe queue-preserving route: flush
+    // the queue first under the now-active session, then drop it ONLY if the
+    // flush fully drained it.
+    //   • Same user: their queued writes sync to the server, the queue empties,
+    //     and we drop the empty shell — no data lost.
+    //   • Different user on a shared device: those writes are rejected by RLS
+    //     server-side and discarded via the queue's terminal-error path, so the
+    //     queue still empties and gets dropped — no cross-tenant leak.
+    //   • Transient network failure mid-flush: writes are re-queued unchanged,
+    //     the queue is NOT empty, so we PRESERVE it rather than lose the writes.
+    let queueDrained = false;
+    try {
+      await processOfflineQueue();
+    } catch (err) {
+      console.log('[Auth] Offline queue flush before wipe failed:', err);
+    }
+    try {
+      // Read the ACTUAL persisted queue (not processOfflineQueue's return
+      // value, which short-circuits to remaining:0 when Supabase is
+      // unconfigured) so we never drop a still-populated queue.
+      queueDrained = (await getOfflineQueue()).length === 0;
+    } catch {
+      queueDrained = false;
+    }
+    await wipeLocalUserCache({ dropOfflineQueue: queueDrained });
     queryClient.clear();
-    console.log('[Auth] New session established — local + query cache cleared');
+    console.log(
+      '[Auth] New session established — re-fetchable cache cleared; offline queue',
+      queueDrained ? 'flushed + dropped' : 'preserved',
+    );
   }, [queryClient]);
 
   const login = useCallback(async (email: string, password: string, rememberMe: boolean = true) => {
