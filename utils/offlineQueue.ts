@@ -92,7 +92,26 @@ function isTerminalError(message: string): boolean {
   );
 }
 
-export async function processOfflineQueue(): Promise<{ processed: number; failed: number; remaining: number }> {
+// Re-entrancy guard. Startup, AppState-foreground, AND the self-rescheduling
+// backoff drain (OfflineSyncManager) can all invoke processOfflineQueue while
+// a previous flush is still in its network phase. Two overlapping flushes each
+// snapshot the SAME persisted queue and re-send the same mutations via plain
+// .insert — producing DUPLICATE server rows (daily reports / invoices / change
+// orders). To prevent that, all callers coalesce onto a single shared in-flight
+// promise: while a flush runs, every additional call returns that same promise
+// instead of starting a concurrent flush. The handle is cleared in a `finally`
+// so a thrown/failed flush never wedges the guard permanently.
+let inFlight: Promise<{ processed: number; failed: number; remaining: number }> | null = null;
+
+export function processOfflineQueue(): Promise<{ processed: number; failed: number; remaining: number }> {
+  if (inFlight) return inFlight;
+  inFlight = runOfflineQueue().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function runOfflineQueue(): Promise<{ processed: number; failed: number; remaining: number }> {
   if (!isSupabaseConfigured) return { processed: 0, failed: 0, remaining: 0 };
 
   const queue = await getOfflineQueue();
