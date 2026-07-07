@@ -19,7 +19,8 @@ import {
 import { MageAIMark } from '@/components/icons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
@@ -130,6 +131,9 @@ function getCategoryColor(category: string): string {
 }
 
 export default function EstimateScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const dStyles = useThemedStyles(makeDStyles);
+  const aiStyles = useThemedStyles(makeAiStyles);
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
@@ -3503,10 +3507,10 @@ export default function EstimateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   wizardCta: {
     flexDirection: 'row',
@@ -3539,7 +3543,7 @@ const styles = StyleSheet.create({
   wizardCtaTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700',
-    color: Colors.surface,
+    color: themeColors.surface,
     letterSpacing: 0.2,
   },
   wizardCtaSubtitle: {
@@ -3582,7 +3586,7 @@ const styles = StyleSheet.create({
   takeoffCtaTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700',
-    color: Colors.surface,
+    color: themeColors.surface,
     letterSpacing: 0.2,
   },
   takeoffCtaSubtitle: {
@@ -3591,12 +3595,12 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   header: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     paddingHorizontal: 16,
     paddingBottom: 8,
     gap: 8,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   tabRow: {
     flexDirection: 'row',
@@ -3615,7 +3619,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.md,
   },
   tabItemActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -3625,7 +3629,7 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   tabLabelActive: {
     color: Colors.primary,
@@ -3645,7 +3649,7 @@ const styles = StyleSheet.create({
   tabBadgeText: {
     fontSize: 9,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   tabBadgeTextActive: {
     color: Colors.primary,
@@ -3682,7 +3686,7 @@ const styles = StyleSheet.create({
   askAIBtnTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: themeColors.surface,
   },
   askAIBtnSub: {
     fontSize: Type.caption1.fontSize,
@@ -3691,7 +3695,7 @@ const styles = StyleSheet.create({
   },
   summaryMiniCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     padding: 12,
     borderLeftWidth: 3,
@@ -3700,23 +3704,23 @@ const styles = StyleSheet.create({
   summaryMiniLabel: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.3,
   },
   summaryMiniValue: {
     fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   summaryMiniSub: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   cartSectionTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 4,
@@ -3730,7 +3734,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 32,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.5,
   },
   liveRow: {
@@ -3796,7 +3800,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.surface,
+    borderColor: themeColors.surface,
   },
   cartBadgeText: {
     fontSize: 9,
@@ -3815,7 +3819,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   searchBarFocused: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderColor: Colors.primary + '26',
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 8 },
@@ -3826,7 +3830,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   markupRow: {
     flexDirection: 'row',
@@ -3837,7 +3841,7 @@ const styles = StyleSheet.create({
   markupLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginRight: 2,
   },
   markupPresets: {
@@ -3857,7 +3861,7 @@ const styles = StyleSheet.create({
   markupChipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   markupChipTextActive: {
     color: Colors.textOnPrimary,
@@ -3875,17 +3879,17 @@ const styles = StyleSheet.create({
   markupCustomInput: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: themeColors.text,
     width: 42,
   },
   markupCustomSuffix: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   categoriesWrapper: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   categoriesContent: {
     paddingHorizontal: 16,
@@ -3907,7 +3911,7 @@ const styles = StyleSheet.create({
   categoryChipText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   categoryChipTextActive: {
     color: Colors.textOnPrimary,
@@ -3922,13 +3926,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     gap: 10,
   },
   resultsCount: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.2,
   },
   resultsMicroCopy: {
@@ -3943,11 +3947,11 @@ const styles = StyleSheet.create({
   opportunityPanel: {
     marginHorizontal: 16,
     marginBottom: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     gap: 10,
   },
   opportunityHeader: {
@@ -3964,11 +3968,11 @@ const styles = StyleSheet.create({
   opportunityTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   opportunitySubtitle: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   opportunityGrid: {
     gap: 8,
@@ -3989,11 +3993,11 @@ const styles = StyleSheet.create({
   },
   opportunityCardDetail: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 17,
   },
   materialCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     shadowColor: '#000',
@@ -4015,7 +4019,7 @@ const styles = StyleSheet.create({
   materialName: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 20,
   },
   materialMeta: {
@@ -4054,7 +4058,7 @@ const styles = StyleSheet.create({
   },
   supplierText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   addButton: {
     width: 34,
@@ -4070,7 +4074,7 @@ const styles = StyleSheet.create({
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.md,
     padding: 10,
     gap: 8,
@@ -4084,7 +4088,7 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginRight: 4,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.3,
@@ -4092,7 +4096,7 @@ const styles = StyleSheet.create({
   retailPrice: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textDecorationLine: 'line-through' as const,
   },
   bulkPrice: {
@@ -4103,12 +4107,12 @@ const styles = StyleSheet.create({
   },
   priceUnit: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   priceDivider: {
     width: 0.5,
     height: 24,
-    backgroundColor: Colors.border,
+    backgroundColor: themeColors.line,
   },
   bulkSavingsBadge: {
     alignItems: 'flex-end',
@@ -4120,7 +4124,7 @@ const styles = StyleSheet.create({
   },
   bulkMinText: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   materialFooterRow: {
     flexDirection: 'row',
@@ -4146,7 +4150,7 @@ const styles = StyleSheet.create({
   materialSignalText: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   inCartRow: {
     flexDirection: 'row',
@@ -4166,11 +4170,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   emptyDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textAlign: 'center' as const,
   },
   floatingCart: {
@@ -4209,7 +4213,7 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -4218,13 +4222,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderBottomColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
   modalTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.3,
   },
   modalClose: {
@@ -4260,10 +4264,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cartItem: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     overflow: 'hidden' as const,
   },
   cartItemHeader: {
@@ -4279,11 +4283,11 @@ const styles = StyleSheet.create({
   cartItemName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   cartItemSub: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   cartItemRight: {
     alignItems: 'flex-end',
@@ -4292,13 +4296,13 @@ const styles = StyleSheet.create({
   cartItemTotal: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   cartItemExpanded: {
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: themeColors.line,
     padding: 14,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     gap: 12,
   },
   cartQtyRow: {
@@ -4309,18 +4313,18 @@ const styles = StyleSheet.create({
   cartExpandLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   qtyControl: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   qtyBtn: {
     padding: 4,
@@ -4328,7 +4332,7 @@ const styles = StyleSheet.create({
   qtyValue: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     minWidth: 24,
     textAlign: 'center' as const,
   },
@@ -4340,9 +4344,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   markupMiniChipActive: {
     backgroundColor: Colors.accent,
@@ -4351,7 +4355,7 @@ const styles = StyleSheet.create({
   markupMiniText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   markupMiniTextActive: {
     color: Colors.textOnPrimary,
@@ -4382,17 +4386,17 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     margin: 16,
-    backgroundColor: Colors.card,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.panel,
     padding: 18,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     gap: 10,
   },
   summaryTitle: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginBottom: 2,
   },
   summaryRow: {
@@ -4402,21 +4406,21 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   summaryValue: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
   },
   summaryTotal: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   summaryTotalValue: {
     fontSize: Type.title2.fontSize,
@@ -4436,8 +4440,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderTopColor: themeColors.line,
+    backgroundColor: themeColors.surface,
     alignItems: 'center',
     gap: 8,
   },
@@ -4450,7 +4454,7 @@ const styles = StyleSheet.create({
   cartFooterLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   cartFooterValue: {
     fontSize: Type.title3.fontSize,
@@ -4529,21 +4533,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: themeColors.line,
     backgroundColor: Colors.fillSecondary,
   },
   costBreakdownToggleText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.1,
   },
   costBreakdownPanel: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: themeColors.line,
     gap: 6,
   },
   costBreakdownRow: {
@@ -4560,24 +4564,24 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   costBreakdownRate: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     width: 100,
     textAlign: 'right' as const,
   },
   costBreakdownValue: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
     width: 70,
     textAlign: 'right' as const,
   },
   costBreakdownDivider: {
     height: 0.5,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
     marginVertical: 2,
   },
   cartEmpty: {
@@ -4590,11 +4594,11 @@ const styles = StyleSheet.create({
   cartEmptyTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   cartEmptyDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textAlign: 'center' as const,
     lineHeight: 20,
   },
@@ -4617,7 +4621,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   popupCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius["2xl"],
     padding: 20,
     gap: 14,
@@ -4632,7 +4636,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 24,
   },
   popupCloseBtn: {
@@ -4654,7 +4658,7 @@ const styles = StyleSheet.create({
   },
   popupPriceBlock: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.card,
     padding: 12,
     flexDirection: 'row',
@@ -4664,14 +4668,14 @@ const styles = StyleSheet.create({
   popupPriceLabel: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textTransform: 'uppercase' as const,
     marginRight: 4,
   },
   popupRetail: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textDecorationLine: 'line-through' as const,
   },
   popupBulk: {
@@ -4681,12 +4685,12 @@ const styles = StyleSheet.create({
   },
   popupPriceUnit: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   popupFieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginTop: 2,
   },
   popupQtyRow: {
@@ -4705,13 +4709,13 @@ const styles = StyleSheet.create({
   popupQtyInput: {
     flex: 1,
     height: 48,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.card,
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   popupBulkBanner: {
     flexDirection: 'row',
@@ -4727,17 +4731,17 @@ const styles = StyleSheet.create({
     color: Colors.success,
   },
   popupBreakdown: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     padding: 12,
     gap: 6,
   },
   popupBreakdownTitle: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.8,
     marginBottom: 2,
@@ -4749,27 +4753,27 @@ const styles = StyleSheet.create({
   },
   popupBreakdownLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   popupBreakdownLabelBold: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   popupBreakdownValue: {
     fontSize: Type.footnote.fontSize,
     fontVariant: ['tabular-nums'] as any,
-    color: Colors.text,
+    color: themeColors.text,
   },
   popupBreakdownValueBold: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '800' as const,
     fontVariant: ['tabular-nums'] as any,
-    color: Colors.text,
+    color: themeColors.text,
   },
   popupBreakdownDivider: {
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: themeColors.line,
     paddingTop: 6,
     marginTop: 2,
   },
@@ -4784,7 +4788,7 @@ const styles = StyleSheet.create({
   popupTotalLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   popupTotalValue: {
     fontSize: Type.title2.fontSize,
@@ -4799,12 +4803,12 @@ const styles = StyleSheet.create({
   },
   popupRunningLabel: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   popupRunningValue: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   popupAddBtn: {
     flexDirection: 'row',
@@ -4827,7 +4831,7 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
   },
   addToProjectCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius["2xl"],
     padding: 20,
     gap: 14,
@@ -4841,11 +4845,11 @@ const styles = StyleSheet.create({
   addToProjectTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   addToProjectDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 20,
   },
   addToProjectEmpty: {
@@ -4855,13 +4859,13 @@ const styles = StyleSheet.create({
   },
   addToProjectEmptyText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textAlign: 'center' as const,
   },
   projectOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
@@ -4879,11 +4883,11 @@ const styles = StyleSheet.create({
   projectOptionName: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   projectOptionMeta: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   addToProjectConfirmBtn: {
     flexDirection: 'row',
@@ -4906,22 +4910,22 @@ const styles = StyleSheet.create({
   confirmFieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
   },
   confirmInput: {
     minHeight: 48,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     paddingHorizontal: 14,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   confirmSummaryCard: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 8,
@@ -4933,12 +4937,12 @@ const styles = StyleSheet.create({
   },
   confirmSummaryLabel: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   confirmSummaryValue: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   confirmSummaryValueBold: {
     fontSize: Type.subheadline.fontSize,
@@ -4947,7 +4951,7 @@ const styles = StyleSheet.create({
   },
   confirmDivider: {
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
   },
   existingEstimateWarning: {
     flexDirection: 'row' as const,
@@ -5001,16 +5005,16 @@ const styles = StyleSheet.create({
   },
 });
 
-const dStyles = StyleSheet.create({
+const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
   desktopHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   desktopBody: {
     flex: 1,
@@ -5018,9 +5022,9 @@ const dStyles = StyleSheet.create({
   },
   catalogPanel: {
     width: 280,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRightWidth: 1,
-    borderRightColor: Colors.borderLight,
+    borderRightColor: themeColors.line,
   },
   catalogItem: {
     flexDirection: 'row',
@@ -5028,13 +5032,13 @@ const dStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
     gap: 8,
   },
   catalogItemName: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   catalogItemPrice: {
     fontSize: Type.caption2.fontSize,
@@ -5043,7 +5047,7 @@ const dStyles = StyleSheet.create({
   },
   workspacePanel: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   wsSection: {
     paddingHorizontal: 20,
@@ -5052,14 +5056,14 @@ const dStyles = StyleSheet.create({
   wsSectionTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginBottom: 8,
   },
   wsTable: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     overflow: 'hidden' as const,
   },
   wsTableHeader: {
@@ -5069,12 +5073,12 @@ const dStyles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: Colors.fillSecondary,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   wsHeaderCell: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
   },
@@ -5084,14 +5088,14 @@ const dStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   wsTableRowAlt: {
     backgroundColor: Colors.fillSecondary,
   },
   wsCell: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   wsGrandTotal: {
     flexDirection: 'row',
@@ -5109,7 +5113,7 @@ const dStyles = StyleSheet.create({
   wsGrandTotalLabel: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   wsGrandTotalValue: {
     fontSize: Type.title2.fontSize,
@@ -5118,16 +5122,16 @@ const dStyles = StyleSheet.create({
   },
   summaryPanel: {
     width: 300,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderLeftWidth: 1,
-    borderLeftColor: Colors.borderLight,
+    borderLeftColor: themeColors.line,
     padding: 20,
     gap: 10,
   },
   summaryTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginBottom: 4,
   },
   summaryRow: {
@@ -5138,16 +5142,16 @@ const dStyles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   summaryValue: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
     marginVertical: 4,
   },
   summaryGrand: {
@@ -5165,7 +5169,7 @@ const dStyles = StyleSheet.create({
   summaryMetricTitle: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
     marginBottom: 2,
@@ -5177,12 +5181,12 @@ const dStyles = StyleSheet.create({
   },
   summaryMetricLabel: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   summaryMetricValue: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   summaryActions: {
     marginTop: 16,
@@ -5255,7 +5259,7 @@ const dStyles = StyleSheet.create({
   desktopHeroBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: themeColors.surface,
     letterSpacing: 0.2,
   },
   // Demoted cart icon — when items are in cart, tint primary so it
@@ -5278,17 +5282,17 @@ const dStyles = StyleSheet.create({
   cartIconBadgeText: {
     fontSize: 9,
     fontWeight: '800' as const,
-    color: Colors.surface,
+    color: themeColors.surface,
     lineHeight: 11,
   },
 });
 
-const aiStyles = StyleSheet.create({
+const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
   recentSection: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   recentHeader: {
     flexDirection: 'row',
@@ -5300,7 +5304,7 @@ const aiStyles = StyleSheet.create({
   recentTitle: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.4,
   },
@@ -5314,13 +5318,13 @@ const aiStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: themeColors.line,
     maxWidth: 180,
   },
   recentChipName: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginBottom: 2,
   },
   recentChipPrice: {
@@ -5355,11 +5359,11 @@ const aiStyles = StyleSheet.create({
   aiSearchPromptTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   aiSearchPromptDesc: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   aiSearchBtn: {
     flexDirection: 'row',
@@ -5378,7 +5382,7 @@ const aiStyles = StyleSheet.create({
   aiResultsContainer: {
     marginHorizontal: 16,
     marginVertical: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.primary + '20',
@@ -5432,7 +5436,7 @@ const aiStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
     gap: 6,
   },
   aiResultMain: {
@@ -5443,7 +5447,7 @@ const aiStyles = StyleSheet.create({
   aiResultName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 19,
   },
   aiResultMeta: {
@@ -5459,7 +5463,7 @@ const aiStyles = StyleSheet.create({
   },
   aiResultBrand: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     fontWeight: '500' as const,
   },
   aiResultTags: {
@@ -5507,7 +5511,7 @@ const aiStyles = StyleSheet.create({
   },
   aiResultDesc: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 17,
   },
   aiRelatedRow: {
@@ -5531,10 +5535,10 @@ const aiStyles = StyleSheet.create({
     marginVertical: 6,
     paddingHorizontal: 14,
     paddingVertical: 11,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     borderStyle: 'dashed' as const,
   },
   customEntryBtnText: {
@@ -5558,7 +5562,7 @@ const aiStyles = StyleSheet.create({
   unitChipText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   unitChipTextActive: {
     color: Colors.primary,

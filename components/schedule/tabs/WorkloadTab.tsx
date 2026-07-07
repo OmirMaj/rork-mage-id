@@ -13,7 +13,8 @@
 
 import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useScheduler } from '../SchedulerContext';
 import type { ProjectResource } from '@/types';
 
@@ -33,6 +34,7 @@ const ROW_H = 36;
 
 export function WorkloadTab({ resources }: WorkloadTabProps) {
   const { tasks } = useScheduler();
+  const styles = useThemedStyles(makeStyles);
 
   const lanes = useMemo<Lane[]>(() => {
     if (resources && resources.length > 0) {
@@ -159,8 +161,8 @@ export function WorkloadTab({ resources }: WorkloadTabProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: themeColors.bg },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -168,46 +170,46 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderBottomColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
-  toolbarTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  toolbarHint: { fontSize: 11, color: Colors.textSecondary, flex: 1 },
+  toolbarTitle: { fontSize: 13, fontWeight: '700', color: themeColors.text },
+  toolbarHint: { fontSize: 11, color: themeColors.textSecondary, flex: 1 },
   headerRow: {
     flexDirection: 'row',
     height: 36,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
+    borderBottomColor: themeColors.line,
+    backgroundColor: themeColors.surfaceAlt,
   },
   headerCell: { alignItems: 'center', justifyContent: 'center' },
-  headerText: { fontSize: 10, fontWeight: '700', color: Colors.textSecondary, letterSpacing: 0.5 },
+  headerText: { fontSize: 10, fontWeight: '700', color: themeColors.textSecondary, letterSpacing: 0.5 },
   row: {
     flexDirection: 'row',
     height: ROW_H,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: themeColors.line,
   },
   label: {
     paddingHorizontal: 10,
     justifyContent: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRightWidth: 1,
-    borderRightColor: Colors.border,
+    borderRightColor: themeColors.line,
   },
-  labelName: { fontSize: 12, fontWeight: '700', color: Colors.text },
-  labelCap: { fontSize: 9, color: Colors.textSecondary, fontWeight: '600' },
+  labelName: { fontSize: 12, fontWeight: '700', color: themeColors.text },
+  labelCap: { fontSize: 9, color: themeColors.textSecondary, fontWeight: '600' },
   cell: {
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: Colors.border,
+    borderRightColor: themeColors.line,
   },
   cellLight: { backgroundColor: Colors.fillTertiary },
   cellWarn: { backgroundColor: Colors.pillAtRisk + '33' },
   cellOver: { backgroundColor: Colors.pillLate + '55' },
-  cellText: { fontSize: 11, fontWeight: '600', color: Colors.text },
-  cellTextOver: { color: Colors.text, fontWeight: '700' },
+  cellText: { fontSize: 11, fontWeight: '600', color: themeColors.text },
+  cellTextOver: { color: themeColors.text, fontWeight: '700' },
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -215,6 +217,6 @@ const styles = StyleSheet.create({
     padding: 32,
     gap: 8,
   },
-  emptyTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  emptyText: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', maxWidth: 320 },
+  emptyTitle: { fontSize: 14, fontWeight: '700', color: themeColors.text },
+  emptyText: { fontSize: 12, color: themeColors.textSecondary, textAlign: 'center', maxWidth: 320 },
 });

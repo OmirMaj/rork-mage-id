@@ -12,7 +12,8 @@ import {
   TreePine, Box, Home, Zap, Wrench, Layers, LayoutGrid, HardHat, Paintbrush, Leaf, Fence,
 } from 'lucide-react-native';
 import { MageMaterials } from '@/components/icons';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 // Supplier-category id → trade icon (replaces the emoji chips).
 const CAT_ICON: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
@@ -28,6 +29,7 @@ import { Tokens } from '@/constants/designTokens';
 type ViewMode = 'suppliers' | 'listings';
 
 export default function MarketplaceScreen() {
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -638,28 +640,28 @@ export default function MarketplaceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   header: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     paddingHorizontal: 20,
     paddingBottom: 12,
     gap: 8,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginTop: -4,
   },
   searchBar: {
@@ -675,7 +677,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   modeRow: {
     flexDirection: 'row',
@@ -697,15 +699,15 @@ const styles = StyleSheet.create({
   modeBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   modeBtnTextActive: {
     color: Colors.textOnPrimary,
   },
   categoriesWrapper: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   categoriesContent: {
     paddingHorizontal: 16,
@@ -730,7 +732,7 @@ const styles = StyleSheet.create({
   categoryChipText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   categoryChipTextActive: {
     color: Colors.textOnPrimary,
@@ -743,11 +745,11 @@ const styles = StyleSheet.create({
   resultsCount: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.2,
   },
   supplierCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 10,
@@ -794,7 +796,7 @@ const styles = StyleSheet.create({
   supplierName: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   ratingRow: {
     flexDirection: 'row',
@@ -804,12 +806,12 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginLeft: 3,
   },
   supplierDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 18,
   },
   supplierMeta: {
@@ -829,7 +831,7 @@ const styles = StyleSheet.create({
   supplierChipText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   supplierCats: {
     flexDirection: 'row',
@@ -851,7 +853,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   listingCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 10,
@@ -873,12 +875,12 @@ const styles = StyleSheet.create({
   listingName: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 20,
   },
   listingDesc: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   stockBadge: {
     flexDirection: 'row',
@@ -897,7 +899,7 @@ const styles = StyleSheet.create({
   listingPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.md,
     padding: 10,
     gap: 8,
@@ -911,14 +913,14 @@ const styles = StyleSheet.create({
   listingPriceLabel: {
     fontSize: 9,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginRight: 4,
     letterSpacing: 0.5,
   },
   listingRetail: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textDecorationLine: 'line-through' as const,
   },
   listingBulk: {
@@ -929,12 +931,12 @@ const styles = StyleSheet.create({
   },
   listingUnit: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   listingPriceDivider: {
     width: 0.5,
     height: 24,
-    backgroundColor: Colors.border,
+    backgroundColor: themeColors.line,
   },
   listingSaveBadge: {
     alignItems: 'flex-end',
@@ -946,7 +948,7 @@ const styles = StyleSheet.create({
   },
   listingMinText: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   listingBottom: {
     flexDirection: 'row',
@@ -960,7 +962,7 @@ const styles = StyleSheet.create({
   },
   listingSupplierText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     fontWeight: '500' as const,
   },
   listingLeadRow: {
@@ -981,22 +983,22 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   emptyDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textAlign: 'center' as const,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   modalHandle: {
     width: 36,
     height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.border,
+    backgroundColor: themeColors.line,
     alignSelf: 'center',
     marginBottom: 8,
   },
@@ -1007,13 +1009,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   modalTitle: {
     flex: 1,
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: -0.3,
     marginRight: 12,
   },
@@ -1048,12 +1050,12 @@ const styles = StyleSheet.create({
   ratingTextLarge: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginLeft: 4,
   },
   supplierDetailDesc: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -1069,24 +1071,24 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   contactBtnText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   detailInfoCard: {
     marginHorizontal: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 8,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   detailInfoRow: {
     flexDirection: 'row',
@@ -1096,28 +1098,28 @@ const styles = StyleSheet.create({
   detailInfoText: {
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   detailInfoDivider: {
     height: 0.5,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
     marginLeft: 24,
   },
   detailSectionLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.6,
     paddingHorizontal: 20,
     marginBottom: 8,
   },
   detailListingsCard: {
     marginHorizontal: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.lg,
     overflow: 'hidden' as const,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   detailListingRow: {
     flexDirection: 'row',
@@ -1133,11 +1135,11 @@ const styles = StyleSheet.create({
   detailListingName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   detailListingMeta: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   detailListingRight: {
     alignItems: 'flex-end',
@@ -1146,7 +1148,7 @@ const styles = StyleSheet.create({
   detailListingPrice: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   detailSaveBadge: {
     backgroundColor: Colors.successLight,
@@ -1161,7 +1163,7 @@ const styles = StyleSheet.create({
   },
   detailListingDivider: {
     height: 0.5,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
     marginLeft: 14,
   },
   popupOverlay: {
@@ -1171,7 +1173,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   popupCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius["2xl"],
     padding: 20,
     gap: 12,
@@ -1186,7 +1188,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 24,
   },
   popupCloseBtn: {
@@ -1199,7 +1201,7 @@ const styles = StyleSheet.create({
   },
   popupDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 18,
   },
   popupSupplierRow: {
@@ -1233,7 +1235,7 @@ const styles = StyleSheet.create({
   },
   popupPriceBlock: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.card,
     padding: 12,
     flexDirection: 'row',
@@ -1243,14 +1245,14 @@ const styles = StyleSheet.create({
   popupPriceLabel: {
     fontSize: 9,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.5,
     marginRight: 4,
   },
   popupRetail: {
     fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textDecorationLine: 'line-through' as const,
   },
   popupBulk: {
@@ -1260,12 +1262,12 @@ const styles = StyleSheet.create({
   },
   popupPriceUnit: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   popupFieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginTop: 2,
   },
   popupQtyRow: {
@@ -1289,13 +1291,13 @@ const styles = StyleSheet.create({
   popupQtyInput: {
     flex: 1,
     height: 48,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: Tokens.radius.card,
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   popupBulkBanner: {
     flexDirection: 'row',
@@ -1321,7 +1323,7 @@ const styles = StyleSheet.create({
   popupTotalLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   popupTotalValue: {
     fontSize: Type.title2.fontSize,

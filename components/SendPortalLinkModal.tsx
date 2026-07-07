@@ -27,7 +27,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { View, Text, Modal, Pressable, TextInput, Platform, Linking, StyleSheet, ActivityIndicator, KeyboardAvoidingView, ScrollView, Keyboard } from 'react-native';
 import { Mail, MessageSquare } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { copyToClipboard } from '@/utils/clipboard';
 import { sendEmail } from '@/utils/emailService';
 
@@ -54,6 +55,7 @@ export function SendPortalLinkModal({
   emailHtml,
   link,
 }: SendPortalLinkModalProps) {
+  const styles = useThemedStyles(makeStyles);
   const [mode, setMode] = useState<Mode>('email');
   const [recipientsText, setRecipientsText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -252,7 +254,7 @@ function wrapPlainAsHtml(message: string, link: string): string {
 </body></html>`;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   kavRoot: { flex: 1 },
   backdrop: {
     flex: 1,
@@ -265,7 +267,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 460,
     maxHeight: '90%',
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 14,
     overflow: 'hidden',
   },
@@ -277,7 +279,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     marginBottom: 4,
   },
   doneInlineText: {
@@ -287,8 +289,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  sub: { fontSize: 12, color: Colors.textSecondary, marginTop: 4, marginBottom: 16 },
+  title: { fontSize: 18, fontWeight: '700', color: themeColors.text },
+  sub: { fontSize: 12, color: themeColors.textSecondary, marginTop: 4, marginBottom: 16 },
   modeRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   modeBtn: {
     flex: 1,
@@ -299,28 +301,28 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
+    borderColor: themeColors.line,
+    backgroundColor: themeColors.surfaceAlt,
   },
   modeBtnActive: { backgroundColor: Colors.tradeColors.general, borderColor: Colors.tradeColors.general },
-  modeBtnText: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  modeBtnText: { fontSize: 13, fontWeight: '600', color: themeColors.text },
   modeBtnTextActive: { color: '#0B0D10' },
   label: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   input: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: Colors.text,
+    color: themeColors.text,
     fontSize: 14,
     minHeight: 78,
     textAlignVertical: 'top',
@@ -328,20 +330,20 @@ const styles = StyleSheet.create({
   previewLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     marginTop: 14,
     marginBottom: 4,
   },
   preview: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: 8,
     padding: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
-  previewText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+  previewText: { fontSize: 12, color: themeColors.textSecondary, lineHeight: 18 },
   error: { color: Colors.pillLate, fontSize: 12, marginTop: 10 },
   success: { color: Colors.pillOnTrack, fontSize: 12, marginTop: 10 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 14, justifyContent: 'flex-end' },
@@ -349,9 +351,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
   },
-  cancelText: { color: Colors.text, fontWeight: '600', fontSize: 13 },
+  cancelText: { color: themeColors.text, fontWeight: '600', fontSize: 13 },
   sendBtn: {
     paddingHorizontal: 16,
     paddingVertical: 10,
