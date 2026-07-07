@@ -33,6 +33,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
@@ -239,7 +240,12 @@ interface TriageEntry {
 }
 
 async function fetchAsBase64(url: string): Promise<{ data: string; mimeType: string }> {
-  const r = await fetch(url);
+  // SSRF guard: only fetch https URLs on the app's own Supabase storage
+  // host. Throws UrlValidationError for anything else; the caller
+  // pre-validates the batch and rejects with a generic 400, so this is
+  // defense-in-depth ensuring no disallowed URL is ever fetched.
+  const safeUrl = validateFetchableUrl(url);
+  const r = await fetch(safeUrl);
   if (!r.ok) throw new Error(`Fetch image failed: ${r.status} ${url}`);
   const mimeType = r.headers.get('content-type') ?? 'image/jpeg';
   const buf = await r.arrayBuffer();
@@ -336,6 +342,13 @@ serve(async (req) => {
       originalIndex: i,
     }));
   } else {
+    // SSRF guard: validate every URL before any server-side fetch. Reject
+    // the whole batch with a generic 400 that does NOT echo the URL if any
+    // is not an https URL on the app's own Supabase storage host.
+    for (const u of body.photoUrls!) {
+      try { validateFetchableUrl(u); }
+      catch { return jsonResponse({ success: false, error: 'One or more photo URLs are not allowed.' }, 400); }
+    }
     const fetched = await Promise.allSettled(body.photoUrls!.map(fetchAsBase64));
     goodPhotos = fetched
       .map((r, i) => r.status === 'fulfilled' ? { ...r.value, originalIndex: i } : null)

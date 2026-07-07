@@ -45,6 +45,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { requireTier, aiUsageIncrement, MONTHLY_CAPS, type Tier } from "../_shared/auth.ts";
+import { validateFetchableUrl, UrlValidationError } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
@@ -100,7 +101,10 @@ interface TakeoffRequest {
 }
 
 async function urlToInlineImagePart(url: string): Promise<{ inlineData: { mimeType: string; data: string } }> {
-  const r = await fetch(url, {
+  // SSRF guard: only fetch https URLs on the app's own Supabase storage
+  // host — throws UrlValidationError (→ generic 400) for anything else.
+  const safeUrl = validateFetchableUrl(url);
+  const r = await fetch(safeUrl, {
     headers: {
       'User-Agent': 'MAGE-ID/1.0 (takeoff; +https://mageid.app)',
       'Accept': 'image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5',
@@ -768,6 +772,10 @@ serve(async (req) => {
     const { data, modelUsed } = await callTakeoffModel(body, auth.tier);
     return jsonResponse({ success: true, data, modelUsed, usage: { used, cap } });
   } catch (e) {
+    if (e instanceof UrlValidationError) {
+      // Generic — never echo the offending URL or an upstream status.
+      return jsonResponse({ success: false, error: 'One or more image URLs are not allowed.' }, 400);
+    }
     console.error('[analyze-takeoff] failed', e);
     return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);
   }
