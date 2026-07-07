@@ -20,6 +20,7 @@ import {
 } from '@/components/icons';
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
+import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -170,7 +171,13 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   }, [router]);
 
   const isClient = userRole === 'client';
-  const navItems = isClient ? CLIENT_NAV_ITEMS : NAV_ITEMS;
+  // Direct Hire + Messages belong to the same orphaned subsystem, gated
+  // behind HIRE_ENABLED for launch. Hide their rail entries when it's off.
+  const navItems = useMemo(
+    () => (isClient ? CLIENT_NAV_ITEMS : NAV_ITEMS)
+      .filter(item => HIRE_ENABLED || (item.key !== 'hire' && item.key !== 'messages')),
+    [isClient],
+  );
   const sections = isClient ? CLIENT_SECTIONS : SECTIONS;
 
   // Account items render pinned to the bottom of the rail (dimmed), separate

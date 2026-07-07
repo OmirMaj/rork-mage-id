@@ -11,7 +11,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useHire } from '@/contexts/HireContext';
+import { useHire, HIRE_ENABLED } from '@/contexts/HireContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import type { ChatMessage } from '@/types';
@@ -95,6 +95,23 @@ export default function MessagesScreen() {
 
   // No real presence signal is wired yet, so we don't fake an "Online" status.
   const onlineIndicator = null;
+
+  // Messaging ships as part of the Direct-Hire subsystem, which is
+  // feature-flagged off for launch (see HIRE_ENABLED). Until that's live,
+  // show a neutral "coming soon" state rather than instructions pointing at
+  // a flow that doesn't yet work end-to-end.
+  if (!HIRE_ENABLED) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Messages' }} />
+        <EmptyState
+          icon={<MessageCircle size={36} color={themeColors.accent} strokeWidth={1.6} />}
+          title="Messaging is coming soon"
+          message="In-app messaging isn't available yet. We'll turn it on once the hiring marketplace goes live."
+        />
+      </View>
+    );
+  }
 
   // Direct sidebar hits land here without a conversation id. Show how to
   // open one instead of an empty screen with no context.
