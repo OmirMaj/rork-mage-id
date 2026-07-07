@@ -1217,7 +1217,7 @@ export default function DailyReportScreen() {
             <View style={styles.roleTileGrid}>
               <RoleTile icon={User} label="Supervisors" count={workforceByRole.supervisors} color="#3B82F6" />
               <RoleTile icon={HardHat} label="Skilled" count={workforceByRole.skilled} color="#10B981" />
-              <RoleTile icon={Tractor} label="Operators" count={workforceByRole.operators} color="#A855F7" />
+              <RoleTile icon={Tractor} label="Operators" count={workforceByRole.operators} color="#5B6470" />
               <RoleTile icon={Users} label="Other" count={workforceByRole.other} color="#F59E0B" />
             </View>
 

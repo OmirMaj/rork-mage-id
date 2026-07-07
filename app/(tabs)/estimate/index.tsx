@@ -1561,9 +1561,9 @@ export default function EstimateScreen() {
                       {aiMat.brand && <Text style={aiStyles.aiResultBrand}>{aiMat.brand}</Text>}
                     </View>
                     <View style={aiStyles.aiResultTags}>
-                      <View style={[aiStyles.aiSourceTag, { backgroundColor: '#9333EA18' }]}>
-                        <MageAIMark size={9} color="#9333EA" />
-                        <Text style={[aiStyles.aiSourceTagText, { color: '#9333EA' }]}>AI Found</Text>
+                      <View style={[aiStyles.aiSourceTag, { backgroundColor: '#FF6A1A18' }]}>
+                        <MageAIMark size={9} color="#FF6A1A" />
+                        <Text style={[aiStyles.aiSourceTagText, { color: '#FF6A1A' }]}>AI Found</Text>
                       </View>
                       <View style={[aiStyles.aiConfBadge, { backgroundColor: confColor + '18' }]}>
                         <View style={[aiStyles.aiConfDot, { backgroundColor: confColor }]} />
