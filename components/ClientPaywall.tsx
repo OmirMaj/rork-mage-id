@@ -69,6 +69,22 @@ interface ClientPaywallProps {
   onUnlocked: (via: 'rfp_post_fee' | 'pro_trial' | 'pm_trial') => void;
 }
 
+// Kill-switch for the one-off "Pay $X to post" RFP path.
+//
+// SHIPPED DISABLED (product decision): the per-post CTA below only ever
+// recorded a *local* AsyncStorage credit via recordRfpPostCredit() — it
+// charged nothing, was trivially bypassable, wiped on logout, and is a
+// non-compliant purchase UI. Rather than ship a "Pay $25" button that
+// collects $0, we hide the paid path entirely and leave only the
+// subscription + free-trial paths live for launch.
+//
+// TODO(billing): before flipping this back to `true`, wire real,
+// server-enforced billing — a Stripe PaymentIntent (Apple/Google Pay on
+// native, Payment Link on web) whose *server-confirmed* completion is
+// what grants the post credit (see handlePayPerPost placeholder), NOT a
+// client-side recordRfpPostCredit() call. Until then this MUST stay false.
+const RFP_PAID_POST_ENABLED = false;
+
 const PRO_BENEFITS = [
   'Unlimited project posts',
   'Side-by-side bid comparison',
@@ -160,12 +176,14 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
         >
           <Text style={styles.headline}>
             {mode === 'rfp-post'
-              ? 'Pay per project, or go unlimited'
+              ? (RFP_PAID_POST_ENABLED ? 'Pay per project, or go unlimited' : 'Post unlimited projects')
               : 'Manage your project from one place'}
           </Text>
           <Text style={styles.lede}>
             {mode === 'rfp-post'
-              ? 'Post a single project for a one-time fee, or subscribe to post unlimited projects and manage them all from one dashboard.'
+              ? (RFP_PAID_POST_ENABLED
+                  ? 'Post a single project for a one-time fee, or subscribe to post unlimited projects and manage them all from one dashboard.'
+                  : 'Subscribe to post unlimited projects and manage them all from one dashboard, with a free trial.')
               : 'A subscription unlocks milestone payments, document storage, and ongoing management for every project you award.'}
           </Text>
 
@@ -175,7 +193,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
               "pay-per-track vs subscribe" page. Per-post is the right
               answer for a one-and-done renovation; subscription is the
               right answer for anyone with > 1 property. */}
-          {mode === 'rfp-post' && (
+          {mode === 'rfp-post' && RFP_PAID_POST_ENABLED && (
             <View style={styles.perPostCard}>
               <View style={styles.perPostHead}>
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.textMuted + '22' }]}>
@@ -209,7 +227,7 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
             </View>
           )}
 
-          {mode === 'rfp-post' && (
+          {mode === 'rfp-post' && RFP_PAID_POST_ENABLED && (
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>OR SUBSCRIBE</Text>
