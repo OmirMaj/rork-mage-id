@@ -51,7 +51,7 @@ const PIN_COLORS: Record<DrawingPinKind, string> = {
   note: '#FF6A1A',
   photo: '#3B82F6',
   punch: '#FF9500',
-  rfi: '#8B5CF6',
+  rfi: '#2F6B6B',
 };
 
 export default function PlanViewerScreen() {

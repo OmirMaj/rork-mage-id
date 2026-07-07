@@ -582,9 +582,9 @@ function tradeColor(trade: SubTrade): string {
     case 'Electrical': return '#F59E0B';
     case 'Plumbing':   return '#3B82F6';
     case 'HVAC':       return '#06B6D4';
-    case 'Roofing':    return '#8B5CF6';
-    case 'Drywall':    return '#A78BFA';
-    case 'Painting':   return '#EC4899';
+    case 'Roofing':    return '#5B6470';
+    case 'Drywall':    return '#8A8170';
+    case 'Painting':   return '#2F6B6B';
     case 'Flooring':   return '#10B981';
     case 'Concrete':   return '#6B7280';
     case 'Framing':    return '#92400E';
