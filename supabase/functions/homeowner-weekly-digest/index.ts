@@ -365,6 +365,7 @@ async function sendForProject(
   client: SupabaseClient,
   project: ProjectRow,
   ownerProfile: ProfileRow | null,
+  isPreview: boolean,
 ): Promise<{ sent: number; errors: string[] }> {
   const portal = project.client_portal;
   const invites = (portal?.invites ?? []).filter(i => (i.email ?? '').includes('@'));
@@ -427,8 +428,11 @@ async function sendForProject(
   }
 
   // Stamp the project's clientPortal.weeklyDigest.lastSentAt so we
-  // don't double-send if cron retries.
-  if (sent > 0 && portal) {
+  // don't double-send if cron retries. Preview sends (the GC's "Send
+  // preview" button) must NOT stamp — otherwise a preview would advance
+  // lastSentAt and silently suppress that project's next scheduled
+  // Friday cron send. Only real cron sends stamp.
+  if (!isPreview && sent > 0 && portal) {
     const updatedPortal = {
       ...portal,
       weeklyDigest: { ...(portal.weeklyDigest ?? {}), enabled: true, lastSentAt: new Date().toISOString() },
@@ -491,7 +495,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       ownerProfile = (profRes.data as ProfileRow | null) ?? null;
     }
-    const result = await sendForProject(client, project, ownerProfile);
+    const result = await sendForProject(client, project, ownerProfile, true);
     return jsonResponse({
       success: true,
       mode: 'preview',
@@ -542,7 +546,7 @@ Deno.serve(async (req: Request) => {
         }
       }
       const owner = profilesById.get(project.user_id ?? '') ?? null;
-      const result = await sendForProject(client, project, owner);
+      const result = await sendForProject(client, project, owner, false);
       totalSent += result.sent;
       if (result.errors.length > 0) projectErrors.push({ projectId: project.id, errors: result.errors });
     }
