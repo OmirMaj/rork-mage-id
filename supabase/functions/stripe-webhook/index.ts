@@ -240,10 +240,16 @@ async function handleCheckoutCompleted(
     .eq("id", invoiceId)
     .single();
 
-  if (fetchError || !invoice) {
+  if (fetchError) {
     console.error("[stripe-webhook] Failed to fetch invoice:", invoiceId, fetchError);
-    return { ok: false, reason: "invoice not found" };
+    // Split terminal from transient. `.single()` returns PGRST116 when zero
+    // rows match (invoice genuinely gone — retrying won't help). Any other
+    // error code is a transient DB/network read failure — a captured payment
+    // would be stranded if we ACK'd 200, so signal a retry instead.
+    if (fetchError.code === "PGRST116") return { ok: false, reason: "invoice not found" };
+    return { ok: false, reason: "db fetch failed" };
   }
+  if (!invoice) return { ok: false, reason: "invoice not found" };
 
   // Stripe amount_total is in cents; our DB stores dollars as NUMERIC.
   const amountReceived = session.amount_total / 100;
@@ -462,9 +468,21 @@ serve(async (req) => {
       const result = await handleCheckoutCompleted(session);
       if (!result.ok) {
         console.warn("[stripe-webhook] checkout.session.completed handling failed:", result.reason);
-        // We still return 200 so Stripe doesn't retry forever for non-recoverable
-        // errors (e.g. invoice not found because it was deleted). Real DB errors
-        // are logged and can be replayed manually from the Stripe dashboard.
+        // Distinguish recoverable from terminal outcomes. A transient DB
+        // write failure means the payment succeeded on Stripe but our
+        // reconciliation didn't land — if we ACK with 200 here, Stripe never
+        // retries and the invoice is stranded "unpaid" forever with no alert.
+        // Return 500 so Stripe retries with backoff; the idempotency guard in
+        // handleCheckoutCompleted (existing payment id match) makes the retry
+        // safe. Terminal cases (invoice not found / deleted, no
+        // metadata.invoice_id, payment_status not "paid", duplicate) are not
+        // fixable by retrying, so those fall through to the 200 ACK below.
+        if (result.reason === "db update failed" || result.reason === "db fetch failed") {
+          return new Response(
+            JSON.stringify({ error: "transient db failure, retry" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
       break;
     }
@@ -481,6 +499,15 @@ serve(async (req) => {
       const result = await handleAccountUpdated(acct);
       if (!result.ok) {
         console.warn("[stripe-webhook] account.updated handling failed:", result.reason);
+        // A transient DB write failure means the Connect status flags never
+        // landed — 500 so Stripe retries. The flag write is idempotent, so a
+        // retry is safe. The terminal 'no account id' case falls through to 200.
+        if (result.reason === "db update failed") {
+          return new Response(
+            JSON.stringify({ error: "transient db failure, retry" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
       break;
     }
