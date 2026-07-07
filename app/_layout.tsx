@@ -287,29 +287,76 @@ function AnalyticsManager() {
 function OfflineSyncManager() {
   const appState = useRef(AppState.currentState);
   const { isAuthenticated } = useAuth();
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffMs = useRef(0);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    void processOfflineQueue().then(({ processed }) => {
-      if (processed > 0) {
-        console.log('[OfflineSync] Processed', processed, 'queued mutations on startup');
+    let cancelled = false;
+
+    // Capped exponential backoff for the connectivity-less reconnect story.
+    // We have no NetInfo/expo-network event to tell us signal returned (adding
+    // one is a native dep and would break OTA — see deploy note), so when a
+    // flush leaves items queued we self-reschedule with growing delay. That
+    // drains the queue automatically once the network comes back even if the
+    // app never leaves the foreground.
+    const BASE_DELAY = 5_000;       // first retry ~5s after a failed drain
+    const MAX_DELAY = 5 * 60_000;   // cap at 5 min between attempts
+
+    const clearRetry = () => {
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = null;
       }
-    }).catch((err) => {
-      console.log('[OfflineSync] Failed to process queue on startup:', err);
-    });
+    };
+
+    const scheduleBackoff = (drain: () => void) => {
+      backoffMs.current = backoffMs.current === 0
+        ? BASE_DELAY
+        : Math.min(backoffMs.current * 2, MAX_DELAY);
+      console.log('[OfflineSync] Retrying queue drain in', backoffMs.current, 'ms');
+      retryTimer.current = setTimeout(drain, backoffMs.current);
+    };
+
+    // reset=true is used by the "fresh" triggers (startup / foreground): it
+    // clears the backoff so we retry promptly. The self-scheduled retries pass
+    // reset=false so the delay keeps growing while we stay offline.
+    const drain = (reset: boolean) => {
+      if (cancelled) return;
+      if (reset) backoffMs.current = 0;
+      clearRetry();
+      void processOfflineQueue().then(({ processed, remaining }) => {
+        if (cancelled) return;
+        if (processed > 0) {
+          console.log('[OfflineSync] Processed', processed, 'queued mutations');
+        }
+        if (remaining > 0) {
+          scheduleBackoff(() => drain(false));
+        } else {
+          backoffMs.current = 0;
+        }
+      }).catch((err) => {
+        console.log('[OfflineSync] Failed to process queue:', err);
+        // An unexpected flush failure is treated like a non-empty queue: back
+        // off and try again rather than silently giving up.
+        if (!cancelled) scheduleBackoff(() => drain(false));
+      });
+    };
+
+    drain(true);
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
         console.log('[OfflineSync] App foregrounded, processing queue');
-        void processOfflineQueue().catch((err) => {
-          console.log('[OfflineSync] Failed to process queue on foreground:', err);
-        });
+        drain(true);
       }
       appState.current = nextState;
     });
 
     return () => {
+      cancelled = true;
+      clearRetry();
       subscription.remove();
     };
   }, [isAuthenticated]);

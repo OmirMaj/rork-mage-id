@@ -14,6 +14,37 @@ export interface OfflineMutation {
   retryCount: number;
 }
 
+// Serializes every read-modify-write of the persisted queue behind a single
+// promise chain. Without this, a mutation enqueued DURING a flush races the
+// flush's write-back: both read the queue, then the flush's wholesale
+// overwrite clobbers the freshly-appended mutation. Each enqueue and the
+// flush's write-back run their critical section through withQueueLock so
+// they execute one-at-a-time. The lock is NOT held across the flush's
+// (slow, network-bound) processing — only across storage read-modify-write —
+// so offline optimism stays responsive.
+let queueLock: Promise<unknown> = Promise.resolve();
+function withQueueLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queueLock.then(fn, fn);
+  // Keep the chain alive and swallow errors so one failed section never
+  // rejects the next waiter.
+  queueLock = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+// Transient network/connectivity failure — the write never reached the
+// server but nothing is wrong with it. Such mutations must be re-queued
+// UNCHANGED and must never consume the retry budget: a device that's merely
+// offline would otherwise exhaust MAX_RETRIES and silently drop the user's
+// data. Mirrors the classification supabaseWrite uses on the live path.
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError ||
+    (err instanceof Error && (
+      err.message.includes('Network request failed') ||
+      err.message.includes('Failed to fetch') ||
+      err.message.includes('network')
+    ));
+}
+
 export async function getOfflineQueue(): Promise<OfflineMutation[]> {
   try {
     const stored = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
@@ -24,25 +55,27 @@ export async function getOfflineQueue(): Promise<OfflineMutation[]> {
 }
 
 export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | 'timestamp' | 'retryCount'>): Promise<void> {
-  try {
-    const queue = await getOfflineQueue();
-    const entry: OfflineMutation = {
-      ...mutation,
-      id: `oq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      timestamp: Date.now(),
-      retryCount: 0,
-    };
-    queue.push(entry);
-    if (queue.length > MAX_QUEUE) {
-      const dropped = queue.length - MAX_QUEUE;
-      queue.splice(0, dropped); // FIFO: drop oldest
-      console.warn(`[OfflineQueue] cap ${MAX_QUEUE} exceeded — dropped ${dropped} oldest mutation(s)`);
+  return withQueueLock(async () => {
+    try {
+      const queue = await getOfflineQueue();
+      const entry: OfflineMutation = {
+        ...mutation,
+        id: `oq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        retryCount: 0,
+      };
+      queue.push(entry);
+      if (queue.length > MAX_QUEUE) {
+        const dropped = queue.length - MAX_QUEUE;
+        queue.splice(0, dropped); // FIFO: drop oldest
+        console.warn(`[OfflineQueue] cap ${MAX_QUEUE} exceeded — dropped ${dropped} oldest mutation(s)`);
+      }
+      await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+      console.log('[OfflineQueue] Queued mutation:', mutation.table, mutation.operation);
+    } catch (err) {
+      console.log('[OfflineQueue] Failed to queue mutation:', err);
     }
-    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
-    console.log('[OfflineQueue] Queued mutation:', mutation.table, mutation.operation);
-  } catch (err) {
-    console.log('[OfflineQueue] Failed to queue mutation:', err);
-  }
+  });
 }
 
 // Auth/permission errors are terminal — the queue can't recover by retrying,
@@ -59,11 +92,11 @@ function isTerminalError(message: string): boolean {
   );
 }
 
-export async function processOfflineQueue(): Promise<{ processed: number; failed: number }> {
-  if (!isSupabaseConfigured) return { processed: 0, failed: 0 };
+export async function processOfflineQueue(): Promise<{ processed: number; failed: number; remaining: number }> {
+  if (!isSupabaseConfigured) return { processed: 0, failed: 0, remaining: 0 };
 
   const queue = await getOfflineQueue();
-  if (queue.length === 0) return { processed: 0, failed: 0 };
+  if (queue.length === 0) return { processed: 0, failed: 0, remaining: 0 };
 
   console.log('[OfflineQueue] Processing', queue.length, 'queued mutations');
 
@@ -116,6 +149,16 @@ export async function processOfflineQueue(): Promise<{ processed: number; failed
         console.log('[OfflineQueue] Processed:', mutation.table, mutation.operation);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        if (isNetworkError(err)) {
+          // Offline / transient — re-queue UNCHANGED. Crucially do NOT bump
+          // retryCount: a device that's merely offline must never burn through
+          // its retry budget and permanently drop the write. retryCount is
+          // reserved for genuine server-side (5xx / transient-but-terminal)
+          // failures below.
+          console.log('[OfflineQueue] Network error, keeping mutation queued:', mutation.table, mutation.operation);
+          gRemaining.push(mutation);
+          continue;
+        }
         if (isTerminalError(msg)) {
           console.warn('[OfflineQueue] Terminal error, discarding mutation:', mutation.table, mutation.operation, msg);
           gFailed++;
@@ -154,9 +197,33 @@ export async function processOfflineQueue(): Promise<{ processed: number; failed
     remaining.push(...r.remaining);
   }
 
-  await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
-  console.log('[OfflineQueue] Done. Processed:', processed, 'Failed:', failed, 'Remaining:', remaining.length);
-  return { processed, failed };
+  // Atomic write-back under the queue lock. Instead of overwriting the whole
+  // queue with `remaining` (which would clobber any mutation enqueued while
+  // this flush was in its network phase), re-read the CURRENT persisted queue
+  // and reconcile: for mutations that were part of this flush, drop the
+  // resolved ones and keep the re-queued ones (network-failed unchanged, or
+  // server-error with a bumped retryCount); any entry NOT in this flush's
+  // snapshot was appended mid-flush and is preserved verbatim.
+  const flushIds = new Set(sorted.map((m) => m.id));
+  const keptById = new Map(remaining.map((m) => [m.id, m] as const));
+  const remainingCount = await withQueueLock(async () => {
+    const current = await getOfflineQueue();
+    const next: OfflineMutation[] = [];
+    for (const entry of current) {
+      if (flushIds.has(entry.id)) {
+        const kept = keptById.get(entry.id);
+        if (kept) next.push(kept); // re-queue (unchanged or retry-bumped)
+        // else: successfully processed / terminally failed / retry-exhausted → drop
+      } else {
+        next.push(entry); // enqueued mid-flush — preserve
+      }
+    }
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(next));
+    return next.length;
+  });
+
+  console.log('[OfflineQueue] Done. Processed:', processed, 'Failed:', failed, 'Remaining:', remainingCount);
+  return { processed, failed, remaining: remainingCount };
 }
 
 export async function supabaseWrite(
@@ -192,14 +259,7 @@ export async function supabaseWrite(
 
     return true;
   } catch (err) {
-    const isNetworkError = err instanceof TypeError ||
-      (err instanceof Error && (
-        err.message.includes('Network request failed') ||
-        err.message.includes('Failed to fetch') ||
-        err.message.includes('network')
-      ));
-
-    if (isNetworkError) {
+    if (isNetworkError(err)) {
       console.log('[OfflineQueue] Network error, queuing mutation:', table, operation);
       await addToOfflineQueue({ table, operation, data });
     } else {
