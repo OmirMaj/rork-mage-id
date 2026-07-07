@@ -138,7 +138,35 @@ function EstimateWizardScreenInner() {
       if (!res.success || !res.data) {
         Alert.alert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
       } else {
-        const data = res.data as EstimateResult;
+        // NEVER trust AI arithmetic in a client-facing PDF or saved
+        // project financials. Deterministically recompute every number
+        // (mirrors app/takeoff-estimate.tsx): line total = round(qty ×
+        // unit), subtotal = Σ line totals, grand = subtotal + contingency
+        // + permits. Contingency/permits are AI-provided inputs (not
+        // derived from line items), so we keep them — but round them and
+        // fold them into the recomputed total. Display, PDF, and the
+        // linkedEstimate baseTotal/grandTotal all read from this `data`.
+        const raw = res.data as EstimateResult;
+        const round = (n: number) => Math.round(Number.isFinite(n) ? n : 0);
+        const lineItems = raw.lineItems.map((li) => {
+          const quantity = Number.isFinite(li.quantity) ? li.quantity : 0;
+          const unitCost = Number.isFinite(li.unitCost) ? li.unitCost : 0;
+          return { ...li, quantity, unitCost, total: round(quantity * unitCost) };
+        });
+        const subtotal = lineItems.reduce((s, li) => s + li.total, 0);
+        const contingency = round(raw.contingency);
+        const permits = round(raw.permits);
+        const total = subtotal + contingency + permits;
+
+        // Hard failure: an empty or non-positive estimate is not a real
+        // $0 estimate — do NOT render/save it or overwrite the project.
+        // (An AI error kind is already handled by the !res.success guard.)
+        if (lineItems.length === 0 || total <= 0) {
+          Alert.alert('Estimate failed', 'The AI returned an empty or invalid estimate. Please try again.');
+          return;
+        }
+
+        const data: EstimateResult = { ...raw, lineItems, subtotal, contingency, permits, total };
         setResult(data);
 
         // Project-aware link-back. When the wizard was launched with a
