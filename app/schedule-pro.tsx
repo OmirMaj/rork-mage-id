@@ -1153,7 +1153,7 @@ function ScheduleProScreenInner() {
               ${safeTasks.map((t, i) => `
                 <tr>
                   <td>${i + 1}</td>
-                  <td>${escapeHtml(t.title ?? '')}${t.isMilestone ? ' <span style="background:#ede9fe;color:#6d28d9;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">M</span>' : ''}${t.isCriticalPath ? ' <span style="background:#fee2e2;color:#b91c1c;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">CP</span>' : ''}</td>
+                  <td>${escapeHtml(t.title ?? '')}${t.isMilestone ? ' <span style="background:#fef3c7;color:#b45309;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">M</span>' : ''}${t.isCriticalPath ? ' <span style="background:#fee2e2;color:#b91c1c;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">CP</span>' : ''}</td>
                   <td>${escapeHtml(t.phase ?? '—')}</td>
                   <td class="r">${t.durationDays ?? 0}d</td>
                   <td class="r">${Math.round(t.progress ?? 0)}%</td>

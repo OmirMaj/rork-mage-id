@@ -578,7 +578,7 @@ export default function SettingsScreen() {
           <View style={styles.row}>
             {/* Takeoff quota uses Colors.purple so a custom-theme override
                 can re-tint it via the existing color system. Pre-fix
-                this and the bar fill were hardcoded #7C3AED, drifting
+                this and the bar fill were a hardcoded purple, drifting
                 silently when the user picked a theme. */}
             <View style={[styles.iconWrap, { backgroundColor: Colors.purple }]}>
               <FileText size={14} color="#fff" strokeWidth={1.75} />
