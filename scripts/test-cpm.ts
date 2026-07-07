@@ -17,7 +17,8 @@
 //   Critical path: A → C → D (TF = 0)
 //   B's TF = 2 (can slip 2 days without delaying D)
 
-import { runCpm, formatFloat, wouldCreateCycle } from '../utils/cpm';
+import { runCpm, formatFloat, wouldCreateCycle, workingDaysBetween } from '../utils/cpm';
+import { captureBaseline, baselineFinishDayWorkingScale } from '../utils/scheduleOps';
 import type { ScheduleTask } from '../types';
 
 const stub = (overrides: Partial<ScheduleTask>): ScheduleTask => ({
@@ -177,6 +178,42 @@ console.log(`  A: ES=${a.es} EF=${a.ef} LS=${a.ls} LF=${a.lf}   B: LS=${b.ls}   
 if (ssRes.projectFinish !== 8) { console.error(`  FAIL SS: projectFinish got ${ssRes.projectFinish}, want 8`); failed++; }
 if (a.lf !== 8) { console.error(`  FAIL SS: A.LF got ${a.lf}, want 8 (late finish must land on the working Monday, not the Sunday day 7)`); failed++; }
 else console.log('  OK: SS late-finish aligns to a working day across the weekend');
+
+// --- Slip vs baseline == 0 on an UNCHANGED 5-day-week schedule ---
+// Regression lock for the "phantom slip" merge blocker. captureBaseline
+// persists each task's startDay + a RAW endDay (startDay + dur - 1, no weekend
+// skipping). The schedule-pro slip KPI used to take max(endDay) directly and
+// compare it — via workingDaysBetween — against the working-day-aware
+// cpm.projectFinish. On the default 5-day week those two finishes live on
+// different scales, so slip came out non-zero the instant a baseline was
+// captured on an untouched schedule. baselineFinishDayWorkingScale re-derives
+// the baseline finish on the SAME calendar CPM uses, so slip == 0.
+//
+// Calendar: 2024-01-01 = Monday, 5-day week. A (dur 3) starts Mon day 1 →
+// finishes Wed day 3. B (dur 4) follows A, starting Thu day 4 → Thu, Fri, then
+// across the weekend to Mon day 8, Tue day 9 → finishes day 9. The RAW baseline
+// endDay for B is 4 + 4 - 1 = 7 (a Sunday) — off the working-day scale.
+console.log('\n--- Slip vs baseline == 0 (unchanged 5-day-week schedule) ---');
+const SLIP_CAL = { scheduleStartDate: '2024-01-01', workingDaysPerWeek: 5 } as const;
+const settledTasks: ScheduleTask[] = [
+  stub({ id: 'A', durationDays: 3, startDay: 1 }),
+  stub({ id: 'B', durationDays: 4, startDay: 4, dependencies: ['A'] }),
+];
+const settledCpm = runCpm(settledTasks, SLIP_CAL);
+const baseline = captureBaseline(settledTasks, 'v1');
+const baselineFinish = baselineFinishDayWorkingScale(baseline, SLIP_CAL);
+const slip = baselineFinish == null
+  ? null
+  : workingDaysBetween(baselineFinish, settledCpm.projectFinish, SLIP_CAL);
+// Show what the old raw-endDay approach would have reported, to make the
+// regression legible if this ever breaks again.
+const rawBaselineFinish = Math.max(...baseline.tasks.map(t => t.endDay));
+const rawSlip = workingDaysBetween(rawBaselineFinish, settledCpm.projectFinish, SLIP_CAL);
+console.log(`  cpm.projectFinish=${settledCpm.projectFinish}  baselineFinish(working)=${baselineFinish}  slip=${slip}  (raw-endDay slip would be ${rawSlip})`);
+if (settledCpm.projectFinish !== 9) { console.error(`  FAIL slip: projectFinish got ${settledCpm.projectFinish}, want 9`); failed++; }
+if (baselineFinish !== 9) { console.error(`  FAIL slip: baselineFinish got ${baselineFinish}, want 9 (working-day scale)`); failed++; }
+if (slip !== 0) { console.error(`  FAIL slip: got ${slip}, want 0 (unchanged schedule must show zero slip)`); failed++; }
+else console.log('  OK: unchanged schedule reports zero slip right after baseline capture');
 
 console.log('\n============================================');
 console.log(failed === 0 ? 'ALL PASS ✓' : `${failed} failure(s) ✗`);

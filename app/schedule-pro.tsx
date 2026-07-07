@@ -90,6 +90,7 @@ import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
   reflowFromActuals,
   applyBaselineToTasks,
+  baselineFinishDayWorkingScale,
   exportTasksToCsv,
   downloadCsvInBrowser,
   encodeShareToken,
@@ -291,18 +292,35 @@ function ScheduleProScreenInner() {
 
   // Active baseline finish day — the "as-planned" finish we measure slip
   // against. Convention matches BaselineManagerModal's `activeBaselineId`
-  // (the most recently captured baseline is the active one). Baseline task
-  // rows carry absolute day numbers (startDay/endDay), so the baseline
-  // finish is the max endDay across its rows. Null when no baseline exists.
+  // (the most recently captured baseline is the active one).
+  //
+  // Baseline rows persist a RAW endDay (startDay + dur - 1, no weekend/closure
+  // skipping — see captureBaseline). Taking max(endDay) directly would put the
+  // baseline finish on a different scale than the working-day-aware
+  // cpm.projectFinish, fabricating phantom slip on the default 5-day week even
+  // for an UNCHANGED schedule right after capture. Instead we re-derive the
+  // finish in WORKING-DAY space using the SAME calendar the live CPM uses. This
+  // also corrects baselines already persisted with a raw endDay (the recompute
+  // ignores the raw endDay's scale, deriving duration from it). Null when no
+  // baseline exists.
   const baselineFinishDay = useMemo<number | null>(() => {
     const active = namedBaselines.length > 0
       ? namedBaselines[namedBaselines.length - 1]
       : null;
-    if (!active || active.tasks.length === 0) return null;
-    let max = 0;
-    for (const t of active.tasks) if (t.endDay > max) max = t.endDay;
-    return max > 0 ? max : null;
-  }, [namedBaselines]);
+    if (!active) return null;
+    return baselineFinishDayWorkingScale(active, {
+      scheduleStartDate: scheduleStartIso,
+      workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project?.schedule?.nonWorkingDates,
+      taskCalendars,
+    });
+  }, [
+    namedBaselines,
+    scheduleStartIso,
+    project?.schedule?.workingDaysPerWeek,
+    project?.schedule?.nonWorkingDates,
+    taskCalendars,
+  ]);
 
   // SchedulerContext-shaped CPM summary for the tab shell's SchedulerProvider.
   // Maps from the richer utils/cpm CpmResult to the leaner context shape.

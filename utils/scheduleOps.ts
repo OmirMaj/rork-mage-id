@@ -5,6 +5,7 @@
 // state manager / persist layer.
 
 import type { ScheduleTask, ScheduleBaseline } from '@/types';
+import { runCpm, type RunCpmOptions } from '@/utils/cpm';
 
 // ---------------------------------------------------------------------------
 // 1) Reflow from actuals
@@ -140,6 +141,66 @@ export function captureBaseline(
       endDay: t.startDay + Math.max(0, t.durationDays - 1),
     })),
   };
+}
+
+export interface BaselineCalendarOpts {
+  /** ISO YYYY-MM-DD project start — day 1 anchor. Without it we fall back to
+   *  the raw stored endDay (no calendar available to resolve weekdays). */
+  scheduleStartDate?: string;
+  /** Working days per week (1-7). Default 7 = raw-day behavior. */
+  workingDaysPerWeek?: number;
+  /** Closures / holidays (ISO YYYY-MM-DD) that block work. */
+  nonWorkingDates?: string[];
+  /** Per-task calendar overrides — same map shape runCpm consumes. */
+  taskCalendars?: RunCpmOptions['taskCalendars'];
+}
+
+/**
+ * Project finish of a named baseline expressed in WORKING-DAY space, using the
+ * SAME calendar the live CPM engine uses.
+ *
+ * Why this exists: `captureBaseline` persists each task's `startDay` plus a RAW
+ * `endDay` (= startDay + dur - 1, with no weekend/closure skipping). On the
+ * app's default 5-day work week the live `cpm.projectFinish` is working-day
+ * aware, so comparing it against the raw baseline finish via
+ * `workingDaysBetween` fabricated phantom slip even on an UNCHANGED schedule
+ * right after capture. Here we replay each baseline task's start + duration
+ * through the real CPM engine (no dependencies — the baseline already baked the
+ * dependency-resolved start into `startDay`) so the returned finish lives on the
+ * same working-day scale as `cpm.projectFinish`.
+ *
+ * Backward-compatible: reads only `startDay`/`endDay`, which every persisted
+ * baseline already carries. The reconstructed duration (`endDay - startDay + 1`)
+ * equals the original working-day `durationDays` captureBaseline started from,
+ * so this corrects existing raw-endDay baselines without a data migration.
+ *
+ * Returns null when the baseline has no tasks, or (via the runCpm fallback) the
+ * raw finish when no `scheduleStartDate` is supplied.
+ */
+export function baselineFinishDayWorkingScale(
+  baseline: NamedBaseline,
+  calendar: BaselineCalendarOpts = {},
+): number | null {
+  if (!baseline.tasks || baseline.tasks.length === 0) return null;
+  const stubs: ScheduleTask[] = baseline.tasks.map(b => ({
+    id: b.id,
+    title: b.id,
+    phase: '',
+    durationDays: Math.max(0, b.endDay - b.startDay + 1),
+    startDay: b.startDay,
+    progress: 0,
+    crew: '',
+    dependencies: [],
+    notes: '',
+    status: 'not_started',
+  }));
+  const res = runCpm(stubs, {
+    scheduleStartDate: calendar.scheduleStartDate,
+    workingDaysPerWeek: calendar.workingDaysPerWeek,
+    nonWorkingDates: calendar.nonWorkingDates,
+    taskCalendars: calendar.taskCalendars,
+  });
+  return res.projectFinish > 0 ? res.projectFinish : null;
 }
 
 /** Apply a captured baseline onto each task's baselineStartDay/baselineEndDay. */
