@@ -322,6 +322,21 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     };
   }, []);
 
+  // Shared post-sign-in side-effects for any path that establishes a
+  // session WITHOUT going through login()/signup() — magic link and
+  // password-reset redemption both call supabase.auth.setSession()
+  // directly (in _layout.tsx). Those paths must run the same shared-
+  // device guard the password/OAuth paths do: wipe the previous user's
+  // local cache and clear the react-query cache BEFORE the contexts
+  // hydrate, so on a shared device user-B never sees user-A's projects/
+  // DFRs/queued mutations flush under B's JWT. Idempotent — safe to call
+  // even when the same user re-establishes their own session.
+  const onNewSessionEstablished = useCallback(async () => {
+    await wipeLocalUserCache();
+    queryClient.clear();
+    console.log('[Auth] New session established — local + query cache cleared');
+  }, [queryClient]);
+
   const login = useCallback(async (email: string, password: string, rememberMe: boolean = true) => {
     console.log('[Auth] Logging in');
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -885,5 +900,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     signInWithGoogle,
     signInWithApple,
     sendMagicLink,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink]);
+    onNewSessionEstablished,
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink, onNewSessionEstablished]);
 });

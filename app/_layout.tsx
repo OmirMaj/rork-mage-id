@@ -222,6 +222,7 @@ const queryClient = new QueryClient({
 // requesting a magic link), then exchanges the tokens for a session.
 // Runs at the root so it's mounted before any auth-gated screen.
 function MagicLinkHandler() {
+  const { onNewSessionEstablished } = useAuth();
   useEffect(() => {
     // Helper: pull access_token + refresh_token out of the URL hash
     // (Supabase puts them in `#access_token=...&refresh_token=...`).
@@ -248,6 +249,12 @@ function MagicLinkHandler() {
           console.warn('[MagicLink] setSession failed:', error.message);
         } else {
           console.log('[MagicLink] session set from magic link');
+          // Run the same shared-device cache guard the password/OAuth
+          // sign-in paths do. Magic-link & password-reset redemption set
+          // the session directly here, bypassing login()/signup(), so
+          // without this the previous user's cached projects/DFRs and
+          // queued mutations would leak into the new user's session.
+          await onNewSessionEstablished();
         }
       } catch (e) {
         console.warn('[MagicLink] redeem error:', e);
@@ -263,7 +270,7 @@ function MagicLinkHandler() {
       void tryRedeem(url);
     });
     return () => sub.remove();
-  }, []);
+  }, [onNewSessionEstablished]);
   return null;
 }
 

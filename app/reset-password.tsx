@@ -21,7 +21,7 @@ export default function ResetPasswordScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { updatePassword } = useAuth();
+  const { updatePassword, onNewSessionEstablished } = useAuth();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,14 +37,16 @@ export default function ResetPasswordScreen() {
       void supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken ?? '',
-      }).then(({ error }) => {
+      }).then(async ({ error }) => {
         if (error) {
           console.log('[ResetPassword] Failed to set session:', error.message);
           Alert.alert('Error', 'Invalid or expired reset link. Please request a new one.');
+        } else {
+          await onNewSessionEstablished();
         }
       });
     }
-  }, [params.access_token, params.refresh_token]);
+  }, [params.access_token, params.refresh_token, onNewSessionEstablished]);
 
   const handleSubmit = useCallback(async () => {
     if (!newPassword.trim() || newPassword.length < 8) {
