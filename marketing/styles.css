@@ -116,8 +116,65 @@ nav.links a, .links a {
 }
 nav.links a:hover, .links a:hover { color: #fff; }
 nav.links a.active, .links a.active { color: var(--amber); }
+
+/* Mobile hamburger toggle injected by nav-mobile.js. Hidden by default;
+   only shown below 720px (where the inline links hide) once the button
+   has been injected. Mirrors landing.css so every marketing page — not
+   just the homepage — has a working phone menu. */
+.nav-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  padding: 9px 11px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-direction: column;
+  width: 40px;
+  height: 36px;
+}
+.nav-toggle-bar {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  background: #fff;
+  border-radius: 2px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+.nav-toggle.is-open .nav-toggle-bar:nth-child(1) { transform: translateY(5px) rotate(45deg); }
+.nav-toggle.is-open .nav-toggle-bar:nth-child(2) { opacity: 0; }
+.nav-toggle.is-open .nav-toggle-bar:nth-child(3) { transform: translateY(-5px) rotate(-45deg); }
+
 @media (max-width: 720px) {
   nav.links, .links { display: none; }
+  .nav-toggle { display: flex; }
+  /* When the hamburger is toggled open, the link list re-appears as a
+     vertical dropdown anchored to the sticky header — full width so
+     thumb taps are easy. */
+  nav.links.is-open, .links.is-open {
+    display: flex;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 8px 16px 16px;
+    background: var(--ink, #0B0D10);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+    z-index: 100;
+  }
+  nav.links.is-open a, .links.is-open a {
+    padding: 12px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 15px;
+    white-space: normal;
+  }
+  nav.links.is-open a:last-child, .links.is-open a:last-child { border-bottom: none; }
 }
 
 /* =============================================================

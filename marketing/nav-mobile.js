@@ -15,7 +15,10 @@
     const navInner = document.querySelector('.nav-inner');
     if (!navInner) return;
     if (navInner.querySelector('.nav-toggle')) return; // already injected
-    const navLinks = navInner.querySelector('.nav-links');
+    // Homepage markup uses `.nav-links` (landing.css); every other marketing
+    // page uses `.links` (styles.css). Target both so the hamburger works
+    // site-wide, not just on the homepage.
+    const navLinks = navInner.querySelector('.nav-links, .links');
     if (!navLinks) return;
 
     const toggle = document.createElement('button');

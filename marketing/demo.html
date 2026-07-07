@@ -839,23 +839,15 @@
   </footer>
 
   <script>
-    /* Replace each placeholder with the real embed when video is uploaded.
-       Pattern:
-         document.querySelector('[data-video-id="HERO_TOUR"]').innerHTML =
-           '<iframe src="https://www.youtube.com/embed/YOUR_VIDEO_ID?autoplay=1&rel=0" allowfullscreen></iframe>';
-
-       Or wire a click handler that swaps placeholder → iframe so videos lazy-load:
-    */
     document.querySelectorAll('.video-frame .video-placeholder').forEach(el => {
       el.addEventListener('click', () => {
-        const frame = el.closest('.video-frame');
-        const id = frame?.dataset.videoId;
-        // Once you upload videos, replace the alert with the iframe swap, e.g.:
-        //   const youtubeId = { HERO_TOUR: 'abc123', FULL_DEMO: 'def456', ... }[id];
-        //   if (youtubeId) {
-        //     frame.innerHTML = `<iframe src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0" allowfullscreen></iframe>`;
-        //   }
-        alert('Video coming soon — record + upload, then map the data-video-id "' + id + '" in this script.');
+        if (el.classList.contains('is-notice')) return;
+        el.classList.add('is-notice');
+        el.innerHTML =
+          '<div class="vp-title">Walkthrough videos coming soon</div>' +
+          '<div class="vp-subtitle">Want to see it live before then? ' +
+          '<a href="/access.html">Book a live demo</a> and we&rsquo;ll walk you ' +
+          'through your first project, start to finish.</div>';
       });
     });
   </script>
