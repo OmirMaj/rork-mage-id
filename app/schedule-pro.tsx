@@ -68,7 +68,7 @@ import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { LivingFloorPlan } from '@/components/schedule/mobile/LivingFloorPlan';
 import { PlanZoneEditor } from '@/components/schedule/mobile/PlanZoneEditor';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
-import { runCpm, type CpmResult } from '@/utils/cpm';
+import { runCpm, workingDaysBetween, type CpmResult } from '@/utils/cpm';
 import {
   emptyHistory,
   pushHistory,
@@ -289,15 +289,50 @@ function ScheduleProScreenInner() {
     ],
   );
 
+  // Active baseline finish day — the "as-planned" finish we measure slip
+  // against. Convention matches BaselineManagerModal's `activeBaselineId`
+  // (the most recently captured baseline is the active one). Baseline task
+  // rows carry absolute day numbers (startDay/endDay), so the baseline
+  // finish is the max endDay across its rows. Null when no baseline exists.
+  const baselineFinishDay = useMemo<number | null>(() => {
+    const active = namedBaselines.length > 0
+      ? namedBaselines[namedBaselines.length - 1]
+      : null;
+    if (!active || active.tasks.length === 0) return null;
+    let max = 0;
+    for (const t of active.tasks) if (t.endDay > max) max = t.endDay;
+    return max > 0 ? max : null;
+  }, [namedBaselines]);
+
   // SchedulerContext-shaped CPM summary for the tab shell's SchedulerProvider.
   // Maps from the richer utils/cpm CpmResult to the leaner context shape.
-  // TODO Phase 27: wire slipDaysVsBaseline from baseline comparison once
-  // BaselineManagerModal exposes a "active baseline delta" helper.
-  const contextCpm = useMemo<ContextCpmResult>(() => ({
-    criticalPathDays: cpm.projectFinish,
-    slipDaysVsBaseline: 0, // TODO Phase 27: wire from baseline delta
-    criticalTaskIds: cpm.criticalPath,
-  }), [cpm.projectFinish, cpm.criticalPath]);
+  // slipDaysVsBaseline = current CPM finish minus the active baseline finish,
+  // measured in WORKING days on the project calendar (so a weekend between
+  // the two finishes doesn't inflate the number). Positive = behind/slip,
+  // negative = ahead. When there is no baseline to compare against we report
+  // null so consumers can render a neutral "No baseline" state rather than
+  // fabricating "On baseline."
+  const contextCpm = useMemo<ContextCpmResult>(() => {
+    const slip = baselineFinishDay == null
+      ? null
+      : workingDaysBetween(baselineFinishDay, cpm.projectFinish, {
+          scheduleStartDate: scheduleStartIso,
+          workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+          nonWorkingDates: project?.schedule?.nonWorkingDates,
+        });
+    return {
+      criticalPathDays: cpm.projectFinish,
+      slipDaysVsBaseline: slip,
+      criticalTaskIds: cpm.criticalPath,
+    };
+  }, [
+    cpm.projectFinish,
+    cpm.criticalPath,
+    baselineFinishDay,
+    scheduleStartIso,
+    project?.schedule?.workingDaysPerWeek,
+    project?.schedule?.nonWorkingDates,
+  ]);
 
   // v2.3 wedge B — sub daily updates → master task.progress rollup.
   // Max-only guard: never decrease (a GC who set 80% locally shouldn't

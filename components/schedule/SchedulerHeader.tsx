@@ -62,13 +62,15 @@ export function SchedulerHeader({
     : '—';
 
   const pillStatus = computePillStatus({
-    cpmSlipDays: cpm.slipDaysVsBaseline,
+    cpmSlipDays: cpm.slipDaysVsBaseline ?? 0,
     overdueCount,
     healthScore: schedule.healthScore ?? 100,
   });
 
   if (bp === 'phone') {
-    const slipLabel = cpm.slipDaysVsBaseline > 0
+    const slipLabel = cpm.slipDaysVsBaseline == null
+      ? 'no baseline'
+      : cpm.slipDaysVsBaseline > 0
       ? `+${cpm.slipDaysVsBaseline}d slip`
       : cpm.slipDaysVsBaseline < 0
       ? `${cpm.slipDaysVsBaseline}d ahead`

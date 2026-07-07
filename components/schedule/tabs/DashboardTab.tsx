@@ -55,7 +55,7 @@ export function DashboardTab() {
           label="HEALTH SCORE"
           value={String(healthScore)}
           valueColor={healthColor}
-          delta={cpm.slipDaysVsBaseline === 0 ? 'On baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
+          delta={cpm.slipDaysVsBaseline == null ? 'No baseline' : cpm.slipDaysVsBaseline === 0 ? 'On baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
           phone={isPhone}
         />
         <StatCard
