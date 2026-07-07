@@ -58,7 +58,21 @@ export default function MaterialsScreen() {
   const { cart } = useMaterialCart();
   const cartCount = cart.reduce((s, item) => s + item.quantity, 0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [materials, setMaterials] = useState<MaterialItem[]>(() => getLivePrices(Date.now() / 10000));
+  // Browse over BASE products only. getLivePrices returns the full expanded
+  // catalog (base × every region × every pricing tier ≈ 20k rows) which is
+  // meant for the Estimate tab's search/AI matching — rendering it here made
+  // the category counts read as thousands of near-duplicate variants. The
+  // base tier is the real, human-facing product list (~274 items).
+  // Seed with the default location's multiplier (matches locationMultiplier
+  // below for the initial 'New York City' / mid_atlantic selection) so the
+  // first frame shows location-adjusted prices instead of flashing national
+  // prices before the effect re-prices.
+  const [materials, setMaterials] = useState<MaterialItem[]>(() =>
+    getLivePrices(
+      Date.now() / 10000,
+      CITY_ADJUSTMENTS['New York City'] ?? REGIONS.find(r => r.id === 'mid_atlantic')?.costIndex ?? 1.0,
+    ).filter(m => m.specTier === 'base')
+  );
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -78,7 +92,9 @@ export default function MaterialsScreen() {
   const refreshPrices = useCallback((showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
     const seed = Date.now() / 10000;
-    const newPrices = getLivePrices(seed);
+    // Thread the selected location into pricing so the picker actually moves
+    // the numbers, and keep to base products (see initial state note).
+    const newPrices = getLivePrices(seed, locationMultiplier).filter(m => m.specTier === 'base');
     setMaterials(newPrices);
     setLastUpdated(new Date());
     if (showRefreshing) setTimeout(() => setRefreshing(false), 600);
@@ -97,12 +113,20 @@ export default function MaterialsScreen() {
         updatePriceAlert(alert.id, { currentPrice: mat.baseRetailPrice });
       }
     });
-  }, [priceAlerts, updatePriceAlert]);
+  }, [priceAlerts, updatePriceAlert, locationMultiplier]);
 
   useEffect(() => {
     const interval = setInterval(() => refreshPrices(false), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [refreshPrices]);
+
+  // Re-price whenever the selected location changes so the picker is no longer
+  // decorative. Keyed only on the multiplier — refreshPrices mutates price
+  // alerts, so keying this on its identity would loop.
+  useEffect(() => {
+    refreshPrices(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationMultiplier]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextState => {
@@ -166,8 +190,13 @@ export default function MaterialsScreen() {
 
   const handleCategoryPress = useCallback((categoryName: string) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    router.push(`/(tabs)/materials/${categoryName}`);
-  }, [router]);
+    // Carry the selected location into the detail screen so its prices match
+    // the picker (the detail route has no picker of its own).
+    router.push({
+      pathname: '/(tabs)/materials/[category]',
+      params: { category: categoryName, loc: String(locationMultiplier) },
+    });
+  }, [router, locationMultiplier]);
 
   const renderCategory = useCallback(({ item }: { item: CategorySummary }) => {
     const alertCount = priceAlerts.filter(a =>
@@ -197,7 +226,7 @@ export default function MaterialsScreen() {
             <Text style={styles.categoryCount}>{item.itemCount} items</Text>
             <View style={styles.categoryStats}>
               <Text style={styles.priceRangeText}>
-                ${(item.priceRange.min * locationMultiplier).toFixed(2)} – ${(item.priceRange.max * locationMultiplier).toFixed(2)}
+                ${item.priceRange.min.toFixed(2)} – ${item.priceRange.max.toFixed(2)}
               </Text>
               {item.avgDiscount > 0 && (
                 <View style={styles.discountChip}>
@@ -210,7 +239,7 @@ export default function MaterialsScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, [handleCategoryPress, priceAlerts, materials, locationMultiplier]);
+  }, [handleCategoryPress, priceAlerts, materials]);
 
   const keyExtractor = useCallback((item: CategorySummary) => item.name, []);
 
