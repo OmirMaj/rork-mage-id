@@ -43,7 +43,19 @@ supabase functions deploy analyze-drawings analyze-photos analyze-takeoff compar
 supabase functions deploy homeowner-weekly-digest morning-digest
 ```
 
-**Wave 2 (P1):** _appended when Wave 2 lands_ — will include at least `homeowner-weekly-digest` (preview-stamp fix) and the `requireTier`-gated functions (JWT-verification hardening).
+**Wave 2 (P1):**
+```bash
+# requireTier now VERIFIES the JWT server-side (via GoTrue) — redeploy every
+# function that imports _shared/auth.ts, plus award-rfp:
+supabase functions deploy award-rfp analyze-drawings analyze-photos analyze-takeoff compare-drawings analyze-spec-book analyze-plan-code convert-pdf-to-images
+# (redeploy any OTHER function that imports _shared/auth.ts — grep to confirm the full set)
+supabase functions deploy homeowner-weekly-digest   # preview no longer suppresses the Friday send
+```
+> **Behavior change (auth-jwt):** `requireTier`/`award-rfp` now make one GoTrue `/auth/v1/user` round-trip per call (fail-closed → 401 on any error). This rejects any server-to-server caller that was authenticating these with the **service-role** key instead of a user JWT. None was found in the audit — but confirm before deploy. Each function needs `SUPABASE_ANON_KEY`/`ANON_KEY` in its env (already required elsewhere).
+
+**Static sites (Netlify):**
+- Marketing (`marketing/`): redeploy to publish the mobile-nav + demo-page fixes.
+- Client portal (`marketing/portal/`): redeploy (build-free `netlify deploy --dir`) for the closeout-binder print fix.
 
 ---
 
