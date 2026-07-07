@@ -19,7 +19,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Building2, ChevronRight, MapPin, Wrench, ClipboardList, Send,
@@ -134,12 +133,7 @@ export default function PropertyManagerHome() {
 
         <FadeRise delay={80}>
           <TouchableOpacity onPress={() => setAddOpen(true)} activeOpacity={0.9} testID="pm-home-add-property">
-            <LinearGradient
-              colors={[themeColors.accent, '#E04E0E', '#C73E00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroCta}
-            >
+            <View style={[styles.heroCta, { backgroundColor: themeColors.accent }]}>
               <View style={styles.heroCtaBg} pointerEvents="none">
                 <Building2 size={140} color="rgba(255,255,255,0.12)" strokeWidth={1.2} />
               </View>
@@ -153,7 +147,7 @@ export default function PropertyManagerHome() {
                 </Text>
               </View>
               <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </FadeRise>
 

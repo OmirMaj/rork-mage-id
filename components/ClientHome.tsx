@@ -278,21 +278,16 @@ export default function ClientHome() {
           </View>
         </FadeRise>
 
-        {/* Hero CTA — gradient fill, decorative Building silhouette in
-            the bottom-right, soft outer glow. The single most-tapped
-            affordance on this screen. */}
+        {/* Hero CTA — flat amber fill, decorative Building silhouette in
+            the bottom-right. The single most-tapped affordance on this
+            screen. One flat accent, no gradient. */}
         <FadeRise delay={80}>
           <TouchableOpacity
             onPress={handlePostProject}
             activeOpacity={0.9}
             testID="client-home-post-cta"
           >
-            <LinearGradient
-              colors={[themeColors.accent, '#E04E0E', '#C73E00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroCta}
-            >
+            <View style={[styles.heroCta, { backgroundColor: themeColors.accent }]}>
               {/* Decorative bg — a stylised multi-unit building, signals
                   real-estate without being a literal home icon. */}
               <View style={styles.heroCtaBg} pointerEvents="none">
@@ -308,7 +303,7 @@ export default function ClientHome() {
                 </Text>
               </View>
               <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </FadeRise>
 
