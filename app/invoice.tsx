@@ -281,7 +281,12 @@ function InvoiceInner() {
     return rawTotal;
   }, [lineItems, isProgressType, pctValue]);
 
-  const taxRate = settings.taxRate ?? 7.5;
+  // Tax rate is IMMUTABLE once an invoice is issued. Re-totaling an existing
+  // invoice from the CURRENT global settings.taxRate would let a later change
+  // to the Settings default silently rewrite an already-sent invoice's total,
+  // its Stripe pay-link charge, and the paid/partial threshold. Read the rate
+  // stored ON the invoice; fall back to settings ONLY for a brand-new invoice.
+  const taxRate = existingInvoice?.taxRate ?? settings.taxRate ?? 7.5;
   const taxAmount = subtotal * (taxRate / 100);
   const totalDue = subtotal + taxAmount;
 
@@ -338,6 +343,13 @@ function InvoiceInner() {
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
 
     if (existingInvoice) {
+      // Stale pay-link guard: a Stripe payment link is minted for a FIXED
+      // amount (immutable Stripe Price). If the total changed on this save,
+      // the old link would keep charging the ORIGINAL amount — overcharging
+      // the client and letting the webhook mark the invoice 'paid' past its
+      // real total. Clear the stored link so the next Send regenerates one
+      // for the current balance.
+      const totalChanged = (existingInvoice.totalDue ?? 0) !== totalDue;
       updateInvoice(existingInvoice.id, {
         lineItems,
         paymentTerms,
@@ -351,6 +363,7 @@ function InvoiceInner() {
         progressPercent: isProgressType ? pctValue : undefined,
         retentionPercent: retentionPctValue || undefined,
         retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
+        ...(totalChanged ? { payLinkUrl: undefined, payLinkId: undefined } : {}),
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
@@ -677,6 +690,13 @@ function InvoiceInner() {
       amountPaid: newPaid,
       status: newStatus,
       payments: [...(existingInvoice.payments || []), payment],
+      // Recording a payment moves the balance. The existing Stripe link is
+      // pinned to the pre-payment amount, so leaving it live would let the
+      // client pay the ORIGINAL total again (double-charge) and the webhook
+      // could mark 'paid' past the real balance. Clear it so the next Send
+      // mints a fresh link for the remaining balanceDue.
+      payLinkUrl: undefined,
+      payLinkId: undefined,
     });
 
     setShowPaymentModal(false);
