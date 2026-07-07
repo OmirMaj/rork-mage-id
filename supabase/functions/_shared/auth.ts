@@ -11,12 +11,16 @@
 // resolved tier on success, or a 401/403 Response that the caller returns
 // directly.
 //
-// We trust the JWT signature (Supabase gateway already verified it before
-// the function even runs, when verify_jwt:true is on). We do NOT re-verify
-// crypto here — that'd require sharing the JWT secret with edge functions,
-// which the platform doesn't expose. We DO inspect the role + sub claims
-// to identify the user, then look up their tier in the `subscriptions`
-// table.
+// Identity is ALWAYS derived from a CRYPTOGRAPHICALLY VERIFIED user (see
+// `verifyUser.ts`, which asks GoTrue `/auth/v1/user` to validate the token's
+// signature, expiry, and ban-state). We do NOT trust a bare claims decode:
+// a function deployed with verify_jwt:false gets no gateway verification, so
+// an attacker could forge `{"role":"authenticated","sub":"<victim>","email":
+// "<master>"}` and be trusted for identity, tier, AND the MASTER_EMAILS
+// elevation. Verifying server-side closes that hole. The verified user_id +
+// email then drive the `subscriptions` tier lookup and any master override.
+
+import { verifyUserToken } from './verifyUser.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
@@ -35,28 +39,6 @@ export interface AuthFailure {
   body: { success: false; error: string; code?: string };
 }
 export type AuthResult = AuthSuccess | AuthFailure;
-
-interface JwtPayload {
-  sub?: string;
-  role?: string;
-  email?: string;
-  exp?: number;
-}
-
-/** Decode a JWT payload without verifying signature. */
-function decodeJwtPayload(token: string): JwtPayload | null {
-  if (!token || token.length < 20) return null;
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  try {
-    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    while (b64.length % 4) b64 += '=';
-    const payload = JSON.parse(atob(b64));
-    return payload as JwtPayload;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Look up the user's current subscription tier. Reads `subscriptions`
@@ -126,10 +108,22 @@ export async function requireTier(
   const bearer = auth.replace(/^Bearer\s+/i, '').trim();
   const apikey = req.headers.get('apikey') || req.headers.get('Apikey') || '';
   // The app always sends BOTH headers (Bearer = user JWT, apikey = anon key).
-  // Caller must have a real user JWT (role 'authenticated') — anon-only
-  // calls are rejected.
-  const payload = decodeJwtPayload(bearer);
-  if (!payload || payload.role !== 'authenticated' || !payload.sub) {
+  // Sanity: apikey is present + non-trivial. Catches the case where someone
+  // forges a JWT without the platform-issued anon key.
+  if (!apikey || apikey.length < 20) {
+    return {
+      ok: false,
+      status: 401,
+      body: { success: false, error: 'Missing apikey header.', code: 'unauthenticated' },
+    };
+  }
+  // CRYPTOGRAPHICALLY verify the caller's JWT via GoTrue. This validates the
+  // signature, expiry, and ban-state and returns the AUTHORITATIVE user —
+  // never a forgeable claims decode. A forged/expired/anon/service token
+  // yields null here and is rejected. Identity, email (→ master override),
+  // and the tier lookup all flow from THIS verified user.
+  const verified = await verifyUserToken(bearer);
+  if (!verified || !verified.id || verified.role !== 'authenticated') {
     return {
       ok: false,
       status: 401,
@@ -140,28 +134,9 @@ export async function requireTier(
       },
     };
   }
-  // Sanity: apikey is present + non-trivial. Catches the case where someone
-  // forges a JWT without the platform-issued anon key.
-  if (!apikey || apikey.length < 20) {
-    return {
-      ok: false,
-      status: 401,
-      body: { success: false, error: 'Missing apikey header.', code: 'unauthenticated' },
-    };
-  }
-  // Expiry check (Supabase gateway already does this when verify_jwt is
-  // on, but for the few functions deployed with verify_jwt:false we do
-  // it here too).
-  if (payload.exp && payload.exp * 1000 < Date.now()) {
-    return {
-      ok: false,
-      status: 401,
-      body: { success: false, error: 'Session expired. Sign in again.', code: 'token_expired' },
-    };
-  }
 
-  const userId = payload.sub;
-  const email = payload.email;
+  const userId = verified.id;
+  const email = verified.email;
   const tier: Tier = email && MASTER_EMAILS.has(email.toLowerCase())
     ? 'business'
     : await lookupTier(userId);

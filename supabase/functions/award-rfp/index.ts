@@ -20,6 +20,7 @@
 // Response: { success: true, projectId, portalId } | { success: false, error }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { verifyUser } from "../_shared/verifyUser.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY =
@@ -43,19 +44,6 @@ function jsonResponse(body: unknown, status = 200): Response {
 interface AwardRequest {
   bidId?: string;
   responseId?: string;
-}
-
-interface JwtPayload { sub?: string; }
-
-function decodeJwtSub(token: string): string | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length < 2) return null;
-    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-    const json = JSON.parse(atob(padded)) as JwtPayload;
-    return json.sub ?? null;
-  } catch { return null; }
 }
 
 async function rest<T = unknown>(path: string, init?: RequestInit): Promise<T> {
@@ -84,15 +72,17 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: "Server not configured" }, 500);
   }
 
-  // Identify the caller. Edge functions get the user's JWT in Authorization
-  // when verify_jwt=true (Supabase platform forwards it). We decode it to
-  // get the sub (user id) — that's the homeowner.
-  const auth = req.headers.get("Authorization") ?? "";
-  const token = auth.replace(/^Bearer\s+/i, "");
-  const homeownerId = decodeJwtSub(token);
-  if (!homeownerId) {
+  // Identify the caller. We CRYPTOGRAPHICALLY verify the JWT via GoTrue
+  // (verifyUser → /auth/v1/user) rather than trusting a bare claims decode:
+  // this function's identity check must not be forgeable regardless of the
+  // deployed verify_jwt setting, since award_rfp mutates rows across RLS
+  // boundaries on behalf of the homeowner. A forged/expired/anon token
+  // yields null and is rejected. homeownerId = the VERIFIED user id.
+  const verified = await verifyUser(req);
+  if (!verified || !verified.id) {
     return jsonResponse({ success: false, error: "Unauthorized" }, 401);
   }
+  const homeownerId = verified.id;
 
   let body: AwardRequest;
   try { body = await req.json() as AwardRequest; }
