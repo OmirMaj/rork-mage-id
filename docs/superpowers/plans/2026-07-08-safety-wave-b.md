@@ -19,13 +19,22 @@
 
 If any Wave A anchor differs (e.g. the hazard-add function is named differently), adapt the reference at implementation time — the *names Wave B introduces* below are authoritative.
 
+## Reconciliation with CrewMember (built in the Worker Profile feature)
+
+The **Worker Profile / ID-scan feature shipped BEFORE this wave** and introduced the `CrewMember` entity (`types/index.ts`, `contexts/CrewContext.tsx` → `useCrew`) as THE person-anchor for certifications. Two decisions bake into this plan from the start — no backfill, no free-text-only certs:
+
+- **`Certification.workerId?: string` (→ `CrewMember.id`) is the person anchor.** `holderName` stays as an *optional* display fallback for a cert entered before the person exists on the crew roster. The `certifications` table gains a nullable `worker_id text` column (no FK — see the migration note about offline-queue insert ordering), and the Certifications screen (Task 9) picks a `CrewMember` via `useCrew` to set `workerId` and auto-fill `holderName` from `CrewMember.fullName`, falling back to free text when the person is not on the roster. SafetyContext exposes `getCertificationsForWorker(workerId)` so the crew member-detail view (`app/crew.tsx`, built by the Worker Profile feature) can list a member's certs.
+- **Cert-expiry status is REUSED, not re-implemented.** `utils/crew/certExpiry.ts` `certExpiryStatus(expiresDate, today)` already computes the valid / expiring (≤30 days, inclusive) / expired classification. Wave B's `utils/safety/certStatus.ts` (Task 2) is a **thin adapter** that imports `certExpiryStatus` and collapses its `'none'` (no-expiry) result into `'valid'` to fit `CertificationStatus`. Do NOT duplicate the day math (the earlier draft's hand-rolled `dayNumber` / `CERT_EXPIRING_WINDOW_DAYS` is gone).
+
+Everything else in Wave B (inspections, forms library, OSHA-300) is unaffected by this reconciliation.
+
 ---
 
 ## File Structure
 
 **New files**
 ```
-utils/safety/certStatus.ts            # pure: certification status from expiresDate + reference date
+utils/safety/certStatus.ts            # thin adapter: REUSES utils/crew/certExpiry (Worker Profile) → CertificationStatus
 utils/safety/inspectionScore.ts       # pure: inspection score, fail→hazard mapping, template→items
 utils/safety/oshaLog.ts               # pure: OSHA-300 row assembly, CSV builder, HTML builder (NO RN imports)
 utils/safety/oshaExport.ts            # RN glue: expo-print PDF + expo-sharing CSV (imports oshaLog)
@@ -100,10 +109,14 @@ export interface SafetyInspection {
 export type CertificationStatus = 'valid' | 'expiring' | 'expired';
 
 /** A worker / sub certification. COMPANY-scoped (not project-scoped) —
- *  keyed by the owning GC. status is computed from expiresDate. */
+ *  keyed by the owning GC. status is computed from expiresDate.
+ *  Anchors to a real person via workerId → CrewMember.id (the Worker Profile
+ *  feature, already built). holderName is an OPTIONAL display fallback for a
+ *  cert entered for someone not yet on the crew roster. */
 export interface Certification {
   id: string;
-  holderName: string;
+  workerId?: string;            // → CrewMember.id — person anchor (Worker Profile feature)
+  holderName?: string;          // display fallback when no CrewMember is linked
   subId?: string;               // links to tertiary_subcontractors / PrequalSafetyRecord
   type: string;                 // e.g. 'OSHA 10', 'OSHA 30', 'SST', 'CPR', trade license
   issuedDate?: string;          // 'YYYY-MM-DD'
@@ -140,6 +153,8 @@ export interface SafetyFormTemplate {
 }
 ```
 
+> **CrewMember ↔ Certification relationship.** `Certification.workerId` (optional) references `CrewMember.id` — the person-anchor entity already built in `types/index.ts` by the Worker Profile feature (its header comment even names this link: *"the person-anchor for Safety Wave B certifications (Certification.workerId → CrewMember.id)"*). It is a soft reference (no runtime FK), so a cert may exist with `workerId` unset and only a free-text `holderName`. When a `CrewMember` is linked, its `fullName` is the authoritative display name and `holderName` is a cached fallback. Do NOT re-model the person here — reuse `CrewMember` / `useCrew`.
+
 - [ ] `npx tsc --noEmit` — must pass (no consumers yet; this just checks the type syntax).
 - [ ] `git add types/index.ts`
 - [ ] `git commit -m "types: add Safety Wave B types (inspections, certifications, forms library)
@@ -148,52 +163,40 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"`
 
 ---
 
-## Task 2 — Certification status (pure) + validator
+## Task 2 — Certification status (thin adapter over crew certExpiry) + validator
 
 **Files:** `utils/safety/certStatus.ts`, `scripts/validate-safety-cert.ts`, `package.json`
+
+> **Reuse, don't re-implement.** The Worker Profile feature already shipped `utils/crew/certExpiry.ts` `certExpiryStatus(expiresDate, today)`, which classifies a cert as `'none' | 'valid' | 'expiring' | 'expired'` with a 30-day inclusive "expiring" window. That is the SAME valid/expiring/expired classification Wave B needs, so `certStatus.ts` is a **thin adapter** that imports it and collapses `'none'` (no-expiry) into `'valid'` to fit `CertificationStatus`. Do NOT re-roll the day math.
 
 - [ ] Create `utils/safety/certStatus.ts`:
 
 ```typescript
-// certStatus.ts — pure certification-status computation.
-// No React Native imports: bun runs this directly under the validator.
-//
-// A cert is 'expired' once its expiry day is strictly in the past, 'expiring'
-// while it is within CERT_EXPIRING_WINDOW_DAYS (inclusive, today counts as
-// expiring), otherwise 'valid'. A cert with no expiresDate is treated as
-// non-expiring → 'valid'. Comparison is on calendar days at UTC midnight so a
-// cert expiring "today" reads as expiring until the day actually rolls over.
+// certStatus.ts — Wave B certification status.
+// REUSES the pure cert-expiry classifier built for the Worker Profile feature
+// (utils/crew/certExpiry.ts) instead of re-implementing the day math. That
+// classifier returns 'none' for a cert with no expiry; Wave B's
+// CertificationStatus has no 'none' state, so a non-expiring cert collapses to
+// 'valid'. Every other result ('valid' | 'expiring' | 'expired') — including the
+// 30-day inclusive "expiring" window — passes through unchanged.
+// No React Native imports: bun runs this (and its dependency) directly under
+// the validator; certExpiry.ts is likewise RN-free.
 
 import type { CertificationStatus } from '@/types';
-
-export const CERT_EXPIRING_WINDOW_DAYS = 30;
-
-/** Integer count of UTC-midnight days since epoch for a 'YYYY-MM-DD' (or ISO)
- *  string. Returns null for unparseable input. */
-export function dayNumber(dateStr: string): number | null {
-  const d = new Date(`${dateStr.slice(0, 10)}T00:00:00Z`);
-  const t = d.getTime();
-  if (!Number.isFinite(t)) return null;
-  return Math.floor(t / 86_400_000);
-}
+import { certExpiryStatus } from '@/utils/crew/certExpiry';
 
 /**
- * Compute a certification's status relative to a fixed reference date.
- * @param expiresDate 'YYYY-MM-DD' | ISO | undefined | null (undefined/null → non-expiring)
+ * Compute a certification's status relative to a fixed reference date, reusing
+ * the Worker-Profile cert-expiry classifier.
+ * @param expiresDate 'YYYY-MM-DD' | ISO | undefined | null | '' (falsy → non-expiring → 'valid')
  * @param referenceDate 'YYYY-MM-DD' | ISO — "today" for the computation
  */
 export function certStatus(
   expiresDate: string | undefined | null,
   referenceDate: string,
 ): CertificationStatus {
-  if (!expiresDate) return 'valid';
-  const exp = dayNumber(expiresDate);
-  const ref = dayNumber(referenceDate);
-  if (exp === null || ref === null) return 'valid';
-  const daysUntil = exp - ref;
-  if (daysUntil < 0) return 'expired';
-  if (daysUntil <= CERT_EXPIRING_WINDOW_DAYS) return 'expiring';
-  return 'valid';
+  const status = certExpiryStatus(expiresDate ?? undefined, referenceDate);
+  return status === 'none' ? 'valid' : status;
 }
 ```
 
@@ -201,8 +204,11 @@ export function certStatus(
 
 ```typescript
 // validate-safety-cert.ts — unit tests for utils/safety/certStatus.
+// certStatus REUSES utils/crew/certExpiry (built for the Worker Profile feature);
+// these tests lock in the classification AND the 'none'→'valid' collapse.
 // Run via: bun run scripts/validate-safety-cert.ts
-import { certStatus, dayNumber, CERT_EXPIRING_WINDOW_DAYS } from '../utils/safety/certStatus';
+import { certStatus } from '../utils/safety/certStatus';
+import { certExpiryStatus } from '../utils/crew/certExpiry';
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T){ const ok = JSON.stringify(got)===JSON.stringify(want); if(ok){pass++;console.log('  ✓',name);}else{fail++;console.log('  ✗',name,'\n   got:',got,'\n   want:',want);} }
@@ -220,10 +226,11 @@ expect('expires in 30 days → expiring',certStatus('2026-08-07', REF), 'expirin
 expect('expires in 31 days → valid',   certStatus('2026-08-08', REF), 'valid');
 expect('far future → valid',           certStatus('2027-01-01', REF), 'valid');
 expect('ISO timestamp input works',    certStatus('2026-07-08T15:00:00.000Z', REF), 'expiring');
-expect('window constant is 30',        CERT_EXPIRING_WINDOW_DAYS, 30);
-expect('dayNumber returns a number',   typeof dayNumber(REF) === 'number', true);
-expect('dayNumber bad input → null',   dayNumber('not-a-date'), null);
-expect('dayNumber monotonic',          (dayNumber('2026-07-09')! - dayNumber('2026-07-08')!), 1);
+
+// Reuse contract: certStatus mirrors certExpiryStatus, collapsing ONLY 'none'→'valid'.
+expect('reuses certExpiry: none→valid', certStatus(undefined, REF), certExpiryStatus(undefined, REF) === 'none' ? 'valid' : certExpiryStatus(undefined, REF));
+expect('reuses certExpiry: expiring',   certStatus('2026-07-20', REF), certExpiryStatus('2026-07-20', REF));
+expect('reuses certExpiry: expired',    certStatus('2026-06-01', REF), certExpiryStatus('2026-06-01', REF));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
@@ -236,7 +243,7 @@ if (fail > 0) process.exit(1);
 ```
 
 - [ ] Append `&& bun run test:safety-cert` to the end of the `ship-check` script value (after `bun run test:app-slop`; if Wave A appended its own `test:safety-risk`, add after that).
-- [ ] Run `bun run scripts/validate-safety-cert.ts` — expect `14 passed, 0 failed`.
+- [ ] Run `bun run scripts/validate-safety-cert.ts` — expect `13 passed, 0 failed`.
 - [ ] `git add utils/safety/certStatus.ts scripts/validate-safety-cert.ts package.json`
 - [ ] `git commit -m "safety: certification status computation + validator
 
@@ -784,7 +791,8 @@ import type { SafetyInspection, Certification, SafetyFormTemplate } from '@/type
       return next;
     });
     if (canSync) void supabaseWrite('certifications', 'insert', {
-      id: cert.id, user_id: userId, holder_name: cert.holderName, sub_id: cert.subId ?? null,
+      id: cert.id, user_id: userId, worker_id: cert.workerId ?? null,
+      holder_name: cert.holderName ?? null, sub_id: cert.subId ?? null,
       type: cert.type, issued_date: cert.issuedDate ?? null, expires_date: cert.expiresDate ?? null,
       document_url: cert.documentUrl ?? null, status: cert.status,
       created_by: cert.createdBy, created_at: cert.createdAt,
@@ -799,6 +807,7 @@ import type { SafetyInspection, Certification, SafetyFormTemplate } from '@/type
     });
     if (canSync) {
       const payload: Record<string, unknown> = { id };
+      if (changes.workerId !== undefined) payload.worker_id = changes.workerId;
       if (changes.holderName !== undefined) payload.holder_name = changes.holderName;
       if (changes.subId !== undefined) payload.sub_id = changes.subId;
       if (changes.type !== undefined) payload.type = changes.type;
@@ -830,6 +839,13 @@ import type { SafetyInspection, Certification, SafetyFormTemplate } from '@/type
   const expiringCertifications = useCallback(
     (referenceDate: string) => certificationsWithStatus(referenceDate).filter((c) => c.status !== 'valid'),
     [certificationsWithStatus],
+  );
+
+  /** A single worker's certifications, looked up by the CrewMember person-anchor.
+   *  Powers the crew member-detail view (app/crew.tsx, Worker Profile feature). */
+  const getCertificationsForWorker = useCallback(
+    (workerId: string) => certifications.filter((c) => c.workerId === workerId),
+    [certifications],
   );
 ```
 
@@ -878,8 +894,8 @@ import type { SafetyInspection, Certification, SafetyFormTemplate } from '@/type
 ```typescript
     // Wave B — inspections (project-scoped)
     inspections, getInspectionsForProject, addInspection, updateInspection, deleteInspection,
-    // Wave B — certifications (company-scoped)
-    certifications, certificationsWithStatus, expiringCertifications,
+    // Wave B — certifications (company-scoped; person-anchored via workerId → CrewMember.id)
+    certifications, certificationsWithStatus, expiringCertifications, getCertificationsForWorker,
     addCertification, updateCertification, deleteCertification,
     // Wave B — forms library (company-scoped)
     templates, addTemplate, updateTemplate, deleteTemplate,
@@ -897,7 +913,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"`
 
 **Files:** `supabase/migrations/20260708180000_safety_wave_b.sql`, `supabase/schema.sql`
 
-> The timestamp `20260708180000` is intentionally after the Wave A migration (`20260708HHMMSS_safety_wave_a.sql`). If Wave A used a later time, bump this filename so it sorts after. **Additive, RLS-scoped, apply BEFORE the OTA** that writes these tables (PGRST204 gate — a missing column silently drops the write via `supabaseWrite`). Owner applies via Supabase MCP `apply_migration`, never `db push`.
+> The timestamp `20260708180000` is intentionally after **both** the Wave A migration (`20260708HHMMSS_safety_wave_a.sql`) **and** the crew_members migration (`20260708130000_crew_members.sql`, which `worker_id` soft-references) — `180000` > `130000`, so it already sorts last. If Wave A used a later time, bump this filename so it still sorts after everything. **Additive, RLS-scoped, apply BEFORE the OTA** that writes these tables (PGRST204 gate — a missing column silently drops the write via `supabaseWrite`). Owner applies via Supabase MCP `apply_migration`, never `db push`.
 
 - [ ] Create `supabase/migrations/20260708180000_safety_wave_b.sql`:
 
@@ -911,7 +927,10 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"`
 --
 -- Scoping:
 --   safety_inspections — project-scoped, owned by the GC (user_id).
---   certifications     — COMPANY-scoped (person/sub); owned by user_id; NO project.
+--   certifications     — COMPANY-scoped; person-anchored via worker_id
+--                        (→ crew_members.id, built by the Worker Profile feature)
+--                        with holder_name as a display fallback; owned by user_id;
+--                        NO project.
 --   safety_templates   — COMPANY-scoped forms library; owned by user_id.
 
 -- Shared updated_at bump used by all three tables.
@@ -955,7 +974,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.safety_inspections TO authenticat
 CREATE TABLE IF NOT EXISTS public.certifications (
   id text PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  holder_name text NOT NULL DEFAULT '',
+  worker_id text,               -- → crew_members.id (person anchor); nullable, cert may predate the roster entry. NO FK: keeps the offline queue from failing when a cert syncs before its CrewMember row.
+  holder_name text,             -- display fallback when worker_id is null (nullable now that CrewMember is the anchor)
   sub_id text,
   type text NOT NULL DEFAULT '',
   issued_date text,
@@ -967,6 +987,7 @@ CREATE TABLE IF NOT EXISTS public.certifications (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS certifications_user_idx ON public.certifications(user_id);
+CREATE INDEX IF NOT EXISTS certifications_worker_idx ON public.certifications(worker_id);
 CREATE INDEX IF NOT EXISTS certifications_sub_idx ON public.certifications(sub_id);
 ALTER TABLE public.certifications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "certifications_all_own" ON public.certifications;
@@ -1001,7 +1022,7 @@ CREATE TRIGGER safety_templates_updated_at
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.safety_templates TO authenticated;
 ```
 
-- [ ] Mirror the three `CREATE TABLE IF NOT EXISTS` blocks (plus their indexes, RLS enable, `_all_own` policy, and GRANT — the `safety_wave_b_set_updated_at` function + triggers may be omitted from `schema.sql` to keep it declarative, matching how `schema.sql` handles other tables) into `supabase/schema.sql`, appended at the end **before** the `ENABLE REALTIME` / `handle_new_user` trigger section. Keep them idempotent.
+- [ ] Mirror the three `CREATE TABLE IF NOT EXISTS` blocks (plus their indexes, RLS enable, `_all_own` policy, and GRANT — the `safety_wave_b_set_updated_at` function + triggers may be omitted from `schema.sql` to keep it declarative, matching how `schema.sql` handles other tables) into `supabase/schema.sql`, appended at the end **before** the `ENABLE REALTIME` / `handle_new_user` trigger section. Keep them idempotent. The `certifications` mirror MUST carry the new `worker_id text` column and the `certifications_worker_idx` index (and the now-nullable `holder_name`) so the declarative schema matches the migration.
 - [ ] `git add supabase/migrations/20260708180000_safety_wave_b.sql supabase/schema.sql`
 - [ ] `git commit -m "safety: Wave B migration + schema (inspections, certifications, templates)
 
@@ -1154,18 +1175,21 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"`
 
 Behavior:
 - **Data:** `const { certifications, certificationsWithStatus, addCertification, updateCertification, deleteCertification } = useSafety();`
+- **Crew roster (person anchor):** `const { crewMembers } = useCrew();` — the `CrewMember` list built by the Worker Profile feature. Build a lookup once: `const memberById = useMemo(() => new Map(crewMembers.map((m) => [m.id, m])), [crewMembers]);`.
 - **Reference date:** `const today = useMemo(() => new Date().toISOString().slice(0, 10), []);`
 - **Derived list:** `const withStatus = useMemo(() => certificationsWithStatus(today), [certificationsWithStatus, today]);`
 - **Filter chips:** `all | expiring | expired | valid` (default `all`). An "Expiring soon" summary banner at top shows the count of non-valid certs (`withStatus.filter(c => c.status !== 'valid').length`).
 - **Status badge colors:** valid → `themeColors.success`, expiring → `themeColors.accent` (amber), expired → `themeColors.danger`.
-- **Card:** `holderName`, `type`, `expiresDate` ("Expires {date}" or "No expiry"), status badge, optional linked sub name (`subId`), a "View document" chip when `documentUrl` present.
-- **New cert modal:** `holderName`, `type` (free text with quick-pick chips: `OSHA 10`, `OSHA 30`, `SST`, `CPR`, `First Aid`), `issuedDate`, `expiresDate`, optional sub picker (from `useProjects().subcontractors`), optional `documentUrl`. On save, set `status: certStatus(expiresDate, today)` and `addCertification({...})`.
+- **Card:** the holder's **display name** — resolve `cert.workerId` against `memberById` and prefer that `CrewMember.fullName`, else the free-text `holderName`, else "Unnamed" (helper: `const displayName = (c: Certification) => (c.workerId && memberById.get(c.workerId)?.fullName) || c.holderName || 'Unnamed';`) — plus `type`, `expiresDate` ("Expires {date}" or "No expiry"), status badge, optional linked sub name (`subId`), a "View document" chip when `documentUrl` present. Show a small "Crew" tag when `workerId` resolves to a member.
+- **New cert modal:** a **crew-member picker first** — pick a `CrewMember` from `crewMembers` (e.g. `crewMembers.filter((m) => m.status === 'active')`) to set `workerId` and auto-fill `holderName` from that member's `fullName`; if the person is not on the roster, leave it unselected and type a free-text `holderName` fallback (a "Clear" affordance unlinks the member and lets you edit the name by hand). Then `type` (free text with quick-pick chips: `OSHA 10`, `OSHA 30`, `SST`, `CPR`, `First Aid`), `issuedDate`, `expiresDate`, optional sub picker (from `useProjects().subcontractors`), optional `documentUrl`. On save, set `status: certStatus(expiresDate, today)` and `addCertification({...})` — including `workerId` when a member was chosen.
+- **Member-detail cross-link:** the crew member-detail view (`app/crew.tsx`, Worker Profile feature) lists a member's certs via `getCertificationsForWorker(member.id)`. This screen is the company-wide roll-up of the same records; no separate person store.
 
 **Key snippet:**
 
 ```tsx
 import { certStatus } from '@/utils/safety/certStatus';
-import type { Certification, CertificationStatus } from '@/types';
+import { useCrew } from '@/contexts/CrewContext';
+import type { Certification, CertificationStatus, CrewMember } from '@/types';
 
 const STATUS_STYLE = (t: ThemeColors): Record<CertificationStatus, { label: string; color: string }> => ({
   valid:    { label: 'Valid',    color: t.success },
@@ -1173,14 +1197,24 @@ const STATUS_STYLE = (t: ThemeColors): Record<CertificationStatus, { label: stri
   expired:  { label: 'Expired',  color: t.danger },
 });
 
+// workerId lives in form state alongside holderName. Picking a crew member sets
+// both (fullName cached into holderName); "Clear" unlinks and frees the name field.
+const pickMember = useCallback((member: CrewMember) => {
+  setWorkerId(member.id);
+  setHolderName(member.fullName);
+}, []);
+const clearMember = useCallback(() => setWorkerId(undefined), []);
+
 const handleSave = useCallback(() => {
-  if (!holderName.trim() || !type.trim()) { Alert.alert('Missing info', 'Holder name and type are required.'); return; }
+  const holder = holderName.trim();
+  if (!workerId && !holder) { Alert.alert('Missing info', 'Pick a crew member or enter a holder name.'); return; }
+  if (!type.trim()) { Alert.alert('Missing info', 'Certification type is required.'); return; }
   const status = certStatus(expiresDate || undefined, today);
   if (editing) {
-    updateCertification(editing.id, { holderName: holderName.trim(), type: type.trim(), subId: subId || undefined, issuedDate: issuedDate || undefined, expiresDate: expiresDate || undefined, documentUrl: documentUrl || undefined, status });
+    updateCertification(editing.id, { workerId, holderName: holder || undefined, type: type.trim(), subId: subId || undefined, issuedDate: issuedDate || undefined, expiresDate: expiresDate || undefined, documentUrl: documentUrl || undefined, status });
   } else {
     const cert: Certification = {
-      id: generateUUID(), holderName: holderName.trim(), type: type.trim(),
+      id: generateUUID(), workerId, holderName: holder || undefined, type: type.trim(),
       subId: subId || undefined, issuedDate: issuedDate || undefined,
       expiresDate: expiresDate || undefined, documentUrl: documentUrl || undefined,
       status, createdAt: new Date().toISOString(), createdBy: userId ?? '',
@@ -1188,7 +1222,7 @@ const handleSave = useCallback(() => {
     addCertification(cert);
   }
   setShowForm(false);
-}, [holderName, type, subId, issuedDate, expiresDate, documentUrl, today, editing, userId, addCertification, updateCertification]);
+}, [workerId, holderName, type, subId, issuedDate, expiresDate, documentUrl, today, editing, userId, addCertification, updateCertification]);
 ```
 
 - [ ] Implement the full screen. `npx tsc --noEmit` must pass.
@@ -1372,7 +1406,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"` (only if 
 | Inspection `score = pass/(pass+fail)` computed | 3 (pure) + 8 (UI) |
 | Failed item → Wave-A `Hazard` with `sourceInspectionId` | 3 (pure) + 8 (UI) |
 | Inspection uses `SafetyFormTemplate` for the checklist | 3 (`inspectionItemsFromTemplate`) + 8 |
-| Cert `status` (valid/expiring-≤30d/expired) from `expiresDate` + reference date | 2 (pure) + 9 (UI) |
+| Cert `status` (valid/expiring-≤30d/expired) — REUSES `utils/crew/certExpiry.ts` (no re-implement) | 2 (adapter) + 9 (UI) |
+| Cert anchors to a person: `workerId` → `CrewMember.id`; `holderName` optional fallback | 1 + 5 + 6 + 9 |
+| Cert picks a `CrewMember` via `useCrew` (auto-fills `holderName`) + shows on member-detail | 9 (+ `getCertificationsForWorker` in 5) |
 | Cert links to subs (`tertiary_subcontractors`) + `PrequalSafetyRecord` (`subId`) | 1 + 9 |
 | Company-level "expiring soon" dashboard | 9 |
 | Forms library company-level, ordered field list, NO drag-drop | 10 |
@@ -1387,4 +1423,4 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"` (only if 
 | Hub tiles + route registration | 7 |
 | Migration applied before OTA (PGRST204 gate) | 6, 12 |
 
-**Name-consistency guarantee:** Wave B reuses Wave A's `useSafety` hook, `SafetyProvider`, `addHazard`, `incidents`, and the `Hazard.sourceInspectionId` field verbatim; introduces `SafetyInspection` / `InspectionItem` / `Certification` / `SafetyFormTemplate` / `SafetyFormField`; and reuses the amber brand, `lucide-react-native`, `useTheme` / `useThemedStyles`, `supabaseWrite`, and the `tertiary_*` AsyncStorage convention throughout.
+**Name-consistency guarantee:** Wave B reuses Wave A's `useSafety` hook, `SafetyProvider`, `addHazard`, `incidents`, and the `Hazard.sourceInspectionId` field verbatim; introduces `SafetyInspection` / `InspectionItem` / `Certification` / `SafetyFormTemplate` / `SafetyFormField`; and reuses the amber brand, `lucide-react-native`, `useTheme` / `useThemedStyles`, `supabaseWrite`, and the `tertiary_*` AsyncStorage convention throughout. It also reconciles with the **Worker Profile feature (built before this wave)**: `Certification.workerId?` references `CrewMember.id` (from `types/index.ts` / `useCrew` in `contexts/CrewContext.tsx`), `holderName` is an optional display fallback, and cert-expiry status is delegated to the existing `certExpiryStatus` in `utils/crew/certExpiry.ts` (Wave B's `utils/safety/certStatus.ts` is a thin adapter, not a re-implementation).
