@@ -599,6 +599,10 @@ function RootLayoutNav() {
       <Stack.Screen name="safety-toolbox" options={{ title: 'Toolbox Talks' }} />
       <Stack.Screen name="safety-incidents" options={{ title: 'Incidents' }} />
       <Stack.Screen name="safety-hazards" options={{ title: 'Hazard Log' }} />
+      <Stack.Screen name="safety-inspections" options={{ title: 'Inspections' }} />
+      <Stack.Screen name="safety-certifications" options={{ title: 'Certifications' }} />
+      <Stack.Screen name="safety-forms" options={{ title: 'Forms Library' }} />
+      <Stack.Screen name="safety-osha" options={{ title: 'OSHA 300 Log' }} />
       <Stack.Screen
         name="punch-walk"
         options={{ headerShown: false }}

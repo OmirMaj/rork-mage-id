@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { HardHat, Megaphone, ShieldAlert, TriangleAlert, ChevronRight } from 'lucide-react-native';
+import { HardHat, Megaphone, ShieldAlert, TriangleAlert, ChevronRight, ClipboardCheck, BadgeCheck, FileText } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -37,17 +37,38 @@ function SafetyHubInner() {
   const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
-  const { getJhasForProject, getToolboxTalksForProject, getIncidentsForProject, getHazardsForProject } = useSafety();
+  const {
+    getJhasForProject, getToolboxTalksForProject, getIncidentsForProject, getHazardsForProject,
+    getInspectionsForProject, expiringCertifications, templates,
+  } = useSafety();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const pid = projectId ?? '';
 
-  const tiles = useMemo(() => ([
-    { key: 'jha', label: 'JHAs', icon: HardHat, count: getJhasForProject(pid).length, route: '/safety-jha' as const },
-    { key: 'toolbox', label: 'Toolbox Talks', icon: Megaphone, count: getToolboxTalksForProject(pid).length, route: '/safety-toolbox' as const },
-    { key: 'incidents', label: 'Incidents', icon: ShieldAlert, count: getIncidentsForProject(pid).length, route: '/safety-incidents' as const },
-    { key: 'hazards', label: 'Hazard Log', icon: TriangleAlert, count: getHazardsForProject(pid).length, route: '/safety-hazards' as const },
-  ]), [pid, getJhasForProject, getToolboxTalksForProject, getIncidentsForProject, getHazardsForProject]);
+  const tiles = useMemo(() => {
+    const now = new Date().toISOString();
+    return [
+      { key: 'jha', label: 'JHAs', icon: HardHat, count: getJhasForProject(pid).length,
+        onPress: () => router.push({ pathname: '/safety-jha', params: { projectId: pid } }) },
+      { key: 'toolbox', label: 'Toolbox Talks', icon: Megaphone, count: getToolboxTalksForProject(pid).length,
+        onPress: () => router.push({ pathname: '/safety-toolbox', params: { projectId: pid } }) },
+      { key: 'incidents', label: 'Incidents', icon: ShieldAlert, count: getIncidentsForProject(pid).length,
+        onPress: () => router.push({ pathname: '/safety-incidents', params: { projectId: pid } }) },
+      { key: 'hazards', label: 'Hazard Log', icon: TriangleAlert, count: getHazardsForProject(pid).length,
+        onPress: () => router.push({ pathname: '/safety-hazards', params: { projectId: pid } }) },
+      // Wave B — inspections are project-scoped; certifications + forms are company-scoped;
+      // OSHA takes an optional projectId for a project-filtered log.
+      { key: 'inspections', label: 'Inspections', icon: ClipboardCheck, count: getInspectionsForProject(pid).length,
+        onPress: () => router.push({ pathname: '/safety-inspections' as never, params: { projectId: pid } as never }) },
+      { key: 'certifications', label: 'Certifications', icon: BadgeCheck, count: expiringCertifications(now).length,
+        onPress: () => router.push('/safety-certifications' as never) },
+      { key: 'forms', label: 'Forms Library', icon: FileText, count: templates.length,
+        onPress: () => router.push('/safety-forms' as never) },
+      { key: 'osha', label: 'OSHA 300 Log', icon: ShieldAlert, count: getIncidentsForProject(pid).length,
+        onPress: () => router.push({ pathname: '/safety-osha' as never, params: { projectId: pid } as never }) },
+    ];
+  }, [pid, router, getJhasForProject, getToolboxTalksForProject, getIncidentsForProject, getHazardsForProject,
+    getInspectionsForProject, expiringCertifications, templates]);
 
   if (!project) {
     return (
@@ -79,7 +100,7 @@ function SafetyHubInner() {
               key={tile.key}
               style={styles.tile}
               activeOpacity={0.85}
-              onPress={() => router.push({ pathname: tile.route, params: { projectId: pid } })}
+              onPress={tile.onPress}
             >
               <View style={styles.tileIcon}><tile.icon size={22} color={t.accent} strokeWidth={1.75} /></View>
               <Text style={styles.tileLabel}>{tile.label}</Text>
