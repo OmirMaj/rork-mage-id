@@ -2012,6 +2012,153 @@ export interface PunchItem {
   updatedAt: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// SAFETY MANAGEMENT — Wave A (JHAs, Toolbox Talks, Incidents, Hazard Log)
+// All records carry id / projectId / createdAt / createdBy; mutated records
+// also carry updatedAt. Collections persist under tertiary_* keys and mirror
+// to snake_case Supabase tables via SafetyContext.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One row of a Job Hazard Analysis: a task step + its hazards + controls. */
+export interface JHAStep {
+  id: string;
+  step: string;
+  hazards: string[];
+  controls: string[];
+}
+
+/** An append-only signature on a JHA (crew acknowledging the analysis). */
+export interface SafetySignoff {
+  name: string;
+  role: string;
+  subId?: string;
+  signedAt: string;
+}
+
+export type JHAStatus = 'draft' | 'active' | 'archived';
+
+export interface JobHazardAnalysis {
+  id: string;
+  projectId: string;
+  title: string;
+  trade: string;
+  taskDescription: string;
+  date: string;
+  steps: JHAStep[];
+  requiredPPE: string[];
+  signOffs: SafetySignoff[];
+  /** Optional plan anchor — reuses the punch-list pin infra. */
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
+  aiGenerated: boolean;
+  status: JHAStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** An attendee on a Toolbox Talk; signedAt set when they acknowledge. */
+export interface SafetyAttendee {
+  name: string;
+  subId?: string;
+  signedAt?: string;
+}
+
+export type ToolboxTopicSource = 'incident' | 'hazard' | 'weather' | 'manual';
+
+export interface ToolboxTalk {
+  id: string;
+  projectId: string;
+  topic: string;
+  date: string;
+  presenter: string;
+  notes: string;
+  attachmentUrl?: string;
+  attendees: SafetyAttendee[];
+  aiTopicSource?: ToolboxTopicSource;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SafetyIncidentType = 'injury' | 'near_miss' | 'property' | 'environmental';
+export type SafetyIncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type SafetyIncidentStatus = 'open' | 'investigating' | 'closed';
+
+/** Medical treatment level — drives OSHA-recordable classification. */
+export type SafetyTreatment = 'none' | 'first_aid' | 'medical_beyond_first_aid';
+
+export interface IncidentPerson {
+  name: string;
+  role: string;
+  injuryDescription?: string;
+}
+
+export interface IncidentCorrectiveAction {
+  action: string;
+  owner: string;
+  dueDate?: string;
+  done: boolean;
+}
+
+export interface SafetyIncident {
+  id: string;
+  projectId: string;
+  type: SafetyIncidentType;
+  severity: SafetyIncidentSeverity;
+  occurredAt: string;
+  description: string;
+  location: string;
+  /** Optional plan anchor — reuses the punch-list pin infra. */
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
+  peopleInvolved: IncidentPerson[];
+  photoUrls: string[];
+  correctiveActions: IncidentCorrectiveAction[];
+  // OSHA classification inputs — fed to isOshaRecordable(); oshaRecordable is
+  // the computed result stored alongside so the log can filter without recompute.
+  treatment: SafetyTreatment;
+  daysAway: number;
+  restrictedDuty: boolean;
+  lostConsciousness: boolean;
+  fatality: boolean;
+  oshaRecordable: boolean;
+  status: SafetyIncidentStatus;
+  reportedBy: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type HazardScale = 1 | 2 | 3 | 4 | 5;
+export type HazardStatus = 'open' | 'mitigated' | 'closed';
+
+export interface Hazard {
+  id: string;
+  projectId: string;
+  description: string;
+  location: string;
+  photoUrl?: string;
+  severity: HazardScale;
+  likelihood: HazardScale;
+  /** severity × likelihood, computed by utils/safety/risk.ts. */
+  riskScore: number;
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
+  assignedTo?: string;
+  dueDate?: string;
+  correctiveAction?: string;
+  status: HazardStatus;
+  /** Set when auto-spawned from a failed inspection item (Wave B). */
+  sourceInspectionId?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProjectPhoto {
   id: string;
   projectId: string;
