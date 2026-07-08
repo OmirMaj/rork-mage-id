@@ -1169,6 +1169,76 @@ CREATE POLICY "plan_calibrations_all_own" ON public.plan_calibrations
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- ============================================
+-- SAFETY MANAGEMENT — Wave B (inspections, certifications, templates)
+-- Mirror of supabase/migrations/20260708180000_safety_wave_b.sql.
+-- Additive, RLS-scoped. Triggers/updated_at fn omitted here to keep
+-- schema.sql declarative (matching how other tables are mirrored).
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.safety_inspections (
+  id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id text NOT NULL,
+  template_id text,
+  title text NOT NULL DEFAULT '',
+  date text NOT NULL DEFAULT '',
+  inspector text NOT NULL DEFAULT '',
+  items jsonb NOT NULL DEFAULT '[]'::jsonb,
+  score numeric(4,3) NOT NULL DEFAULT 1,
+  status text NOT NULL DEFAULT 'complete' CHECK (status IN ('draft','complete')),
+  created_by text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS safety_inspections_user_idx ON public.safety_inspections(user_id);
+CREATE INDEX IF NOT EXISTS safety_inspections_project_idx ON public.safety_inspections(project_id);
+ALTER TABLE public.safety_inspections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "safety_inspections_all_own" ON public.safety_inspections;
+CREATE POLICY "safety_inspections_all_own" ON public.safety_inspections
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.safety_inspections TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.certifications (
+  id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  worker_id text,               -- → crew_members.id (person anchor); nullable, cert may predate the roster entry. NO FK: keeps the offline queue from failing when a cert syncs before its CrewMember row.
+  holder_name text,             -- display fallback when worker_id is null (nullable now that CrewMember is the anchor)
+  sub_id text,
+  type text NOT NULL DEFAULT '',
+  issued_date text,
+  expires_date text,
+  document_url text,
+  status text NOT NULL DEFAULT 'valid' CHECK (status IN ('valid','expiring','expired')),
+  created_by text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS certifications_user_idx ON public.certifications(user_id);
+CREATE INDEX IF NOT EXISTS certifications_worker_idx ON public.certifications(worker_id);
+CREATE INDEX IF NOT EXISTS certifications_sub_idx ON public.certifications(sub_id);
+ALTER TABLE public.certifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "certifications_all_own" ON public.certifications;
+CREATE POLICY "certifications_all_own" ON public.certifications
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.certifications TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.safety_templates (
+  id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name text NOT NULL DEFAULT '',
+  category text NOT NULL DEFAULT 'general' CHECK (category IN ('jha','inspection','general')),
+  fields jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_by text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS safety_templates_user_idx ON public.safety_templates(user_id);
+ALTER TABLE public.safety_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "safety_templates_all_own" ON public.safety_templates;
+CREATE POLICY "safety_templates_all_own" ON public.safety_templates
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.safety_templates TO authenticated;
+
+-- ============================================
 -- ENABLE REALTIME
 -- ============================================
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
