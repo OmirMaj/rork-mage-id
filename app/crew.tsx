@@ -1,28 +1,34 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  Alert, Platform, Modal, KeyboardAvoidingView, ActivityIndicator, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, X, ChevronLeft, ChevronRight, IdCard, ShieldCheck,
-  UserCheck, ScanLine, Send, Trash2,
+  UserCheck, ScanLine, Send, Trash2, Camera, Image as ImageIcon, Check,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCrew } from '@/contexts/CrewContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
-import type { CrewMember } from '@/types';
+import type { CrewMember, IdDocumentType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
-import { verifiedBadge, certExpiryStatus } from '@/utils/crew';
+import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified } from '@/utils/crew';
+import { scanGovernmentId, type IdScanResult } from '@/utils/crewScan';
+import { uploadWorkerIdImage } from '@/utils/storage';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 
 export default function CrewScreen() {
   const router = useRouter();
@@ -46,6 +52,8 @@ function CrewScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const { crewMembers, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, startClaimInvite } = useCrew();
   const { projects } = useProjects();
+  const auth = useAuth();
+  const subscription = useSubscription();
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -56,7 +64,123 @@ function CrewScreenInner() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
+  // ── ID-scan sub-flow state ─────────────────────────────────────────────
+  // SECURITY INVARIANT: capturedBase64 + scanFields.idNumberFull are the ONLY
+  // places the raw ID ever lives, and only in component state — never written
+  // to updateCrewMember except via maskIdLast4(). Every close/cancel path below
+  // clears capturedBase64/capturedUri so the raw image can't linger in memory.
+  const [scanStage, setScanStage] = useState<'closed' | 'consent' | 'capture' | 'scanning' | 'review'>('closed');
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [capturedUri, setCapturedUri] = useState<string | null>(null);
+  const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
+  const [scanFields, setScanFields] = useState<IdScanResult | null>(null);
+  const [retainImage, setRetainImage] = useState(false); // default OFF = extract-then-purge
+  const [scanTargetId, setScanTargetId] = useState<string | null>(null);
+
   const member = useMemo(() => (detailId ? getCrewMember(detailId) : null), [detailId, getCrewMember]);
+
+  // Fully reset the sub-flow and purge any raw ID material from memory.
+  const closeScan = useCallback(() => {
+    setScanStage('closed');
+    setConsentChecked(false);
+    setCapturedUri(null);
+    setCapturedBase64(null);
+    setScanFields(null);
+    setRetainImage(false);
+    setScanTargetId(null);
+  }, []);
+
+  const openScan = useCallback((memberId: string) => {
+    setScanTargetId(memberId);
+    setConsentChecked(false);
+    setCapturedUri(null);
+    setCapturedBase64(null);
+    setScanFields(null);
+    setRetainImage(false);
+    setScanStage('consent');
+  }, []);
+
+  const runScan = useCallback(async () => {
+    if (!capturedBase64) return;
+    const { tier } = subscription; // useSubscription()
+    // Fast-path DAILY pre-check; the authoritative cap is the server MONTHLY
+    // cap (MONTHLY_CAPS[tier].scan_credential). scanGovernmentId re-throws the
+    // server's "Monthly credential-scan limit reached (…)" verbatim, which the
+    // catch below surfaces — do NOT branch on a daily counter to "fix" this.
+    const limit = await checkAILimit(tier, 'smart', 'scanCredential');
+    if (!limit.allowed) {
+      Alert.alert('Scan limit reached', limit.message ?? 'Upgrade to keep scanning.');
+      return;
+    }
+    setScanStage('scanning');
+    try {
+      const fields = await scanGovernmentId(capturedBase64);
+      await recordAIUsage('smart', 'scanCredential');
+      setScanFields(fields);
+      setScanStage('review');
+    } catch (e) {
+      Alert.alert('Scan failed', e instanceof Error ? e.message : 'Try a clearer, well-lit photo.');
+      setScanStage('capture');
+    }
+  }, [capturedBase64, subscription]);
+
+  const handleTakeIdPhoto = useCallback(async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Camera access needed', 'Grant camera permission in Settings.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: true });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setCapturedUri(asset.uri);
+    setCapturedBase64(asset.base64 ?? null);
+    void runScan();
+  }, [runScan]);
+
+  const handleChooseIdPhoto = useCallback(async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Photo access needed', 'Grant photo access in Settings to pick a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.5,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setCapturedUri(asset.uri);
+    setCapturedBase64(asset.base64 ?? null);
+    void runScan();
+  }, [runScan]);
+
+  const handleSaveScan = useCallback(async () => {
+    if (!scanTargetId || !scanFields) return;
+    const { user } = auth; // useAuth()
+    // Derive the masked last-4 ONCE from the raw number, then never persist raw.
+    const maskedLast4 = maskIdLast4(scanFields.idNumberFull);
+    const verified = computeIdVerified({ scanCompleted: true, userConfirmed: true });
+    let idImagePath: string | undefined;
+    if (retainImage && capturedUri && user?.id) {
+      // Opt-in retain: uploads to the private worker-ids bucket, returns a PATH.
+      idImagePath = (await uploadWorkerIdImage(user.id, scanTargetId, capturedUri)) ?? undefined;
+    }
+    updateCrewMember(scanTargetId, {
+      idVerified: verified,
+      idType: scanFields.idType,
+      idMaskedLast4: maskedLast4,
+      idExpiry: scanFields.expiry || undefined,
+      idIssuer: scanFields.issuer || undefined,
+      idScannedAt: new Date().toISOString(),
+      idImagePath, // undefined on the default purge path — raw image never uploaded
+    });
+    // Purge the in-memory raw number/image — never persisted.
+    setCapturedBase64(null); setCapturedUri(null); setScanFields(null);
+    setScanStage('closed'); setConsentChecked(false); setRetainImage(false); setScanTargetId(null);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [scanTargetId, scanFields, retainImage, capturedUri, auth, updateCrewMember]);
 
   const handleAdd = useCallback(() => {
     if (!fullName.trim()) { Alert.alert('Name required'); return; }
@@ -269,10 +393,7 @@ function CrewScreenInner() {
                         <Text style={styles.identityMutedText}>ID not verified</Text>
                         <TouchableOpacity
                           style={styles.scanBtn}
-                          onPress={() => {
-                            // Task 9 opens the consent → capture → scan → review sub-flow.
-                            Alert.alert('Scan ID', 'ID scanning opens in the next step of this flow.');
-                          }}
+                          onPress={() => openScan(member.id)}
                           activeOpacity={0.85}
                           testID="scan-id"
                         >
@@ -370,9 +491,179 @@ function CrewScreenInner() {
           </View>
         </View>
       </Modal>
+
+      {/* ── ID-scan sub-flow (consent → capture → scanning → review) ─────── */}
+      <Modal
+        visible={scanStage !== 'closed'}
+        transparent
+        animationType="slide"
+        onRequestClose={closeScan}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.scanCard, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={styles.formHeader}>
+                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close scan">
+                  <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
+                </TouchableOpacity>
+                <Text style={styles.formTitle}>Scan ID</Text>
+                <TouchableOpacity onPress={closeScan} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancel scan">
+                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Stage: consent */}
+              {scanStage === 'consent' ? (
+                <View style={{ gap: 14 }}>
+                  <TouchableOpacity
+                    style={styles.consentRow}
+                    onPress={() => setConsentChecked(v => !v)}
+                    activeOpacity={0.8}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: consentChecked }}
+                    testID="scan-consent-checkbox"
+                  >
+                    <View style={[styles.checkbox, consentChecked && styles.checkboxOn]}>
+                      {consentChecked ? <Check size={14} color="#FFFFFF" strokeWidth={3} /> : null}
+                    </View>
+                    <Text style={styles.consentText}>
+                      I have this person&apos;s consent to scan and store their ID information.
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.disclaimer}>
+                    MAGE captures and attaches an ID. It does not legally verify identity or work eligibility.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.saveBtn, !consentChecked && styles.saveBtnDisabled]}
+                    onPress={() => setScanStage('capture')}
+                    disabled={!consentChecked}
+                    activeOpacity={0.85}
+                    testID="scan-consent-continue"
+                  >
+                    <Text style={styles.saveBtnText}>Continue</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* Stage: capture */}
+              {scanStage === 'capture' ? (
+                <View style={{ gap: 12 }}>
+                  <Text style={styles.captureHint}>Use a clear, well-lit photo of the government ID.</Text>
+                  <TouchableOpacity style={styles.captureBtn} onPress={handleTakeIdPhoto} activeOpacity={0.85} testID="scan-take-photo">
+                    <Camera size={18} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.captureBtnText}>Take photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.captureBtn} onPress={handleChooseIdPhoto} activeOpacity={0.85} testID="scan-choose-photo">
+                    <ImageIcon size={18} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.captureBtnText}>Choose photo</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              {/* Stage: scanning */}
+              {scanStage === 'scanning' ? (
+                <View style={styles.scanningBox}>
+                  <ActivityIndicator size="large" color={themeColors.accent} />
+                  <Text style={styles.scanningText}>Reading the ID…</Text>
+                </View>
+              ) : null}
+
+              {/* Stage: review */}
+              {scanStage === 'review' && scanFields ? (
+                <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                  <Text style={styles.fieldLabel}>Full name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={scanFields.fullName}
+                    onChangeText={t => setScanFields(f => (f ? { ...f, fullName: t } : f))}
+                    placeholder="Full name"
+                    placeholderTextColor={themeColors.textMuted}
+                  />
+
+                  <Text style={styles.fieldLabel}>ID type</Text>
+                  <View style={styles.chipWrap}>
+                    {(ID_TYPE_OPTIONS).map(opt => {
+                      const on = scanFields.idType === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[styles.assignChip, on && styles.assignChipActive]}
+                          onPress={() => setScanFields(f => (f ? { ...f, idType: opt.value } : f))}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.assignChipText, on && styles.assignChipTextActive]}>{opt.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={styles.fieldLabel}>ID number</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={scanFields.idNumberFull}
+                    onChangeText={t => setScanFields(f => (f ? { ...f, idNumberFull: t } : f))}
+                    placeholder="ID number"
+                    placeholderTextColor={themeColors.textMuted}
+                    autoCapitalize="characters"
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Expiry</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={scanFields.expiry}
+                        onChangeText={t => setScanFields(f => (f ? { ...f, expiry: t } : f))}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={themeColors.textMuted}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Issuer</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={scanFields.issuer}
+                        onChangeText={t => setScanFields(f => (f ? { ...f, issuer: t } : f))}
+                        placeholder="e.g. CA DMV"
+                        placeholderTextColor={themeColors.textMuted}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.retainRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.retainLabel}>Retain original image</Text>
+                      <Text style={styles.retainHelp}>
+                        Off = we keep only the masked last 4 and expiry; the photo is discarded.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={retainImage}
+                      onValueChange={setRetainImage}
+                      trackColor={{ true: themeColors.accent, false: themeColors.line }}
+                      testID="scan-retain-switch"
+                    />
+                  </View>
+
+                  <TouchableOpacity style={styles.saveBtn} onPress={handleSaveScan} activeOpacity={0.85} testID="scan-save">
+                    <Text style={styles.saveBtnText}>Save</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              ) : null}
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
+
+const ID_TYPE_OPTIONS: { value: IdDocumentType; label: string }[] = [
+  { value: 'drivers_license', label: "Driver's license" },
+  { value: 'state_id', label: 'State ID' },
+  { value: 'passport', label: 'Passport' },
+  { value: 'other', label: 'Other' },
+];
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
@@ -419,7 +710,33 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.line, alignItems: 'center' as const, justifyContent: 'center' as const },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
   saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
+  saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+
+  // ID-scan sub-flow
+  scanCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 12 },
+  consentRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 12 },
+  checkbox: {
+    width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: themeColors.line,
+    alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 1,
+  },
+  checkboxOn: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
+  consentText: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text, lineHeight: 21 },
+  captureHint: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginBottom: 2 },
+  captureBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
+    paddingVertical: 14, borderRadius: Tokens.radius.lg,
+    backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.accent + '20',
+  },
+  captureBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  scanningBox: { alignItems: 'center' as const, justifyContent: 'center' as const, gap: 14, paddingVertical: 40 },
+  scanningText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  retainRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
+    backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 12, marginTop: 8,
+  },
+  retainLabel: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  retainHelp: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 16, marginTop: 2 },
 
   // Detail
   detailCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22 },
