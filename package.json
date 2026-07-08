@@ -17,8 +17,9 @@
     "test:sched-depcycle": "bun run scripts/validate-schedule-depcycle.ts",
     "test:sched-copilot": "bun run scripts/validate-schedule-copilot-meter.ts",
     "test:app-slop": "bun run scripts/validate-app-slop.ts",
+    "test:safety-risk": "bun run scripts/validate-safety-risk.ts",
     "test:cpm": "bun run scripts/test-cpm.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:app-slop",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:safety-risk && bun run test:app-slop",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
