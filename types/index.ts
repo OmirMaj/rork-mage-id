@@ -2159,6 +2159,85 @@ export interface Hazard {
   updatedAt: string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Safety Management — Wave B (compliance layer)
+// Inspections/Audits, Certifications, Forms Library.
+// Extends the Wave A safety types (JobHazardAnalysis, ToolboxTalk,
+// SafetyIncident, Hazard). See docs/superpowers/plans/2026-07-08-safety-wave-b.md
+// ─────────────────────────────────────────────────────────────
+
+/** A single checklist line inside a SafetyInspection. */
+export interface InspectionItem {
+  id: string;
+  prompt: string;
+  result: 'pass' | 'fail' | 'na';
+  note?: string;
+  photoUrl?: string;
+}
+
+/** An inspection / audit run against a project. Checklist items are
+ *  scored pass/(pass+fail); a failed item can spawn a Wave-A Hazard. */
+export interface SafetyInspection {
+  id: string;
+  projectId: string;
+  templateId?: string;          // SafetyFormTemplate the checklist came from
+  title: string;
+  date: string;                 // 'YYYY-MM-DD'
+  inspector: string;
+  items: InspectionItem[];
+  score: number;                // pass / (pass+fail); see utils/safety/inspectionScore
+  status?: 'draft' | 'complete';
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+export type CertificationStatus = 'valid' | 'expiring' | 'expired';
+
+/** A worker / sub certification. COMPANY-scoped (not project-scoped) —
+ *  keyed by the owning GC. status is computed from expiresDate.
+ *  Anchors to a real person via workerId → CrewMember.id (the Worker Profile
+ *  feature, already built). holderName is an OPTIONAL display fallback for a
+ *  cert entered for someone not yet on the crew roster. */
+export interface Certification {
+  id: string;
+  workerId?: string;            // → CrewMember.id — person anchor (Worker Profile feature)
+  holderName?: string;          // display fallback when no CrewMember is linked
+  subId?: string;               // links to tertiary_subcontractors / PrequalSafetyRecord
+  type: string;                 // e.g. 'OSHA 10', 'OSHA 30', 'SST', 'CPR', trade license
+  issuedDate?: string;          // 'YYYY-MM-DD'
+  expiresDate?: string;         // 'YYYY-MM-DD'; absent = non-expiring
+  documentUrl?: string;
+  status: CertificationStatus;  // recomputed on read via certStatus()
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+export type SafetyFormFieldType = 'text' | 'checkbox' | 'select' | 'signature' | 'photo';
+
+/** One field in a reusable form template. Order is the array order —
+ *  there is NO drag-drop builder in v1. */
+export interface SafetyFormField {
+  id: string;
+  label: string;
+  type: SafetyFormFieldType;
+  required: boolean;
+  options?: string[];           // for type === 'select'
+}
+
+/** A reusable form/checklist definition. COMPANY-scoped. Powers
+ *  inspection checklists (category 'inspection') + custom forms. */
+export interface SafetyFormTemplate {
+  id: string;
+  name: string;
+  category: 'jha' | 'inspection' | 'general';
+  fields: SafetyFormField[];
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
 export interface ProjectPhoto {
   id: string;
   projectId: string;
