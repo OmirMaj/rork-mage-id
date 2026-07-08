@@ -14,6 +14,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -45,6 +46,16 @@ const TREATMENT_OPTIONS: { value: SafetyTreatment; label: string }[] = [
   { value: 'first_aid', label: 'First aid' },
   { value: 'medical_beyond_first_aid', label: 'Medical' },
 ];
+
+// AI returns free-form JSON — never trust its enum strings blindly. These
+// guards are typed against the option lists (which are themselves typed to
+// the SafetyIncidentType / SafetyIncidentSeverity unions), so a bad value
+// from the model is dropped rather than poisoning state with an off-enum
+// string that breaks the segmented pickers and downstream OSHA logic.
+const isValidType = (v: unknown): v is SafetyIncidentType =>
+  TYPE_OPTIONS.some(o => o.value === v);
+const isValidSeverity = (v: unknown): v is SafetyIncidentSeverity =>
+  SEVERITY_OPTIONS.some(o => o.value === v);
 
 function getStatusConfig(t: ThemeColors, status: SafetyIncidentStatus): { label: string; color: string; bg: string } {
   switch (status) {
@@ -82,6 +93,8 @@ function SafetyIncidentsInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useTierAccess();
+  const { user } = useAuth();
+  const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
   const { getIncidentsForProject, addIncident, updateIncident, deleteIncident } = useSafety();
@@ -171,7 +184,10 @@ function SafetyIncidentsInner() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) { Alert.alert('AI unavailable', json.error ?? 'Fill the incident manually.'); return; }
-      setType(json.data.type); setSeverity(json.data.severity);
+      // Only apply AI enums when they match the union — otherwise keep the
+      // current/default so a hallucinated value can't corrupt the pickers.
+      if (isValidType(json.data.type)) setType(json.data.type);
+      if (isValidSeverity(json.data.severity)) setSeverity(json.data.severity);
       setDescription(json.data.description ?? ''); setLocation(json.data.location ?? '');
       setCorrectiveActions((json.data.correctiveActions ?? []).map((a: { action: string; owner: string }) => ({ action: a.action, owner: a.owner, done: false })));
       await recordAIUsage('smart');
@@ -205,13 +221,13 @@ function SafetyIncidentsInner() {
         description: desc, location: location.trim(), peopleInvolved, photoUrls,
         correctiveActions, treatment, daysAway: Number(daysAway) || 0,
         restrictedDuty, lostConsciousness, fatality, oshaRecordable: recordable,
-        status: 'open', reportedBy: '', createdBy: '', createdAt: now, updatedAt: now,
+        status: 'open', reportedBy: author, createdBy: author, createdAt: now, updatedAt: now,
       };
       addIncident(incident);
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, restrictedDuty, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm]);
+  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, restrictedDuty, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author]);
 
   const handleAdvanceStatus = useCallback((inc: SafetyIncident) => {
     updateIncident(inc.id, { status: nextStatus(inc.status) });

@@ -7,13 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Megaphone, Plus, X, Trash2, PenLine, CheckCircle, Users, ChevronLeft,
+  Megaphone, Plus, X, Trash2, PenLine, CheckCircle, Users, ChevronLeft, Lock,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -43,6 +44,8 @@ function SafetyToolboxInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { user } = useAuth();
+  const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
   const { getToolboxTalksForProject, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk } = useSafety();
@@ -58,6 +61,16 @@ function SafetyToolboxInner() {
   const [notes, setNotes] = useState('');
   const [attendees, setAttendees] = useState<SafetyAttendee[]>([]);
   const [attendeeName, setAttendeeName] = useState('');
+
+  // A talk becomes an immutable record once anyone has signed in. Signatures
+  // are append-only: you can still add + sign new attendees, but the topic,
+  // presenter, date, and notes are locked, and an existing signature can't be
+  // removed or un-signed. Editing a signed sign-in sheet would invalidate the
+  // record inspectors rely on.
+  const isLocked = useMemo(
+    () => !!editingTalk && editingTalk.attendees.some(a => !!a.signedAt),
+    [editingTalk],
+  );
 
   const resetForm = useCallback(() => {
     setEditingTalk(null);
@@ -75,13 +88,28 @@ function SafetyToolboxInner() {
   }, [attendeeName]);
 
   const removeAttendee = useCallback((idx: number) => {
-    setAttendees(prev => prev.filter((_, i) => i !== idx));
+    setAttendees(prev => {
+      // A recorded signature is immutable — signed attendees can't be pulled
+      // off the sheet. Unsigned rows are still free to remove.
+      if (prev[idx]?.signedAt) {
+        Alert.alert('Signed in — locked', 'A signed attendee is part of the record and can\'t be removed.');
+        return prev;
+      }
+      return prev.filter((_, i) => i !== idx);
+    });
   }, []);
 
   const toggleAttendeeSigned = useCallback((idx: number) => {
-    setAttendees(prev => prev.map((a, i) => i === idx
-      ? { ...a, signedAt: a.signedAt ? undefined : new Date().toISOString() }
-      : a));
+    setAttendees(prev => prev.map((a, i) => {
+      if (i !== idx) return a;
+      // Signing is append-only: once signed, it stays signed. Only an unsigned
+      // attendee can be signed in.
+      if (a.signedAt) {
+        Alert.alert('Signed in — locked', 'A signature can\'t be undone once recorded.');
+        return a;
+      }
+      return { ...a, signedAt: new Date().toISOString() };
+    }));
   }, []);
 
   const openEdit = useCallback((talk: ToolboxTalk) => {
@@ -104,13 +132,13 @@ function SafetyToolboxInner() {
     } else {
       const talk: ToolboxTalk = {
         id: generateUUID(), projectId: projectId ?? '', topic: tp, date, presenter: presenter.trim(),
-        notes: notes.trim(), attendees, aiTopicSource: 'manual', createdBy: '', createdAt: now, updatedAt: now,
+        notes: notes.trim(), attendees, aiTopicSource: 'manual', createdBy: author, createdAt: now, updatedAt: now,
       };
       addToolboxTalk(talk);
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [topic, date, presenter, notes, attendees, editingTalk, projectId, addToolboxTalk, updateToolboxTalk, resetForm]);
+  }, [topic, date, presenter, notes, attendees, editingTalk, projectId, addToolboxTalk, updateToolboxTalk, resetForm, author]);
 
   const handleDelete = useCallback((id: string) => {
     Alert.alert('Delete toolbox talk', 'Delete this toolbox talk?', [
@@ -164,6 +192,12 @@ function SafetyToolboxInner() {
                 <Text style={styles.cardSummary}>
                   {item.attendees.length} attendee{item.attendees.length === 1 ? '' : 's'} ({signed} signed)
                 </Text>
+                {signed > 0 ? (
+                  <View style={styles.lockedChip}>
+                    <Lock size={11} color={themeColors.accent} strokeWidth={2} />
+                    <Text style={styles.lockedChipText}>Locked</Text>
+                  </View>
+                ) : null}
               </View>
             </TouchableOpacity>
           );
@@ -197,31 +231,41 @@ function SafetyToolboxInner() {
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingTalk ? 'Edit Talk' : 'New Toolbox Talk'}</Text>
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? 'Signed Talk' : editingTalk ? 'Edit Talk' : 'New Toolbox Talk'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
+                {isLocked ? (
+                  <View style={styles.lockedBanner}>
+                    <Lock size={14} color={themeColors.accent} strokeWidth={2} />
+                    <Text style={styles.lockedBannerText}>
+                      Signed — locked. Attendee sign-ins are append-only; the topic, presenter, date, and notes can’t be edited.
+                    </Text>
+                  </View>
+                ) : null}
+
                 <Text style={styles.fieldLabel}>Topic *</Text>
-                <TextInput style={styles.input} value={topic} onChangeText={setTopic} placeholder="e.g. Ladder safety" placeholderTextColor={themeColors.textMuted} testID="toolbox-topic-input" />
+                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={topic} onChangeText={setTopic} editable={!isLocked} placeholder="e.g. Ladder safety" placeholderTextColor={themeColors.textMuted} testID="toolbox-topic-input" />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Presenter</Text>
-                    <TextInput style={styles.input} value={presenter} onChangeText={setPresenter} placeholder="e.g. Foreman" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={presenter} onChangeText={setPresenter} editable={!isLocked} placeholder="e.g. Foreman" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Date</Text>
-                    <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={date} onChangeText={setDate} editable={!isLocked} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput
-                  style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
+                  style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }, isLocked ? styles.inputLocked : null]}
                   value={notes}
                   onChangeText={setNotes}
+                  editable={!isLocked}
                   placeholder="Key points covered in the talk..."
                   placeholderTextColor={themeColors.textMuted}
                   multiline
@@ -291,7 +335,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },
   cardMeta: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 2 },
   cardSummary: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
-  attendeeSummary: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  attendeeSummary: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  lockedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '14' },
+  lockedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  lockedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '30', marginBottom: 4 },
+  lockedBannerText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
+  inputLocked: { opacity: 0.6 },
   deleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.danger + '18', alignItems: 'center', justifyContent: 'center' },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '20' },
   addItemBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.accent },

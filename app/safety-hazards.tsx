@@ -1,17 +1,20 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  Alert, Platform, Modal, KeyboardAvoidingView, Image, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { TriangleAlert, Plus, X, Sparkles, Trash2, ChevronLeft } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { TriangleAlert, Plus, X, Sparkles, Trash2, ChevronLeft, Camera, ImagePlus, AlertCircle } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -77,6 +80,8 @@ function SafetyHazardsInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useTierAccess();
+  const { user } = useAuth();
+  const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
   const { getHazardsForProject, addHazard, updateHazard, deleteHazard } = useSafety();
@@ -95,9 +100,12 @@ function SafetyHazardsInner() {
   const [correctiveAction, setCorrectiveAction] = useState('');
   const [status, setStatus] = useState<HazardStatus>('open');
 
-  // AI photo-detect.
+  // AI photo-detect. A field worker captures/picks a photo (encoded inline
+  // as base64); pasting a URL is the secondary desktop path.
   const [photoUrl, setPhotoUrl] = useState('');
+  const [pickedUri, setPickedUri] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
   const resetForm = useCallback(() => {
@@ -134,37 +142,84 @@ function SafetyHazardsInner() {
         photoUrl: undefined, severity, likelihood, riskScore: score,
         assignedTo: assignedTo.trim() || undefined, dueDate: dueDate.trim() || undefined,
         correctiveAction: correctiveAction.trim() || undefined, status: 'open',
-        createdBy: '', createdAt: now, updatedAt: now,
+        createdBy: author, createdAt: now, updatedAt: now,
       };
       addHazard(hazard);
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [description, location, severity, likelihood, assignedTo, dueDate, correctiveAction, status, editingHazard, projectId, addHazard, updateHazard, resetForm]);
+  }, [description, location, severity, likelihood, assignedTo, dueDate, correctiveAction, status, editingHazard, projectId, addHazard, updateHazard, resetForm, author]);
 
-  const handleDetect = useCallback(async (photoUrls: string[]) => {
-    if (photoUrls.length === 0) { Alert.alert('Add a photo', 'Attach a site photo to scan for hazards.'); return; }
-    const check = await checkAILimit(tier, 'smart');
-    if (!check.allowed) { Alert.alert('AI limit reached', check.message ?? 'Daily AI limit reached.'); return; }
+  // Capture or pick a site photo to scan. Clears any pasted URL — a local
+  // capture takes precedence and gets encoded inline (the server can't fetch
+  // a file:// URI).
+  const handlePickPhoto = useCallback(async (source: 'camera' | 'library') => {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        source === 'camera' ? 'Camera access needed' : 'Photo access needed',
+        `Grant ${source === 'camera' ? 'camera' : 'photo'} access in Settings to scan a site photo.`,
+      );
+      return;
+    }
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ quality: 0.5 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5 });
+    if (result.canceled || !result.assets?.[0]) return;
+    setPickedUri(result.assets[0].uri);
+    setPhotoUrl('');
+    setScanNote(null);
+  }, []);
+
+  const handleDetect = useCallback(async () => {
+    const localUri = pickedUri?.trim();
+    const url = photoUrl.trim();
+    if (!localUri && !url) {
+      Alert.alert('Add a photo', 'Take or pick a site photo (or paste a URL) to scan for hazards.');
+      return;
+    }
+    // Hazard scan is a vision call — meter it under the shared 'photoAnalysis'
+    // feature key so it draws from the same monthly ceiling as AI Punch /
+    // Photo Triage rather than the generic text bucket.
+    const check = await checkAILimit(tier, 'smart', 'photoAnalysis');
+    if (!check.allowed) { Alert.alert('AI limit reached', check.message ?? 'Monthly photo analysis limit reached.'); return; }
     setDetecting(true);
+    setScanNote(null);
     try {
+      let body: string;
+      if (localUri) {
+        // Inline base64 — same encoding path as photoAnalyzer. The server
+        // accepts photos[] { base64, mimeType }.
+        const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+        const ext = localUri.split('.').pop()?.toLowerCase() ?? '';
+        const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
+        body = JSON.stringify({ photos: [{ base64, mimeType }] });
+      } else {
+        body = JSON.stringify({ photoUrls: [url] });
+      }
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/safety-detect-hazards`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session?.access_token ?? ''}` },
-        body: JSON.stringify({ photoUrls }),
+        body,
       });
       const json = await res.json();
-      if (!res.ok || !json.success) { Alert.alert('AI unavailable', json.error ?? 'Log hazards manually.'); return; }
-      setSuggestions(json.data.hazards ?? []);
-      await recordAIUsage('smart');
+      if (!res.ok || !json.success) { setScanNote(json.error ?? 'Could not scan the photo. Log hazards manually.'); return; }
+      const found: Suggestion[] = json.data.hazards ?? [];
+      setSuggestions(found);
+      await recordAIUsage('smart', 'photoAnalysis');
+      if (found.length === 0) {
+        setScanNote('No hazards detected in that photo. Try a wider shot or better lighting, or log hazards manually.');
+      }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
-      Alert.alert('AI unavailable', 'Network issue — log hazards manually.');
+      setScanNote('Network issue — could not scan. Log hazards manually.');
     } finally {
       setDetecting(false);
     }
-  }, [tier]);
+  }, [pickedUri, photoUrl, tier]);
 
   const applySuggestion = useCallback((s: Suggestion) => {
     setDescription(s.description);
@@ -282,19 +337,65 @@ function SafetyHazardsInner() {
           <Text style={styles.addItemBtnText}>Log Hazard</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.walkBtn} onPress={() => handleDetect(photoUrl.trim() ? [photoUrl.trim()] : [])} disabled={detecting} activeOpacity={0.85} testID="scan-hazards">
-          <Sparkles size={16} color="#FFFFFF" strokeWidth={1.75} />
-          <Text style={styles.walkBtnText}>{detecting ? 'Scanning…' : 'Scan photo for hazards'}</Text>
-        </TouchableOpacity>
-        <TextInput
-          style={styles.photoInput}
-          value={photoUrl}
-          onChangeText={setPhotoUrl}
-          placeholder="Paste a site photo URL to scan…"
-          placeholderTextColor={themeColors.textMuted}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        {/* AI photo scan — capture/library first (field), URL as secondary. */}
+        <View style={styles.scanSection}>
+          <View style={styles.scanSourceRow}>
+            <TouchableOpacity style={styles.scanSourceBtn} onPress={() => handlePickPhoto('camera')} disabled={detecting} activeOpacity={0.85} testID="scan-camera">
+              <Camera size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.scanSourceText}>Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.scanSourceBtn} onPress={() => handlePickPhoto('library')} disabled={detecting} activeOpacity={0.85} testID="scan-library">
+              <ImagePlus size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.scanSourceText}>Photo library</Text>
+            </TouchableOpacity>
+          </View>
+
+          {pickedUri ? (
+            <View style={styles.pickedThumbWrap}>
+              <Image source={{ uri: pickedUri }} style={styles.pickedThumb} />
+              <TouchableOpacity
+                style={styles.pickedThumbRemove}
+                onPress={() => setPickedUri(null)}
+                hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove photo"
+              >
+                <X size={12} color="#FFF" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.walkBtn, (detecting || (!pickedUri && !photoUrl.trim())) ? styles.walkBtnDisabled : null]}
+            onPress={handleDetect}
+            disabled={detecting || (!pickedUri && !photoUrl.trim())}
+            activeOpacity={0.85}
+            testID="scan-hazards"
+          >
+            {detecting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Sparkles size={16} color="#FFFFFF" strokeWidth={1.75} />
+            )}
+            <Text style={styles.walkBtnText}>{detecting ? 'Scanning…' : 'Scan photo for hazards'}</Text>
+          </TouchableOpacity>
+
+          {scanNote ? (
+            <View style={styles.scanNoteBanner}>
+              <AlertCircle size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.scanNoteText}>{scanNote}</Text>
+            </View>
+          ) : null}
+
+          <TextInput
+            style={styles.photoInput}
+            value={photoUrl}
+            onChangeText={t => { setPhotoUrl(t); if (t.trim()) setPickedUri(null); }}
+            placeholder="Or paste a site photo URL to scan…"
+            placeholderTextColor={themeColors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!detecting}
+          />
+        </View>
       </ScrollView>
 
       {/* Hazard form — slide-up section modal */}
@@ -429,9 +530,19 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   deleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.danger + '18', alignItems: 'center', justifyContent: 'center' },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '20' },
   addItemBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.accent },
-  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent },
+  scanSection: { marginHorizontal: 20, marginTop: 12, gap: 10 },
+  scanSourceRow: { flexDirection: 'row', gap: 10 },
+  scanSourceBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, backgroundColor: themeColors.accent + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: themeColors.accent + '30' },
+  scanSourceText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  pickedThumbWrap: { width: 96, height: 96, borderRadius: Tokens.radius.md, overflow: 'hidden', position: 'relative' },
+  pickedThumb: { width: '100%', height: '100%' },
+  pickedThumbRemove: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
+  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent },
+  walkBtnDisabled: { opacity: 0.5 },
   walkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
-  photoInput: { minHeight: 44, marginHorizontal: 20, marginTop: 10, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.footnote.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
+  scanNoteBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '30' },
+  scanNoteText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
+  photoInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.footnote.fontSize, color: themeColors.text, borderWidth: 1, borderColor: themeColors.line },
   suggestionBox: { marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accent + '0D', borderWidth: 1, borderColor: themeColors.accent + '20', gap: 10 },
   suggestionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
   chipWrap: { gap: 8 },

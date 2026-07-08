@@ -7,13 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  HardHat, Plus, X, Sparkles, Trash2, ChevronLeft, CheckCircle, PenLine,
+  HardHat, Plus, X, Sparkles, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -54,6 +55,8 @@ function SafetyJhaInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useTierAccess();
+  const { user } = useAuth();
+  const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
   const { getJhasForProject, addJha, updateJha, deleteJha } = useSafety();
@@ -72,6 +75,15 @@ function SafetyJhaInner() {
   const [ppeText, setPpeText] = useState('');
   const [aiGenerated, setAiGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  // Once a JHA carries any sign-off it becomes an immutable safety record:
+  // sign-offs are append-only, and the analysis itself (title, trade, task,
+  // date, steps, PPE) can no longer be edited — only archived. Editing a
+  // signed JHA would invalidate the signatures crews gave against it.
+  const isLocked = useMemo(
+    () => !!editingJha && editingJha.signOffs.length > 0,
+    [editingJha],
+  );
 
   // Sign-off capture — append-only signatures on a JHA.
   const [signOffFor, setSignOffFor] = useState<string | null>(null);
@@ -158,6 +170,11 @@ function SafetyJhaInner() {
   }, [taskDescription, trade, tier, project]);
 
   const handleSave = useCallback(() => {
+    // Immutable once signed — a signed JHA can only be archived, never edited.
+    if (editingJha && editingJha.signOffs.length > 0) {
+      Alert.alert('Signed — locked', 'This JHA has sign-offs and can no longer be edited. Archive it instead.');
+      return;
+    }
     const t = title.trim();
     if (!t) { Alert.alert('Missing title', 'Give this JHA a title.'); return; }
     const now = new Date().toISOString();
@@ -168,18 +185,27 @@ function SafetyJhaInner() {
       const jha: JobHazardAnalysis = {
         id: generateUUID(), projectId: projectId ?? '', title: t, trade: trade.trim(),
         taskDescription: taskDescription.trim(), date, steps, requiredPPE: ppe, signOffs: [],
-        aiGenerated, status: 'draft', createdBy: '', createdAt: now, updatedAt: now,
+        aiGenerated, status: 'draft', createdBy: author, createdAt: now, updatedAt: now,
       };
       addJha(jha);
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [title, trade, taskDescription, date, steps, requiredPPE, aiGenerated, editingJha, projectId, addJha, updateJha, resetForm]);
+  }, [title, trade, taskDescription, date, steps, requiredPPE, aiGenerated, editingJha, projectId, addJha, updateJha, resetForm, author]);
 
   const handleActivate = useCallback((jha: JobHazardAnalysis) => {
     updateJha(jha.id, { status: 'active' });
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [updateJha]);
+
+  // Archival is the one mutation a signed (locked) JHA still allows — status
+  // is a lifecycle flag, not part of the signed analysis content.
+  const handleArchive = useCallback(() => {
+    if (!editingJha) return;
+    updateJha(editingJha.id, { status: 'archived' });
+    setShowForm(false); resetForm();
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [editingJha, updateJha, resetForm]);
 
   const handleDelete = useCallback((id: string) => {
     Alert.alert('Delete JHA', 'Delete this job hazard analysis?', [
@@ -245,11 +271,17 @@ function SafetyJhaInner() {
               </Text>
 
               {item.signOffs.length > 0 ? (
-                <View style={styles.signRow}>
-                  <PenLine size={12} color={themeColors.success} strokeWidth={1.75} />
-                  <Text style={styles.signRowText}>
-                    {item.signOffs.length} sign-off{item.signOffs.length === 1 ? '' : 's'}
-                  </Text>
+                <View style={styles.signMetaRow}>
+                  <View style={styles.signRow}>
+                    <PenLine size={12} color={themeColors.success} strokeWidth={1.75} />
+                    <Text style={styles.signRowText}>
+                      {item.signOffs.length} sign-off{item.signOffs.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  <View style={styles.lockedChip}>
+                    <Lock size={11} color={themeColors.accent} strokeWidth={2} />
+                    <Text style={styles.lockedChipText}>Locked</Text>
+                  </View>
                 </View>
               ) : null}
 
@@ -300,75 +332,94 @@ function SafetyJhaInner() {
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Back" style={{ marginRight: 8 }}>
                     <ChevronLeft size={22} color={themeColors.text} strokeWidth={1.75} />
                   </TouchableOpacity>
-                  <Text style={[styles.formTitle, { flex: 1 }]}>{editingJha ? 'Edit JHA' : 'New JHA'}</Text>
+                  <Text style={[styles.formTitle, { flex: 1 }]}>{isLocked ? 'Signed JHA' : editingJha ? 'Edit JHA' : 'New JHA'}</Text>
                   <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
 
+                {isLocked ? (
+                  <View style={styles.lockedBanner}>
+                    <Lock size={14} color={themeColors.accent} strokeWidth={2} />
+                    <Text style={styles.lockedBannerText}>
+                      Signed — locked. Sign-offs are append-only; the analysis can’t be edited. You can archive it or add more sign-offs.
+                    </Text>
+                  </View>
+                ) : null}
+
                 <Text style={styles.fieldLabel}>Title *</Text>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof tie-off — south slope" placeholderTextColor={themeColors.textMuted} testID="jha-title-input" />
+                <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={title} onChangeText={setTitle} editable={!isLocked} placeholder="e.g. Roof tie-off — south slope" placeholderTextColor={themeColors.textMuted} testID="jha-title-input" />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Trade</Text>
-                    <TextInput style={styles.input} value={trade} onChangeText={setTrade} placeholder="e.g. Roofing" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={trade} onChangeText={setTrade} editable={!isLocked} placeholder="e.g. Roofing" placeholderTextColor={themeColors.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Date</Text>
-                    <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
+                    <TextInput style={[styles.input, isLocked ? styles.inputLocked : null]} value={date} onChangeText={setDate} editable={!isLocked} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.textMuted} />
                   </View>
                 </View>
 
                 <Text style={styles.fieldLabel}>Task Description</Text>
                 <TextInput
-                  style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
+                  style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }, isLocked ? styles.inputLocked : null]}
                   value={taskDescription}
                   onChangeText={setTaskDescription}
+                  editable={!isLocked}
                   placeholder="Describe the task so AI can analyze the hazards..."
                   placeholderTextColor={themeColors.textMuted}
                   multiline
                 />
 
-                <TouchableOpacity style={styles.aiBtn} onPress={handleGenerate} disabled={generating} activeOpacity={0.85} testID="jha-generate">
-                  <Sparkles size={16} color="#FFFFFF" strokeWidth={1.75} />
-                  <Text style={styles.aiBtnText}>{generating ? 'Analyzing…' : 'Generate with AI'}</Text>
-                </TouchableOpacity>
+                {!isLocked ? (
+                  <TouchableOpacity style={styles.aiBtn} onPress={handleGenerate} disabled={generating} activeOpacity={0.85} testID="jha-generate">
+                    <Sparkles size={16} color="#FFFFFF" strokeWidth={1.75} />
+                    <Text style={styles.aiBtnText}>{generating ? 'Analyzing…' : 'Generate with AI'}</Text>
+                  </TouchableOpacity>
+                ) : null}
 
                 <View style={styles.stepsHeader}>
                   <Text style={styles.fieldLabel}>Steps</Text>
-                  <TouchableOpacity onPress={addStep} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel="Add step">
-                    <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-                    <Text style={styles.addStepText}>Add step</Text>
-                  </TouchableOpacity>
+                  {!isLocked ? (
+                    <TouchableOpacity onPress={addStep} style={styles.addStepBtn} accessibilityRole="button" accessibilityLabel="Add step">
+                      <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
+                      <Text style={styles.addStepText}>Add step</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
 
                 {steps.map((s, idx) => (
                   <View key={s.id} style={styles.stepRow}>
                     <View style={styles.stepRowHeader}>
                       <Text style={styles.stepNum}>Step {idx + 1}</Text>
-                      <TouchableOpacity onPress={() => removeStep(s.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove step">
-                        <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
-                      </TouchableOpacity>
+                      {!isLocked ? (
+                        <TouchableOpacity onPress={() => removeStep(s.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove step">
+                          <Trash2 size={14} color={themeColors.danger} strokeWidth={1.75} />
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, isLocked ? styles.inputLocked : null]}
                       value={s.step}
                       onChangeText={v => updateStepField(s.id, 'step', v)}
+                      editable={!isLocked}
                       placeholder="Step description"
                       placeholderTextColor={themeColors.textMuted}
                     />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, isLocked ? styles.inputLocked : null]}
                       value={s.hazards.join(', ')}
                       onChangeText={v => updateStepField(s.id, 'hazards', v)}
+                      editable={!isLocked}
                       placeholder="Hazards (comma-separated)"
                       placeholderTextColor={themeColors.textMuted}
                     />
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, isLocked ? styles.inputLocked : null]}
                       value={s.controls.join(', ')}
                       onChangeText={v => updateStepField(s.id, 'controls', v)}
+                      editable={!isLocked}
                       placeholder="Controls (comma-separated)"
                       placeholderTextColor={themeColors.textMuted}
                     />
@@ -377,20 +428,30 @@ function SafetyJhaInner() {
 
                 <Text style={styles.fieldLabel}>Required PPE</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isLocked ? styles.inputLocked : null]}
                   value={ppeText}
                   onChangeText={handlePpeChange}
+                  editable={!isLocked}
                   placeholder="Hard hat, harness, gloves (comma-separated)"
                   placeholderTextColor={themeColors.textMuted}
                 />
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    <Text style={styles.cancelBtnText}>{isLocked ? 'Close' : 'Cancel'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-jha">
-                    <Text style={styles.saveBtnText}>{editingJha ? 'Update' : 'Add JHA'}</Text>
-                  </TouchableOpacity>
+                  {isLocked ? (
+                    editingJha?.status !== 'archived' ? (
+                      <TouchableOpacity style={[styles.saveBtn, { flexDirection: 'row', gap: 6 }]} onPress={handleArchive} activeOpacity={0.85} testID="archive-jha">
+                        <Archive size={15} color="#fff" strokeWidth={1.75} />
+                        <Text style={styles.saveBtnText}>Archive</Text>
+                      </TouchableOpacity>
+                    ) : null
+                  ) : (
+                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-jha">
+                      <Text style={styles.saveBtnText}>{editingJha ? 'Update' : 'Add JHA'}</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </ScrollView>
@@ -436,8 +497,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cardSummary: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
   statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
   statusChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
+  signMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   signRow: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' as const, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.successSoft },
   signRowText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.success },
+  lockedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '14' },
+  lockedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  lockedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: Tokens.radius.card, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '30', marginBottom: 4 },
+  lockedBannerText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
+  inputLocked: { opacity: 0.6 },
   cardActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   cardActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line },
   cardActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
