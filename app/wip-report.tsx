@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  Alert, TextInput,
+  Alert, TextInput, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -20,8 +20,10 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useWip } from '@/contexts/WipContext';
 import {
   computeWipRow, computeWipPortfolio, flagWipRow,
-  suggestCostToDate, suggestBilledToDate, sumApprovedChangeOrders, deriveOriginalContract,
+  suggestCostToDate, suggestBilledToDate, sumApprovedChangeOrders,
+  deriveOriginalContract, deriveEstimatedCost,
 } from '@/utils/wip';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { wipPeriodToCSV, shareWipPeriodPdf } from '@/utils/wipExport';
 import { copyToClipboard } from '@/utils/clipboard';
 import type { WipRowInput, WipSnapshotRow, Project } from '@/types';
@@ -63,11 +65,16 @@ function WipReportScreenInner() {
     getAIAPayAppsForProject,
   } = useProjects();
   const { periods, addPeriod, lockPeriod } = useWip();
+  const { getReceiptsForProject } = useMaterialReceipts();
 
   // Per-project cost-to-date overrides (keyed by project id).
   const [costOverrides, setCostOverrides] = useState<Record<string, number>>({});
   const [drillProjectId, setDrillProjectId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+  // Controlled buffer for the drill-in cost-to-date field so a typed-but-not-
+  // blurred value is captured on close (uncontrolled defaultValue + onEndEditing
+  // silently dropped edits when the user tapped X without dismissing the keyboard).
+  const [drillCostText, setDrillCostText] = useState<string>('');
 
   const activeProjects: Project[] = useMemo(
     () => projects,
@@ -80,15 +87,19 @@ function WipReportScreenInner() {
     const commitments = getCommitmentsForProject(project.id);
     const invoices = getInvoicesForProject(project.id);
     const payApps = getAIAPayAppsForProject(project.id);
-    const suggestedCost = suggestCostToDate(commitments);
+    const receipts = getReceiptsForProject(project.id);
+    const suggestedCost = suggestCostToDate(commitments, receipts);
     return {
+      // Revenue baseline (contract) and cost budget come from DISTINCT sources
+      // so est gross profit doesn't collapse to ~0 when both fall back to
+      // targetBudget: contract from AIA/CO/targetBudget, cost from the estimate.
       originalContract: deriveOriginalContract(project, cos, payApps),
       approvedChangeOrders: sumApprovedChangeOrders(cos),
-      totalEstimatedCost: project.targetBudget?.amount ?? 0,
+      totalEstimatedCost: deriveEstimatedCost(project, commitments),
       costToDate: costOverrides[project.id] ?? suggestedCost,
       billedToDate: suggestBilledToDate(invoices, payApps),
     };
-  }, [costOverrides, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject]);
+  }, [costOverrides, getChangeOrdersForProject, getCommitmentsForProject, getInvoicesForProject, getAIAPayAppsForProject, getReceiptsForProject]);
 
   const liveRows: WipSnapshotRow[] = useMemo(
     () => activeProjects.map((p) => {
@@ -112,6 +123,29 @@ function WipReportScreenInner() {
   const drillOutput = drillInput ? computeWipRow(drillInput) : null;
   const drillPriorRow = priorPeriod?.rows.find((r) => r.projectId === drillProjectId)?.output;
   const drillFlags = drillOutput ? flagWipRow(drillOutput, drillPriorRow) : null;
+
+  // Open the drill modal and seed the controlled cost buffer from the current
+  // (override-or-suggested) cost-to-date so the field starts at the live value.
+  const openDrill = useCallback((projectId: string) => {
+    const proj = activeProjects.find((p) => p.id === projectId);
+    const seeded = proj ? buildInput(proj).costToDate : 0;
+    setDrillCostText(String(Math.round(seeded)));
+    setDrillProjectId(projectId);
+  }, [activeProjects, buildInput]);
+
+  // Commit the typed cost-to-date into the per-project override. Called on blur
+  // AND on close so an edit isn't lost if the keyboard is never dismissed.
+  const commitDrillCost = useCallback(() => {
+    if (!drillProjectId) return;
+    const v = Number(drillCostText.replace(/[^0-9.]/g, ''));
+    setCostOverrides((prev) => ({ ...prev, [drillProjectId]: Number.isFinite(v) ? v : 0 }));
+  }, [drillProjectId, drillCostText]);
+
+  const closeDrill = useCallback(() => {
+    commitDrillCost();
+    Keyboard.dismiss();
+    setDrillProjectId(null);
+  }, [commitDrillCost]);
 
   const handleSnapshot = useCallback(() => {
     const periodEndDate = new Date().toISOString().slice(0, 10);
@@ -228,7 +262,7 @@ function WipReportScreenInner() {
             const flags = flagWipRow(r.output, prior);
             const flagged = flags.profitFade || flags.billingSwing || flags.scheduleDivergence;
             return (
-              <TouchableOpacity key={r.projectId} style={styles.projectRow} onPress={() => setDrillProjectId(r.projectId)}>
+              <TouchableOpacity key={r.projectId} style={styles.projectRow} onPress={() => openDrill(r.projectId)}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.projectName}>{r.projectName}</Text>
                   <Text style={styles.muted}>{pct(r.output.percentComplete)} complete · {money(r.output.earnedRevenue)} earned</Text>
@@ -244,29 +278,27 @@ function WipReportScreenInner() {
       </ScrollView>
 
       {/* Per-project drill-in modal */}
-      <Modal visible={drillProjectId !== null} transparent animationType="slide" onRequestClose={() => setDrillProjectId(null)}>
+      <Modal visible={drillProjectId !== null} transparent animationType="slide" onRequestClose={closeDrill}>
         <View style={styles.modalOverlay}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }} keyboardShouldPersistTaps="handled">
             <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
               <View style={styles.formHeader}>
                 <Text style={styles.formTitle}>{drillProject?.name ?? 'Project'}</Text>
-                <TouchableOpacity onPress={() => setDrillProjectId(null)} accessibilityRole="button" accessibilityLabel="Close">
+                <TouchableOpacity onPress={closeDrill} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
               {drillInput && drillOutput ? (
                 <>
-                  <Text style={styles.muted}>Cost-to-date (suggested, editable)</Text>
+                  <Text style={styles.muted}>Cost-to-date (subs + materials; add self-performed labor)</Text>
                   <TextInput
                     style={styles.input}
                     keyboardType="numeric"
-                    defaultValue={String(drillInput.costToDate)}
+                    value={drillCostText}
+                    onChangeText={setDrillCostText}
                     placeholder="0"
                     placeholderTextColor={themeColors.textMuted}
-                    onEndEditing={(e) => {
-                      const v = Number(e.nativeEvent.text.replace(/[^0-9.]/g, ''));
-                      if (drillProjectId) setCostOverrides((prev) => ({ ...prev, [drillProjectId]: Number.isFinite(v) ? v : 0 }));
-                    }}
+                    onEndEditing={commitDrillCost}
                   />
                   <Row label="Revised contract" value={money(drillOutput.revisedContract)} styles={styles} />
                   <Row label="% complete" value={pct(drillOutput.percentComplete)} styles={styles} />
@@ -278,6 +310,16 @@ function WipReportScreenInner() {
                   <Row label="Profit to date" value={money(drillOutput.profitToDate)} styles={styles} />
                   <Row label="Cost to complete" value={money(drillOutput.costToComplete)} styles={styles} />
                   <Row label="Backlog" value={money(drillOutput.backlog)} styles={styles} />
+                  {drillOutput.anticipatedLoss ? (
+                    <View style={styles.flagBox}>
+                      <View style={styles.flagRow}>
+                        <AlertTriangle size={14} color={themeColors.danger} strokeWidth={2} />
+                        <Text style={styles.flagText}>
+                          Loss job: the full estimated loss is booked now (GAAP), not pro-rated by % complete.
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
                   {drillFlags && drillFlags.reasons.length > 0 ? (
                     <View style={styles.flagBox}>
                       {drillFlags.reasons.map((reason) => (

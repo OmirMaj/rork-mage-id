@@ -22,6 +22,32 @@ CREATE INDEX IF NOT EXISTS idx_wip_periods_user ON public.wip_periods(user_id);
 CREATE TRIGGER wip_periods_updated_at BEFORE UPDATE ON public.wip_periods
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+-- Lock immutability, enforced server-side (not just at the client). Once a
+-- period is locked (locked_at IS NOT NULL) its financial payload is frozen for
+-- the CPA/bank close — a stale offline client must not be able to overwrite it.
+-- The only permitted mutation once locked is the updated_at bump the trigger
+-- above makes; the initial NULL→timestamp lock transition is allowed because
+-- OLD.locked_at IS NULL there. Any change to the snapshot fields (or re-locking)
+-- RAISEs. Mirrors the invoice-immutability precedent.
+CREATE OR REPLACE FUNCTION public.wip_periods_block_locked_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.locked_at IS NOT NULL THEN
+    IF (NEW.rows IS DISTINCT FROM OLD.rows)
+       OR (NEW.portfolio_totals IS DISTINCT FROM OLD.portfolio_totals)
+       OR (NEW.period_end_date IS DISTINCT FROM OLD.period_end_date)
+       OR (NEW.notes IS DISTINCT FROM OLD.notes)
+       OR (NEW.locked_at IS DISTINCT FROM OLD.locked_at) THEN
+      RAISE EXCEPTION 'wip_periods: period % is locked and immutable', OLD.id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER wip_periods_block_locked_update BEFORE UPDATE ON public.wip_periods
+  FOR EACH ROW EXECUTE FUNCTION public.wip_periods_block_locked_update();
+
 ALTER TABLE public.wip_periods ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "wip_periods_select_own" ON public.wip_periods

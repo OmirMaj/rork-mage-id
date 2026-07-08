@@ -11,13 +11,14 @@ import {
   suggestBilledToDate,
   sumApprovedChangeOrders,
   deriveOriginalContract,
+  deriveEstimatedCost,
   flagWipRow,
   assertPeriodEditable,
 } from '../utils/wip';
 import { wipPeriodToCSV } from '../utils/wipExport';
 import type {
   WipRowInput, WipRow, WipSnapshotRow, WipPeriod,
-  Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project,
+  Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project, MaterialReceipt,
 } from '../types';
 
 let pass = 0, fail = 0;
@@ -91,6 +92,64 @@ expect('overbilling 0 when underbilled', under.overbilling, 0);
 expect('costToComplete floors at 0',
   computeWipRow({ ...base, costToDate: 999999 }).costToComplete, 0);
 
+// ── deductive (negative) change order shrinks the revised contract ──────────
+const deductive = computeWipRow({ ...base, approvedChangeOrders: -10000 });
+expect('deductive CO → revisedContract 90000', deductive.revisedContract, 90000);
+// earnedRevenue scales with the smaller revised contract (0.4 * 90000).
+expect('deductive CO → earnedRevenue scales', deductive.earnedRevenue, 36000);
+
+// ── equal billing (billed == earned) → both over- and under-billing are 0 ───
+// percentCompleteOverride 0.45 → earned = 100000 * 0.45 = 45000 == billedToDate.
+const equalBilling = computeWipRow({ ...base, billedToDate: 45000, percentCompleteOverride: 0.45 });
+expect('equal billing → overbilling 0', equalBilling.overbilling, 0);
+expect('equal billing → underbilling 0', equalBilling.underbilling, 0);
+
+// ── negative costToDate floors percentComplete at 0 (no negative %) ─────────
+const negCost = computeWipRow({ ...base, costToDate: -5000 });
+expect('negative costToDate → percentComplete 0', negCost.percentComplete, 0);
+expect('negative costToDate → earnedRevenue 0', negCost.earnedRevenue, 0);
+
+// ── negative revised contract → estGrossMarginPct guarded, backlog signed ───
+const negContract = computeWipRow({
+  originalContract: 100000, approvedChangeOrders: -120000,
+  totalEstimatedCost: 50000, costToDate: 10000, billedToDate: 0,
+});
+expect('negative revised contract computes', negContract.revisedContract, -20000);
+expect('negative revised → estGrossMarginPct not NaN',
+  Number.isNaN(negContract.estGrossMarginPct), false);
+
+// ── divide-by-zero NaN guard: 0/0 must yield 0, never NaN ───────────────────
+const nanGuard = computeWipRow({
+  originalContract: 100000, approvedChangeOrders: 0,
+  totalEstimatedCost: 0, costToDate: 0, billedToDate: 0,
+});
+expect('0 cost / 0 est → percentComplete 0 (NaN guard)', nanGuard.percentComplete, 0);
+expect('NaN guard → earnedRevenue not NaN', Number.isNaN(nanGuard.earnedRevenue), false);
+
+// ── GAAP anticipated-loss provision: full loss booked immediately ───────────
+// revised 100000, est cost 130000 → estGrossProfit -30000 (loss job).
+const lossJob = computeWipRow({
+  originalContract: 100000, approvedChangeOrders: 0,
+  totalEstimatedCost: 130000, costToDate: 26000, billedToDate: 0,
+  percentCompleteOverride: 0.20,
+});
+expect('loss job flagged anticipatedLoss', lossJob.anticipatedLoss, true);
+// Pro-rata would be 20000 - 26000 = -6000; GAAP books the full -30000 loss now.
+expect('loss job books full estimated loss', lossJob.profitToDate, -30000);
+expect('loss job estGrossProfit = revised − cost', lossJob.estGrossProfit, -30000);
+// A profit job keeps the plain earned − cost and is not flagged.
+expect('profit job not flagged loss', baseRow.anticipatedLoss, false);
+expect('profit job profitToDate = earned − cost', baseRow.profitToDate, 10000);
+// When actual loss-to-date already exceeds the total estimated loss, book the
+// worse (more negative) actual — provision is a floor, not a cap.
+const deepLoss = computeWipRow({
+  originalContract: 100000, approvedChangeOrders: 0,
+  totalEstimatedCost: 110000, costToDate: 120000, billedToDate: 0,
+  percentCompleteOverride: 1,
+});
+expect('loss provision takes the worse of pro-rata / estimate',
+  deepLoss.profitToDate, 100000 - 120000); // earned 100000 − cost 120000 = -20000 (< -10000 est loss)
+
 // ── portfolio roll-up sums ──────────────────────────────────────────────────
 const rows: WipSnapshotRow[] = [
   { projectId: 'a', projectName: 'A', input: base, output: baseRow },
@@ -106,23 +165,54 @@ expect('portfolio billedToDate sum', port.billedToDate, 90000);
 expect('portfolio weightedMarginPct', port.weightedMarginPct, (220000 - 150000) / 220000);
 expect('portfolio empty → weightedMarginPct 0', computeWipPortfolio([]).weightedMarginPct, 0);
 
-// ── suggestCostToDate: sum of commitment paidToDate ─────────────────────────
+// ── suggestCostToDate: commitment paidToDate + material-receipt totals ──────
 const commitments = [
   { paidToDate: 1000 }, { paidToDate: 500 }, {},
 ] as unknown as Commitment[];
 expect('suggestCostToDate sums paidToDate', suggestCostToDate(commitments), 1500);
 expect('suggestCostToDate empty → 0', suggestCostToDate([]), 0);
+// Material receipts are never posted into commitment.paidToDate, so they add
+// on top with no double-count. Cost-to-date is cost INCURRED, not just sub-paid.
+const receipts = [
+  { total: 400 }, { total: 120 }, {},
+] as unknown as MaterialReceipt[];
+expect('suggestCostToDate adds material receipts',
+  suggestCostToDate(commitments, receipts), 2020);
+expect('suggestCostToDate receipts only', suggestCostToDate([], receipts), 520);
+
+// ── deriveEstimatedCost: cost budget from estimate, NOT the contract value ──
+expect('estimated cost from linkedEstimate.baseTotal',
+  deriveEstimatedCost(
+    { linkedEstimate: { baseTotal: 780000, grandTotal: 1000000 } } as unknown as Project, []),
+  780000);
+expect('estimated cost falls back to legacy estimate.grandTotal',
+  deriveEstimatedCost({ estimate: { grandTotal: 650000 } } as unknown as Project, []),
+  650000);
+expect('estimated cost falls back to signed commitments',
+  deriveEstimatedCost({} as unknown as Project,
+    [{ amount: 300000, changeAmount: 20000 }] as unknown as Commitment[]),
+  320000);
+expect('estimated cost → 0 when no cost basis (prompts manual entry)',
+  deriveEstimatedCost({} as unknown as Project, []), 0);
+// Regression guard: cost must NOT be sourced from targetBudget (the contract
+// value / revenue) — that collapse is what zeroed est gross profit.
+expect('estimated cost ignores targetBudget (revenue field)',
+  deriveEstimatedCost({ targetBudget: { amount: 1000000 } } as unknown as Project, []), 0);
 
 // ── suggestBilledToDate: pay-apps win when present ──────────────────────────
+// AIA billings are CUMULATIVE: take the LATEST app's gross totalCompletedAndStored,
+// NOT a sum of currentPaymentDue (which telescopes to net-of-retainage and
+// understates billings). Array intentionally out of order to prove max-by-app#.
 const payApps = [
-  { totals: { currentPaymentDue: 2000 } },
-  { totals: { currentPaymentDue: 500 } },
+  { applicationNumber: 3, totals: { currentPaymentDue: 50000, totalCompletedAndStored: 600000 } },
+  { applicationNumber: 6, totals: { currentPaymentDue: 55000, totalCompletedAndStored: 1000000 } },
+  { applicationNumber: 4, totals: { currentPaymentDue: 52000, totalCompletedAndStored: 720000 } },
 ] as unknown as SavedAIAPayApp[];
 const invoices = [
   { totalDue: 9999 }, { totalDue: 1 },
 ] as unknown as Invoice[];
-expect('billed: pay-apps preferred (no double count)',
-  suggestBilledToDate(invoices, payApps), 2500);
+expect('billed: latest pay-app gross (not retainage-net sum of currentPaymentDue)',
+  suggestBilledToDate(invoices, payApps), 1000000);
 expect('billed: invoices when no pay-apps',
   suggestBilledToDate(invoices, []), 10000);
 expect('billed: both empty → 0', suggestBilledToDate([], []), 0);

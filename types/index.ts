@@ -4080,6 +4080,11 @@ export interface WipRow {
   profitToDate: number;
   costToComplete: number;        // >= 0
   backlog: number;
+  // GAAP anticipated-loss provision (ASC 606 / 605-35): when the job is
+  // forecast to lose money (estGrossProfit < 0), the ENTIRE estimated loss is
+  // booked immediately rather than pro-rated by percent complete. When true,
+  // profitToDate already carries the full provisioned loss and the screen warns.
+  anticipatedLoss?: boolean;
 }
 
 // Portfolio roll-up across many WIP rows.

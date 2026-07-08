@@ -84,8 +84,17 @@ export const [WipProvider, useWip] = createContextHook(() => {
             const mapped = data
               .map((r) => fromRow(r as Record<string, unknown>))
               .filter((p) => typeof p.id === 'string');
-            setPeriods(mapped);
-            try { await AsyncStorage.setItem(key, JSON.stringify(mapped)); } catch { /* non-fatal cache write */ }
+            // Merge, don't overwrite: a period created offline may still be in
+            // the queue and absent from this cloud result. Union the local
+            // cache's local-only ids in so an unsynced snapshot isn't dropped
+            // from the view (or clobbered in the cache) until the queue flushes.
+            const cloudIds = new Set(mapped.map((p) => p.id));
+            const localOnly = (await loadLocal<WipPeriod[]>(key, []))
+              .filter((p) => p && typeof p.id === 'string' && !cloudIds.has(p.id));
+            if (cancelled) return;
+            const merged = [...localOnly, ...mapped];
+            setPeriods(merged);
+            try { await AsyncStorage.setItem(key, JSON.stringify(merged)); } catch { /* non-fatal cache write */ }
             hydratedRef.current = true;
             return;
           }
