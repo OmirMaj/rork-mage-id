@@ -262,6 +262,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     // determined user; this stops the abuse.
     ai_text: 150,
     plan_code_review: 0,
+    safety_ai: 0,
   },
   pro: {
     analyze_drawings: 15,
@@ -270,6 +271,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     takeoff_pages: 30,     // NEW — page-metered takeoff quota
     ai_text: 900,
     plan_code_review: 10,
+    safety_ai: 0,
   },
   business: {
     analyze_drawings: 50,
@@ -278,6 +280,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     takeoff_pages: 100,
     ai_text: 2400,
     plan_code_review: 30,
+    safety_ai: 900,
   },
   enterprise: {
     analyze_drawings: 100,
@@ -286,5 +289,6 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     takeoff_pages: 300,
     ai_text: 4500,
     plan_code_review: 60,
+    safety_ai: 1800,
   },
 };
