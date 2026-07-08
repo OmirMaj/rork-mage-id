@@ -65,14 +65,14 @@ function CrewScreenInner() {
   const [email, setEmail] = useState('');
 
   // ── ID-scan sub-flow state ─────────────────────────────────────────────
-  // SECURITY INVARIANT: capturedBase64 + scanFields.idNumberFull are the ONLY
-  // places the raw ID ever lives, and only in component state — never written
-  // to updateCrewMember except via maskIdLast4(). Every close/cancel path below
-  // clears capturedBase64/capturedUri so the raw image can't linger in memory.
+  // SECURITY INVARIANT: the raw ID base64 is NEVER stored in state — it's passed
+  // straight into runScan() as an argument and discarded when that call returns.
+  // scanFields.idNumberFull is the only other place the raw ID lives, only in
+  // component state, never written to updateCrewMember except via maskIdLast4().
+  // Every close/cancel path below clears capturedUri/scanFields so nothing lingers.
   const [scanStage, setScanStage] = useState<'closed' | 'consent' | 'capture' | 'scanning' | 'review'>('closed');
   const [consentChecked, setConsentChecked] = useState(false);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
-  const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
   const [scanFields, setScanFields] = useState<IdScanResult | null>(null);
   const [retainImage, setRetainImage] = useState(false); // default OFF = extract-then-purge
   const [scanTargetId, setScanTargetId] = useState<string | null>(null);
@@ -84,7 +84,6 @@ function CrewScreenInner() {
     setScanStage('closed');
     setConsentChecked(false);
     setCapturedUri(null);
-    setCapturedBase64(null);
     setScanFields(null);
     setRetainImage(false);
     setScanTargetId(null);
@@ -94,14 +93,13 @@ function CrewScreenInner() {
     setScanTargetId(memberId);
     setConsentChecked(false);
     setCapturedUri(null);
-    setCapturedBase64(null);
     setScanFields(null);
     setRetainImage(false);
     setScanStage('consent');
   }, []);
 
-  const runScan = useCallback(async () => {
-    if (!capturedBase64) return;
+  const runScan = useCallback(async (base64: string) => {
+    if (!base64) return;
     const { tier } = subscription; // useSubscription()
     // Fast-path DAILY pre-check; the authoritative cap is the server MONTHLY
     // cap (MONTHLY_CAPS[tier].scan_credential). scanGovernmentId re-throws the
@@ -114,7 +112,7 @@ function CrewScreenInner() {
     }
     setScanStage('scanning');
     try {
-      const fields = await scanGovernmentId(capturedBase64);
+      const fields = await scanGovernmentId(base64);
       await recordAIUsage('smart', 'scanCredential');
       setScanFields(fields);
       setScanStage('review');
@@ -122,7 +120,7 @@ function CrewScreenInner() {
       Alert.alert('Scan failed', e instanceof Error ? e.message : 'Try a clearer, well-lit photo.');
       setScanStage('capture');
     }
-  }, [capturedBase64, subscription]);
+  }, [subscription]);
 
   const handleTakeIdPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -134,8 +132,7 @@ function CrewScreenInner() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     setCapturedUri(asset.uri);
-    setCapturedBase64(asset.base64 ?? null);
-    void runScan();
+    void runScan(asset.base64 ?? '');
   }, [runScan]);
 
   const handleChooseIdPhoto = useCallback(async () => {
@@ -152,8 +149,7 @@ function CrewScreenInner() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     setCapturedUri(asset.uri);
-    setCapturedBase64(asset.base64 ?? null);
-    void runScan();
+    void runScan(asset.base64 ?? '');
   }, [runScan]);
 
   const handleSaveScan = useCallback(async () => {
@@ -177,7 +173,7 @@ function CrewScreenInner() {
       idImagePath, // undefined on the default purge path — raw image never uploaded
     });
     // Purge the in-memory raw number/image — never persisted.
-    setCapturedBase64(null); setCapturedUri(null); setScanFields(null);
+    setCapturedUri(null); setScanFields(null);
     setScanStage('closed'); setConsentChecked(false); setRetainImage(false); setScanTargetId(null);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [scanTargetId, scanFields, retainImage, capturedUri, auth, updateCrewMember]);
