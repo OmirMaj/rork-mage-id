@@ -65,9 +65,10 @@ CREATE POLICY "crew_insert_own" ON public.crew_members
 -- and the NEW row would still satisfy the OR clause, silently dropping the row
 -- out of the GC's user_id-scoped SELECT/UPDATE/DELETE policies (compliance
 -- roster). The crew_freeze_ownership_columns BEFORE-UPDATE trigger below closes
--- that by freezing user_id + claimed_by_user_id for any authenticated caller
--- who is not the owning GC. Service-role / trusted-backend writes
--- (auth.uid() IS NULL) are exempt and bypass RLS as usual.
+-- that by freezing ownership + claim + all GC-owned ID/verification/marketplace
+-- columns for any authenticated caller who is not the owning GC (only phone,
+-- email, photo_url, trades, is_public stay worker-writable). Service-role /
+-- trusted-backend writes (auth.uid() IS NULL) are exempt and bypass RLS as usual.
 CREATE POLICY "crew_update_own_or_claimed" ON public.crew_members
   FOR UPDATE
   USING (auth.uid() = user_id OR auth.uid() = claimed_by_user_id)
@@ -76,17 +77,40 @@ CREATE POLICY "crew_update_own_or_claimed" ON public.crew_members
 CREATE POLICY "crew_delete_own" ON public.crew_members
   FOR DELETE USING (auth.uid() = user_id);
 
--- Freeze ownership columns against a claimed worker's self-edit. A BEFORE
+-- Freeze GC/system-owned columns against a claimed worker's self-edit. A BEFORE
 -- trigger's NEW row is what RLS WITH CHECK ultimately validates, so restoring
--- user_id/claimed_by_user_id here defeats the USING-clause escalation while
--- leaving the worker's legitimate self-edits (phone, email, certs, own ID
--- scan) untouched.
+-- these from OLD defeats the USING-clause escalation AND forgery of
+-- GC-controlled compliance state. For a non-owner caller (the claimed worker),
+-- ONLY genuinely worker-owned fields stay writable: phone, email, photo_url,
+-- trades, is_public. Everything else is restored:
+--   • user_id / claimed_by_user_id / claimed_at / claim_token — ownership +
+--     single-use claim state (prevents hijack and token re-mint).
+--   • id_verified / id_type / id_masked_last4 / id_expiry / id_issuer /
+--     id_scanned_at / id_image_path — the GC creates these from a real scan; a
+--     raw client PATCH must never forge the "ID Verified" badge or point
+--     id_image_path at an arbitrary path in the private worker-ids bucket.
+--   • marketplace_profile_id — the Hire listing identity; worker-set values
+--     could collide with / shadow another worker's marketplace profile once
+--     HIRE_ENABLED flips. Only the GC / service role may set it.
+-- Any legitimate worker self-scan must go through a service-role edge function
+-- (auth.uid() IS NULL, exempt below) that validates a fresh scan — never a raw
+-- client PATCH.
 CREATE OR REPLACE FUNCTION public.crew_freeze_ownership_columns()
 RETURNS TRIGGER AS $$
 BEGIN
   IF auth.uid() IS NOT NULL AND auth.uid() IS DISTINCT FROM OLD.user_id THEN
     NEW.user_id := OLD.user_id;
     NEW.claimed_by_user_id := OLD.claimed_by_user_id;
+    NEW.claimed_at := OLD.claimed_at;
+    NEW.claim_token := OLD.claim_token;
+    NEW.id_verified := OLD.id_verified;
+    NEW.id_type := OLD.id_type;
+    NEW.id_masked_last4 := OLD.id_masked_last4;
+    NEW.id_expiry := OLD.id_expiry;
+    NEW.id_issuer := OLD.id_issuer;
+    NEW.id_scanned_at := OLD.id_scanned_at;
+    NEW.id_image_path := OLD.id_image_path;
+    NEW.marketplace_profile_id := OLD.marketplace_profile_id;
   END IF;
   RETURN NEW;
 END;

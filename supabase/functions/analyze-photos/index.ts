@@ -278,20 +278,6 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", or "rooms"' }, 400);
   }
 
-  // Monthly cap for this user. Increment first; if we exceeded, deny
-  // BEFORE the expensive Gemini call. Counts both punch and dfr together
-  // since they're the same underlying API spend.
-  const used = await aiUsageIncrement(auth.userId, 'analyze_photos');
-  const cap = MONTHLY_CAPS[auth.tier].analyze_photos;
-  if (used > cap) {
-    return jsonResponse({
-      success: false,
-      error: `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
-      code: 'monthly_cap_reached',
-      used, cap,
-    }, 429);
-  }
-
   const usingInline = Array.isArray(body.photos) && body.photos.length > 0;
   const usingUrls = Array.isArray(body.photoUrls) && body.photoUrls.length > 0;
   if (!usingInline && !usingUrls) {
@@ -359,6 +345,20 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'Could not load any of the supplied photos' }, 400);
   }
 
+  // Monthly cap for this user. Meter AFTER at least one valid photo is in hand
+  // — a missing/oversized/unfetchable input where no Gemini call runs must not
+  // consume a unit. Counts both punch and dfr together (same underlying spend).
+  const used = await aiUsageIncrement(auth.userId, 'analyze_photos');
+  const cap = MONTHLY_CAPS[auth.tier].analyze_photos;
+  if (used > cap) {
+    return jsonResponse({
+      success: false,
+      error: `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+      code: 'monthly_cap_reached',
+      used, cap,
+    }, 429);
+  }
+
   // Lightweight observability (code-review #11) — task + count + path.
   console.log(`[analyze-photos] task=${body.task} photos=${goodPhotos.length} inline=${usingInline}`);
 
@@ -405,8 +405,13 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: `Gemini ${geminiResp.status}: ${text.slice(0, 200)}` }, 502);
   }
 
-  const j = await geminiResp.json();
-  const raw = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  // Guard the .json() itself: a 200 with a truncated/partial body throws here.
+  // Return a CORS-carrying 502 rather than a bare, CORS-less 500.
+  let j: Record<string, unknown>;
+  try { j = await geminiResp.json(); }
+  catch { return jsonResponse({ success: false, error: 'Gemini returned an unreadable response' }, 502); }
+  const candidates = j?.candidates as { content?: { parts?: { text?: string }[] } }[] | undefined;
+  const raw = candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON', raw }, 500); }
 

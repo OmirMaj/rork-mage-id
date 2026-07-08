@@ -93,17 +93,6 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'kind must be "government_id" or "certification"' }, 400);
   }
 
-  // Meter BEFORE the expensive Gemini call.
-  const used = await aiUsageIncrement(auth.userId, 'scan_credential');
-  const cap = MONTHLY_CAPS[auth.tier].scan_credential;
-  if (used > cap) {
-    return jsonResponse({
-      success: false,
-      error: `Monthly credential-scan limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
-      code: 'monthly_cap_reached', used, cap,
-    }, 429);
-  }
-
   // Resolve the image: inline base64 (client camera/library file://) OR a URL
   // (SSRF-guarded). One image per call.
   let imageData: string;
@@ -122,6 +111,18 @@ serve(async (req) => {
     catch { return jsonResponse({ success: false, error: 'Could not load the supplied image' }, 400); }
   } else {
     return jsonResponse({ success: false, error: 'imageBase64 or imageUrl required' }, 400);
+  }
+
+  // Meter AFTER a valid image is in hand — never charge a unit for a missing,
+  // oversized (413), or unfetchable (400) image where no Gemini scan runs.
+  const used = await aiUsageIncrement(auth.userId, 'scan_credential');
+  const cap = MONTHLY_CAPS[auth.tier].scan_credential;
+  if (used > cap) {
+    return jsonResponse({
+      success: false,
+      error: `Monthly credential-scan limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+      code: 'monthly_cap_reached', used, cap,
+    }, 429);
   }
 
   console.log(`[scan-credential] kind=${body.kind} tier=${auth.tier}`);
@@ -150,11 +151,22 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: `Gemini ${geminiResp.status}: ${text.slice(0, 160)}` }, 502);
   }
 
-  const j = await geminiResp.json();
-  const raw = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  // Guard the .json() itself: a 200 with a truncated/partial body throws here.
+  // Return a CORS-carrying 502 rather than a bare, CORS-less 500.
+  let j: Record<string, unknown>;
+  try { j = await geminiResp.json(); }
+  catch { return jsonResponse({ success: false, error: 'Gemini returned an unreadable response' }, 502); }
+  const candidates = j?.candidates as { content?: { parts?: { text?: string }[] } }[] | undefined;
+  const raw = candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   let parsed: Record<string, unknown>;
+  // Never echo `raw` back to the client — for a government_id scan it holds the
+  // full extracted PII (name, ID number, DOB) and would leak into any client
+  // error log/crash report. Diagnose server-side with a length-only marker.
   try { parsed = JSON.parse(raw) as Record<string, unknown>; }
-  catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON', raw }, 500); }
+  catch {
+    console.log(`[scan-credential] non-JSON Gemini output (len=${raw.length})`);
+    return jsonResponse({ success: false, error: 'Gemini returned non-JSON' }, 500);
+  }
 
   if (body.kind === 'government_id') {
     const validTypes = ['drivers_license', 'state_id', 'passport', 'other'];

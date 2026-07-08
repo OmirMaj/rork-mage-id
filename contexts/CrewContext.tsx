@@ -98,7 +98,11 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
         try {
           // Owner rows OR rows the current user has claimed (RLS enforces).
           const { data, error } = await supabase.from('crew_members').select('*').order('created_at', { ascending: false });
-          if (!error && data && data.length > 0) {
+          // An EMPTY remote result is AUTHORITATIVE, not "remote unavailable" —
+          // persist it so a deleted/un-claimed roster clears the local cache
+          // (this table holds gov-ID-derived PII; a stale cache would resurrect
+          // purged rows). Fall back to local ONLY on a thrown error or !canSync.
+          if (!error && Array.isArray(data)) {
             const mapped = data.map((r: Record<string, unknown>) => mapRow(r));
             await saveLocal(storageKey, mapped);
             return mapped;

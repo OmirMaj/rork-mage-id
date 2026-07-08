@@ -33,7 +33,23 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 export default function CrewScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { crewMembers } = useCrew();
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  // The GC roster is Business-gated. The CLAIMED-WORKER self-edit path is NOT
+  // tier-gated: a worker who redeemed a claim link (typically a free user) must
+  // be able to view and edit their own profile + control visibility. Route them
+  // to a restricted self-view instead of the Business paywall.
+  const claimedSelf = useMemo(
+    () => (userId ? crewMembers.filter(m => m.claimedByUserId === userId) : []),
+    [crewMembers, userId],
+  );
+
   if (!canAccess('crew_management')) {
+    if (claimedSelf.length > 0) {
+      return <ClaimedWorkerSelfView members={claimedSelf} />;
+    }
     return (
       <Paywall
         visible={true}
@@ -44,6 +60,103 @@ export default function CrewScreen() {
     );
   }
   return <CrewScreenInner />;
+}
+
+// Ungated self-edit view for a worker who claimed their profile. Renders ONLY
+// the rows the current user has claimed and exposes ONLY worker-owned fields
+// (phone, email, trades, visibility). GC-owned compliance fields (ID
+// verification, claim state) are read-only here and are frozen server-side by
+// crew_freeze_ownership_columns, so any stray write can never persist.
+function ClaimedWorkerSelfView({ members }: { members: CrewMember[] }) {
+  const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const { updateCrewMember } = useCrew();
+
+  return (
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
+      <Stack.Screen options={{ title: 'My Profile' }} />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>My Profile</Text>
+      </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+        {members.map(m => (
+          <SelfEditCard key={m.id} member={m} onSave={updateCrewMember} styles={styles} themeColors={themeColors} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function SelfEditCard({
+  member, onSave, styles, themeColors,
+}: {
+  member: CrewMember;
+  onSave: (id: string, changes: Partial<CrewMember>) => void;
+  styles: ReturnType<typeof makeStyles>;
+  themeColors: ThemeColors;
+}) {
+  const [phone, setPhone] = useState(member.phone ?? '');
+  const [email, setEmail] = useState(member.email ?? '');
+  const [tradesText, setTradesText] = useState(member.trades.join(', '));
+  const [isPublic, setIsPublic] = useState(member.isPublic);
+
+  const handleSave = useCallback(() => {
+    onSave(member.id, {
+      phone: phone.trim() || undefined,
+      email: email.trim() || undefined,
+      trades: tradesText.split(',').map(t => t.trim()).filter(Boolean),
+      isPublic,
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Saved', 'Your profile has been updated.');
+  }, [member.id, phone, email, tradesText, isPublic, onSave]);
+
+  return (
+    <View style={[styles.crewCard, { flexDirection: 'column', alignItems: 'stretch', gap: 14 }]}>
+      <View>
+        <Text style={styles.crewName}>{member.fullName}</Text>
+        <View style={styles.chipRow}>
+          {verifiedBadge(member) === 'id_verified' && (
+            <View style={styles.verifiedChip}>
+              <ShieldCheck size={12} color={themeColors.accent} strokeWidth={2} />
+              <Text style={styles.verifiedChipText}>ID Verified</Text>
+            </View>
+          )}
+          <View style={styles.claimedChip}>
+            <UserCheck size={12} color={themeColors.success} strokeWidth={2} />
+            <Text style={styles.claimedChipText}>Claimed</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.fieldLabel}>Phone</Text>
+        <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={themeColors.textMuted} keyboardType="phone-pad" />
+        <Text style={styles.fieldLabel}>Email</Text>
+        <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="name@email.com" placeholderTextColor={themeColors.textMuted} keyboardType="email-address" autoCapitalize="none" />
+        <Text style={styles.fieldLabel}>Trades (comma-separated)</Text>
+        <TextInput style={styles.input} value={tradesText} onChangeText={setTradesText} placeholder="e.g. Electrical, Framing" placeholderTextColor={themeColors.textMuted} />
+      </View>
+
+      <View style={styles.retainRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.retainLabel}>Show me for hire</Text>
+          <Text style={styles.retainHelp}>Controls whether your profile can appear in the hiring marketplace.</Text>
+        </View>
+        <Switch
+          value={isPublic}
+          onValueChange={setIsPublic}
+          trackColor={{ true: themeColors.accent, false: themeColors.line }}
+          testID="self-visibility-switch"
+        />
+      </View>
+
+      <TouchableOpacity style={[styles.saveBtn, { flex: 0 }]} onPress={handleSave} activeOpacity={0.85} testID="self-save">
+        <Text style={styles.saveBtnText}>Save</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 function CrewScreenInner() {

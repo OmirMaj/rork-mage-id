@@ -20,11 +20,16 @@
 // always attributed to a real, signed-in identity — never an anon/forged token.
 //
 // SINGLE-USE + RACE-SAFE: the PATCH is conditioned on claimed_by_user_id IS
-// NULL, so two concurrent redemptions cannot both win. Re-redeeming by the SAME
-// user is idempotent (returns success). A token already claimed by someone else
-// is rejected. The image / masked-ID fields are never returned — the response
-// carries only { success, memberId } so nothing sensitive leaks to a caller who
-// merely holds a token.
+// NULL, so two concurrent redemptions cannot both win. The winning PATCH also
+// NULLs claim_token, so the token is BURNED on redemption — it can never be
+// re-redeemed even if claimed_by_user_id is later reset (e.g. the claimer's
+// auth.users row is deleted → FK ON DELETE SET NULL). A burned token no longer
+// matches the lookup, so a replay returns the generic 'invalid' path rather
+// than re-claiming a row that may still carry the first worker's gov-ID-derived
+// fields. A token still claimed by someone else is rejected. The image /
+// masked-ID fields are never returned — the response carries only
+// { success, memberId } so nothing sensitive leaks to a caller who merely
+// holds a token.
 //
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
 
@@ -125,6 +130,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
         body: JSON.stringify({
           claimed_by_user_id: user.id,
           claimed_at: new Date().toISOString(),
+          // Burn the token on redemption. A spent token must never be
+          // re-redeemable, even if claimed_by_user_id is later reset (e.g. the
+          // claimer's auth.users row is deleted → FK resets it to NULL). Without
+          // this, the original invite link would redeem again against a row that
+          // may still carry the first worker's gov-ID-derived fields.
+          claim_token: null,
         }),
       },
     );
