@@ -4056,6 +4056,76 @@ export interface PortalState {
   lastSentSnapshot?: string;
 }
 
+// ─── WIP (Work-In-Progress) reporting ───────────────────────────────────────
+// Pure inputs the WIP engine (utils/wip.ts) consumes. Every field is an
+// explicit number so the engine stays side-effect-free and trivially testable.
+export interface WipRowInput {
+  originalContract: number;
+  approvedChangeOrders: number;
+  totalEstimatedCost: number;
+  costToDate: number;            // auto-suggested, user-editable
+  billedToDate: number;          // single billing source (pay-apps OR invoices)
+  percentCompleteOverride?: number; // optional manual 0..1
+}
+
+// Fully computed WIP row (all derived, no NaN — engine guards divide-by-zero).
+export interface WipRow {
+  revisedContract: number;
+  percentComplete: number;       // 0..1
+  earnedRevenue: number;
+  overbilling: number;           // >= 0, mutually exclusive with underbilling
+  underbilling: number;          // >= 0
+  estGrossProfit: number;
+  estGrossMarginPct: number;     // 0..1 (0 when revisedContract === 0)
+  profitToDate: number;
+  costToComplete: number;        // >= 0
+  backlog: number;
+}
+
+// Portfolio roll-up across many WIP rows.
+export interface WipPortfolio {
+  revisedContract: number;
+  totalEstimatedCost: number;
+  costToDate: number;
+  earnedRevenue: number;
+  billedToDate: number;
+  overbilling: number;
+  underbilling: number;
+  backlog: number;
+  weightedMarginPct: number;     // (revised − cost) / revised across the portfolio
+}
+
+// Profit-fade watch output (badges + human-readable reasons).
+export interface WipFlags {
+  profitFade: boolean;
+  billingSwing: boolean;
+  scheduleDivergence: boolean;
+  reasons: string[];
+}
+
+// One frozen project line inside a snapshot period.
+export interface WipSnapshotRow {
+  projectId: string;
+  projectName: string;
+  input: WipRowInput;
+  output: WipRow;
+}
+
+// A point-in-time WIP snapshot. Live WIP is computed on the fly; only these
+// persist. `lockedAt` makes the period immutable (invoice-immutability
+// precedent) — editing a locked period is blocked; create a new period.
+export interface WipPeriod {
+  id: string;
+  periodEndDate: string;         // ISO date the WIP is "as of"
+  createdAt: string;
+  createdBy?: string;
+  companyId?: string;
+  rows: WipSnapshotRow[];
+  portfolioTotals: WipPortfolio;
+  notes?: string;
+  lockedAt?: string;             // set → immutable
+}
+
 /**
  * Union of every item kind that participates in the Send-to-Client
  * workflow. Used by SendToClientButton, ProjectContext send/recall
