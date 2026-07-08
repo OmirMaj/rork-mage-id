@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Home, Wrench, Settings, BarChart3,
-  FileText, Building2, Search, HardHat, Gavel, Lock,
+  FileText, Building2, Search, HardHat, Gavel, Lock, IdCard,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
   Users, ShieldCheck, Bell, Briefcase,
   PenTool, Store, Clock, ChevronDown, ChevronRight,
@@ -69,6 +69,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── NETWORK — people + AI
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
   { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
+  { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'NETWORK', requires: 'crew_management' },
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
   { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
   { key: 'hire',              label: 'Hire',             icon: Handshake,       route: '/(tabs)/discover/hire',            section: 'NETWORK' },

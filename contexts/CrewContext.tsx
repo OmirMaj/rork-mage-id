@@ -111,11 +111,15 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
   useEffect(() => { if (crewQuery.data) setCrewMembers(crewQuery.data); }, [crewQuery.data]);
 
   const addCrewMember = useCallback((m: CrewMember) => {
-    const updated = [m, ...crewMembers];
+    // The roster screen has no userId — it passes companyUserId: '' as a
+    // placeholder. Stamp the owning user here so toRow/user_id (and RLS
+    // ownership) are always correct and tenant-safe.
+    const stamped: CrewMember = { ...m, companyUserId: userId ?? m.companyUserId };
+    const updated = [stamped, ...crewMembers];
     setCrewMembers(updated);
     void saveLocal(storageKey, updated);
-    if (canSync) void supabaseWrite('crew_members', 'insert', toRow(m));
-  }, [crewMembers, canSync, storageKey]);
+    if (canSync) void supabaseWrite('crew_members', 'insert', toRow(stamped));
+  }, [crewMembers, canSync, storageKey, userId]);
 
   const updateCrewMember = useCallback((id: string, changes: Partial<CrewMember>) => {
     let next: CrewMember | undefined;

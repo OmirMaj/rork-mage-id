@@ -104,6 +104,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/photo-triage': 'Photo triage',
     '/leads': 'Pipeline',
     '/contacts': 'Contacts',
+    '/crew': 'Crew',
     '/buyout': 'Buyout',
     '/buyout-package': 'Bid package',
     '/bid-leveling': 'Bid leveling',
@@ -631,6 +632,15 @@ function RootLayoutNav() {
         name="contacts"
         options={{
           title: "Contacts",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="crew"
+        options={{
+          title: "Crew",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
