@@ -164,18 +164,12 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     return token;
   }, [crewMembers, updateCrewMember]);
 
-  /** Redeem a claim token as the current user. Called by app/claim-crew.tsx
-   *  once the magic-link session is established. Single-use: no-ops if the
-   *  member is already claimed by someone else. */
-  const claimCrewMember = useCallback((token: string, claimingUserId: string): boolean => {
-    const member = crewMembers.find(m => m.claimToken === token);
-    if (!member || (member.claimedByUserId && member.claimedByUserId !== claimingUserId)) return false;
-    updateCrewMember(member.id, {
-      claimedByUserId: claimingUserId,
-      claimedAt: new Date().toISOString(),
-    });
-    return true;
-  }, [crewMembers, updateCrewMember]);
+  // Claim redemption is NOT done here. The claiming worker is a different auth
+  // user than the owning GC, and crew_members RLS makes the unclaimed row
+  // invisible + un-writable to them (crewMembers.find(...) is always undefined
+  // under the worker's JWT, and the UPDATE is RLS-blocked). Redemption runs
+  // server-side with the service role via the claim-crew edge function —
+  // see utils/crewScan.redeemCrewClaim, called by app/claim-crew.tsx.
 
   // Marketplace surfacing — WRITTEN BUT GATED. Returns the mapped WorkerProfile
   // only when the member is public + claimed AND HIRE_ENABLED is on. Today
@@ -198,7 +192,6 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     getCrewMember,
     getCrewForProject,
     startClaimInvite,
-    claimCrewMember,
     surfaceToMarketplace,
-  }), [crewMembers, crewQuery.isLoading, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, getCrewForProject, startClaimInvite, claimCrewMember, surfaceToMarketplace]);
+  }), [crewMembers, crewQuery.isLoading, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, getCrewForProject, startClaimInvite, surfaceToMarketplace]);
 });

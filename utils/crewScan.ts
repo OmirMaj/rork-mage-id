@@ -46,3 +46,18 @@ export async function sendClaimInvite(email: string, claimToken: string): Promis
   });
   if (error) throw new Error(error.message || 'Could not send invite');
 }
+
+/** Redeem a claim token as the currently signed-in worker. The claiming worker
+ *  is a different auth user than the owning GC, so the unclaimed row is invisible
+ *  + un-writable to them under crew_members RLS — redemption MUST go through the
+ *  service-role `claim-crew` edge function (never a client-side context mutation,
+ *  which RLS silently blocks). Resolves the claimed memberId on success; throws a
+ *  user-facing message on an invalid/spent token or transport failure. */
+export async function redeemCrewClaim(claimToken: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('claim-crew', {
+    body: { token: claimToken },
+  });
+  if (error) throw new Error(error.message || 'Could not claim your profile');
+  if (!data?.success) throw new Error(data?.error || 'This invite link is invalid or already used.');
+  return data.memberId as string;
+}

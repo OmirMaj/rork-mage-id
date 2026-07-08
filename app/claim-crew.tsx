@@ -1,29 +1,45 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCrew } from '@/contexts/CrewContext';
+import { redeemCrewClaim } from '@/utils/crewScan';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 
 // Worker claim redemption. Opened from the magic-link invite
 // (rork-app://claim-crew?token=crew_...). MagicLinkHandler (app/_layout.tsx)
 // establishes the session from the URL hash; once authenticated we redeem the
-// claim token. Public destination — RootLayoutNav must NOT bounce it to /login
-// before the session lands (added to the allow-list below).
+// claim token via the SERVICE-ROLE claim-crew edge function — NOT a client
+// context mutation. The claiming worker is a different auth user than the GC,
+// and crew_members RLS makes the unclaimed row invisible + un-writable to them,
+// so a client-side redeem always fails. Public destination — RootLayoutNav must
+// NOT bounce it to /login before the session lands (added to the allow-list).
 export default function ClaimCrewScreen() {
   const { token } = useLocalSearchParams<{ token?: string }>();
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
-  const { claimCrewMember } = useCrew();
+  const queryClient = useQueryClient();
   const [state, setState] = useState<'waiting' | 'done' | 'failed'>('waiting');
 
   useEffect(() => {
     if (!token) { setState('failed'); return; }
     if (!isAuthenticated || !user?.id) return; // wait for magic-link session
-    const ok = claimCrewMember(token, user.id);
-    setState(ok ? 'done' : 'failed');
-  }, [token, isAuthenticated, user?.id, claimCrewMember]);
+    let cancelled = false;
+    (async () => {
+      try {
+        await redeemCrewClaim(token);
+        if (cancelled) return;
+        // The row is now visible to the worker via RLS (auth.uid() =
+        // claimed_by_user_id) — refetch the roster so it hydrates in-app.
+        void queryClient.invalidateQueries({ queryKey: ['crew_members'] });
+        setState('done');
+      } catch {
+        if (!cancelled) setState('failed');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token, isAuthenticated, user?.id, queryClient]);
 
   return (
     <View style={styles.container}>
