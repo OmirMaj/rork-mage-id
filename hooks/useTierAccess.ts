@@ -31,6 +31,7 @@ export type FeatureKey =
   | 'punch_list_closeout'
   | 'rfis_submittals'
   | 'full_budget_dashboard'
+  | 'wip_reporting'
   | 'safety_management'
   | 'crew_management'
   // All tiers (with limits)
@@ -91,6 +92,7 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   punch_list_closeout: 'business',
   rfis_submittals: 'business',
   full_budget_dashboard: 'business',
+  wip_reporting: 'business',
   safety_management: 'business',
   crew_management: 'business',
   // Available to all

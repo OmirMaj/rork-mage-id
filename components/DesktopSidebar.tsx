@@ -98,6 +98,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'change-order',      label: 'Change Orders',    icon: MageChangeOrder,   route: '/change-order',                     section: 'FINANCIALS', requires: 'change_orders_invoicing' },
   { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: MagePayApp,        route: '/aia-pay-app',                      section: 'FINANCIALS', requires: 'aia_pay_app' },
   { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', requires: 'full_budget_dashboard' },
+  { key: 'wip-report',        label: 'WIP Report',       icon: TrendingUp,      route: '/wip-report',                       section: 'FINANCIALS', requires: 'wip_reporting' },
   { key: 'job-costing',       label: 'Job Costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', requires: 'job_costing' },
   { key: 'cash-flow',         label: 'Cash Flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCIALS', requires: 'cash_flow_forecaster' },
   { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCIALS' },
