@@ -11,6 +11,8 @@ import {
   suggestBilledToDate,
   sumApprovedChangeOrders,
   deriveOriginalContract,
+  flagWipRow,
+  assertPeriodEditable,
 } from '../utils/wip';
 import type {
   WipRowInput, WipRow, WipSnapshotRow,
@@ -153,6 +155,40 @@ expect('originalContract falls back to gmpCap',
   deriveOriginalContract({ gmpCap: 222 } as unknown as Project, [], []), 222);
 expect('originalContract → 0 when nothing available',
   deriveOriginalContract({} as unknown as Project, [], []), 0);
+
+// ── flagWipRow: profit fade (margin drops > 2 pts vs prior) ─────────────────
+const prevHiMargin = computeWipRow({ ...base, totalEstimatedCost: 70000 }); // 0.30 margin
+const curLoMargin  = computeWipRow({ ...base, totalEstimatedCost: 75000 }); // 0.25 margin
+const fade = flagWipRow(curLoMargin, prevHiMargin);
+expect('profit fade detected', fade.profitFade, true);
+expect('profit fade produces a reason', fade.reasons.length > 0, true);
+
+const steady = flagWipRow(baseRow, baseRow);
+expect('no profit fade when margin steady', steady.profitFade, false);
+
+// ── flagWipRow: billing swing (> 5% of revised contract) ────────────────────
+const prevBalanced = computeWipRow({ ...base, billedToDate: 40000 }); // net 0
+const curOverbill  = computeWipRow({ ...base, billedToDate: 55000 }); // overbilled 15000
+const swing = flagWipRow(curOverbill, prevBalanced);
+expect('billing swing detected', swing.billingSwing, true);
+
+const smallSwing = flagWipRow(
+  computeWipRow({ ...base, billedToDate: 41000 }), // overbilled 1000
+  computeWipRow({ ...base, billedToDate: 40000 })); // net 0 → swing 1000 < 5000
+expect('no billing swing under threshold', smallSwing.billingSwing, false);
+
+// ── flagWipRow: schedule divergence (cost% vs EVM schedule% > 10 pts) ───────
+const diverge = flagWipRow(baseRow, undefined, { schedulePercent: 0.65 }); // cost 0.40
+expect('schedule divergence detected', diverge.scheduleDivergence, true);
+const aligned = flagWipRow(baseRow, undefined, { schedulePercent: 0.45 });
+expect('no divergence when aligned', aligned.scheduleDivergence, false);
+expect('no divergence without EVM', flagWipRow(baseRow).scheduleDivergence, false);
+
+// ── assertPeriodEditable: locked period is immutable ────────────────────────
+expect('locked period blocked',
+  assertPeriodEditable({ lockedAt: '2026-07-08T00:00:00.000Z' }).blocked, true);
+expect('unlocked period editable',
+  assertPeriodEditable({ lockedAt: undefined }).blocked, false);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

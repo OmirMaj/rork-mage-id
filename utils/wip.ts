@@ -2,7 +2,7 @@
 // NO React / React Native imports. Every function is deterministic and
 // side-effect-free so scripts/validate-wip.ts can exercise it directly.
 import type {
-  WipRowInput, WipRow, WipPortfolio, WipSnapshotRow,
+  WipRowInput, WipRow, WipPortfolio, WipSnapshotRow, WipFlags, WipPeriod,
   Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project,
 } from '@/types';
 
@@ -105,4 +105,62 @@ export function suggestBilledToDate(
     return payApps.reduce((sum, p) => sum + (p.totals?.currentPaymentDue ?? 0), 0);
   }
   return invoices.reduce((sum, i) => sum + (i.totalDue ?? 0), 0);
+}
+
+// Thresholds for the profit-fade watch. Exported so the screen can reference
+// the same constants in copy/tooltips.
+export const WIP_PROFIT_FADE_THRESHOLD = 0.02;         // 2 margin points
+export const WIP_BILLING_SWING_THRESHOLD = 0.05;       // 5% of revised contract
+export const WIP_SCHEDULE_DIVERGENCE_THRESHOLD = 0.10; // 10 percentage points
+
+/**
+ * Classify a WIP row against the prior locked period and (optionally) EVM
+ * schedule-% for early over/under-billing detection.
+ */
+export function flagWipRow(
+  row: WipRow,
+  prev?: WipRow,
+  evm?: { schedulePercent: number },
+): WipFlags {
+  const reasons: string[] = [];
+  let profitFade = false;
+  let billingSwing = false;
+  let scheduleDivergence = false;
+
+  if (prev && row.estGrossMarginPct < prev.estGrossMarginPct - WIP_PROFIT_FADE_THRESHOLD) {
+    profitFade = true;
+    const dropPts = (prev.estGrossMarginPct - row.estGrossMarginPct) * 100;
+    reasons.push(`Gross margin faded ${dropPts.toFixed(1)} pts vs prior period`);
+  }
+
+  if (prev && row.revisedContract > 0) {
+    const netNow = row.overbilling - row.underbilling;
+    const netPrev = prev.overbilling - prev.underbilling;
+    if (Math.abs(netNow - netPrev) > WIP_BILLING_SWING_THRESHOLD * row.revisedContract) {
+      billingSwing = true;
+      reasons.push('Large swing in over/under-billing vs prior period');
+    }
+  }
+
+  if (evm && Math.abs(row.percentComplete - evm.schedulePercent) > WIP_SCHEDULE_DIVERGENCE_THRESHOLD) {
+    scheduleDivergence = true;
+    const costPct = (row.percentComplete * 100).toFixed(0);
+    const schedPct = (evm.schedulePercent * 100).toFixed(0);
+    reasons.push(`Cost %-complete (${costPct}%) diverges from schedule (${schedPct}%)`);
+  }
+
+  return { profitFade, billingSwing, scheduleDivergence, reasons };
+}
+
+/**
+ * Immutability guard, mirroring the invoice-immutability precedent. A locked
+ * period must not be edited — callers route the user to "create a new period".
+ */
+export function assertPeriodEditable(
+  period: Pick<WipPeriod, 'lockedAt'>,
+): { blocked: boolean; reason?: string } {
+  if (period.lockedAt) {
+    return { blocked: true, reason: 'This period is locked. Create a new period instead.' };
+  }
+  return { blocked: false };
 }
