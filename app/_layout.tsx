@@ -124,6 +124,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/coi-vault': 'COI vault',
     '/prequal-manager': 'Prequal manager',
     '/prequal-form': 'Prequal form',
+    '/claim-crew': 'Claim profile',
     '/sub-portals': 'Sub portals',
     '/sub-portal-setup': 'Sub portal',
     '/public-profile-setup': 'Public profile',
@@ -395,12 +396,13 @@ function RootLayoutNav() {
     // /login mid-OAuth, breaking the QuickBooks Connect flow. The callback
     // page authenticates via a signed state HMAC, not the user's JWT.
     const inIntegrationsCallback = segments[0] === 'integrations';
+    const inClaimCrew = (segments[0] as string) === 'claim-crew';
 
     // Public magic-link destinations: never redirect away from these, even
     // when the user is unauthenticated. The prequal-form route is opened by
     // subcontractors via a tokenized email link; if we redirect to /login
     // before the token is consumed, the link is dead on arrival.
-    if (inResetPassword || inPrequalForm || inIntegrationsCallback) return;
+    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
@@ -774,6 +776,7 @@ function RootLayoutNav() {
         name="prequal-form"
         options={{ headerShown: false }}
       />
+      <Stack.Screen name="claim-crew" options={{ headerShown: false }} />
       <Stack.Screen
         name="get-verified"
         options={{ headerShown: false }}

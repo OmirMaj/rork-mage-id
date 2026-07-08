@@ -9,6 +9,8 @@ import { supabaseWrite } from '@/utils/offlineQueue';
 import { deleteStorageFile } from '@/utils/storage';
 import { generateUUID } from '@/utils/generateId';
 import { generateClaimToken } from '@/utils/crew';
+import { HIRE_ENABLED } from '@/contexts/HireContext';
+import { shouldSurfaceToMarketplace, crewMemberToWorkerProfile } from '@/utils/crew';
 
 const CREW_KEY = 'tertiary_crew_members';
 
@@ -175,6 +177,18 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     return true;
   }, [crewMembers, updateCrewMember]);
 
+  // Marketplace surfacing — WRITTEN BUT GATED. Returns the mapped WorkerProfile
+  // only when the member is public + claimed AND HIRE_ENABLED is on. Today
+  // HIRE_ENABLED is false, so this always returns null. When the flag flips,
+  // callers (a future Hire wiring) get a ready marketplace listing with the
+  // ID-verified trust badge — no rebuild needed.
+  const surfaceToMarketplace = useCallback((id: string) => {
+    const member = crewMembers.find(m => m.id === id);
+    if (!member) return null;
+    if (!shouldSurfaceToMarketplace(member, HIRE_ENABLED)) return null;
+    return crewMemberToWorkerProfile(member);
+  }, [crewMembers]);
+
   return useMemo(() => ({
     crewMembers,
     isLoading: crewQuery.isLoading,
@@ -185,5 +199,6 @@ export const [CrewProvider, useCrew] = createContextHook(() => {
     getCrewForProject,
     startClaimInvite,
     claimCrewMember,
-  }), [crewMembers, crewQuery.isLoading, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, getCrewForProject, startClaimInvite, claimCrewMember]);
+    surfaceToMarketplace,
+  }), [crewMembers, crewQuery.isLoading, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, getCrewForProject, startClaimInvite, claimCrewMember, surfaceToMarketplace]);
 });

@@ -26,7 +26,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
 import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified } from '@/utils/crew';
-import { scanGovernmentId, type IdScanResult } from '@/utils/crewScan';
+import { scanGovernmentId, sendClaimInvite, type IdScanResult } from '@/utils/crewScan';
 import { uploadWorkerIdImage } from '@/utils/storage';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 
@@ -208,15 +208,17 @@ function CrewScreenInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [member, updateCrewMember]);
 
-  const handleInvite = useCallback(() => {
+  const handleInvite = useCallback(async () => {
     if (!member) return;
+    if (!member.email) { Alert.alert('Email needed', 'Add an email to this crew member before inviting.'); return; }
     const token = startClaimInvite(member.id);
-    if (token) {
-      Alert.alert(
-        'Invite ready',
-        `A claim invite has been prepared for ${member.fullName}. Share the magic link so they can claim and manage their own profile.`,
-      );
+    if (!token) { Alert.alert('Could not start invite'); return; }
+    try {
+      await sendClaimInvite(member.email, token);
+      Alert.alert('Invite sent', `${member.fullName} can now claim their profile from their email.`);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Invite failed', e instanceof Error ? e.message : 'Try again.');
     }
   }, [member, startClaimInvite]);
 
