@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ShieldAlert, Plus, X, Sparkles, Trash2, AlertTriangle, ChevronLeft,
+  ShieldAlert, Plus, X, Sparkles, Trash2, AlertTriangle, ChevronLeft, Check,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -408,19 +408,19 @@ function SafetyIncidentsInner() {
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setRestrictedDuty(v => !v)} activeOpacity={0.7}>
                   <Text style={styles.toggleLabel}>Restricted duty / job transfer</Text>
                   <View style={[styles.toggleBox, restrictedDuty ? styles.toggleBoxOn : null]}>
-                    {restrictedDuty ? <Text style={styles.toggleCheck}>✓</Text> : null}
+                    {restrictedDuty ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setLostConsciousness(v => !v)} activeOpacity={0.7}>
                   <Text style={styles.toggleLabel}>Loss of consciousness</Text>
                   <View style={[styles.toggleBox, lostConsciousness ? styles.toggleBoxOn : null]}>
-                    {lostConsciousness ? <Text style={styles.toggleCheck}>✓</Text> : null}
+                    {lostConsciousness ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setFatality(v => !v)} activeOpacity={0.7}>
                   <Text style={styles.toggleLabel}>Fatality</Text>
                   <View style={[styles.toggleBox, fatality ? styles.toggleBoxOn : null]}>
-                    {fatality ? <Text style={styles.toggleCheck}>✓</Text> : null}
+                    {fatality ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
                   </View>
                 </TouchableOpacity>
 
@@ -518,7 +518,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   toggleLabel: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text },
   toggleBox: { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: themeColors.line, alignItems: 'center', justifyContent: 'center' },
   toggleBoxOn: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
-  toggleCheck: { color: '#fff', fontSize: 14, fontWeight: '900' as const },
   stepsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   addStepBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.accent + '12' },
   addStepText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.accent },
