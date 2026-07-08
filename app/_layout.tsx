@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
+import { SafetyProvider } from "@/contexts/SafetyContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
@@ -589,6 +590,11 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
+      <Stack.Screen name="safety" options={{ title: 'Safety' }} />
+      <Stack.Screen name="safety-jha" options={{ title: 'JHAs' }} />
+      <Stack.Screen name="safety-toolbox" options={{ title: 'Toolbox Talks' }} />
+      <Stack.Screen name="safety-incidents" options={{ title: 'Incidents' }} />
+      <Stack.Screen name="safety-hazards" options={{ title: 'Hazard Log' }} />
       <Stack.Screen
         name="punch-walk"
         options={{ headerShown: false }}
@@ -1216,6 +1222,7 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  <SafetyProvider>
                   <PropertyProvider>
                   <MaterialCartProvider>
                     <BidsProvider>
@@ -1239,6 +1246,7 @@ export default Sentry.wrap(function RootLayout() {
                     </BidsProvider>
                   </MaterialCartProvider>
                   </PropertyProvider>
+                  </SafetyProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>
