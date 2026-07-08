@@ -7,8 +7,15 @@
 import {
   computeWipRow,
   computeWipPortfolio,
+  suggestCostToDate,
+  suggestBilledToDate,
+  sumApprovedChangeOrders,
+  deriveOriginalContract,
 } from '../utils/wip';
-import type { WipRowInput, WipRow, WipSnapshotRow } from '../types';
+import type {
+  WipRowInput, WipRow, WipSnapshotRow,
+  Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project,
+} from '../types';
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -95,6 +102,57 @@ expect('portfolio earnedRevenue sum', port.earnedRevenue, 88000);
 expect('portfolio billedToDate sum', port.billedToDate, 90000);
 expect('portfolio weightedMarginPct', port.weightedMarginPct, (220000 - 150000) / 220000);
 expect('portfolio empty → weightedMarginPct 0', computeWipPortfolio([]).weightedMarginPct, 0);
+
+// ── suggestCostToDate: sum of commitment paidToDate ─────────────────────────
+const commitments = [
+  { paidToDate: 1000 }, { paidToDate: 500 }, {},
+] as unknown as Commitment[];
+expect('suggestCostToDate sums paidToDate', suggestCostToDate(commitments), 1500);
+expect('suggestCostToDate empty → 0', suggestCostToDate([]), 0);
+
+// ── suggestBilledToDate: pay-apps win when present ──────────────────────────
+const payApps = [
+  { totals: { currentPaymentDue: 2000 } },
+  { totals: { currentPaymentDue: 500 } },
+] as unknown as SavedAIAPayApp[];
+const invoices = [
+  { totalDue: 9999 }, { totalDue: 1 },
+] as unknown as Invoice[];
+expect('billed: pay-apps preferred (no double count)',
+  suggestBilledToDate(invoices, payApps), 2500);
+expect('billed: invoices when no pay-apps',
+  suggestBilledToDate(invoices, []), 10000);
+expect('billed: both empty → 0', suggestBilledToDate([], []), 0);
+
+// ── sumApprovedChangeOrders: only approved status counts ────────────────────
+const cos = [
+  { status: 'approved', changeAmount: 5000 },
+  { status: 'draft', changeAmount: 9999 },
+  { status: 'approved', changeAmount: 1500 },
+  { status: 'rejected', changeAmount: 7777 },
+] as unknown as ChangeOrder[];
+expect('sumApprovedChangeOrders only approved', sumApprovedChangeOrders(cos), 6500);
+
+// ── deriveOriginalContract precedence: pay-app > CO > targetBudget > gmpCap ──
+expect('originalContract from pay-app',
+  deriveOriginalContract(
+    { targetBudget: { amount: 111 }, gmpCap: 222 } as unknown as Project,
+    [{ originalContractValue: 333 }] as unknown as ChangeOrder[],
+    [{ originalContractSum: 88000 }] as unknown as SavedAIAPayApp[]),
+  88000);
+expect('originalContract falls back to CO',
+  deriveOriginalContract(
+    { targetBudget: { amount: 111 }, gmpCap: 222 } as unknown as Project,
+    [{ originalContractValue: 333 }] as unknown as ChangeOrder[], []),
+  333);
+expect('originalContract falls back to targetBudget',
+  deriveOriginalContract(
+    { targetBudget: { amount: 111 }, gmpCap: 222 } as unknown as Project, [], []),
+  111);
+expect('originalContract falls back to gmpCap',
+  deriveOriginalContract({ gmpCap: 222 } as unknown as Project, [], []), 222);
+expect('originalContract → 0 when nothing available',
+  deriveOriginalContract({} as unknown as Project, [], []), 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

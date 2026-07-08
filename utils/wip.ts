@@ -3,6 +3,7 @@
 // side-effect-free so scripts/validate-wip.ts can exercise it directly.
 import type {
   WipRowInput, WipRow, WipPortfolio, WipSnapshotRow,
+  Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project,
 } from '@/types';
 
 /** Clamp with NaN → lo, so divide-by-zero never leaks a NaN downstream. */
@@ -59,4 +60,49 @@ export function computeWipPortfolio(rows: WipSnapshotRow[]): WipPortfolio {
     ? 0
     : (acc.revisedContract - acc.totalEstimatedCost) / acc.revisedContract;
   return acc;
+}
+
+/** Σ approved change-order value deltas → the revised-contract adjustment. */
+export function sumApprovedChangeOrders(changeOrders: ChangeOrder[]): number {
+  return changeOrders
+    .filter((co) => co.status === 'approved')
+    .reduce((sum, co) => sum + (co.changeAmount || 0), 0);
+}
+
+/**
+ * Recover the original (pre-change-order) contract value. `Project` has no
+ * direct contract field, so fall back through the best available sources.
+ */
+export function deriveOriginalContract(
+  project: Pick<Project, 'targetBudget' | 'gmpCap'> | null | undefined,
+  changeOrders: ChangeOrder[],
+  payApps: SavedAIAPayApp[],
+): number {
+  const fromPayApp = payApps[0]?.originalContractSum;
+  if (typeof fromPayApp === 'number' && fromPayApp > 0) return fromPayApp;
+  const fromCo = changeOrders[0]?.originalContractValue;
+  if (typeof fromCo === 'number' && fromCo > 0) return fromCo;
+  const fromBudget = project?.targetBudget?.amount;
+  if (typeof fromBudget === 'number' && fromBudget > 0) return fromBudget;
+  return project?.gmpCap ?? 0;
+}
+
+/** Auto-suggested cost-to-date: Σ incurred commitment cost (paidToDate). */
+export function suggestCostToDate(commitments: Commitment[]): number {
+  return commitments.reduce((sum, c) => sum + (c.paidToDate ?? 0), 0);
+}
+
+/**
+ * Auto-suggested billed-to-date from a SINGLE source to avoid double counting:
+ * a project bills via pay-apps OR invoices (a pay-app is itself the invoice).
+ * Prefer pay-apps when any exist, else fall back to invoices.
+ */
+export function suggestBilledToDate(
+  invoices: Invoice[],
+  payApps: SavedAIAPayApp[],
+): number {
+  if (payApps.length > 0) {
+    return payApps.reduce((sum, p) => sum + (p.totals?.currentPaymentDue ?? 0), 0);
+  }
+  return invoices.reduce((sum, i) => sum + (i.totalDue ?? 0), 0);
 }
