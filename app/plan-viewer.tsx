@@ -35,7 +35,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
-import type { DrawingPin, DrawingPinKind } from '@/types';
+import type { DrawingPin, DrawingPinKind, PunchItem, PunchItemStatus } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -53,6 +53,19 @@ const PIN_COLORS: Record<DrawingPinKind, string> = {
   punch: '#FF9500',
   rfi: '#2F6B6B',
 };
+
+// Punch-layer marker colors, keyed by status. These render punch items that
+// carry their own plan-pin anchor (planSheetId/pinX/pinY) but have no
+// DrawingPin — i.e. walk-mode / AI-punch items. Status coloring lets a GC read
+// open vs. closed work at a glance on the sheet.
+function punchStatusColor(status: PunchItemStatus, t: ThemeColors): string {
+  switch (status) {
+    case 'open': return t.danger;
+    case 'in_progress': return t.info;
+    case 'ready_for_review': return t.accent;
+    case 'closed': return t.success;
+  }
+}
 
 export default function PlanViewerScreen() {
   const { colors: themeColors } = useTheme();
@@ -77,13 +90,16 @@ function PlanViewerScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ sheetId?: string }>();
+  const params = useLocalSearchParams<{ sheetId?: string; punchId?: string }>();
   const sheetId = typeof params.sheetId === 'string' ? params.sheetId : undefined;
+  // Optional deep-link target: the "On plan" chip on a punch row routes here
+  // with the punch id so we can auto-select its linked pin.
+  const punchIdParam = typeof params.punchId === 'string' ? params.punchId : undefined;
 
   const {
     getPlanSheet, getPinsForPlan, addDrawingPin, updateDrawingPin, deleteDrawingPin,
     getMarkupsForPlan, addPlanMarkup, deletePlanMarkup,
-    getPhotosForProject, getPunchItemsForProject, addProjectPhoto,
+    getPhotosForProject, getPunchItemsForProject, addProjectPhoto, addPunchItem,
     upsertPlanCalibration, getCalibrationForPlan,
     addRFI, getRFIsForProject,
   } = useProjects();
@@ -108,6 +124,27 @@ function PlanViewerScreenInner() {
   const projectPunch = useMemo(() => sheet ? getPunchItemsForProject(sheet.projectId) : [], [sheet, getPunchItemsForProject]);
   const selectedPin = selectedPinId ? pins.find(p => p.id === selectedPinId) ?? null : null;
   const calibration = useMemo(() => sheet ? getCalibrationForPlan(sheet.id) : undefined, [sheet, getCalibrationForPlan]);
+
+  // Punch layer: punch items anchored to THIS sheet that don't already have a
+  // DrawingPin drawn for them (those are rendered via `pins`). This surfaces
+  // walk-mode / AI-punch items — which never had a pin — on the drawing.
+  const punchOverlay = useMemo(() => {
+    if (!sheet) return [] as PunchItem[];
+    const linkedIds = new Set(pins.map(p => p.linkedPunchItemId).filter(Boolean) as string[]);
+    return projectPunch.filter(p =>
+      p.planSheetId === sheet.id &&
+      typeof p.pinX === 'number' && typeof p.pinY === 'number' &&
+      !linkedIds.has(p.id));
+  }, [sheet, pins, projectPunch]);
+
+  // Auto-select the pin linked to a punch item when arriving via the punch
+  // list's "On plan" chip. One-shot so closing the sheet doesn't reselect.
+  const didSelectPunchRef = useRef<boolean>(false);
+  React.useEffect(() => {
+    if (didSelectPunchRef.current || !punchIdParam || pins.length === 0) return;
+    const match = pins.find(p => p.linkedPunchItemId === punchIdParam);
+    if (match) { setSelectedPinId(match.id); didSelectPunchRef.current = true; }
+  }, [punchIdParam, pins]);
 
   // The RFI linked to the selected pin, if any — so the pin sheet can show
   // "RFI #N" and a way back to it instead of offering to raise a duplicate.
@@ -155,6 +192,36 @@ function PlanViewerScreenInner() {
     setSelectedPinId(null);
     router.push({ pathname: '/rfi' as never, params: { projectId: sheet.projectId, rfiId: linkedRfi.id } as never });
   }, [sheet, linkedRfi, router]);
+
+  // Pin → Punch: create a punch item anchored to this pin's location, then link
+  // the pin both ways (kind:'punch' + linkedPunchItemId). Closes the pin ↔ punch
+  // loop the review flagged as one-directional. Description seeds from the pin
+  // label; the GC refines it in the punch list afterward.
+  const handleCreatePunchFromPin = useCallback((description: string) => {
+    if (!sheet || !selectedPin) return;
+    const now = new Date().toISOString();
+    const id = generateUUID();
+    const punch: PunchItem = {
+      id,
+      projectId: sheet.projectId,
+      description: description.trim() || 'Punch item',
+      location: sheet.sheetNumber || sheet.name,
+      assignedSub: '',
+      dueDate: '',
+      priority: 'medium',
+      status: 'open',
+      planSheetId: sheet.id,
+      pinX: selectedPin.x,
+      pinY: selectedPin.y,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addPunchItem(punch);
+    updateDrawingPin(selectedPin.id, { linkedPunchItemId: id, kind: 'punch' });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSelectedPinId(null);
+    router.push({ pathname: '/punch-list' as never, params: { projectId: sheet.projectId } as never });
+  }, [sheet, selectedPin, addPunchItem, updateDrawingPin, router]);
 
   // Feet-per-normalized-unit (0–1) in each axis. We use the straight-line
   // distance between the two calibration points + a known real distance.
@@ -516,6 +583,28 @@ function PlanViewerScreenInner() {
                 <MapPin size={14} color={themeColors.surface} strokeWidth={2.5} />
               </TouchableOpacity>
             ))}
+
+            {/* Punch layer — walk-mode / AI punch items anchored to this sheet
+                that have no DrawingPin of their own. Colored by status; tapping
+                opens the punch list. */}
+            {imgLayout && punchOverlay.map(p => (
+              <TouchableOpacity
+                key={`punch-${p.id}`}
+                style={[
+                  styles.pin,
+                  {
+                    left: (p.pinX ?? 0) * imgLayout.w - 14,
+                    top: (p.pinY ?? 0) * imgLayout.h - 28,
+                    backgroundColor: punchStatusColor(p.status, themeColors),
+                    borderColor: '#FFFFFF',
+                    borderWidth: 2,
+                  },
+                ]}
+                onPress={() => router.push({ pathname: '/punch-list' as never, params: { projectId: p.projectId } as never })}
+                hitSlop={8} accessibilityRole="button" accessibilityLabel={`Punch item: ${p.description}`}>
+                <ClipboardList size={13} color={themeColors.surface} strokeWidth={2.5} />
+              </TouchableOpacity>
+            ))}
           </View>
         </ScrollView>
       </View>
@@ -602,6 +691,7 @@ function PlanViewerScreenInner() {
         linkedRfi={linkedRfi}
         onRaiseRfi={handleRaiseRfi}
         onOpenRfi={openLinkedRfi}
+        onCreatePunch={handleCreatePunchFromPin}
         onClose={() => setSelectedPinId(null)}
         onUpdate={(updates) => {
           if (selectedPin) updateDrawingPin(selectedPin.id, updates);
@@ -685,7 +775,7 @@ function PlanViewerScreenInner() {
 
 function PinDetailModal({
   pin, projectId, photos, punchItems, linkedRfi,
-  onClose, onUpdate, onDelete, onAddPhoto, onRaiseRfi, onOpenRfi,
+  onClose, onUpdate, onDelete, onAddPhoto, onRaiseRfi, onOpenRfi, onCreatePunch,
 }: {
   pin: DrawingPin | null;
   projectId: string;
@@ -698,6 +788,7 @@ function PinDetailModal({
   onAddPhoto: () => void;
   onRaiseRfi: () => void;
   onOpenRfi: () => void;
+  onCreatePunch: (description: string) => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -761,10 +852,21 @@ function PinDetailModal({
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.linkCell} onPress={() => setView('punch')}>
                   <ClipboardList size={16} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.linkCellTitle}>Punch item</Text>
+                  <Text style={styles.linkCellTitle}>Link punch</Text>
                   <Text style={styles.linkCellSub}>Link to open punch</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Pin → Punch: create a NEW punch item anchored to this pin. The
+                  primary create surface competitors lead with. Hidden once a
+                  punch is already linked to this pin. */}
+              {!linkedPunch ? (
+                <TouchableOpacity style={styles.createPunchBtn} onPress={() => onCreatePunch(draftLabel)} activeOpacity={0.85} testID="pin-create-punch">
+                  <ClipboardList size={16} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.createPunchBtnText}>Create punch item here</Text>
+                  <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
+                </TouchableOpacity>
+              ) : null}
 
               {/* RFI from this drawing location — Pin, Ask, Done. */}
               {linkedRfi ? (
@@ -992,6 +1094,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.accent + '2A',
   },
   rfiBtnText: { flex: 1, color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '800' },
+
+  createPunchBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: t.accent + '12', padding: 12, borderRadius: Tokens.radius.md, marginTop: 8,
+    borderWidth: 1, borderColor: t.accent + '2A',
+  },
+  createPunchBtnText: { flex: 1, color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '800' },
 
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

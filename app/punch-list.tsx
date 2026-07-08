@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
-  Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter,
+  Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter, MapPin,
 } from 'lucide-react-native';
 import { MagePunch } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -428,6 +428,20 @@ function PunchListScreenInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.punchDesc}>{item.description}</Text>
                   {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
+                  {item.planSheetId ? (
+                    <TouchableOpacity
+                      style={styles.onPlanChip}
+                      onPress={() => router.push({ pathname: '/plan-viewer' as never, params: { sheetId: item.planSheetId!, punchId: item.id } as never })}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="View this item on the plan"
+                      testID="punch-on-plan"
+                    >
+                      <MapPin size={11} color={themeColors.accent} strokeWidth={1.75} />
+                      <Text style={styles.onPlanChipText}>On plan</Text>
+                      <ChevronRight size={11} color={themeColors.accent} strokeWidth={1.75} />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
                 <TouchableOpacity
                   style={[styles.punchBadge, { backgroundColor: sc.bg }, item.status !== 'closed' && styles.punchBadgeTappable]}
@@ -931,6 +945,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   punchDesc: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text, lineHeight: 21 },
   punchLocation: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, marginTop: 2 },
+  onPlanChip: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 3,
+    alignSelf: 'flex-start' as const, marginTop: 6,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    backgroundColor: themeColors.accent + '14',
+  },
+  onPlanChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.accent },
   punchBadge: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

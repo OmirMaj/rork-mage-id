@@ -206,6 +206,14 @@ CREATE TABLE IF NOT EXISTS public.punch_items (
   photo_uri TEXT,
   rejection_note TEXT,
   closed_at TIMESTAMPTZ,
+  -- Location tracking (migration 20260707120000_punch_location.sql): additive + nullable.
+  plan_sheet_id TEXT,
+  pin_x DOUBLE PRECISION,
+  pin_y DOUBLE PRECISION,
+  photo_latitude DOUBLE PRECISION,
+  photo_longitude DOUBLE PRECISION,
+  photo_accuracy_meters DOUBLE PRECISION,
+  photo_location_label TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

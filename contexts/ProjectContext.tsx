@@ -2500,6 +2500,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         id: item.id, user_id: userId, project_id: item.projectId, description: item.description,
         location: item.location, assigned_sub: item.assignedSub, assigned_sub_id: item.assignedSubId,
         due_date: item.dueDate, priority: item.priority, status: item.status, photo_uri: item.photoUri,
+        // Plan-pin anchor + captured GPS. Client camelCase → snake_case column
+        // (see migration 20260707120000_punch_location.sql). Previously omitted,
+        // so this data was captured locally then silently dropped on sync.
+        plan_sheet_id: item.planSheetId, pin_x: item.pinX, pin_y: item.pinY,
+        photo_latitude: item.photoLatitude, photo_longitude: item.photoLongitude,
+        photo_accuracy_meters: item.photoLocationAccuracyMeters,
+        photo_location_label: item.photoLocationLabel,
         rejection_note: item.rejectionNote, closed_at: item.closedAt,
         created_at: item.createdAt, updated_at: item.updatedAt,
       });
@@ -2516,7 +2523,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (pi) {
         void supabaseWrite('punch_items', 'update', {
           id, description: pi.description, location: pi.location, assigned_sub: pi.assignedSub,
+          assigned_sub_id: pi.assignedSubId,
           due_date: pi.dueDate, priority: pi.priority, status: pi.status, photo_uri: pi.photoUri,
+          // Persist plan-pin anchor + captured GPS on update too (were omitted,
+          // and assigned_sub_id was dropped on update — fixed here).
+          plan_sheet_id: pi.planSheetId, pin_x: pi.pinX, pin_y: pi.pinY,
+          photo_latitude: pi.photoLatitude, photo_longitude: pi.photoLongitude,
+          photo_accuracy_meters: pi.photoLocationAccuracyMeters,
+          photo_location_label: pi.photoLocationLabel,
           rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
         });
       }

@@ -1999,6 +1999,13 @@ export interface PunchItem {
   photoLongitude?: number;
   photoLocationAccuracyMeters?: number;
   photoLocationLabel?: string;
+  /** Plan-pin anchor. When set, this item is pinned to a spot on a plan
+   *  sheet — the back-reference that mirrors DrawingPin.linkedPunchItemId,
+   *  closing the pin ↔ punch loop. `pinX`/`pinY` are normalized (0..1) plan
+   *  coords, identical to DrawingPin.x/y, so they survive zoom/resize. */
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
   rejectionNote?: string;
   closedAt?: string;
   createdAt: string;
