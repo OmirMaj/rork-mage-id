@@ -2,14 +2,16 @@
 //
 // Site photo(s) → candidate hazards { description, severity, likelihood }[] to
 // prefill the Hazard Log. Reuses the analyze-photos vision pattern. Business-
-// tier gated; metered against the analyze_photos monthly (vision) cap. Every
-// photo URL is validated through validateFetchableUrl BEFORE any fetch (SSRF
-// guard). Fail-closed: on error the user keeps the manual hazard form.
+// tier gated; metered against the dedicated `safety_ai` monthly cap — shared
+// with the other safety AI functions and isolated from the unrelated
+// analyze-photos feature, so safety usage has one clearly-labeled ceiling.
+// Every photo URL is validated through validateFetchableUrl BEFORE any fetch
+// (SSRF guard). Fail-closed: on error the user keeps the manual hazard form.
 //
 // Request: { photoUrls: string[] } OR { photos: [{ base64, mimeType? }] }.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
@@ -75,16 +77,6 @@ serve(async (req) => {
   let body: DetectHazardsRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON' }, 400); }
 
-  const used = await aiUsageIncrement(auth.userId, 'analyze_photos');
-  const cap = MONTHLY_CAPS[auth.tier].analyze_photos;
-  if (used > cap) {
-    return jsonResponse({
-      success: false,
-      error: `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
-      code: 'monthly_cap_reached', used, cap,
-    }, 429);
-  }
-
   const usingInline = Array.isArray(body.photos) && body.photos.length > 0;
   const usingUrls = Array.isArray(body.photoUrls) && body.photoUrls.length > 0;
   if (!usingInline && !usingUrls) {
@@ -119,6 +111,21 @@ serve(async (req) => {
   }
   if (goodPhotos.length === 0) return jsonResponse({ success: false, error: 'Could not load any of the supplied photos' }, 400);
 
+  // Meter only now that a model call is certain (input validated + at least one
+  // photo loaded). Read the current count first and deny an over-cap request
+  // WITHOUT persisting an increment, so rejected retries don't climb the
+  // counter; increment only when we're actually going to call Gemini.
+  const cap = MONTHLY_CAPS[auth.tier].safety_ai;
+  const used = await aiUsageGet(auth.userId, 'safety_ai');
+  if (used >= cap) {
+    return jsonResponse({
+      success: false,
+      error: `Monthly safety-AI limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+      code: 'monthly_cap_reached', used, cap,
+    }, 429);
+  }
+  await aiUsageIncrement(auth.userId, 'safety_ai');
+
   const parts: Record<string, unknown>[] = [{ text: HAZARD_PROMPT }];
   for (const p of goodPhotos) parts.push({ inline_data: { mime_type: p.mimeType, data: p.data } });
 
@@ -140,8 +147,9 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: `Gemini ${geminiResp.status}: ${text.slice(0, 200)}` }, 502);
   }
 
-  const j = await geminiResp.json();
-  const raw = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  let j: unknown;
+  try { j = await geminiResp.json(); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON' }, 502); }
+  const raw = (j as { candidates?: { content?: { parts?: { text?: string }[] } }[] })?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON', raw }, 500); }
   if (!Array.isArray(parsed)) return jsonResponse({ success: false, error: 'Expected array of hazards' }, 500);

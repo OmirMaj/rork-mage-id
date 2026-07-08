@@ -10,7 +10,7 @@
 // Request: { voiceTranscript?, notes?, photoUrls?: string[] }.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { validateFetchableUrl } from "../_shared/urlGuard.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
@@ -93,15 +93,19 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: 'Provide voiceTranscript, notes, or photoUrls' }, 400);
   }
 
-  const used = await aiUsageIncrement(auth.userId, 'safety_ai');
+  // Read the current count first and deny an over-cap request WITHOUT
+  // persisting an increment, so rejected retries don't climb the counter;
+  // increment only when we're actually going to call Gemini.
   const cap = MONTHLY_CAPS[auth.tier].safety_ai;
-  if (used > cap) {
+  const used = await aiUsageGet(auth.userId, 'safety_ai');
+  if (used >= cap) {
     return jsonResponse({
       success: false,
       error: `Monthly safety-AI limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
       code: 'monthly_cap_reached', used, cap,
     }, 429);
   }
+  await aiUsageIncrement(auth.userId, 'safety_ai');
 
   const ctxLine = [
     transcript ? `Spoken report: ${transcript}` : null,
@@ -139,8 +143,9 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: `Gemini ${geminiResp.status}: ${text.slice(0, 200)}` }, 502);
   }
 
-  const j = await geminiResp.json();
-  const raw = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  let j: unknown;
+  try { j = await geminiResp.json(); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON' }, 502); }
+  const raw = (j as { candidates?: { content?: { parts?: { text?: string }[] } }[] })?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   let parsed: unknown;
   try { parsed = JSON.parse(raw); } catch { return jsonResponse({ success: false, error: 'Gemini returned non-JSON', raw }, 500); }
 
