@@ -19,9 +19,10 @@
     "test:app-slop": "bun run scripts/validate-app-slop.ts",
     "test:safety-risk": "bun run scripts/validate-safety-risk.ts",
     "test:safety-osha": "bun run scripts/validate-safety-osha.ts",
+    "test:safety-cert": "bun run scripts/validate-safety-cert.ts",
     "test:cpm": "bun run scripts/test-cpm.ts",
     "test:crew": "bun run scripts/validate-crew.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:safety-risk && bun run test:safety-osha && bun run test:app-slop && bun run test:crew",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:safety-risk && bun run test:safety-osha && bun run test:app-slop && bun run test:crew && bun run test:safety-cert",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
