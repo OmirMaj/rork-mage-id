@@ -27,7 +27,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Polygon as SvgPolygon, Polyline as SvgPolyline, Circle, Line } from 'react-native-svg';
 import {
   ChevronLeft, ImagePlus, Ruler, PenTool, Undo2, Trash2, Check, Library,
-  Square, Minus, Hash, Plus, FileImage, CheckCircle2, Spline,
+  Square, Minus, Hash, Plus, FileImage, CheckCircle2, Spline, Calculator,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -37,6 +37,10 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { priceTakeoff, tradesForUnit, type TakeoffUnit } from '@/utils/takeoffEstimate';
+import {
+  getLivePrices, getRegionMultiplier, getMaterialCostBreakdown,
+  CATEGORY_COST_FACTORS, CATEGORY_META, type MaterialItem,
+} from '@/constants/materials';
 import {
   feetPerPixel, polygonAreaSqFt, polylineLengthFt, centroid, formatSqFt, formatLinearFt,
   type NormPoint,
@@ -52,6 +56,61 @@ type Mode = 'calibrate' | 'draw';
 type Kind = 'area' | 'linear' | 'count';
 
 const KIND_UNIT: Record<Kind, TakeoffUnit> = { area: 'SF', linear: 'LF', count: 'EA' };
+
+// ─── Materials-engine rate fallback ──────────────────────────────────────
+// When the GC has no closed-job history for a trade, the visual takeoff used
+// to dead-end: a real measured quantity that literally couldn't be priced.
+// This surfaces a deterministic installed rate from constants/materials.ts
+// (regional-adjusted, material + labor + equipment + category waste) so a
+// measured area/length/count can ALWAYS be priced — engine rate or a manual
+// rate the user types.
+
+const ENGINE_PRICE_SEED = 100; // fixed → engine rates are reproducible
+
+// Only exact-unit SKUs are used so we never guess a square→sqft conversion.
+const ENGINE_UNIT_ALIASES: Record<TakeoffUnit, string[]> = {
+  SF: ['sq ft'],
+  LF: ['lin ft'],
+  EA: ['each'],
+};
+
+interface EngineOption {
+  category: string;
+  label: string;
+  rate: number; // clean installed $/unit (NO waste — waste lives in billableQuantity)
+}
+
+function buildEngineRate(priced: MaterialItem[], category: string, unit: TakeoffUnit): number | null {
+  const aliases = ENGINE_UNIT_ALIASES[unit];
+  const skus = priced.filter(m =>
+    m.specTier === 'base' &&
+    m.category === category &&
+    aliases.includes(m.unit.toLowerCase().trim()),
+  );
+  if (skus.length === 0) return null;
+  // Clean installed unit cost only. Waste is applied EXACTLY ONCE downstream in
+  // billableQuantity (the user-adjustable waste factor) — do NOT fold the SKU's
+  // internal wasteFactor in here, or engine-priced lines double-count waste.
+  const installed = skus.map(m => {
+    const b = getMaterialCostBreakdown(m);
+    return b.materialCost + b.laborCost + b.equipmentCost;
+  }).sort((a, z) => a - z);
+  const mid = installed[Math.floor(installed.length / 2)]; // median SKU
+  return Number(mid.toFixed(2));
+}
+
+/** Every materials category that has an installed engine rate for this unit. */
+function engineRatesForUnit(location: string, unit: TakeoffUnit): EngineOption[] {
+  const priced = getLivePrices(ENGINE_PRICE_SEED, getRegionMultiplier(location));
+  const out: EngineOption[] = [];
+  for (const category of Object.keys(CATEGORY_COST_FACTORS)) {
+    const rate = buildEngineRate(priced, category, unit);
+    if (rate != null && rate > 0) {
+      out.push({ category, label: CATEGORY_META[category]?.label ?? category, rate });
+    }
+  }
+  return out.sort((a, b) => a.rate - b.rate);
+}
 
 export default function AreaTakeoffScreen() {
   const router = useRouter();
@@ -71,7 +130,7 @@ function AreaTakeoffInner() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const {
-    projects, commitments, getProject, updateProject,
+    projects, commitments, getProject, updateProject, settings,
     getPlanSheetsForProject, getCalibrationForPlan, upsertPlanCalibration,
   } = useProjects();
 
@@ -80,7 +139,8 @@ function AreaTakeoffInner() {
     () => (projectId ? getPlanSheetsForProject(projectId) : []),
     [projectId, getPlanSheetsForProject],
   );
-  const canAddToEstimate = !!project?.linkedEstimate && project.linkedEstimate.items.length >= 0;
+  // There must be a linked estimate (with an items list) to append a priced line to.
+  const canAddToEstimate = !!project?.linkedEstimate?.items;
 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [sheetId, setSheetId] = useState<string | null>(null);
@@ -99,17 +159,29 @@ function AreaTakeoffInner() {
   const [selectedTrade, setSelectedTrade] = useState<string | null>(null);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
 
+  // Waste factor applied to net measured quantity before pricing. Sensible
+  // default; user-adjustable. Not applied to counts.
+  const [wastePct, setWastePct] = useState(10);
+  // Manual-rate fallback — the escape hatch from the cold-start dead-end.
+  const [manualRate, setManualRate] = useState('');
+  const [manualRateSource, setManualRateSource] = useState<string | null>(null); // engine category label, if filled from engine
+
   const unit = KIND_UNIT[kind];
   const needsScale = kind !== 'count';
 
   const db = useMemo(() => buildCostDatabase(projects, commitments), [projects, commitments]);
   const trades = useMemo(() => tradesForUnit(db, unit), [db, unit]);
+  const engineOptions = useMemo(
+    () => engineRatesForUnit(typeof settings?.location === 'string' ? settings.location : '', unit),
+    [settings?.location, unit],
+  );
 
   const ftPerPx = useMemo(
     () => (calibration && imgLayout ? feetPerPixel(calibration, imgLayout.w, imgLayout.h) : null),
     [calibration, imgLayout],
   );
 
+  // NET measured quantity, straight off the plan.
   const quantity = useMemo(() => {
     if (kind === 'count') return drawPoints.length;
     if (!ftPerPx || !imgLayout) return 0;
@@ -117,10 +189,33 @@ function AreaTakeoffInner() {
     return drawPoints.length >= 2 ? polylineLengthFt(drawPoints, imgLayout.w, imgLayout.h, ftPerPx) : 0;
   }, [kind, drawPoints, ftPerPx, imgLayout]);
 
-  const pricing = useMemo(
-    () => (selectedTrade && quantity > 0 ? priceTakeoff(db, selectedTrade, unit, quantity) : null),
-    [db, selectedTrade, unit, quantity],
+  // Counts don't take waste; area/linear net qty gets a cut/waste allowance.
+  const effectiveWaste = kind === 'count' ? 0 : wastePct / 100;
+  // BILLABLE quantity = net × (1 + waste) — this is what we price and buy.
+  const billableQuantity = useMemo(
+    () => (quantity <= 0 ? 0 : kind === 'count' ? quantity : quantity * (1 + effectiveWaste)),
+    [quantity, kind, effectiveWaste],
   );
+  const billableRounded = unit === 'EA' ? billableQuantity : Math.round(billableQuantity);
+
+  // Price the BILLABLE quantity from the GC's own history when a trade is picked.
+  const pricing = useMemo(
+    () => (selectedTrade && billableQuantity > 0 ? priceTakeoff(db, selectedTrade, unit, billableQuantity) : null),
+    [db, selectedTrade, unit, billableQuantity],
+  );
+
+  // Effective rate: history rate wins when a matched trade is selected;
+  // otherwise the manual/engine rate the user set. Either way, always priceable.
+  const historyRate = pricing?.matched && pricing.rate != null ? pricing.rate : null;
+  const manualRateNum = parseFloat(manualRate);
+  const manualRateValid = Number.isFinite(manualRateNum) && manualRateNum > 0;
+  const effectiveRate = historyRate ?? (manualRateValid ? manualRateNum : null);
+  const effectiveAmount = effectiveRate != null && billableRounded > 0 ? billableRounded * effectiveRate : null;
+  const effectiveSourceLabel = historyRate != null
+    ? `${selectedTrade} · your history`
+    : manualRateSource
+      ? `${manualRateSource} · engine est.`
+      : manualRateValid ? 'Manual rate' : null;
 
   const quantityLabel = useCallback((q: number) => {
     if (kind === 'area') return formatSqFt(q);
@@ -244,25 +339,36 @@ function AreaTakeoffInner() {
     setKind(k);
     setDrawPoints([]);
     setSelectedTrade(null);
+    setManualRate('');
+    setManualRateSource(null);
     setLastAdded(null);
     if (k === 'count') setMode('draw');
     else if (!calibration) setMode('calibrate');
   }, [calibration]);
 
   // ── add to estimate (the loop-closer) ──────────────────────────────────
+  // Works off the effective rate — history when available, otherwise the
+  // manual/engine rate — so a measured quantity is never stranded.
   const handleAddToEstimate = useCallback(() => {
-    if (!project?.linkedEstimate || !pricing?.matched || pricing.rate == null || quantity <= 0 || !selectedTrade) return;
+    if (!project?.linkedEstimate || effectiveRate == null || billableRounded <= 0) return;
     const est = project.linkedEstimate;
-    const qty = unit === 'EA' ? quantity : Math.round(quantity);
-    const lineTotal = qty * pricing.rate;
+    const qty = billableRounded;
+    const lineTotal = qty * effectiveRate;
+    const usingHistory = historyRate != null && !!selectedTrade;
+    const name = usingHistory
+      ? `${selectedTrade} (takeoff)`
+      : manualRateSource
+        ? `${manualRateSource} (takeoff · engine rate)`
+        : 'Takeoff line (manual rate)';
+    const category = usingHistory ? (selectedTrade as string) : (manualRateSource ?? 'Takeoff');
     const item: LinkedEstimateItem = {
       materialId: generateUUID(),
-      name: `${selectedTrade} (takeoff)`,
-      category: selectedTrade,
+      name,
+      category,
       unit,
       quantity: qty,
-      unitPrice: pricing.rate,
-      bulkPrice: pricing.rate,
+      unitPrice: effectiveRate,
+      bulkPrice: effectiveRate,
       markup: 0,
       usesBulk: false,
       lineTotal,
@@ -281,9 +387,11 @@ function AreaTakeoffInner() {
     };
     updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Added from visual takeoff' }));
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setLastAdded(`${quantityLabel(qty)} of ${selectedTrade} · ${formatMoneyFull(lineTotal)}`);
+    setLastAdded(`${quantityLabel(qty)} of ${category} · ${formatMoneyFull(lineTotal)}`);
     setDrawPoints([]);
-  }, [project, pricing, quantity, selectedTrade, unit, updateProject, quantityLabel]);
+    setManualRate('');
+    setManualRateSource(null);
+  }, [project, effectiveRate, billableRounded, historyRate, selectedTrade, manualRateSource, unit, updateProject, quantityLabel]);
 
   // ── render helpers ──────────────────────────────────────────────────────
   const px = (p: NormPoint) => ({ cx: p.x * (imgLayout?.w ?? 0), cy: p.y * (imgLayout?.h ?? 0) });
@@ -430,50 +538,128 @@ function AreaTakeoffInner() {
               <>
                 <View style={styles.resultHead}>
                   <Text style={styles.resultArea}>{quantityLabel(kind === 'count' ? quantity : Math.round(quantity))}</Text>
-                  {pricing?.matched && pricing.amount !== null && (
-                    <Text style={styles.resultPrice}>{formatMoneyFull(pricing.amount)}</Text>
+                  {effectiveAmount != null && (
+                    <Text style={styles.resultPrice}>{formatMoneyFull(effectiveAmount)}</Text>
                   )}
                 </View>
 
-                {trades.length === 0 ? (
-                  <Text style={styles.resultHint}>
-                    No {unit}-based trades in your cost database yet. Close jobs with linked commitments and rates appear here.
-                  </Text>
-                ) : (
+                {/* Waste factor — net measured qty → billable qty (not for counts) */}
+                {kind !== 'count' && (
+                  <View style={styles.wasteBlock}>
+                    <View style={styles.wasteHeadRow}>
+                      <Text style={styles.pickLabel}>Waste factor</Text>
+                      <Text style={styles.wasteQtyText}>
+                        {quantityLabel(Math.round(quantity))} net → <Text style={styles.wasteQtyStrong}>{quantityLabel(billableRounded)}</Text> billable
+                      </Text>
+                    </View>
+                    <View style={styles.wastePills}>
+                      {[0, 5, 10, 15, 20].map(w => (
+                        <TouchableOpacity
+                          key={w}
+                          style={[styles.wastePill, wastePct === w && styles.wastePillActive]}
+                          onPress={() => setWastePct(w)}
+                          activeOpacity={0.8}
+                          testID={`takeoff-waste-${w}`}
+                        >
+                          <Text style={[styles.wastePillText, wastePct === w && styles.wastePillTextActive]}>{w}%</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Price from YOUR history when available */}
+                {trades.length > 0 && (
                   <>
-                    <Text style={styles.pickLabel}>Price as</Text>
+                    <Text style={styles.pickLabel}>Price from your history</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
                       {trades.map(e => {
                         const sel = selectedTrade === e.trade;
                         return (
-                          <TouchableOpacity key={e.key} style={[styles.chip, sel && { backgroundColor: t.accent, borderColor: t.accent }]} onPress={() => setSelectedTrade(sel ? null : e.trade)} activeOpacity={0.8} testID={`takeoff-trade-${e.key}`}>
+                          <TouchableOpacity
+                            key={e.key}
+                            style={[styles.chip, sel && { backgroundColor: t.accent, borderColor: t.accent }]}
+                            onPress={() => { setSelectedTrade(sel ? null : e.trade); setManualRate(''); setManualRateSource(null); }}
+                            activeOpacity={0.8}
+                            testID={`takeoff-trade-${e.key}`}
+                          >
                             <Text style={[styles.chipText, sel && { color: Colors.textOnAccent }]}>{e.trade}</Text>
                             <Text style={[styles.chipRate, sel && { color: Colors.textOnAccent }]}>${e.suggestedRate.toFixed(2)}/{unit}</Text>
                           </TouchableOpacity>
                         );
                       })}
                     </ScrollView>
-
-                    {pricing?.matched && pricing.rate !== null && (
-                      <View style={styles.priceDetail}>
-                        <Text style={styles.priceLine}>{quantityLabel(kind === 'count' ? quantity : Math.round(quantity))} × ${pricing.rate.toFixed(2)}/{unit}</Text>
-                        {pricing.low !== null && pricing.high !== null && (
-                          <Text style={styles.priceRange}>Range {formatMoneyFull(pricing.low)}–{formatMoneyFull(pricing.high)} · {pricing.confidence} confidence ({pricing.entry?.jobCount} job{pricing.entry?.jobCount === 1 ? '' : 's'})</Text>
-                        )}
-                      </View>
-                    )}
-
-                    {/* Add to estimate — the loop-closer */}
-                    {canAddToEstimate && pricing?.matched && (
-                      <TouchableOpacity style={styles.addBtn} onPress={handleAddToEstimate} activeOpacity={0.85} testID="takeoff-add-to-estimate">
-                        <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
-                        <Text style={styles.addBtnText}>Add to {project?.name ? 'this estimate' : 'estimate'}</Text>
-                      </TouchableOpacity>
-                    )}
-                    {!canAddToEstimate && pricing?.matched && (
-                      <Text style={styles.resultHintSmall}>Open this from a project (with a cost-and-markup estimate) to add the line directly.</Text>
-                    )}
                   </>
+                )}
+
+                {/* Manual / engine-rate fallback — always available, so a measured
+                    quantity is never a dead-end even with zero closed-job history. */}
+                {historyRate == null && (
+                  <View style={styles.manualBlock}>
+                    <Text style={styles.pickLabel}>
+                      {trades.length > 0 ? 'Or set a rate' : 'Set a rate'}
+                    </Text>
+                    <View style={styles.manualRow}>
+                      <Text style={styles.manualDollar}>$</Text>
+                      <TextInput
+                        style={styles.manualInput}
+                        value={manualRate}
+                        onChangeText={(v) => { setManualRate(v); setManualRateSource(null); if (v) setSelectedTrade(null); }}
+                        keyboardType="decimal-pad"
+                        placeholder="0.00"
+                        placeholderTextColor={t.textMuted}
+                        testID="takeoff-manual-rate"
+                      />
+                      <Text style={styles.manualUnit}>/ {unit}</Text>
+                    </View>
+                    {engineOptions.length > 0 && (
+                      <>
+                        <View style={styles.engineHintRow}>
+                          <Calculator size={12} color={t.accent} strokeWidth={2} />
+                          <Text style={styles.engineHintText}>Or use a regional engine rate (material + labor + waste):</Text>
+                        </View>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+                          {engineOptions.map(opt => {
+                            const sel = manualRateSource === opt.label;
+                            return (
+                              <TouchableOpacity
+                                key={opt.category}
+                                style={[styles.chip, sel && { backgroundColor: t.accent, borderColor: t.accent }]}
+                                onPress={() => { setManualRate(opt.rate.toFixed(2)); setManualRateSource(opt.label); setSelectedTrade(null); }}
+                                activeOpacity={0.8}
+                                testID={`takeoff-engine-${opt.category}`}
+                              >
+                                <Text style={[styles.chipText, sel && { color: Colors.textOnAccent }]}>{opt.label}</Text>
+                                <Text style={[styles.chipRate, sel && { color: Colors.textOnAccent }]}>${opt.rate.toFixed(2)}/{unit}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </ScrollView>
+                      </>
+                    )}
+                  </View>
+                )}
+
+                {/* Effective price detail */}
+                {effectiveRate != null && effectiveAmount != null && (
+                  <View style={styles.priceDetail}>
+                    <Text style={styles.priceLine}>{quantityLabel(billableRounded)} × ${effectiveRate.toFixed(2)}/{unit}</Text>
+                    {effectiveSourceLabel && <Text style={styles.priceRange}>Rate source: {effectiveSourceLabel}</Text>}
+                    {historyRate != null && pricing?.low != null && pricing?.high != null && (
+                      <Text style={styles.priceRange}>Range {formatMoneyFull(pricing.low)}–{formatMoneyFull(pricing.high)} · {pricing.confidence} confidence ({pricing.entry?.jobCount} job{pricing.entry?.jobCount === 1 ? '' : 's'})</Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Add to estimate — the loop-closer */}
+                {canAddToEstimate && effectiveRate != null && (
+                  <TouchableOpacity style={styles.addBtn} onPress={handleAddToEstimate} activeOpacity={0.85} testID="takeoff-add-to-estimate">
+                    <Plus size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+                    <Text style={styles.addBtnText}>Add to {project?.name ? 'this estimate' : 'estimate'}</Text>
+                  </TouchableOpacity>
+                )}
+                {!canAddToEstimate && effectiveRate != null && (
+                  <Text style={styles.resultHintSmall}>Open this from a project (with a cost-and-markup estimate) to add the line directly.</Text>
                 )}
               </>
             )}
@@ -493,8 +679,10 @@ function AreaTakeoffInner() {
 
           <Text style={styles.note}>
             Area/linear quantities use the plan&apos;s calibration (two points + a known distance);
-            count needs no scale. Pricing is your blended learned rate per trade. Adding to the
-            estimate writes a priced line — and that job&apos;s actuals later sharpen these very rates.
+            count needs no scale. A waste factor is applied to the net measured quantity before
+            pricing. Price from your own learned rate when you have history, or fall back to a
+            regional engine rate / a rate you type — so a measurement is never a dead-end. Adding to
+            the estimate writes a priced line, and that job&apos;s actuals later sharpen these rates.
           </Text>
         </ScrollView>
       )}
@@ -636,6 +824,31 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   priceDetail: { borderTopWidth: 1, borderTopColor: t.line, paddingTop: 10, gap: 3 },
   priceLine: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   priceRange: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
+
+  wasteBlock: { gap: 6 },
+  wasteHeadRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, gap: 8 },
+  wasteQtyText: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  wasteQtyStrong: { fontWeight: '800' as const, color: t.text },
+  wastePills: { flexDirection: 'row' as const, gap: 6 },
+  wastePill: {
+    flex: 1, alignItems: 'center' as const, paddingVertical: 7,
+    borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: t.line, backgroundColor: t.surfaceAlt,
+  },
+  wastePillActive: { backgroundColor: t.accent, borderColor: t.accent },
+  wastePillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
+  wastePillTextActive: { color: Colors.textOnAccent },
+
+  manualBlock: { gap: 6 },
+  manualRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.sm,
+    backgroundColor: t.surfaceAlt, paddingHorizontal: 12, paddingVertical: 4,
+  },
+  manualDollar: { fontSize: Type.headline.fontSize, fontWeight: '800' as const, color: t.textSecondary },
+  manualInput: { flex: 1, fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text, paddingVertical: 8 },
+  manualUnit: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.textSecondary },
+  engineHintRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginTop: 2 },
+  engineHintText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted },
 
   addBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 7,
