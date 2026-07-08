@@ -32,6 +32,7 @@ export type FeatureKey =
   | 'rfis_submittals'
   | 'full_budget_dashboard'
   | 'safety_management'
+  | 'crew_management'
   // All tiers (with limits)
   | 'voice_commands'
   | 'post_homeowner_request'
@@ -91,6 +92,7 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   rfis_submittals: 'business',
   full_budget_dashboard: 'business',
   safety_management: 'business',
+  crew_management: 'business',
   // Available to all
   voice_commands: 'free',
   post_homeowner_request: 'free',
