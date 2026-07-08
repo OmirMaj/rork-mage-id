@@ -23,6 +23,45 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
   <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
+  <style>
+    /* Captioned placeholder for phone slots that don't have a real amber
+       screenshot yet. Flat ink panel + hairline border, opaque so it fully
+       covers the shared .screenshot.phone::after fallback. Keeps the same
+       DOM slot: drop a real <img> in and delete the .phone-ph div. */
+    .screenshot.phone > .phone-ph {
+      position: absolute;
+      inset: 8px;
+      z-index: 1;
+      border-radius: 36px;
+      background: #14181D;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      text-align: center;
+      padding: 40px 26px;
+    }
+    .phone-ph .phone-ph-cap {
+      font-family: var(--ff-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fog);
+      line-height: 1.6;
+    }
+    .phone-ph .phone-ph-tag {
+      font-family: var(--ff-mono);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--amber);
+      border: 1px solid rgba(255, 106, 26, 0.5);
+      border-radius: 999px;
+      padding: 4px 11px;
+    }
+  </style>
 </head>
 <body>
   <header class="nav">
@@ -87,7 +126,7 @@
               <li>Response deadline filters (next 7 / 14 / 30 days)</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="Filter panel · NAICS + set-aside"></div>
+          <div class="screenshot phone" data-label="Filter panel · NAICS + set-aside"><div class="phone-ph"><span class="phone-ph-cap">Filter panel · NAICS + set-aside</span><span class="phone-ph-tag">Preview coming</span></div></div>
         </div>
       </div>
     </section>
@@ -107,7 +146,7 @@
             <li>"Similar to this" recommendations</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Saved search · Push alerts"></div>
+        <div class="screenshot phone" data-label="Saved search · Push alerts"><div class="phone-ph"><span class="phone-ph-cap">Saved search · Push alerts</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -160,7 +199,7 @@
             <li>Public school district and municipal opportunities</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Coming soon · Multi-source feed"></div>
+        <div class="screenshot phone" data-label="Coming soon · Multi-source feed"><div class="phone-ph"><span class="phone-ph-cap">Coming soon · Multi-source feed</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -197,8 +236,8 @@
         </ul></div>
         <div><h4>Company</h4><ul>
           <li><a href="mailto:hello@mageid.app">Contact</a></li>
-          <li><a href="/privacy">Privacy</a></li>
-          <li><a href="/terms">Terms</a></li>
+          <li><a href="/privacy.html">Privacy</a></li>
+          <li><a href="/terms.html">Terms</a></li>
         </ul></div>
       </div>
       <div class="footer-bottom">© <script>document.write(new Date().getFullYear())</script> MAGE ID. Built for general contractors.</div>

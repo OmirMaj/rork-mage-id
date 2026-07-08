@@ -25,7 +25,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
 
@@ -34,13 +34,11 @@
     .ex-hero {
       padding: 80px 0 28px;
       text-align: center;
-      background:
-        radial-gradient(900px 500px at 50% 0%, rgba(255, 106, 26, 0.10), transparent 70%),
-        var(--bg);
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
     }
     .ex-hero h1 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: clamp(36px, 6vw, 60px);
       letter-spacing: -1.2px;
       line-height: 1.05;
@@ -124,7 +122,7 @@
       margin-bottom: 10px;
     }
     .ex-panel h2 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: clamp(32px, 5vw, 48px);
       letter-spacing: -0.8px;
       line-height: 1.05;
@@ -143,7 +141,7 @@
       margin-bottom: 36px;
     }
     .ex-section h3 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: 22px;
       margin: 0 0 14px;
       color: var(--text);
@@ -207,12 +205,12 @@
 
     /* voice command boxes */
     .ex-voice {
-      background: linear-gradient(180deg, rgba(255, 106, 26, 0.10), rgba(255, 106, 26, 0.04));
+      background: rgba(255, 106, 26, 0.06);
       border: 1px solid rgba(255, 106, 26, 0.28);
       border-radius: 14px;
       padding: 16px 20px;
       margin: 12px 0;
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-sans);
       font-style: normal;
       font-size: 16px;
       color: var(--text);
@@ -224,7 +222,7 @@
       display: block;
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23FF6A1A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='11' rx='3'/%3E%3Cpath d='M5 10a7 7 0 0 0 14 0M12 17v4'/%3E%3C/svg%3E") no-repeat left center;
       padding-left: 17px;
-      font-family: 'Inter', sans-serif;
+      font-family: var(--ff-sans);
       font-style: normal;
       font-size: 11px;
       letter-spacing: 1px;
@@ -236,8 +234,8 @@
 
     /* highlight callout */
     .ex-callout {
-      background: rgba(13, 108, 177, 0.10);
-      border-left: 4px solid #0D6CB1;
+      background: rgba(255, 106, 26, 0.08);
+      border-left: 4px solid var(--amber);
       padding: 14px 18px;
       margin: 18px 0;
       border-radius: 8px;
@@ -245,7 +243,7 @@
       color: var(--text);
       line-height: 1.6;
     }
-    .ex-callout strong { color: #4FA8E8; }
+    .ex-callout strong { color: var(--amber); }
 
     /* "Try it" cta */
     .ex-try {
@@ -271,7 +269,7 @@
       padding: 18px;
     }
     .ex-mini-card h4 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: 17px;
       margin: 0 0 6px;
       color: var(--text);

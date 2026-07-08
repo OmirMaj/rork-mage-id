@@ -23,6 +23,45 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
   <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
+  <style>
+    /* Captioned placeholder for phone slots that don't have a real amber
+       screenshot yet. Flat ink panel + hairline border, opaque so it fully
+       covers the shared .screenshot.phone::after fallback. Keeps the same
+       DOM slot: drop a real <img> in and delete the .phone-ph div. */
+    .screenshot.phone > .phone-ph {
+      position: absolute;
+      inset: 8px;
+      z-index: 1;
+      border-radius: 36px;
+      background: #14181D;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      text-align: center;
+      padding: 40px 26px;
+    }
+    .phone-ph .phone-ph-cap {
+      font-family: var(--ff-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fog);
+      line-height: 1.6;
+    }
+    .phone-ph .phone-ph-tag {
+      font-family: var(--ff-mono);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--amber);
+      border: 1px solid rgba(255, 106, 26, 0.5);
+      border-radius: 999px;
+      padding: 4px 11px;
+    }
+  </style>
 </head>
 <body>
   <header class="nav">
@@ -92,7 +131,7 @@
               <li>Client portal gallery (owner-safe filtered view)</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="Photo Gallery · Tagged grid"></div>
+          <div class="screenshot phone" data-label="Photo Gallery · Tagged grid"><div class="phone-ph"><span class="phone-ph-cap">Photo Gallery · Tagged grid</span><span class="phone-ph-tag">Preview coming</span></div></div>
         </div>
       </div>
     </section>
@@ -115,7 +154,7 @@
             <li>Export full RFI log as PDF for closeout docs</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="RFI log · Open vs answered"></div>
+        <div class="screenshot phone" data-label="RFI log · Open vs answered"><div class="phone-ph"><span class="phone-ph-cap">RFI log · Open vs answered</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -138,7 +177,7 @@
               <li>Lead time tracking to flag procurement risks</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="Submittal register · Revisions"></div>
+          <div class="screenshot phone" data-label="Submittal register · Revisions"><div class="phone-ph"><span class="phone-ph-cap">Submittal register · Revisions</span><span class="phone-ph-tag">Preview coming</span></div></div>
         </div>
       </div>
     </section>
@@ -162,7 +201,7 @@
             <li>Closeout report export (PDF) with before/after photos</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Punch item · Photo + location"></div>
+        <div class="screenshot phone" data-label="Punch item · Photo + location"><div class="phone-ph"><span class="phone-ph-cap">Punch item · Photo + location</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -185,7 +224,7 @@
               <li>Export timesheets to CSV for payroll</li>
             </ul>
           </div>
-          <div class="screenshot phone" data-label="Time tracking · Crew clock-in"></div>
+          <div class="screenshot phone" data-label="Time tracking · Crew clock-in"><div class="phone-ph"><span class="phone-ph-cap">Time tracking · Crew clock-in</span><span class="phone-ph-tag">Preview coming</span></div></div>
         </div>
       </div>
     </section>
@@ -208,7 +247,7 @@
             <li>No per-user pricing — invite as many subs as you need</li>
           </ul>
         </div>
-        <div class="screenshot phone" data-label="Sub roster · Permissions"></div>
+        <div class="screenshot phone" data-label="Sub roster · Permissions"><div class="phone-ph"><span class="phone-ph-cap">Sub roster · Permissions</span><span class="phone-ph-tag">Preview coming</span></div></div>
       </div>
     </section>
 
@@ -291,8 +330,8 @@
         </ul></div>
         <div><h4>Company</h4><ul>
           <li><a href="mailto:hello@mageid.app">Contact</a></li>
-          <li><a href="/privacy">Privacy</a></li>
-          <li><a href="/terms">Terms</a></li>
+          <li><a href="/privacy.html">Privacy</a></li>
+          <li><a href="/terms.html">Terms</a></li>
         </ul></div>
       </div>
       <div class="footer-bottom">© <script>document.write(new Date().getFullYear())</script> MAGE ID. Built for general contractors.</div>

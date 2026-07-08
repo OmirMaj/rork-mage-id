@@ -73,7 +73,7 @@
     .compare-table tbody tr:nth-child(even) td { background: #FCFAF4; }
     .compare-table tbody tr:nth-child(even) td.col-mage { background: #FFEEDE; }
     .compare-row-feature { font-weight: 700; color: #0B0D10; }
-    .compare-yes { color: #1E8E4A; font-weight: 700; }
+    .compare-yes { color: #FF6A1A; font-weight: 700; }
     .compare-no  { color: #8B9099; font-weight: 600; }
     .compare-partial { color: #C26A00; font-weight: 600; }
 
@@ -125,7 +125,8 @@
     }
 
     .pricing-card {
-      background: linear-gradient(180deg, #0B0D10 0%, #1A1D22 100%);
+      background: #0B0D10;
+      border: 1px solid rgba(255, 255, 255, 0.08);
       color: #F4EFE6;
       border-radius: 22px;
       padding: 36px 32px;
@@ -134,7 +135,7 @@
       text-align: center;
     }
     .pricing-card h2 {
-      font-family: 'Space Grotesk', Georgia, serif;
+      font-family: var(--ff-serif);
       font-size: clamp(1.6rem, 3.5vw, 2.4rem);
       line-height: 1.15;
       letter-spacing: -0.02em;
@@ -171,7 +172,7 @@
       margin-bottom: 8px;
     }
     .pricing-cell .pc-value {
-      font-family: 'Space Grotesk', Georgia, serif;
+      font-family: var(--ff-mono);
       font-size: 1.4rem;
       font-weight: 700;
       color: #F4EFE6;
