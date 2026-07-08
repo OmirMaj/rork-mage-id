@@ -56,30 +56,44 @@ console.log('\nsafety OSHA-300 validation:');
 // Minimal incident shapes — cast like validate-schedule-colors does with tasks.
 function inc(o: Partial<SafetyIncident>): SafetyIncident { return o as unknown as SafetyIncident; }
 
+// Classification/day/illness columns are read from each incident's OWN recorded
+// outcome fields — NOT the internal severity rating. These fixtures deliberately
+// mismatch severity vs outcome to prove severity is ignored.
 const incidents: SafetyIncident[] = [
-  inc({ id: 'i1', oshaRecordable: true,  occurredAt: '2026-03-02', severity: 'high',     type: 'injury',        location: 'Level 2', description: 'Fall from ladder', peopleInvolved: [{ name: 'Jose R', role: 'Laborer', injuryDescription: 'Sprained ankle' }] }),
+  // days-away case whose severity is only 'medium' — must classify by daysAway, not severity.
+  inc({ id: 'i1', oshaRecordable: true,  occurredAt: '2026-03-02', severity: 'medium',   type: 'injury',        location: 'Level 2', description: 'Fall from ladder', daysAway: 3, restrictedDuty: false, fatality: false, peopleInvolved: [{ name: 'Jose R', role: 'Laborer', injuryDescription: 'Sprained ankle' }] }),
   inc({ id: 'i2', oshaRecordable: false, occurredAt: '2026-03-05', severity: 'low',      type: 'near_miss',     location: 'Yard',    description: 'Dropped tool',    peopleInvolved: [] }),
-  inc({ id: 'i3', oshaRecordable: true,  occurredAt: '2026-01-15', severity: 'critical', type: 'injury',        location: 'Roof',    description: 'Fatal fall',      peopleInvolved: [{ name: 'Sam T', role: 'Roofer' }] }),
-  inc({ id: 'i4', oshaRecordable: true,  occurredAt: '2026-04-01', severity: 'medium',   type: 'environmental', location: 'Basement',description: 'Chemical exposure',peopleInvolved: [] }),
+  // fatality whose severity is only 'high' — must still classify as death.
+  inc({ id: 'i3', oshaRecordable: true,  occurredAt: '2026-01-15', severity: 'high',     type: 'injury',        location: 'Roof',    description: 'Fatal fall',      daysAway: 0, fatality: true, peopleInvolved: [{ name: 'Sam T', role: 'Roofer' }] }),
+  // restricted-duty chemical case with an explicit respiratory illness classification.
+  inc({ id: 'i4', oshaRecordable: true,  occurredAt: '2026-04-01', severity: 'critical', type: 'environmental', location: 'Basement',description: 'Chemical exposure',daysAway: 0, restrictedDuty: true, daysRestricted: 5, fatality: false, oshaIllnessType: 'respiratory', peopleInvolved: [] }),
+  // prior-year recordable — must be excluded from a 2026 log.
+  inc({ id: 'i5', oshaRecordable: true,  occurredAt: '2025-11-01', severity: 'high',     type: 'injury',        location: 'Level 1', description: 'Prior-year injury', daysAway: 2, fatality: false, peopleInvolved: [] }),
 ];
 
-const log = buildOsha300Log(incidents);
-expect('only recordable included',        log.length, 3);
+const logAll = buildOsha300Log(incidents);
+const log = buildOsha300Log(incidents, '2026');
+const log2025 = buildOsha300Log(incidents, '2025');
+expect('no year → all recordable years',  logAll.length, 4);
+expect('year 2026 → only 2026 recordable',log.length, 3);
+expect('year 2025 → only 2025 recordable',log2025.length, 1);
 expect('sorted oldest first (Jan)',       log[0].dateOfIncident, '2026-01-15');
 expect('sorted (Mar second)',             log[1].dateOfIncident, '2026-03-02');
 expect('sorted (Apr last)',               log[2].dateOfIncident, '2026-04-01');
 expect('case numbers sequential',         [log[0].caseNo, log[1].caseNo, log[2].caseNo], ['1','2','3']);
-expect('critical → death class',          log[0].classification, 'death');
-expect('high → days_away class',          log[1].classification, 'days_away');
-expect('medium → restricted class',       log[2].classification, 'restricted');
+expect('fatality → death (ignores sev)',  log[0].classification, 'death');
+expect('daysAway>0 → days_away (ign sev)',log[1].classification, 'days_away');
+expect('restrictedDuty → restricted',     log[2].classification, 'restricted');
 expect('employee name from person',       log[1].employeeName, 'Jose R');
 expect('job title from role',             log[1].jobTitle, 'Laborer');
 expect('desc prefers injuryDescription',  log[1].description, 'Sprained ankle');
 expect('no person → dash name',           log[2].employeeName, '—');
 expect('no person → dash title',          log[2].jobTitle, '—');
-expect('environmental → respiratory',     log[2].illnessType, 'respiratory');
-expect('injury → injury illness type',    log[1].illnessType, 'injury');
-expect('days away default 0',             log[0].daysAway, 0);
+expect('explicit illness type honored',   log[2].illnessType, 'respiratory');
+expect('default illness type = injury',   log[1].illnessType, 'injury');
+expect('days away read from incident',    log[1].daysAway, 3);
+expect('days away 0 for fatality case',   log[0].daysAway, 0);
+expect('days restricted read from incident', log[2].daysRestricted, 5);
 
 // direct row assembly with explicit case number
 const row = oshaRowFromIncident(incidents[0], 7);

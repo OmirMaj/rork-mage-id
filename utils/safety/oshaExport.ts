@@ -9,7 +9,7 @@ import type { SafetyIncident } from '@/types';
 import { buildOsha300Log, buildOsha300Html, osha300ToCsv, type OshaEstablishment } from '@/utils/safety/oshaLog';
 
 export async function exportOsha300Pdf(incidents: SafetyIncident[], est: OshaEstablishment): Promise<void> {
-  const rows = buildOsha300Log(incidents);
+  const rows = buildOsha300Log(incidents, est.year);
   const html = buildOsha300Html(rows, est);
   if (Platform.OS === 'web') {
     if (typeof window === 'undefined') return;
@@ -26,7 +26,7 @@ export async function exportOsha300Pdf(incidents: SafetyIncident[], est: OshaEst
 }
 
 export async function shareOsha300Csv(incidents: SafetyIncident[], est: OshaEstablishment): Promise<void> {
-  const rows = buildOsha300Log(incidents);
+  const rows = buildOsha300Log(incidents, est.year);
   const csv = osha300ToCsv(rows, est);
   const filename = `OSHA300_${est.year}.csv`;
   if (Platform.OS === 'web') {

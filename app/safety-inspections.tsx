@@ -57,7 +57,7 @@ function SafetyInspectionsInner() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getInspectionsForProject, addInspection, updateInspection, deleteInspection, templates, addHazard } = useSafety();
+  const { getInspectionsForProject, addInspection, updateInspection, deleteInspection, templates, addHazard, hazards } = useSafety();
 
   const inspections = useMemo(() => getInspectionsForProject(projectId ?? ''), [projectId, getInspectionsForProject]);
   const inspectionTemplates = useMemo(() => templates.filter((t) => t.category === 'inspection'), [templates]);
@@ -69,6 +69,18 @@ function SafetyInspectionsInner() {
   const [inspector, setInspector] = useState('');
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<InspectionItem[]>([]);
+
+  // Inspection items already spawned as hazards for the inspection being edited,
+  // keyed by InspectionItem.id — drives dedup + the "Logged as hazard" state so a
+  // still-failed line can't be logged twice on re-open.
+  const loggedItemIds = useMemo(() => {
+    if (!editing) return new Set<string>();
+    return new Set(
+      hazards
+        .filter((h) => h.sourceInspectionId === editing.id && h.sourceItemId)
+        .map((h) => h.sourceItemId as string),
+    );
+  }, [hazards, editing]);
 
   const resetForm = useCallback(() => {
     setEditing(null);
@@ -117,9 +129,16 @@ function SafetyInspectionsInner() {
     setItems((prev) => prev.filter((it) => it.id !== id));
   }, []);
 
-  const handleLogHazard = useCallback((inspectionId: string, projId: string, item: InspectionItem) => {
+  // Only a PERSISTED inspection can spawn a hazard: the hazard stores the
+  // inspection's real id as sourceInspectionId, so logging from an unsaved draft
+  // would leave a dangling reference (and be orphaned entirely if the draft is
+  // cancelled). Also dedup on the item id so re-tapping a still-failed line on
+  // re-open can't insert a duplicate hazard.
+  const handleLogHazard = useCallback((item: InspectionItem) => {
+    if (!editing) return;
+    if (item.id && loggedItemIds.has(item.id)) return;
     const hz = hazardFromFailedItem(
-      { id: inspectionId, projectId: projId, createdBy: userId ?? '' },
+      { id: editing.id, projectId: editing.projectId, createdBy: userId ?? '' },
       item,
       new Date().toISOString(),
       generateUUID(),
@@ -127,7 +146,7 @@ function SafetyInspectionsInner() {
     addHazard(hz);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert('Hazard logged', `"${item.prompt || 'Failed item'}" was added to the Hazard Log for follow-up.`);
-  }, [addHazard, userId]);
+  }, [editing, loggedItemIds, addHazard, userId]);
 
   const handleSave = useCallback(() => {
     if (!title.trim()) { Alert.alert('Missing title', 'Give the inspection a title.'); return; }
@@ -281,15 +300,25 @@ function SafetyInspectionsInner() {
                           );
                         })}
                       </View>
-                      {item.result === 'fail' && (
-                        <TouchableOpacity
-                          style={styles.logHazardBtn}
-                          onPress={() => handleLogHazard(editing?.id ?? generateUUID(), projectId ?? '', item)}
-                          activeOpacity={0.8}
-                        >
-                          <TriangleAlert size={14} color={themeColors.danger} strokeWidth={1.75} />
-                          <Text style={styles.logHazardText}>Log as hazard</Text>
-                        </TouchableOpacity>
+                      {item.result === 'fail' && editing && (
+                        loggedItemIds.has(item.id) ? (
+                          <View style={[styles.logHazardBtn, styles.logHazardBtnDone]}>
+                            <TriangleAlert size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                            <Text style={[styles.logHazardText, { color: themeColors.textMuted }]}>Logged as hazard</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.logHazardBtn}
+                            onPress={() => handleLogHazard(item)}
+                            activeOpacity={0.8}
+                          >
+                            <TriangleAlert size={14} color={themeColors.danger} strokeWidth={1.75} />
+                            <Text style={styles.logHazardText}>Log as hazard</Text>
+                          </TouchableOpacity>
+                        )
+                      )}
+                      {item.result === 'fail' && !editing && (
+                        <Text style={styles.logHazardHint}>Save the inspection to log this as a hazard.</Text>
                       )}
                     </View>
                   ))}
@@ -351,7 +380,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   segment: { flex: 1, paddingVertical: 9, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.line, alignItems: 'center' as const },
   segmentText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
   logHazardBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, alignSelf: 'flex-start' as const, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: themeColors.danger + '14' },
+  logHazardBtnDone: { backgroundColor: themeColors.line },
   logHazardText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.danger },
+  logHazardHint: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, alignSelf: 'flex-start' as const, fontStyle: 'italic' as const },
   addFieldBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, marginTop: 12, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent + '12', borderWidth: 1, borderColor: themeColors.accent + '20' },
   addFieldBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   formActions: { flexDirection: 'row' as const, gap: 10, marginTop: 12 },

@@ -129,9 +129,11 @@ function mapIncident(r: Row): SafetyIncident {
     correctiveActions: (r.corrective_actions as SafetyIncident['correctiveActions']) ?? [],
     treatment: (r.treatment as SafetyIncident['treatment']) ?? 'none',
     daysAway: (r.days_away as number) ?? 0,
+    daysRestricted: (r.days_restricted as number) ?? 0,
     restrictedDuty: (r.restricted_duty as boolean) ?? false,
     lostConsciousness: (r.lost_consciousness as boolean) ?? false,
     fatality: (r.fatality as boolean) ?? false,
+    oshaIllnessType: (r.osha_illness_type as SafetyIncident['oshaIllnessType']) ?? undefined,
     oshaRecordable: (r.osha_recordable as boolean) ?? false,
     status: (r.status as SafetyIncident['status']) ?? 'open',
     reportedBy: (r.reported_by as string) ?? '',
@@ -159,6 +161,7 @@ function mapHazard(r: Row): Hazard {
     correctiveAction: (r.corrective_action as string | undefined) ?? undefined,
     status: (r.status as Hazard['status']) ?? 'open',
     sourceInspectionId: (r.source_inspection_id as string | undefined) ?? undefined,
+    sourceItemId: (r.source_item_id as string | undefined) ?? undefined,
     createdBy: (r.created_by as string) ?? '',
     createdAt: (r.created_at as string) ?? '',
     updatedAt: (r.updated_at as string) ?? '',
@@ -409,8 +412,10 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
         plan_sheet_id: incident.planSheetId, pin_x: incident.pinX, pin_y: incident.pinY,
         people_involved: incident.peopleInvolved, photo_urls: incident.photoUrls,
         corrective_actions: incident.correctiveActions, treatment: incident.treatment,
-        days_away: incident.daysAway, restricted_duty: incident.restrictedDuty,
+        days_away: incident.daysAway, days_restricted: incident.daysRestricted,
+        restricted_duty: incident.restrictedDuty,
         lost_consciousness: incident.lostConsciousness, fatality: incident.fatality,
+        osha_illness_type: incident.oshaIllnessType ?? null,
         osha_recordable: incident.oshaRecordable, status: incident.status,
         reported_by: incident.reportedBy, created_by: incident.createdBy,
         created_at: incident.createdAt, updated_at: incident.updatedAt,
@@ -431,8 +436,10 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
         plan_sheet_id: i.planSheetId, pin_x: i.pinX, pin_y: i.pinY,
         people_involved: i.peopleInvolved, photo_urls: i.photoUrls,
         corrective_actions: i.correctiveActions, treatment: i.treatment,
-        days_away: i.daysAway, restricted_duty: i.restrictedDuty,
+        days_away: i.daysAway, days_restricted: i.daysRestricted,
+        restricted_duty: i.restrictedDuty,
         lost_consciousness: i.lostConsciousness, fatality: i.fatality,
+        osha_illness_type: i.oshaIllnessType ?? null,
         osha_recordable: i.oshaRecordable, status: i.status,
         reported_by: i.reportedBy, updated_at: now,
       });
@@ -465,7 +472,8 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
         plan_sheet_id: hazard.planSheetId, pin_x: hazard.pinX, pin_y: hazard.pinY,
         assigned_to: hazard.assignedTo, due_date: hazard.dueDate,
         corrective_action: hazard.correctiveAction, status: hazard.status,
-        source_inspection_id: hazard.sourceInspectionId, created_by: hazard.createdBy,
+        source_inspection_id: hazard.sourceInspectionId, source_item_id: hazard.sourceItemId ?? null,
+        created_by: hazard.createdBy,
         created_at: hazard.createdAt, updated_at: hazard.updatedAt,
       });
     }
@@ -484,7 +492,8 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
         plan_sheet_id: hz.planSheetId, pin_x: hz.pinX, pin_y: hz.pinY,
         assigned_to: hz.assignedTo, due_date: hz.dueDate,
         corrective_action: hz.correctiveAction, status: hz.status,
-        source_inspection_id: hz.sourceInspectionId, updated_at: now,
+        source_inspection_id: hz.sourceInspectionId, source_item_id: hz.sourceItemId ?? null,
+        updated_at: now,
       });
     }
   }, [hazards, canSync, keys]);
@@ -530,7 +539,10 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
       if (changes.items !== undefined) payload.items = changes.items;
       if (changes.score !== undefined) payload.score = changes.score;
       if (changes.status !== undefined) payload.status = changes.status;
-      if (changes.templateId !== undefined) payload.template_id = changes.templateId;
+      // template_id is nullable and clearable: removing the template association
+      // passes templateId=undefined, which must reach the DB as NULL. Key-presence
+      // + null coercion (the other columns are NOT NULL so their value guards stay).
+      if ('templateId' in changes) payload.template_id = changes.templateId ?? null;
       void supabaseWrite('safety_inspections', 'update', payload);
     }
   }, [inspections, canSync, keys]);
@@ -567,14 +579,19 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     setCertifications(updated);
     void saveLocal(keys.certifications, updated);
     if (canSync) {
+      // These columns are all nullable, and the caller clears a field by passing
+      // it as `undefined`. Detect KEY PRESENCE (not value) and coerce undefined→null
+      // so a cleared field actually reaches the DB — a `!== undefined` value guard
+      // would silently drop the column and let the stale server value revert on the
+      // next hydrate. `type` is NOT NULL so it keeps its value guard.
       const payload: Record<string, unknown> = { id };
-      if (changes.workerId !== undefined) payload.worker_id = changes.workerId;
-      if (changes.holderName !== undefined) payload.holder_name = changes.holderName;
-      if (changes.subId !== undefined) payload.sub_id = changes.subId;
+      if ('workerId' in changes) payload.worker_id = changes.workerId ?? null;
+      if ('holderName' in changes) payload.holder_name = changes.holderName ?? null;
+      if ('subId' in changes) payload.sub_id = changes.subId ?? null;
       if (changes.type !== undefined) payload.type = changes.type;
-      if (changes.issuedDate !== undefined) payload.issued_date = changes.issuedDate;
-      if (changes.expiresDate !== undefined) payload.expires_date = changes.expiresDate;
-      if (changes.documentUrl !== undefined) payload.document_url = changes.documentUrl;
+      if ('issuedDate' in changes) payload.issued_date = changes.issuedDate ?? null;
+      if ('expiresDate' in changes) payload.expires_date = changes.expiresDate ?? null;
+      if ('documentUrl' in changes) payload.document_url = changes.documentUrl ?? null;
       if (changes.status !== undefined) payload.status = changes.status;
       void supabaseWrite('certifications', 'update', payload);
     }

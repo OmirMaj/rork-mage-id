@@ -20,7 +20,7 @@ import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import type {
   SafetyIncident, SafetyIncidentType, SafetyIncidentSeverity, SafetyIncidentStatus,
-  SafetyTreatment, IncidentCorrectiveAction, IncidentPerson,
+  SafetyTreatment, IncidentCorrectiveAction, IncidentPerson, OshaIllnessType,
 } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -45,6 +45,16 @@ const TREATMENT_OPTIONS: { value: SafetyTreatment; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'first_aid', label: 'First aid' },
   { value: 'medical_beyond_first_aid', label: 'Medical' },
+];
+// OSHA 300 column M — injury vs illness category. Recorded explicitly; the
+// coarse incident `type` cannot distinguish (e.g. skin vs respiratory).
+const ILLNESS_OPTIONS: { value: OshaIllnessType; label: string }[] = [
+  { value: 'injury', label: 'Injury' },
+  { value: 'skin', label: 'Skin' },
+  { value: 'respiratory', label: 'Respiratory' },
+  { value: 'poisoning', label: 'Poisoning' },
+  { value: 'hearing', label: 'Hearing' },
+  { value: 'other_illness', label: 'Other illness' },
 ];
 
 // AI returns free-form JSON — never trust its enum strings blindly. These
@@ -111,6 +121,8 @@ function SafetyIncidentsInner() {
   const [location, setLocation] = useState('');
   const [treatment, setTreatment] = useState<SafetyTreatment>('none');
   const [daysAway, setDaysAway] = useState('');
+  const [daysRestricted, setDaysRestricted] = useState('');
+  const [oshaIllnessType, setOshaIllnessType] = useState<OshaIllnessType>('injury');
   const [restrictedDuty, setRestrictedDuty] = useState(false);
   const [lostConsciousness, setLostConsciousness] = useState(false);
   const [fatality, setFatality] = useState(false);
@@ -128,7 +140,7 @@ function SafetyIncidentsInner() {
     setType('injury'); setSeverity('low');
     setOccurredAt(new Date().toISOString().slice(0, 10));
     setDescription(''); setLocation('');
-    setTreatment('none'); setDaysAway('');
+    setTreatment('none'); setDaysAway(''); setDaysRestricted(''); setOshaIllnessType('injury');
     setRestrictedDuty(false); setLostConsciousness(false); setFatality(false);
     setCorrectiveActions([]); setPeopleInvolved([]); setPhotoUrls([]);
     setStatus('open'); setDraftNotes(''); setDrafting(false);
@@ -164,6 +176,7 @@ function SafetyIncidentsInner() {
     setType(inc.type); setSeverity(inc.severity); setOccurredAt(inc.occurredAt);
     setDescription(inc.description); setLocation(inc.location);
     setTreatment(inc.treatment); setDaysAway(String(inc.daysAway || ''));
+    setDaysRestricted(String(inc.daysRestricted || '')); setOshaIllnessType(inc.oshaIllnessType ?? 'injury');
     setRestrictedDuty(inc.restrictedDuty); setLostConsciousness(inc.lostConsciousness); setFatality(inc.fatality);
     setCorrectiveActions(inc.correctiveActions); setPeopleInvolved(inc.peopleInvolved); setPhotoUrls(inc.photoUrls);
     setStatus(inc.status); setDraftNotes(''); setDrafting(false);
@@ -212,7 +225,8 @@ function SafetyIncidentsInner() {
       updateIncident(editingIncident.id, {
         type, severity, occurredAt, description: desc, location: location.trim(),
         peopleInvolved, photoUrls, correctiveActions, treatment,
-        daysAway: Number(daysAway) || 0, restrictedDuty, lostConsciousness, fatality,
+        daysAway: Number(daysAway) || 0, daysRestricted: Number(daysRestricted) || 0,
+        restrictedDuty, lostConsciousness, fatality, oshaIllnessType,
         oshaRecordable: recordable, status,
       });
     } else {
@@ -220,6 +234,7 @@ function SafetyIncidentsInner() {
         id: generateUUID(), projectId: projectId ?? '', type, severity, occurredAt,
         description: desc, location: location.trim(), peopleInvolved, photoUrls,
         correctiveActions, treatment, daysAway: Number(daysAway) || 0,
+        daysRestricted: Number(daysRestricted) || 0, oshaIllnessType,
         restrictedDuty, lostConsciousness, fatality, oshaRecordable: recordable,
         status: 'open', reportedBy: author, createdBy: author, createdAt: now, updatedAt: now,
       };
@@ -227,7 +242,7 @@ function SafetyIncidentsInner() {
     }
     setShowForm(false); resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, restrictedDuty, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author]);
+  }, [type, severity, occurredAt, description, location, peopleInvolved, photoUrls, correctiveActions, treatment, daysAway, daysRestricted, oshaIllnessType, restrictedDuty, lostConsciousness, fatality, status, editingIncident, projectId, addIncident, updateIncident, resetForm, author]);
 
   const handleAdvanceStatus = useCallback((inc: SafetyIncident) => {
     updateIncident(inc.id, { status: nextStatus(inc.status) });
@@ -418,8 +433,29 @@ function SafetyIncidentsInner() {
                   ))}
                 </View>
 
-                <Text style={styles.fieldLabel}>Days away from work</Text>
-                <TextInput style={styles.input} value={daysAway} onChangeText={setDaysAway} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="number-pad" />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Days away from work</Text>
+                    <TextInput style={styles.input} value={daysAway} onChangeText={setDaysAway} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="number-pad" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Days restricted / transfer</Text>
+                    <TextInput style={styles.input} value={daysRestricted} onChangeText={setDaysRestricted} placeholder="0" placeholderTextColor={themeColors.textMuted} keyboardType="number-pad" />
+                  </View>
+                </View>
+
+                <Text style={styles.fieldLabel}>Injury / illness type</Text>
+                <View style={styles.segRow}>
+                  {ILLNESS_OPTIONS.map(o => (
+                    <TouchableOpacity
+                      key={o.value}
+                      style={[styles.segBtn, oshaIllnessType === o.value ? styles.segBtnActive : null]}
+                      onPress={() => setOshaIllnessType(o.value)}
+                    >
+                      <Text style={[styles.segText, oshaIllnessType === o.value ? styles.segTextActive : null]}>{o.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
                 <TouchableOpacity style={styles.toggleRow} onPress={() => setRestrictedDuty(v => !v)} activeOpacity={0.7}>
                   <Text style={styles.toggleLabel}>Restricted duty / job transfer</Text>

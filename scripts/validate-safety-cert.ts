@@ -21,6 +21,10 @@ expect('expires in 30 days → expiring',certStatus('2026-08-07', REF), 'expirin
 expect('expires in 31 days → valid',   certStatus('2026-08-08', REF), 'valid');
 expect('far future → valid',           certStatus('2027-01-01', REF), 'valid');
 expect('ISO timestamp input works',    certStatus('2026-07-08T15:00:00.000Z', REF), 'expiring');
+// Non-empty but unparseable date is a data-entry error → flagged 'expired', NOT
+// a false-safe 'valid' (empty/undefined remain non-expiring 'valid' above).
+expect('unparseable date → expired',    certStatus('not-a-date', REF), 'expired');
+expect('whitespace-only → valid',       certStatus('   ', REF), 'valid');
 
 // Reuse contract: certStatus mirrors certExpiryStatus, collapsing ONLY 'none'→'valid'.
 expect('reuses certExpiry: none→valid', certStatus(undefined, REF), certExpiryStatus(undefined, REF) === 'none' ? 'valid' : certExpiryStatus(undefined, REF));

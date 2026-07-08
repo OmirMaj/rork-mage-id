@@ -13,6 +13,27 @@
 --                        NO project.
 --   safety_templates   — COMPANY-scoped forms library; owned by user_id.
 
+-- ── Wave A table extensions (OSHA 300 + inspection→hazard traceability) ──────
+-- Additive columns on the Wave A safety_incidents / hazards tables. Idempotent
+-- (ADD COLUMN IF NOT EXISTS) so this is safe whether or not Wave A is applied.
+--   safety_incidents.days_restricted  — OSHA 300 col L (days on job transfer/restriction)
+--   safety_incidents.osha_illness_type — OSHA 300 col M (injury vs illness category)
+--   hazards.source_item_id            — the InspectionItem.id that spawned a hazard
+ALTER TABLE public.safety_incidents ADD COLUMN IF NOT EXISTS days_restricted INTEGER DEFAULT 0;
+ALTER TABLE public.safety_incidents ADD COLUMN IF NOT EXISTS osha_illness_type TEXT;
+DO $illness$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'safety_incidents_osha_illness_type_check'
+  ) THEN
+    ALTER TABLE public.safety_incidents
+      ADD CONSTRAINT safety_incidents_osha_illness_type_check
+      CHECK (osha_illness_type IN ('injury','skin','respiratory','poisoning','hearing','other_illness'));
+  END IF;
+END
+$illness$;
+ALTER TABLE public.hazards ADD COLUMN IF NOT EXISTS source_item_id TEXT;
+
 -- Shared updated_at bump used by all three tables.
 CREATE OR REPLACE FUNCTION public.safety_wave_b_set_updated_at()
 RETURNS trigger LANGUAGE plpgsql AS $body$

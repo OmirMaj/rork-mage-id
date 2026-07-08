@@ -2089,6 +2089,12 @@ export type SafetyIncidentStatus = 'open' | 'investigating' | 'closed';
 /** Medical treatment level — drives OSHA-recordable classification. */
 export type SafetyTreatment = 'none' | 'first_aid' | 'medical_beyond_first_aid';
 
+/** OSHA 300 column M — the injury-vs-illness classification of a recordable
+ *  case. 'injury' is a physical injury; the rest are the five OSHA illness
+ *  categories. Recorded explicitly on the incident (the coarse incident `type`
+ *  cannot distinguish, e.g. a skin exposure vs a respiratory one). */
+export type OshaIllnessType = 'injury' | 'skin' | 'respiratory' | 'poisoning' | 'hearing' | 'other_illness';
+
 export interface IncidentPerson {
   name: string;
   role: string;
@@ -2121,9 +2127,15 @@ export interface SafetyIncident {
   // the computed result stored alongside so the log can filter without recompute.
   treatment: SafetyTreatment;
   daysAway: number;
+  /** OSHA 300 col L — calendar days on job transfer/restriction. Distinct from
+   *  the restrictedDuty flag (which only records that a restriction occurred). */
+  daysRestricted: number;
   restrictedDuty: boolean;
   lostConsciousness: boolean;
   fatality: boolean;
+  /** OSHA 300 col M — injury vs illness category. Optional: absent = treat as
+   *  a physical injury. Never inferred from the coarse incident `type`. */
+  oshaIllnessType?: OshaIllnessType;
   oshaRecordable: boolean;
   status: SafetyIncidentStatus;
   reportedBy: string;
@@ -2154,6 +2166,9 @@ export interface Hazard {
   status: HazardStatus;
   /** Set when auto-spawned from a failed inspection item (Wave B). */
   sourceInspectionId?: string;
+  /** The specific InspectionItem.id that spawned this hazard (Wave B). Together
+   *  with sourceInspectionId it dedups re-spawns of the same failed line. */
+  sourceItemId?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

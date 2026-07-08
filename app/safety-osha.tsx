@@ -40,17 +40,24 @@ function SafetyOshaInner() {
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { incidents } = useSafety();
   const { companies } = useCompanies();
-  const companyName = companies[0]?.companyName;
 
   const scopedIncidents = useMemo(
     () => (projectId ? incidents.filter((i) => i.projectId === projectId) : incidents),
     [incidents, projectId],
   );
-  const rows = useMemo(() => buildOsha300Log(scopedIncidents), [scopedIncidents]);
-  const est = useMemo(
-    () => ({ name: companyName || 'My Company', year: String(new Date().getFullYear()) }),
-    [companyName],
-  );
+  // OSHA 300 is a per-establishment form. We only have a clean establishment
+  // when a single company profile exists (or a project is selected under it);
+  // with multiple company profiles and no project, an org-wide log commingles
+  // establishments, so we must NOT stamp one company's name over it — title it
+  // neutrally instead of falsely branding it as companies[0].
+  const est = useMemo(() => {
+    const orgWideMultiCompany = !projectId && companies.length > 1;
+    const name = orgWideMultiCompany
+      ? 'All establishments'
+      : (companies[0]?.companyName || 'My Company');
+    return { name, year: String(new Date().getFullYear()) };
+  }, [companies, projectId]);
+  const rows = useMemo(() => buildOsha300Log(scopedIncidents, est.year), [scopedIncidents, est.year]);
 
   const handleExportPdf = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -87,8 +94,9 @@ function SafetyOshaInner() {
             </View>
           </View>
           <Text style={styles.derivedNote}>
-            Outcome columns (days away / job restriction) are derived from incident severity until the
-            Incidents log adds explicit OSHA outcome fields. Verify against your recordkeeping before posting.
+            Case classification and day counts are read from each incident&apos;s recorded OSHA outcome
+            fields (fatality, days away, restriction, illness type). Only recordable cases from {est.year}
+            are shown. Verify against your recordkeeping before posting.
           </Text>
         </View>
 

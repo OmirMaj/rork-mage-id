@@ -10,7 +10,6 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
-import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -39,14 +38,17 @@ function SafetyHubInner() {
   const { getProject } = useProjects();
   const {
     getJhasForProject, getToolboxTalksForProject, getIncidentsForProject, getHazardsForProject,
-    getInspectionsForProject, expiringCertifications, templates,
+    getInspectionsForProject, expiringCertifications, templates, incidents,
   } = useSafety();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const pid = projectId ?? '';
 
-  const tiles = useMemo(() => {
-    const now = new Date().toISOString();
+  type Tile = { key: string; label: string; icon: typeof HardHat; count: number; onPress: () => void };
+
+  // Project-scoped tools — only meaningful once a project is selected.
+  const projectTiles = useMemo<Tile[]>(() => {
+    if (!project) return [];
     return [
       { key: 'jha', label: 'JHAs', icon: HardHat, count: getJhasForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-jha', params: { projectId: pid } }) },
@@ -56,61 +58,69 @@ function SafetyHubInner() {
         onPress: () => router.push({ pathname: '/safety-incidents', params: { projectId: pid } }) },
       { key: 'hazards', label: 'Hazard Log', icon: TriangleAlert, count: getHazardsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-hazards', params: { projectId: pid } }) },
-      // Wave B — inspections are project-scoped; certifications + forms are company-scoped;
-      // OSHA takes an optional projectId for a project-filtered log.
       { key: 'inspections', label: 'Inspections', icon: ClipboardCheck, count: getInspectionsForProject(pid).length,
         onPress: () => router.push({ pathname: '/safety-inspections' as never, params: { projectId: pid } as never }) },
+    ];
+  }, [pid, project, router, getJhasForProject, getToolboxTalksForProject, getIncidentsForProject,
+    getHazardsForProject, getInspectionsForProject]);
+
+  // Company-scoped tools — project-independent, so they must stay reachable even
+  // when no project is selected (e.g. from the desktop sidebar's /safety entry,
+  // which passes no projectId). OSHA takes an OPTIONAL projectId; org-wide when
+  // none is set.
+  const companyTiles = useMemo<Tile[]>(() => {
+    const now = new Date().toISOString();
+    const oshaCount = (pid ? getIncidentsForProject(pid) : incidents).filter((i) => i.oshaRecordable).length;
+    return [
       { key: 'certifications', label: 'Certifications', icon: BadgeCheck, count: expiringCertifications(now).length,
         onPress: () => router.push('/safety-certifications' as never) },
       { key: 'forms', label: 'Forms Library', icon: FileText, count: templates.length,
         onPress: () => router.push('/safety-forms' as never) },
-      { key: 'osha', label: 'OSHA 300 Log', icon: ShieldAlert, count: getIncidentsForProject(pid).length,
-        onPress: () => router.push({ pathname: '/safety-osha' as never, params: { projectId: pid } as never }) },
+      { key: 'osha', label: 'OSHA 300 Log', icon: ShieldAlert, count: oshaCount,
+        onPress: () => router.push(
+          pid
+            ? ({ pathname: '/safety-osha' as never, params: { projectId: pid } as never })
+            : ('/safety-osha' as never),
+        ) },
     ];
-  }, [pid, router, getJhasForProject, getToolboxTalksForProject, getIncidentsForProject, getHazardsForProject,
-    getInspectionsForProject, expiringCertifications, templates]);
+  }, [pid, router, getIncidentsForProject, incidents, expiringCertifications, templates]);
 
-  if (!project) {
-    return (
-      <View style={[styles.container, { backgroundColor: t.bg }]}>
-        <Stack.Screen options={{ title: 'Safety' }} />
-        <EmptyState
-          icon={<HardHat size={36} color={t.accent} strokeWidth={1.75} />}
-          title="Safety is tied to a project"
-          message="Open a project to run JHAs, toolbox talks, incident reports, and the hazard log for that job."
-          steps={[
-            'Open or create a project from the Projects tab.',
-            'Tap Safety inside the project tile grid.',
-            'Pick a tool below to start capturing.',
-          ]}
-          actionLabel="Open Projects"
-          onAction={() => router.push('/(tabs)/(home)' as never)}
-        />
+  const renderTile = (tile: Tile) => (
+    <TouchableOpacity key={tile.key} style={styles.tile} activeOpacity={0.85} onPress={tile.onPress}>
+      <View style={styles.tileIcon}><tile.icon size={22} color={t.accent} strokeWidth={1.75} /></View>
+      <Text style={styles.tileLabel}>{tile.label}</Text>
+      <View style={styles.tileFooter}>
+        <Text style={styles.tileCount}>{tile.count}</Text>
+        <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
       </View>
-    );
-  }
+    </TouchableOpacity>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: t.bg }]}>
-      <Stack.Screen options={{ title: `Safety — ${project.name}` }} />
+      <Stack.Screen options={{ title: project ? `Safety — ${project.name}` : 'Safety' }} />
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 12 }}>
-        <View style={styles.grid}>
-          {tiles.map(tile => (
-            <TouchableOpacity
-              key={tile.key}
-              style={styles.tile}
-              activeOpacity={0.85}
-              onPress={tile.onPress}
-            >
-              <View style={styles.tileIcon}><tile.icon size={22} color={t.accent} strokeWidth={1.75} /></View>
-              <Text style={styles.tileLabel}>{tile.label}</Text>
-              <View style={styles.tileFooter}>
-                <Text style={styles.tileCount}>{tile.count}</Text>
-                <ChevronRight size={16} color={t.textMuted} strokeWidth={1.75} />
-              </View>
+        {project ? (
+          <>
+            <Text style={styles.sectionLabel}>Project</Text>
+            <View style={styles.grid}>{projectTiles.map(renderTile)}</View>
+          </>
+        ) : (
+          <View style={styles.projectPrompt}>
+            <HardHat size={28} color={t.accent} strokeWidth={1.75} />
+            <Text style={styles.projectPromptTitle}>Open a project for on-site tools</Text>
+            <Text style={styles.projectPromptText}>
+              JHAs, toolbox talks, incidents, the hazard log, and inspections are tied to a specific job.
+              The company-wide tools below don&apos;t need a project.
+            </Text>
+            <TouchableOpacity style={styles.projectPromptBtn} activeOpacity={0.85} onPress={() => router.push('/(tabs)/(home)' as never)}>
+              <Text style={styles.projectPromptBtnText}>Open Projects</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        )}
+
+        <Text style={styles.sectionLabel}>Company-wide</Text>
+        <View style={styles.grid}>{companyTiles.map(renderTile)}</View>
       </ScrollView>
     </View>
   );
@@ -118,7 +128,16 @@ function SafetyHubInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  projectPrompt: {
+    backgroundColor: t.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.line,
+    padding: 20, gap: 10, alignItems: 'flex-start' as const,
+  },
+  projectPromptTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: t.text },
+  projectPromptText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
+  projectPromptBtn: { marginTop: 4, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accent + '14' },
+  projectPromptBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.accent },
   tile: {
     width: '47%', flexGrow: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: t.line, padding: 16, gap: 12, minHeight: 120, justifyContent: 'space-between',

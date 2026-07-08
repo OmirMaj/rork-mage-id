@@ -3,17 +3,18 @@
 // The RN export glue (expo-print PDF, expo-sharing CSV) lives in
 // utils/safety/oshaExport.ts and re-uses the builders here.
 //
-// Maps Wave-A SafetyIncident records where oshaRecordable === true onto the
-// OSHA 300 column layout. Column outcomes (classification, days away/restricted,
-// illness type) are DERIVED heuristically from the incident's severity + type
-// because Wave A's SafetyIncident does not yet carry explicit OSHA outcome
-// fields. When those fields are added, tighten oshaRowFromIncident — the row
-// SHAPE stays the same.
+// Maps SafetyIncident records where oshaRecordable === true onto the OSHA 300
+// column layout. Column outcomes are read from the incident's OWN recorded
+// case-outcome fields — the most-serious-outcome rule for the G–J
+// classification (fatality → days-away → restriction → other), the numeric
+// daysAway/daysRestricted for cols K/L, and the explicit oshaIllnessType for
+// col M. `severity` is an internal RISK rating, NOT a recorded outcome, so it
+// is deliberately not used for any OSHA column.
 
-import type { SafetyIncident } from '@/types';
+import type { SafetyIncident, OshaIllnessType } from '@/types';
 
+export type { OshaIllnessType };
 export type OshaClassification = 'death' | 'days_away' | 'restricted' | 'other';
-export type OshaIllnessType = 'injury' | 'skin' | 'respiratory' | 'poisoning' | 'hearing' | 'other_illness';
 
 export interface OshaEstablishment {
   name: string;
@@ -49,21 +50,14 @@ export const OSHA_ILLNESS_LABEL: Record<OshaIllnessType, string> = {
   other_illness: 'All other illnesses',
 };
 
-function classificationForSeverity(sev: SafetyIncident['severity']): OshaClassification {
-  switch (sev) {
-    case 'critical': return 'death';
-    case 'high':     return 'days_away';
-    case 'medium':   return 'restricted';
-    default:         return 'other';
-  }
-}
-
-function illnessForType(type: SafetyIncident['type']): OshaIllnessType {
-  switch (type) {
-    case 'environmental': return 'respiratory';
-    case 'injury':        return 'injury';
-    default:              return 'injury';
-  }
+/** OSHA most-serious-outcome rule (cols G–J): a case is classified by the single
+ *  most severe recorded outcome, read from the incident's own fields — never
+ *  from the internal severity rating. */
+function classificationForOutcome(inc: SafetyIncident): OshaClassification {
+  if (inc.fatality) return 'death';
+  if ((inc.daysAway ?? 0) > 0) return 'days_away';
+  if (inc.restrictedDuty) return 'restricted';
+  return 'other';
 }
 
 /** Assemble a single OSHA 300 row from an incident and its 1-based case number. */
@@ -76,18 +70,21 @@ export function oshaRowFromIncident(inc: SafetyIncident, caseNumber: number): Os
     dateOfIncident: (inc.occurredAt ?? '').slice(0, 10),
     location: inc.location ?? '',
     description: person?.injuryDescription || inc.description || '',
-    classification: classificationForSeverity(inc.severity),
-    daysAway: 0,        // no field on SafetyIncident yet — see header note
-    daysRestricted: 0,  // no field on SafetyIncident yet — see header note
-    illnessType: illnessForType(inc.type),
+    classification: classificationForOutcome(inc),
+    daysAway: inc.daysAway ?? 0,          // col K — recorded on the incident
+    daysRestricted: inc.daysRestricted ?? 0, // col L — recorded on the incident
+    illnessType: inc.oshaIllnessType ?? 'injury', // col M — explicit; default physical injury
   };
 }
 
-/** Build the full OSHA 300 log: recordable incidents only, sorted oldest→newest,
- *  numbered 1..N. */
-export function buildOsha300Log(incidents: SafetyIncident[]): Osha300Row[] {
+/** Build the full OSHA 300 log: recordable incidents only, scoped to a single
+ *  calendar `year` (the OSHA 300 is a per-year, per-establishment form), sorted
+ *  oldest→newest, numbered 1..N. Omit `year` to include every year (used by the
+ *  pure-function validator). */
+export function buildOsha300Log(incidents: SafetyIncident[], year?: string): Osha300Row[] {
   const recordable = incidents
     .filter((i) => i.oshaRecordable)
+    .filter((i) => !year || (i.occurredAt ?? '').slice(0, 4) === year)
     .sort((a, b) => (a.occurredAt < b.occurredAt ? -1 : a.occurredAt > b.occurredAt ? 1 : 0));
   return recordable.map((inc, idx) => oshaRowFromIncident(inc, idx + 1));
 }

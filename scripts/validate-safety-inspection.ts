@@ -43,6 +43,7 @@ const hz = hazardFromFailedItem(
 );
 expect('hazard id', hz.id, 'haz1');
 expect('hazard links inspection', hz.sourceInspectionId, 'insp1');
+expect('hazard links source item', hz.sourceItemId, '2');
 expect('hazard projectId', hz.projectId, 'proj1');
 expect('hazard description = prompt', hz.description, 'Fire extinguisher tagged');
 expect('hazard correctiveAction = note', hz.correctiveAction, 'Missing tag');

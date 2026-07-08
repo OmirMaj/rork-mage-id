@@ -69,6 +69,7 @@ export function hazardFromFailedItem(
     correctiveAction: item.note,
     status: 'open',
     sourceInspectionId: inspection.id,
+    sourceItemId: item.id,
     createdAt: now,
     updatedAt: now,
     createdBy: inspection.createdBy,

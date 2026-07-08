@@ -133,6 +133,18 @@ function SafetyCertificationsInner() {
     const holder = holderName.trim();
     if (!workerId && !holder) { Alert.alert('Missing info', 'Pick a crew member or enter a holder name.'); return; }
     if (!type.trim()) { Alert.alert('Missing info', 'Certification type is required.'); return; }
+    // Reject an unparseable date rather than silently storing it (certStatus would
+    // otherwise flag it 'expired'; catch the typo at entry so the user can fix it).
+    const expTrim = expiresDate.trim();
+    if (expTrim && Number.isNaN(Date.parse(expTrim))) {
+      Alert.alert('Invalid expiry date', 'Enter the expiry as YYYY-MM-DD (e.g. 2026-12-31).');
+      return;
+    }
+    const issTrim = issuedDate.trim();
+    if (issTrim && Number.isNaN(Date.parse(issTrim))) {
+      Alert.alert('Invalid issued date', 'Enter the issued date as YYYY-MM-DD (e.g. 2025-01-15).');
+      return;
+    }
     const status = certStatus(expiresDate || undefined, today);
     if (editing) {
       updateCertification(editing.id, { workerId, holderName: holder || undefined, type: type.trim(), subId: subId || undefined, issuedDate: issuedDate || undefined, expiresDate: expiresDate || undefined, documentUrl: documentUrl || undefined, status });
