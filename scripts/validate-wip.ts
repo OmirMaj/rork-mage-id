@@ -14,8 +14,9 @@ import {
   flagWipRow,
   assertPeriodEditable,
 } from '../utils/wip';
+import { wipPeriodToCSV } from '../utils/wipExport';
 import type {
-  WipRowInput, WipRow, WipSnapshotRow,
+  WipRowInput, WipRow, WipSnapshotRow, WipPeriod,
   Commitment, Invoice, SavedAIAPayApp, ChangeOrder, Project,
 } from '../types';
 
@@ -189,6 +190,19 @@ expect('locked period blocked',
   assertPeriodEditable({ lockedAt: '2026-07-08T00:00:00.000Z' }).blocked, true);
 expect('unlocked period editable',
   assertPeriodEditable({ lockedAt: undefined }).blocked, false);
+
+// ── wipPeriodToCSV: header + one row + TOTAL line ───────────────────────────
+const csvPeriod: WipPeriod = {
+  id: 'p1', periodEndDate: '2026-07-08', createdAt: '2026-07-08T00:00:00.000Z',
+  rows: [{ projectId: 'a', projectName: 'Alpha, LLC', input: base, output: baseRow }],
+  portfolioTotals: computeWipPortfolio([{ projectId: 'a', projectName: 'Alpha, LLC', input: base, output: baseRow }]),
+};
+const csv = wipPeriodToCSV(csvPeriod);
+const csvLines = csv.split('\n');
+expect('CSV has header + 1 row + TOTAL', csvLines.length, 3);
+expect('CSV header first column', csvLines[0].split(',')[0], 'Project');
+expect('CSV quotes commas in project name', csvLines[1].startsWith('"Alpha, LLC"'), true);
+expect('CSV last line is TOTAL', csvLines[2].startsWith('TOTAL'), true);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
