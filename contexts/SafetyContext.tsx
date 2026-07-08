@@ -14,11 +14,15 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
+import { certStatus } from '@/utils/safety/certStatus';
 import type {
   JobHazardAnalysis,
   ToolboxTalk,
   SafetyIncident,
   Hazard,
+  SafetyInspection,
+  Certification,
+  SafetyFormTemplate,
 } from '@/types';
 
 // Server table names (RLS-scoped to the signed-in user).
@@ -26,6 +30,10 @@ const JHAS_TABLE = 'jhas';
 const TOOLBOX_TABLE = 'toolbox_talks';
 const INCIDENTS_TABLE = 'safety_incidents';
 const HAZARDS_TABLE = 'hazards';
+// Wave B tables.
+const INSPECTIONS_TABLE = 'safety_inspections';
+const CERTIFICATIONS_TABLE = 'certifications';
+const TEMPLATES_TABLE = 'safety_templates';
 
 // Local-cache key BASES. The live keys are namespaced per-user
 // (`${BASE}_${userId}`) so one account's cache can never render for another
@@ -35,6 +43,13 @@ const JHAS_KEY = 'tertiary_jhas';
 const TOOLBOX_KEY = 'tertiary_toolbox_talks';
 const INCIDENTS_KEY = 'tertiary_safety_incidents';
 const HAZARDS_KEY = 'tertiary_hazards';
+// Wave B: inspections are project-scoped; certifications + templates are
+// company-scoped (RLS scopes by user_id server-side). All three still use the
+// same per-user namespaced local cache so no cross-account leakage on a shared
+// device.
+const INSPECTIONS_KEY = 'tertiary_safety_inspections';
+const CERTIFICATIONS_KEY = 'tertiary_certifications';
+const TEMPLATES_KEY = 'tertiary_safety_templates';
 
 async function loadLocal<T>(key: string, fallback: T): Promise<T> {
   try {
@@ -150,6 +165,54 @@ function mapHazard(r: Row): Hazard {
   };
 }
 
+// ── Wave B mappers ─────────────────────────────────────────────────────
+// items / fields are JSONB and round-trip verbatim (inner keys stay camelCase).
+function mapInspection(r: Row): SafetyInspection {
+  return {
+    id: r.id as string,
+    projectId: (r.project_id as string) ?? '',
+    templateId: (r.template_id as string | undefined) ?? undefined,
+    title: (r.title as string) ?? '',
+    date: (r.date as string) ?? '',
+    inspector: (r.inspector as string) ?? '',
+    items: (r.items as SafetyInspection['items']) ?? [],
+    score: (r.score as number) ?? 0,
+    status: (r.status as SafetyInspection['status']) ?? 'complete',
+    createdBy: (r.created_by as string) ?? '',
+    createdAt: (r.created_at as string) ?? '',
+    updatedAt: (r.updated_at as string | undefined) ?? undefined,
+  };
+}
+
+function mapCertification(r: Row): Certification {
+  return {
+    id: r.id as string,
+    workerId: (r.worker_id as string | undefined) ?? undefined,
+    holderName: (r.holder_name as string | undefined) ?? undefined,
+    subId: (r.sub_id as string | undefined) ?? undefined,
+    type: (r.type as string) ?? '',
+    issuedDate: (r.issued_date as string | undefined) ?? undefined,
+    expiresDate: (r.expires_date as string | undefined) ?? undefined,
+    documentUrl: (r.document_url as string | undefined) ?? undefined,
+    status: (r.status as Certification['status']) ?? 'valid',
+    createdBy: (r.created_by as string) ?? '',
+    createdAt: (r.created_at as string) ?? '',
+    updatedAt: (r.updated_at as string | undefined) ?? undefined,
+  };
+}
+
+function mapTemplate(r: Row): SafetyFormTemplate {
+  return {
+    id: r.id as string,
+    name: (r.name as string) ?? '',
+    category: (r.category as SafetyFormTemplate['category']) ?? 'general',
+    fields: (r.fields as SafetyFormTemplate['fields']) ?? [],
+    createdBy: (r.created_by as string) ?? '',
+    createdAt: (r.created_at as string) ?? '',
+    updatedAt: (r.updated_at as string | undefined) ?? undefined,
+  };
+}
+
 // Read a collection: Supabase (RLS-scoped, authoritative) when possible,
 // falling back to the per-user local cache on error / offline. Because the
 // cache key is per-user, an empty server result correctly yields an empty
@@ -190,6 +253,9 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
       toolbox: `${TOOLBOX_KEY}_${suffix}`,
       incidents: `${INCIDENTS_KEY}_${suffix}`,
       hazards: `${HAZARDS_KEY}_${suffix}`,
+      inspections: `${INSPECTIONS_KEY}_${suffix}`,
+      certifications: `${CERTIFICATIONS_KEY}_${suffix}`,
+      templates: `${TEMPLATES_KEY}_${suffix}`,
     };
   }, [userId]);
 
@@ -197,6 +263,10 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
   const [toolboxTalks, setToolboxTalks] = useState<ToolboxTalk[]>([]);
   const [incidents, setIncidents] = useState<SafetyIncident[]>([]);
   const [hazards, setHazards] = useState<Hazard[]>([]);
+  // Wave B collections.
+  const [inspections, setInspections] = useState<SafetyInspection[]>([]);
+  const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [templates, setTemplates] = useState<SafetyFormTemplate[]>([]);
 
   // Don't write the empty initial state back over persisted data before the
   // first hydrate completes (same guard PropertyContext uses).
@@ -210,15 +280,20 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     // async hydrate below. On logout (canSync=false, no server read) this
     // leaves the surfaces empty rather than showing the last user's records.
     setJhas([]); setToolboxTalks([]); setIncidents([]); setHazards([]);
+    setInspections([]); setCertifications([]); setTemplates([]);
     (async () => {
-      const [j, t, i, h] = await Promise.all([
+      const [j, t, i, h, insp, cert, tpl] = await Promise.all([
         hydrateCollection(JHAS_TABLE, keys.jhas, canSync, mapJha),
         hydrateCollection(TOOLBOX_TABLE, keys.toolbox, canSync, mapToolbox),
         hydrateCollection(INCIDENTS_TABLE, keys.incidents, canSync, mapIncident),
         hydrateCollection(HAZARDS_TABLE, keys.hazards, canSync, mapHazard),
+        hydrateCollection(INSPECTIONS_TABLE, keys.inspections, canSync, mapInspection),
+        hydrateCollection(CERTIFICATIONS_TABLE, keys.certifications, canSync, mapCertification),
+        hydrateCollection(TEMPLATES_TABLE, keys.templates, canSync, mapTemplate),
       ]);
       if (cancelled) return;
       setJhas(j); setToolboxTalks(t); setIncidents(i); setHazards(h);
+      setInspections(insp); setCertifications(cert); setTemplates(tpl);
       hydratedRef.current = true;
     })();
     return () => { cancelled = true; };
@@ -427,10 +502,154 @@ export const [SafetyProvider, useSafety] = createContextHook(() => {
     [hazards],
   );
 
+  // ── Inspections (project-scoped) ─────────────────────────────────────
+  const addInspection = useCallback((inspection: SafetyInspection) => {
+    const updated = [inspection, ...inspections];
+    setInspections(updated);
+    void saveLocal(keys.inspections, updated);
+    if (canSync) void supabaseWrite('safety_inspections', 'insert', {
+      id: inspection.id, user_id: userId, project_id: inspection.projectId,
+      template_id: inspection.templateId ?? null, title: inspection.title,
+      date: inspection.date, inspector: inspection.inspector,
+      items: inspection.items, score: inspection.score,
+      status: inspection.status ?? 'complete',
+      created_by: inspection.createdBy, created_at: inspection.createdAt,
+    });
+  }, [inspections, canSync, userId, keys]);
+
+  const updateInspection = useCallback((id: string, changes: Partial<SafetyInspection>) => {
+    const now = new Date().toISOString();
+    const updated = inspections.map(x => x.id === id ? { ...x, ...changes, updatedAt: now } : x);
+    setInspections(updated);
+    void saveLocal(keys.inspections, updated);
+    if (canSync) {
+      const payload: Record<string, unknown> = { id };
+      if (changes.title !== undefined) payload.title = changes.title;
+      if (changes.date !== undefined) payload.date = changes.date;
+      if (changes.inspector !== undefined) payload.inspector = changes.inspector;
+      if (changes.items !== undefined) payload.items = changes.items;
+      if (changes.score !== undefined) payload.score = changes.score;
+      if (changes.status !== undefined) payload.status = changes.status;
+      if (changes.templateId !== undefined) payload.template_id = changes.templateId;
+      void supabaseWrite('safety_inspections', 'update', payload);
+    }
+  }, [inspections, canSync, keys]);
+
+  const deleteInspection = useCallback((id: string) => {
+    const updated = inspections.filter(x => x.id !== id);
+    setInspections(updated);
+    void saveLocal(keys.inspections, updated);
+    if (canSync) void supabaseWrite('safety_inspections', 'delete', { id });
+  }, [inspections, canSync, keys]);
+
+  const getInspectionsForProject = useCallback(
+    (projectId: string) => inspections.filter(i => i.projectId === projectId),
+    [inspections],
+  );
+
+  // ── Certifications (company-scoped; person-anchored via workerId) ─────
+  const addCertification = useCallback((cert: Certification) => {
+    const updated = [cert, ...certifications];
+    setCertifications(updated);
+    void saveLocal(keys.certifications, updated);
+    if (canSync) void supabaseWrite('certifications', 'insert', {
+      id: cert.id, user_id: userId, worker_id: cert.workerId ?? null,
+      holder_name: cert.holderName ?? null, sub_id: cert.subId ?? null,
+      type: cert.type, issued_date: cert.issuedDate ?? null, expires_date: cert.expiresDate ?? null,
+      document_url: cert.documentUrl ?? null, status: cert.status,
+      created_by: cert.createdBy, created_at: cert.createdAt,
+    });
+  }, [certifications, canSync, userId, keys]);
+
+  const updateCertification = useCallback((id: string, changes: Partial<Certification>) => {
+    const now = new Date().toISOString();
+    const updated = certifications.map(x => x.id === id ? { ...x, ...changes, updatedAt: now } : x);
+    setCertifications(updated);
+    void saveLocal(keys.certifications, updated);
+    if (canSync) {
+      const payload: Record<string, unknown> = { id };
+      if (changes.workerId !== undefined) payload.worker_id = changes.workerId;
+      if (changes.holderName !== undefined) payload.holder_name = changes.holderName;
+      if (changes.subId !== undefined) payload.sub_id = changes.subId;
+      if (changes.type !== undefined) payload.type = changes.type;
+      if (changes.issuedDate !== undefined) payload.issued_date = changes.issuedDate;
+      if (changes.expiresDate !== undefined) payload.expires_date = changes.expiresDate;
+      if (changes.documentUrl !== undefined) payload.document_url = changes.documentUrl;
+      if (changes.status !== undefined) payload.status = changes.status;
+      void supabaseWrite('certifications', 'update', payload);
+    }
+  }, [certifications, canSync, keys]);
+
+  const deleteCertification = useCallback((id: string) => {
+    const updated = certifications.filter(x => x.id !== id);
+    setCertifications(updated);
+    void saveLocal(keys.certifications, updated);
+    if (canSync) void supabaseWrite('certifications', 'delete', { id });
+  }, [certifications, canSync, keys]);
+
+  /** Certifications with status re-derived against `referenceDate` (today). */
+  const certificationsWithStatus = useCallback(
+    (referenceDate: string) =>
+      certifications.map((c) => ({ ...c, status: certStatus(c.expiresDate, referenceDate) })),
+    [certifications],
+  );
+
+  /** Non-valid certs (expiring or expired) for the company dashboard. */
+  const expiringCertifications = useCallback(
+    (referenceDate: string) => certificationsWithStatus(referenceDate).filter((c) => c.status !== 'valid'),
+    [certificationsWithStatus],
+  );
+
+  /** A single worker's certifications, looked up by the CrewMember person-anchor.
+   *  Powers the crew member-detail view (app/crew.tsx, Worker Profile feature). */
+  const getCertificationsForWorker = useCallback(
+    (workerId: string) => certifications.filter((c) => c.workerId === workerId),
+    [certifications],
+  );
+
+  // ── Forms Library templates (company-scoped) ─────────────────────────
+  const addTemplate = useCallback((template: SafetyFormTemplate) => {
+    const updated = [template, ...templates];
+    setTemplates(updated);
+    void saveLocal(keys.templates, updated);
+    if (canSync) void supabaseWrite('safety_templates', 'insert', {
+      id: template.id, user_id: userId, name: template.name, category: template.category,
+      fields: template.fields, created_by: template.createdBy, created_at: template.createdAt,
+    });
+  }, [templates, canSync, userId, keys]);
+
+  const updateTemplate = useCallback((id: string, changes: Partial<SafetyFormTemplate>) => {
+    const now = new Date().toISOString();
+    const updated = templates.map(x => x.id === id ? { ...x, ...changes, updatedAt: now } : x);
+    setTemplates(updated);
+    void saveLocal(keys.templates, updated);
+    if (canSync) {
+      const payload: Record<string, unknown> = { id };
+      if (changes.name !== undefined) payload.name = changes.name;
+      if (changes.category !== undefined) payload.category = changes.category;
+      if (changes.fields !== undefined) payload.fields = changes.fields;
+      void supabaseWrite('safety_templates', 'update', payload);
+    }
+  }, [templates, canSync, keys]);
+
+  const deleteTemplate = useCallback((id: string) => {
+    const updated = templates.filter(x => x.id !== id);
+    setTemplates(updated);
+    void saveLocal(keys.templates, updated);
+    if (canSync) void supabaseWrite('safety_templates', 'delete', { id });
+  }, [templates, canSync, keys]);
+
   return {
     jhas, addJha, updateJha, deleteJha, getJhasForProject,
     toolboxTalks, addToolboxTalk, updateToolboxTalk, deleteToolboxTalk, getToolboxTalksForProject,
     incidents, addIncident, updateIncident, deleteIncident, getIncidentsForProject,
     hazards, addHazard, updateHazard, deleteHazard, getHazardsForProject,
+    // Wave B — inspections (project-scoped)
+    inspections, getInspectionsForProject, addInspection, updateInspection, deleteInspection,
+    // Wave B — certifications (company-scoped; person-anchored via workerId → CrewMember.id)
+    certifications, certificationsWithStatus, expiringCertifications, getCertificationsForWorker,
+    addCertification, updateCertification, deleteCertification,
+    // Wave B — forms library (company-scoped)
+    templates, addTemplate, updateTemplate, deleteTemplate,
   };
 });
