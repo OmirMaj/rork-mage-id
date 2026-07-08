@@ -3009,6 +3009,63 @@ export interface WorkerProfile {
   createdAt: string;
 }
 
+// ─── Crew Member (verified, portable worker identity) ─────────────────────
+// DISTINCT from the marketplace `WorkerProfile` above. A CrewMember is
+// company-scoped, GC-created, and worker-claimable. It is the person-anchor
+// for Safety Wave B certifications (Certification.workerId → CrewMember.id,
+// added in Wave B which ships AFTER this feature) and can later SURFACE AS a
+// marketplace WorkerProfile when claimed + public + HIRE_ENABLED.
+export type CrewMemberStatus = 'active' | 'inactive';
+export type IdDocumentType = 'drivers_license' | 'state_id' | 'passport' | 'other';
+
+/** Fields returned by the scan-credential edge fn for a government_id. The
+ *  raw idNumberFull is used ONCE client-side to derive idMaskedLast4, then
+ *  discarded — it is never persisted or synced. */
+export interface IdScanFields {
+  fullName: string;
+  idType: IdDocumentType;
+  idNumberFull: string;
+  dob: string;
+  expiry: string;
+  issuer: string;
+}
+
+export interface CrewMember {
+  id: string;
+  /** Owning GC (auth user id). */
+  companyUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  // Identity
+  fullName: string;
+  trades: string[];
+  phone?: string;
+  email?: string;
+  photoUrl?: string;
+  status: CrewMemberStatus;
+  // ID verification (extract-then-purge default: only masked/derived fields)
+  idVerified: boolean;
+  idType?: IdDocumentType;
+  idMaskedLast4?: string;
+  idExpiry?: string;
+  idIssuer?: string;
+  idScannedAt?: string;
+  /** Present ONLY if the GC opted to retain the raw image. A storage PATH in
+   *  the private `worker-ids` bucket — never a durable URL. Undefined after
+   *  the default purge. */
+  idImagePath?: string;
+  // Claim (hybrid ownership)
+  claimToken?: string;
+  claimedByUserId?: string;
+  claimedAt?: string;
+  /** Worker-controlled marketplace visibility. Default false. */
+  isPublic: boolean;
+  /** Link to a Hire WorkerProfile once surfaced (HIRE_ENABLED gated). */
+  marketplaceProfileId?: string;
+  // Assignment
+  projectIds: string[];
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
