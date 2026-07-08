@@ -5,7 +5,6 @@ export interface IdScanResult {
   fullName: string;
   idType: IdDocumentType;
   idNumberFull: string;
-  dob: string;
   expiry: string;
   issuer: string;
 }

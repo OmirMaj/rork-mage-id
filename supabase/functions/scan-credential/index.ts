@@ -1,7 +1,7 @@
 // scan-credential
 //
 // Gemini Vision extractor for worker credentials. Two kinds:
-//   - 'government_id'  → { fullName, idType, idNumberFull, dob, expiry, issuer }
+//   - 'government_id'  → { fullName, idType, idNumberFull, expiry, issuer } (DOB deliberately NOT extracted)
 //   - 'certification'  → { certType, certNumber, issuer, issuedDate, expiresDate }
 //
 // Business-tier only. The server returns the extracted FIELDS ONLY — it never
@@ -46,11 +46,11 @@ Return a single JSON object:
   - fullName: the person's full name as printed.
   - idType: one of "drivers_license", "state_id", "passport", "other".
   - idNumberFull: the document/license number exactly as printed (letters + digits).
-  - dob: date of birth as YYYY-MM-DD if determinable, else "".
   - expiry: expiration date as YYYY-MM-DD if determinable, else "".
   - issuer: the issuing authority (state name for a license/state ID, country for a passport).
 
-Return JSON only — no preamble. If the image is not a government ID, return { "fullName": "", "idType": "other", "idNumberFull": "", "dob": "", "expiry": "", "issuer": "" }.`;
+Do NOT extract or return date of birth — MAGE does not store it.
+Return JSON only — no preamble. If the image is not a government ID, return { "fullName": "", "idType": "other", "idNumberFull": "", "expiry": "", "issuer": "" }.`;
 
 const CERT_PROMPT = `You are reading a construction / trade CERTIFICATION card or certificate (OSHA 10/30, SST, CPR, First Aid, forklift, journeyman license, etc.). Extract the fields into strict JSON. Do NOT guess — leave a field empty if not clearly legible.
 
@@ -175,7 +175,6 @@ serve(async (req) => {
       fullName: String(parsed.fullName ?? '').slice(0, 120),
       idType: validTypes.includes(t) ? t : 'other',
       idNumberFull: String(parsed.idNumberFull ?? '').slice(0, 40),
-      dob: String(parsed.dob ?? ''),
       expiry: String(parsed.expiry ?? ''),
       issuer: String(parsed.issuer ?? '').slice(0, 80),
     };

@@ -3025,7 +3025,6 @@ export interface IdScanFields {
   fullName: string;
   idType: IdDocumentType;
   idNumberFull: string;
-  dob: string;
   expiry: string;
   issuer: string;
 }
