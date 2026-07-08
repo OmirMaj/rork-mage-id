@@ -10,6 +10,7 @@ import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
 import { SafetyProvider } from "@/contexts/SafetyContext";
+import { CrewProvider } from "@/contexts/CrewContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
@@ -1222,6 +1223,7 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  <CrewProvider>
                   <SafetyProvider>
                   <PropertyProvider>
                   <MaterialCartProvider>
@@ -1247,6 +1249,7 @@ export default Sentry.wrap(function RootLayout() {
                   </MaterialCartProvider>
                   </PropertyProvider>
                   </SafetyProvider>
+                  </CrewProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>
