@@ -713,6 +713,7 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
+      <Stack.Screen name="wip-report" options={{ title: 'WIP Report' }} />
       <Stack.Screen
         name="job-costing"
         options={{ headerShown: false }}
