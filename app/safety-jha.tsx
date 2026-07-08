@@ -208,11 +208,16 @@ function SafetyJhaInner() {
   }, [editingJha, updateJha, resetForm]);
 
   const handleDelete = useCallback((id: string) => {
+    const jha = items.find(x => x.id === id);
+    if (jha && jha.signOffs.length > 0) {
+      Alert.alert('Signed — locked', 'A JHA with recorded sign-offs is part of the safety record and can\'t be deleted. Archive it instead.');
+      return;
+    }
     Alert.alert('Delete JHA', 'Delete this job hazard analysis?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteJha(id) },
     ]);
-  }, [deleteJha]);
+  }, [deleteJha, items]);
 
   const handleAddSignOff = useCallback(() => {
     const jha = items.find(x => x.id === signOffFor);

@@ -141,11 +141,16 @@ function SafetyToolboxInner() {
   }, [topic, date, presenter, notes, attendees, editingTalk, projectId, addToolboxTalk, updateToolboxTalk, resetForm, author]);
 
   const handleDelete = useCallback((id: string) => {
+    const talk = items.find(x => x.id === id);
+    if (talk && talk.attendees.some(a => !!a.signedAt)) {
+      Alert.alert('Signed — locked', 'A toolbox talk with signed attendees is part of the safety record and can\'t be deleted.');
+      return;
+    }
     Alert.alert('Delete toolbox talk', 'Delete this toolbox talk?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteToolboxTalk(id) },
     ]);
-  }, [deleteToolboxTalk]);
+  }, [deleteToolboxTalk, items]);
 
   if (!project) {
     return (
