@@ -32,10 +32,10 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
   s.id = 'dc-styles';
   s.textContent = [
     '.dc-editable{cursor:text;outline:none;white-space:nowrap;border-radius:3px;padding:0 2px;margin:0 -2px}',
-    '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #c96442}',
+    '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #FF6A1A}',
     '[data-dc-slot]{transition:transform .18s cubic-bezier(.2,.7,.3,1)}',
     '[data-dc-slot].dc-dragging{transition:none;z-index:10;pointer-events:none}',
-    '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #c96442;transform:scale(1.02)}',
+    '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #FF6A1A;transform:scale(1.02)}',
     '.dc-card{transition:box-shadow .15s,transform .15s}',
     '.dc-card *{scrollbar-width:none}',
     '.dc-card *::-webkit-scrollbar{display:none}',

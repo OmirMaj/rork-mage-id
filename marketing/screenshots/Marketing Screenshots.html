@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  html, body { margin: 0; padding: 0; background: #1a1a1a; font-family: "Inter", -apple-system, system-ui, sans-serif; }
+  html, body { margin: 0; padding: 0; background: #1a1a1a; font-family: "Space Grotesk", -apple-system, system-ui, sans-serif; }
   * { box-sizing: border-box; }
 </style>
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -192,7 +192,7 @@ function App() {
             title="Quick Estimate."
             accent="8 questions."
             tag="AI estimate"
-            bg="#f1efe9" fg="#0e1a14" accentColor="#0e3d28"
+            bg="#F4EFE6" fg="#0B0D10" accentColor="#FF6A1A"
             src={SCREENS.estimateHero}
           />
         </DCArtboard>
@@ -202,7 +202,7 @@ function App() {
             title="Gantt that actually fits"
             accent="in your pocket."
             tag="Schedule"
-            bg="#0a0e0c" fg="#fff" accentColor="#ff6b35"
+            bg="#0B0D10" fg="#fff" accentColor="#FF6A1A"
             src={SCREENS.gantt}
           />
         </DCArtboard>
@@ -237,7 +237,7 @@ function App() {
             title="One screen,"
             accent="every project."
             sub="Total value. Bulk savings. What needs your attention today."
-            bg="#0e3d28" fg="#fff" accentColor="#7ed4a3"
+            bg="#0B0D10" fg="#fff" accentColor="#FF6A1A"
             src={SCREENS.projects}
           />
         </DCArtboard>
@@ -247,7 +247,7 @@ function App() {
             title="Ask Mage"
             accent="anything."
             sub="What should I focus on today? Am I on budget? Which jobs are at risk?"
-            bg="#0a0e0c" fg="#fff" accentColor="#ff6b35"
+            bg="#0B0D10" fg="#fff" accentColor="#FF6A1A"
             src={SCREENS.copilot}
           />
         </DCArtboard>
@@ -261,7 +261,7 @@ function App() {
 
         <DCArtboard id="tw-1" label="OG card — main" width={1600} height={900}>
           <TwitterCard
-            title={<>The construction<br/>app that <em style={{ color: "#ff6b35" }}>actually</em><br/>uses AI.</>}
+            title={<>The construction<br/>app that <em style={{ color: "#FF6A1A" }}>actually</em><br/>uses AI.</>}
             sub="Estimating, takeoff, scheduling, daily reports — all generated. All editable."
             srcs={[SCREENS.estimator, SCREENS.aiEstimator]}
           />
@@ -269,7 +269,7 @@ function App() {
 
         <DCArtboard id="tw-2" label="OG card — portal" width={1600} height={900}>
           <TwitterCard
-            title={<>A client portal<br/>they'll <em style={{ color: "#ff6b35" }}>actually</em> open.</>}
+            title={<>A client portal<br/>they'll <em style={{ color: "#FF6A1A" }}>actually</em> open.</>}
             sub="Branded, dead simple. Live schedule, selections, messages."
             srcs={[SCREENS.portalSchedule, SCREENS.portalHero]}
           />
@@ -335,7 +335,7 @@ function App() {
             title="Find Subs"
             accent="One directory."
             tag="Companies"
-            bg="#f1efe9" fg="#0e1a14" accentColor="#0e3d28"
+            bg="#F4EFE6" fg="#0B0D10" accentColor="#FF6A1A"
             src={SCREENS.companies}
           />
         </DCArtboard>
@@ -345,14 +345,14 @@ function App() {
             title="Post a job"
             accent="in 60 seconds."
             sub="Five fields. Goes live to qualified tradespeople nearby."
-            bg="#0e3d28" fg="#fff" accentColor="#7ed4a3"
+            bg="#0B0D10" fg="#fff" accentColor="#FF6A1A"
             src={SCREENS.postJob}
           />
         </DCArtboard>
 
         <DCArtboard id="hire-8" label="OG — Post a Bid" width={1600} height={900}>
           <TwitterCard
-            title={<>Post a bid.<br/>Get <em style={{ color: "#ff6b35" }}>real</em> contractors.</>}
+            title={<>Post a bid.<br/>Get <em style={{ color: "#FF6A1A" }}>real</em> contractors.</>}
             sub="Federal, state, municipal, county, private — all in one form. Bond requirements built in."
             srcs={[SCREENS.postBid, SCREENS.companies]}
           />
