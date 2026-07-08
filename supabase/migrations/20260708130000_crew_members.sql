@@ -6,6 +6,9 @@
 -- GC can INSERT (user_id = auth.uid()); the GC OR the claimed worker can
 -- UPDATE; only the GC can DELETE. Mirrors the punch_items/jhas ownership
 -- pattern (20260708120000_safety_wave_a.sql) plus the claimed-worker overlay.
+-- Because that overlay widens UPDATE beyond a single owner, a BEFORE-UPDATE
+-- trigger (crew_freeze_ownership_columns) freezes user_id/claimed_by_user_id
+-- for non-owner callers so the claimed worker cannot hijack ownership.
 --
 -- Apply to PROD BEFORE the OTA that writes this table (PGRST204 gate — an OTA
 -- writing a column the live schema lacks fails silently in supabaseWrite).
@@ -56,11 +59,41 @@ CREATE POLICY "crew_select_own_or_claimed" ON public.crew_members
 CREATE POLICY "crew_insert_own" ON public.crew_members
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 -- UPDATE: owning GC or the claimed worker (self-edit path is not tier-gated).
+-- WITH CHECK re-validates the NEW row so an update cannot move a row outside
+-- owner-or-claimed visibility. CRITICAL: WITH CHECK alone does NOT stop a
+-- claimed worker from hijacking ownership — they could set user_id = auth.uid()
+-- and the NEW row would still satisfy the OR clause, silently dropping the row
+-- out of the GC's user_id-scoped SELECT/UPDATE/DELETE policies (compliance
+-- roster). The crew_freeze_ownership_columns BEFORE-UPDATE trigger below closes
+-- that by freezing user_id + claimed_by_user_id for any authenticated caller
+-- who is not the owning GC. Service-role / trusted-backend writes
+-- (auth.uid() IS NULL) are exempt and bypass RLS as usual.
 CREATE POLICY "crew_update_own_or_claimed" ON public.crew_members
-  FOR UPDATE USING (auth.uid() = user_id OR auth.uid() = claimed_by_user_id);
+  FOR UPDATE
+  USING (auth.uid() = user_id OR auth.uid() = claimed_by_user_id)
+  WITH CHECK (auth.uid() = user_id OR auth.uid() = claimed_by_user_id);
 -- DELETE: only the owning GC.
 CREATE POLICY "crew_delete_own" ON public.crew_members
   FOR DELETE USING (auth.uid() = user_id);
+
+-- Freeze ownership columns against a claimed worker's self-edit. A BEFORE
+-- trigger's NEW row is what RLS WITH CHECK ultimately validates, so restoring
+-- user_id/claimed_by_user_id here defeats the USING-clause escalation while
+-- leaving the worker's legitimate self-edits (phone, email, certs, own ID
+-- scan) untouched.
+CREATE OR REPLACE FUNCTION public.crew_freeze_ownership_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND auth.uid() IS DISTINCT FROM OLD.user_id THEN
+    NEW.user_id := OLD.user_id;
+    NEW.claimed_by_user_id := OLD.claimed_by_user_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER crew_members_freeze_ownership BEFORE UPDATE ON public.crew_members
+  FOR EACH ROW EXECUTE FUNCTION public.crew_freeze_ownership_columns();
 
 CREATE TRIGGER crew_members_updated_at BEFORE UPDATE ON public.crew_members
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
