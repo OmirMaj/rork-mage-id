@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Bell, ChevronDown, FolderOpen, CalendarDays, Download } from 'lucide-react-native';
+import { Bell, ChevronDown, FolderOpen, CalendarDays, Download, FileInput } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -162,6 +162,13 @@ export function MobileScheduleScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => setShowCalendar(true)} accessibilityLabel="Jump to date" testID="open-calendar">
           <CalendarDays size={19} color={colors.text} strokeWidth={1.75} />
+        </TouchableOpacity>
+        {/* Import Excel / MS Project schedule. This is the ONLY phone entry to
+            the Schedule Import feature — Schedule Pro (its desktop home) shows a
+            "best on a bigger screen" redirect on phones, so without this button
+            the feature is unreachable on iOS (the primary target). */}
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/schedule-import?projectId=${selectedProject.id}`)} accessibilityLabel="Import schedule" testID="open-schedule-import">
+          <FileInput size={19} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => setShowExport(true)} accessibilityLabel="Export schedule" testID="open-export" disabled={tasks.length === 0}>
           <Download size={19} color={tasks.length === 0 ? colors.textMuted : colors.text} strokeWidth={1.75} />
