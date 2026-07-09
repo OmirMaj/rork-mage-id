@@ -265,6 +265,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     safety_ai: 0,
     scan_credential: 0,
     schedule_import: 0,
+    scan_anything: 0,
   },
   pro: {
     analyze_drawings: 15,
@@ -276,6 +277,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     safety_ai: 0,
     scan_credential: 20,
     schedule_import: 20,
+    scan_anything: 0,
   },
   business: {
     analyze_drawings: 50,
@@ -287,6 +289,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     safety_ai: 900,
     scan_credential: 60,
     schedule_import: 60,
+    scan_anything: 120,
   },
   enterprise: {
     analyze_drawings: 100,
@@ -298,5 +301,6 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     safety_ai: 1800,
     scan_credential: 150,
     schedule_import: 150,
+    scan_anything: 300,
   },
 };
