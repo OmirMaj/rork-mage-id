@@ -1029,8 +1029,14 @@ export default function HomeScreen() {
       <Tutorial visible={showTutorial} onClose={() => setShowTutorial(false)} />
 
       {/* Floating help — answers "what is this thing" without forcing the
-          user to navigate away. Bottom-offset clears the bottom tab bar. */}
-      <HelpFab bottomOffset={56} onReplayTutorial={() => setShowTutorial(true)} />
+          user to navigate away. Must stack ABOVE the mic button, which itself
+          sits above the AICopilot FAB (insets.bottom + 70). Mic tops out at
+          insets.bottom + 180 (bottom 134 + height 46); HelpFab renders at
+          insets.bottom + bottomOffset + 16, so 172 leaves an 8px gap and keeps
+          all three right-edge FABs in a clean vertical stack. A smaller offset
+          parked the orange help button directly behind the AI FAB — it poked
+          out as an orange sliver and was unreachable. */}
+      <HelpFab bottomOffset={172} onReplayTutorial={() => setShowTutorial(true)} />
 
       {/* Demo-seed picker — small ($420K) or large ($14M). Empty-state
           "Try a sample project" CTA toggles this open. */}

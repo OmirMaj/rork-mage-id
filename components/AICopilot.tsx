@@ -360,10 +360,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: '#0B0D10',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    shadowColor: t.accent,
+    // Neutral shadow, matching UniversalMicButton. A colored (accent) shadow
+    // tinted this dark FAB's glow orange against the light background; neutral
+    // reads cleaner and keeps the two stacked FABs visually consistent.
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    shadowOpacity: 0.30,
+    shadowRadius: 10,
     elevation: 8,
   },
   modalOverlay: {
