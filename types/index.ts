@@ -2709,6 +2709,22 @@ export interface PortalMessage {
   readByClient: boolean;
 }
 
+// ─── Scan Anything → auto-file ────────────────────────────────────────────
+export type ScanDocType =
+  | 'invoice' | 'delivery_ticket' | 'permit' | 'insurance_coi' | 'contract'
+  | 'business_card' | 'spec_sheet' | 'equipment_nameplate' | 'material_tag'
+  | 'warranty' | 'inspection_notice' | 'plan_sheet' | 'government_id' | 'other';
+export type ScanRecordKind = 'cost' | 'contact' | 'sub_compliance' | 'file_only';
+export interface ScanDestination { folder: string; recordKind: ScanRecordKind }
+export interface ScanRecord {
+  id: string; userId: string; projectId: string;
+  docType: ScanDocType; title: string;
+  fields: Record<string, unknown>;
+  filePath: string;
+  recordKind: ScanRecordKind; linkedRecordId?: string;
+  createdAt: string;
+}
+
 export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Other';
 
 export interface Contact {
