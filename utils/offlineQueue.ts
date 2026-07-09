@@ -45,6 +45,25 @@ function isNetworkError(err: unknown): boolean {
     ));
 }
 
+// A PostgREST schema-cache miss (PGRST204 — "Could not find the '<col>' column
+// of '<table>' in the schema cache", or the table-level variant) surfaces when
+// an OTA that writes a new column/table reaches devices before its migration is
+// applied to prod — OR during the brief window while PostgREST reloads its
+// schema cache right AFTER the migration lands. Either way it is TRANSIENT and
+// self-heals the moment the schema catches up, so it must be treated exactly
+// like a network error: re-queue the write UNCHANGED and retry WITHOUT burning
+// the retry budget. Classifying it terminal (or letting it exhaust MAX_RETRIES)
+// would silently DROP offline-created rows during a migration-before-OTA race —
+// the punch-item sync regression this guards against.
+function isSchemaCacheError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('pgrst204') ||
+    m.includes('schema cache') ||
+    (m.includes('could not find') && (m.includes('column') || m.includes('table')))
+  );
+}
+
 export async function getOfflineQueue(): Promise<OfflineMutation[]> {
   try {
     const stored = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
@@ -168,13 +187,14 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
         console.log('[OfflineQueue] Processed:', mutation.table, mutation.operation);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (isNetworkError(err)) {
+        if (isNetworkError(err) || isSchemaCacheError(msg)) {
           // Offline / transient — re-queue UNCHANGED. Crucially do NOT bump
-          // retryCount: a device that's merely offline must never burn through
-          // its retry budget and permanently drop the write. retryCount is
-          // reserved for genuine server-side (5xx / transient-but-terminal)
-          // failures below.
-          console.log('[OfflineQueue] Network error, keeping mutation queued:', mutation.table, mutation.operation);
+          // retryCount: a device that's merely offline (or hitting a not-yet-
+          // migrated schema cache) must never burn through its retry budget and
+          // permanently drop the write. It self-heals when connectivity returns
+          // or the migration lands. retryCount is reserved for genuine
+          // server-side (5xx / transient-but-terminal) failures below.
+          console.log('[OfflineQueue] Transient error, keeping mutation queued:', mutation.table, mutation.operation);
           gRemaining.push(mutation);
           continue;
         }
@@ -278,16 +298,19 @@ export async function supabaseWrite(
 
     return true;
   } catch (err) {
-    if (isNetworkError(err)) {
-      console.log('[OfflineQueue] Network error, queuing mutation:', table, operation);
+    const msg = err instanceof Error ? err.message : 'Sync failed';
+    if (isNetworkError(err) || isSchemaCacheError(msg)) {
+      // Offline / transient (incl. a PostgREST schema-cache miss during a
+      // migration-before-OTA race). Queue the write UNCHANGED so it drains once
+      // connectivity returns or the migration lands — never drop it, and don't
+      // scare the user with a toast for a self-healing condition.
+      console.log('[OfflineQueue] Transient error, queuing mutation:', table, operation);
       await addToOfflineQueue({ table, operation, data });
     } else {
-      // Non-network failure (RLS denial, validation, server 500, schema
-      // mismatch). These won't be fixed by reconnecting — we need to tell
-      // the user so they can retry / report / fix the input. Logging
-      // alone (the previous behavior) silently lost the write from the
-      // user's perspective. AUD-001.
-      const msg = err instanceof Error ? err.message : 'Sync failed';
+      // Non-network failure (RLS denial, validation, server 500). These won't
+      // be fixed by reconnecting — we need to tell the user so they can retry /
+      // report / fix the input. Logging alone (the previous behavior) silently
+      // lost the write from the user's perspective. AUD-001.
       console.log('[OfflineQueue] Non-network Supabase error:', table, operation, msg);
       // Best-effort lazy require — keeping offlineQueue side-effect free
       // at module load. If the toast host isn't mounted yet, the call

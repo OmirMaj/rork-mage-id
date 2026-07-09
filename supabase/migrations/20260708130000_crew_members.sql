@@ -92,6 +92,13 @@ CREATE POLICY "crew_delete_own" ON public.crew_members
 --   • marketplace_profile_id — the Hire listing identity; worker-set values
 --     could collide with / shadow another worker's marketplace profile once
 --     HIRE_ENABLED flips. Only the GC / service role may set it.
+--   • full_name / status / project_ids — GC-controlled roster + assignment
+--     state. full_name is the identity shown on the compliance roster / JHA
+--     sign-offs and the person anchor for certifications; status (active/
+--     inactive) and project_ids (which projects the worker is assigned to)
+--     are the GC's call, not the worker's. A raw client PATCH must never let a
+--     claimed worker rename themselves, flip their own status, or self-assign
+--     to a GC project.
 -- Any legitimate worker self-scan must go through a service-role edge function
 -- (auth.uid() IS NULL, exempt below) that validates a fresh scan — never a raw
 -- client PATCH.
@@ -111,6 +118,9 @@ BEGIN
     NEW.id_scanned_at := OLD.id_scanned_at;
     NEW.id_image_path := OLD.id_image_path;
     NEW.marketplace_profile_id := OLD.marketplace_profile_id;
+    NEW.full_name := OLD.full_name;
+    NEW.status := OLD.status;
+    NEW.project_ids := OLD.project_ids;
   END IF;
   RETURN NEW;
 END;
