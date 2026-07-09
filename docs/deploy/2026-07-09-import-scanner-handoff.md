@@ -47,7 +47,7 @@ supabase functions deploy scan-anything   --project-ref nteoqhcswappxxjlpvap
 - Both bundle the current `_shared/auth.ts` (which now carries the new `schedule_import` + `scan_anything` caps) — the CLI reads from disk, so this is automatic.
 - Both default to `verify_jwt=true` (correct — both require an authenticated caller via `requireTier`).
 - Both need `GEMINI_API_KEY` in project env (already set — `analyze-photos` uses it).
-- `import-schedule` pulls SheetJS from esm.sh at deploy/runtime (Deno resolves it) — no app-side dependency.
+- `import-schedule` pulls SheetJS from `https://esm.sh/xlsx@0.18.5` — no app-side dependency. **Version is pinned to 0.18.5 deliberately:** SheetJS stopped publishing to npm after 0.18.5 (0.19+/0.20+ live only on `cdn.sheetjs.com`, which the Supabase deploy bundler refuses to fetch). Only `XLSX.read` + `XLSX.utils.sheet_to_json` are used — both stable since well before 0.18.5. Do NOT "upgrade" this to a 0.20.x esm.sh/cdn URL; the deploy will fail to bundle.
 
 ### Step 4 — OTA
 ```bash

@@ -39,7 +39,7 @@
 // }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import * as XLSX from "https://esm.sh/xlsx@0.20.3";
+import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
