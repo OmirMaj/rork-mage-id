@@ -131,7 +131,18 @@ function ScanInner() {
   // resolveDestination is the pure, validator-tested source of truth for
   // routing — we never trust the server's suggestedDestination for the save.
   const destination = result ? resolveDestination(result.docType) : null;
-  const isRedirect = result?.redirect === 'crew-id-scan';
+  // Government-ID is a hard stop that must not depend on a single server-supplied
+  // string. Treat the classified docType as an independent boundary: if EITHER
+  // the redirect hint OR the docType says government_id, we render the redirect
+  // card and never upload / never log a ScanRecord for it.
+  const isRedirect = result?.redirect === 'crew-id-scan' || result?.docType === 'government_id';
+
+  // A COI with no linked subcontractor is invisible in every compliance surface
+  // (all filter strictly by subcontractorId). Rather than persist an orphaned,
+  // unfindable compliance record, an unlinked COI files as a plain document.
+  const effectiveRecordKind: ScanRecordKind | null = destination
+    ? (destination.recordKind === 'sub_compliance' && !subId ? 'file_only' : destination.recordKind)
+    : null;
 
   const scalarKeys = useMemo(
     () => Object.keys(editedFields).filter(k => isScalar(editedFields[k])),
@@ -284,7 +295,11 @@ function ScanInner() {
 
   // ── Save ─────────────────────────────────────────────────────
   const onSave = useCallback(async () => {
-    if (!result || !destination || !projectId || saving) return;
+    if (!result || !destination || !effectiveRecordKind || !projectId || saving) return;
+    // Hard PII boundary: a government-ID capture must NEVER be uploaded or logged
+    // as a ScanRecord here, regardless of any other response field. It goes
+    // through the consented crew ID-scan flow instead.
+    if (result.docType === 'government_id' || result.redirect === 'crew-id-scan') return;
     setSaving(true);
     setError(null);
 
@@ -311,21 +326,28 @@ function ScanInner() {
         uploadOk = true;
       }
     } catch (e) {
-      // Upload failed — we STILL log the scan (with an empty filePath) so the
-      // capture isn't lost, but we SKIP the domain record so there's no orphan
-      // pointing at a file that never landed.
-      setError(`Filing failed: ${String((e as Error).message ?? e)}. Logged the scan without the file.`);
+      // Upload failed — leave everything intact (capture + confirm card) so the
+      // user can retry. We do NOT log a scan or create a record for a file that
+      // never landed, so there's no orphan pointing at nothing.
+      setError(`Filing failed: ${String((e as Error).message ?? e)}. Nothing was saved — tap "Confirm & file" to retry.`);
     }
 
-    // Only create the domain record when the file actually landed.
+    // Upload failed → keep the capture + confirm card on screen so the user can
+    // retry 'Confirm & file' (offline / transient Storage 5xx / name collision
+    // are all recoverable). Do NOT create a domain record, do NOT log a scan
+    // pointing at a file that never landed, and do NOT show the success banner.
+    if (!uploadOk) {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setSaving(false);
+      return;
+    }
+
     let linkedRecordId: string | undefined;
-    if (uploadOk) {
-      try {
-        linkedRecordId = createDomainRecord(destination.recordKind, result.docType, editedFields, publicUrl);
-      } catch {
-        // Domain-record creation is best-effort — the scan + file are already
-        // saved; don't fail the whole flow over the linked record.
-      }
+    try {
+      linkedRecordId = createDomainRecord(effectiveRecordKind, result.docType, editedFields, publicUrl);
+    } catch {
+      // Domain-record creation is best-effort — the scan + file are already
+      // saved; don't fail the whole flow over the linked record.
     }
 
     addScan({
@@ -334,7 +356,7 @@ function ScanInner() {
       title,
       fields: editedFields,
       filePath,
-      recordKind: destination.recordKind,
+      recordKind: effectiveRecordKind,
       linkedRecordId,
     });
 
@@ -343,7 +365,7 @@ function ScanInner() {
     setSaved(true);
     setResult(null);
     setCaptures([]);
-  }, [result, destination, projectId, saving, editedFields, captures, createDomainRecord, addScan]);
+  }, [result, destination, effectiveRecordKind, projectId, saving, editedFields, captures, createDomainRecord, addScan]);
 
   const scanAnother = useCallback(() => {
     setSaved(false);
@@ -475,14 +497,14 @@ function ScanInner() {
               <Folder size={15} color={t.accent} strokeWidth={1.75} />
               <Text style={styles.destText}>
                 Files to <Text style={styles.destStrong}>{folderLabel(destination.folder)}</Text>
-                {' · '}{recordKindPhrase(destination.recordKind)}
+                {' · '}{recordKindPhrase(effectiveRecordKind ?? destination.recordKind)}
               </Text>
             </View>
 
             {/* Sub picker (COI only) */}
             {destination.recordKind === 'sub_compliance' && projectSubs.length > 0 && (
               <View style={styles.pickerWrap}>
-                <Text style={styles.pickerLabel}>Link to subcontractor (optional)</Text>
+                <Text style={styles.pickerLabel}>Link to subcontractor (needed to file as compliance)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                   <TouchableOpacity onPress={() => setSubId('')} style={[styles.chip, !subId && styles.chipOn]}>
                     <Text style={[styles.chipText, !subId && styles.chipTextOn]}>None</Text>

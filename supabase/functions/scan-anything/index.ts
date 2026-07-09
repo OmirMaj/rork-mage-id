@@ -207,7 +207,7 @@ async function classify(
   parts: Record<string, unknown>[],
 ): Promise<{ docType: ScanDocType; confidence: number } | { error: string; status: number }> {
   const geminiParts = [{ text: CLASSIFY_PROMPT }, ...parts];
-  const r = await callGemini(geminiParts, 400);
+  const r = await callGemini(geminiParts, 400, 30_000);
   if ('error' in r) return r;
   const o = r.parsed as Record<string, unknown>;
   const t = String(o.docType ?? 'other');
@@ -226,7 +226,10 @@ async function extract(
   // No extract schema (plan_sheet / other) → file-only, empty fields.
   if (!prompt) return { fields: {}, title: '' };
   const geminiParts = [{ text: prompt }, ...parts];
-  const r = await callGemini(geminiParts, 1500);
+  // Invoices/contracts can carry 20+ line items; a 1500-token ceiling truncates
+  // the JSON mid-object → parse fails → blank form on the headline use case.
+  // Give the structured-output path a wider budget so realistic docs fit.
+  const r = await callGemini(geminiParts, 4000, 45_000);
   // On ANY extraction failure keep the classification but return empty fields —
   // the client presents an editable blank form and still files the image.
   // Never surface raw model text (may contain PII fragments).
@@ -244,8 +247,14 @@ async function extract(
 async function callGemini(
   parts: Record<string, unknown>[],
   maxOutputTokens: number,
+  timeoutMs: number,
 ): Promise<{ parsed: unknown } | { error: string; status: number }> {
   let resp: Response;
+  // Bound the upstream call: a stalled Gemini connection (hung TLS, no body)
+  // would otherwise block the isolate until the Edge wall-clock limit kills it,
+  // leaving the user on a long spinner then a generic function error.
+  const ac = new AbortController();
+  const to = setTimeout(() => ac.abort(), timeoutMs);
   try {
     resp = await fetch(`${ENDPOINT}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
@@ -254,9 +263,15 @@ async function callGemini(
         contents: [{ parts }],
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1, maxOutputTokens },
       }),
+      signal: ac.signal,
     });
   } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      return { error: 'Gemini timed out', status: 504 };
+    }
     return { error: `Gemini network error: ${(e as Error).message}`, status: 502 };
+  } finally {
+    clearTimeout(to);
   }
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
