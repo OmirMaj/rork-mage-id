@@ -418,9 +418,18 @@ export default function EstimateScreen() {
   // Only re-price when location changes. Removed the 5-minute interval and the
   // AppState resume refresh — those were causing estimates to drift by a cent
   // every time the user left and came back.
+  //
+  // refreshPrices calls ctxReplaceCart, which mutates `cart`; `cart` is one of
+  // refreshPrices's deps, so refreshPrices gets a fresh identity after every
+  // run. Listing it in this effect's deps therefore created an infinite update
+  // loop (React's "Maximum update depth exceeded"). Fix: fire strictly on
+  // locationMultiplier and reach the latest refreshPrices through a ref, so the
+  // effect's own identity never churns when the cart changes.
+  const refreshPricesRef = useRef(refreshPrices);
+  useEffect(() => { refreshPricesRef.current = refreshPrices; }, [refreshPrices]);
   useEffect(() => {
-    refreshPrices();
-  }, [locationMultiplier, refreshPrices]);
+    refreshPricesRef.current();
+  }, [locationMultiplier]);
 
   const filteredMaterials = useMemo(() => {
     let results = materials;
