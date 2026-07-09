@@ -136,6 +136,15 @@ export default function DiscoverToolsScreen() {
             onPress={() => router.push('/extract-submittals' as never)}
             testID="tools-spec-extract"
           />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={ScanLine}
+            title="Scan Anything"
+            subtitle="Snap any doc — invoice, business card, COI — it files itself to the right project"
+            tone="warning"
+            onPress={() => router.push('/scan' as never)}
+            testID="tools-scan"
+          />
         </Section>
 
         {/* Decisions — what's waiting on the GC to act on. */}

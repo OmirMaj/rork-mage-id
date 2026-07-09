@@ -23,7 +23,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft, FolderOpen, Upload, Layers, FileSignature, Camera,
-  Shield, BookOpen, ClipboardList, FileText, Trash2, ExternalLink,
+  Shield, BookOpen, ClipboardList, FileText, Trash2, ExternalLink, Receipt,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -55,6 +55,7 @@ const FOLDER_ICONS: Record<string, React.ComponentType<{ size?: number; color?: 
   permits: Shield,
   closeout: BookOpen,
   'daily-reports': ClipboardList,
+  financials: Receipt,
 };
 
 export function ProjectFilesBrowser({ projectId, projectName }: Props) {

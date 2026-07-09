@@ -12,7 +12,7 @@ import {
   DollarSign, Users, TrendingDown, MapPin,
   ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, CalendarDays,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, ScanSearch, Layers, Scale, ShieldCheck,
-  FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
+  FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
   Clock, Lock,
@@ -1188,9 +1188,12 @@ export default function ProjectDetailScreen() {
   // a missing project via the optional chain in the title fallback.
   const headerRight = useCallback(
     () => (
-      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <TouchableOpacity onPress={() => router.push({ pathname: '/scan' as any, params: { projectId: id } })} style={{ padding: 6 }} activeOpacity={0.7} testID="project-scan-btn" accessibilityRole="button" accessibilityLabel="Scan a document"><ScanLine size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
+        <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={themeColors.accent} strokeWidth={1.75} /></TouchableOpacity>
+      </View>
     ),
-    [openEditModal],
+    [openEditModal, router, id, themeColors.accent],
   );
   const stackScreenOptions = useMemo(
     () => ({ title: project?.name || 'Project Details', headerRight }),

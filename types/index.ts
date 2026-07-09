@@ -827,6 +827,49 @@ export interface ProjectSchedule {
   updatedAt: string;
 }
 
+// ─── Schedule Import (Excel .xlsx + MS Project XML) ───────────────────────
+export type ScheduleImportField =
+  | 'title' | 'durationDays' | 'startDate' | 'finishDate' | 'predecessors'
+  | 'progress' | 'wbs' | 'outlineLevel' | 'resource' | 'notes'
+  | 'milestone' | 'constraintType' | 'constraintDate';
+
+/** Excel: field → 0-based column index (null = unmapped). */
+export type ColumnMapping = Partial<Record<ScheduleImportField, number | null>>;
+
+/** One parsed source row, normalized. MSPDI arrives fully populated; Excel is
+ *  resolved through ColumnMapping into this same shape by the mapper. */
+export interface ImportedScheduleRow {
+  sourceId: string;            // MSPDI UID or Excel row index — stable within the file
+  title: string;
+  rawDuration?: string;        // "PT40H0M0S" | "5 days" | "3d" | "4"
+  rawStart?: string;           // ISO or locale date string
+  rawFinish?: string;
+  rawPredecessors?: string;    // "3FS+2d, 5SS" (Excel) or serialized MSPDI links
+  progress?: number;           // 0..100
+  wbs?: string;
+  outlineLevel?: number;       // 0 = top-level
+  resource?: string;
+  notes?: string;
+  milestone?: boolean;
+  constraintType?: number;     // MSPDI 0..7
+  constraintDate?: string;     // ISO
+}
+
+export interface ScheduleImportWarning {
+  code: string;                // 'dangling_dep' | 'unmapped_field' | 'bad_date' | 'truncated' | ...
+  message: string;
+  sourceId?: string;
+}
+
+export interface ScheduleImportResult {
+  format: 'xlsx' | 'msproject_xml';
+  rawColumns?: string[];       // Excel header row (for the mapping UI)
+  mapping?: ColumnMapping | null;
+  rows: ImportedScheduleRow[];
+  warnings: ScheduleImportWarning[];
+  truncated?: boolean;
+}
+
 export interface ScheduleScenario {
   id: string;
   name: string;
@@ -2664,6 +2707,22 @@ export interface PortalMessage {
   createdAt: string;
   readByGc: boolean;
   readByClient: boolean;
+}
+
+// ─── Scan Anything → auto-file ────────────────────────────────────────────
+export type ScanDocType =
+  | 'invoice' | 'delivery_ticket' | 'permit' | 'insurance_coi' | 'contract'
+  | 'business_card' | 'spec_sheet' | 'equipment_nameplate' | 'material_tag'
+  | 'warranty' | 'inspection_notice' | 'plan_sheet' | 'government_id' | 'other';
+export type ScanRecordKind = 'cost' | 'contact' | 'sub_compliance' | 'file_only';
+export interface ScanDestination { folder: string; recordKind: ScanRecordKind }
+export interface ScanRecord {
+  id: string; userId: string; projectId: string;
+  docType: ScanDocType; title: string;
+  fields: Record<string, unknown>;
+  filePath: string;
+  recordKind: ScanRecordKind; linkedRecordId?: string;
+  createdAt: string;
 }
 
 export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Other';

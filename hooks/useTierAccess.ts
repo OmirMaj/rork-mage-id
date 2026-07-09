@@ -24,6 +24,7 @@ export type FeatureKey =
   | 'job_costing'
   | 'prequal_coi'
   | 'plan_markup'
+  | 'schedule_import'
   // Business-only features
   | 'unlimited_bid_responses'
   | 'plan_viewer'
@@ -34,6 +35,7 @@ export type FeatureKey =
   | 'wip_reporting'
   | 'safety_management'
   | 'crew_management'
+  | 'scan_anything'
   // All tiers (with limits)
   | 'voice_commands'
   | 'post_homeowner_request'
@@ -85,6 +87,7 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   job_costing: 'pro',
   prequal_coi: 'pro',
   plan_markup: 'pro',
+  schedule_import: 'pro',
   // Business-only
   unlimited_bid_responses: 'business',
   plan_viewer: 'business',
@@ -95,6 +98,7 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   wip_reporting: 'business',
   safety_management: 'business',
   crew_management: 'business',
+  scan_anything: 'business',
   // Available to all
   voice_commands: 'free',
   post_homeowner_request: 'free',

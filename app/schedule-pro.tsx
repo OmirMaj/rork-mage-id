@@ -33,7 +33,7 @@ import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon, CloudRain } from 'lucide-react-native';
+import { ChevronLeft, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon, CloudRain, FileInput } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { Colors } from '@/constants/colors';
@@ -1416,6 +1416,7 @@ function ScheduleProScreenInner() {
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
           <HeaderBtn icon={RefreshCcw} label="Reflow" onPress={handleReflow} />
           <HeaderBtn icon={Bookmark} label="Baseline" onPress={() => setShowBaselineManager(true)} />
+          <HeaderBtn icon={FileInput} label="Import" onPress={() => router.push(`/schedule-import?projectId=${project.id}`)} />
           <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
           <HeaderBtn icon={CalendarPlus} label="iCal" onPress={() => { void handleExportIcs(); }} />
           <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />

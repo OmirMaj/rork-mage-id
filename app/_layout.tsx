@@ -15,6 +15,7 @@ import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
 import { WipProvider } from "@/contexts/WipContext";
+import { ScanProvider } from "@/contexts/ScanContext";
 import { BidsProvider } from "@/contexts/BidsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
@@ -496,6 +497,8 @@ function RootLayoutNav() {
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
       <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="schedule-import" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />
       <Stack.Screen name="extract-submittals" options={{ title: 'Extract Submittals' }} />
@@ -1242,6 +1245,7 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  <ScanProvider>
                   <WipProvider>
                   <CrewProvider>
                   <SafetyProvider>
@@ -1271,6 +1275,7 @@ export default Sentry.wrap(function RootLayout() {
                   </SafetyProvider>
                   </CrewProvider>
                   </WipProvider>
+                  </ScanProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>
