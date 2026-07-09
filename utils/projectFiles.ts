@@ -40,6 +40,7 @@ export const DEFAULT_FOLDERS = [
   { key: 'permits', label: 'Permits', icon: 'Shield' },
   { key: 'closeout', label: 'Closeout', icon: 'BookOpen' },
   { key: 'daily-reports', label: 'Daily Reports', icon: 'ClipboardList' },
+  { key: 'financials', label: 'Financials', icon: 'Receipt' },
 ] as const;
 
 export type DefaultFolderKey = (typeof DEFAULT_FOLDERS)[number]['key'];
