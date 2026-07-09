@@ -7,8 +7,9 @@
 //                    dep off the mobile bundle). Because column layouts
 //                    vary wildly, we ask Gemini to map the header row to
 //                    MAGE's schedule fields (title, duration, start,
-//                    predecessors, …). The client shows the suggested
-//                    mapping in a dropdown UI and can override it.
+//                    predecessors, …). The client shows the detected
+//                    mapping + a live preview; if detection fails the user
+//                    renames their headers and re-imports.
 //
 //   - MS Project XML (MSPDI) → parsed deterministically (no AI). MSPDI is
 //                    a well-defined schema, so we read <Task> elements +
@@ -146,8 +147,20 @@ function base64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
-// ─── xlsx parse + Gemini column detection ─────────────────────────────────
-async function parseXlsx(bytes: Uint8Array): Promise<ScheduleImportResult> {
+// ─── xlsx sheet read (cheap, deterministic — NOT metered) ─────────────────
+// Split out from the Gemini step so a corrupt or empty workbook can be
+// rejected BEFORE we charge the caller a monthly unit. XLSX.read can throw on
+// a malformed archive; the handler runs this in its own try so that failure
+// returns a 500 without ever touching aiUsageIncrement.
+interface XlsxGrid {
+  header: string[];
+  dataRows: unknown[][];
+  truncated: boolean;
+  warnings: ScheduleImportWarning[];
+  empty: boolean;
+}
+
+function readBestGrid(bytes: Uint8Array): XlsxGrid {
   const warnings: ScheduleImportWarning[] = [];
   const wb = XLSX.read(bytes, { type: "array" });
 
@@ -163,9 +176,7 @@ async function parseXlsx(bytes: Uint8Array): Promise<ScheduleImportResult> {
   }
 
   if (best.length === 0) {
-    return { format: "xlsx", rawColumns: [], mapping: null, rows: [], warnings: [
-      { code: "empty_file", message: "No rows found in any sheet." },
-    ] };
+    return { header: [], dataRows: [], truncated: false, warnings, empty: true };
   }
 
   const header = (best[0] ?? []).map((c) => String(c ?? "").trim());
@@ -180,14 +191,22 @@ async function parseXlsx(bytes: Uint8Array): Promise<ScheduleImportResult> {
     });
   }
 
+  return { header, dataRows, truncated, warnings, empty: false };
+}
+
+// ─── xlsx Gemini column detection + row materialization (metered step) ─────
+async function parseXlsx(grid: XlsxGrid): Promise<ScheduleImportResult> {
+  const warnings: ScheduleImportWarning[] = [...grid.warnings];
+  const { header, dataRows, truncated } = grid;
+
   // Ask Gemini to map header → schedule fields. On any failure, mapping=null
-  // and the client falls back to manual column selection.
+  // and the client asks the user to rename their headers and re-import.
   const mapping = await detectColumns(header, dataRows.slice(0, 5), warnings);
 
   // Materialize ImportedScheduleRow[] using the suggested mapping. Excel
-  // sourceId = the data-row index (stable within this file). If Gemini could
-  // not map a title column, we still return the raw rows unmaterialized so
-  // the client can map manually.
+  // sourceId uses 1-based numbering (i + 1) to match the task IDs that
+  // Excel/MS-Project predecessor cells reference (the sheet's visible row #),
+  // so a "depends on task 3" cell resolves to the 3rd task, not the 4th.
   const cellAt = (row: unknown[], idx: number | null | undefined): string | undefined => {
     if (idx == null || idx < 0 || idx >= row.length) return undefined;
     const v = String(row[idx] ?? "").trim();
@@ -201,7 +220,7 @@ async function parseXlsx(bytes: Uint8Array): Promise<ScheduleImportResult> {
 
   const rows: ImportedScheduleRow[] = mapping
     ? dataRows.map((row, i): ImportedScheduleRow => ({
-        sourceId: String(i),
+        sourceId: String(i + 1),
         title: cellAt(row, mapping.title) ?? "",
         rawDuration: cellAt(row, mapping.durationDays),
         rawStart: cellAt(row, mapping.startDate),
@@ -218,12 +237,12 @@ async function parseXlsx(bytes: Uint8Array): Promise<ScheduleImportResult> {
   if (!mapping) {
     warnings.push({
       code: "unmapped_field",
-      message: "Could not auto-detect columns. Map them manually to continue.",
+      message: "Could not auto-detect the columns. Rename your headers (Task, Duration, Start, Predecessors) and re-import.",
     });
   } else if (mapping.title == null) {
     warnings.push({
       code: "unmapped_field",
-      message: "No task-name column detected — pick one to continue.",
+      message: "No task-name column found. Rename a column to 'Task' and re-import.",
     });
   }
 
@@ -253,11 +272,11 @@ async function detectColumns(
       }),
     });
   } catch {
-    warnings.push({ code: "column_detect_failed", message: "Column auto-detect unavailable; map manually." });
+    warnings.push({ code: "column_detect_failed", message: "Column auto-detect is unavailable right now. Rename your headers (Task, Duration, Start, Predecessors) and re-import." });
     return null;
   }
   if (!geminiResp.ok) {
-    warnings.push({ code: "column_detect_failed", message: "Column auto-detect unavailable; map manually." });
+    warnings.push({ code: "column_detect_failed", message: "Column auto-detect is unavailable right now. Rename your headers (Task, Duration, Start, Predecessors) and re-import." });
     return null;
   }
 
@@ -425,7 +444,20 @@ serve(async (req) => {
     if (!bytes) return jsonResponse({ success: false, error: "Excel file bytes missing (send fileBase64)" }, 400);
     if (!GEMINI_API_KEY) return jsonResponse({ success: false, error: "GEMINI_API_KEY not configured" }, 500);
 
-    // Meter AFTER validation, BEFORE the Gemini column-detect call.
+    // Read the sheet up front (cheap, safe). A corrupt or empty workbook must
+    // NOT burn a metered unit — only a genuine Gemini column-detect call does.
+    // readBestGrid can throw on a malformed archive; the outer try turns that
+    // into a 500 with no metering.
+    const grid = readBestGrid(bytes);
+    if (grid.empty) {
+      // No Gemini spend for an empty workbook → do not meter.
+      return jsonResponse({
+        format: "xlsx", rawColumns: [], mapping: null, rows: [],
+        warnings: [{ code: "empty_file", message: "No rows found in any sheet." }],
+      });
+    }
+
+    // Meter only now — a real Gemini column-detect call is about to run.
     const used = await aiUsageIncrement(auth.userId, "schedule_import");
     const cap = MONTHLY_CAPS[auth.tier].schedule_import;
     if (used > cap) {
@@ -437,7 +469,7 @@ serve(async (req) => {
       }, 429);
     }
 
-    const result = await parseXlsx(bytes);
+    const result = await parseXlsx(grid);
     console.log(`[import-schedule] format=xlsx rows=${result.rows.length} cols=${result.rawColumns?.length ?? 0}`);
     return jsonResponse(result);
   } catch (e) {

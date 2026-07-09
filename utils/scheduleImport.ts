@@ -62,6 +62,18 @@ export function mapRowsToScheduleTasks(
     const durationDays = r.milestone ? 0 : parseDurationDays(r.rawDuration);
     const startDay = computeStartDay(r.rawStart, startEpoch, opts) ?? 1;
     const preds = parsePredecessorString(r.rawPredecessors);
+    // Surface tokens that couldn't be parsed at all (e.g. "see note", an alpha
+    // WBS reference, a task-name dependency) — parsePredecessorString drops
+    // them silently, so without this the GC gets no signal that links were lost.
+    const rawTokenCount = (r.rawPredecessors ?? '')
+      .split(/[,;]/).map(s => s.trim()).filter(Boolean).length;
+    if (rawTokenCount > preds.length) {
+      warnings.push({
+        code: 'bad_predecessor',
+        message: `${rawTokenCount - preds.length} predecessor reference(s) on "${r.title.trim()}" could not be read and were dropped.`,
+        sourceId: r.sourceId,
+      });
+    }
     const dependencyLinks: DependencyLink[] = [];
     for (const p of preds) {
       const target = idBySource.get(p.sourceId);

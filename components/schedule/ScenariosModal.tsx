@@ -19,6 +19,7 @@ import {
   Trash2,
   Check,
   Lock,
+  RotateCcw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -103,6 +104,42 @@ export default function ScenariosModal({
       onScheduleChange({ activeScenarioId: scenarioId });
     },
     [onScheduleChange],
+  );
+
+  const handleRestore = useCallback(
+    (scenario: ScheduleScenario) => {
+      Alert.alert(
+        'Restore this plan?',
+        `This replaces the current ${schedule.tasks.length} task(s) with the ${scenario.tasks.length} task(s) saved in "${scenario.name}". Your current plan is snapshotted first, so you can undo.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Restore',
+            style: 'destructive',
+            onPress: () => {
+              // Snapshot the current plan before overwriting, so a restore is
+              // itself reversible.
+              const backup: ScheduleScenario = {
+                id: `scn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                name: `Before restore — ${new Date().toLocaleDateString()}`,
+                note: 'Auto-saved before restoring a saved plan.',
+                createdAt: new Date().toISOString(),
+                tasks: schedule.tasks.map((t) => ({ ...t })) as ScheduleTask[],
+              };
+              onScheduleChange({
+                tasks: scenario.tasks.map((t) => ({ ...t })) as ScheduleTask[],
+                scenarios: [...scenarios, backup],
+                activeScenarioId: null,
+              });
+              if (Platform.OS !== 'web') {
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [schedule.tasks, scenarios, onScheduleChange],
   );
 
   const handleDelete = useCallback(
@@ -245,6 +282,13 @@ export default function ScenariosModal({
                     {s.tasks.length} tasks · created{' '}
                     {new Date(s.createdAt).toLocaleDateString()}
                   </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.restoreBtn}
+                  onPress={() => handleRestore(s)}
+                  activeOpacity={0.7}
+                  testID={`scenarios-restore-${s.id}`} accessibilityRole="button" accessibilityLabel="Restore this plan">
+                  <RotateCcw size={14} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.deleteBtn}
@@ -401,6 +445,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rowNameActive: { color: t.accent, fontWeight: '700' as const },
   rowNote: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
   rowMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+  restoreBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: Tokens.radius.panel,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: t.accent + '12',
+  },
   deleteBtn: {
     width: 32,
     height: 32,

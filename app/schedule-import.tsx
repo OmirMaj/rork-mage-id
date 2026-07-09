@@ -44,7 +44,7 @@ import { captureBaseline } from '@/utils/scheduleOps';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { nailIt, oops } from '@/components/animations/NailItToast';
 import type {
-  ScheduleImportResult, ScheduleImportField, ProjectResource, ProjectSchedule,
+  ScheduleImportResult, ScheduleImportField, ProjectResource, ProjectSchedule, ScheduleScenario,
 } from '@/types';
 
 // Fields we surface in the "detected columns" summary, in display order.
@@ -177,8 +177,36 @@ export default function ScheduleImportScreen() {
   ) => {
     const existing = proj.schedule;
 
-    // Baseline the CURRENT plan BEFORE we overwrite it — so the user can still
-    // compare against what was there. Only meaningful if there were tasks.
+    // Recoverable pre-import backup. Two things happen before we overwrite:
+    //
+    //  1. A full-fidelity scenario snapshot (`Before import — <date>`) holding
+    //     complete ScheduleTask objects (titles, durations, dependencies,
+    //     progress, crew, constraints, …). This is the ACTUAL restore path —
+    //     the user can one-tap "Restore" it from What-If Scenarios, which
+    //     copies these tasks back into schedule.tasks. A ScheduleBaseline only
+    //     snapshots {id,startDay,endDay}, so it could never rebuild the plan.
+    //  2. A variance baseline (unchanged) so slip/variance display still works.
+    const existingScenarios = [...((existing?.scenarios ?? []))];
+    if (existing?.tasks?.length) {
+      const backupScenario: ScheduleScenario = {
+        id: `scn-import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: `Before import — ${new Date().toLocaleDateString()}`,
+        note: 'Auto-saved before a schedule import replaced the plan. Tap Restore to bring it back.',
+        createdAt: new Date().toISOString(),
+        // Deep-clone tasks + their nested link arrays so the backup is immune
+        // to any later mutation of the live schedule.
+        tasks: existing.tasks.map(t => ({
+          ...t,
+          dependencies: t.dependencies ? [...t.dependencies] : t.dependencies,
+          dependencyLinks: t.dependencyLinks ? t.dependencyLinks.map(l => ({ ...l })) : t.dependencyLinks,
+          resourceIds: t.resourceIds ? [...t.resourceIds] : t.resourceIds,
+        })),
+      };
+      existingScenarios.push(backupScenario);
+    }
+
+    // Variance baseline (compact {id,startDay,endDay}) — kept alongside the
+    // full scenario backup so slip/variance display still works.
     const baselines = [...((existing?.baselines ?? []))];
     if (existing?.tasks?.length) {
       const snap = captureBaseline(
@@ -219,6 +247,9 @@ export default function ScheduleImportScreen() {
       tasks: mappedTasks,
       resources: mergedResources,
       baselines,
+      scenarios: existingScenarios,
+      // Show the imported plan, not the pre-import backup scenario.
+      activeScenarioId: null,
       criticalPathDays: projectFinish,
       totalDurationDays: projectFinish,
       updatedAt: new Date().toISOString(),
@@ -254,22 +285,53 @@ export default function ScheduleImportScreen() {
       });
 
       const commit = () => persist(project, mappedTasks, cpm.projectFinish, scheduleStartDate);
+      const existingCount = project.schedule?.tasks?.length ?? 0;
+
+      // Replacing a non-empty schedule is destructive — this import REPLACES the
+      // whole task list. Warn before commit on every path when a plan exists,
+      // and flag when the import is materially smaller (a common sign of a
+      // mis-mapped or partial export).
+      const shrinkNote = existingCount > 0 && mappedTasks.length < existingCount
+        ? ` The import has fewer tasks (${mappedTasks.length}) than your current plan (${existingCount}) — double-check the mapping.`
+        : '';
+      const replaceLine =
+        `This replaces your existing ${existingCount} task${existingCount === 1 ? '' : 's'} with ${mappedTasks.length} imported task${mappedTasks.length === 1 ? '' : 's'}.${shrinkNote}\n\nYour current plan is saved as a restore point first (What-If Scenarios → Restore).`;
 
       if (cpm.conflicts.length > 0) {
         setImporting(false);
+        const conflictLine = `${cpm.conflicts.length} cycle/anchor conflict(s) were found. You can import anyway and fix them in Schedule Pro.`;
         Alert.alert(
-          'Schedule has conflicts',
-          `${cpm.conflicts.length} cycle/anchor conflict(s) were found. You can import anyway and fix them in Schedule Pro.`,
+          existingCount > 0 ? 'Replace schedule with conflicts?' : 'Schedule has conflicts',
+          existingCount > 0 ? `${replaceLine}\n\n${conflictLine}` : conflictLine,
           [
             { text: 'Cancel', style: 'cancel' },
             {
-              text: 'Import anyway',
+              text: existingCount > 0 ? 'Replace' : 'Import anyway',
+              style: existingCount > 0 ? 'destructive' : 'default',
               onPress: () => { setImporting(true); commit(); setImporting(false); },
             },
           ],
         );
         return;
       }
+
+      if (existingCount > 0) {
+        setImporting(false);
+        Alert.alert(
+          'Replace current schedule?',
+          replaceLine,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Replace',
+              style: 'destructive',
+              onPress: () => { setImporting(true); commit(); setImporting(false); },
+            },
+          ],
+        );
+        return;
+      }
+
       commit();
     } catch (err) {
       console.error('[ScheduleImport] import failed', err);
@@ -311,8 +373,8 @@ export default function ScheduleImportScreen() {
           <Text style={styles.heroTitle}>Import a schedule</Text>
           <Text style={styles.heroSub}>
             Bring in an Excel (.xlsx) or MS Project (.xml) schedule. Tasks, durations, dependencies
-            and constraints are mapped into Schedule Pro. Your current plan is baselined first, so
-            nothing is lost.
+            and constraints are mapped into Schedule Pro. Your current plan is saved as a restore
+            point first, so you can bring it back anytime.
           </Text>
         </View>
 
@@ -450,7 +512,8 @@ export default function ScheduleImportScreen() {
             <View style={styles.roBadge}>
               <CheckCircle2 size={13} color={themeColors.success} strokeWidth={1.75} />
               <Text style={styles.roBadgeText}>
-                Your current schedule is captured as a baseline before the import replaces it.
+                Your current schedule is saved as a restore point before the import replaces it —
+                bring it back anytime from What-If Scenarios → Restore.
               </Text>
             </View>
           </>

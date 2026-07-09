@@ -48,5 +48,46 @@ assert(warnings.some(w => w.code === 'empty_title'), 'empty title warned');
 const ms = mapRowsToScheduleTasks([{ sourceId: '1', title: 'M', milestone: true }], { scheduleStartDate: '2026-01-01', workingDaysPerWeek: 7 }).tasks[0];
 assert(ms.durationDays === 0 && ms.isMilestone === true, 'milestone 0-duration');
 
+// Excel 1-based predecessor convention: the edge fn now assigns sourceId = i+1
+// so a predecessor cell "1" references the FIRST task (the sheet's visible row).
+const xlsxRows: ImportedScheduleRow[] = [
+  { sourceId: '1', title: 'Excavate', rawDuration: '2d' },
+  { sourceId: '2', title: 'Foundation', rawDuration: '3d', rawPredecessors: '1' },
+  { sourceId: '3', title: 'Framing', rawDuration: '4d', rawPredecessors: '2' },
+];
+const xlsx = mapRowsToScheduleTasks(xlsxRows, { scheduleStartDate: '2026-01-01', workingDaysPerWeek: 5 });
+const found = xlsx.tasks.find(t => t.title === 'Foundation')!;
+assert(found.dependencyLinks!.length === 1 && found.dependencyLinks![0].taskId === xlsx.tasks[0].id, "excel predecessor '1' resolves to the first task");
+
+// WBS rebuild: outline levels [1,2,2,1] → parent chain + summary flagging.
+const wbsRows: ImportedScheduleRow[] = [
+  { sourceId: '1', title: 'Sitework', outlineLevel: 1 },
+  { sourceId: '2', title: 'Clear', outlineLevel: 2 },
+  { sourceId: '3', title: 'Grade', outlineLevel: 2 },
+  { sourceId: '4', title: 'Foundations', outlineLevel: 1 },
+];
+const wbs = mapRowsToScheduleTasks(wbsRows, { scheduleStartDate: '2026-01-01', workingDaysPerWeek: 5 }).tasks;
+const [site, clear, grade, found2] = wbs;
+assert(clear.parentId === site.id && grade.parentId === site.id, 'children point to nearest lower-level parent');
+assert(found2.parentId === undefined, 'level-1 sibling has no parent');
+assert(site.isSummary === true && found2.isSummary === undefined, 'parent flagged isSummary, leaf not');
+
+// Constraint mapping: constraintType 4 + constraintDate → anchorType/anchorDate.
+const conRow: ImportedScheduleRow = { sourceId: '1', title: 'Pour', constraintType: 4, constraintDate: '2026-02-01' };
+const conTask = mapRowsToScheduleTasks([conRow], { scheduleStartDate: '2026-01-01', workingDaysPerWeek: 5 }).tasks[0];
+assert(conTask.anchorType === 'start-no-earlier', 'constraintType 4 → start-no-earlier');
+assert(conTask.anchorDate === '2026-02-01', 'constraintDate carried to anchorDate');
+
+// startDay compression on a 5-day week: 7 calendar days out → working day 6.
+const compRow: ImportedScheduleRow = { sourceId: '1', title: 'Delayed', rawStart: '2026-01-08' };
+const compTask = mapRowsToScheduleTasks([compRow], { scheduleStartDate: '2026-01-01', workingDaysPerWeek: 5 }).tasks[0];
+assert(compTask.startDay === 6, '7 calendar days @ 5-day week → startDay 6');
+
+// Unparseable predecessor tokens are surfaced (not dropped silently).
+const badPred = mapRowsToScheduleTasks([
+  { sourceId: '1', title: 'Note dep', rawPredecessors: 'see note' },
+], { scheduleStartDate: '2026-01-01', workingDaysPerWeek: 5 });
+assert(badPred.warnings.some(w => w.code === 'bad_predecessor'), 'unparseable predecessor warned (bad_predecessor)');
+
 if (failed) { console.error(`\n${failed} schedule-import checks failed`); process.exit(1); }
 console.log('✓ schedule-import validator passed');
