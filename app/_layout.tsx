@@ -15,6 +15,7 @@ import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
 import { WipProvider } from "@/contexts/WipContext";
+import { ScanProvider } from "@/contexts/ScanContext";
 import { BidsProvider } from "@/contexts/BidsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
@@ -1243,6 +1244,7 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  <ScanProvider>
                   <WipProvider>
                   <CrewProvider>
                   <SafetyProvider>
@@ -1272,6 +1274,7 @@ export default Sentry.wrap(function RootLayout() {
                   </SafetyProvider>
                   </CrewProvider>
                   </WipProvider>
+                  </ScanProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>
