@@ -15,6 +15,16 @@ const WORKERS_KEY = 'mageid_workers';
 const CONVERSATIONS_KEY = 'mageid_conversations';
 const MESSAGES_KEY = 'mageid_messages';
 
+// ─── Launch feature flag ──────────────────────────────────────────────────
+// The in-app Direct-Hire / messaging subsystem (post-job, job-detail,
+// worker-detail, messages + this context's job/worker/conversation data) is
+// NOT wired up for launch: Post Job is a write-only dead end, listings never
+// surface back, and applications/messages don't reliably persist. Flip this to
+// `true` once the marketplace + messaging backend is real. Every entry point
+// that reaches those screens is gated on this flag so nothing non-functional
+// is reachable in the meantime. Keep it exported — screens and nav read it.
+export const HIRE_ENABLED = false;
+
 export const [HireProvider, useHire] = createContextHook(() => {
   const queryClient = useQueryClient();
   const { user } = useAuth();

@@ -16,6 +16,7 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
+import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -220,6 +221,31 @@ export default function CachedHireScreen() {
   ), [handleJobPress]);
 
   const loading = isLoading || locationLoading;
+
+  // Direct Hire is part of the not-yet-launched hiring subsystem. Even if a
+  // deep link reaches this route, show the same coming-soon state the other
+  // hire destinations use rather than dead job listings.
+  if (!HIRE_ENABLED) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
+              <ArrowLeft size={20} color={themeColors.text} strokeWidth={1.75} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Direct Hire</Text>
+          </View>
+        </View>
+        <View style={styles.emptyContainer}>
+          <AlertCircle size={40} color={themeColors.textMuted} strokeWidth={1.75} />
+          <Text style={styles.emptyTitle}>Direct Hire is coming soon</Text>
+          <Text style={styles.emptySubtitle}>
+            The in-app hiring marketplace isn&apos;t available yet. We&apos;ll let you know when you can browse jobs and connect with workers.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

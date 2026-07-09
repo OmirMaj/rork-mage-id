@@ -25,7 +25,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
 
@@ -34,13 +34,11 @@
     .ex-hero {
       padding: 80px 0 28px;
       text-align: center;
-      background:
-        radial-gradient(900px 500px at 50% 0%, rgba(255, 106, 26, 0.10), transparent 70%),
-        var(--bg);
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
     }
     .ex-hero h1 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: clamp(36px, 6vw, 60px);
       letter-spacing: -1.2px;
       line-height: 1.05;
@@ -61,9 +59,7 @@
       position: sticky;
       top: 0;
       z-index: 50;
-      background: rgba(11, 13, 16, 0.85);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      background: var(--ink);
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
       padding: 12px clamp(20px, 4vw, 40px);
@@ -126,7 +122,7 @@
       margin-bottom: 10px;
     }
     .ex-panel h2 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: clamp(32px, 5vw, 48px);
       letter-spacing: -0.8px;
       line-height: 1.05;
@@ -145,7 +141,7 @@
       margin-bottom: 36px;
     }
     .ex-section h3 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: 22px;
       margin: 0 0 14px;
       color: var(--text);
@@ -209,12 +205,12 @@
 
     /* voice command boxes */
     .ex-voice {
-      background: linear-gradient(180deg, rgba(255, 106, 26, 0.10), rgba(255, 106, 26, 0.04));
+      background: rgba(255, 106, 26, 0.06);
       border: 1px solid rgba(255, 106, 26, 0.28);
       border-radius: 14px;
       padding: 16px 20px;
       margin: 12px 0;
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-sans);
       font-style: normal;
       font-size: 16px;
       color: var(--text);
@@ -226,7 +222,7 @@
       display: block;
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23FF6A1A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='11' rx='3'/%3E%3Cpath d='M5 10a7 7 0 0 0 14 0M12 17v4'/%3E%3C/svg%3E") no-repeat left center;
       padding-left: 17px;
-      font-family: 'Inter', sans-serif;
+      font-family: var(--ff-sans);
       font-style: normal;
       font-size: 11px;
       letter-spacing: 1px;
@@ -238,8 +234,8 @@
 
     /* highlight callout */
     .ex-callout {
-      background: rgba(13, 108, 177, 0.10);
-      border-left: 4px solid #0D6CB1;
+      background: rgba(255, 106, 26, 0.08);
+      border-left: 4px solid var(--amber);
       padding: 14px 18px;
       margin: 18px 0;
       border-radius: 8px;
@@ -247,7 +243,7 @@
       color: var(--text);
       line-height: 1.6;
     }
-    .ex-callout strong { color: #4FA8E8; }
+    .ex-callout strong { color: var(--amber); }
 
     /* "Try it" cta */
     .ex-try {
@@ -273,7 +269,7 @@
       padding: 18px;
     }
     .ex-mini-card h4 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: 17px;
       margin: 0 0 6px;
       color: var(--text);
@@ -330,16 +326,17 @@
     <!-- ─────────── TAB NAV ─────────── -->
     <nav class="ex-tabs" aria-label="Feature explorer tabs">
       <div class="ex-tabs-inner" role="tablist">
-        <button class="ex-tab is-active" role="tab" data-tab="voice"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></span> Voice &amp; AI</button>
-        <button class="ex-tab" role="tab" data-tab="leads"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"/><circle cx="9.5" cy="7" r="3"/><path d="M21 19v-1a4 4 0 0 0-3-3.86"/></svg></span> Leads (CRM)</button>
-        <button class="ex-tab" role="tab" data-tab="projects"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-4 7 4v13"/><path d="M10 21v-5h4v5"/></svg></span> Projects &amp; Estimate</button>
-        <button class="ex-tab" role="tab" data-tab="schedule"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span> Schedule</button>
-        <button class="ex-tab" role="tab" data-tab="buyout"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 11 3.99 4 4v7l9.4 9.4a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.65z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></span> Buyout</button>
-        <button class="ex-tab" role="tab" data-tab="field"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 12h6M9 16h4"/></svg></span> Field Ops</button>
-        <button class="ex-tab" role="tab" data-tab="plans"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg></span> Plans</button>
-        <button class="ex-tab" role="tab" data-tab="financials"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.3"/><path d="M6 12h.01M18 12h.01"/></svg></span> Financials</button>
-        <button class="ex-tab" role="tab" data-tab="portals"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.4 4.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L12.6 19.5"/></svg></span> Portals</button>
-        <button class="ex-tab" role="tab" data-tab="closeout"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8M2 4h20v4H2zM10 12h4"/></svg></span> Closeout</button>
+        <button class="ex-tab is-active" role="tab" id="tab-voice" aria-selected="true" aria-controls="panel-voice" data-tab="voice"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></span> Voice &amp; AI</button>
+        <button class="ex-tab" role="tab" id="tab-leads" aria-selected="false" aria-controls="panel-leads" tabindex="-1" data-tab="leads"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"/><circle cx="9.5" cy="7" r="3"/><path d="M21 19v-1a4 4 0 0 0-3-3.86"/></svg></span> Leads (CRM)</button>
+        <button class="ex-tab" role="tab" id="tab-projects" aria-selected="false" aria-controls="panel-projects" tabindex="-1" data-tab="projects"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-4 7 4v13"/><path d="M10 21v-5h4v5"/></svg></span> Projects &amp; Estimate</button>
+        <button class="ex-tab" role="tab" id="tab-schedule" aria-selected="false" aria-controls="panel-schedule" tabindex="-1" data-tab="schedule"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span> Schedule</button>
+        <button class="ex-tab" role="tab" id="tab-buyout" aria-selected="false" aria-controls="panel-buyout" tabindex="-1" data-tab="buyout"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 11 3.99 4 4v7l9.4 9.4a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.65z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></span> Buyout</button>
+        <button class="ex-tab" role="tab" id="tab-field" aria-selected="false" aria-controls="panel-field" tabindex="-1" data-tab="field"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 12h6M9 16h4"/></svg></span> Field Ops</button>
+        <button class="ex-tab" role="tab" id="tab-safety" aria-selected="false" aria-controls="panel-safety" tabindex="-1" data-tab="safety"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></span> Safety</button>
+        <button class="ex-tab" role="tab" id="tab-plans" aria-selected="false" aria-controls="panel-plans" tabindex="-1" data-tab="plans"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg></span> Plans</button>
+        <button class="ex-tab" role="tab" id="tab-financials" aria-selected="false" aria-controls="panel-financials" tabindex="-1" data-tab="financials"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.3"/><path d="M6 12h.01M18 12h.01"/></svg></span> Financials</button>
+        <button class="ex-tab" role="tab" id="tab-portals" aria-selected="false" aria-controls="panel-portals" tabindex="-1" data-tab="portals"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11.4 4.5"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L12.6 19.5"/></svg></span> Portals</button>
+        <button class="ex-tab" role="tab" id="tab-closeout" aria-selected="false" aria-controls="panel-closeout" tabindex="-1" data-tab="closeout"><span class="ex-tab-emoji"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8M2 4h20v4H2zM10 12h4"/></svg></span> Closeout</button>
       </div>
     </nav>
 
@@ -347,7 +344,7 @@
     <section class="ex-panels">
 
       <!-- VOICE & AI -->
-      <div class="ex-panel is-active" id="panel-voice" role="tabpanel">
+      <div class="ex-panel is-active" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice" tabindex="0">
         <span class="ex-panel-eyebrow">The throughline</span>
         <h2>Voice and AI <em>everywhere.</em></h2>
         <p class="lede">The thing that separates MAGE ID from legacy GC software: every form has voice input, and the AI knows what to do with what you said. There's no separate "speech-to-text" feature — it's just how the app works.</p>
@@ -383,7 +380,7 @@
       </div>
 
       <!-- LEADS -->
-      <div class="ex-panel" id="panel-leads" role="tabpanel">
+      <div class="ex-panel" id="panel-leads" role="tabpanel" aria-labelledby="tab-leads" tabindex="0">
         <span class="ex-panel-eyebrow">CRM &amp; pipeline</span>
         <h2>Capture leads<br><em>in 10 seconds.</em></h2>
         <p class="lede">A homeowner just called you. Pull over (safely!), tap the mic, talk through what they told you. The lead lands in your pipeline scored, sourced, and stopwatch-running for first response.</p>
@@ -419,7 +416,7 @@
       </div>
 
       <!-- PROJECTS & ESTIMATE -->
-      <div class="ex-panel" id="panel-projects" role="tabpanel">
+      <div class="ex-panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects" tabindex="0">
         <span class="ex-panel-eyebrow">Spin up the job</span>
         <h2>Project, estimate,<br><em>everything that follows.</em></h2>
         <p class="lede">A project is the spine — schedule, daily reports, photos, RFIs, change orders, invoices all hang off it. Create one in a sentence. Then build the estimate that drives buyout and billing.</p>
@@ -456,7 +453,7 @@
       </div>
 
       <!-- SCHEDULE -->
-      <div class="ex-panel" id="panel-schedule" role="tabpanel">
+      <div class="ex-panel" id="panel-schedule" role="tabpanel" aria-labelledby="tab-schedule" tabindex="0">
         <span class="ex-panel-eyebrow">Plan the work</span>
         <h2>A schedule,<br><em>in 60 seconds.</em></h2>
         <p class="lede">Project chips on top, MS-Project-style ribbon below. Build the schedule three ways: template, AI, or auto-derived from your estimate.</p>
@@ -470,7 +467,7 @@
             <li>8 templates: kitchen / bath / ADU / new home / addition / etc.</li>
             <li><strong>AI Builder</strong>: describe the project, get a full schedule with dependencies.</li>
             <li>Build from estimate — auto-derive tasks from estimate line items.</li>
-            <li>Weather forecast badges on outdoor tasks (concrete, roofing).</li>
+            <li>Weather-aware scheduling for outdoor tasks (concrete, roofing) — on the roadmap.</li>
             <li>Schedule auto-shifts when approved CO adds days.</li>
           </ul>
         </div>
@@ -492,7 +489,7 @@
       </div>
 
       <!-- BUYOUT -->
-      <div class="ex-panel" id="panel-buyout" role="tabpanel">
+      <div class="ex-panel" id="panel-buyout" role="tabpanel" aria-labelledby="tab-buyout" tabindex="0">
         <span class="ex-panel-eyebrow">The margin lever</span>
         <h2>Buyout —<br><em>$30K–80K savings per $1M job.</em></h2>
         <p class="lede">Most software stops at "you have an estimate." Buyout is the phase between estimate and field where you convert rough carry into signed subcontracts. The delta is the GC's biggest margin lever — and the phase legacy GC software handles worst.</p>
@@ -532,7 +529,7 @@
       </div>
 
       <!-- FIELD OPS -->
-      <div class="ex-panel" id="panel-field" role="tabpanel">
+      <div class="ex-panel" id="panel-field" role="tabpanel" aria-labelledby="tab-field" tabindex="0">
         <span class="ex-panel-eyebrow">Run the day</span>
         <h2>The field paperwork,<br><em>by voice or by photo.</em></h2>
         <p class="lede">Daily reports, RFIs, change orders, punch lists, submittals — all dictated, photos included, sent before you leave the truck.</p>
@@ -568,6 +565,11 @@
             <h4>Photos</h4>
             <p>Capture with geo-stamp, mark up with arrow / circle / freehand / text overlays. Pin to plans, attach to punch items.</p>
           </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>
+            <h4>Crew / Worker Profiles <span class="badge badge-biz">Business</span></h4>
+            <p>Per-worker profiles with <strong>ID scanning</strong> and verified certifications. Know who's on site, what they're licensed for, and when a cert expires.</p>
+          </div>
         </div>
 
         <div class="ex-section">
@@ -591,8 +593,48 @@
         </div>
       </div>
 
+      <!-- SAFETY -->
+      <div class="ex-panel" id="panel-safety" role="tabpanel" aria-labelledby="tab-safety" tabindex="0">
+        <span class="ex-panel-eyebrow">Compliance &amp; site safety <span class="badge badge-biz">Business</span></span>
+        <h2>A safety program,<br><em>not a checklist afterthought.</em></h2>
+        <p class="lede">JHAs, toolbox talks, incident and hazard reporting, inspections, certification tracking, and an OSHA-300 log built from the same data — the compliance layer legacy field apps bolt on as a single tile.</p>
+
+        <div class="ex-mini-grid">
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13l2 2 4-4"/></svg></span>
+            <h4>JHAs &amp; Toolbox Talks</h4>
+            <p>Run and document job hazard analyses and toolbox talks with digital crew sign-in sheets.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span>
+            <h4>Incident &amp; Hazard Reports</h4>
+            <p>Log incidents and hazards with photo evidence, severity, and corrective follow-up.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+            <h4>Inspections</h4>
+            <p>Pass / fail inspection items with corrective actions tracked to close.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><circle cx="12" cy="8" r="6"/><path d="M8.2 13.9 7 22l5-3 5 3-1.2-8.1"/></svg></span>
+            <h4>Certification Tracking</h4>
+            <p>Per-worker certifications with expiry alerts, so no one works past a lapsed license.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>
+            <h4>OSHA-300 Log</h4>
+            <p>Recordable-injury log generated from your logged incidents — ready when the auditor calls.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <h4>Safety Meeting Minutes</h4>
+            <p>Weekly safety meetings captured, archived, and searchable across the project.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- PLANS -->
-      <div class="ex-panel" id="panel-plans" role="tabpanel">
+      <div class="ex-panel" id="panel-plans" role="tabpanel" aria-labelledby="tab-plans" tabindex="0">
         <span class="ex-panel-eyebrow">Drawings &amp; markup</span>
         <h2>Plans, pinned and<br><em>annotated.</em></h2>
         <p class="lede">Upload PDFs, the server converts them to PNG pages. Drop pins linked to photos, punch items, RFIs. Mark up with SVG annotations. Calibrate a scale and measure off the plan.</p>
@@ -625,7 +667,7 @@
       </div>
 
       <!-- FINANCIALS -->
-      <div class="ex-panel" id="panel-financials" role="tabpanel">
+      <div class="ex-panel" id="panel-financials" role="tabpanel" aria-labelledby="tab-financials" tabindex="0">
         <span class="ex-panel-eyebrow">Get paid</span>
         <h2>Invoice in your pocket.<br><em>Paid in your pocket.</em></h2>
         <p class="lede">Invoices, AIA G702/G703 pay applications, commitments, and live financial reports. Stripe Connect lets the homeowner pay online — money in your bank in 1–2 days.</p>
@@ -666,7 +708,7 @@
       </div>
 
       <!-- PORTALS -->
-      <div class="ex-panel" id="panel-portals" role="tabpanel">
+      <div class="ex-panel" id="panel-portals" role="tabpanel" aria-labelledby="tab-portals" tabindex="0">
         <span class="ex-panel-eyebrow">Live links</span>
         <h2>The homeowner sees<br><em>everything you let them see.</em></h2>
         <p class="lede">No app to install. One link. Lives forever. The same pattern works for subcontractors so they can submit invoices and pay apps without email.</p>
@@ -715,7 +757,7 @@
       </div>
 
       <!-- CLOSEOUT -->
-      <div class="ex-panel" id="panel-closeout" role="tabpanel">
+      <div class="ex-panel" id="panel-closeout" role="tabpanel" aria-labelledby="tab-closeout" tabindex="0">
         <span class="ex-panel-eyebrow">Hand off clean</span>
         <h2>The handoff that<br><em>wins your next job.</em></h2>
         <p class="lede">Closeout is what separates a contractor the homeowner remembers from one they don't. MAGE ID assembles the binder as you go.</p>
@@ -782,20 +824,40 @@
     // Hash fragment (e.g. /features/#buyout) deep-links to a tab so the
     // marketing site / playbook can link directly into a section.
     (function () {
-      const tabs = document.querySelectorAll('.ex-tab');
-      const panels = document.querySelectorAll('.ex-panel');
+      const tabs = Array.from(document.querySelectorAll('.ex-tab'));
+      const panels = document.querySelectorAll('.ex-panel[role="tabpanel"]');
 
-      function activate(name) {
-        tabs.forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
+      function activate(name, focusTab) {
+        tabs.forEach(t => {
+          const on = t.dataset.tab === name;
+          t.classList.toggle('is-active', on);
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          // Roving tabindex: only the selected tab is in the tab order.
+          t.setAttribute('tabindex', on ? '0' : '-1');
+          if (on && focusTab) t.focus();
+        });
         panels.forEach(p => p.classList.toggle('is-active', p.id === 'panel-' + name));
       }
 
-      tabs.forEach(t => {
+      tabs.forEach((t, i) => {
         t.addEventListener('click', () => {
           const name = t.dataset.tab;
           activate(name);
           // Update hash without scrolling. history.replaceState avoids
           // adding to back-button history for every tab tap.
+          history.replaceState(null, '', '#' + name);
+        });
+        // Arrow-key navigation between tabs (WAI-ARIA tablist pattern).
+        t.addEventListener('keydown', (e) => {
+          let next = null;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % tabs.length;
+          else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i - 1 + tabs.length) % tabs.length;
+          else if (e.key === 'Home') next = 0;
+          else if (e.key === 'End') next = tabs.length - 1;
+          if (next === null) return;
+          e.preventDefault();
+          const name = tabs[next].dataset.tab;
+          activate(name, true);
           history.replaceState(null, '', '#' + name);
         });
       });

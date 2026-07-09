@@ -20,7 +20,9 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Modal, Pressable, TextInput, Platform, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { Check } from 'lucide-react-native';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { TRADE_KEYS, tradeLabel, type TradeKey } from '@/utils/scheduleColors';
 import type { ScheduleTask } from '@/types';
 
@@ -58,6 +60,7 @@ interface AddTaskModalProps {
 }
 
 export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartDate }: AddTaskModalProps) {
+  const styles = useThemedStyles(makeStyles);
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('1');
   const [crew, setCrew] = useState('');
@@ -309,7 +312,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
                   >
                     <View style={[styles.dot, { backgroundColor: Colors.tradeColors[k] }]} />
                     <Text style={styles.tradeOptLabel}>{tradeLabel(k)}</Text>
-                    {tradeKey === k ? <Text style={styles.tradeCheck}>✓</Text> : null}
+                    {tradeKey === k ? <Check size={13} color={Colors.primary} strokeWidth={2.5} /> : null}
                   </Pressable>
                 ))}
               </Pressable>
@@ -321,7 +324,7 @@ export function AddTaskModal({ visible, onCancel, onCreate, tasks, defaultStartD
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -332,14 +335,14 @@ const styles = StyleSheet.create({
   sheet: {
     width: '100%',
     maxWidth: 460,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 14,
     padding: 22,
   },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.text },
+  title: { fontSize: 18, fontWeight: '700', color: themeColors.text },
   sub: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginTop: 4,
     marginBottom: 14,
   },
@@ -350,45 +353,45 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   input: {
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: Colors.text,
+    color: themeColors.text,
     fontSize: 14,
   },
   notesInput: { minHeight: 60, textAlignVertical: 'top' },
   hint: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 4,
   },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  dropdownText: { flex: 1, color: Colors.text, fontSize: 14 },
-  chev: { color: Colors.textSecondary, fontSize: 14 },
+  dropdownText: { flex: 1, color: themeColors.text, fontSize: 14 },
+  chev: { color: themeColors.textSecondary, fontSize: 14 },
   tradeSheet: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 12,
     paddingVertical: 6,
   },
@@ -399,7 +402,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
-  tradeOptLabel: { flex: 1, color: Colors.text, fontSize: 14 },
+  tradeOptLabel: { flex: 1, color: themeColors.text, fontSize: 14 },
   tradeCheck: { color: Colors.primary, fontSize: 14, fontWeight: '700' },
   error: {
     color: Colors.pillLate,
@@ -416,9 +419,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
   },
-  cancelText: { color: Colors.text, fontWeight: '600', fontSize: 13 },
+  cancelText: { color: themeColors.text, fontWeight: '600', fontSize: 13 },
   submitBtn: {
     paddingHorizontal: 16,
     paddingVertical: 10,

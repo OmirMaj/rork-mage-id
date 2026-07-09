@@ -764,15 +764,15 @@
         <details class="faq-item">
           <summary>Is there a free trial?</summary>
           <div class="faq-body">
-            Free tier with up to 2 projects, no time limit. Pro and Business unlock everything else &mdash;
-            sign up in the App Store, cancel anytime.
+            Free tier with one active project, no time limit. Pro and Business unlock everything else &mdash;
+            start free on the web at app.mageid.app, cancel anytime.
           </div>
         </details>
 
         <details class="faq-item">
           <summary>Do you integrate with QuickBooks?</summary>
           <div class="faq-body">
-            On the roadmap for Q3 2026. Today MAGE ID handles the entire invoice / change-order /
+            In active development. Today MAGE ID handles the entire invoice / change-order /
             AIA pay-app flow in-app, and exports a clean CSV for your bookkeeper. If QuickBooks sync is
             a hard blocker for switching, let us know &mdash; demand drives priority.
           </div>
@@ -788,7 +788,7 @@
         <details class="faq-item">
           <summary>What&apos;s the price?</summary>
           <div class="faq-body">
-            Pro is $29/month or $348/year. Business is $79/month or $948/year. Both replace a
+            Pro is $29/month or $288/year (about 2 months free). Business is $79/month or $792/year. Both replace a
             stack of point tools that typically runs $400&ndash;$700/month. See the full breakdown on the
             <a href="/compare/">Compare</a> page.
           </div>
@@ -834,28 +834,21 @@
         <a href="/demo.html">Demo</a>
         <a href="/support.html">Support</a>
         <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
       </div>
     </div>
   </footer>
 
   <script>
-    /* Replace each placeholder with the real embed when video is uploaded.
-       Pattern:
-         document.querySelector('[data-video-id="HERO_TOUR"]').innerHTML =
-           '<iframe src="https://www.youtube.com/embed/YOUR_VIDEO_ID?autoplay=1&rel=0" allowfullscreen></iframe>';
-
-       Or wire a click handler that swaps placeholder → iframe so videos lazy-load:
-    */
     document.querySelectorAll('.video-frame .video-placeholder').forEach(el => {
       el.addEventListener('click', () => {
-        const frame = el.closest('.video-frame');
-        const id = frame?.dataset.videoId;
-        // Once you upload videos, replace the alert with the iframe swap, e.g.:
-        //   const youtubeId = { HERO_TOUR: 'abc123', FULL_DEMO: 'def456', ... }[id];
-        //   if (youtubeId) {
-        //     frame.innerHTML = `<iframe src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0" allowfullscreen></iframe>`;
-        //   }
-        alert('Video coming soon — record + upload, then map the data-video-id "' + id + '" in this script.');
+        if (el.classList.contains('is-notice')) return;
+        el.classList.add('is-notice');
+        el.innerHTML =
+          '<div class="vp-title">Book a live walkthrough</div>' +
+          '<div class="vp-subtitle">Want to see it live? ' +
+          '<a href="/access.html">Book a live demo</a> and we&rsquo;ll walk you ' +
+          'through your first project, start to finish.</div>';
       });
     });
   </script>

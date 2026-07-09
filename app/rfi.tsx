@@ -47,10 +47,10 @@ function ballLabel(p: BallParty): string {
 function getBallColor(p: BallParty): string {
   switch (p) {
     case 'gc': return '#0EA5A4';        // teal — GC's turn
-    case 'architect': return '#7C3AED'; // purple — design team
-    case 'engineer': return '#7C3AED';
+    case 'architect': return '#3F6B7D'; // slate-blue — design team
+    case 'engineer': return '#3F6B7D';
     case 'owner': return '#F59E0B';     // amber — owner
-    case 'sub': return '#3B82F6';       // blue — sub
+    case 'sub': return '#5A7D3C';       // olive — sub / field
     case 'closed': return '#6B7280';    // gray — closed
   }
 }

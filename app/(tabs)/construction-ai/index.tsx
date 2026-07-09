@@ -35,7 +35,8 @@ import {
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -199,23 +200,15 @@ function normalizeLevel(s?: string): 'high' | 'med' | 'low' {
   return v === 'high' || v === 'low' ? v : 'med';
 }
 
-async function getPlanReviewTodayUsage(userId: string | null | undefined): Promise<number> {
+async function getPlanReviewMonthUsage(userId: string | null | undefined): Promise<number> {
   if (!userId) return 0;
   try {
-    const { data } = await supabase.rpc('ai_usage_daily_get', {
+    // Read the MONTHLY counter the server enforces on success
+    // (analyze-plan-code increments 'plan_code_review'). A separate client
+    // daily counter would double-count into an orphaned bucket.
+    const { data } = await supabase.rpc('ai_usage_get', {
       p_user_id: userId,
-      p_feature: 'ai_plan_review',
-    });
-    return typeof data === 'number' ? data : 0;
-  } catch { return 0; }
-}
-
-async function bumpPlanReviewTodayUsage(userId: string | null | undefined): Promise<number> {
-  if (!userId) return 0;
-  try {
-    const { data } = await supabase.rpc('ai_usage_daily_increment', {
-      p_user_id: userId,
-      p_feature: 'ai_plan_review',
+      p_feature: 'plan_code_review',
     });
     return typeof data === 'number' ? data : 0;
   } catch { return 0; }
@@ -232,6 +225,7 @@ function toPermitType(t: string): PermitType {
 }
 
 export default function ConstructionAITab() {
+  const styles = useThemedStyles(makeStyles);
   const { canAccess } = useTierAccess();
   const [showPaywall, setShowPaywall] = useState(false);
   const insets = useSafeAreaInsets();
@@ -271,6 +265,7 @@ export default function ConstructionAITab() {
 }
 
 function ConstructionAIScreenInner() {
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { tier } = useTierAccess();
   const { user } = useAuth();
@@ -342,12 +337,12 @@ function ConstructionAIScreenInner() {
   const planSheets = planProjectId ? getPlanSheetsForProject(planProjectId) : [];
   const planSheet = planSheets.find((s) => s.id === planSheetId) ?? null;
   const existingReview = planSheetId ? getPlanReviewForSheet(planSheetId) : null;
-  const planDailyCap = useMemo(() => FEATURE_LIMITS.ai_plan_review_daily[tier], [tier]);
+  const planMonthlyCap = useMemo(() => FEATURE_LIMITS.ai_plan_review_monthly[tier], [tier]);
 
   const runPlanReview = useCallback(async () => {
     if (!planProject || !planSheet) return;
-    const used = await getPlanReviewTodayUsage(user?.id);
-    if (used >= planDailyCap) { setPlanOverLimit(true); return; }
+    const used = await getPlanReviewMonthUsage(user?.id);
+    if (used >= planMonthlyCap) { setPlanOverLimit(true); return; }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPlanLoading(true);
     try {
@@ -370,14 +365,15 @@ function ConstructionAIScreenInner() {
         };
       });
       savePlanReview({ id: reviewId, projectId: planProject.id, planSheetId: planSheet.id, reviewedAt: new Date().toISOString(), findings });
-      void bumpPlanReviewTodayUsage(user?.id);
+      // Server (analyze-plan-code) increments the monthly 'plan_code_review'
+      // counter on success — no client-side increment needed.
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       Alert.alert('Plan review failed', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setPlanLoading(false);
     }
-  }, [planProject, planSheet, planDailyCap, user?.id, getPlanReviewForSheet, savePlanReview]);
+  }, [planProject, planSheet, planMonthlyCap, user?.id, getPlanReviewForSheet, savePlanReview]);
 
   const cycleFindingStatus = useCallback((review: PlanReview, findingId: string) => {
     const next: Record<CodeFinding['status'], CodeFinding['status']> = { open: 'resolved', resolved: 'dismissed', dismissed: 'open' };
@@ -529,7 +525,7 @@ Be specific to the cited location if possible. If the location is not in the US,
     return (
       <Paywall
         visible={true}
-        feature={`Plan Review Daily Limit (${planDailyCap}/day on ${tier})`}
+        feature={`Plan Review Monthly Limit (${planMonthlyCap}/month on ${tier})`}
         requiredTier={tier === 'free' ? 'pro' : 'business'}
         onClose={() => setPlanOverLimit(false)}
       />
@@ -959,7 +955,7 @@ Be specific to the cited location if possible. If the location is not in the US,
                     </Text>
                   </TouchableOpacity>
                   <Text style={styles.quotaText}>
-                    {planDailyCap === Infinity ? 'Unlimited plan reviews today' : `Daily limit: ${planDailyCap} reviews`}
+                    {planMonthlyCap === Infinity ? 'Unlimited plan reviews this month' : `Monthly limit: ${planMonthlyCap} reviews`}
                   </Text>
 
                   {/* Results */}
@@ -1045,6 +1041,7 @@ function RoadmapPermitRow({
   onAddToPermits: () => void;
   onOpenInTracker: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.roadmapRow}>
       <View style={styles.roadmapRowHeader}>
@@ -1113,6 +1110,7 @@ function RoadmapInspectionRow({
   bookBy: Date | null;
   onCycleStatus: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const bookByStr = bookBy
     ? bookBy.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : '—';
@@ -1154,6 +1152,7 @@ const ROADMAP_LOADING_STEPS = [
 ];
 
 function RoadmapLoadingModal({ visible }: { visible: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   const spin = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const [stepIdx, setStepIdx] = useState(0);
@@ -1215,6 +1214,7 @@ const LOADING_STEPS = [
 ];
 
 function LoadingModal({ visible }: { visible: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   const spin = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const [stepIdx, setStepIdx] = useState(0);
@@ -1299,6 +1299,7 @@ type SectionKey = 'codes' | 'permits' | 'inspections' | 'violations';
 function ResultModal({
   visible, result, onClose,
 }: { visible: boolean; result: CodeCheckResult | null; onClose: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState<SectionKey | null>('codes');
 
@@ -1424,6 +1425,7 @@ function AccordionSection({
   onToggle: (k: SectionKey) => void;
   children: React.ReactNode;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.resultCard}>
       <TouchableOpacity
@@ -1448,8 +1450,8 @@ function AccordionSection({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   hero: { alignItems: 'center' as const, marginBottom: 20, gap: 6 },
   heroIconWrap: {
     width: 56, height: 56, borderRadius: 28,
@@ -1457,28 +1459,28 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
     marginBottom: 6,
   },
-  heroTitle: { fontSize: 24, fontWeight: '700' as const, color: Colors.text },
+  heroTitle: { fontSize: 24, fontWeight: '700' as const, color: themeColors.text },
   heroSubtitle: {
-    fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
+    fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted, textAlign: 'center' as const,
     paddingHorizontal: 20, lineHeight: 20,
   },
   label: {
-    fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted,
+    fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textMuted,
     marginTop: 16, marginBottom: 8, letterSpacing: 0.5,
   },
   inputRow: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
-    borderColor: Colors.cardBorder, paddingHorizontal: 12, paddingVertical: 10, gap: 8,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
+    borderColor: themeColors.line, paddingHorizontal: 12, paddingVertical: 10, gap: 8,
   },
-  input: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text, padding: 0 },
+  input: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text, padding: 0 },
   chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   chipTextActive: { color: '#FFF' },
   presetHeader: {
     flexDirection: 'row' as const,
@@ -1498,10 +1500,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   presetPill: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
@@ -1511,7 +1513,7 @@ const styles = StyleSheet.create({
   },
   presetPillText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 18,
   },
   presetPillTextActive: {
@@ -1519,9 +1521,9 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   textArea: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
-    borderColor: Colors.cardBorder, padding: 12, minHeight: 100,
-    fontSize: Type.subhead.fontSize, color: Colors.text,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
+    borderColor: themeColors.line, padding: 12, minHeight: 100,
+    fontSize: Type.subhead.fontSize, color: themeColors.text,
   },
   runBtn: {
     marginTop: 20, flexDirection: 'row' as const, alignItems: 'center' as const,
@@ -1531,7 +1533,7 @@ const styles = StyleSheet.create({
   runBtnDisabled: { opacity: 0.5 },
   runBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
   quotaText: {
-    fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
+    fontSize: Type.caption1.fontSize, color: themeColors.textMuted, textAlign: 'center' as const,
     marginTop: 8,
   },
   reopenBtn: {
@@ -1562,7 +1564,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: 20,
     padding: 28,
     alignItems: 'center' as const,
@@ -1585,12 +1587,12 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginTop: 8,
   },
   loadingStep: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     textAlign: 'center' as const,
     minHeight: 20,
   },
@@ -1603,7 +1605,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.cardBorder,
+    backgroundColor: themeColors.line,
   },
   loadingDotActive: {
     backgroundColor: Colors.primary,
@@ -1612,7 +1614,7 @@ const styles = StyleSheet.create({
   // Result modal
   resultContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   resultHeader: {
     flexDirection: 'row' as const,
@@ -1621,8 +1623,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderBottomColor: themeColors.line,
+    backgroundColor: themeColors.surface,
   },
   resultHeaderIcon: {
     width: 36,
@@ -1636,7 +1638,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   resultCloseBtn: {
     width: 36,
@@ -1647,8 +1649,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
   },
   resultCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, borderWidth: 1,
-    borderColor: Colors.cardBorder, padding: 14,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, borderWidth: 1,
+    borderColor: themeColors.line, padding: 14,
   },
   resultSummaryCard: {
     borderColor: Colors.primary + '40',
@@ -1658,14 +1660,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const, alignItems: 'center' as const,
     gap: 8, marginBottom: 10,
   },
-  resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  resultBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
+  resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
   codeRow: { marginBottom: 10 },
   codeLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary, marginBottom: 2 },
-  codeReq: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  bulletRow: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 20, marginBottom: 4 },
+  codeReq: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  bulletRow: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 20, marginBottom: 4 },
   disclaimer: {
-    fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
+    fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'center' as const, paddingHorizontal: 20, marginTop: 4,
   },
 
@@ -1686,13 +1688,13 @@ const styles = StyleSheet.create({
   accordionCountText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   accordionBody: {
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: themeColors.line,
   },
 
   lockedHero: {
@@ -1709,11 +1711,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   lockedTitle: {
-    fontSize: 26, fontWeight: '700' as const, color: Colors.text,
+    fontSize: 26, fontWeight: '700' as const, color: themeColors.text,
     textAlign: 'center' as const,
   },
   lockedBody: {
-    fontSize: Type.subhead.fontSize, color: Colors.textMuted,
+    fontSize: Type.subhead.fontSize, color: themeColors.textMuted,
     textAlign: 'center' as const, lineHeight: 22,
     paddingHorizontal: 12, marginBottom: 12,
   },
@@ -1752,7 +1754,7 @@ const styles = StyleSheet.create({
   modeToggleText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   modeToggleTextActive: {
     color: '#FFF',
@@ -1807,7 +1809,7 @@ const styles = StyleSheet.create({
   roadmapSectionTitle: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
     marginTop: 12,
@@ -1815,15 +1817,15 @@ const styles = StyleSheet.create({
   },
   roadmapEmptyNote: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     fontStyle: 'italic' as const,
     marginBottom: 8,
   },
   missingCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     padding: 14,
     gap: 6,
     marginTop: 12,
@@ -1831,22 +1833,22 @@ const styles = StyleSheet.create({
   missingTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   missingSubtitle: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   missingItem: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 19,
   },
   roadmapRow: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     padding: 12,
     marginBottom: 8,
     gap: 6,
@@ -1859,16 +1861,16 @@ const styles = StyleSheet.create({
   roadmapRowTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginBottom: 2,
   },
   roadmapRowMeta: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   roadmapRowDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 18,
   },
   statusChip: {
@@ -1940,7 +1942,7 @@ const styles = StyleSheet.create({
   planDisclaimerText: {
     flex: 1,
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 17,
   },
   findingsWrap: {
@@ -1963,15 +1965,15 @@ const styles = StyleSheet.create({
   severityHeaderText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
   },
   findingCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
     padding: 12,
     gap: 6,
   },
@@ -1988,20 +1990,20 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   findingConfidence: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
   findingRequirement: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     lineHeight: 18,
   },
   findingObserved: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 18,
   },
   findingStatusBtn: {

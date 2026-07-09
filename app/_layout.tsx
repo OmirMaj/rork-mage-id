@@ -9,9 +9,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
+import { SafetyProvider } from "@/contexts/SafetyContext";
+import { CrewProvider } from "@/contexts/CrewContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import { MaterialCartProvider } from "@/contexts/MaterialCartContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
+import { WipProvider } from "@/contexts/WipContext";
 import { BidsProvider } from "@/contexts/BidsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
@@ -102,6 +105,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/photo-triage': 'Photo triage',
     '/leads': 'Pipeline',
     '/contacts': 'Contacts',
+    '/crew': 'Crew',
     '/buyout': 'Buyout',
     '/buyout-package': 'Bid package',
     '/bid-leveling': 'Bid leveling',
@@ -121,6 +125,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/coi-vault': 'COI vault',
     '/prequal-manager': 'Prequal manager',
     '/prequal-form': 'Prequal form',
+    '/claim-crew': 'Claim profile',
     '/sub-portals': 'Sub portals',
     '/sub-portal-setup': 'Sub portal',
     '/public-profile-setup': 'Public profile',
@@ -222,6 +227,7 @@ const queryClient = new QueryClient({
 // requesting a magic link), then exchanges the tokens for a session.
 // Runs at the root so it's mounted before any auth-gated screen.
 function MagicLinkHandler() {
+  const { onNewSessionEstablished } = useAuth();
   useEffect(() => {
     // Helper: pull access_token + refresh_token out of the URL hash
     // (Supabase puts them in `#access_token=...&refresh_token=...`).
@@ -248,6 +254,12 @@ function MagicLinkHandler() {
           console.warn('[MagicLink] setSession failed:', error.message);
         } else {
           console.log('[MagicLink] session set from magic link');
+          // Run the same shared-device cache guard the password/OAuth
+          // sign-in paths do. Magic-link & password-reset redemption set
+          // the session directly here, bypassing login()/signup(), so
+          // without this the previous user's cached projects/DFRs and
+          // queued mutations would leak into the new user's session.
+          await onNewSessionEstablished();
         }
       } catch (e) {
         console.warn('[MagicLink] redeem error:', e);
@@ -263,7 +275,7 @@ function MagicLinkHandler() {
       void tryRedeem(url);
     });
     return () => sub.remove();
-  }, []);
+  }, [onNewSessionEstablished]);
   return null;
 }
 
@@ -287,29 +299,76 @@ function AnalyticsManager() {
 function OfflineSyncManager() {
   const appState = useRef(AppState.currentState);
   const { isAuthenticated } = useAuth();
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffMs = useRef(0);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    void processOfflineQueue().then(({ processed }) => {
-      if (processed > 0) {
-        console.log('[OfflineSync] Processed', processed, 'queued mutations on startup');
+    let cancelled = false;
+
+    // Capped exponential backoff for the connectivity-less reconnect story.
+    // We have no NetInfo/expo-network event to tell us signal returned (adding
+    // one is a native dep and would break OTA — see deploy note), so when a
+    // flush leaves items queued we self-reschedule with growing delay. That
+    // drains the queue automatically once the network comes back even if the
+    // app never leaves the foreground.
+    const BASE_DELAY = 5_000;       // first retry ~5s after a failed drain
+    const MAX_DELAY = 5 * 60_000;   // cap at 5 min between attempts
+
+    const clearRetry = () => {
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = null;
       }
-    }).catch((err) => {
-      console.log('[OfflineSync] Failed to process queue on startup:', err);
-    });
+    };
+
+    const scheduleBackoff = (drain: () => void) => {
+      backoffMs.current = backoffMs.current === 0
+        ? BASE_DELAY
+        : Math.min(backoffMs.current * 2, MAX_DELAY);
+      console.log('[OfflineSync] Retrying queue drain in', backoffMs.current, 'ms');
+      retryTimer.current = setTimeout(drain, backoffMs.current);
+    };
+
+    // reset=true is used by the "fresh" triggers (startup / foreground): it
+    // clears the backoff so we retry promptly. The self-scheduled retries pass
+    // reset=false so the delay keeps growing while we stay offline.
+    const drain = (reset: boolean) => {
+      if (cancelled) return;
+      if (reset) backoffMs.current = 0;
+      clearRetry();
+      void processOfflineQueue().then(({ processed, remaining }) => {
+        if (cancelled) return;
+        if (processed > 0) {
+          console.log('[OfflineSync] Processed', processed, 'queued mutations');
+        }
+        if (remaining > 0) {
+          scheduleBackoff(() => drain(false));
+        } else {
+          backoffMs.current = 0;
+        }
+      }).catch((err) => {
+        console.log('[OfflineSync] Failed to process queue:', err);
+        // An unexpected flush failure is treated like a non-empty queue: back
+        // off and try again rather than silently giving up.
+        if (!cancelled) scheduleBackoff(() => drain(false));
+      });
+    };
+
+    drain(true);
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
         console.log('[OfflineSync] App foregrounded, processing queue');
-        void processOfflineQueue().catch((err) => {
-          console.log('[OfflineSync] Failed to process queue on foreground:', err);
-        });
+        drain(true);
       }
       appState.current = nextState;
     });
 
     return () => {
+      cancelled = true;
+      clearRetry();
       subscription.remove();
     };
   }, [isAuthenticated]);
@@ -338,12 +397,13 @@ function RootLayoutNav() {
     // /login mid-OAuth, breaking the QuickBooks Connect flow. The callback
     // page authenticates via a signed state HMAC, not the user's JWT.
     const inIntegrationsCallback = segments[0] === 'integrations';
+    const inClaimCrew = (segments[0] as string) === 'claim-crew';
 
     // Public magic-link destinations: never redirect away from these, even
     // when the user is unauthenticated. The prequal-form route is opened by
     // subcontractors via a tokenized email link; if we redirect to /login
     // before the token is consumed, the link is dead on arrival.
-    if (inResetPassword || inPrequalForm || inIntegrationsCallback) return;
+    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
@@ -535,6 +595,15 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
+      <Stack.Screen name="safety" options={{ title: 'Safety' }} />
+      <Stack.Screen name="safety-jha" options={{ title: 'JHAs' }} />
+      <Stack.Screen name="safety-toolbox" options={{ title: 'Toolbox Talks' }} />
+      <Stack.Screen name="safety-incidents" options={{ title: 'Incidents' }} />
+      <Stack.Screen name="safety-hazards" options={{ title: 'Hazard Log' }} />
+      <Stack.Screen name="safety-inspections" options={{ title: 'Inspections' }} />
+      <Stack.Screen name="safety-certifications" options={{ title: 'Certifications' }} />
+      <Stack.Screen name="safety-forms" options={{ title: 'Forms Library' }} />
+      <Stack.Screen name="safety-osha" options={{ title: 'OSHA 300 Log' }} />
       <Stack.Screen
         name="punch-walk"
         options={{ headerShown: false }}
@@ -570,6 +639,15 @@ function RootLayoutNav() {
         name="contacts"
         options={{
           title: "Contacts",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="crew"
+        options={{
+          title: "Crew",
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
@@ -635,6 +713,7 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
+      <Stack.Screen name="wip-report" options={{ title: 'WIP Report' }} />
       <Stack.Screen
         name="job-costing"
         options={{ headerShown: false }}
@@ -703,6 +782,7 @@ function RootLayoutNav() {
         name="prequal-form"
         options={{ headerShown: false }}
       />
+      <Stack.Screen name="claim-crew" options={{ headerShown: false }} />
       <Stack.Screen
         name="get-verified"
         options={{ headerShown: false }}
@@ -1162,6 +1242,9 @@ export default Sentry.wrap(function RootLayout() {
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
+                  <WipProvider>
+                  <CrewProvider>
+                  <SafetyProvider>
                   <PropertyProvider>
                   <MaterialCartProvider>
                     <BidsProvider>
@@ -1185,6 +1268,9 @@ export default Sentry.wrap(function RootLayout() {
                     </BidsProvider>
                   </MaterialCartProvider>
                   </PropertyProvider>
+                  </SafetyProvider>
+                  </CrewProvider>
+                  </WipProvider>
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>

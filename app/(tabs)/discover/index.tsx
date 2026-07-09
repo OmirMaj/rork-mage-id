@@ -17,6 +17,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
+import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 
 interface BidSource {
@@ -183,7 +184,7 @@ export default function DiscoverScreen() {
       tools: '/(tabs)/discover/tools',
       bids: '/(tabs)/discover/bids',
       companies: '/(tabs)/discover/companies',
-      hire: '/(tabs)/discover/hire',
+      ...(HIRE_ENABLED ? { hire: '/(tabs)/discover/hire' } : {}),
       estimate: '/(tabs)/discover/estimate',
       schedule: '/(tabs)/discover/schedule',
       materials: '/(tabs)/discover/materials',
@@ -214,7 +215,7 @@ export default function DiscoverScreen() {
           contentContainerStyle={styles.tabBar}
           style={styles.tabBarScroll}
         >
-          {TABS.map((tab) => {
+          {TABS.filter((tab) => HIRE_ENABLED || tab.id !== 'hire').map((tab) => {
             const isActive = tab.id === 'overview';
             const TabIcon = tab.icon;
             return (
@@ -255,16 +256,18 @@ export default function DiscoverScreen() {
             </View>
             <Text style={styles.quickActionLabel}>Post Bid</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigateTo('/post-job')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
-            </View>
-            <Text style={styles.quickActionLabel}>Post Job</Text>
-          </TouchableOpacity>
+          {HIRE_ENABLED && (
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => navigateTo('/post-job')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
+                <Plus size={16} color={Colors.accent} strokeWidth={1.75} />
+              </View>
+              <Text style={styles.quickActionLabel}>Post Job</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.quickAction}
             onPress={() => navigateTo('/(tabs)/settings')}
@@ -402,16 +405,18 @@ export default function DiscoverScreen() {
           onPress={() => navigateTo('/(tabs)/discover/companies')}
         />
 
-        <NavigationCard
-          icon={Briefcase}
-          iconColor={Colors.info}
-          iconBg={Colors.info + '15'}
-          title="Job Listings"
-          subtitle="Construction jobs & direct hire openings"
-          count={869}
-          countColor={Colors.info}
-          onPress={() => navigateTo('/(tabs)/discover/hire')}
-        />
+        {HIRE_ENABLED && (
+          <NavigationCard
+            icon={Briefcase}
+            iconColor={Colors.info}
+            iconBg={Colors.info + '15'}
+            title="Job Listings"
+            subtitle="Construction jobs & direct hire openings"
+            count={869}
+            countColor={Colors.info}
+            onPress={() => navigateTo('/(tabs)/discover/hire')}
+          />
+        )}
 
         {/* Live-databases group: third tone (`accent` orange) — these are
             external resources you visit, not work happening in MAGE ID. */}

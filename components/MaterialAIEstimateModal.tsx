@@ -18,7 +18,8 @@ import {
   X, CheckCircle, HardHat, Percent, Hash, RefreshCw,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
@@ -48,6 +49,7 @@ const QUICK_PROMPTS = [
 ];
 
 export default React.memo(function MaterialAIEstimateModal({ visible, onClose }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const { cart, updateQuantity, updateMarkup } = useMaterialCart();
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -394,10 +396,10 @@ export default React.memo(function MaterialAIEstimateModal({ visible, onClose }:
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
   },
   header: {
     flexDirection: 'row',
@@ -405,9 +407,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.border,
+    borderBottomColor: themeColors.line,
     gap: 12,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
@@ -416,11 +418,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#5E5CE6',
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  headerSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  headerSub: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 1 },
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
   },
   scroll: { flex: 1 },
@@ -428,19 +430,19 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 6,
   },
   textArea: {
     minHeight: 72,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
   },
   promptsRow: {
     flexDirection: 'row',
@@ -452,12 +454,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     maxWidth: '100%',
   },
-  promptChipText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  promptChipText: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
   generateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -474,29 +476,29 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
+    borderColor: themeColors.line,
+    backgroundColor: themeColors.surfaceAlt,
     alignItems: 'center',
   },
   cancelBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.text,
+    color: themeColors.text,
   },
   generateBtnText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: themeColors.surface,
   },
   notice: {
     marginTop: 14,
     padding: 12,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: themeColors.surfaceAlt,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
-  noticeText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
+  noticeText: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
   errorBanner: {
     marginTop: 12,
     padding: 12,
@@ -510,15 +512,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 14,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   recHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   recHeaderText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     letterSpacing: 0.2,
   },
   recRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
@@ -526,14 +528,14 @@ const styles = StyleSheet.create({
     width: 5, height: 5, borderRadius: Tokens.radius.full, marginTop: 7,
     backgroundColor: Colors.accent,
   },
-  recText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 19 },
+  recText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 19 },
   laborBlock: {
     marginTop: 12,
     padding: 14,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
   },
   laborRange: {
     fontSize: Type.title3.fontSize,
@@ -543,14 +545,14 @@ const styles = StyleSheet.create({
   },
   laborRationale: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginTop: 4,
     lineHeight: 17,
   },
   sectionTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     letterSpacing: 0.4,
     marginTop: 18,
     marginBottom: 8,
@@ -559,16 +561,16 @@ const styles = StyleSheet.create({
   suggestionCard: {
     padding: 14,
     borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     marginBottom: 10,
     gap: 8,
   },
-  suggestionName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
+  suggestionName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: themeColors.text },
   suggestionRationale: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 17,
   },
   suggestionRow: {
@@ -582,12 +584,12 @@ const styles = StyleSheet.create({
   suggestionMetricLabel: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     letterSpacing: 0.4,
     textTransform: 'uppercase' as const,
   },
-  suggestionValue: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  suggestionValueAccent: { color: Colors.text, fontWeight: '600' as const },
+  suggestionValue: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
+  suggestionValueAccent: { color: themeColors.text, fontWeight: '600' as const },
   suggestionDelta: { color: Colors.accent, fontWeight: '600' as const },
   applyBtn: {
     flexDirection: 'row',
@@ -602,6 +604,6 @@ const styles = StyleSheet.create({
   applyBtnText: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: themeColors.surface,
   },
 });

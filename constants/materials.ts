@@ -360,28 +360,26 @@ export function getMaterialCostBreakdown(material: MaterialItem): { laborCost: n
 }
 
 // Each category gets a Lucide icon (semantically correct, visually
-// consistent with the rest of the app) instead of an emoji. The `iconName`
-// is a string that consumer files import from lucide-react-native by
-// the same name. We keep `emoji` as a fallback string for any code path
-// that hasn't been migrated yet, but new UI should use `iconName`.
-export const CATEGORY_META: Record<string, { color: string; emoji: string; iconName: string; label: string }> = {
-  lumber:     { color: '#92400E', emoji: '🪵',  iconName: 'TreePine',         label: 'Lumber & Framing' },
-  concrete:   { color: '#6B7280', emoji: '🧱',  iconName: 'Box',              label: 'Concrete & Masonry' },
-  roofing:    { color: '#1A6B3C', emoji: '🏠',  iconName: 'Home',             label: 'Roofing' },
-  insulation: { color: '#A16207', emoji: '🧊',  iconName: 'Layers',           label: 'Insulation' },
-  siding:     { color: '#B45309', emoji: '🏗️', iconName: 'LayoutPanelLeft',  label: 'Siding & Exterior' },
-  windows:    { color: '#3F6B7D', emoji: '🪟',  iconName: 'AppWindow',        label: 'Windows & Doors' },
-  flooring:   { color: '#8A5A2B', emoji: '🟫',  iconName: 'LayoutGrid',       label: 'Flooring' },
-  plumbing:   { color: '#356B7A', emoji: '🔧',  iconName: 'Wrench',           label: 'Plumbing' },
-  electrical: { color: '#D97706', emoji: '⚡',  iconName: 'Zap',              label: 'Electrical' },
-  hvac:       { color: '#4A6B6B', emoji: '❄️', iconName: 'Wind',             label: 'HVAC' },
-  drywall:    { color: '#8A8170', emoji: '🔲',  iconName: 'Square',           label: 'Drywall' },
-  paint:      { color: '#0F766E', emoji: '🎨',  iconName: 'Brush',            label: 'Paint & Finishes' },
-  decking:    { color: '#78350F', emoji: '🌳',  iconName: 'TreePine',         label: 'Decking' },
-  fencing:    { color: '#4D7C0F', emoji: '🚧',  iconName: 'Construction',     label: 'Fencing' },
-  steel:      { color: '#475569', emoji: '🔩',  iconName: 'HardHat',          label: 'Steel & Metal' },
-  hardware:   { color: '#374151', emoji: '🔨',  iconName: 'Hammer',           label: 'Fasteners & Hardware' },
-  landscape:  { color: '#15803D', emoji: '🌿',  iconName: 'Leaf',             label: 'Landscape' },
+// consistent with the rest of the app). Consumer files import the icon
+// from lucide-react-native by the `iconName` string.
+export const CATEGORY_META: Record<string, { color: string; iconName: string; label: string }> = {
+  lumber:     { color: '#92400E', iconName: 'TreePine',         label: 'Lumber & Framing' },
+  concrete:   { color: '#6B7280', iconName: 'Box',              label: 'Concrete & Masonry' },
+  roofing:    { color: '#1A6B3C', iconName: 'Home',             label: 'Roofing' },
+  insulation: { color: '#A16207', iconName: 'Layers',           label: 'Insulation' },
+  siding:     { color: '#B45309', iconName: 'LayoutPanelLeft',  label: 'Siding & Exterior' },
+  windows:    { color: '#3F6B7D', iconName: 'AppWindow',        label: 'Windows & Doors' },
+  flooring:   { color: '#8A5A2B', iconName: 'LayoutGrid',       label: 'Flooring' },
+  plumbing:   { color: '#356B7A', iconName: 'Wrench',           label: 'Plumbing' },
+  electrical: { color: '#D97706', iconName: 'Zap',              label: 'Electrical' },
+  hvac:       { color: '#4A6B6B', iconName: 'Wind',             label: 'HVAC' },
+  drywall:    { color: '#8A8170', iconName: 'Square',           label: 'Drywall' },
+  paint:      { color: '#0F766E', iconName: 'Brush',            label: 'Paint & Finishes' },
+  decking:    { color: '#78350F', iconName: 'TreePine',         label: 'Decking' },
+  fencing:    { color: '#4D7C0F', iconName: 'Construction',     label: 'Fencing' },
+  steel:      { color: '#475569', iconName: 'HardHat',          label: 'Steel & Metal' },
+  hardware:   { color: '#374151', iconName: 'Hammer',           label: 'Fasteners & Hardware' },
+  landscape:  { color: '#15803D', iconName: 'Leaf',             label: 'Landscape' },
 };
 
 export const PRICE_VOLATILITY: Record<string, number> = {

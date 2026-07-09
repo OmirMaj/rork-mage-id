@@ -39,7 +39,13 @@ function createId(_prefix: string): string {
 export default function CategoryDetailScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { category } = useLocalSearchParams<{ category: string }>();
+  const { category, loc } = useLocalSearchParams<{ category: string; loc?: string }>();
+  // Location multiplier handed down from the Materials index picker (query
+  // param). Falls back to 1.0 (national) when opened without one.
+  const locationMultiplier = useMemo(() => {
+    const n = loc ? parseFloat(loc) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  }, [loc]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { priceAlerts, addPriceAlert } = useProjects();
@@ -80,9 +86,17 @@ export default function CategoryDetailScreen() {
   }, []);
 
   const allMaterials = useMemo(() => {
-    const prices = getLivePrices(Date.now() / 10000);
-    return prices.filter(m => m.category === category);
-  }, [category]);
+    // Base products only — getLivePrices returns the full expanded catalog
+    // (base × region × pricing tier ≈ 20k rows) which is reserved for the
+    // Estimate tab's search/AI matching. Browsing that here rendered ~1,600
+    // near-identical entries per category. locationMultiplier threads the
+    // picker's selection so these BROWSE/DETAIL prices match what the index
+    // card showed. NOTE: this only adjusts the displayed prices in Materials —
+    // cart and Estimate-tab pricing are governed separately by the Estimate
+    // tab's settings.location, which re-prices cart items on its own.
+    const prices = getLivePrices(Date.now() / 10000, locationMultiplier);
+    return prices.filter(m => m.category === category && m.specTier === 'base');
+  }, [category, locationMultiplier]);
 
   const filteredMaterials = useMemo(() => {
     if (!searchQuery.trim()) return allMaterials;
@@ -94,7 +108,7 @@ export default function CategoryDetailScreen() {
     );
   }, [allMaterials, searchQuery]);
 
-  const meta = CATEGORY_META[category ?? ''] ?? { color: themeColors.accent, emoji: '📦', iconName: 'Package', label: category ?? 'Materials' };
+  const meta = CATEGORY_META[category ?? ''] ?? { color: themeColors.accent, iconName: 'Package', label: category ?? 'Materials' };
   const CategoryIcon = CATEGORY_ICONS[meta.iconName] ?? Package;
 
   const calcDiscount = (retail: number, bulk: number) => {

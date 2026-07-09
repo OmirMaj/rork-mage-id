@@ -39,9 +39,7 @@
       border-bottom: 1px solid var(--border);
       padding: 14px clamp(20px, 4vw, 40px);
       z-index: 50;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      background: rgba(11, 13, 16, 0.85);
+      background: var(--ink);
     }
     .pb-toc-inner {
       display: flex; gap: 8px; overflow-x: auto;
@@ -81,7 +79,7 @@
 
     .pb-section h2 {
       display: flex; align-items: center;
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: clamp(28px, 4vw, 40px);
       letter-spacing: -0.5px;
       margin: 0 0 8px 0;
@@ -111,7 +109,7 @@
       margin: 16px 0;
     }
     .pb-card h3 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: 22px;
       margin: 0 0 8px 0;
       color: var(--text);
@@ -124,7 +122,7 @@
       border-radius: 14px;
       padding: 18px 22px;
       margin: 12px 0;
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-sans);
       font-style: normal;
       font-size: 17px;
       color: var(--text);
@@ -136,7 +134,7 @@
       display: block;
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23FF6A1A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='11' rx='3'/%3E%3Cpath d='M5 10a7 7 0 0 0 14 0M12 17v4'/%3E%3C/svg%3E") no-repeat left center;
       padding-left: 17px;
-      font-family: 'Inter', sans-serif;
+      font-family: var(--ff-sans);
       font-style: normal;
       font-size: 11px;
       letter-spacing: 1px;
@@ -146,8 +144,8 @@
       margin-bottom: 6px;
     }
     .pb-voice-result {
-      background: rgba(34, 197, 94, 0.06);
-      border: 1px solid rgba(34, 197, 94, 0.25);
+      background: rgba(255, 106, 26, 0.06);
+      border: 1px solid rgba(255, 106, 26, 0.25);
       border-radius: 14px;
       padding: 14px 18px;
       margin: 4px 0 16px 0;
@@ -162,7 +160,7 @@
       letter-spacing: 1px;
       text-transform: uppercase;
       font-weight: 700;
-      color: #22C55E;
+      color: #FF6A1A;
       margin-bottom: 4px;
     }
 
@@ -175,8 +173,8 @@
     .pb-grid .pb-card { margin: 0; }
 
     .pb-pro-tip {
-      background: rgba(13, 108, 177, 0.10);
-      border-left: 4px solid #0D6CB1;
+      background: rgba(255, 106, 26, 0.10);
+      border-left: 4px solid #FF6A1A;
       padding: 14px 18px;
       margin: 16px 0;
       border-radius: 8px;
@@ -184,7 +182,7 @@
       color: var(--text);
       line-height: 1.6;
     }
-    .pb-pro-tip strong { color: #4FA8E8; }
+    .pb-pro-tip strong { color: #FF6A1A; }
 
     .pb-cheatsheet {
       background: var(--ink);
@@ -194,7 +192,7 @@
       margin: 24px 0;
     }
     .pb-cheatsheet h3 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       color: var(--amber);
       font-size: 20px;
       margin: 0 0 18px 0;
@@ -202,7 +200,7 @@
     .pb-cheatsheet table { width: 100%; border-collapse: collapse; font-size: 14px; }
     .pb-cheatsheet th { text-align: left; color: var(--text-muted); padding: 8px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
     .pb-cheatsheet td { padding: 12px 0 12px 0; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
-    .pb-cheatsheet td:first-child { font-family: 'Space Grotesk', serif; font-style: normal; padding-right: 16px; width: 50%; }
+    .pb-cheatsheet td:first-child { font-family: var(--ff-sans); font-style: normal; padding-right: 16px; width: 50%; }
     .pb-cheatsheet td:last-child { color: var(--text-muted); }
 
     .pb-hero {
@@ -214,7 +212,7 @@
       border-bottom: 1px solid var(--border);
     }
     .pb-hero h1 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: clamp(40px, 7vw, 72px);
       letter-spacing: -1.5px;
       line-height: 1;
@@ -234,7 +232,7 @@
       margin-right: auto;
     }
     .pb-stat .num {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-mono);
       font-size: 40px;
       color: var(--amber);
       font-weight: 700;
@@ -336,7 +334,7 @@
           </div>
           <div class="pb-card">
             <h3>2. Plan jobs</h3>
-            <p>AI builds a schedule from a sentence. Phase-based Gantt, critical path, weather alerts on outdoor tasks.</p>
+            <p>AI builds a schedule from a sentence. Phase-based Gantt, critical path, with weather-aware scheduling on the roadmap.</p>
           </div>
           <div class="pb-card">
             <h3>3. Run the field</h3>
@@ -485,7 +483,7 @@
     </section>
 
     <!-- ─────────── 3. SCHEDULE ─────────── -->
-    <section class="pb-section" id="schedule" style="background: rgba(13, 108, 177, 0.04);">
+    <section class="pb-section" id="schedule" style="background: rgba(255, 106, 26, 0.04);">
       <div class="wrap">
         <span class="pb-eyebrow"><span class="pb-step-num">3</span> Plan the work</span>
         <h2>A schedule, in 60 seconds.</h2>
@@ -582,7 +580,7 @@
     </section>
 
     <!-- ─────────── 5b. BUYOUT ─────────── -->
-    <section class="pb-section" id="buyout" style="background: rgba(13, 108, 177, 0.06); border-top: 1px solid rgba(13, 108, 177, 0.25);">
+    <section class="pb-section" id="buyout" style="background: rgba(255, 106, 26, 0.06); border-top: 1px solid rgba(255, 106, 26, 0.25);">
       <div class="wrap">
         <span class="pb-eyebrow"><span class="pb-step-num">5</span>b · Buyout — the margin lever</span>
         <h2>Turn estimate carry into signed subs.</h2>
@@ -651,7 +649,7 @@
     </section>
 
     <!-- ─────────── 5. CLIENT PORTAL ─────────── -->
-    <section class="pb-section" id="client" style="background: rgba(34, 197, 94, 0.04);">
+    <section class="pb-section" id="client" style="background: rgba(255, 106, 26, 0.04);">
       <div class="wrap">
         <span class="pb-eyebrow"><span class="pb-step-num">5</span> Keep the client in the loop</span>
         <h2>One link. Live, forever.</h2>
@@ -889,8 +887,8 @@
           No sales call, no contract.
         </p>
         <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 24px;">
-          <a class="btn btn-primary" href="https://apps.apple.com/app/mage-id/id6762229238">Get on iPhone</a>
-          <a class="btn btn-secondary" href="https://app.mageid.app">Try on the web</a>
+          <a class="btn btn-primary" href="https://app.mageid.app">Start free on the web</a>
+          <a class="btn btn-secondary" href="/access.html">Request the iPhone app</a>
         </div>
       </div>
     </section>
@@ -904,6 +902,7 @@
         <a href="/compare/">Compare</a>
         <a href="/support.html">Support</a>
         <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
       </nav>
     </div>
   </footer>

@@ -206,6 +206,14 @@ CREATE TABLE IF NOT EXISTS public.punch_items (
   photo_uri TEXT,
   rejection_note TEXT,
   closed_at TIMESTAMPTZ,
+  -- Location tracking (migration 20260707120000_punch_location.sql): additive + nullable.
+  plan_sheet_id TEXT,
+  pin_x DOUBLE PRECISION,
+  pin_y DOUBLE PRECISION,
+  photo_latitude DOUBLE PRECISION,
+  photo_longitude DOUBLE PRECISION,
+  photo_accuracy_meters DOUBLE PRECISION,
+  photo_location_label TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -213,6 +221,164 @@ CREATE TABLE IF NOT EXISTS public.punch_items (
 CREATE INDEX idx_punch_items_project ON public.punch_items(project_id);
 
 CREATE TRIGGER punch_items_updated_at BEFORE UPDATE ON public.punch_items
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- WIP Reporting: additive period-snapshot table.
+-- Live WIP is computed on the fly from existing financial tables; only these
+-- frozen snapshots persist. locked_at makes a period immutable at the app
+-- layer (CPA/bank close). Scoped by user_id (matches every tertiary_* table);
+-- company_id is stored for future company-wide roll-ups but RLS is on user_id.
+CREATE TABLE IF NOT EXISTS public.wip_periods (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  company_id TEXT,
+  period_end_date TEXT NOT NULL,
+  rows JSONB NOT NULL DEFAULT '[]'::jsonb,
+  portfolio_totals JSONB NOT NULL DEFAULT '{}'::jsonb,
+  notes TEXT,
+  locked_at TIMESTAMPTZ,
+  created_by TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_wip_periods_user ON public.wip_periods(user_id);
+
+CREATE TRIGGER wip_periods_updated_at BEFORE UPDATE ON public.wip_periods
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Lock immutability, enforced server-side (not just at the client). Once a
+-- period is locked (locked_at IS NOT NULL) its financial payload is frozen for
+-- the CPA/bank close — a stale offline client must not be able to overwrite it.
+-- The only permitted mutation once locked is the updated_at bump the trigger
+-- above makes; the initial NULL→timestamp lock transition is allowed because
+-- OLD.locked_at IS NULL there. Any change to the snapshot fields (or re-locking)
+-- RAISEs. Mirrors the invoice-immutability precedent.
+CREATE OR REPLACE FUNCTION public.wip_periods_block_locked_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.locked_at IS NOT NULL THEN
+    IF (NEW.rows IS DISTINCT FROM OLD.rows)
+       OR (NEW.portfolio_totals IS DISTINCT FROM OLD.portfolio_totals)
+       OR (NEW.period_end_date IS DISTINCT FROM OLD.period_end_date)
+       OR (NEW.notes IS DISTINCT FROM OLD.notes)
+       OR (NEW.locked_at IS DISTINCT FROM OLD.locked_at) THEN
+      RAISE EXCEPTION 'wip_periods: period % is locked and immutable', OLD.id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER wip_periods_block_locked_update BEFORE UPDATE ON public.wip_periods
+  FOR EACH ROW EXECUTE FUNCTION public.wip_periods_block_locked_update();
+
+ALTER TABLE public.wip_periods ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- SAFETY MANAGEMENT — Wave A
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.jhas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  trade TEXT DEFAULT '',
+  task_description TEXT DEFAULT '',
+  date TEXT DEFAULT '',
+  steps JSONB DEFAULT '[]'::JSONB,
+  required_ppe JSONB DEFAULT '[]'::JSONB,
+  sign_offs JSONB DEFAULT '[]'::JSONB,
+  plan_sheet_id TEXT,
+  pin_x DOUBLE PRECISION,
+  pin_y DOUBLE PRECISION,
+  ai_generated BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'archived')),
+  created_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_jhas_project ON public.jhas(project_id);
+CREATE TRIGGER jhas_updated_at BEFORE UPDATE ON public.jhas
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS public.toolbox_talks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  topic TEXT NOT NULL,
+  date TEXT DEFAULT '',
+  presenter TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  attachment_url TEXT,
+  attendees JSONB DEFAULT '[]'::JSONB,
+  ai_topic_source TEXT CHECK (ai_topic_source IN ('incident', 'hazard', 'weather', 'manual')),
+  created_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_toolbox_talks_project ON public.toolbox_talks(project_id);
+CREATE TRIGGER toolbox_talks_updated_at BEFORE UPDATE ON public.toolbox_talks
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS public.safety_incidents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('injury', 'near_miss', 'property', 'environmental')),
+  severity TEXT DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+  occurred_at TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  location TEXT DEFAULT '',
+  plan_sheet_id TEXT,
+  pin_x DOUBLE PRECISION,
+  pin_y DOUBLE PRECISION,
+  people_involved JSONB DEFAULT '[]'::JSONB,
+  photo_urls JSONB DEFAULT '[]'::JSONB,
+  corrective_actions JSONB DEFAULT '[]'::JSONB,
+  treatment TEXT DEFAULT 'none' CHECK (treatment IN ('none', 'first_aid', 'medical_beyond_first_aid')),
+  days_away INTEGER DEFAULT 0,
+  days_restricted INTEGER DEFAULT 0,
+  restricted_duty BOOLEAN DEFAULT FALSE,
+  lost_consciousness BOOLEAN DEFAULT FALSE,
+  fatality BOOLEAN DEFAULT FALSE,
+  osha_illness_type TEXT CHECK (osha_illness_type IN ('injury', 'skin', 'respiratory', 'poisoning', 'hearing', 'other_illness')),
+  osha_recordable BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'investigating', 'closed')),
+  reported_by TEXT DEFAULT '',
+  created_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_safety_incidents_project ON public.safety_incidents(project_id);
+CREATE TRIGGER safety_incidents_updated_at BEFORE UPDATE ON public.safety_incidents
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS public.hazards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  location TEXT DEFAULT '',
+  photo_url TEXT,
+  severity INTEGER DEFAULT 1 CHECK (severity BETWEEN 1 AND 5),
+  likelihood INTEGER DEFAULT 1 CHECK (likelihood BETWEEN 1 AND 5),
+  risk_score INTEGER DEFAULT 1,
+  plan_sheet_id TEXT,
+  pin_x DOUBLE PRECISION,
+  pin_y DOUBLE PRECISION,
+  assigned_to TEXT,
+  due_date TEXT,
+  corrective_action TEXT,
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'mitigated', 'closed')),
+  source_inspection_id TEXT,
+  source_item_id TEXT,
+  created_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_hazards_project ON public.hazards(project_id);
+CREATE TRIGGER hazards_updated_at BEFORE UPDATE ON public.hazards
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- ============================================
@@ -574,6 +740,10 @@ ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subcontractors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.punch_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jhas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.toolbox_talks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.safety_incidents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hazards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rfis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.submittals ENABLE ROW LEVEL SECURITY;
@@ -631,6 +801,37 @@ CREATE POLICY "punch_select_own" ON public.punch_items FOR SELECT USING (auth.ui
 CREATE POLICY "punch_insert_own" ON public.punch_items FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "punch_update_own" ON public.punch_items FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "punch_delete_own" ON public.punch_items FOR DELETE USING (auth.uid() = user_id);
+
+-- WIP PERIODS: owner access
+CREATE POLICY "wip_periods_select_own" ON public.wip_periods
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "wip_periods_insert_own" ON public.wip_periods
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "wip_periods_update_own" ON public.wip_periods
+  FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "wip_periods_delete_own" ON public.wip_periods
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Safety Wave A policies
+CREATE POLICY "jhas_select_own" ON public.jhas FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "jhas_insert_own" ON public.jhas FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "jhas_update_own" ON public.jhas FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "jhas_delete_own" ON public.jhas FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "toolbox_select_own" ON public.toolbox_talks FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "toolbox_insert_own" ON public.toolbox_talks FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "toolbox_update_own" ON public.toolbox_talks FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "toolbox_delete_own" ON public.toolbox_talks FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "incidents_select_own" ON public.safety_incidents FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "incidents_insert_own" ON public.safety_incidents FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "incidents_update_own" ON public.safety_incidents FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "incidents_delete_own" ON public.safety_incidents FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "hazards_select_own" ON public.hazards FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "hazards_insert_own" ON public.hazards FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "hazards_update_own" ON public.hazards FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "hazards_delete_own" ON public.hazards FOR DELETE USING (auth.uid() = user_id);
 
 -- PHOTOS: owner access
 CREATE POLICY "photos_select_own" ON public.photos FOR SELECT USING (auth.uid() = user_id);
@@ -1033,6 +1234,76 @@ CREATE POLICY "plan_calibrations_all_own" ON public.plan_calibrations
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- ============================================
+-- SAFETY MANAGEMENT — Wave B (inspections, certifications, templates)
+-- Mirror of supabase/migrations/20260708180000_safety_wave_b.sql.
+-- Additive, RLS-scoped. Triggers/updated_at fn omitted here to keep
+-- schema.sql declarative (matching how other tables are mirrored).
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.safety_inspections (
+  id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id text NOT NULL,
+  template_id text,
+  title text NOT NULL DEFAULT '',
+  date text NOT NULL DEFAULT '',
+  inspector text NOT NULL DEFAULT '',
+  items jsonb NOT NULL DEFAULT '[]'::jsonb,
+  score numeric(4,3) NOT NULL DEFAULT 1,
+  status text NOT NULL DEFAULT 'complete' CHECK (status IN ('draft','complete')),
+  created_by text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS safety_inspections_user_idx ON public.safety_inspections(user_id);
+CREATE INDEX IF NOT EXISTS safety_inspections_project_idx ON public.safety_inspections(project_id);
+ALTER TABLE public.safety_inspections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "safety_inspections_all_own" ON public.safety_inspections;
+CREATE POLICY "safety_inspections_all_own" ON public.safety_inspections
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.safety_inspections TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.certifications (
+  id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  worker_id text,               -- → crew_members.id (person anchor); nullable, cert may predate the roster entry. NO FK: keeps the offline queue from failing when a cert syncs before its CrewMember row.
+  holder_name text,             -- display fallback when worker_id is null (nullable now that CrewMember is the anchor)
+  sub_id text,
+  type text NOT NULL DEFAULT '',
+  issued_date text,
+  expires_date text,
+  document_url text,
+  status text NOT NULL DEFAULT 'valid' CHECK (status IN ('valid','expiring','expired')),
+  created_by text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS certifications_user_idx ON public.certifications(user_id);
+CREATE INDEX IF NOT EXISTS certifications_worker_idx ON public.certifications(worker_id);
+CREATE INDEX IF NOT EXISTS certifications_sub_idx ON public.certifications(sub_id);
+ALTER TABLE public.certifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "certifications_all_own" ON public.certifications;
+CREATE POLICY "certifications_all_own" ON public.certifications
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.certifications TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.safety_templates (
+  id text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name text NOT NULL DEFAULT '',
+  category text NOT NULL DEFAULT 'general' CHECK (category IN ('jha','inspection','general')),
+  fields jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_by text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS safety_templates_user_idx ON public.safety_templates(user_id);
+ALTER TABLE public.safety_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "safety_templates_all_own" ON public.safety_templates;
+CREATE POLICY "safety_templates_all_own" ON public.safety_templates
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.safety_templates TO authenticated;
+
+-- ============================================
 -- ENABLE REALTIME
 -- ============================================
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
@@ -1063,3 +1334,125 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================
+-- CREW MEMBERS
+-- ============================================
+-- Worker Profile — CrewMember roster. Additive, company-scoped.
+-- RLS: owning GC (auth.uid() = user_id) OR claimed worker
+-- (auth.uid() = claimed_by_user_id) for SELECT/UPDATE; only the GC INSERTs and
+-- DELETEs. Mirror of supabase/migrations/20260708130000_crew_members.sql.
+CREATE TABLE IF NOT EXISTS public.crew_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name TEXT NOT NULL,
+  trades JSONB DEFAULT '[]'::JSONB,
+  phone TEXT,
+  email TEXT,
+  photo_url TEXT,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  -- ID verification (extract-then-purge default: masked/derived fields only)
+  id_verified BOOLEAN DEFAULT FALSE,
+  id_type TEXT CHECK (id_type IN ('drivers_license', 'state_id', 'passport', 'other')),
+  id_masked_last4 TEXT,
+  id_expiry TEXT,
+  id_issuer TEXT,
+  id_scanned_at TIMESTAMPTZ,
+  -- Present ONLY on opt-in retain: a PATH in the private worker-ids bucket.
+  id_image_path TEXT,
+  -- Claim (hybrid ownership)
+  claim_token TEXT UNIQUE,
+  claimed_by_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  claimed_at TIMESTAMPTZ,
+  is_public BOOLEAN DEFAULT FALSE,
+  marketplace_profile_id UUID,
+  project_ids JSONB DEFAULT '[]'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crew_members_user ON public.crew_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_crew_members_claimed ON public.crew_members(claimed_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_crew_members_claim_token ON public.crew_members(claim_token);
+
+ALTER TABLE public.crew_members ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: owning GC or the claimed worker.
+CREATE POLICY "crew_select_own_or_claimed" ON public.crew_members
+  FOR SELECT USING (auth.uid() = user_id OR auth.uid() = claimed_by_user_id);
+-- INSERT: only the owning GC.
+CREATE POLICY "crew_insert_own" ON public.crew_members
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- UPDATE: owning GC or the claimed worker (self-edit path is not tier-gated).
+-- WITH CHECK re-validates the NEW row so an update cannot move a row outside
+-- owner-or-claimed visibility. CRITICAL: WITH CHECK alone does NOT stop a
+-- claimed worker from hijacking ownership — they could set user_id = auth.uid()
+-- and the NEW row would still satisfy the OR clause, silently dropping the row
+-- out of the GC's user_id-scoped SELECT/UPDATE/DELETE policies (compliance
+-- roster). The crew_freeze_ownership_columns BEFORE-UPDATE trigger below closes
+-- that by freezing ownership + claim + all GC-owned ID/verification/marketplace
+-- columns for any authenticated caller who is not the owning GC (only phone,
+-- email, photo_url, trades, is_public stay worker-writable). Service-role /
+-- trusted-backend writes (auth.uid() IS NULL) are exempt and bypass RLS as usual.
+CREATE POLICY "crew_update_own_or_claimed" ON public.crew_members
+  FOR UPDATE
+  USING (auth.uid() = user_id OR auth.uid() = claimed_by_user_id)
+  WITH CHECK (auth.uid() = user_id OR auth.uid() = claimed_by_user_id);
+-- DELETE: only the owning GC.
+CREATE POLICY "crew_delete_own" ON public.crew_members
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Freeze GC/system-owned columns against a claimed worker's self-edit. A BEFORE
+-- trigger's NEW row is what RLS WITH CHECK ultimately validates, so restoring
+-- these from OLD defeats the USING-clause escalation AND forgery of
+-- GC-controlled compliance state. For a non-owner caller (the claimed worker),
+-- ONLY genuinely worker-owned fields stay writable: phone, email, photo_url,
+-- trades, is_public. Everything else is restored:
+--   • user_id / claimed_by_user_id / claimed_at / claim_token — ownership +
+--     single-use claim state (prevents hijack and token re-mint).
+--   • id_verified / id_type / id_masked_last4 / id_expiry / id_issuer /
+--     id_scanned_at / id_image_path — the GC creates these from a real scan; a
+--     raw client PATCH must never forge the "ID Verified" badge or point
+--     id_image_path at an arbitrary path in the private worker-ids bucket.
+--   • marketplace_profile_id — the Hire listing identity; worker-set values
+--     could collide with / shadow another worker's marketplace profile once
+--     HIRE_ENABLED flips. Only the GC / service role may set it.
+--   • full_name / status / project_ids — GC-controlled roster + assignment
+--     state. full_name is the identity shown on the compliance roster / JHA
+--     sign-offs and the person anchor for certifications; status (active/
+--     inactive) and project_ids (which projects the worker is assigned to)
+--     are the GC's call, not the worker's. A raw client PATCH must never let a
+--     claimed worker rename themselves, flip their own status, or self-assign
+--     to a GC project.
+-- Any legitimate worker self-scan must go through a service-role edge function
+-- (auth.uid() IS NULL, exempt below) that validates a fresh scan — never a raw
+-- client PATCH.
+CREATE OR REPLACE FUNCTION public.crew_freeze_ownership_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND auth.uid() IS DISTINCT FROM OLD.user_id THEN
+    NEW.user_id := OLD.user_id;
+    NEW.claimed_by_user_id := OLD.claimed_by_user_id;
+    NEW.claimed_at := OLD.claimed_at;
+    NEW.claim_token := OLD.claim_token;
+    NEW.id_verified := OLD.id_verified;
+    NEW.id_type := OLD.id_type;
+    NEW.id_masked_last4 := OLD.id_masked_last4;
+    NEW.id_expiry := OLD.id_expiry;
+    NEW.id_issuer := OLD.id_issuer;
+    NEW.id_scanned_at := OLD.id_scanned_at;
+    NEW.id_image_path := OLD.id_image_path;
+    NEW.marketplace_profile_id := OLD.marketplace_profile_id;
+    NEW.full_name := OLD.full_name;
+    NEW.status := OLD.status;
+    NEW.project_ids := OLD.project_ids;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER crew_members_freeze_ownership BEFORE UPDATE ON public.crew_members
+  FOR EACH ROW EXECUTE FUNCTION public.crew_freeze_ownership_columns();
+
+CREATE TRIGGER crew_members_updated_at BEFORE UPDATE ON public.crew_members
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

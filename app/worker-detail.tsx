@@ -9,7 +9,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useHire } from '@/contexts/HireContext';
+import { useHire, HIRE_ENABLED } from '@/contexts/HireContext';
 import { getTradeLabel } from '@/constants/trades';
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import type { AvailabilityStatus } from '@/types';
@@ -36,6 +36,15 @@ export default function WorkerDetailScreen() {
     if (!worker) return [];
     return jobs.filter(j => j.tradeCategory === worker.tradeCategory && j.status === 'open').slice(0, 5);
   }, [worker, jobs]);
+
+  if (!HIRE_ENABLED) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Worker Profile' }} />
+        <View style={styles.center}><Text style={styles.errorText}>Direct Hire is coming soon — the hiring marketplace isn&apos;t available yet.</Text></View>
+      </View>
+    );
+  }
 
   if (!worker) {
     return (

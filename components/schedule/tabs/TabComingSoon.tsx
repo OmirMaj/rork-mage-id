@@ -2,10 +2,11 @@
 //
 // Stub tab content for Calendar / Workload / Timeline. Shows a small
 // preview mock + tagline + "Notify me" button that writes a row to
-// feature_interest. Button states: idle → loading → "✓ We'll let you know".
+// feature_interest. Button states: idle → loading → "We'll let you know" (with check icon).
 
 import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -47,12 +48,18 @@ export function TabComingSoon({ tabName, tagline, eventKey, previewMock }: TabCo
         disabled={state === 'loading' || state === 'done'}
         style={[styles.btn, state === 'done' && styles.btnDone]}
       >
-        <Text style={styles.btnText}>
-          {state === 'loading' ? 'Saving…'
-           : state === 'done' ? "✓ We'll let you know"
-           : state === 'error' ? 'Try again →'
-           : 'Notify me when this ships →'}
-        </Text>
+        {state === 'done' ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Check size={12} color={Colors.tradeColors.general} strokeWidth={2.5} />
+            <Text style={styles.btnText}>We'll let you know</Text>
+          </View>
+        ) : (
+          <Text style={styles.btnText}>
+            {state === 'loading' ? 'Saving…'
+             : state === 'error' ? 'Try again →'
+             : 'Notify me when this ships →'}
+          </Text>
+        )}
       </Pressable>
     </View>
   );

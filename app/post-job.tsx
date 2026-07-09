@@ -9,7 +9,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useHire } from '@/contexts/HireContext';
+import { useHire, HIRE_ENABLED } from '@/contexts/HireContext';
 import { TRADE_CATEGORIES } from '@/constants/trades';
 import { US_STATES } from '@/constants/regions';
 import type { JobListing, TradeCategory, JobType, ExperienceLevel } from '@/types';
@@ -74,10 +74,27 @@ export default function PostJobScreen() {
 
     addJob(job);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Job Posted', 'Your job listing is now live.', [
+    Alert.alert('Job Saved', 'Your job listing has been saved to this device.', [
       { text: 'OK', onPress: () => router.back() },
     ]);
   }, [title, trade, city, state, payMin, payMax, payType, jobType, expLevel, description, startDate, licenses, addJob, router]);
+
+  if (!HIRE_ENABLED) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{
+          title: 'Post a Job',
+          headerStyle: { backgroundColor: themeColors.bg },
+          headerTintColor: themeColors.accent,
+          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        }} />
+        <View style={styles.unavailable}>
+          <Text style={styles.unavailableTitle}>Direct Hire is coming soon</Text>
+          <Text style={styles.unavailableBody}>The in-app hiring marketplace isn&apos;t available yet. We&apos;ll let you know when you can post jobs and connect with workers.</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -177,6 +194,9 @@ export default function PostJobScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  unavailable: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 32, gap: 8 },
+  unavailableTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text, textAlign: 'center' as const },
+  unavailableBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 19 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 60 },
   label: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },

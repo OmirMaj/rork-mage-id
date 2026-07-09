@@ -9,7 +9,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useHire } from '@/contexts/HireContext';
+import { useHire, HIRE_ENABLED } from '@/contexts/HireContext';
 import { getTradeLabel } from '@/constants/trades';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -42,6 +42,15 @@ export default function JobDetailScreen() {
       w.tradeCategory === job.tradeCategory && w.availability !== 'employed'
     ).slice(0, 5);
   }, [job, workers]);
+
+  if (!HIRE_ENABLED) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Job Details' }} />
+        <View style={styles.center}><Text style={styles.errorText}>Direct Hire is coming soon — the hiring marketplace isn&apos;t available yet.</Text></View>
+      </View>
+    );
+  }
 
   if (!job) {
     return (

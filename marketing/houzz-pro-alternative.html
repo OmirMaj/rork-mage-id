@@ -31,11 +31,11 @@
     .compare-table tbody tr:nth-child(even) td { background:#FCFAF4; }
     .compare-table tbody tr:nth-child(even) td.col-mage { background:#FFEEDE; }
     .compare-row-feature { font-weight:700; color:#0B0D10; }
-    .compare-yes { color:#1E8E4A; font-weight:700; }
+    .compare-yes { color:#FF6A1A; font-weight:700; }
     .compare-no  { color:#8B9099; font-weight:600; }
     .compare-partial { color:#C26A00; font-weight:600; }
-    .savings-card { background:linear-gradient(180deg,#0B0D10 0%,#1A1D22 100%); color:#F4EFE6; border-radius:22px; padding:36px 32px; margin:48px auto; max-width:880px; text-align:center; }
-    .savings-headline { font-family:'Space Grotesk',Georgia,serif; font-size:clamp(2rem,4vw,2.8rem); line-height:1.1; letter-spacing:-0.02em; margin:0 0 14px; }
+    .savings-card { background:#0B0D10; border:1px solid rgba(255,255,255,0.08); color:#F4EFE6; border-radius:22px; padding:36px 32px; margin:48px auto; max-width:880px; text-align:center; }
+    .savings-headline { font-family:var(--ff-serif); font-size:clamp(2rem,4vw,2.8rem); line-height:1.1; letter-spacing:-0.02em; margin:0 0 14px; }
     .savings-headline em { color:#FF6A1A; font-style: normal; }
     .faq { max-width:760px; margin:0 auto; }
     .faq-item { border-bottom:1px solid #E8DFCD; padding:18px 4px; }
@@ -47,9 +47,9 @@
   {
     "@context":"https://schema.org","@type":"FAQPage",
     "mainEntity":[
-      {"@type":"Question","name":"How is MAGE ID different from Houzz Pro?","acceptedAnswer":{"@type":"Answer","text":"Houzz Pro is built around design, lead generation, and client presentation, with lighter project management. MAGE ID is built to run the build — deeper CPM scheduling with weather auto-reschedule and Last Planner, cost-learning estimates, and live margin protection — at a flat, transparent price with no ad or lead upsell."}},
+      {"@type":"Question","name":"How is MAGE ID different from Houzz Pro?","acceptedAnswer":{"@type":"Answer","text":"Houzz Pro is built around design, lead generation, and client presentation, with lighter project management. MAGE ID is built to run the build — deeper CPM scheduling with Last Planner (and weather-aware reflow on the roadmap), cost-learning estimates, and live margin protection — at a flat, transparent price with no ad or lead upsell."}},
       {"@type":"Question","name":"Is MAGE ID cheaper than Houzz Pro?","acceptedAnswer":{"@type":"Answer","text":"MAGE ID is a flat $29–$79/mo for your whole company with no paid-lead or advertising upsell. Houzz Pro plans range higher and push paid leads and ads on top."}},
-      {"@type":"Question","name":"Does MAGE ID generate a schedule from an estimate like Houzz Pro?","acceptedAnswer":{"@type":"Answer","text":"Yes — MAGE builds a full CPM schedule from your estimate, and adds critical path, weather auto-reschedule, and Last Planner pull planning that Houzz Pro's scheduling doesn't offer."}},
+      {"@type":"Question","name":"Does MAGE ID generate a schedule from an estimate like Houzz Pro?","acceptedAnswer":{"@type":"Answer","text":"Yes — MAGE builds a full CPM schedule from your estimate, and adds critical path and Last Planner pull planning that Houzz Pro's scheduling doesn't offer, with weather-aware reflow on the roadmap."}},
       {"@type":"Question","name":"Does MAGE ID help me find clients?","acceptedAnswer":{"@type":"Answer","text":"Yes — there's a built-in marketplace and a public 'request a quote' funnel — but you're never required to buy leads, and your subscription price never changes based on them."}}
     ]
   }
@@ -94,7 +94,7 @@
           <thead><tr><th>&nbsp;</th><th class="col-mage">MAGE ID</th><th>Houzz Pro</th></tr></thead>
           <tbody>
             <tr><td class="compare-row-feature">Pricing</td><td class="col-mage compare-yes">Flat $29&ndash;$79/mo, whole company &mdash; no upsell</td><td class="compare-no">Tiered, climbs with paid leads &amp; ads<sup>1</sup></td></tr>
-            <tr><td class="compare-row-feature">Scheduling depth</td><td class="col-mage compare-yes">CPM + critical path + EVM + <strong>weather auto-reschedule &amp; Last Planner</strong></td><td class="compare-partial">Schedule-from-estimate (AutoMate); PM widely called shallow</td></tr>
+            <tr><td class="compare-row-feature">Scheduling depth</td><td class="col-mage compare-yes">CPM + critical path + EVM + <strong>Last Planner</strong> (weather-aware reflow on the roadmap)</td><td class="compare-partial">Schedule-from-estimate (AutoMate); PM widely called shallow</td></tr>
             <tr><td class="compare-row-feature">Prices bids off your real costs</td><td class="col-mage compare-yes">Yes &mdash; cost-learning loop</td><td class="compare-no">No &mdash; generic data</td></tr>
             <tr><td class="compare-row-feature">Live margin-erosion alerts</td><td class="col-mage compare-yes">Yes</td><td class="compare-no">No</td></tr>
             <tr><td class="compare-row-feature">Required to buy leads/ads?</td><td class="col-mage compare-yes">Never &mdash; marketplace + free quote funnel, optional</td><td class="compare-no">Core of the model; upsold heavily</td></tr>
@@ -163,7 +163,7 @@
       <div class="faq">
         <div class="faq-item"><h3>How is MAGE ID different from Houzz Pro?</h3><p>Houzz Pro is built around design, leads, and client presentation, with lighter PM. MAGE is built to run the build &mdash; deeper scheduling, cost-learning estimates, and live margin protection &mdash; at a flat price with no ad/lead upsell.</p></div>
         <div class="faq-item"><h3>Is MAGE ID cheaper than Houzz Pro?</h3><p>MAGE is a flat $29&ndash;$79/mo for your whole company with no paid-lead or ad upsell. Houzz Pro plans range higher and push leads/ads on top.</p></div>
-        <div class="faq-item"><h3>Does MAGE generate a schedule from an estimate like Houzz Pro?</h3><p>Yes &mdash; and it builds a full CPM schedule with critical path, weather auto-reschedule, and Last Planner that Houzz Pro&rsquo;s scheduling doesn&rsquo;t offer.</p></div>
+        <div class="faq-item"><h3>Does MAGE generate a schedule from an estimate like Houzz Pro?</h3><p>Yes &mdash; and it builds a full CPM schedule with critical path and Last Planner that Houzz Pro&rsquo;s scheduling doesn&rsquo;t offer, with weather-aware reflow on the roadmap.</p></div>
         <div class="faq-item"><h3>Does MAGE help me find clients?</h3><p>Yes &mdash; a built-in marketplace and a public &ldquo;request a quote&rdquo; funnel &mdash; but you&rsquo;re never required to buy leads, and your price never changes because of them.</p></div>
       </div>
     </section>

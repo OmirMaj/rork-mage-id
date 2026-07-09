@@ -38,16 +38,19 @@ const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
   { value: 'Other', label: 'Other' },
 ];
 
+// Warm-editorial role accents (mirrors ContactPickerModal for consistency).
+// The role name is always shown as text, so color is a decorative accent —
+// no saturated rainbow. No purple / pink / Material blue.
 function getRoleColor(role: ContactRole, t: ThemeColors): string {
   switch (role) {
-    case 'Client': return t.accent;
-    case 'Architect': return t.info;
-    case "Owner's Rep": return t.accent;
-    case 'Engineer': return '#6B7280';
-    case 'Sub': return t.success;
-    case 'Supplier': return '#8B5CF6';
-    case 'Lender': return '#EC4899';
-    case 'Inspector': return '#F59E0B';
+    case 'Client': return t.accent;        // brand amber — primary stakeholder
+    case "Owner's Rep": return '#B45309';   // burnt amber — your side
+    case 'Architect': return '#3F6B7D';     // muted slate-blue — design
+    case 'Engineer': return '#5B6470';      // slate gray — technical
+    case 'Sub': return '#5A7D3C';           // olive — field / trade
+    case 'Supplier': return '#7C7355';      // warm taupe — vendor
+    case 'Lender': return '#2F6B6B';        // deep teal — finance
+    case 'Inspector': return '#9A7B1F';     // muted gold-ochre — authority
     default: return t.textSecondary;
   }
 }

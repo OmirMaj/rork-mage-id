@@ -13,7 +13,8 @@ import {
 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '@/lib/supabase';
-import { Colors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AISubEvaluator from '@/components/AISubEvaluator';
@@ -66,6 +67,7 @@ function LicenseVerificationCard({
   sub: Subcontractor;
   onMarkVerified: (field: 'license' | 'coi') => void;
 }) {
+  const vStyles = useThemedStyles(makeVStyles);
   const verifiedAge = (iso: string | undefined): { label: string; color: string } => {
     if (!iso) return { label: 'Not verified', color: Colors.textMuted };
     const ms = Date.now() - new Date(iso).getTime();
@@ -146,29 +148,30 @@ function LicenseVerificationCard({
   );
 }
 
-const vStyles = StyleSheet.create({
+const makeVStyles = (themeColors: ThemeColors) => StyleSheet.create({
   wrap: {
     marginTop: 10, padding: 10, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: themeColors.line,
     gap: 10,
   },
   row: { flexDirection: 'column', gap: 8 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  label: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
-  subLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+  label: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.text },
+  subLabel: { fontSize: 11, color: themeColors.textMuted, marginTop: 1 },
   actionsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1, borderColor: themeColors.line,
   },
   actionBtnText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
 });
 
 export default function SubsScreen() {
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, projects, prequalPackets } = useProjects();
@@ -805,10 +808,10 @@ export default function SubsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, marginBottom: 16 },
-  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
+  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: themeColors.text, letterSpacing: -0.5 },
   headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   inviteBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '14', borderWidth: 1, borderColor: Colors.primary + '33' },
   inviteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.primary },
@@ -817,77 +820,77 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 16, marginBottom: 12,
     paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
   prequalIcon: {
     width: 34, height: 34, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center',
     backgroundColor: `${Colors.primary}15`,
   },
-  prequalTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  prequalSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  prequalTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  prequalSub: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, marginTop: 1 },
   statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  statCard: { flex: 1, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   statNum: { fontSize: 24, fontWeight: '800' as const },
-  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 2 },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, marginTop: 2 },
   searchWrap: { paddingHorizontal: 16, marginBottom: 12 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 40 },
-  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
-  clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.textMuted, alignItems: 'center', justifyContent: 'center' },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text },
+  clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: themeColors.textMuted, alignItems: 'center', justifyContent: 'center' },
   filterRow: { paddingHorizontal: 16, gap: 6, marginBottom: 16 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
   filterChipActive: { backgroundColor: Colors.primary },
-  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   filterChipTextActive: { color: '#fff' },
-  subCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  subCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   subCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   tradeIcon: { width: 40, height: 40, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
   subCardInfo: { flex: 1, gap: 2 },
-  subName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subContact: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  subName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  subContact: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   subCardMeta: { flexDirection: 'row', gap: 16, paddingLeft: 52 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  metaText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40, gap: 10 },
-  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
+  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  emptyDesc: { fontSize: Type.subhead.fontSize, color: themeColors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
   emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.card, marginTop: 8 },
   emptyBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  formCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8, maxHeight: '90%' },
+  formCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8, maxHeight: '90%' },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
+  formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
+  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   tradeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   tradeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   tradeChipActive: { backgroundColor: Colors.primary },
-  tradeChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  tradeChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
   tradeChipTextActive: { color: '#fff' },
-  sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card },
-  switchLabel: { fontSize: Type.subhead.fontSize, color: Colors.text },
+  sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 14, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card },
+  switchLabel: { fontSize: Type.subhead.fontSize, color: themeColors.text },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text },
   saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
-  detailCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' },
+  detailCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' },
   detailStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Tokens.radius.card, borderLeftWidth: 3, marginBottom: 16 },
   detailStatusText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   detailSection: { marginBottom: 20, gap: 8 },
-  detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5 },
+  detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, letterSpacing: 0.5 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  detailRowText: { fontSize: Type.subhead.fontSize, color: Colors.text },
-  bidRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  bidProject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  bidDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  bidAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  detailRowText: { fontSize: Type.subhead.fontSize, color: themeColors.text },
+  bidRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  bidProject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  bidDate: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  bidAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   bidOutcome: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   bidOutcomeText: { fontSize: 10, fontWeight: '700' as const },
-  detailNotes: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  detailNotes: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
   detailActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },

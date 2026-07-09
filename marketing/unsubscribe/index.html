@@ -6,15 +6,19 @@
   <title>Unsubscribe · MAGE ID</title>
   <meta name="robots" content="noindex" />
   <meta name="theme-color" content="#0B0D10" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
   <style>
-    /* Match the email/portal language: ink + amber + cream. Same fonts.
+    /* Match the email/portal language: ink + amber + cream. Brand trio:
+       Fraunces (headings) / Space Grotesk (UI) / JetBrains Mono (mono).
        Static page so we keep it in pure CSS — no React, no build. */
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body {
       background: #F4EFE6;
       color: #0B0D10;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       min-height: 100dvh;
       display: flex;
       align-items: center;
@@ -60,7 +64,7 @@
     }
     h1 {
       margin: 0 0 12px;
-      font-family: Georgia, 'Times New Roman', serif;
+      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
       font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.5px;
@@ -73,7 +77,7 @@
       border-radius: 8px;
       background: #F4EFE6;
       border: 1px solid #E8DFCD;
-      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
       font-size: 13px;
       color: #0B0D10;
     }
@@ -94,7 +98,7 @@
     .btn-secondary { background: transparent; color: #0B0D10; border: 1.5px solid #0B0D10; }
     .footer { margin-top: 26px; font-size: 12px; color: #9AA3AD; }
     .footer a { color: #4A5159; text-decoration: underline; }
-    .ok { color: #1E8E4A; font-weight: 700; }
+    .ok { color: #FF6A1A; font-weight: 700; }
     .err { color: #C2410C; font-weight: 700; }
     .hidden { display: none; }
   </style>
@@ -120,12 +124,12 @@
       <div id="successBlock" class="hidden">
         <p class="ok">You're unsubscribed.</p>
         <p>Your <span id="successCategory">notifications</span> have been turned off for <span class="target" id="successEmail">your address</span>. You'll still receive critical account or contract emails — anything time-sensitive that we wouldn't suppress for legal reasons.</p>
-        <p>Changed your mind? Reply to any past email and we'll restore your subscription, or write <a href="mailto:support@mageid.app">support@mageid.app</a>.</p>
+        <p>Changed your mind? Reply to any past email and we'll restore your subscription, or write <a href="mailto:help@mageid.app">help@mageid.app</a>.</p>
       </div>
 
       <div id="errorBlock" class="hidden">
         <p class="err">Something went wrong.</p>
-        <p>We couldn't process the unsubscribe right now. Please try again, or email <a href="mailto:support@mageid.app?subject=Unsubscribe">support@mageid.app</a> and we'll handle it manually.</p>
+        <p>We couldn't process the unsubscribe right now. Please try again, or email <a href="mailto:help@mageid.app?subject=Unsubscribe">help@mageid.app</a> and we'll handle it manually.</p>
       </div>
 
       <div class="footer">

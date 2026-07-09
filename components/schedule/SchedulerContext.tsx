@@ -12,7 +12,8 @@ export type ViewScale = 'days' | 'weeks' | 'months';
 
 export interface CpmResult {
   criticalPathDays: number;
-  slipDaysVsBaseline: number;
+  // null = no baseline captured yet (neutral state, not "on baseline").
+  slipDaysVsBaseline: number | null;
   criticalTaskIds: ReadonlyArray<string>;
 }
 

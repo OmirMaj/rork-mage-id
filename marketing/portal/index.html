@@ -1329,11 +1329,13 @@
      element and dumps just the printable binder into the page. */
   @media print {
     body.printing-binder header, body.printing-binder nav,
-    body.printing-binder .nav-rail, body.printing-binder .stats,
+    body.printing-binder .nav-wrap, body.printing-binder .stats-bar,
+    body.printing-binder .latest-update, body.printing-binder .budget-banner,
+    body.printing-binder .referral-cta,
     body.printing-binder .hero, body.printing-binder section:not(#sec-closeout),
     body.printing-binder .co-actions,
     body.printing-binder .messages-block,
-    body.printing-binder footer { display: none !important; }
+    body.printing-binder footer, body.printing-binder .portal-footer { display: none !important; }
     body.printing-binder #sec-closeout {
       display: block !important; padding: 0; margin: 0;
     }
@@ -2353,7 +2355,7 @@
       <div id="budget-banner" class="budget-banner" style="display:none"></div>
       <div id="sections"></div>
 
-      <div style="margin:30px 0 10px;padding:22px 20px;border:1px solid rgba(0,0,0,0.09);border-radius:18px;background:rgba(0,0,0,0.02);text-align:center">
+      <div class="referral-cta" style="margin:30px 0 10px;padding:22px 20px;border:1px solid rgba(0,0,0,0.09);border-radius:18px;background:rgba(0,0,0,0.02);text-align:center">
         <div style="font-size:16px;font-weight:800;margin-bottom:5px">Like being kept in the loop?</div>
         <div style="font-size:13px;opacity:.72;margin-bottom:16px;line-height:1.5">This live portal was built with MAGE ID. Share it with someone planning a project — or set one up for yours.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">

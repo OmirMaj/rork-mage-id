@@ -29,7 +29,7 @@ import {
   Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
   Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
   PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
-  Ruler, ScanLine, HardHat, ScanSearch,
+  Ruler, ScanLine, HardHat, ScanSearch, IdCard,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -244,6 +244,19 @@ export default function DiscoverToolsScreen() {
               onPress={() => router.push('/plans' as never)}
               testID="tools-plans"
             />
+            <Divider styles={styles} />
+            {/* Safety hub — Business-tier. Only reachable via DesktopSidebar
+                before this tile, so it shipped dark on iOS (the primary
+                target). /safety handles a missing projectId (company-scoped
+                tiles + picker) and renders its own Paywall for non-Business. */}
+            <NavRow
+              Icon={HardHat}
+              title="Safety"
+              subtitle="JHAs, toolbox talks, incidents, inspections & OSHA logs"
+              tone="warning"
+              onPress={() => router.push('/safety' as never)}
+              testID="tools-safety"
+            />
           </Section>
         )}
 
@@ -285,6 +298,18 @@ export default function DiscoverToolsScreen() {
                 tone="success"
                 onPress={() => router.push('/budget-dashboard' as never)}
                 testID="tools-budget-dashboard"
+              />
+              <Divider styles={styles} />
+              {/* WIP Report — Business-tier. Portfolio-wide (no projectId
+                  needed); renders its own Paywall for non-Business. Was
+                  desktop-sidebar-only before this tile. */}
+              <NavRow
+                Icon={TrendingUp}
+                title="WIP report"
+                subtitle="Over/under billings & earned revenue across the portfolio"
+                tone="success"
+                onPress={() => router.push('/wip-report' as never)}
+                testID="tools-wip-report"
               />
               <Divider styles={styles} />
               <NavRow
@@ -470,6 +495,18 @@ export default function DiscoverToolsScreen() {
             tone="info"
             onPress={() => router.push('/contacts' as never)}
             testID="tools-contacts"
+          />
+          <Divider styles={styles} />
+          {/* Crew roster — Business-tier worker profiles / ID scan. Distinct
+              from the marketplace Hire flow (worker-detail). Sidebar-only
+              before this tile; renders its own Paywall for non-Business. */}
+          <NavRow
+            Icon={IdCard}
+            title="Crew"
+            subtitle="Worker profiles, ID verification & project assignments"
+            tone="primary"
+            onPress={() => router.push('/crew' as never)}
+            testID="tools-crew"
           />
         </Section>
 

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Pressable, Platfo
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
-import { CheckCircle2, CircleDot, Circle, Plus, ChevronDown, ChevronRight } from 'lucide-react-native';
+import { CheckCircle2, CircleDot, Circle, Plus, ChevronDown, ChevronRight, Check } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -84,7 +84,12 @@ function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, d
   return (
     <GestureDetector gesture={gesture}>
       <View style={[styles.bar, { left, width: w, top, backgroundColor: color, opacity: done ? 0.5 : 1, zIndex: dragging ? 30 : 1 }, dragging ? styles.barDragging : null]}>
-        {w > 46 && <Text style={styles.barText} numberOfLines={1}>{done ? '✓ ' : ''}{task.title}</Text>}
+        {w > 46 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            {done && <Check size={10} color="#FFFFFF" strokeWidth={2.5} />}
+            <Text style={[styles.barText, { flex: 1 }]} numberOfLines={1}>{task.title}</Text>
+          </View>
+        )}
       </View>
     </GestureDetector>
   );

@@ -22,17 +22,23 @@ interface ContactPickerModalProps {
   filterRoles?: ContactRole[];
 }
 
+// Role accent tints for contact avatars/badges. The role NAME is always shown
+// as a text label beside the color, so these are decorative accents, not the
+// sole identifier — which lets us stay in MAGE's warm-editorial palette instead
+// of a saturated rainbow. Brand amber anchors the client-side roles; the rest
+// use muted, warm-leaning earth tones. No purple / pink / saturated Material
+// blue (all AI-default "rainbow status" tells).
 function getRoleColor(role: ContactRole): string {
   switch (role) {
-    case 'Client': return '#FF6A1A';
-    case 'Architect': return '#1565C0';
-    case "Owner's Rep": return '#FF6A1A';
-    case 'Engineer': return '#6B7280';
-    case 'Sub': return '#2E7D44';
-    case 'Supplier': return '#8B5CF6';
-    case 'Lender': return '#EC4899';
-    case 'Inspector': return '#F59E0B';
-    default: return '#9AA3AD';
+    case 'Client': return '#FF6A1A';      // brand amber — primary stakeholder
+    case "Owner's Rep": return '#B45309';  // burnt amber — your side, distinct from client
+    case 'Architect': return '#3F6B7D';    // muted slate-blue — design
+    case 'Engineer': return '#5B6470';     // slate gray — technical
+    case 'Sub': return '#5A7D3C';          // olive — field / trade
+    case 'Supplier': return '#7C7355';     // warm taupe — vendor
+    case 'Lender': return '#2F6B6B';       // deep teal — finance
+    case 'Inspector': return '#9A7B1F';    // muted gold-ochre — authority
+    default: return '#8A8170';             // warm stone
   }
 }
 

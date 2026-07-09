@@ -207,7 +207,7 @@ export default function QuickFieldUpdate() {
         }
         case 'log_issue': {
           const stamp = new Date().toLocaleDateString();
-          const body = `⚠️ ${noteText ?? 'Issue logged'}`;
+          const body = `[Issue] ${noteText ?? 'Issue logged'}`;
           const combined = task.notes
             ? `${task.notes}\n[${stamp}] ${body}`
             : `[${stamp}] ${body}`;

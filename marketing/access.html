@@ -21,7 +21,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
 
@@ -39,7 +39,7 @@
     }
 
     .access-pitch h1 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: clamp(36px, 5vw, 56px);
       letter-spacing: -1px;
       line-height: 1.05;
@@ -91,7 +91,7 @@
       margin-bottom: 8px;
     }
     .access-form-card h2 {
-      font-family: 'Space Grotesk', serif;
+      font-family: var(--ff-serif);
       font-size: 28px;
       letter-spacing: -0.5px;
       line-height: 1.1;
@@ -187,6 +187,7 @@
         </p>
 
         <ul class="access-bullets">
+          <li>Start on the web today at app.mageid.app — no waiting</li>
           <li>TestFlight invite for the iPhone app within 24 hours</li>
           <li>15-minute setup call to import your first project</li>
           <li>Your first project is free — no card required to start</li>
@@ -199,8 +200,8 @@
       <!-- Form -->
       <aside class="access-form-card">
         <span class="eyebrow">Talk to a builder</span>
-        <h2>Get the TestFlight invite.</h2>
-        <p class="sub">All fields besides email are optional — fill in what's relevant. You'll hear from us within a business day.</p>
+        <h2>Start on the web, or get the iPhone invite.</h2>
+        <p class="sub">Run MAGE ID today at app.mageid.app — or request a TestFlight invite for the iPhone app below. All fields besides email are optional; you'll hear from us within a business day.</p>
 
         <form class="access-form" action="https://formspree.io/f/mblabgzr" method="POST" aria-label="Concierge onboarding request">
           <!-- Honey trap (Formspree _gotcha): silently filtered. -->

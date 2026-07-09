@@ -8,8 +8,8 @@
 <title>Reviewer Portal — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,800;1,9..144,500;1,9..144,800&display=swap" rel="stylesheet" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='Inter,system-ui' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='system-ui,sans-serif' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
     --ink: #0B0D10; --ink-2: #1A1D22; --amber: #FF6A1A; --amber-dark: #E5570F;
@@ -25,16 +25,18 @@
     --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
     --shadow-amber: 0 8px 24px -6px rgba(255,106,26,0.4);
     --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
+    --ff-serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --ff-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --ff-mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--ff-sans);
     background: var(--cream); color: var(--text);
     line-height: 1.55; font-size: 15px; min-height: 100vh;
-    font-feature-settings: 'cv11', 'ss01', 'ss03';
   }
-  .num { font-variant-numeric: tabular-nums; }
+  .num { font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
 
   .container {
     max-width: 720px; margin: 0 auto; padding: 24px 18px 60px;
@@ -46,11 +48,11 @@
     width: 40px; height: 40px; border-radius: 11px;
     background: var(--ink); color: var(--amber);
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Space Grotesk', Georgia, serif;
+    font-family: var(--ff-serif);
     font-weight: 800; font-size: 22px;
   }
   .brand {
-    font-family: 'Space Grotesk', Georgia, serif;
+    font-family: var(--ff-serif);
     font-weight: 700; font-size: 18px; color: var(--text);
   }
   .brand-sub {
@@ -74,7 +76,7 @@
     letter-spacing: 0.5px; margin-bottom: 6px; text-transform: uppercase;
   }
   .doc-title {
-    font-family: 'Space Grotesk', Georgia, serif;
+    font-family: var(--ff-serif);
     font-size: 24px; font-weight: 700; line-height: 1.2;
     letter-spacing: -0.02em; color: var(--text); margin-bottom: 6px;
   }
@@ -119,7 +121,7 @@
   }
 
   .section-title {
-    font-family: 'Space Grotesk', Georgia, serif;
+    font-family: var(--ff-serif);
     font-size: 18px; font-weight: 700; color: var(--text);
     margin: 24px 0 12px; padding-bottom: 6px;
     border-bottom: 1px solid var(--bone-2);
@@ -207,7 +209,7 @@
     font-size: 28px; margin-bottom: 14px;
   }
   .empty-title {
-    font-family: 'Space Grotesk', Georgia, serif;
+    font-family: var(--ff-serif);
     font-size: 22px; font-weight: 700; margin-bottom: 8px;
   }
   .empty-body {

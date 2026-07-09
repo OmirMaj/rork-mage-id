@@ -35,7 +35,8 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // the app sends so this digest matches sub-portal invites, contract
 // sends, payment receipts, COI warnings, and the morning brief.
 import { wrapEmailHtml, resendSend, isEmailUnsubscribed } from '../_shared/email.ts';
-import { isValidCron, hasAuthenticatedUser } from '../_shared/cronAuth.ts';
+import { isValidCron } from '../_shared/cronAuth.ts';
+import { verifyUser } from '../_shared/verifyUser.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -364,6 +365,7 @@ async function sendForProject(
   client: SupabaseClient,
   project: ProjectRow,
   ownerProfile: ProfileRow | null,
+  isPreview: boolean,
 ): Promise<{ sent: number; errors: string[] }> {
   const portal = project.client_portal;
   const invites = (portal?.invites ?? []).filter(i => (i.email ?? '').includes('@'));
@@ -426,8 +428,11 @@ async function sendForProject(
   }
 
   // Stamp the project's clientPortal.weeklyDigest.lastSentAt so we
-  // don't double-send if cron retries.
-  if (sent > 0 && portal) {
+  // don't double-send if cron retries. Preview sends (the GC's "Send
+  // preview" button) must NOT stamp — otherwise a preview would advance
+  // lastSentAt and silently suppress that project's next scheduled
+  // Friday cron send. Only real cron sends stamp.
+  if (!isPreview && sent > 0 && portal) {
     const updatedPortal = {
       ...portal,
       weeklyDigest: { ...(portal.weeklyDigest ?? {}), enabled: true, lastSentAt: new Date().toISOString() },
@@ -444,7 +449,12 @@ async function sendForProject(
 // ── Entry point ────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
-  if (!(await isValidCron(req)) && !(await hasAuthenticatedUser(req))) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
+  // Auth: cron (shared secret) OR a genuine authenticated user JWT. Capture the
+  // caller identity — the projectId branch below enforces per-project ownership
+  // so a signed-in GC can only trigger a digest for a project they own.
+  const isCron = await isValidCron(req);
+  const caller = isCron ? null : await verifyUser(req);
+  if (!isCron && !caller) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'POST only' }, 405);
   if (!SUPABASE_SERVICE_ROLE_KEY) return jsonResponse({ success: false, error: 'SUPABASE_SERVICE_ROLE_KEY not set' }, 500);
 
@@ -470,6 +480,12 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: false, error: 'project not found' }, 404);
     }
     const project = projRes.data as ProjectRow;
+    // Broken-access-control guard: projectIds are exposed in portal links, so a
+    // signed-in caller must own the project to trigger its homeowner digest.
+    // Cron (isCron) fans out across all projects and is exempt.
+    if (!isCron && project.user_id !== caller?.id) {
+      return jsonResponse({ success: false, error: 'forbidden' }, 403);
+    }
     let ownerProfile: ProfileRow | null = null;
     if (project.user_id) {
       const profRes = await client
@@ -479,7 +495,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       ownerProfile = (profRes.data as ProfileRow | null) ?? null;
     }
-    const result = await sendForProject(client, project, ownerProfile);
+    const result = await sendForProject(client, project, ownerProfile, true);
     return jsonResponse({
       success: true,
       mode: 'preview',
@@ -490,6 +506,11 @@ Deno.serve(async (req: Request) => {
 
   // ── Cron mode: all projects with weekly_digest.enabled = true ────
   if (body.all) {
+    // Cron-only fan-out. Without this gate a signed-in GC could POST
+    // { all: true } and blast a digest to every project's homeowner, not
+    // just their own. The per-project ownership check above doesn't run in
+    // this branch, so gate the whole branch on cron.
+    if (!isCron) return jsonResponse({ success: false, error: 'forbidden' }, 403);
     // Fetch every project whose JSONB client_portal claims weekly digest
     // is on. We use the JSONB containment operator via filter.
     const projectsRes = await client
@@ -525,7 +546,7 @@ Deno.serve(async (req: Request) => {
         }
       }
       const owner = profilesById.get(project.user_id ?? '') ?? null;
-      const result = await sendForProject(client, project, owner);
+      const result = await sendForProject(client, project, owner, false);
       totalSent += result.sent;
       if (result.errors.length > 0) projectErrors.push({ projectId: project.id, errors: result.errors });
     }

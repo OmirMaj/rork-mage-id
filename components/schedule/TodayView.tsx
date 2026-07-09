@@ -23,6 +23,7 @@ import {
   Trophy,
   Sun,
   ImageIcon,
+  Droplet,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
@@ -423,7 +424,10 @@ function TodayView({
           <View style={s.weatherCard}>
             <Text style={s.weatherIcon}>{getConditionIcon(todayWeather.condition)}</Text>
             <Text style={s.weatherTemp}>{todayWeather.tempHigh}°F</Text>
-            <Text style={s.weatherPrecip}>{todayWeather.precipChance}%💧</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Text style={s.weatherPrecip}>{todayWeather.precipChance}%</Text>
+              <Droplet size={10} color={Colors.textSecondary} strokeWidth={1.75} />
+            </View>
           </View>
         )}
       </View>

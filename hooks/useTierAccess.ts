@@ -31,6 +31,9 @@ export type FeatureKey =
   | 'punch_list_closeout'
   | 'rfis_submittals'
   | 'full_budget_dashboard'
+  | 'wip_reporting'
+  | 'safety_management'
+  | 'crew_management'
   // All tiers (with limits)
   | 'voice_commands'
   | 'post_homeowner_request'
@@ -89,6 +92,9 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   punch_list_closeout: 'business',
   rfis_submittals: 'business',
   full_budget_dashboard: 'business',
+  wip_reporting: 'business',
+  safety_management: 'business',
+  crew_management: 'business',
   // Available to all
   voice_commands: 'free',
   post_homeowner_request: 'free',
@@ -103,7 +109,14 @@ export const FEATURE_LIMITS = {
   post_community_bid:     { free: 2, pro: 8,        business: 25,       enterprise: 50 },
   ai_code_check_daily:    { free: 3, pro: 15,       business: 50,       enterprise: Infinity },
   ai_permit_roadmap_daily: { free: 2, pro: 15,       business: 50,       enterprise: Infinity },
-  ai_plan_review_daily:    { free: 0, pro: 10,       business: 30,       enterprise: 60 },
+  // Plan review is metered PER MONTH, not per day — the server is the
+  // authority (analyze-plan-code reads MONTHLY_CAPS[tier].plan_code_review
+  // and returns a 429 `monthly_cap_reached`). These numbers MUST match that
+  // table. The client pre-check must read the MONTHLY counter
+  // (ai_usage_get 'plan_code_review'), never a daily counter — otherwise a
+  // Pro user burns all 10 in one day, sees a fresh "daily" budget tomorrow,
+  // and hits an opaque server 429 on the first attempt.
+  ai_plan_review_monthly:  { free: 0, pro: 10,       business: 30,       enterprise: 60 },
   // Free tier: 1 real project (the "1 free project + client portal" promise).
   // Sample/demo projects are excluded by the caller before comparing.
   maxProjects:             { free: 1, pro: Infinity, business: Infinity, enterprise: Infinity },

@@ -34,6 +34,7 @@ import {
   FolderOpen,
   Flag,
   GitBranch,
+  HardHat,
   Link2,
   Minus,
   Plus,
@@ -933,7 +934,12 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           )}
           <Text style={styles.taskMetaText}>{task.durationDays}d</Text>
           {task.crew ? <Text style={styles.taskMetaText}>{task.crew}</Text> : null}
-          {task.assignedSubName ? <Text style={[styles.taskMetaText, { color: themeColors.accent, fontWeight: '600' as const }]}>👷 {task.assignedSubName}</Text> : null}
+          {task.assignedSubName ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <HardHat size={13} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={[styles.taskMetaText, { color: themeColors.accent, fontWeight: '600' as const }]}>{task.assignedSubName}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.progressRow}>
@@ -2946,9 +2952,10 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                           })}
                         </View>
                         {badDays.length > 0 && (
-                          <Text style={styles.weatherImpactWarning}>
-                            ⚠️ {badDays.length} day{badDays.length > 1 ? 's' : ''} of poor weather may impact this task
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                            <AlertTriangle size={13} color={themeColors.accent} strokeWidth={1.75} />
+                            <Text style={[styles.weatherImpactWarning, { flex: 1 }]}>{badDays.length} day{badDays.length > 1 ? 's' : ''} of poor weather may impact this task</Text>
+                          </View>
                         )}
                       </View>
                     );

@@ -28,7 +28,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, ChevronRight, AlertTriangle, CheckCircle2,
-  Clock, TrendingUp, TrendingDown, Package, X, Save,
+  Clock, TrendingUp, TrendingDown, Package, X, Save, Check,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -448,7 +448,7 @@ export default function BuyoutScreen() {
                           onPress={() => togglePickedItem(item.materialId)}
                         >
                           <View style={[styles.itemCheck, picked && styles.itemCheckActive]}>
-                            {picked && <Text style={styles.itemCheckMark}>✓</Text>}
+                            {picked && <Check size={Type.footnote.fontSize} color="#FFF" strokeWidth={2.5} />}
                           </View>
                           <View style={{ flex: 1 }}>
                             <View style={styles.itemTopRow}>
@@ -471,9 +471,12 @@ export default function BuyoutScreen() {
                         {newPkgPickedItemIds.length} item{newPkgPickedItemIds.length === 1 ? '' : 's'} · ${Math.round(computedBudget).toLocaleString()} carry
                       </Text>
                       {allowanceCount > 0 && (
-                        <Text style={styles.allowanceNote}>
-                          ⚠️ {allowanceCount} allowance item{allowanceCount === 1 ? '' : 's'} included — awarding will lock to firm price.
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 5 }}>
+                          <AlertTriangle size={Type.caption1.fontSize} color={themeColors.accent} strokeWidth={2} />
+                          <Text style={[styles.allowanceNote, { flex: 1 }]}>
+                            {allowanceCount} allowance item{allowanceCount === 1 ? '' : 's'} included — awarding will lock to firm price.
+                          </Text>
+                        </View>
                       )}
                     </View>
                   )}

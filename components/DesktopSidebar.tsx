@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Home, Wrench, Settings, BarChart3,
-  FileText, Building2, Search, HardHat, Gavel, Lock,
+  FileText, Building2, Search, HardHat, Gavel, Lock, IdCard,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
   Users, ShieldCheck, Bell, Briefcase,
   PenTool, Store, Clock, ChevronDown, ChevronRight,
@@ -20,6 +20,7 @@ import {
 } from '@/components/icons';
 import { useSearch } from '@/contexts/SearchContext';
 import { useCoreData } from '@/contexts/ProjectContext';
+import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -68,6 +69,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── NETWORK — people + AI
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
   { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
+  { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'NETWORK', requires: 'crew_management' },
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
   { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
   { key: 'hire',              label: 'Hire',             icon: Handshake,       route: '/(tabs)/discover/hire',            section: 'NETWORK' },
@@ -85,6 +87,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS' },
   { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
   { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
+  { key: 'safety',            label: 'Safety',           icon: HardHat,         route: '/safety',                           section: 'FIELD OPS', requires: 'safety_management' },
   { key: 'rfi',               label: 'RFIs',             icon: MageRFI,    route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
   { key: 'submittal',         label: 'Submittals',       icon: MageSubmittal,       route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
   { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Presentation,    route: '/oac-meeting',                      section: 'FIELD OPS' },
@@ -95,6 +98,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'change-order',      label: 'Change Orders',    icon: MageChangeOrder,   route: '/change-order',                     section: 'FINANCIALS', requires: 'change_orders_invoicing' },
   { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: MagePayApp,        route: '/aia-pay-app',                      section: 'FINANCIALS', requires: 'aia_pay_app' },
   { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: PieChart,        route: '/budget-dashboard',                 section: 'FINANCIALS', requires: 'full_budget_dashboard' },
+  { key: 'wip-report',        label: 'WIP Report',       icon: TrendingUp,      route: '/wip-report',                       section: 'FINANCIALS', requires: 'wip_reporting' },
   { key: 'job-costing',       label: 'Job Costing',      icon: Coins,           route: '/job-costing',                      section: 'FINANCIALS', requires: 'job_costing' },
   { key: 'cash-flow',         label: 'Cash Flow',        icon: LineChart,       route: '/cash-flow',                        section: 'FINANCIALS', requires: 'cash_flow_forecaster' },
   { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCIALS' },
@@ -170,7 +174,13 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   }, [router]);
 
   const isClient = userRole === 'client';
-  const navItems = isClient ? CLIENT_NAV_ITEMS : NAV_ITEMS;
+  // Direct Hire + Messages belong to the same orphaned subsystem, gated
+  // behind HIRE_ENABLED for launch. Hide their rail entries when it's off.
+  const navItems = useMemo(
+    () => (isClient ? CLIENT_NAV_ITEMS : NAV_ITEMS)
+      .filter(item => HIRE_ENABLED || (item.key !== 'hire' && item.key !== 'messages')),
+    [isClient],
+  );
   const sections = isClient ? CLIENT_SECTIONS : SECTIONS;
 
   // Account items render pinned to the bottom of the rail (dimmed), separate

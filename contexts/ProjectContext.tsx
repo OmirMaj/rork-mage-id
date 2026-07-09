@@ -2115,10 +2115,23 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       return null;
     }
     const now = new Date().toISOString();
-    // Total awarded = bid + any normalized adjustment (covers known
-    // exclusions). Buyout savings = budget - awarded total.
-    const awardedTotal = bid.amount + (bid.normalizedAdjustment ?? 0);
-    const savings = pkg.estimateBudget - awardedTotal;
+    // Committed cost = the ACTUAL awarded bid price. This is what the sub is
+    // owed and what the signed subcontract locks in (the A401 contractSum in
+    // buyout-package.tsx uses bid.amount), so the commitment must match it.
+    // Buyout savings = budget - committed price.
+    //
+    // normalizedAdjustment (the AI "leveled total" that estimates the cost of
+    // scope this bid EXCLUDES) is kept as a comparison-only field on the bid.
+    // It is deliberately NOT folded into the sub's committed cost — doing so
+    // overstated what we owe this sub and understated the buyout savings, and
+    // contradicted the subcontract. Any excluded scope is surfaced separately
+    // below as "uncovered scope" for reference, not baked into the commitment.
+    const committedAmount = bid.amount;
+    const savings = pkg.estimateBudget - committedAmount;
+    // Estimated cost of scope the awarded bid excludes (AI-leveled). Reference
+    // only — this is uncovered scope the GC still has to place elsewhere, not
+    // part of this sub's commitment amount.
+    const uncoveredScope = bid.normalizedAdjustment ?? 0;
     // Sequential commitment number per project (mirrors addChangeOrder's
     // pattern — code-review #11). Avoids the slim collision risk of the
     // 6-char UUID prefix and reads better on documents the GC sends out.
@@ -2135,7 +2148,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       subcontractorId: bid.subcontractorId,
       vendorName: bid.vendorName,
       description: pkg.name + (bid.includes ? ` — ${bid.includes}` : ''),
-      amount: awardedTotal,
+      amount: committedAmount,
       signedDate: now,
       phase: pkg.phase,
       csiDivision: pkg.csiDivision,
@@ -2143,7 +2156,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       status: 'active',
       // Force en-US locale so the saved notes are consistent regardless
       // of device locale (code-review #7).
-      notes: `Awarded from buyout package "${pkg.name}". Buyout ${savings >= 0 ? 'savings' : 'overrun'}: $${Math.abs(savings).toLocaleString('en-US')}.`,
+      notes: `Awarded from buyout package "${pkg.name}". Buyout ${savings >= 0 ? 'savings' : 'overrun'}: $${Math.abs(savings).toLocaleString('en-US')}.${uncoveredScope > 0 ? ` Uncovered scope excluded by this bid (est., not in commitment): $${uncoveredScope.toLocaleString('en-US')}.` : ''}`,
       createdAt: now,
       updatedAt: now,
     };
@@ -2487,6 +2500,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         id: item.id, user_id: userId, project_id: item.projectId, description: item.description,
         location: item.location, assigned_sub: item.assignedSub, assigned_sub_id: item.assignedSubId,
         due_date: item.dueDate, priority: item.priority, status: item.status, photo_uri: item.photoUri,
+        // Plan-pin anchor + captured GPS. Client camelCase → snake_case column
+        // (see migration 20260707120000_punch_location.sql). Previously omitted,
+        // so this data was captured locally then silently dropped on sync.
+        plan_sheet_id: item.planSheetId, pin_x: item.pinX, pin_y: item.pinY,
+        photo_latitude: item.photoLatitude, photo_longitude: item.photoLongitude,
+        photo_accuracy_meters: item.photoLocationAccuracyMeters,
+        photo_location_label: item.photoLocationLabel,
         rejection_note: item.rejectionNote, closed_at: item.closedAt,
         created_at: item.createdAt, updated_at: item.updatedAt,
       });
@@ -2503,7 +2523,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (pi) {
         void supabaseWrite('punch_items', 'update', {
           id, description: pi.description, location: pi.location, assigned_sub: pi.assignedSub,
+          assigned_sub_id: pi.assignedSubId,
           due_date: pi.dueDate, priority: pi.priority, status: pi.status, photo_uri: pi.photoUri,
+          // Persist plan-pin anchor + captured GPS on update too (were omitted,
+          // and assigned_sub_id was dropped on update — fixed here).
+          plan_sheet_id: pi.planSheetId, pin_x: pi.pinX, pin_y: pi.pinY,
+          photo_latitude: pi.photoLatitude, photo_longitude: pi.photoLongitude,
+          photo_accuracy_meters: pi.photoLocationAccuracyMeters,
+          photo_location_label: pi.photoLocationLabel,
           rejection_note: pi.rejectionNote, closed_at: pi.closedAt, updated_at: now,
         });
       }

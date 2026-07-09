@@ -1999,10 +1999,258 @@ export interface PunchItem {
   photoLongitude?: number;
   photoLocationAccuracyMeters?: number;
   photoLocationLabel?: string;
+  /** Plan-pin anchor. When set, this item is pinned to a spot on a plan
+   *  sheet — the back-reference that mirrors DrawingPin.linkedPunchItemId,
+   *  closing the pin ↔ punch loop. `pinX`/`pinY` are normalized (0..1) plan
+   *  coords, identical to DrawingPin.x/y, so they survive zoom/resize. */
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
   rejectionNote?: string;
   closedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SAFETY MANAGEMENT — Wave A (JHAs, Toolbox Talks, Incidents, Hazard Log)
+// All records carry id / projectId / createdAt / createdBy; mutated records
+// also carry updatedAt. Collections persist under tertiary_* keys and mirror
+// to snake_case Supabase tables via SafetyContext.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One row of a Job Hazard Analysis: a task step + its hazards + controls. */
+export interface JHAStep {
+  id: string;
+  step: string;
+  hazards: string[];
+  controls: string[];
+}
+
+/** An append-only signature on a JHA (crew acknowledging the analysis). */
+export interface SafetySignoff {
+  name: string;
+  role: string;
+  subId?: string;
+  signedAt: string;
+}
+
+export type JHAStatus = 'draft' | 'active' | 'archived';
+
+export interface JobHazardAnalysis {
+  id: string;
+  projectId: string;
+  title: string;
+  trade: string;
+  taskDescription: string;
+  date: string;
+  steps: JHAStep[];
+  requiredPPE: string[];
+  signOffs: SafetySignoff[];
+  /** Optional plan anchor — reuses the punch-list pin infra. */
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
+  aiGenerated: boolean;
+  status: JHAStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** An attendee on a Toolbox Talk; signedAt set when they acknowledge. */
+export interface SafetyAttendee {
+  name: string;
+  subId?: string;
+  signedAt?: string;
+}
+
+export type ToolboxTopicSource = 'incident' | 'hazard' | 'weather' | 'manual';
+
+export interface ToolboxTalk {
+  id: string;
+  projectId: string;
+  topic: string;
+  date: string;
+  presenter: string;
+  notes: string;
+  attachmentUrl?: string;
+  attendees: SafetyAttendee[];
+  aiTopicSource?: ToolboxTopicSource;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SafetyIncidentType = 'injury' | 'near_miss' | 'property' | 'environmental';
+export type SafetyIncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type SafetyIncidentStatus = 'open' | 'investigating' | 'closed';
+
+/** Medical treatment level — drives OSHA-recordable classification. */
+export type SafetyTreatment = 'none' | 'first_aid' | 'medical_beyond_first_aid';
+
+/** OSHA 300 column M — the injury-vs-illness classification of a recordable
+ *  case. 'injury' is a physical injury; the rest are the five OSHA illness
+ *  categories. Recorded explicitly on the incident (the coarse incident `type`
+ *  cannot distinguish, e.g. a skin exposure vs a respiratory one). */
+export type OshaIllnessType = 'injury' | 'skin' | 'respiratory' | 'poisoning' | 'hearing' | 'other_illness';
+
+export interface IncidentPerson {
+  name: string;
+  role: string;
+  injuryDescription?: string;
+}
+
+export interface IncidentCorrectiveAction {
+  action: string;
+  owner: string;
+  dueDate?: string;
+  done: boolean;
+}
+
+export interface SafetyIncident {
+  id: string;
+  projectId: string;
+  type: SafetyIncidentType;
+  severity: SafetyIncidentSeverity;
+  occurredAt: string;
+  description: string;
+  location: string;
+  /** Optional plan anchor — reuses the punch-list pin infra. */
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
+  peopleInvolved: IncidentPerson[];
+  photoUrls: string[];
+  correctiveActions: IncidentCorrectiveAction[];
+  // OSHA classification inputs — fed to isOshaRecordable(); oshaRecordable is
+  // the computed result stored alongside so the log can filter without recompute.
+  treatment: SafetyTreatment;
+  daysAway: number;
+  /** OSHA 300 col L — calendar days on job transfer/restriction. Distinct from
+   *  the restrictedDuty flag (which only records that a restriction occurred). */
+  daysRestricted: number;
+  restrictedDuty: boolean;
+  lostConsciousness: boolean;
+  fatality: boolean;
+  /** OSHA 300 col M — injury vs illness category. Optional: absent = treat as
+   *  a physical injury. Never inferred from the coarse incident `type`. */
+  oshaIllnessType?: OshaIllnessType;
+  oshaRecordable: boolean;
+  status: SafetyIncidentStatus;
+  reportedBy: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type HazardScale = 1 | 2 | 3 | 4 | 5;
+export type HazardStatus = 'open' | 'mitigated' | 'closed';
+
+export interface Hazard {
+  id: string;
+  projectId: string;
+  description: string;
+  location: string;
+  photoUrl?: string;
+  severity: HazardScale;
+  likelihood: HazardScale;
+  /** severity × likelihood, computed by utils/safety/risk.ts. */
+  riskScore: number;
+  planSheetId?: string;
+  pinX?: number;
+  pinY?: number;
+  assignedTo?: string;
+  dueDate?: string;
+  correctiveAction?: string;
+  status: HazardStatus;
+  /** Set when auto-spawned from a failed inspection item (Wave B). */
+  sourceInspectionId?: string;
+  /** The specific InspectionItem.id that spawned this hazard (Wave B). Together
+   *  with sourceInspectionId it dedups re-spawns of the same failed line. */
+  sourceItemId?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Safety Management — Wave B (compliance layer)
+// Inspections/Audits, Certifications, Forms Library.
+// Extends the Wave A safety types (JobHazardAnalysis, ToolboxTalk,
+// SafetyIncident, Hazard). See docs/superpowers/plans/2026-07-08-safety-wave-b.md
+// ─────────────────────────────────────────────────────────────
+
+/** A single checklist line inside a SafetyInspection. */
+export interface InspectionItem {
+  id: string;
+  prompt: string;
+  result: 'pass' | 'fail' | 'na';
+  note?: string;
+  photoUrl?: string;
+}
+
+/** An inspection / audit run against a project. Checklist items are
+ *  scored pass/(pass+fail); a failed item can spawn a Wave-A Hazard. */
+export interface SafetyInspection {
+  id: string;
+  projectId: string;
+  templateId?: string;          // SafetyFormTemplate the checklist came from
+  title: string;
+  date: string;                 // 'YYYY-MM-DD'
+  inspector: string;
+  items: InspectionItem[];
+  score: number;                // pass / (pass+fail); see utils/safety/inspectionScore
+  status?: 'draft' | 'complete';
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+export type CertificationStatus = 'valid' | 'expiring' | 'expired';
+
+/** A worker / sub certification. COMPANY-scoped (not project-scoped) —
+ *  keyed by the owning GC. status is computed from expiresDate.
+ *  Anchors to a real person via workerId → CrewMember.id (the Worker Profile
+ *  feature, already built). holderName is an OPTIONAL display fallback for a
+ *  cert entered for someone not yet on the crew roster. */
+export interface Certification {
+  id: string;
+  workerId?: string;            // → CrewMember.id — person anchor (Worker Profile feature)
+  holderName?: string;          // display fallback when no CrewMember is linked
+  subId?: string;               // links to tertiary_subcontractors / PrequalSafetyRecord
+  type: string;                 // e.g. 'OSHA 10', 'OSHA 30', 'SST', 'CPR', trade license
+  issuedDate?: string;          // 'YYYY-MM-DD'
+  expiresDate?: string;         // 'YYYY-MM-DD'; absent = non-expiring
+  documentUrl?: string;
+  status: CertificationStatus;  // recomputed on read via certStatus()
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+export type SafetyFormFieldType = 'text' | 'checkbox' | 'select' | 'signature' | 'photo';
+
+/** One field in a reusable form template. Order is the array order —
+ *  there is NO drag-drop builder in v1. */
+export interface SafetyFormField {
+  id: string;
+  label: string;
+  type: SafetyFormFieldType;
+  required: boolean;
+  options?: string[];           // for type === 'select'
+}
+
+/** A reusable form/checklist definition. COMPANY-scoped. Powers
+ *  inspection checklists (category 'inspection') + custom forms. */
+export interface SafetyFormTemplate {
+  id: string;
+  name: string;
+  category: 'jha' | 'inspection' | 'general';
+  fields: SafetyFormField[];
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
 }
 
 export interface ProjectPhoto {
@@ -2853,6 +3101,62 @@ export interface WorkerProfile {
   contactEmail: string;
   phone: string;
   createdAt: string;
+}
+
+// ─── Crew Member (verified, portable worker identity) ─────────────────────
+// DISTINCT from the marketplace `WorkerProfile` above. A CrewMember is
+// company-scoped, GC-created, and worker-claimable. It is the person-anchor
+// for Safety Wave B certifications (Certification.workerId → CrewMember.id,
+// added in Wave B which ships AFTER this feature) and can later SURFACE AS a
+// marketplace WorkerProfile when claimed + public + HIRE_ENABLED.
+export type CrewMemberStatus = 'active' | 'inactive';
+export type IdDocumentType = 'drivers_license' | 'state_id' | 'passport' | 'other';
+
+/** Fields returned by the scan-credential edge fn for a government_id. The
+ *  raw idNumberFull is used ONCE client-side to derive idMaskedLast4, then
+ *  discarded — it is never persisted or synced. */
+export interface IdScanFields {
+  fullName: string;
+  idType: IdDocumentType;
+  idNumberFull: string;
+  expiry: string;
+  issuer: string;
+}
+
+export interface CrewMember {
+  id: string;
+  /** Owning GC (auth user id). */
+  companyUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  // Identity
+  fullName: string;
+  trades: string[];
+  phone?: string;
+  email?: string;
+  photoUrl?: string;
+  status: CrewMemberStatus;
+  // ID verification (extract-then-purge default: only masked/derived fields)
+  idVerified: boolean;
+  idType?: IdDocumentType;
+  idMaskedLast4?: string;
+  idExpiry?: string;
+  idIssuer?: string;
+  idScannedAt?: string;
+  /** Present ONLY if the GC opted to retain the raw image. A storage PATH in
+   *  the private `worker-ids` bucket — never a durable URL. Undefined after
+   *  the default purge. */
+  idImagePath?: string;
+  // Claim (hybrid ownership)
+  claimToken?: string;
+  claimedByUserId?: string;
+  claimedAt?: string;
+  /** Worker-controlled marketplace visibility. Default false. */
+  isPublic: boolean;
+  /** Link to a Hire WorkerProfile once surfaced (HIRE_ENABLED gated). */
+  marketplaceProfileId?: string;
+  // Assignment
+  projectIds: string[];
 }
 
 export interface ChatMessage {
@@ -3750,6 +4054,81 @@ export interface PortalState {
    *  The portal renders THIS, not live state — so edits-after-send
    *  never leak to the client. */
   lastSentSnapshot?: string;
+}
+
+// ─── WIP (Work-In-Progress) reporting ───────────────────────────────────────
+// Pure inputs the WIP engine (utils/wip.ts) consumes. Every field is an
+// explicit number so the engine stays side-effect-free and trivially testable.
+export interface WipRowInput {
+  originalContract: number;
+  approvedChangeOrders: number;
+  totalEstimatedCost: number;
+  costToDate: number;            // auto-suggested, user-editable
+  billedToDate: number;          // single billing source (pay-apps OR invoices)
+  percentCompleteOverride?: number; // optional manual 0..1
+}
+
+// Fully computed WIP row (all derived, no NaN — engine guards divide-by-zero).
+export interface WipRow {
+  revisedContract: number;
+  percentComplete: number;       // 0..1
+  earnedRevenue: number;
+  overbilling: number;           // >= 0, mutually exclusive with underbilling
+  underbilling: number;          // >= 0
+  estGrossProfit: number;
+  estGrossMarginPct: number;     // 0..1 (0 when revisedContract === 0)
+  profitToDate: number;
+  costToComplete: number;        // >= 0
+  backlog: number;
+  // GAAP anticipated-loss provision (ASC 606 / 605-35): when the job is
+  // forecast to lose money (estGrossProfit < 0), the ENTIRE estimated loss is
+  // booked immediately rather than pro-rated by percent complete. When true,
+  // profitToDate already carries the full provisioned loss and the screen warns.
+  anticipatedLoss?: boolean;
+}
+
+// Portfolio roll-up across many WIP rows.
+export interface WipPortfolio {
+  revisedContract: number;
+  totalEstimatedCost: number;
+  costToDate: number;
+  earnedRevenue: number;
+  billedToDate: number;
+  overbilling: number;
+  underbilling: number;
+  backlog: number;
+  weightedMarginPct: number;     // (revised − cost) / revised across the portfolio
+}
+
+// Profit-fade watch output (badges + human-readable reasons).
+export interface WipFlags {
+  profitFade: boolean;
+  billingSwing: boolean;
+  scheduleDivergence: boolean;
+  reasons: string[];
+}
+
+// One frozen project line inside a snapshot period.
+export interface WipSnapshotRow {
+  projectId: string;
+  projectName: string;
+  input: WipRowInput;
+  output: WipRow;
+}
+
+// A point-in-time WIP snapshot. Live WIP is computed on the fly; only these
+// persist. `lockedAt` makes the period immutable (invoice-immutability
+// precedent) — editing a locked period is blocked; create a new period.
+export interface WipPeriod {
+  id: string;
+  periodEndDate: string;         // ISO date the WIP is "as of"
+  createdAt: string;
+  createdBy?: string;
+  companyId?: string;
+  rows: WipSnapshotRow[];
+  portfolioTotals: WipPortfolio;
+  notes?: string;
+  lockedAt?: string;             // set → immutable
 }
 
 /**

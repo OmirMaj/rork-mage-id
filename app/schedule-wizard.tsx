@@ -24,7 +24,7 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Check, Calendar as CalendarIcon,
-  Building2, Hammer, Trees, Home as HomeIcon, Plus, Trash2,
+  Building2, Hammer, Trees, Home as HomeIcon, Plus, Trash2, MapPin,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -364,7 +364,8 @@ function ProjectStep(props: {
           <View style={{ flex: 1 }}>
             <Text style={styles.heroTitle}>{picked.name}</Text>
             <View style={styles.heroMetaRow}>
-              <Text style={styles.heroMeta}>📍 {picked.location || 'No location set'}</Text>
+              <MapPin size={13} color={themeColors.textMuted} strokeWidth={1.75} />
+              <Text style={styles.heroMeta}>{picked.location || 'No location set'}</Text>
             </View>
             <View style={styles.heroMetaRow}>
               <CalendarIcon size={13} color={themeColors.textMuted} strokeWidth={1.75} />

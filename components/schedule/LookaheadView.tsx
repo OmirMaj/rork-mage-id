@@ -258,7 +258,7 @@ function LookaheadView({
                 <View key={f.date} style={[s.weekWeatherDay, !f.isWorkable && s.weekWeatherDayBad]}>
                   <Text style={s.weekWeatherDayName}>{dayName}</Text>
                   <Text style={s.weekWeatherIcon}>{getConditionIcon(f.condition)}</Text>
-                  {isRisky && <Text style={s.weatherRisk}>⚠️</Text>}
+                  {isRisky && <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />}
                 </View>
               );
             })}

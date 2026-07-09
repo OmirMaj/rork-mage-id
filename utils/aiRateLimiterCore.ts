@@ -36,7 +36,8 @@ export type AIFeature =
   | 'bidLeveling'
   | 'photoAnalysis'
   | 'drawingAnalysis'
-  | 'specBookExtract';
+  | 'specBookExtract'
+  | 'scanCredential';
 
 export interface FeatureConfig {
   /** Cost class — affects daily quota bucket. */
@@ -78,6 +79,7 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   photoAnalysis:      { tier: 'smart', proOnly: true, displayName: 'Photo Analysis' },
   drawingAnalysis:    { tier: 'smart', proOnly: true, displayName: 'Drawing Analysis' },
   specBookExtract:    { tier: 'smart', proOnly: true, displayName: 'Spec Book Extract' },
+  scanCredential:     { tier: 'smart', proOnly: true, displayName: 'ID / Credential Scan' },
 };
 
 export const LIMITS = {

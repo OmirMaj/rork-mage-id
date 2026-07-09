@@ -218,11 +218,11 @@ export default function BuyoutPackageScreen() {
     lines.push(`Buyout ${savings >= 0 ? 'savings' : 'overrun'}: ${formatMoney(Math.abs(savings))}`);
     if (allowanceItems.length > 0) {
       lines.push('');
-      lines.push(`✓ ${allowanceItems.length} allowance item${allowanceItems.length === 1 ? '' : 's'} will lock to firm price.`);
+      lines.push(`- ${allowanceItems.length} allowance item${allowanceItems.length === 1 ? '' : 's'} will lock to firm price.`);
     }
     if (isRisky) {
       lines.push('');
-      lines.push(`⚠️ Prequal: ${blockers[0]}`);
+      lines.push(`Note: Prequal: ${blockers[0]}`);
     }
     lines.push('');
     lines.push('Awarding will create a Commitment and mark this package complete.');
@@ -258,7 +258,7 @@ export default function BuyoutPackageScreen() {
       );
     } else {
       Alert.alert(
-        '⚠️ Compliance risk — review before award',
+        'Compliance risk — review before award',
         [
           ...lines,
           '',
@@ -580,11 +580,14 @@ export default function BuyoutPackageScreen() {
                           )}
                         </View>
                         {outlier && (
-                          <Text style={styles.outlierHint}>
-                            {outlier.kind === 'low'
-                              ? '⚠️ Significantly below the median — review for missing scope before awarding.'
-                              : '⚠️ Significantly above the median — sub may have priced in protection or unfamiliarity.'}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
+                            <AlertTriangle size={Type.caption2.fontSize} color={Colors.warning} strokeWidth={2} style={{ marginTop: 1 }} />
+                            <Text style={[styles.outlierHint, { flex: 1 }]}>
+                              {outlier.kind === 'low'
+                                ? 'Significantly below the median — review for missing scope before awarding.'
+                                : 'Significantly above the median — sub may have priced in protection or unfamiliarity.'}
+                            </Text>
+                          </View>
                         )}
                         {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
                       </View>

@@ -144,6 +144,34 @@ export async function uploadRfpAttachment(
   }
 }
 
+// Upload an opt-in retained raw ID image to the PRIVATE worker-ids bucket.
+// Returns the storage PATH (never a durable URL) — mirrors the sub-documents
+// precedent. The default ID-scan flow does NOT call this (extract-then-purge).
+export async function uploadWorkerIdImage(
+  userId: string,
+  crewMemberId: string,
+  fileUri: string,
+): Promise<string | null> {
+  if (!isSupabaseConfigured || Platform.OS === 'web') return null;
+  try {
+    const path = `${userId}/${crewMemberId}/${Date.now()}.jpg`;
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage
+      .from('worker-ids')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+    if (error) {
+      console.log('[Storage] Worker-ID upload error:', error.message);
+      return null;
+    }
+    console.log('[Storage] Worker-ID stored (path only):', path);
+    return path;
+  } catch (err) {
+    console.log('[Storage] Worker-ID upload failed:', err);
+    return null;
+  }
+}
+
 export async function deleteStorageFile(
   bucket: string,
   path: string,

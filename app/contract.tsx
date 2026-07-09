@@ -252,7 +252,7 @@ export default function ContractScreen() {
       const refreshed = await fetchActiveContract(saved.projectId);
       if (refreshed) setContract(refreshed);
 
-      // 🎉 Milestone! Fire a celebratory confetti burst when the GC
+      // Milestone! Fire a celebratory confetti burst when the GC
       // signs and sends. The homeowner counter-signing also fires one
       // (handled separately on the portal side). Tiny bit of joy in
       // an otherwise paperwork-heavy moment.

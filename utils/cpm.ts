@@ -230,6 +230,84 @@ function walkWorkingDays(
   return day;
 }
 
+/**
+ * v2.2b — Given a target EF (finish day) and a working-day duration, return
+ * the ES that lands the finish exactly on `targetEf` under the given
+ * calendar. This is the inverse of the EF walk: if `targetEf` is itself a
+ * working day it counts as the last unit (walk back dur-1), otherwise we
+ * skip the non-working finish first (walk back dur). Falls back to raw-day
+ * math when `scheduleStart` is missing (pre-v2.2b behavior).
+ *
+ * Used by the FF/SF forward-pass dependency branches so non-FS links honor
+ * weekends/closures instead of subtracting raw days off the finish.
+ */
+function esFromTargetEf(
+  targetEf: number,
+  dur: number,
+  wd: number,
+  closures: Set<string>,
+  scheduleStart: string | undefined,
+): number {
+  if (dur === 0) return targetEf;
+  if (!scheduleStart) return targetEf - dur + 1;
+  return isWorkingDay(targetEf, wd, scheduleStart, closures)
+    ? walkWorkingDays(targetEf, dur - 1, -1, wd, scheduleStart, closures)
+    : walkWorkingDays(targetEf, dur, -1, wd, scheduleStart, closures);
+}
+
+/**
+ * v2.2b — Mirror of {@link esFromTargetEf} for the backward pass: given a
+ * target LS (late-start day) and duration, return the LF that lands the
+ * start exactly on `targetLs`. Walk `dur` working days FORWARD. Used by the
+ * SS/SF backward-pass branches (they constrain this task's LS, and its LF
+ * must be the working-day span forward from there — not a raw-day add).
+ */
+function lfFromTargetLs(
+  targetLs: number,
+  dur: number,
+  wd: number,
+  closures: Set<string>,
+  scheduleStart: string | undefined,
+): number {
+  if (dur === 0) return targetLs;
+  if (!scheduleStart) return targetLs + dur - 1;
+  return isWorkingDay(targetLs, wd, scheduleStart, closures)
+    ? walkWorkingDays(targetLs, dur - 1, 1, wd, scheduleStart, closures)
+    : walkWorkingDays(targetLs, dur, 1, wd, scheduleStart, closures);
+}
+
+/**
+ * v2.2b — Signed count of working days you must walk from `fromDay` to reach
+ * `toDay` under the given project calendar. Positive when `toDay` is later,
+ * negative when earlier, 0 when equal. Counts working days in the half-open
+ * interval (min, max]. Falls back to the raw calendar-day delta when
+ * `scheduleStartDate` is missing (can't resolve weekdays without an anchor).
+ *
+ * Used by the schedule-pro "slip vs baseline" KPI to express the gap between
+ * the current CPM finish and a captured baseline finish in working days.
+ */
+export function workingDaysBetween(
+  fromDay: number,
+  toDay: number,
+  opts: {
+    workingDaysPerWeek?: number;
+    scheduleStartDate?: string;
+    nonWorkingDates?: string[];
+  } = {},
+): number {
+  if (fromDay === toDay) return 0;
+  if (!opts.scheduleStartDate) return toDay - fromDay;
+  const wd = opts.workingDaysPerWeek ?? 7;
+  const closures = new Set(opts.nonWorkingDates ?? []);
+  const lo = Math.min(fromDay, toDay);
+  const hi = Math.max(fromDay, toDay);
+  let count = 0;
+  for (let d = lo + 1; d <= hi; d++) {
+    if (isWorkingDay(d, wd, opts.scheduleStartDate, closures)) count++;
+  }
+  return toDay > fromDay ? count : -count;
+}
+
 interface AnchorClamp {
   /** Earliest allowed ES (inclusive). */
   esMin?: number;
@@ -436,6 +514,10 @@ function forwardPass(
     const links = getLinks(task);
     const pins = Math.max(1, task.startDay || 1);
     const anchor = computeAnchor(task, scheduleStart);
+    const dur = Math.max(0, task.durationDays || 0);
+    // v2.2c — resolve the task's calendar once. Reused by the non-FS
+    // dependency math (FF/SF, below), the anchor clamps, and the EF walk.
+    const { wd: taskWd, closures: taskClosures } = calendarForTask(task.id);
 
     let es = pins;
     for (const link of links) {
@@ -451,13 +533,17 @@ function forwardPass(
       switch (type) {
         case 'FS': required = depCpm.ef + lag + 1; break;
         case 'SS': required = depCpm.es + lag; break;
-        case 'FF': required = depCpm.ef + lag - task.durationDays + 1; break;
-        case 'SF': required = depCpm.es + lag - task.durationDays + 1; break;
+        // FF/SF constrain this task's EF (to dep.EF+lag / dep.ES+lag). Walk
+        // the *working-day* duration back to the matching ES. The old
+        // `... - task.durationDays + 1` used RAW days, so any FF/SF link on a
+        // 5- or 6-day calendar silently mis-dated the start and corrupted
+        // float/critical-path across a weekend (v2.2b+ fix).
+        case 'FF': required = esFromTargetEf(depCpm.ef + lag, dur, taskWd, taskClosures, scheduleStart); break;
+        case 'SF': required = esFromTargetEf(depCpm.es + lag, dur, taskWd, taskClosures, scheduleStart); break;
       }
       if (required > es) es = required;
     }
 
-    const dur = Math.max(0, task.durationDays || 0);
 
     // Apply anchor floor/ceiling clamps. Hard pins (must-start-on /
     // must-finish-on) override dependency-derived ES; soft ones (SNET/SNLT/
@@ -492,8 +578,8 @@ function forwardPass(
     }
 
     // v2.2b — Calendar-aware EF. v2.2c — uses per-task resolved calendar
-    // so resource-assigned tasks honor their own working-day mask.
-    const { wd: taskWd, closures: taskClosures } = calendarForTask(task.id);
+    // (resolved once at the top of the loop) so resource-assigned tasks
+    // honor their own working-day mask.
     const ef = dur === 0 ? es
       : !scheduleStart ? es + dur - 1
       : isWorkingDay(es, taskWd, scheduleStart, taskClosures)
@@ -560,6 +646,9 @@ function backwardPass(
 
     const dur = Math.max(0, task.durationDays || 0);
     const succs = successors.get(task.id) ?? [];
+    // v2.2c — resolve the task's calendar once. Reused by the SS/SF finish
+    // alignment (below), the anchor clamps, and the LS walk.
+    const { wd: lsWd, closures: lsClosures } = calendarForTask(task.id);
 
     // Default: no successors → LF is project finish.
     let lf = projectFinish;
@@ -575,13 +664,16 @@ function backwardPass(
       switch (type) {
         // FS: succ.LS ≥ this.LF + lag + 1  → this.LF ≤ succ.LS − lag − 1
         case 'FS': thisLf = succLate.ls - lag - 1; break;
-        // SS: succ.LS ≥ this.LS + lag      → this.LS ≤ succ.LS − lag
-        //                                   this.LF = this.LS + dur − 1
-        case 'SS': thisLf = (succLate.ls - lag) + Math.max(0, dur - 1); break;
+        // SS: succ.LS ≥ this.LS + lag → this.LS ≤ succ.LS − lag, then
+        // this.LF is the *working-day* span forward from that LS. The old
+        // `+ Math.max(0, dur - 1)` added RAW days, mis-dating LF/float on
+        // any non-7-day calendar spanning a weekend (v2.2b+ fix).
+        case 'SS': thisLf = lfFromTargetLs(succLate.ls - lag, dur, lsWd, lsClosures, scheduleStartDate); break;
         // FF: succ.LF ≥ this.LF + lag      → this.LF ≤ succ.LF − lag
         case 'FF': thisLf = succLate.lf - lag; break;
-        // SF: succ.LF ≥ this.LS + lag      → this.LS ≤ succ.LF − lag
-        case 'SF': thisLf = (succLate.lf - lag) + Math.max(0, dur - 1); break;
+        // SF: succ.LF ≥ this.LS + lag → this.LS ≤ succ.LF − lag, then LF is
+        // the working-day span forward from that LS (raw-day fix, as SS).
+        case 'SF': thisLf = lfFromTargetLs(succLate.lf - lag, dur, lsWd, lsClosures, scheduleStartDate); break;
       }
       if (thisLf < lf) lf = thisLf;
     }
@@ -618,8 +710,8 @@ function backwardPass(
       }
     }
 
-    // v2.2b — Calendar-aware LS. v2.2c — per-task calendar.
-    const { wd: lsWd, closures: lsClosures } = calendarForTask(task.id);
+    // v2.2b — Calendar-aware LS. v2.2c — per-task calendar (resolved once
+    // at the top of the loop).
     const ls = dur === 0 ? lf
       : !scheduleStartDate ? lf - dur + 1
       : isWorkingDay(lf, lsWd, scheduleStartDate, lsClosures)

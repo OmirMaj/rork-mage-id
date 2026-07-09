@@ -40,7 +40,8 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 // the morning digest matches sub-portal invites, contract sends, payment
 // receipts, COI warnings, and the homeowner weekly digest.
 import { wrapEmailHtml, resendSend } from '../_shared/email.ts';
-import { isValidCron, hasAuthenticatedUser } from '../_shared/cronAuth.ts';
+import { isValidCron } from '../_shared/cronAuth.ts';
+import { verifyUser } from '../_shared/verifyUser.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -350,7 +351,12 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
-  if (!(await isValidCron(req)) && !(await hasAuthenticatedUser(req))) return jsonResponse({ error: 'unauthorized' }, 401);
+  // Auth: cron (shared secret) OR a genuine authenticated user JWT. Capture the
+  // caller identity — the userId branch below enforces that a signed-in user may
+  // only trigger their own digest.
+  const isCron = await isValidCron(req);
+  const caller = isCron ? null : await verifyUser(req);
+  if (!isCron && !caller) return jsonResponse({ error: 'unauthorized' }, 401);
   if (req.method !== 'POST') return jsonResponse({ error: 'Use POST' }, 405);
 
   let body: { userId?: string; all?: boolean };
@@ -368,6 +374,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   });
 
   if (body.userId) {
+    // A signed-in caller may only trigger their own digest; cron is exempt.
+    if (!isCron && body.userId !== caller?.id) {
+      return jsonResponse({ error: 'forbidden' }, 403);
+    }
     const { data: profile, error } = await admin
       .from('profiles')
       .select('id, email, name, digest_enabled, digest_hour, digest_channels, digest_timezone')
@@ -379,6 +389,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (body.all) {
+    // Cron-only fan-out. Without this gate a signed-in user could POST
+    // { all: true } and trigger digests for every user, not just their own.
+    // The per-user ownership check above doesn't run in this branch.
+    if (!isCron) return jsonResponse({ error: 'forbidden' }, 403);
     // Cron path — fire for every user whose digest_hour matches the
     // current hour in their timezone. We don't try to be clever about
     // sub-hour scheduling; once-an-hour granularity is fine for a

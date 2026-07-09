@@ -486,12 +486,6 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           }}
         />
         <View style={styles.heroCard}>
-          {/* Decorative gradient layers — three semi-transparent circles
-              positioned to give the hero a rich, premium gradient feel
-              without depending on a linear-gradient native module. */}
-          <View pointerEvents="none" style={styles.heroGlowA} />
-          <View pointerEvents="none" style={styles.heroGlowB} />
-
           <View style={styles.heroRow}>
             <View style={styles.heroLeft}>
               <View style={styles.heroLabelRow}>
@@ -1085,9 +1079,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     shadowRadius: 18,
     elevation: 6,
   },
-  // Soft gradient orbs to give the hero depth without a gradient lib.
-  heroGlowA: { position: 'absolute' as const, top: -60, right: -60, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(255,255,255,0.12)' },
-  heroGlowB: { position: 'absolute' as const, bottom: -80, left: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(0,0,0,0.10)' },
   heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 1 },
   heroLeft: { gap: 6, flex: 1 },
   heroLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },

@@ -39,10 +39,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Save, Plus, Trash2, AlertTriangle,
-  RefreshCw, Pencil, Check,
+  RefreshCw, Pencil, Check, Calculator,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 
+import {
+  getLivePrices, getRegionMultiplier, getMaterialCostBreakdown,
+  type MaterialItem,
+} from '@/constants/materials';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -65,8 +69,128 @@ interface PricedLine {
   description: string;
   quantity: number;
   unit: string;               // EA, LF, SF, CY, …
-  unitPrice: number;
+  unitPrice: number;          // ACTIVE unit price — what the totals use
   notes?: string;
+  /** The AI/LLM's original guessed unit price. Kept so the estimator can
+   *  always fall back to it and audit against the engine number. */
+  aiUnitPrice: number;
+  /** Deterministic engine rate from constants/materials.ts, present only when
+   *  the line maps cleanly to a materials category + unit. */
+  engineRate?: EngineRate;
+  /** Which number is currently driving unitPrice. */
+  priceSource: 'ai' | 'engine' | 'manual';
+}
+
+// ─── Deterministic engine pricing ────────────────────────────────────────
+// The AI returns an LLM-guessed unitPrice per line. Where a line maps cleanly
+// to a materials category + unit, we ALSO compute a deterministic, reproducible
+// installed rate from constants/materials.ts (regional-adjusted, material +
+// labor + equipment + category waste). Both numbers are surfaced; the engine
+// one is preferred because it's auditable — but the AI number is never silently
+// discarded, and the estimator can switch back with one tap.
+
+type EngineUnit = 'SF' | 'LF' | 'EA' | 'CY';
+
+const ENGINE_PRICE_SEED = 100; // fixed → engine prices are reproducible run-to-run
+
+interface EngineRate {
+  rate: number;        // installed $/unit incl. waste
+  material: number;
+  labor: number;
+  equipment: number;
+  waste: number;       // fraction, e.g. 0.05
+  category: string;
+  skuCount: number;
+}
+
+function normEngineUnit(u: string): EngineUnit | null {
+  const s = u.toLowerCase().trim();
+  if (s === 'sf' || s === 'sqft' || s === 'sq ft') return 'SF';
+  if (s === 'lf' || s === 'lin ft' || s === 'linft') return 'LF';
+  if (s === 'ea' || s === 'each') return 'EA';
+  if (s === 'cy' || s === 'cu yd' || s === 'cuyd') return 'CY';
+  return null;
+}
+
+// Only exact-unit SKUs are used so we never guess a square→sqft or sheet→sqft
+// conversion — an unconverted lookup is worse than no lookup.
+const ENGINE_UNIT_ALIASES: Record<EngineUnit, string[]> = {
+  SF: ['sq ft'],
+  LF: ['lin ft'],
+  EA: ['each'],
+  CY: ['cu yd'],
+};
+
+/** Map a CSI division + description to a materials-engine category, or null. */
+function mapLineToCategory(division: string, description: string): string | null {
+  const num = (division.trim().match(/^\d{2}/) ?? [''])[0];
+  const desc = description.toLowerCase();
+  switch (num) {
+    case '03': return 'concrete';
+    case '04': return 'concrete';
+    case '05': return 'steel';
+    case '06': return 'lumber';
+    case '07':
+      if (/insulat/.test(desc)) return 'insulation';
+      if (/roof|shingle|membrane|flash/.test(desc)) return 'roofing';
+      if (/sid|stucco|wrap|veneer|brick|stone/.test(desc)) return 'siding';
+      return null;
+    case '08': return 'windows';
+    case '09':
+      if (/drywall|gypsum|gwb|\bboard\b/.test(desc)) return 'drywall';
+      if (/paint|primer|coat/.test(desc)) return 'paint';
+      if (/floor|tile|carpet|vinyl|hardwood|laminate|lvp|lvt|bamboo|cork/.test(desc)) return 'flooring';
+      return null;
+    case '22': return 'plumbing';
+    case '23': return 'hvac';
+    case '26': return 'electrical';
+    case '32': return 'landscape';
+    default: return null;
+  }
+}
+
+/** Representative installed rate for a category+unit from the priced catalog. */
+function buildEngineRate(priced: MaterialItem[], category: string, unit: EngineUnit): EngineRate | null {
+  const aliases = ENGINE_UNIT_ALIASES[unit];
+  const skus = priced.filter(m =>
+    m.specTier === 'base' &&
+    m.category === category &&
+    aliases.includes(m.unit.toLowerCase().trim()),
+  );
+  if (skus.length === 0) return null;
+  const rows = skus.map(m => {
+    const b = getMaterialCostBreakdown(m);
+    return {
+      installed: b.materialCost + b.laborCost + b.equipmentCost,
+      material: b.materialCost, labor: b.laborCost, equipment: b.equipmentCost,
+      waste: m.wasteFactor ?? 0.05,
+    };
+  }).sort((a, z) => a.installed - z.installed);
+  const mid = rows[Math.floor(rows.length / 2)]; // median SKU is the representative
+  return {
+    rate: Number((mid.installed * (1 + mid.waste)).toFixed(2)),
+    material: mid.material,
+    labor: mid.labor,
+    equipment: mid.equipment,
+    waste: mid.waste,
+    category,
+    skuCount: skus.length,
+  };
+}
+
+/** A per-location engine pricer with a small (category:unit) cache. */
+function makeEngineRater(location: string): (division: string, unit: string, description: string) => EngineRate | null {
+  const priced = getLivePrices(ENGINE_PRICE_SEED, getRegionMultiplier(location));
+  const cache = new Map<string, EngineRate | null>();
+  return (division, unitRaw, description) => {
+    const unit = normEngineUnit(unitRaw);
+    if (!unit) return null;
+    const category = mapLineToCategory(division, description);
+    if (!category) return null;
+    const key = `${category}:${unit}`;
+    if (!cache.has(key)) cache.set(key, buildEngineRate(priced, category, unit));
+    return cache.get(key) ?? null;
+  };
 }
 
 const SCHEMA_HINT = {
@@ -181,17 +305,31 @@ function TakeoffEstimateInner() {
       }
 
       const out = (r.data as { lines?: Partial<PricedLine>[] })?.lines ?? [];
+      // Deterministic engine pricer, built once for this location.
+      const rater = makeEngineRater(locationHint);
       const cleaned: PricedLine[] = out
         .filter(l => l && typeof l.description === 'string' && l.description.trim().length > 0)
-        .map(l => ({
-          id: generateUUID(),
-          csiDivision: typeof l.csiDivision === 'string' ? l.csiDivision : '01 - General',
-          description: l.description!.trim(),
-          quantity: typeof l.quantity === 'number' && l.quantity > 0 ? l.quantity : 1,
-          unit: typeof l.unit === 'string' ? l.unit : 'EA',
-          unitPrice: typeof l.unitPrice === 'number' && l.unitPrice >= 0 ? l.unitPrice : 0,
-          notes: typeof l.notes === 'string' ? l.notes : undefined,
-        }));
+        .map(l => {
+          const csiDivision = typeof l.csiDivision === 'string' ? l.csiDivision : '01 - General';
+          const description = l.description!.trim();
+          const unit = typeof l.unit === 'string' ? l.unit : 'EA';
+          const aiUnitPrice = typeof l.unitPrice === 'number' && l.unitPrice >= 0 ? l.unitPrice : 0;
+          const engineRate = rater(csiDivision, unit, description) ?? undefined;
+          return {
+            id: generateUUID(),
+            csiDivision,
+            description,
+            quantity: typeof l.quantity === 'number' && l.quantity > 0 ? l.quantity : 1,
+            unit,
+            // Prefer/surface the engine price when the line is matchable — it's
+            // auditable — but keep the AI number one tap away.
+            unitPrice: engineRate ? engineRate.rate : aiUnitPrice,
+            notes: typeof l.notes === 'string' ? l.notes : undefined,
+            aiUnitPrice,
+            engineRate,
+            priceSource: engineRate ? ('engine' as const) : ('ai' as const),
+          };
+        });
 
       if (cleaned.length === 0) {
         setPricingError('AI returned no priced lines. Tap regenerate to try again.');
@@ -234,6 +372,16 @@ function TakeoffEstimateInner() {
     setLines(prev => prev.filter(l => l.id !== id));
   }, []);
 
+  // Snap a line's active unit price to either its engine or AI source.
+  const setLineSource = useCallback((id: string, source: 'ai' | 'engine') => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setLines(prev => prev.map(l => {
+      if (l.id !== id) return l;
+      const price = source === 'engine' ? (l.engineRate?.rate ?? l.unitPrice) : l.aiUnitPrice;
+      return { ...l, unitPrice: price, priceSource: source };
+    }));
+  }, []);
+
   const addLine = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newLine: PricedLine = {
@@ -243,6 +391,8 @@ function TakeoffEstimateInner() {
       quantity: 1,
       unit: 'EA',
       unitPrice: 0,
+      aiUnitPrice: 0,
+      priceSource: 'manual',
     };
     setLines(prev => [...prev, newLine]);
     setEditingLineId(newLine.id);
@@ -411,7 +561,7 @@ function TakeoffEstimateInner() {
           <View style={styles.sourceCard}>
             <MageAIMark size={14} color={themeColors.accent} />
             <Text style={styles.sourceText}>
-              Auto-generated from {countQuantities(takeoff)} takeoff items. Tap any line to edit description, quantity, or unit price. Add custom lines for anything the AI missed.
+              Auto-generated from {countQuantities(takeoff)} takeoff items. Lines that map to the pricing engine show a deterministic <Text style={styles.sourceTextStrong}>Engine</Text> rate (regional, auditable) next to the <Text style={styles.sourceTextStrong}>AI est.</Text> — tap either to use it. Tap a line to edit; add custom lines for anything missed.
             </Text>
           </View>
         )}
@@ -432,6 +582,7 @@ function TakeoffEstimateInner() {
                 }}
                 onCancel={() => setEditingLineId(null)}
                 onRemove={() => removeLine(line.id)}
+                onSetSource={(src) => setLineSource(line.id, src)}
               />
             ))}
           </View>
@@ -501,6 +652,7 @@ function LineRow({
   onCommit,
   onCancel,
   onRemove,
+  onSetSource,
 }: {
   line: PricedLine;
   editing: boolean;
@@ -508,6 +660,7 @@ function LineRow({
   onCommit: (patch: Partial<PricedLine>) => void;
   onCancel: () => void;
   onRemove: () => void;
+  onSetSource: (source: 'ai' | 'engine') => void;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -533,8 +686,35 @@ function LineRow({
           <Text style={styles.lineDesc} numberOfLines={2}>{line.description}</Text>
           <Text style={styles.lineMeta}>
             {line.quantity} {line.unit} × {formatMoney(line.unitPrice)}
+            {line.priceSource === 'engine' ? ' · engine' : line.priceSource === 'ai' ? ' · AI est.' : ' · manual'}
             {line.notes ? ` · ${line.notes}` : ''}
           </Text>
+          {/* Both prices, side by side, with a clear source label. The engine
+              number is deterministic; the AI number is the model's guess. */}
+          {line.engineRate && (
+            <View style={styles.sourceRow}>
+              <TouchableOpacity
+                style={[styles.sourcePill, line.priceSource === 'engine' && styles.sourcePillActive]}
+                onPress={() => onSetSource('engine')}
+                activeOpacity={0.8}
+                testID={`price-source-engine-${line.id}`}
+              >
+                <Calculator size={11} color={line.priceSource === 'engine' ? themeColors.surface : themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.sourcePillLabel, line.priceSource === 'engine' && styles.sourcePillLabelActive]}>Engine</Text>
+                <Text style={[styles.sourcePillValue, line.priceSource === 'engine' && styles.sourcePillLabelActive]}>{formatMoney(line.engineRate.rate)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sourcePill, line.priceSource !== 'engine' && styles.sourcePillActive]}
+                onPress={() => onSetSource('ai')}
+                activeOpacity={0.8}
+                testID={`price-source-ai-${line.id}`}
+              >
+                <MageAIMark size={11} color={line.priceSource !== 'engine' ? themeColors.surface : themeColors.accent} />
+                <Text style={[styles.sourcePillLabel, line.priceSource !== 'engine' && styles.sourcePillLabelActive]}>AI est.</Text>
+                <Text style={[styles.sourcePillValue, line.priceSource !== 'engine' && styles.sourcePillLabelActive]}>{formatMoney(line.aiUnitPrice)}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
         <Text style={styles.lineTotal}>{formatMoney(line.quantity * line.unitPrice)}</Text>
         <Pencil size={14} color={themeColors.textMuted} style={{ marginLeft: 8 }} strokeWidth={1.75} />
@@ -601,12 +781,19 @@ function LineRow({
           <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => onCommit({
-            description: desc.trim() || line.description,
-            quantity: Math.max(0, parseFloat(qty) || 0),
-            unit: unit.trim() || 'EA',
-            unitPrice: Math.max(0, parseFloat(price) || 0),
-          })}
+          onPress={() => {
+            const nextPrice = Math.max(0, parseFloat(price) || 0);
+            onCommit({
+              description: desc.trim() || line.description,
+              quantity: Math.max(0, parseFloat(qty) || 0),
+              unit: unit.trim() || 'EA',
+              unitPrice: nextPrice,
+              // A hand-typed price is a manual override unless it exactly equals
+              // one of the known sources (then keep that source's label).
+              priceSource: nextPrice === line.engineRate?.rate ? 'engine'
+                : nextPrice === line.aiUnitPrice ? 'ai' : 'manual',
+            });
+          }}
           style={styles.commitBtn}
         >
           <Check size={14} color={themeColors.surface} strokeWidth={1.75} />
@@ -767,6 +954,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accent + '10',
   },
   sourceText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 16 },
+  sourceTextStrong: { fontWeight: '800' as const, color: t.text },
 
   divisionSection: { marginTop: 16, paddingHorizontal: 16 },
   divisionLabel: {
@@ -785,6 +973,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   lineDesc: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text, lineHeight: 18 },
   lineMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
   lineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: t.text, minWidth: 80, textAlign: 'right' },
+
+  sourceRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  sourcePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: Tokens.radius.sm,
+    borderWidth: 0.5, borderColor: t.accent + '55',
+    backgroundColor: t.accent + '10',
+  },
+  sourcePillActive: { backgroundColor: t.accent, borderColor: t.accent },
+  sourcePillLabel: { fontSize: 10, fontWeight: '800' as const, color: t.accent, letterSpacing: 0.2 },
+  sourcePillValue: { fontSize: 10, fontWeight: '700' as const, color: t.textSecondary },
+  sourcePillLabelActive: { color: t.surface },
 
   lineRowEditing: {
     backgroundColor: t.surface,
