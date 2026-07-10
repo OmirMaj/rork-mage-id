@@ -350,7 +350,7 @@ serve(async (req) => {
   // consume a unit. Counts both punch and dfr together (same underlying spend).
   const meterKey = body.task === 'conditionRisk' ? 'cost_xray' : 'analyze_photos';
   if (meterKey === 'cost_xray' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
-    return jsonResponse({ success: false, error: 'Cost X-Ray requires the Business plan', code: 'tier' }, 403);
+    return jsonResponse({ success: false, error: 'Cost X-Ray requires the Business plan', code: 'tier_required' }, 403);
   }
   const used = await aiUsageIncrement(auth.userId, meterKey);
   const cap = MONTHLY_CAPS[auth.tier][meterKey];

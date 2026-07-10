@@ -99,7 +99,7 @@ export default function CostXrayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const { canAccess } = useTierAccess();
-  const { projects, commitments, updateProject, addProjectPhoto, addPunchItem } = useProjects();
+  const { projects, commitments, updateProject, addProjectPhoto, deleteProjectPhoto, addPunchItem } = useProjects();
 
   // Business gate — redirect locked tiers to the paywall (design decision 3).
   const locked = !canAccess('cost_xray');
@@ -175,8 +175,11 @@ export default function CostXrayScreen() {
 
   const removePhoto = useCallback((id: string) => {
     setPhotos(prev => prev.filter(p => p.id !== id));
+    // The photo was persisted on capture; discarding it here must also remove the
+    // ProjectPhoto so a scrapped shot doesn't linger as an orphan in the gallery.
+    deleteProjectPhoto(id);
     resetScan();
-  }, [resetScan]);
+  }, [deleteProjectPhoto, resetScan]);
 
   // ── Detect + price ───────────────────────────────────────────────────
   const detect = useCallback(async () => {

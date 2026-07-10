@@ -2,7 +2,7 @@
 // analyze-photos edge fn (task 'conditionRisk'); this module turns detected tells
 // into probability-weighted allowance bands on the contractor's learned costs.
 import { lookupRate } from './costDatabase';
-import type { CostDatabase } from './costDatabase';
+import type { CostDatabase, CostBookEntry } from './costDatabase';
 import type { XrayCategory, BBox } from '@/types';
 
 /** Closed set of v1 "priceable core" tells the model must classify into. */
@@ -25,19 +25,22 @@ export interface ConditionTell {
 
 interface Remediation { trade: string; unit: string; typicalQty: number; baseAllowance: number }
 
-/** Tell → remediation trade/unit/qty + catalog fallback allowance ($). trade/unit
- *  match LABOR_RATES / the cost-learning keying so lookupRate can personalize. */
+/** Tell → remediation trade/unit/qty + catalog fallback allowance ($). `trade` is the
+ *  contractor's price-book CATEGORY label — that is how buildCostDatabase keys entries
+ *  (costDatabase.ts: `trade = l.category`), so learnedRate() personalizes the cost from
+ *  their own history. When they have no history for that category we fall back to
+ *  baseAllowance. */
 export const REMEDIATION: Record<TellKey, Remediation> = {
-  panel_fpe_zinsco:     { trade: 'Electrician', unit: 'ea', typicalQty: 1, baseAllowance: 2500 },
-  wiring_knob_tube:     { trade: 'Electrician', unit: 'ea', typicalQty: 1, baseAllowance: 8000 },
-  outlets_two_prong:    { trade: 'Electrician', unit: 'ea', typicalQty: 1, baseAllowance: 1500 },
-  supply_galvanized:    { trade: 'Plumber',     unit: 'ea', typicalQty: 1, baseAllowance: 6000 },
-  waste_cast_iron:      { trade: 'Plumber',     unit: 'ea', typicalQty: 1, baseAllowance: 5000 },
-  supply_polybutylene:  { trade: 'Plumber',     unit: 'ea', typicalQty: 1, baseAllowance: 6000 },
-  structural_cracks:    { trade: 'General',     unit: 'ea', typicalQty: 1, baseAllowance: 3500 },
-  floor_sloped:         { trade: 'General',     unit: 'ea', typicalQty: 1, baseAllowance: 3000 },
+  panel_fpe_zinsco:      { trade: 'Electrical', unit: 'ea', typicalQty: 1, baseAllowance: 2500 },
+  wiring_knob_tube:      { trade: 'Electrical', unit: 'ea', typicalQty: 1, baseAllowance: 8000 },
+  outlets_two_prong:     { trade: 'Electrical', unit: 'ea', typicalQty: 1, baseAllowance: 1500 },
+  supply_galvanized:     { trade: 'Plumbing',   unit: 'ea', typicalQty: 1, baseAllowance: 6000 },
+  waste_cast_iron:       { trade: 'Plumbing',   unit: 'ea', typicalQty: 1, baseAllowance: 5000 },
+  supply_polybutylene:   { trade: 'Plumbing',   unit: 'ea', typicalQty: 1, baseAllowance: 6000 },
+  structural_cracks:     { trade: 'General',    unit: 'ea', typicalQty: 1, baseAllowance: 3500 },
+  floor_sloped:          { trade: 'General',    unit: 'ea', typicalQty: 1, baseAllowance: 3000 },
   moisture_efflorescence:{ trade: 'General',    unit: 'ea', typicalQty: 1, baseAllowance: 2500 },
-  moisture_staining:    { trade: 'General',     unit: 'ea', typicalQty: 1, baseAllowance: 1500 },
+  moisture_staining:     { trade: 'General',    unit: 'ea', typicalQty: 1, baseAllowance: 1500 },
 };
 
 /** Band width used when the contractor has no learned rate for the trade/unit. */
@@ -54,16 +57,28 @@ export interface PricedTell {
   hasLearnedRate: boolean;
 }
 
+/** The contractor's learned rate for a trade category. Prefers an exact trade+unit
+ *  match; falls back to the richest-sampled entry for that category (any unit) so
+ *  personalization still fires when the unit differs. Null when they have no history. */
+export function learnedRate(db: CostDatabase, trade: string, unit: string): CostBookEntry | null {
+  const exact = lookupRate(db, trade, unit);
+  if (exact) return exact;
+  const t = trade.toLowerCase();
+  const byTrade = db.entries.filter((e) => e.trade.toLowerCase() === t);
+  if (byTrade.length === 0) return null;
+  return byTrade.reduce((a, b) => (b.sampleCount > a.sampleCount ? b : a));
+}
+
 /** Price a tell as a probability-weighted allowance on learned costs (catalog fallback). */
 export function priceTell(tell: ConditionTell, db: CostDatabase): PricedTell {
   const rem = REMEDIATION[tell.key] ?? null;
-  const learned = rem ? lookupRate(db, rem.trade, rem.unit) : null;
+  const learned = rem ? learnedRate(db, rem.trade, rem.unit) : null;
   const unitCost = learned?.suggestedRate ?? rem?.baseAllowance ?? 0;
   const qty = rem?.typicalQty ?? 1;
   const p = clamp01(tell.likelihood / 100);
   const expected = Math.round(p * unitCost * qty);
   const variability = learned?.variability ?? DEFAULT_VARIABILITY;
-  const low = Math.round(expected * (1 - variability));
+  const low = Math.max(0, Math.round(expected * (1 - variability)));
   const high = Math.round(expected * (1 + variability));
   return { tell, remediation: rem, band: { low, expected, high }, hasLearnedRate: !!learned };
 }
