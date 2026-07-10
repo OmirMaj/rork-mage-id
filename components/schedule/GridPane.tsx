@@ -183,6 +183,9 @@ const gridResizeHandleStyle = StyleSheet.create({
 // their table rows in the Split paneMode. Previously these were 40 and
 // 36, which offset every bar by ~20px from its task row.
 const ROW_HEIGHT = 56;
+// Sticky header row height — kept in sync with the `headerRow` style below
+// and used to size the scrollable body so it fills the pane exactly.
+const HEADER_HEIGHT = 56;
 
 // ---------------------------------------------------------------------------
 // Props
@@ -358,6 +361,11 @@ export default function GridPane({
   // drawer needs to see it). We keep a local fallback for consumers who don't
   // care about selection, so the component still works standalone.
   const [localSelected, setLocalSelected] = useState<Set<string>>(new Set());
+  // Measured height of the horizontal-scroll body viewport. The task-row
+  // ScrollView is sized to fill it (minus the sticky header) so the grid
+  // reaches the bottom of the pane just like the Gantt does — replacing a
+  // hardcoded maxHeight:640 that left a large gap on tall/desktop screens.
+  const [gridBodyH, setGridBodyH] = useState(0);
   const selected = selectedIds ?? localSelected;
   const setSelection = useCallback((next: Set<string>) => {
     if (onSelectionChange) onSelectionChange(next);
@@ -1295,7 +1303,12 @@ export default function GridPane({
     <View style={styles.container}>
       {renderConflictBanner()}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        style={{ flex: 1 }}
+        onLayout={(e) => setGridBodyH(e.nativeEvent.layout.height)}
+      >
         <View style={{ width: visibleTotalWidth + extColumnsWidth }}>
           {/* Sticky header row */}
           <View style={styles.headerRow}>
@@ -1344,7 +1357,10 @@ export default function GridPane({
 
           {/* Body rows — children of collapsed summaries are hidden. We keep
               their data intact (CPM still respects them) but suppress the row. */}
-          <ScrollView style={{ maxHeight: 640 }} showsVerticalScrollIndicator>
+          <ScrollView
+            style={{ height: gridBodyH > 0 ? Math.max(120, gridBodyH - HEADER_HEIGHT) : 640 }}
+            showsVerticalScrollIndicator
+          >
             {(() => {
               const hidden = getHiddenTaskIds(tasks);
               return tasks
