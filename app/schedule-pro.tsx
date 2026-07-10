@@ -54,6 +54,7 @@ import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
 import BaselineManagerModal from '@/components/schedule/BaselineManagerModal';
 import TaskInspector from '@/components/schedule/TaskInspector';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
+import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
 import VoiceCommandModal from '@/components/VoiceCommandModal';
 import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
@@ -200,6 +201,7 @@ function ScheduleProScreenInner() {
   // theirs only creates, doesn't mutate.
   const [showVoice, setShowVoice] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
+  const [dismissedOnRamp, setDismissedOnRamp] = useState(false);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   // Add Task modal — replaces the silent "create a task called 'New task'
   // with defaults" flow. Opens from the SchedulerHeader's "+ Add Task"
@@ -1353,6 +1355,29 @@ function ScheduleProScreenInner() {
     );
   }
 
+  if (workingTasks.length === 0 && !dismissedOnRamp) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <ChevronLeft size={20} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.headerBackText}>Back</Text>
+          </TouchableOpacity>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
+          </View>
+        </View>
+        <ScheduleOnRamp
+          onBuildWithAI={() => router.push({ pathname: '/generative-setup', params: { projectId: project.id } } as never)}
+          onStartFromTemplate={() => router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never)}
+          onAddManually={() => { setDismissedOnRamp(true); handleAddTask(); }}
+          onLoadExample={handleLoadDemo}
+        />
+      </View>
+    );
+  }
+
   // -------------------------------------------------------------------------
   // Main render
   // -------------------------------------------------------------------------
@@ -1420,7 +1445,6 @@ function ScheduleProScreenInner() {
           <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
           <HeaderBtn icon={CalendarPlus} label="iCal" onPress={() => { void handleExportIcs(); }} />
           <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />
-          <HeaderBtn icon={MageAIMark} label="Demo" onPress={handleLoadDemo} />
           <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} />
           <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} />
           <HeaderBtn
