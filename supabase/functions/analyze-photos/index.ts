@@ -53,7 +53,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface AnalyzePhotosRequest {
-  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms';
+  task: 'punch' | 'dfr' | 'rfi' | 'triage' | 'receipt' | 'rooms' | 'conditionRisk';
   /** EITHER photoUrls (server fetches) OR photos[].base64 inline.
    *  Client-side camera / library picks are file:// URIs that the
    *  server can't fetch — those callers send inline base64 instead. */
@@ -274,8 +274,8 @@ serve(async (req) => {
   let body: AnalyzePhotosRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400); }
 
-  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms'].includes(body.task)) {
-    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", or "rooms"' }, 400);
+  if (!body.task || !['punch', 'dfr', 'rfi', 'triage', 'receipt', 'rooms', 'conditionRisk'].includes(body.task)) {
+    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", "triage", "receipt", "rooms", or "conditionRisk"' }, 400);
   }
 
   const usingInline = Array.isArray(body.photos) && body.photos.length > 0;
@@ -348,8 +348,12 @@ serve(async (req) => {
   // Monthly cap for this user. Meter AFTER at least one valid photo is in hand
   // — a missing/oversized/unfetchable input where no Gemini call runs must not
   // consume a unit. Counts both punch and dfr together (same underlying spend).
-  const used = await aiUsageIncrement(auth.userId, 'analyze_photos');
-  const cap = MONTHLY_CAPS[auth.tier].analyze_photos;
+  const meterKey = body.task === 'conditionRisk' ? 'cost_xray' : 'analyze_photos';
+  if (meterKey === 'cost_xray' && auth.tier !== 'business' && auth.tier !== 'enterprise') {
+    return jsonResponse({ success: false, error: 'Cost X-Ray requires the Business plan', code: 'tier' }, 403);
+  }
+  const used = await aiUsageIncrement(auth.userId, meterKey);
+  const cap = MONTHLY_CAPS[auth.tier][meterKey];
   if (used > cap) {
     return jsonResponse({
       success: false,
@@ -368,12 +372,35 @@ serve(async (req) => {
     body.notes ? `GC notes: ${body.notes}` : null,
   ].filter(Boolean).join('\n');
 
+  const CONDITION_RISK_PROMPT = `You are a veteran residential general contractor doing a bid walkthrough of an older home. Look for HIDDEN-CONDITION TELLS — signs of costly work you can't fully see — and IGNORE cosmetic finishes.
+
+Only report tells in these four categories, and classify each into exactly one "key" from this fixed list:
+- electrical: panel_fpe_zinsco (Federal Pacific / Zinsco panel), wiring_knob_tube (knob-and-tube), outlets_two_prong (ungrounded 2-prong outlets)
+- plumbing: supply_galvanized (galvanized supply), waste_cast_iron (cast-iron waste), supply_polybutylene (polybutylene supply)
+- structural: structural_cracks (diagonal cracks over openings), floor_sloped (visibly sloped/sagging floor)
+- moisture: moisture_efflorescence (efflorescence on masonry), moisture_staining (active water staining)
+
+Be conservative — omit anything you are not reasonably sure of. Never diagnose hazards; these are "verify" flags.
+
+Return a JSON array; each element:
+- key: one of the keys above (exact string)
+- category: "electrical" | "plumbing" | "structural" | "moisture"
+- tell: short human label (e.g. "Federal Pacific panel")
+- severity: "low" | "med" | "high"
+- confidence: 0-100 (how sure you are you SEE this tell)
+- likelihood: 0-100 (probability the underlying condition needs remediation)
+- photoIndex: index of the photo (0-based)
+- bbox: { "x": 0-1, "y": 0-1, "w": 0-1, "h": 0-1 } normalized box around the tell
+
+Return JSON only — no preamble.`;
+
   const basePrompt =
     body.task === 'punch'   ? PUNCH_PROMPT :
     body.task === 'dfr'     ? DFR_PROMPT :
     body.task === 'rfi'     ? RFI_PROMPT :
     body.task === 'receipt' ? RECEIPT_PROMPT :
     body.task === 'rooms'   ? ROOMS_PROMPT :
+    body.task === 'conditionRisk' ? CONDITION_RISK_PROMPT :
     TRIAGE_PROMPT;
   const prompt = ctxLine ? `${ctxLine}\n\n${basePrompt}` : basePrompt;
 
@@ -473,6 +500,27 @@ serve(async (req) => {
       };
     });
     return jsonResponse({ success: true, data: { entries } });
+  }
+
+  if (body.task === 'conditionRisk') {
+    if (!Array.isArray(parsed)) return jsonResponse({ success: false, error: 'Gemini did not return an array', raw }, 500);
+    const KEYS = ['panel_fpe_zinsco','wiring_knob_tube','outlets_two_prong','supply_galvanized','waste_cast_iron','supply_polybutylene','structural_cracks','floor_sloped','moisture_efflorescence','moisture_staining'];
+    const CATS = ['electrical','plumbing','structural','moisture'];
+    const items = (parsed as unknown[]).map((x) => {
+      const o = x as Record<string, unknown>;
+      const b = (o.bbox ?? {}) as Record<string, unknown>;
+      return {
+        key: String(o.key ?? ''),
+        category: String(o.category ?? ''),
+        tell: String(o.tell ?? '').slice(0, 120),
+        severity: (['low','med','high'].includes(String(o.severity)) ? o.severity : 'med'),
+        confidence: Number.isFinite(Number(o.confidence)) ? Math.max(0, Math.min(100, Number(o.confidence))) : 0,
+        likelihood: Number.isFinite(Number(o.likelihood)) ? Math.max(0, Math.min(100, Number(o.likelihood))) : 0,
+        photoIndex: Number.isFinite(Number(o.photoIndex)) ? Number(o.photoIndex) : 0,
+        bbox: { x: Number(b.x) || 0, y: Number(b.y) || 0, w: Number(b.w) || 0, h: Number(b.h) || 0 },
+      };
+    }).filter((i) => KEYS.includes(i.key) && CATS.includes(i.category));
+    return jsonResponse({ success: true, data: { items } });
   }
 
   if (body.task === 'receipt') {
