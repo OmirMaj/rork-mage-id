@@ -36,6 +36,7 @@ export type FeatureKey =
   | 'safety_management'
   | 'crew_management'
   | 'scan_anything'
+  | 'cost_xray'
   // All tiers (with limits)
   | 'voice_commands'
   | 'post_homeowner_request'
@@ -99,6 +100,7 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   safety_management: 'business',
   crew_management: 'business',
   scan_anything: 'business',
+  cost_xray: 'business',
   // Available to all
   voice_commands: 'free',
   post_homeowner_request: 'free',
