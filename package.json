@@ -26,7 +26,8 @@
     "test:crew": "bun run scripts/validate-crew.ts",
     "test:schedule-import": "bun run scripts/validate-schedule-import.ts",
     "test:scan-routing": "bun run scripts/validate-scan-routing.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:wip && bun run test:safety-risk && bun run test:safety-osha && bun run test:app-slop && bun run test:crew && bun run test:safety-cert && bun run test:safety-inspection && bun run test:schedule-import && bun run test:scan-routing",
+    "test:cost-xray": "bun run scripts/validate-cost-xray.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:wip && bun run test:safety-risk && bun run test:safety-osha && bun run test:app-slop && bun run test:crew && bun run test:safety-cert && bun run test:safety-inspection && bun run test:schedule-import && bun run test:scan-routing && bun run test:cost-xray",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },

@@ -663,6 +663,7 @@ function RootLayoutNav() {
           presentation: 'modal',
         }}
       />
+      <Stack.Screen name="cost-xray" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen
         name="onboarding-paywall"
         options={{

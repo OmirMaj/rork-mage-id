@@ -15,7 +15,7 @@ import {
   Mail, MessageSquare, FolderOpen, FileText, Send,
   HardHat, Boxes, ClipboardList, Ruler, Calculator, Gauge, GitCompare,
   ChevronRight,
- Wifi, PlusCircle, History, Star, FileUp } from 'lucide-react-native';
+ Wifi, PlusCircle, History, Star, FileUp, ScanSearch } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
@@ -138,7 +138,7 @@ export default function EstimateScreen() {
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { projects, updateProject, settings, updateSettings, contacts } = useProjects();
-  const { isFree } = useTierAccess();
+  const { isFree, canAccess } = useTierAccess();
   // Shared materials cart (used by the Materials browser too). All cart
   // mutations now flow through the context — local setCart() calls were
   // removed in favor of these helpers.
@@ -1304,6 +1304,21 @@ export default function EstimateScreen() {
             >
               <Ruler size={13} color={Colors.textOnPrimary} strokeWidth={1.75} />
               <Text style={styles.aiEstimateBtnText}>Takeoff</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.aiEstimateBtn}
+              onPress={() => {
+                if (canAccess('cost_xray')) {
+                  router.push({ pathname: '/cost-xray', params: { projectId: selectedProjectId ?? '' } } as never);
+                } else {
+                  router.push('/paywall' as never);
+                }
+              }}
+              activeOpacity={0.8}
+              testID="cost-xray-btn"
+            >
+              <ScanSearch size={13} color={Colors.textOnPrimary} strokeWidth={1.75} />
+              <Text style={styles.aiEstimateBtnText}>Hidden costs</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.aiEstimateBtn}

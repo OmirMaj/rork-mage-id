@@ -113,7 +113,8 @@ export type EstimateChangeReason =
   | 'sent_to_client'
   | 'converted_to_contract'
   | 'pre_overwrite'
-  | 'restore';
+  | 'restore'
+  | 'xray';
 
 export interface EstimateRevision {
   id: string;
@@ -1008,6 +1009,30 @@ export interface AppSettings {
   financing?: FinancingConfig;
 }
 
+/** Cost X-Ray — normalized bounding box on a source photo (0..1 of width/height). */
+export interface BBox { x: number; y: number; w: number; h: number }
+
+/** Cost X-Ray — the four "priceable core" hidden-condition categories (v1). */
+export type XrayCategory = 'electrical' | 'plumbing' | 'structural' | 'moisture';
+
+/** Cost X-Ray — metadata attached to a contingency estimate line or a field-verify
+ *  punch item that came from a hidden-condition scan. Kept as a sub-object so the
+ *  `category`/`confidence` field names don't collide with existing item fields. */
+export interface CostXrayMeta {
+  /** ProjectPhoto.id the tell was detected in. */
+  sourcePhotoId: string;
+  bbox: BBox;
+  /** Human-readable tell, e.g. "Federal Pacific panel". */
+  tell: string;
+  category: XrayCategory;
+  /** 0..100 detection confidence. */
+  confidence: number;
+  /** Priced allowance band in dollars. */
+  band: { low: number; expected: number; high: number };
+  /** GC-only by default; never surfaced to the client portal unless the GC opts in. */
+  clientVisible: boolean;
+}
+
 export interface LinkedEstimate {
   id: string;
   items: LinkedEstimateItem[];
@@ -1050,6 +1075,8 @@ export interface LinkedEstimateItem {
   /** ISO timestamp set by the buyout flow when an allowance item is
    *  locked to a firm price. Audit trail for the homeowner portal. */
   firmPricedAt?: string;
+  /** Cost X-Ray provenance for a hidden-condition contingency line (set with isAllowance: true). */
+  xray?: CostXrayMeta;
 }
 
 export interface ChangeOrderLineItem {
@@ -2053,6 +2080,8 @@ export interface PunchItem {
   closedAt?: string;
   createdAt: string;
   updatedAt: string;
+  /** Cost X-Ray provenance for a field-verify task spawned from a hidden-condition scan. */
+  xray?: CostXrayMeta;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
