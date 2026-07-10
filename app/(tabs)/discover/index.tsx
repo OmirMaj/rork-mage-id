@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Gavel, Building2, Briefcase, ExternalLink,
   Plus, Search, Award, CalendarDays, ChevronRight, DollarSign,
-  Wrench, Share2, CreditCard, FileSignature, Truck,
+  Wrench, Share2, CreditCard, FileSignature, Truck, ScanSearch,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
@@ -19,6 +19,7 @@ import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTierAccess } from '@/hooks/useTierAccess';
 
 interface BidSource {
   name: string;
@@ -174,6 +175,7 @@ export default function DiscoverScreen() {
   const tabScrollRef = useRef<ScrollView>(null);
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { canAccess } = useTierAccess();
 
   console.log('[Discover] Rendering DiscoverScreen v2');
 
@@ -347,6 +349,15 @@ export default function DiscoverScreen() {
           title="Schedule Maker"
           subtitle="AI-generate or template-based schedules"
           onPress={() => navigateTo('/(tabs)/discover/schedule')}
+        />
+
+        <NavigationCard
+          icon={ScanSearch}
+          iconColor={Colors.accent}
+          iconBg={Colors.accent + '15'}
+          title="Cost X-Ray"
+          subtitle="Price the hidden conditions before you bid"
+          onPress={() => (canAccess('cost_xray') ? navigateTo('/cost-xray') : navigateTo('/paywall'))}
         />
 
         {/* Materials Pricing tile removed — redundant with the Estimator's
