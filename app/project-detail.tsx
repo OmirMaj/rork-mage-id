@@ -75,6 +75,7 @@ const ESTIMATE_REASON_LABEL: Record<EstimateChangeReason, string> = {
   converted_to_contract: 'Converted to contract',
   pre_overwrite: 'Before re-estimate',
   restore: 'Restored',
+  xray: 'Cost X-Ray scan',
 };
 
 // Enable LayoutAnimation on Android (no-op on iOS — already enabled).
