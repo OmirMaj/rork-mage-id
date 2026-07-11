@@ -33,7 +33,7 @@ import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon, CloudRain, FileInput } from 'lucide-react-native';
+import { ChevronLeft, Activity, Share2, Undo2, Redo2, RefreshCcw, Bookmark, Download, CalendarX, Settings, FileText, Mic, CalendarPlus, CloudRain, FileInput } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { Colors } from '@/constants/colors';
@@ -114,8 +114,6 @@ const GRID_BREAKPOINT = 900;
 // means the gantt gets ~30px of width — useless.
 const SPLIT_BREAKPOINT = 1600;
 
-type PaneMode = 'grid' | 'split' | 'gantt' | 'resources' | 'living';
-
 export default function ScheduleProScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -173,20 +171,8 @@ function ScheduleProScreenInner() {
   );
   const workingTasks = hist.present;
 
-  // Pane mode: which view(s) to render. Defaults based on width; user can
-  // override via the segmented control in the header.
-  const [paneMode, setPaneMode] = useState<PaneMode>(() =>
-    width >= SPLIT_BREAKPOINT ? 'split' : 'grid',
-  );
-  // Bumped on every paneMode-button press. SchedulerTabShell uses this to
-  // force the active tab back to 'gantt' whenever the user clicks Grid /
-  // Split / Gantt in the top toolbar — so the user sees the sub-mode change
-  // even if they were on Board / List / Dashboard.
-  const [paneModeNonce, setPaneModeNonce] = useState(0);
-  const setPaneModeAndForceGantt = useCallback((mode: PaneMode) => {
-    setPaneMode(mode);
-    if (mode !== 'resources') setPaneModeNonce(n => n + 1);
-  }, []);
+  // The view-switcher now lives inside the Timeline tab (GanttTab owns all
+  // five layouts). We only derive the tab's opening layout from width below.
 
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
@@ -1409,29 +1395,6 @@ function ScheduleProScreenInner() {
         </View>
 
         <View style={styles.headerActions}>
-          {/* Pane mode segmented control */}
-          <View style={styles.paneToggle}>
-            <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneModeAndForceGantt('grid')} />
-            <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneModeAndForceGantt('split')} />
-            <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneModeAndForceGantt('gantt')} />
-            <PaneBtn
-              icon={Users}
-              label="Lanes"
-              active={paneMode === 'resources'}
-              // Toggle: clicking Lanes again returns to the regular tab shell
-              // (defaulting to the Gantt sub-mode) so the user has a one-tap
-              // escape from the Lanes view instead of having to find one of
-              // the Grid/Split/Gantt buttons.
-              onPress={() => setPaneMode(paneMode === 'resources' ? 'gantt' : 'resources')}
-            />
-            <PaneBtn
-              icon={MapIcon}
-              label="Living Plan"
-              active={paneMode === 'living'}
-              onPress={() => setPaneMode(paneMode === 'living' ? 'gantt' : 'living')}
-            />
-          </View>
-
           {/* AI first — the headline value-prop. Highlighted so it stands out.
               The "+ Add Task" affordance now lives inline in the SchedulerHeader
               between VIEW and Export (Phase 27 audit feedback), so it's removed
@@ -1508,49 +1471,12 @@ function ScheduleProScreenInner() {
         onPushTasks={handleWeatherPush}
       />
 
-      {/* Body — Phase 27: the new SchedulerTabShell (7-tab nav + SchedulerHeader +
-          active tab content) replaces the old manual paneMode grid/gantt/split
-          rendering. Resource swimlanes are a separate mode that lives outside
-          the tab shell since they are a different axis entirely. */}
-      {paneMode === 'living' ? (() => {
-        const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
-        const firstSheet = planSheets[0] ?? null;
-        const zones = getPlanZonesForProject(project.id).filter(
-          (z) => firstSheet ? z.planSheetId === firstSheet.id : false,
-        );
-        const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
-        const photos = getPhotosForProject(project.id);
-        const photoById = (photoId: string) => { const p = photos.find((ph) => ph.id === photoId); return p ? { uri: p.uri, createdAt: p.createdAt } : undefined; };
-        return (
-          <View style={styles.body}>
-            <View style={styles.paneFull}>
-              <LivingFloorPlan
-                project={project}
-                planSheetId={firstSheet?.id ?? ''}
-                zones={zones}
-                pins={pins}
-                photoById={photoById}
-                imageUri={firstSheet?.imageUri ?? ''}
-                imageW={firstSheet?.width}
-                imageH={firstSheet?.height}
-                onEdit={() => setShowLivingPlanEditor(true)}
-                onAddPlan={() => router.push('/plans' as never)}
-              />
-            </View>
-          </View>
-        );
-      })() : paneMode === 'resources' ? (
-        <View style={styles.body}>
-          <View style={styles.paneFull}>
-            <ResourceSwimlanes
-              tasks={rolledTasks}
-              resources={project?.schedule?.resources}
-              projectStartDate={projectStartDate}
-              projectName={project?.name}
-            />
-          </View>
-        </View>
-      ) : (
+      {/* Body — Phase 27: the SchedulerTabShell (tab nav + SchedulerHeader +
+          active tab content) is the single body. The Timeline tab owns all
+          five layouts (Grid · Split · Gantt · Lanes · Living Plan); Lanes and
+          Living Plan render via the render-props below so their data-fetching
+          stays here in the screen. */}
+      {(
         <View style={styles.tabShellBody}>
           <SchedulerTabShell
             schedule={{
@@ -1571,8 +1497,47 @@ function ScheduleProScreenInner() {
             projectName={project?.name ?? 'Schedule'}
             onExportPress={() => setExportSheetOpen(true)}
             onBaselinePress={() => setShowBaselineManager(true)}
-            ganttPaneMode={paneMode}
-            paneModeNonce={paneModeNonce}
+            initialLayout={width >= SPLIT_BREAKPOINT ? 'split' : 'grid'}
+            renderLanes={() => (
+              <View style={styles.body}>
+                <View style={styles.paneFull}>
+                  <ResourceSwimlanes
+                    tasks={rolledTasks}
+                    resources={project?.schedule?.resources}
+                    projectStartDate={projectStartDate}
+                    projectName={project?.name}
+                  />
+                </View>
+              </View>
+            )}
+            renderLiving={() => {
+              const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
+              const firstSheet = planSheets[0] ?? null;
+              const zones = getPlanZonesForProject(project.id).filter(
+                (z) => firstSheet ? z.planSheetId === firstSheet.id : false,
+              );
+              const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
+              const photos = getPhotosForProject(project.id);
+              const photoById = (photoId: string) => { const p = photos.find((ph) => ph.id === photoId); return p ? { uri: p.uri, createdAt: p.createdAt } : undefined; };
+              return (
+                <View style={styles.body}>
+                  <View style={styles.paneFull}>
+                    <LivingFloorPlan
+                      project={project}
+                      planSheetId={firstSheet?.id ?? ''}
+                      zones={zones}
+                      pins={pins}
+                      photoById={photoById}
+                      imageUri={firstSheet?.imageUri ?? ''}
+                      imageW={firstSheet?.width}
+                      imageH={firstSheet?.height}
+                      onEdit={() => setShowLivingPlanEditor(true)}
+                      onAddPlan={() => router.push('/plans' as never)}
+                    />
+                  </View>
+                </View>
+              );
+            }}
             projectStartDate={projectStartDate}
             workingDaysPerWeek={workingDaysPerWeek}
             nonWorkingDates={project?.schedule?.nonWorkingDates}
@@ -1805,23 +1770,6 @@ function escapeHtml(s: string): string {
 // Pane toggle button
 // ---------------------------------------------------------------------------
 
-function PaneBtn({
-  icon: Icon, label, active, onPress,
-}: { icon: any; label: string; active: boolean; onPress: () => void }) {
-  const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <TouchableOpacity
-      style={[styles.paneBtn, active && styles.paneBtnActive]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Icon size={13} color={active ? themeColors.accent : themeColors.textSecondary} />
-      <Text style={[styles.paneBtnText, active && styles.paneBtnTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Small header-button subcomponent (keeps the header JSX tidy)
 // ---------------------------------------------------------------------------
@@ -1935,34 +1883,4 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   paneHalf: { flex: 1, minWidth: 440 },
   paneHalfRight: { flex: 1.4, minWidth: 0 },
 
-  paneToggle: {
-    flexDirection: 'row',
-    backgroundColor: t.surfaceAlt,
-    borderRadius: Tokens.radius.sm,
-    padding: 2,
-    marginRight: 4,
-  },
-  paneBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: Tokens.radius.xs,
-  },
-  paneBtnActive: {
-    backgroundColor: t.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  paneBtnText: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '700',
-    color: t.textSecondary,
-  },
-  paneBtnTextActive: {
-    color: t.accent,
-  },
 });

@@ -13,7 +13,7 @@
 // visible tabs (Gantt · Board · Dash · More). "More" opens a sheet for the
 // remaining tabs (List, Calendar, Workload, Timeline). iOS convention.
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
@@ -32,23 +32,23 @@ import type { ProjectSchedule, ScheduleTask, ProjectResource } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
 
 export type SchedulerTabKey =
-  | 'gantt'
-  | 'board'
+  | 'overview'
+  | 'timeline'
   | 'list'
-  | 'calendar'
+  | 'board'
   | 'workload'
-  | 'dashboard';
+  | 'calendar';
 
-// Timeline tab was retired — it duplicated the Gantt tab's slim-mode
-// rendering and didn't earn its slot in the tab strip. If a one-page
-// stakeholder view is needed later, surface it through Export instead.
+// One unified view-switcher: the Timeline tab owns all five layout modes
+// (Grid · Split · Gantt · Lanes · Living Plan) via its own local segmented
+// control, so there is no competing top-toolbar pane toggle any more.
 const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
-  { key: 'gantt',     label: 'Gantt' },
-  { key: 'board',     label: 'Board' },
+  { key: 'overview',  label: 'Overview' },
+  { key: 'timeline',  label: 'Timeline' },
   { key: 'list',      label: 'List' },
-  { key: 'calendar',  label: 'Calendar',  soon: true },
+  { key: 'board',     label: 'Board' },
   { key: 'workload',  label: 'Workload' },
-  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'calendar',  label: 'Calendar', soon: true },
 ];
 
 export interface SchedulerTabShellProps {
@@ -62,18 +62,13 @@ export interface SchedulerTabShellProps {
   onExportPress: () => void;
   onBaselinePress: () => void;
 
-  // ---- Externally-controlled sub-mode for the Gantt tab ----
-  /**
-   * Driven by the top-toolbar Grid/Split/Gantt buttons in schedule-pro.
-   * When set, the shell forces the active tab to 'gantt' and passes this
-   * sub-mode down so the GanttTab swaps between full-grid / split /
-   * full-gantt rendering. Other tabs (Board, List, Dashboard, etc.)
-   * ignore this prop.
-   */
-  ganttPaneMode?: GanttPaneMode;
-  /** Bumped by the parent whenever a paneMode button is pressed, so we can
-   *  re-force the active tab to 'gantt' even if the user navigated away. */
-  paneModeNonce?: number;
+  // ---- Timeline-tab layout wiring ----
+  /** Initial Timeline layout mode. */
+  initialLayout?: GanttPaneMode;
+  /** Rendered by the Timeline tab when the user picks the Lanes layout. */
+  renderLanes?: () => ReactNode;
+  /** Rendered by the Timeline tab when the user picks the Living Plan layout. */
+  renderLiving?: () => ReactNode;
 
   // ---- GanttTab pass-through props (owned by schedule-pro) ----
   projectStartDate: Date;
@@ -104,18 +99,7 @@ export interface SchedulerTabShellProps {
 export function SchedulerTabShell(props: SchedulerTabShellProps) {
   useTheme();
   const { bp } = useResponsive();
-  const [active, setActive] = useState<SchedulerTabKey>('gantt');
-
-  // When the parent toggles a paneMode button (Grid/Split/Gantt in the top
-  // toolbar), bump the nonce — that forces the Gantt tab to be active so
-  // the user sees the sub-mode change even if they were on Board / List /
-  // Dashboard at the time. We don't want to keep forcing it on every render,
-  // so the effect keys on the nonce, not the paneMode value itself.
-  useEffect(() => {
-    if (props.paneModeNonce !== undefined) {
-      setActive('gantt');
-    }
-  }, [props.paneModeNonce]);
+  const [active, setActive] = useState<SchedulerTabKey>('overview');
 
   if (bp === 'phone') {
     return (
@@ -184,9 +168,9 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
   const insets = useSafeAreaInsets();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const VISIBLE: { key: SchedulerTabKey; icon: string; label: string }[] = [
-    { key: 'gantt',     icon: '⬚', label: 'Gantt' },
+    { key: 'timeline',  icon: '⬚', label: 'Timeline' },
     { key: 'board',     icon: '⊞', label: 'Board' },
-    { key: 'dashboard', icon: '◐', label: 'Dash' },
+    { key: 'overview',  icon: '◐', label: 'Overview' },
   ];
   const OVERFLOW: SchedulerTabKey[] = ['list', 'calendar', 'workload'];
   const isOverflowActive = OVERFLOW.includes(active);
@@ -255,14 +239,16 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
 }
 
 function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNode {
-  if (key === 'gantt') {
+  if (key === 'timeline') {
     return (
       <GanttTab
         projectStartDate={props.projectStartDate}
         workingDaysPerWeek={props.workingDaysPerWeek}
         nonWorkingDates={props.nonWorkingDates}
         cpm={props.utilsCpm}
-        paneMode={props.ganttPaneMode ?? 'split'}
+        initialLayout={props.initialLayout}
+        renderLanes={props.renderLanes}
+        renderLiving={props.renderLiving}
         onEdit={props.onEdit}
         onAddTask={props.onAddTask}
         onAddTaskAtDay={props.onAddTaskAtDay}
@@ -323,7 +309,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
     return <WorkloadTab resources={props.resources} />;
   }
 
-  if (key === 'dashboard') {
+  if (key === 'overview') {
     return <DashboardTab />;
   }
 
