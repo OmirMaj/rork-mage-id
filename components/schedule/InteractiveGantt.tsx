@@ -45,7 +45,7 @@ import {
   AccessibilityInfo,
   type GestureResponderEvent,
 } from 'react-native';
-import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
+import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle, Text as SvgText } from 'react-native-svg';
 import { Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -56,7 +56,7 @@ import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
 import { colorForTask as canonicalColorForTask, barLabelColorFor } from '@/utils/scheduleColors';
 import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
-import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
+import { orthogonalArrowPath, CLEARANCE } from '@/utils/ganttArrowPath';
 
 // Bar fill is trade-driven via the canonical colorForTask() from scheduleColors.
 // This delegates so existing internal call sites keep working unchanged.
@@ -660,23 +660,32 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       d: string;
       critical: boolean;
       connected: boolean;  // touches the active task (pred or succ)
+      label: string;       // non-default link type/lag badge (e.g. SS, FS+3); '' for plain FS+0
+      labelX: number;
+      labelY: number;
     }[] = [];
+    const FAN_STEP = 4; // px between stacked arrowheads landing on one bar
     for (const succ of bars) {
       const links = succ.task.dependencyLinks && succ.task.dependencyLinks.length > 0
         ? succ.task.dependencyLinks
         : succ.task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
-      for (const link of links) {
+      const n = links.length;
+      links.forEach((link, i) => {
         const pred = barById.get(link.taskId);
-        if (!pred) continue;
+        if (!pred) return;
         const criticalBoth = pred.isCritical && succ.isCritical;
         const connected = activeId != null && (pred.task.id === activeId || succ.task.id === activeId);
-        // Orthogonal path: pred right-edge → succ left-edge, both at bar midpoint Y.
+        // Fan the landing Y around the bar midpoint: -(n-1)/2 .. +(n-1)/2 steps.
+        const fanY = (i - (n - 1) / 2) * FAN_STEP;
         const d = orthogonalArrowPath(
           { x: pred.x + pred.w, y: pred.y + BAR_HEIGHT / 2 },
-          { x: succ.x,          y: succ.y + BAR_HEIGHT / 2 },
+          { x: succ.x,          y: succ.y + BAR_HEIGHT / 2 + fanY },
         );
-        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, connected });
-      }
+        const label = link.type !== 'FS' || (link.lagDays ?? 0) !== 0
+          ? `${link.type}${link.lagDays ? (link.lagDays > 0 ? `+${link.lagDays}` : `${link.lagDays}`) : ''}`
+          : '';
+        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, connected, label, labelX: succ.x - CLEARANCE - 2, labelY: succ.y + BAR_HEIGHT / 2 + fanY });
+      });
     }
     return out;
   }, [bars, barById, focusedTaskId, hoverTaskId]);
@@ -1153,19 +1162,23 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   const emphasized = hasActiveTask && dep.connected;
                   const animate = emphasized && !reduceMotion;
                   return (
-                    <AnimatedPath
-                      key={dep.id}
-                      d={dep.d}
-                      stroke={stroke}
-                      strokeWidth={emphasized ? 1.75 : 1.25}
-                      strokeOpacity={dimmed ? 0.2 : 0.85}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeDasharray={animate ? '4 3' : undefined}
-                      strokeDashoffset={animate ? (dashOffset as unknown as number) : 0}
-                      fill="none"
-                      markerEnd={`url(#${dep.critical ? 'gantt-head-crit' : 'gantt-head'})`}
-                    />
+                    <React.Fragment key={dep.id}>
+                      <AnimatedPath
+                        d={dep.d}
+                        stroke={stroke}
+                        strokeWidth={emphasized ? 2 : 1.5}
+                        strokeOpacity={dimmed ? 0.2 : 0.9}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray={animate ? '4 3' : undefined}
+                        strokeDashoffset={animate ? (dashOffset as unknown as number) : 0}
+                        fill="none"
+                        markerEnd={`url(#${dep.critical ? 'gantt-head-crit' : 'gantt-head'})`}
+                      />
+                      {dep.label && !dimmed ? (
+                        <SvgText x={dep.labelX} y={dep.labelY - 3} fill={stroke} fontSize={8} fontWeight="700" textAnchor="end">{dep.label}</SvgText>
+                      ) : null}
+                    </React.Fragment>
                   );
                 })}
 
