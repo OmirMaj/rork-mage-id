@@ -29,11 +29,11 @@
 //     Phase 7 — snapshot-URL pattern already proven with the client portal.
 
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert, Modal, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Activity, Share2, Undo2, Redo2, RefreshCcw, Bookmark, Download, CalendarX, Settings, FileText, Mic, CalendarPlus, CloudRain, FileInput } from 'lucide-react-native';
+import { ChevronLeft, Undo2, Redo2, Download, MoreHorizontal } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { Colors } from '@/constants/colors';
@@ -189,6 +189,7 @@ function ScheduleProScreenInner() {
   const [showHealth, setShowHealth] = useState(false);
   const [dismissedOnRamp, setDismissedOnRamp] = useState(false);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   // Add Task modal — replaces the silent "create a task called 'New task'
   // with defaults" flow. Opens from the SchedulerHeader's "+ Add Task"
   // button (and any other onAddTask caller).
@@ -944,6 +945,15 @@ function ScheduleProScreenInner() {
     else Alert.alert('Reflow complete', msg);
   }, [workingTasks, commit]);
 
+  // Critical-path / conflict summary — moved out of the toolbar into the
+  // "More" overflow menu (Phase 1 front-door). Extracted to a named callback
+  // so the menu item can invoke it.
+  const showCpmAnalysis = useCallback(() => {
+    const msg = `Project finish: day ${cpm.projectFinish}\nCritical path: ${cpm.criticalPath.length} task(s)\nConflicts: ${cpm.conflicts.length}`;
+    if (Platform.OS === 'web') window.alert?.(msg);
+    else Alert.alert('Schedule analysis', msg);
+  }, [cpm]);
+
   // -------------------------------------------------------------------------
   // Named baselines — capture / switch / compare via BaselineManagerModal.
   // The previous tap=capture / long-press=compare-against-latest affordance
@@ -1400,29 +1410,11 @@ function ScheduleProScreenInner() {
               between VIEW and Export (Phase 27 audit feedback), so it's removed
               from this toolbar to avoid two Add-Task buttons on the same row. */}
           <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setShowAI(true)} highlighted />
-          <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
-          <HeaderBtn icon={RefreshCcw} label="Reflow" onPress={handleReflow} />
-          <HeaderBtn icon={Bookmark} label="Baseline" onPress={() => setShowBaselineManager(true)} />
-          <HeaderBtn icon={FileInput} label="Import" onPress={() => router.push(`/schedule-import?projectId=${project.id}`)} />
-          <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
-          <HeaderBtn icon={CalendarPlus} label="iCal" onPress={() => { void handleExportIcs(); }} />
-          <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />
           <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} />
           <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} />
-          <HeaderBtn
-            icon={Activity}
-            label="CPM"
-            onPress={() => {
-              const msg = `Project finish: day ${cpm.projectFinish}\nCritical path: ${cpm.criticalPath.length} task(s)\nConflicts: ${cpm.conflicts.length}`;
-              if (Platform.OS === 'web') window.alert?.(msg);
-              else Alert.alert('Schedule analysis', msg);
-            }}
-          />
-          <HeaderBtn icon={CloudRain} label="Weather" onPress={openWeatherReschedule} />
-          <HeaderBtn icon={CalendarX} label="Closures" onPress={() => setShowClosures(true)} />
-          <HeaderBtn icon={Settings} label="Settings" onPress={() => setShowSettings(true)} />
-          <HeaderBtn icon={Share2} label="Share" onPress={handleShare} />
+          <HeaderBtn icon={Download} label="Export" onPress={() => setExportSheetOpen(true)} />
+          <HeaderBtn icon={MoreHorizontal} label="More" onPress={() => setMoreOpen(true)} />
         </View>
       </View>
 
@@ -1711,16 +1703,27 @@ function ScheduleProScreenInner() {
         onExportPdf={() => { void handleExportPdf(); }}
         onExportCsv={handleExportCsv}
         onShareLink={handleShare}
-        onExportIcal={() => {
-          if (project) {
-            // Inline import keeps the iCal generator out of the initial bundle.
-            void import('@/utils/scheduleExportIcal').then(m =>
-              m.exportScheduleIcal({ project }),
-            );
-          }
-        }}
+        onExportIcal={() => { void handleExportIcs(); }}
         onAirPrint={() => { void handleAirPrint(); }}
       />
+
+      {/* Grouped "More" overflow — secondary toolbar actions, grouped into
+          Analyze vs Manage so the primary row stays ~5 controls. */}
+      <Modal visible={moreOpen} transparent animationType="fade" onRequestClose={() => setMoreOpen(false)}>
+        <Pressable style={styles.moreBackdrop} onPress={() => setMoreOpen(false)} />
+        <View style={styles.moreSheet}>
+          <Text style={styles.moreGroupLabel}>Analyze</Text>
+          <MoreItem label="Voice input"      onPress={() => { setMoreOpen(false); setShowVoice(true); }} />
+          <MoreItem label="Critical path"    onPress={() => { setMoreOpen(false); showCpmAnalysis(); }} />
+          <MoreItem label="Re-plan (Reflow)" onPress={() => { setMoreOpen(false); handleReflow(); }} />
+          <MoreItem label="Weather re-plan"  onPress={() => { setMoreOpen(false); openWeatherReschedule(); }} />
+          <MoreItem label="Closures"         onPress={() => { setMoreOpen(false); setShowClosures(true); }} />
+          <MoreItem label="Original plan (Baseline)" onPress={() => { setMoreOpen(false); setShowBaselineManager(true); }} />
+          <Text style={styles.moreGroupLabel}>Manage</Text>
+          <MoreItem label="Import"   onPress={() => { setMoreOpen(false); router.push(`/schedule-import?projectId=${project.id}`); }} />
+          <MoreItem label="Settings" onPress={() => { setMoreOpen(false); setShowSettings(true); }} />
+        </View>
+      </Modal>
 
       {/* Add Task modal — opens from any onAddTask caller (toolbar
           button, GridPane footer, phone FAB). */}
@@ -1806,11 +1809,31 @@ function HeaderBtn({
 }
 
 // ---------------------------------------------------------------------------
+// Overflow "More" menu row
+// ---------------------------------------------------------------------------
+
+function MoreItem({ label, onPress }: { label: string; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.moreItem} activeOpacity={0.7}>
+      <Text style={styles.moreItemText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+
+  // "More" overflow menu — grouped secondary toolbar actions.
+  moreBackdrop: { flex: 1, backgroundColor: Colors.overlay },
+  moreSheet: { position: 'absolute', top: 64, right: 16, minWidth: 220, backgroundColor: t.surface, borderRadius: Tokens.radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line, paddingVertical: 6 },
+  moreGroupLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textSecondary, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 2, letterSpacing: 0.6 },
+  moreItem: { paddingHorizontal: 14, paddingVertical: 10 },
+  moreItemText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 8 },
   emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
