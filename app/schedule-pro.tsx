@@ -1182,52 +1182,20 @@ function ScheduleProScreenInner() {
   const handleAirPrint = useCallback(async () => {
     try {
       const Print = await import('expo-print');
-      const pName = project?.name ?? 'Schedule';
-      const safeTasks = workingTasks;
-      const html = `
-        <html><head><meta charset="utf-8"><title>${escapeHtml(pName)} schedule</title>
-        <style>
-          body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; }
-          h1 { font-size: 18px; margin-bottom: 4px; }
-          p.sub { color: #666; font-size: 11px; margin-bottom: 16px; }
-          table { width: 100%; border-collapse: collapse; font-size: 11px; }
-          th { text-align: left; padding: 6px 8px; background: #f3f3f3; border-bottom: 2px solid #ddd; }
-          th.r { text-align: right; }
-          td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-          td.r { text-align: right; }
-        </style>
-        </head>
-        <body>
-          <h1>${escapeHtml(pName)}</h1>
-          <p class="sub">Schedule print from MAGE ID &nbsp;·&nbsp; ${new Date().toLocaleDateString()}</p>
-          <table>
-            <thead><tr>
-              <th>#</th>
-              <th>Task</th>
-              <th>Phase</th>
-              <th class="r">Duration</th>
-              <th class="r">% Done</th>
-              <th>Crew</th>
-            </tr></thead>
-            <tbody>
-              ${safeTasks.map((t, i) => `
-                <tr>
-                  <td>${i + 1}</td>
-                  <td>${escapeHtml(t.title ?? '')}${t.isMilestone ? ' <span style="background:#fef3c7;color:#b45309;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">M</span>' : ''}${t.isCriticalPath ? ' <span style="background:#fee2e2;color:#b91c1c;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">CP</span>' : ''}</td>
-                  <td>${escapeHtml(t.phase ?? '—')}</td>
-                  <td class="r">${t.durationDays ?? 0}d</td>
-                  <td class="r">${Math.round(t.progress ?? 0)}%</td>
-                  <td>${escapeHtml(t.crew ?? '—')}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body></html>`;
+      const { buildPrintableGanttHtml } = await import('@/utils/printableGanttHtml');
+      // A real fit-to-page Gantt one-pager (bars, FS dependency arrows, milestone
+      // diamonds, red critical path, today line) — not a plain table. Reuses the
+      // same todayDayNumber + finish the on-screen Gantt draws with.
+      const html = buildPrintableGanttHtml(workingTasks, {
+        projectName: project?.name ?? 'Schedule',
+        todayDayNumber,
+        totalDays: cpm.projectFinish,
+      });
       await Print.printAsync({ html });
     } catch (e) {
       console.error('AirPrint failed', e);
     }
-  }, [project?.name, workingTasks]);
+  }, [project?.name, workingTasks, todayDayNumber, cpm.projectFinish]);
 
   // -------------------------------------------------------------------------
   // Undo / Redo (Phase 4 preview — works today for grid edits)
@@ -1760,22 +1728,6 @@ function ScheduleProScreenInner() {
     </View>
   );
 }
-
-// ---------------------------------------------------------------------------
-// HTML escape helper — used by handleAirPrint above.
-// ---------------------------------------------------------------------------
-
-function escapeHtml(s: string): string {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// ---------------------------------------------------------------------------
-// Pane toggle button
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Small header-button subcomponent (keeps the header JSX tidy)
