@@ -13,13 +13,17 @@ export function indentTask(tasks: ScheduleTask[], id: string): ScheduleTask[] {
     : t);
 }
 
-/** Outdent a task one level (clears parent when returning to level 0). */
+/** Outdent a task one level. Reparents to the current parent's parent (the
+ *  grandparent) so `parentId` and `outlineLevel` stay consistent, and clears
+ *  the parent entirely at level 0. No-op (same array reference) when the task
+ *  is already top-level — lets the caller's undo/redo guard skip a phantom step. */
 export function outdentTask(tasks: ScheduleTask[], id: string): ScheduleTask[] {
-  return tasks.map(t => {
-    if (t.id !== id) return t;
-    const next = Math.max(0, (t.outlineLevel ?? 0) - 1);
-    return { ...t, outlineLevel: next, parentId: next === 0 ? undefined : t.parentId };
-  });
+  const target = tasks.find(t => t.id === id);
+  if (!target || (target.outlineLevel ?? 0) === 0) return tasks; // already top-level
+  const nextLevel = (target.outlineLevel ?? 0) - 1;
+  const parent = target.parentId ? tasks.find(t => t.id === target.parentId) : undefined;
+  const nextParentId = nextLevel === 0 ? undefined : parent?.parentId;
+  return tasks.map(t => t.id === id ? { ...t, outlineLevel: nextLevel, parentId: nextParentId } : t);
 }
 
 /** Move a task by delta rows (-1 up, +1 down), clamped to array bounds. */

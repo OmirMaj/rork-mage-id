@@ -1794,6 +1794,9 @@ function BarView({
   const clearLongPress = () => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
   };
+  // If a bar unmounts mid-touch (list re-filters) before release/terminate,
+  // clear the pending timer so it can't fire a menu for a gone bar or leak.
+  useEffect(() => clearLongPress, []);
 
   // One PanResponder per bar. onStartShouldSet = true so it grabs the
   // gesture the instant the user touches it (beats ScrollView's capture).

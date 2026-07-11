@@ -20,6 +20,13 @@ eq('indent first row is a no-op (no prior sibling)', indentTask(list, 'a'), list
 const out = outdentTask(indented, 'b');
 eq('outdent clears parentId', out.find(t => t.id === 'b')?.parentId, undefined);
 eq('outdent sets outlineLevel 0', out.find(t => t.id === 'b')?.outlineLevel, 0);
+// outdent at level 0 is a no-op (same reference so the undo guard skips it).
+eq('outdent top-level is a same-ref no-op', outdentTask(list, 'a') === list, true);
+// outdent level 2 → level 1 reparents to the grandparent, not the old parent.
+const deep = [T('a'), T('b', { parentId: 'a', outlineLevel: 1 }), T('c', { parentId: 'b', outlineLevel: 2 })];
+const shallower = outdentTask(deep, 'c');
+eq('outdent level 2 sets outlineLevel 1', shallower.find(t => t.id === 'c')?.outlineLevel, 1);
+eq('outdent level 2 reparents to grandparent', shallower.find(t => t.id === 'c')?.parentId, 'a');
 
 // move: swaps array position by delta, clamped.
 const moved = moveTask(list, 'c', -1);

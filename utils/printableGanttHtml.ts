@@ -122,8 +122,10 @@ export function buildPrintableGanttHtml(tasks: ScheduleTask[], opts: PrintableGa
     const indent = (t.outlineLevel ?? 0) * 12;
     const isSummary = !!t.isSummary;
     const labelWeight = isSummary ? '700' : '400';
-    const label = esc(t.title ?? '');
-    const clipped = label.length > 30 ? label.slice(0, 29) + '…' : label;
+    // Truncate the RAW title, then escape — escaping first could split an HTML
+    // entity (e.g. `&amp;` → `&am…`) and emit malformed markup at the boundary.
+    const rawLabel = t.title ?? '';
+    const clipped = esc(rawLabel.length > 30 ? rawLabel.slice(0, 29) + '…' : rawLabel);
     rows.push(
       `<text x="${6 + indent}" y="${midY + 3}" font-size="9" font-weight="${labelWeight}" fill="${C_TEXT}">${clipped}</text>`,
     );

@@ -566,6 +566,10 @@ function ScheduleProScreenInner() {
   const commit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
     setHist(h => {
       const next = producer(h.present);
+      // Boundary no-ops (Move up on the top row, Indent on row 1, etc.) return
+      // the same array reference. Skip persist + history for those — otherwise
+      // pushHistory would clear the redo stack and record a phantom undo step.
+      if (next === h.present) return h;
       schedulePersist(next);
       // pushHistory snapshots the old present onto `past` (bounded to 20) and
       // clears the redo stack — a new edit always invalidates redo.
@@ -1184,9 +1188,10 @@ function ScheduleProScreenInner() {
       const Print = await import('expo-print');
       const { buildPrintableGanttHtml } = await import('@/utils/printableGanttHtml');
       // A real fit-to-page Gantt one-pager (bars, FS dependency arrows, milestone
-      // diamonds, red critical path, today line) — not a plain table. Reuses the
-      // same todayDayNumber + finish the on-screen Gantt draws with.
-      const html = buildPrintableGanttHtml(workingTasks, {
+      // diamonds, red critical path, today line) — not a plain table. Feed the
+      // SAME rolledTasks the on-screen Gantt draws (summary spans are rolled up
+      // at render, not persisted) so the printout matches the screen.
+      const html = buildPrintableGanttHtml(rolledTasks, {
         projectName: project?.name ?? 'Schedule',
         todayDayNumber,
         totalDays: cpm.projectFinish,
@@ -1195,7 +1200,7 @@ function ScheduleProScreenInner() {
     } catch (e) {
       console.error('AirPrint failed', e);
     }
-  }, [project?.name, workingTasks, todayDayNumber, cpm.projectFinish]);
+  }, [project?.name, rolledTasks, todayDayNumber, cpm.projectFinish]);
 
   // -------------------------------------------------------------------------
   // Undo / Redo (Phase 4 preview — works today for grid edits)
