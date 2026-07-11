@@ -148,7 +148,6 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
           projectName={props.projectName}
           onExportPress={props.onExportPress}
           onBaselinePress={props.onBaselinePress}
-          onAddTaskPress={props.onAddTask}
         />
 
         <View style={styles.body}>
