@@ -190,31 +190,37 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
         <View style={[styles.overflowSheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.overflowHandle} />
           <Text style={styles.overflowGroup}>Plan</Text>
-          <SheetRow label="List" onPress={() => { onChange('list'); close(); }} />
+          <SheetRow label="List" active={active === 'list'} onPress={() => { onChange('list'); close(); }} />
           <SheetRow label="Add task" onPress={() => { actions.onAddTask(); close(); }} />
           <SheetRow label="Import" onPress={() => { actions.onImport(); close(); }} />
+          <SheetRow label="Re-plan" onPress={() => { actions.onReflow(); close(); }} />
+          <SheetRow label="Closures" onPress={() => { actions.onClosures(); close(); }} />
           <Text style={styles.overflowGroup}>Track</Text>
-          <SheetRow label="Workload" onPress={() => { onChange('workload'); close(); }} />
-          <SheetRow label="Calendar · soon" onPress={() => { onChange('calendar'); close(); }} />
+          <SheetRow label="Workload" active={active === 'workload'} onPress={() => { onChange('workload'); close(); }} />
+          <SheetRow label="Calendar · soon" active={active === 'calendar'} onPress={() => { onChange('calendar'); close(); }} />
           <SheetRow label="Critical path" onPress={() => { actions.onCriticalPath(); close(); }} />
           <SheetRow label="Baseline" onPress={() => { actions.onBaseline(); close(); }} />
+          <SheetRow label="Weather re-plan" onPress={() => { actions.onWeather(); close(); }} />
           <Text style={styles.overflowGroup}>Share</Text>
           <SheetRow label="Export" onPress={() => { actions.onExport(); close(); }} />
+          <SheetRow label="Share link" onPress={() => { actions.onShare(); close(); }} />
+          <SheetRow label="AI assist" onPress={() => { actions.onAI(); close(); }} />
         </View>
       </Modal>
     </View>
   );
 }
 
-function SheetRow({ label, onPress }: { label: string; onPress: () => void }) {
+function SheetRow({ label, onPress, active }: { label: string; onPress: () => void; active?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
       style={styles.overflowItem}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={active ? { selected: true } : undefined}
     >
-      <Text style={styles.overflowText}>{label}</Text>
+      <Text style={[styles.overflowText, active && styles.bottomTabActive]}>{label}</Text>
     </Pressable>
   );
 }

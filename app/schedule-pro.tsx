@@ -1498,7 +1498,7 @@ function ScheduleProScreenInner() {
               onShare: handleShare,
               onAI: () => setShowAI(true),
             }}
-            initialLayout={width >= SPLIT_BREAKPOINT ? 'split' : 'split'}
+            initialLayout="split"
             renderLanes={() => (
               <View style={styles.body}>
                 <View style={styles.paneFull}>

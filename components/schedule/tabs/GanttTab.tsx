@@ -29,10 +29,9 @@ import { useResponsive } from '@/utils/useResponsive';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 
-export type GanttPaneMode = 'grid' | 'split' | 'gantt' | 'lanes' | 'living';
+export type GanttPaneMode = 'split' | 'gantt' | 'lanes' | 'living';
 
 const LAYOUT_LABEL: Record<GanttPaneMode, string> = {
-  grid: 'Grid',
   split: 'Split',
   gantt: 'Gantt',
   lanes: 'Lanes',
@@ -48,8 +47,8 @@ export interface GanttTabProps {
   cpm: CpmResult;
   /**
    * Which layout the Timeline tab opens on. The tab owns a local segmented
-   * control that switches between all five modes:
-   *   - 'grid'   → full-width GridPane only (table view)
+   * control that switches between all four modes (the spreadsheet lives in the
+   * dedicated List view now, so there is no full-width 'grid' layout here):
    *   - 'split'  → GridPane + InteractiveGantt side-by-side (default)
    *   - 'gantt'  → full-width InteractiveGantt only (timeline view)
    *   - 'lanes'  → ResourceSwimlanes (rendered via renderLanes)
@@ -251,7 +250,7 @@ const styles = StyleSheet.create({
     color: Colors.accent,
   },
   row: { flex: 1, flexDirection: 'row' },
-  // Used for layout 'grid' and 'gantt' (single full-width child).
+  // Used for the 'gantt' layout (single full-width child).
   full: { flex: 1 },
   grid: {
     width: '38%',
