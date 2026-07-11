@@ -143,32 +143,6 @@ export function GanttTab({
     if (layout === 'lanes') return renderLanes?.() ?? null;
     if (layout === 'living') return renderLiving?.() ?? null;
 
-    if (layout === 'grid') {
-      return (
-        <View style={styles.full}>
-          <GridPaneDefault
-            tasks={tasks as ScheduleTask[]}
-            projectStartDate={projectStartDate}
-            workingDaysPerWeek={workingDaysPerWeek}
-            nonWorkingDates={nonWorkingDates}
-            focusedTaskId={focusedTaskId}
-            onEdit={onEdit}
-            onAddTask={onAddTask}
-            onDeleteTask={onDeleteTask}
-            selectedIds={selectedIds}
-            onSelectionChange={onSelectionChange}
-            onBulkDelete={onBulkDelete}
-            onBulkDuplicate={onBulkDuplicate}
-            onBulkShiftDays={onBulkShiftDays}
-            onBulkSetPhase={onBulkSetPhase}
-            onBulkSetCrew={onBulkSetCrew}
-            onBulkAskAI={onBulkAskAI}
-            showExtendedColumns
-          />
-        </View>
-      );
-    }
-
     if (layout === 'gantt') {
       return (
         <View style={styles.full}>
@@ -230,7 +204,7 @@ export function GanttTab({
   return (
     <View style={styles.nonPhoneRoot}>
       <View style={styles.layoutBar}>
-        {(['grid', 'split', 'gantt', 'lanes', 'living'] as GanttPaneMode[]).map(m => (
+        {(['split', 'gantt', 'lanes', 'living'] as GanttPaneMode[]).map(m => (
           <Pressable
             key={m}
             onPress={() => setLayout(m)}

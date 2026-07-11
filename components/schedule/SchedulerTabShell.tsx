@@ -14,12 +14,13 @@
 // the remaining tabs (List, Calendar, Workload). iOS convention.
 
 import { useState, type ReactNode } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SchedulerProvider, type CpmResult as ContextCpmResult } from './SchedulerContext';
+import { SchedulerMenuBar, type SchedulerActions } from './SchedulerMenuBar';
 import { SchedulerHeader } from './SchedulerHeader';
 import { GanttTab, type GanttPaneMode } from './tabs/GanttTab';
 import { BoardTab } from './tabs/BoardTab';
@@ -61,6 +62,9 @@ export interface SchedulerTabShellProps {
   projectName: string;
   onExportPress: () => void;
   onBaselinePress: () => void;
+
+  // ---- Menu-bar action handlers (owned by schedule-pro) ----
+  actions: SchedulerActions;
 
   // ---- Timeline-tab layout wiring ----
   /** Initial Timeline layout mode. */
@@ -122,27 +126,8 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
   return (
     <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
       <View style={styles.shellRoot}>
-        {/* Tab bar — horizontal scroll so it never wraps on narrow screens. */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabBar}
-          style={styles.tabBarOuter}
-        >
-          {TABS.map(t => (
-            <Pressable
-              key={t.key}
-              onPress={() => setActive(t.key)}
-              style={styles.tab}
-              hitSlop={4}
-            >
-              <Text style={[styles.tabLabel, active === t.key && styles.tabLabelActive]}>
-                {t.label}{t.soon ? ' · soon' : ''}
-              </Text>
-              {active === t.key && <View style={styles.tabIndicator} />}
-            </Pressable>
-          ))}
-        </ScrollView>
+        {/* Plan / Track / Share menu bar — replaces the old 6-tab strip. */}
+        <SchedulerMenuBar active={active} onSelectView={setActive} actions={props.actions} />
 
         <SchedulerHeader
           projectName={props.projectName}
@@ -344,35 +329,6 @@ const styles = StyleSheet.create({
   // container the shell is mounted into — they compete for horizontal space
   // and the body collapses to whatever the tab bar + header didn't claim.
   shellRoot: { flex: 1 },
-  tabBarOuter: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
-    flexGrow: 0,
-  },
-  tabBar: {
-    paddingHorizontal: 16,
-    gap: 18,
-    flexDirection: 'row',
-  },
-  tab: { paddingVertical: 12, position: 'relative' },
-  tabLabel: {
-    fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  tabLabelActive: {
-    color: Colors.tradeColors.general,
-    fontWeight: '700',
-  },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: Colors.tradeColors.general,
-  },
   body: { flex: 1 },
   comingSoon: {
     flex: 1,
