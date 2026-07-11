@@ -234,28 +234,6 @@ const styles = StyleSheet.create({
   pickerGroup: { gap: 4 },
   picker: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: Colors.surfaceAlt, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
   pickerText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
-  exportBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.tradeColors.general, borderRadius: 8, alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center' },
-  exportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
-
-  // Add Task — same shape/size as Export so the two read as a pair.
-  // Slightly different fill (surfaceAlt + accent border) so the visual
-  // weight matches Export without competing with it.
-  addTaskBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.tradeColors.general,
-    alignSelf: 'flex-end',
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  addTaskBtnText: {
-    fontSize: 11,
-    color: Colors.tradeColors.general,
-    fontWeight: '700',
-  },
 
   // ---- Phone layout ----
   phoneRoot: {

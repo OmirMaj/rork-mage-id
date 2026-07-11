@@ -1,6 +1,6 @@
 // components/schedule/SchedulerTabShell.tsx — Phase 27.
 //
-// 7-tab nav at the top + SchedulerHeader below + the active tab's content.
+// 6-tab nav at the top + SchedulerHeader below + the active tab's content.
 // Wraps everything in SchedulerProvider so each tab can pull from
 // useScheduler() instead of receiving 12 props.
 //
@@ -10,8 +10,8 @@
 // debounce stays in one place.
 //
 // Phone fallback (bp === 'phone') moves the tab bar to the BOTTOM with 4
-// visible tabs (Gantt · Board · Dash · More). "More" opens a sheet for the
-// remaining tabs (List, Calendar, Workload, Timeline). iOS convention.
+// visible tabs (Timeline · Board · Overview · More). "More" opens a sheet for
+// the remaining tabs (List, Calendar, Workload). iOS convention.
 
 import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
@@ -317,7 +317,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
     <View style={styles.comingSoon}>
       <Text style={styles.comingSoonTitle}>Coming soon</Text>
       <Text style={styles.comingSoonSub}>
-        This tab ships next week. The Gantt tab is your current home.
+        This tab ships next week. The Timeline tab is your current home.
       </Text>
     </View>
   );
