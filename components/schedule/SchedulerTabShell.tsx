@@ -9,9 +9,10 @@
 // etc.). They live at the screen level so the undo stack / persist
 // debounce stays in one place.
 //
-// Phone fallback (bp === 'phone') moves the tab bar to the BOTTOM with 4
-// visible tabs (Timeline · Board · Overview · More). "More" opens a sheet for
-// the remaining tabs (List, Calendar, Workload). iOS convention.
+// Phone fallback (bp === 'phone') moves the tab bar to the BOTTOM with 3
+// visible tabs (Timeline · Board · Overview) + a "Menu" button. "Menu" opens a
+// sheet grouped Plan / Track / Share — mirroring the desktop menu-bar taxonomy
+// (remaining views + shared actions). iOS convention.
 
 import { useState, type ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
@@ -39,18 +40,6 @@ export type SchedulerTabKey =
   | 'board'
   | 'workload'
   | 'calendar';
-
-// One unified view-switcher: the Timeline tab owns all five layout modes
-// (Grid · Split · Gantt · Lanes · Living Plan) via its own local segmented
-// control, so there is no competing top-toolbar pane toggle any more.
-const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
-  { key: 'overview',  label: 'Overview' },
-  { key: 'timeline',  label: 'Timeline' },
-  { key: 'list',      label: 'List' },
-  { key: 'board',     label: 'Board' },
-  { key: 'workload',  label: 'Workload' },
-  { key: 'calendar',  label: 'Calendar', soon: true },
-];
 
 export interface SchedulerTabShellProps {
   // ---- Context-level props (fed into SchedulerProvider) ----
@@ -117,7 +106,7 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
           <View style={styles.body}>
             {renderTab(active, props)}
           </View>
-          <PhoneTabBar active={active} onChange={setActive} />
+          <PhoneTabBar active={active} onChange={setActive} actions={props.actions} />
         </View>
       </SchedulerProvider>
     );
@@ -146,11 +135,13 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
 interface PhoneTabBarProps {
   active: SchedulerTabKey;
   onChange: (k: SchedulerTabKey) => void;
+  actions: SchedulerActions;
 }
 
-function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
+function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
   const insets = useSafeAreaInsets();
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const close = () => setOverflowOpen(false);
   const VISIBLE: { key: SchedulerTabKey; icon: string; label: string }[] = [
     { key: 'timeline',  icon: '⬚', label: 'Timeline' },
     { key: 'board',     icon: '⊞', label: 'Board' },
@@ -183,11 +174,11 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
         style={styles.bottomTab}
         hitSlop={4}
         accessibilityRole="button"
-        accessibilityLabel="More tabs"
+        accessibilityLabel="Menu"
         accessibilityState={{ selected: isOverflowActive }}
       >
         <Text style={[styles.bottomTabIcon, isOverflowActive && styles.bottomTabActive]}>⋯</Text>
-        <Text style={[styles.bottomTabLabel, isOverflowActive && styles.bottomTabActive]}>More</Text>
+        <Text style={[styles.bottomTabLabel, isOverflowActive && styles.bottomTabActive]}>Menu</Text>
       </Pressable>
       <Modal
         visible={overflowOpen}
@@ -198,27 +189,33 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
         <Pressable style={styles.overflowBackdrop} onPress={() => setOverflowOpen(false)} />
         <View style={[styles.overflowSheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.overflowHandle} />
-          {OVERFLOW.map(k => {
-            const tabMeta = TABS.find(t => t.key === k);
-            if (!tabMeta) return null;
-            return (
-              <Pressable
-                key={k}
-                onPress={() => { onChange(k); setOverflowOpen(false); }}
-                style={styles.overflowItem}
-                accessibilityRole="button"
-                accessibilityLabel={tabMeta.label}
-                accessibilityState={{ selected: active === k }}
-              >
-                <Text style={[styles.overflowText, active === k && styles.bottomTabActive]}>
-                  {tabMeta.label}{tabMeta.soon ? ' · soon' : ''}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <Text style={styles.overflowGroup}>Plan</Text>
+          <SheetRow label="List" onPress={() => { onChange('list'); close(); }} />
+          <SheetRow label="Add task" onPress={() => { actions.onAddTask(); close(); }} />
+          <SheetRow label="Import" onPress={() => { actions.onImport(); close(); }} />
+          <Text style={styles.overflowGroup}>Track</Text>
+          <SheetRow label="Workload" onPress={() => { onChange('workload'); close(); }} />
+          <SheetRow label="Calendar · soon" onPress={() => { onChange('calendar'); close(); }} />
+          <SheetRow label="Critical path" onPress={() => { actions.onCriticalPath(); close(); }} />
+          <SheetRow label="Baseline" onPress={() => { actions.onBaseline(); close(); }} />
+          <Text style={styles.overflowGroup}>Share</Text>
+          <SheetRow label="Export" onPress={() => { actions.onExport(); close(); }} />
         </View>
       </Modal>
     </View>
+  );
+}
+
+function SheetRow({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.overflowItem}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Text style={styles.overflowText}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -385,4 +382,12 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(31,37,45,0.6)',
   },
   overflowText: { color: Colors.text, fontSize: 14, fontWeight: '500' },
+  overflowGroup: {
+    ...Type.caption2,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 14,
+    marginBottom: 2,
+  },
 });
