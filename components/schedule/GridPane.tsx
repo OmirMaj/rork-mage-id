@@ -34,7 +34,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, Alert, Modal, PanResponder,
+  Platform, Alert, Modal, PanResponder, Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle as SvgCircle, G as SvgG } from 'react-native-svg';
@@ -50,6 +50,7 @@ import {
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
+import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
 import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
@@ -222,6 +223,10 @@ export interface GridPaneProps {
   onAddTask: () => void;
   /** Deletes a task (also removes any dep references to it — parent's job). */
   onDeleteTask: (taskId: string) => void;
+  /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
+  onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
+  /** Reorder — move a task up (-1) or down (+1) in array position. */
+  onReorder?: (id: string, delta: number) => void;
   /** Optional: highlight a specific task (e.g. the one dragged on the Gantt). */
   focusedTaskId?: string | null;
   // ---- Multi-select + bulk edit (optional — grid still works without these) ----
@@ -251,7 +256,7 @@ export interface GridPaneProps {
 
 export default function GridPane({
   tasks, projectStartDate, workingDaysPerWeek,
-  onEdit, onAddTask, onDeleteTask, focusedTaskId,
+  onEdit, onAddTask, onDeleteTask, onOutline, onReorder, focusedTaskId,
   selectedIds, onSelectionChange,
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
   onBulkSetPhase, onBulkSetCrew, onBulkAskAI,
@@ -350,6 +355,30 @@ export default function GridPane({
   // (rather than lifting to schedule-pro) because the trigger is per-row and
   // the modal is small; lifting would mean threading another callback.
   const [anchorFor, setAnchorFor] = useState<ScheduleTask | null>(null);
+
+  // Row context menu (indent/outdent, move up/down, milestone, complete,
+  // delete). iOS fires the native ActionSheet imperatively; web/Android open
+  // the <ScheduleRowMenu> modal. Triggered by row long-press / right-click —
+  // a gesture distinct from cell-edit taps and selection clicks.
+  const presentRowMenu = useScheduleRowMenu();
+  const [rowMenu, setRowMenu] = useState<{ title: string; actions: RowMenuAction[] } | null>(null);
+
+  const rowActions = useCallback((task: ScheduleTask): RowMenuAction[] => [
+    { key: 'indent',  label: 'Indent',  onPress: () => onOutline?.(task.id, 'indent') },
+    { key: 'outdent', label: 'Outdent', onPress: () => onOutline?.(task.id, 'outdent') },
+    { key: 'up',      label: 'Move up',   onPress: () => onReorder?.(task.id, -1) },
+    { key: 'down',    label: 'Move down', onPress: () => onReorder?.(task.id, 1) },
+    { key: 'ms',      label: task.isMilestone ? 'Unmark milestone' : 'Convert to milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
+    { key: 'done',    label: 'Mark complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
+    { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask(task.id) },
+  ], [onOutline, onReorder, onEdit, onDeleteTask]);
+
+  const openRowMenu = useCallback((task: ScheduleTask) => {
+    const actions = rowActions(task);
+    const title = task.title || 'Task';
+    // iOS handles it imperatively (returns true); web/Android open the modal.
+    if (!presentRowMenu(title, actions)) setRowMenu({ title, actions });
+  }, [rowActions, presentRowMenu]);
 
   // ---------------------------------------------------------------------------
   // Multi-select state helpers
@@ -1368,14 +1397,24 @@ export default function GridPane({
                 : Colors.card;
 
               return (
-                <View
+                <Pressable
                   key={task.id}
+                  // Long-press (native) / right-click (web) opens the row
+                  // context menu. onLongPress lives on the row wrapper — it
+                  // does NOT steal cell-edit taps (short press) or selection
+                  // clicks on the # cell, which fire on their own children.
+                  onLongPress={() => openRowMenu(task)}
+                  delayLongPress={350}
+                  {...(Platform.OS === 'web'
+                    ? { onContextMenu: (e: any) => { e.preventDefault?.(); openRowMenu(task); } }
+                    : {})}
                   style={[
                     styles.row,
                     rowIndex % 2 === 1 && styles.rowAlt,
                     isFocused && styles.rowFocused,
                     isSelected && styles.rowSelected,
                     inCycleConflict && styles.rowConflict,
+                    task.isSummary && styles.rowSummary,
                     { borderLeftColor: getPhaseColor(task.phase) },
                   ]}
                   testID={`grid-row-${rowIndex}`}
@@ -1390,7 +1429,7 @@ export default function GridPane({
                       </View>
                     </>
                   )}
-                </View>
+                </Pressable>
               );
             })}
 
@@ -1416,6 +1455,12 @@ export default function GridPane({
           onEdit(anchorFor.id, patch);
           setAnchorFor(null);
         }}
+      />
+      <ScheduleRowMenu
+        visible={rowMenu !== null}
+        title={rowMenu?.title ?? ''}
+        actions={rowMenu?.actions ?? []}
+        onClose={() => setRowMenu(null)}
       />
     </View>
   );
@@ -1760,6 +1805,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   rowConflict: {
     backgroundColor: t.danger + '10',
+  },
+  rowSummary: {
+    backgroundColor: Colors.surfaceAlt,
   },
   cell: {
     paddingHorizontal: 10,

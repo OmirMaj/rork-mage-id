@@ -84,6 +84,7 @@ import {
 } from '@/utils/scheduleEarnedValue';
 import type { CpmResult as ContextCpmResult } from '@/components/schedule/SchedulerContext';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
+import { indentTask, outdentTask, moveTask } from '@/utils/outlineOps';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
@@ -814,6 +815,16 @@ function ScheduleProScreenInner() {
           dependencyLinks: (t.dependencyLinks ?? []).filter(l => l.taskId !== taskId),
         }));
     });
+  }, [commit]);
+
+  // Outline authoring + reorder — indent/outdent set parentId/outlineLevel,
+  // reorder swaps array position (task order IS array position). Both flow
+  // through the same undo-aware commit() so undo/redo + persist stay intact.
+  const handleOutline = useCallback((id: string, dir: 'indent' | 'outdent') => {
+    commit(prev => (dir === 'indent' ? indentTask(prev, id) : outdentTask(prev, id)));
+  }, [commit]);
+  const handleReorder = useCallback((id: string, delta: number) => {
+    commit(prev => moveTask(prev, id, delta));
   }, [commit]);
 
   // -------------------------------------------------------------------------
@@ -1548,6 +1559,8 @@ function ScheduleProScreenInner() {
             onAddTask={handleAddTask}
             onAddTaskAtDay={handleAddTaskAtDay}
             onDeleteTask={handleDeleteTask}
+            onOutline={handleOutline}
+            onReorder={handleReorder}
             onDependencyCreate={handleDependencyCreate}
             focusedTaskId={focusedTaskId}
             onFocusTask={setFocusedTaskId}

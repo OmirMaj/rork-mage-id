@@ -65,6 +65,10 @@ export interface GanttTabProps {
   /** Passed through to InteractiveGantt for double-tap-empty-timeline flow. */
   onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
+  /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
+  onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
+  /** Reorder — move a task up (-1) or down (+1) in array position. */
+  onReorder?: (id: string, delta: number) => void;
   onDependencyCreate?: (fromId: string, toId: string) => void;
   focusedTaskId?: string | null;
   onFocusTask?: (id: string | null) => void;
@@ -90,6 +94,8 @@ export function GanttTab({
   onAddTask,
   onAddTaskAtDay,
   onDeleteTask,
+  onOutline,
+  onReorder,
   onDependencyCreate,
   focusedTaskId,
   onFocusTask,
@@ -115,6 +121,9 @@ export function GanttTab({
           cpm={cpm}
           projectStartDate={projectStartDate}
           onEdit={onEdit}
+          onDeleteTask={onDeleteTask}
+          onOutline={onOutline}
+          onReorder={onReorder}
           onDependencyCreate={onDependencyCreate}
           focusedTaskId={focusedTaskId}
           onFocusTask={onFocusTask}
@@ -150,6 +159,9 @@ export function GanttTab({
             cpm={cpm}
             projectStartDate={projectStartDate}
             onEdit={onEdit}
+            onDeleteTask={onDeleteTask}
+            onOutline={onOutline}
+            onReorder={onReorder}
             onDependencyCreate={onDependencyCreate}
             focusedTaskId={focusedTaskId}
             onFocusTask={onFocusTask}
@@ -172,6 +184,8 @@ export function GanttTab({
             onEdit={onEdit}
             onAddTask={onAddTask}
             onDeleteTask={onDeleteTask}
+            onOutline={onOutline}
+            onReorder={onReorder}
             selectedIds={selectedIds}
             onSelectionChange={onSelectionChange}
             onBulkDelete={onBulkDelete}
@@ -189,6 +203,9 @@ export function GanttTab({
             cpm={cpm}
             projectStartDate={projectStartDate}
             onEdit={onEdit}
+            onDeleteTask={onDeleteTask}
+            onOutline={onOutline}
+            onReorder={onReorder}
             onDependencyCreate={onDependencyCreate}
             focusedTaskId={focusedTaskId}
             onFocusTask={onFocusTask}

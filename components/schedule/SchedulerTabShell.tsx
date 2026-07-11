@@ -76,6 +76,10 @@ export interface SchedulerTabShellProps {
   /** Passed through to GanttTab → InteractiveGantt for double-tap-empty-timeline. */
   onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
+  /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
+  onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
+  /** Reorder — move a task up (-1) or down (+1) in array position. */
+  onReorder?: (id: string, delta: number) => void;
   onDependencyCreate?: (fromId: string, toId: string) => void;
   focusedTaskId?: string | null;
   onFocusTask?: (id: string | null) => void;
@@ -240,6 +244,8 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         onAddTask={props.onAddTask}
         onAddTaskAtDay={props.onAddTaskAtDay}
         onDeleteTask={props.onDeleteTask}
+        onOutline={props.onOutline}
+        onReorder={props.onReorder}
         onDependencyCreate={props.onDependencyCreate}
         focusedTaskId={props.focusedTaskId}
         onFocusTask={props.onFocusTask}
