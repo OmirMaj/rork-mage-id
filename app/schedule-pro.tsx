@@ -86,6 +86,8 @@ import type { CpmResult as ContextCpmResult } from '@/components/schedule/Schedu
 import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { indentTask, outdentTask, moveTask } from '@/utils/outlineOps';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
+import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary';
+import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
@@ -1009,6 +1011,40 @@ function ScheduleProScreenInner() {
   }, [cpm]);
 
   // -------------------------------------------------------------------------
+  // Fix overloads — run the resource-leveling engine, preview the shifts,
+  // then apply them undoably. handleFixOverloads runs the pure leveler and
+  // opens the preview; applyLeveling commits the leveled startDays in one
+  // undo step and logs a reflow audit entry.
+  // -------------------------------------------------------------------------
+  const [levelingPreview, setLevelingPreview] = useState<{ summary: LevelingSummary; leveled: Map<string, number>; finishDelta: number } | null>(null);
+
+  const handleFixOverloads = useCallback(() => {
+    const leveledResult = runCpm(rolledTasks, { levelResources: true });
+    const leveled = leveledResult.leveledStartDays;
+    const summary = leveled ? summarizeLeveling(workingTasks, leveled) : null;
+    if (!leveled || !summary || summary.shiftedCount === 0) {
+      const msg = 'No overloads to resolve — every crew is within capacity.';
+      if (Platform.OS === 'web') window.alert?.(msg); else Alert.alert('Fix overloads', msg);
+      return;
+    }
+    setLevelingPreview({ summary, leveled, finishDelta: leveledResult.projectFinish - cpm.projectFinish });
+  }, [rolledTasks, workingTasks, cpm.projectFinish]);
+
+  const applyLeveling = useCallback(() => {
+    const p = levelingPreview;
+    if (!p) return;
+    commit(prev => prev.map(t => p.leveled.has(t.id) ? { ...t, startDay: p.leveled.get(t.id)! } : t));
+    if (project?.id) {
+      void appendAuditToAsyncStorage(project.id, buildAuditEntry({
+        user: user?.email ?? user?.name ?? 'anonymous',
+        kind: 'reflow',
+        summary: `Resource leveling: ${p.summary.shiftedCount} task(s) shifted`,
+      }));
+    }
+    setLevelingPreview(null);
+  }, [levelingPreview, commit, project?.id, user?.email, user?.name]);
+
+  // -------------------------------------------------------------------------
   // Named baselines — capture / switch / compare via BaselineManagerModal.
   // The previous tap=capture / long-press=compare-against-latest affordance
   // collapsed multi-baseline workflows into one shortcut. The modal exposes
@@ -1517,6 +1553,7 @@ function ScheduleProScreenInner() {
               onReflow: handleReflow,
               onClosures: () => setShowClosures(true),
               onCriticalPath: showCpmAnalysis,
+              onLevelResources: handleFixOverloads,
               onBaseline: () => setShowBaselineManager(true),
               onWeather: openWeatherReschedule,
               onExport: () => setExportSheetOpen(true),
@@ -1569,6 +1606,7 @@ function ScheduleProScreenInner() {
             nonWorkingDates={project?.schedule?.nonWorkingDates}
             utilsCpm={cpm}
             resources={project?.schedule?.resources}
+            onFixOverloads={handleFixOverloads}
             onEdit={handleEdit}
             onAddTask={handleAddTask}
             onAddTasks={handleAddTasks}
@@ -1636,6 +1674,17 @@ function ScheduleProScreenInner() {
         onClose={() => setShowWeather(false)}
         onApply={applyWeatherReschedule}
       />
+
+      {/* Fix overloads — preview the resource-leveling shifts, apply undoably. */}
+      {levelingPreview !== null && (
+        <LevelingPreviewModal
+          visible
+          summary={levelingPreview.summary}
+          projectFinishDelta={levelingPreview.finishDelta}
+          onApply={applyLeveling}
+          onClose={() => setLevelingPreview(null)}
+        />
+      )}
 
       {/* Voice → schedule mutations. The modal handles transcription +
           parsing + executor; we provide the update functions. CPM re-runs

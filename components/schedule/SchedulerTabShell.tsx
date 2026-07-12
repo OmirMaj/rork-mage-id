@@ -71,6 +71,8 @@ export interface SchedulerTabShellProps {
   utilsCpm: UtilsCpmResult;
   /** Resource pool — feeds WorkloadTab (and ResourceSwimlanes when wired). */
   resources?: ProjectResource[];
+  /** Run the resource-leveling engine — WorkloadTab surfaces this when any lane is over capacity. */
+  onFixOverloads?: () => void;
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
   /** Bulk-create tasks in one undo step (ghost row / paste / insert). */
@@ -205,6 +207,7 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
           <SheetRow label="Workload" active={active === 'workload'} onPress={() => { onChange('workload'); close(); }} />
           <SheetRow label="Calendar · soon" active={active === 'calendar'} onPress={() => { onChange('calendar'); close(); }} />
           <SheetRow label="Critical path" onPress={() => { actions.onCriticalPath(); close(); }} />
+          <SheetRow label="Fix overloads" onPress={() => { actions.onLevelResources?.(); close(); }} />
           <SheetRow label="Baseline" onPress={() => { actions.onBaseline(); close(); }} />
           <SheetRow label="Weather re-plan" onPress={() => { actions.onWeather(); close(); }} />
           <Text style={styles.overflowGroup}>Share</Text>
@@ -302,7 +305,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
   }
 
   if (key === 'workload') {
-    return <WorkloadTab resources={props.resources} />;
+    return <WorkloadTab resources={props.resources} onFixOverloads={props.onFixOverloads} />;
   }
 
   if (key === 'overview') {

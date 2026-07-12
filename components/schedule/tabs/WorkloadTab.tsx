@@ -12,14 +12,17 @@
 // Spec source: 2026-05-12-pro-scheduler-redesign-design.md §6 (Workload).
 
 import { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { Colors, type ThemeColors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useScheduler } from '../SchedulerContext';
 import type { ProjectResource } from '@/types';
 
 interface WorkloadTabProps {
   resources?: ProjectResource[];
+  onFixOverloads?: () => void;
 }
 
 interface Lane {
@@ -32,7 +35,7 @@ const LANE_LABEL_WIDTH = 160;
 const CELL_W = 56;
 const ROW_H = 36;
 
-export function WorkloadTab({ resources }: WorkloadTabProps) {
+export function WorkloadTab({ resources, onFixOverloads }: WorkloadTabProps) {
   const { tasks } = useScheduler();
   const styles = useThemedStyles(makeStyles);
 
@@ -91,6 +94,16 @@ export function WorkloadTab({ resources }: WorkloadTabProps) {
     return matrix;
   }, [lanes, tasks, totalWeeks, resources]);
 
+  // Over-capacity = any cell where a lane's weekly load exceeds its cap —
+  // the same `v > lane.cap` threshold the heatmap uses to tint cells red.
+  const hasOverload = useMemo(() => {
+    for (const lane of lanes) {
+      const row = load.get(lane.id) ?? [];
+      if (row.some(v => v > lane.cap)) return true;
+    }
+    return false;
+  }, [lanes, load]);
+
   if (lanes.length === 0) {
     return (
       <View style={styles.empty}>
@@ -110,6 +123,17 @@ export function WorkloadTab({ resources }: WorkloadTabProps) {
         <Text style={styles.toolbarHint}>
           Amber ≥ 2 concurrent tasks · Red exceeds capacity
         </Text>
+        {hasOverload && onFixOverloads && (
+          <Pressable
+            onPress={onFixOverloads}
+            style={styles.fixBtn}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel="Fix overloads"
+          >
+            <Text style={styles.fixBtnText}>Fix overloads</Text>
+          </Pressable>
+        )}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator>
         <View>
@@ -175,6 +199,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   toolbarTitle: { fontSize: 13, fontWeight: '700', color: themeColors.text },
   toolbarHint: { fontSize: 11, color: themeColors.textSecondary, flex: 1 },
+  fixBtn: {
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xxs + 2,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.accent,
+  },
+  fixBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.textOnAccent },
   headerRow: {
     flexDirection: 'row',
     height: 36,
