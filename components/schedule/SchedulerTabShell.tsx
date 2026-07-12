@@ -73,6 +73,8 @@ export interface SchedulerTabShellProps {
   resources?: ProjectResource[];
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
+  /** Bulk-create tasks in one undo step (ghost row / paste / insert). */
+  onAddTasks?: (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number) => string[];
   /** Passed through to GanttTab → InteractiveGantt for double-tap-empty-timeline. */
   onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
@@ -242,6 +244,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         renderLiving={props.renderLiving}
         onEdit={props.onEdit}
         onAddTask={props.onAddTask}
+        onAddTasks={props.onAddTasks}
         onAddTaskAtDay={props.onAddTaskAtDay}
         onDeleteTask={props.onDeleteTask}
         onOutline={props.onOutline}

@@ -51,7 +51,7 @@ import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/schedule
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
-import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
+import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -221,6 +221,8 @@ export interface GridPaneProps {
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   /** Creates a new empty task at the bottom. */
   onAddTask: () => void;
+  /** Bulk-create tasks in one undo step (ghost row / paste / insert). Returns new ids. */
+  onAddTasks?: (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number) => string[];
   /** Deletes a task (also removes any dep references to it — parent's job). */
   onDeleteTask: (taskId: string) => void;
   /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
@@ -256,7 +258,7 @@ export interface GridPaneProps {
 
 export default function GridPane({
   tasks, projectStartDate, workingDaysPerWeek,
-  onEdit, onAddTask, onDeleteTask, onOutline, onReorder, focusedTaskId,
+  onEdit, onAddTask, onAddTasks, onDeleteTask, onOutline, onReorder, focusedTaskId,
   selectedIds, onSelectionChange,
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
   onBulkSetPhase, onBulkSetCrew, onBulkAskAI,
@@ -350,6 +352,25 @@ export default function GridPane({
   const [editing, setEditing] = useState<{ row: number; col: ColumnKey } | null>(null);
   const [draft, setDraft] = useState<string>('');
   const [cellError, setCellError] = useState<string | null>(null);
+
+  const [ghostDraft, setGhostDraft] = useState('');
+  const ghostRef = useRef<TextInput>(null);
+
+  // Commit the ghost row → append one task, clear the draft, keep focus so the
+  // user can keep typing tasks. Empty/whitespace title is a no-op.
+  const commitGhost = useCallback(() => {
+    const title = ghostDraft.trim();
+    if (!title) return;
+    onAddTasks?.([{ title }]);
+    setGhostDraft('');
+    if (Platform.OS === 'web') setTimeout(() => ghostRef.current?.focus(), 0);
+  }, [ghostDraft, onAddTasks]);
+
+  // Move focus from a real row's name cell into the ghost row (end of list).
+  const focusGhost = useCallback(() => {
+    setEditing(null);
+    setTimeout(() => ghostRef.current?.focus(), 0);
+  }, []);
   // Anchor-picker popover. Shows the MAGE "Anchor" modal for a single task.
   // Opens from the Anchor icon on the Start cell. We keep this as in-grid state
   // (rather than lifting to schedule-pro) because the trigger is per-row and
@@ -799,7 +820,22 @@ export default function GridPane({
               const key = e?.nativeEvent?.key;
               if (key === 'Tab') { e.preventDefault?.(); moveEdit(e.shiftKey ? 'prev' : 'next'); }
               else if (key === 'Escape') { e.preventDefault?.(); cancelEdit(); }
-              else if (key === 'Enter' && !e.shiftKey) { /* handled by onSubmitEditing */ }
+              else if (key === 'Enter' && !e.shiftKey) {
+                e.preventDefault?.();
+                if (col.key === 'name') {
+                  if (!commitEdit()) return; // stay put if invalid
+                  const nextRow = rowIndex + 1;
+                  setTimeout(() => {
+                    if (nextRow < tasks.length) beginEdit(nextRow, 'name');
+                    else focusGhost();
+                  }, 0);
+                } else {
+                  // Excel-style: commit + down one row, same column. moveEdit does
+                  // its OWN commitEdit — do NOT pre-commit here or moveEdit sees
+                  // editing===null, its internal commit returns false, and it bails.
+                  moveEdit('down');
+                }
+              }
               else if (key === 'ArrowDown') { e.preventDefault?.(); moveEdit('down'); }
               else if (key === 'ArrowUp')   { e.preventDefault?.(); moveEdit('up'); }
             }}
@@ -1433,16 +1469,25 @@ export default function GridPane({
               );
             })}
 
-            {/* Footer: add-task button */}
-            <TouchableOpacity
-              style={styles.addRow}
-              onPress={onAddTask}
-              activeOpacity={0.6}
-              testID="grid-add-task"
-            >
-              <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.addRowText}>Add task</Text>
-            </TouchableOpacity>
+            {/* Ghost row: always-ready inline task entry. Not a member of
+                `tasks`, so it's excluded from selection, bulk ops, hidden-ids,
+                the context menu, and CPM. Enter/blur with a non-empty title
+                appends a task and keeps focus for rapid list entry. */}
+            <View style={styles.ghostRow} testID="grid-ghost-row">
+              <TextInput
+                ref={ghostRef}
+                value={ghostDraft}
+                onChangeText={setGhostDraft}
+                placeholder="＋  Type a task name…"
+                placeholderTextColor={themeColors.textSecondary}
+                style={styles.ghostInput}
+                onSubmitEditing={commitGhost}
+                onBlur={commitGhost}
+                returnKeyType="done"
+                blurOnSubmit={false}
+                testID="grid-ghost-input"
+              />
+            </View>
           </ScrollView>
         </View>
       </ScrollView>
@@ -1759,6 +1804,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: t.line,
+  },
+  ghostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 40,
+    paddingHorizontal: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: t.line,
+    backgroundColor: t.surface,
+  },
+  ghostInput: {
+    flex: 1,
+    ...Type.body,
+    color: t.text,
+    padding: 0,
   },
   headerRow: {
     flexDirection: 'row',

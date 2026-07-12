@@ -769,6 +769,45 @@ function ScheduleProScreenInner() {
     setShowAddTask(false);
   }, [commit, projectStartDate, workingDaysPerWeek]);
 
+  // Bulk-create tasks in ONE undo step. Used by the grid's ghost row, paste,
+  // and insert-anywhere. atIndex undefined → append; atIndex given → splice at
+  // that array position. Returns the new ids in creation order (callers focus
+  // the first). startDay stacks sequentially so a pasted list lays out in order.
+  const handleAddTasks = useCallback(
+    (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number): string[] => {
+      if (partials.length === 0) return []; // never touch history for an empty batch
+      const newIds: string[] = [];
+      commit(prev => {
+        let runningFinish = prev.reduce((m, t) => Math.max(m, t.startDay + t.durationDays), 0);
+        const built: ScheduleTask[] = partials.map(p => {
+          const durationDays = p.durationDays ?? 1;
+          const startDay = runningFinish > 0 ? runningFinish : 1;
+          runningFinish = startDay + durationDays;
+          const id = createId('task');
+          newIds.push(id);
+          return {
+            id,
+            title: p.title,
+            phase: p.phase ?? 'General',
+            durationDays,
+            startDay,
+            progress: 0,
+            crew: '',
+            dependencies: [],
+            notes: '',
+            status: 'not_started',
+          };
+        });
+        const next = atIndex === undefined
+          ? [...prev, ...built]
+          : [...prev.slice(0, atIndex), ...built, ...prev.slice(atIndex)];
+        return generateWbsCodes(next);
+      });
+      return newIds;
+    },
+    [commit],
+  );
+
   // Phase 4: create a dependency edge between two tasks via drag in the Gantt.
   // Guards against self-link + cycles are handled in the Gantt before we get
   // the call, so here we just append.
@@ -1530,6 +1569,7 @@ function ScheduleProScreenInner() {
             resources={project?.schedule?.resources}
             onEdit={handleEdit}
             onAddTask={handleAddTask}
+            onAddTasks={handleAddTasks}
             onAddTaskAtDay={handleAddTaskAtDay}
             onDeleteTask={handleDeleteTask}
             onOutline={handleOutline}

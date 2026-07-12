@@ -62,6 +62,8 @@ export interface GanttTabProps {
   /** Callback wired to schedule-pro's undo-aware commit. */
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
+  /** Bulk-create tasks in one undo step (ghost row / paste / insert). */
+  onAddTasks?: (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number) => string[];
   /** Passed through to InteractiveGantt for double-tap-empty-timeline flow. */
   onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
@@ -92,6 +94,7 @@ export function GanttTab({
   renderLiving,
   onEdit,
   onAddTask,
+  onAddTasks,
   onAddTaskAtDay,
   onDeleteTask,
   onOutline,
@@ -183,6 +186,7 @@ export function GanttTab({
             focusedTaskId={focusedTaskId}
             onEdit={onEdit}
             onAddTask={onAddTask}
+            onAddTasks={onAddTasks}
             onDeleteTask={onDeleteTask}
             onOutline={onOutline}
             onReorder={onReorder}
