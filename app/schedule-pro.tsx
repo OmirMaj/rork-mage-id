@@ -61,6 +61,8 @@ import { ExportSheet } from '@/components/schedule/ExportSheet';
 import { computeScheduleHealthScore } from '@/utils/scheduleHealthScore';
 import { EarnedValuePanel } from '@/components/schedule/EarnedValuePanel';
 import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
+import { CriticalPathPanel } from '@/components/schedule/CriticalPathPanel';
+import { buildCriticalPathExplanation } from '@/utils/floatExplain';
 import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
 import { getSimulatedForecast } from '@/utils/weatherService';
 import { computeWeatherReschedule, buildWeatherDelayLog, type WeatherRescheduleResult } from '@/utils/weatherReschedule';
@@ -189,6 +191,7 @@ function ScheduleProScreenInner() {
   // theirs only creates, doesn't mutate.
   const [showVoice, setShowVoice] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [dismissedOnRamp, setDismissedOnRamp] = useState(false);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   // Add Task modal — replaces the silent "create a task called 'New task'
@@ -1004,11 +1007,7 @@ function ScheduleProScreenInner() {
   // Critical-path / conflict summary — moved out of the toolbar into the
   // "More" overflow menu (Phase 1 front-door). Extracted to a named callback
   // so the menu item can invoke it.
-  const showCpmAnalysis = useCallback(() => {
-    const msg = `Project finish: day ${cpm.projectFinish}\nCritical path: ${cpm.criticalPath.length} task(s)\nConflicts: ${cpm.conflicts.length}`;
-    if (Platform.OS === 'web') window.alert?.(msg);
-    else Alert.alert('Schedule analysis', msg);
-  }, [cpm]);
+  const showCpmAnalysis = useCallback(() => { setShowCriticalPath(true); }, []);
 
   // -------------------------------------------------------------------------
   // Fix overloads — run the resource-leveling engine, preview the shifts,
@@ -1706,6 +1705,15 @@ function ScheduleProScreenInner() {
         visible={showHealth}
         onClose={() => setShowHealth(false)}
         result={healthScore}
+      />
+
+      {/* Critical-path / float explanation — replaces the old raw "Schedule
+          analysis" Alert. Says, per task, "on the critical path" or "can slip
+          N days". Building the explanation each render is a cheap pure map. */}
+      <CriticalPathPanel
+        visible={showCriticalPath}
+        explanation={buildCriticalPathExplanation(cpm, rolledTasks)}
+        onClose={() => setShowCriticalPath(false)}
       />
 
       {/* Multi-baseline manager — capture, switch, compare named baselines.
