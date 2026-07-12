@@ -356,6 +356,8 @@ export default function GridPane({
 
   const [ghostDraft, setGhostDraft] = useState('');
   const ghostRef = useRef<TextInput>(null);
+  // True while the ghost input is focused — gates the window paste handler.
+  const ghostFocusedRef = useRef(false);
 
   // After an insert, focus the new row's name cell once it appears in `tasks`.
   const pendingEditId = useRef<string | null>(null);
@@ -376,19 +378,29 @@ export default function GridPane({
     setTimeout(() => ghostRef.current?.focus(), 0);
   }, []);
 
-  // Web-only: pasting multiline text into the ghost / a name cell creates one
-  // task per line in a single undo step. Single-line paste is left to the
-  // browser so ordinary cell paste still works.
-  const handleRowsPaste = useCallback((e: any) => {
+  // Web-only: pasting multiline text while focused in the ghost row or an
+  // editing name cell creates one task per line in a single undo step. This is
+  // a window-level 'paste' listener, NOT onPaste on the TextInput —
+  // react-native-web's TextInput prop whitelist silently drops onPaste, which
+  // is exactly why the CSV-onto-selected-rows handler below also uses window
+  // 'paste'. The two are complementary: that one bails when focused in an input;
+  // this one only fires when focused in the ghost/name input. Single-line paste
+  // falls through to the browser so ordinary cell paste still works.
+  useEffect(() => {
     if (Platform.OS !== 'web') return;
-    const text: string = e?.clipboardData?.getData?.('text') ?? '';
-    if (!text || text.indexOf('\n') < 0) return; // let the browser handle single-line
-    const rows = parsePastedRows(text);
-    if (rows.length === 0) return;
-    e.preventDefault?.();
-    onAddTasks?.(rows);
-    setGhostDraft('');
-  }, [onAddTasks]);
+    const handler = (e: ClipboardEvent) => {
+      if (!ghostFocusedRef.current && editing?.col !== 'name') return;
+      const text = e.clipboardData?.getData('text/plain') ?? '';
+      if (!text || text.indexOf('\n') < 0) return; // single-line → browser default
+      const rows = parsePastedRows(text);
+      if (rows.length === 0) return;
+      e.preventDefault();
+      onAddTasks?.(rows);
+      setGhostDraft('');
+    };
+    window.addEventListener('paste', handler);
+    return () => window.removeEventListener('paste', handler);
+  }, [editing, onAddTasks]);
 
   // Insert a blank task at the anchor's array position (offset 0 = above,
   // 1 = below), then focus its name cell. Index comes from the anchor id, not
@@ -886,7 +898,6 @@ export default function GridPane({
               else if (key === 'ArrowDown') { e.preventDefault?.(); moveEdit('down'); }
               else if (key === 'ArrowUp')   { e.preventDefault?.(); moveEdit('up'); }
             }}
-            {...(Platform.OS === 'web' && col.key === 'name' ? ({ onPaste: handleRowsPaste } as any) : {})}
             testID={`grid-edit-${rowIndex}-${col.key}`}
           />
           {cellError && (
@@ -1529,12 +1540,12 @@ export default function GridPane({
                 placeholder="＋  Type a task name…"
                 placeholderTextColor={themeColors.textSecondary}
                 style={styles.ghostInput}
+                onFocus={() => { ghostFocusedRef.current = true; }}
                 onSubmitEditing={commitGhost}
-                onBlur={commitGhost}
+                onBlur={() => { ghostFocusedRef.current = false; commitGhost(); }}
                 returnKeyType="done"
                 blurOnSubmit={false}
                 testID="grid-ghost-input"
-                {...(Platform.OS === 'web' ? ({ onPaste: handleRowsPaste } as any) : {})}
               />
             </View>
           </ScrollView>
