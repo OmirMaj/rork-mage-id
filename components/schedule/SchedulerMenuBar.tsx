@@ -13,7 +13,7 @@ import type { SchedulerTabKey } from './SchedulerTabShell';
 export interface SchedulerActions {
   onAddTask: () => void; onImport: () => void; onReflow: () => void; onClosures: () => void;
   onCriticalPath: () => void; onBaseline: () => void; onWeather: () => void;
-  onLevelResources?: () => void;
+  onLevelResources?: () => void; onHistory?: () => void;
   onExport: () => void; onShare: () => void; onAI: () => void;
 }
 type Item = { label: string; view?: SchedulerTabKey; action?: keyof SchedulerActions; divider?: boolean };
@@ -27,7 +27,7 @@ const MENUS: { key: string; label: string; items: Item[] }[] = [
   { key: 'track', label: 'Track', items: [
     { label: 'Overview', view: 'overview' }, { label: 'Workload', view: 'workload' }, { label: 'Calendar', view: 'calendar' },
     { label: '', divider: true },
-    { label: 'Critical path', action: 'onCriticalPath' }, { label: 'Fix overloads', action: 'onLevelResources' }, { label: 'Baseline', action: 'onBaseline' }, { label: 'Weather re-plan', action: 'onWeather' },
+    { label: 'Critical path', action: 'onCriticalPath' }, { label: 'Fix overloads', action: 'onLevelResources' }, { label: 'History', action: 'onHistory' }, { label: 'Baseline', action: 'onBaseline' }, { label: 'Weather re-plan', action: 'onWeather' },
   ]},
   { key: 'share', label: 'Share', items: [
     { label: 'Export', action: 'onExport' }, { label: 'Share link', action: 'onShare' }, { label: 'AI assist', action: 'onAI' },

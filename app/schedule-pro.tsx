@@ -62,6 +62,7 @@ import { computeScheduleHealthScore } from '@/utils/scheduleHealthScore';
 import { EarnedValuePanel } from '@/components/schedule/EarnedValuePanel';
 import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
 import { CriticalPathPanel } from '@/components/schedule/CriticalPathPanel';
+import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
 import { buildCriticalPathExplanation } from '@/utils/floatExplain';
 import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
 import { getSimulatedForecast } from '@/utils/weatherService';
@@ -192,6 +193,7 @@ function ScheduleProScreenInner() {
   const [showVoice, setShowVoice] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
   const [dismissedOnRamp, setDismissedOnRamp] = useState(false);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   // Add Task modal — replaces the silent "create a task called 'New task'
@@ -604,6 +606,13 @@ function ScheduleProScreenInner() {
     commit(prev => prev.map(t => (t.id === taskId ? { ...t, ...patch } : t)));
   }, [commit, workingTasks, project?.id, user]);
 
+  // Small helper so task create/delete can drop audit entries the same way
+  // handleEdit does — builds the entry and enqueues the AsyncStorage append.
+  const writeAudit = useCallback((entry: Parameters<typeof buildAuditEntry>[0]) => {
+    if (!project?.id) return;
+    void appendAuditToAsyncStorage(project.id, buildAuditEntry(entry));
+  }, [project?.id]);
+
   // 14-day forecast keyed off project start. Used for the weather-aware
   // reschedule prompt — surfaces tasks that hit un-workable days.
   const forecast = useMemo(
@@ -810,9 +819,14 @@ function ScheduleProScreenInner() {
           : [...prev.slice(0, atIndex), ...built, ...prev.slice(atIndex)];
         return generateWbsCodes(next);
       });
+      writeAudit({
+        user: user?.email ?? user?.name ?? 'anonymous',
+        kind: 'task_create',
+        summary: partials.length === 1 ? `Added task "${partials[0].title || 'Untitled'}"` : `Added ${partials.length} tasks`,
+      });
       return newIds;
     },
-    [commit],
+    [commit, writeAudit, user?.email, user?.name],
   );
 
   // Phase 4: create a dependency edge between two tasks via drag in the Gantt.
@@ -853,6 +867,7 @@ function ScheduleProScreenInner() {
   }, [commit, workingTasks.length]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
+    const deletedTitle = workingTasks.find(t => t.id === taskId)?.title ?? 'Untitled';
     commit(prev => {
       // Also strip this id out of every other task's dependency references,
       // otherwise the CPM engine will silently skip dangling refs but the
@@ -865,7 +880,8 @@ function ScheduleProScreenInner() {
           dependencyLinks: (t.dependencyLinks ?? []).filter(l => l.taskId !== taskId),
         }));
     });
-  }, [commit]);
+    writeAudit({ user: user?.email ?? user?.name ?? 'anonymous', kind: 'task_delete', taskId, summary: `Deleted task "${deletedTitle}"` });
+  }, [commit, writeAudit, workingTasks, user?.email, user?.name]);
 
   // Outline authoring + reorder — indent/outdent set parentId/outlineLevel,
   // reorder swaps array position (task order IS array position). Both flow
@@ -1553,6 +1569,7 @@ function ScheduleProScreenInner() {
               onClosures: () => setShowClosures(true),
               onCriticalPath: showCpmAnalysis,
               onLevelResources: handleFixOverloads,
+              onHistory: () => setShowAudit(true),
               onBaseline: () => setShowBaselineManager(true),
               onWeather: openWeatherReschedule,
               onExport: () => setExportSheetOpen(true),
@@ -1714,6 +1731,14 @@ function ScheduleProScreenInner() {
         visible={showCriticalPath}
         explanation={buildCriticalPathExplanation(cpm, rolledTasks)}
         onClose={() => setShowCriticalPath(false)}
+      />
+
+      {/* Schedule audit-log viewer — read UI over the append-only history
+          written on every CPM-affecting edit. Grouped by day, newest first. */}
+      <ScheduleAuditModal
+        visible={showAudit}
+        projectId={project?.id ?? ''}
+        onClose={() => setShowAudit(false)}
       />
 
       {/* Multi-baseline manager — capture, switch, compare named baselines.
