@@ -776,17 +776,19 @@ function ScheduleProScreenInner() {
   const handleAddTasks = useCallback(
     (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number): string[] => {
       if (partials.length === 0) return []; // never touch history for an empty batch
-      const newIds: string[] = [];
+      // Generate ids in the OUTER scope so the return is reliable: the commit
+      // producer runs inside a setState updater, which React may not execute
+      // synchronously — so we can't collect ids from inside it and return them.
+      // Insert-anywhere focuses the new row by this returned id.
+      const newIds = partials.map(() => createId('task'));
       commit(prev => {
         let runningFinish = prev.reduce((m, t) => Math.max(m, t.startDay + t.durationDays), 0);
-        const built: ScheduleTask[] = partials.map(p => {
+        const built: ScheduleTask[] = partials.map((p, i) => {
           const durationDays = p.durationDays ?? 1;
           const startDay = runningFinish > 0 ? runningFinish : 1;
           runningFinish = startDay + durationDays;
-          const id = createId('task');
-          newIds.push(id);
           return {
-            id,
+            id: newIds[i],
             title: p.title,
             phase: p.phase ?? 'General',
             durationDays,
