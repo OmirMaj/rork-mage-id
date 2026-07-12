@@ -50,6 +50,7 @@ import {
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
+import { parsePastedRows } from '@/utils/pasteRows';
 import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
 import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -356,6 +357,9 @@ export default function GridPane({
   const [ghostDraft, setGhostDraft] = useState('');
   const ghostRef = useRef<TextInput>(null);
 
+  // After an insert, focus the new row's name cell once it appears in `tasks`.
+  const pendingEditId = useRef<string | null>(null);
+
   // Commit the ghost row → append one task, clear the draft, keep focus so the
   // user can keep typing tasks. Empty/whitespace title is a no-op.
   const commitGhost = useCallback(() => {
@@ -371,6 +375,30 @@ export default function GridPane({
     setEditing(null);
     setTimeout(() => ghostRef.current?.focus(), 0);
   }, []);
+
+  // Web-only: pasting multiline text into the ghost / a name cell creates one
+  // task per line in a single undo step. Single-line paste is left to the
+  // browser so ordinary cell paste still works.
+  const handleRowsPaste = useCallback((e: any) => {
+    if (Platform.OS !== 'web') return;
+    const text: string = e?.clipboardData?.getData?.('text') ?? '';
+    if (!text || text.indexOf('\n') < 0) return; // let the browser handle single-line
+    const rows = parsePastedRows(text);
+    if (rows.length === 0) return;
+    e.preventDefault?.();
+    onAddTasks?.(rows);
+    setGhostDraft('');
+  }, [onAddTasks]);
+
+  // Insert a blank task at the anchor's array position (offset 0 = above,
+  // 1 = below), then focus its name cell. Index comes from the anchor id, not
+  // the filtered render index, so collapsed summaries can't misplace it.
+  const insertRelativeTo = useCallback((anchor: ScheduleTask, offset: 0 | 1) => {
+    const idx = tasks.findIndex(t => t.id === anchor.id);
+    if (idx < 0) return;
+    const [newId] = onAddTasks?.([{ title: '' }], idx + offset) ?? [];
+    if (newId) pendingEditId.current = newId;
+  }, [tasks, onAddTasks]);
   // Anchor-picker popover. Shows the MAGE "Anchor" modal for a single task.
   // Opens from the Anchor icon on the Start cell. We keep this as in-grid state
   // (rather than lifting to schedule-pro) because the trigger is per-row and
@@ -391,8 +419,10 @@ export default function GridPane({
     { key: 'down',    label: 'Move down', onPress: () => onReorder?.(task.id, 1) },
     { key: 'ms',      label: task.isMilestone ? 'Unmark milestone' : 'Convert to milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
     { key: 'done',    label: 'Mark complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
+    { key: 'insert-above', label: 'Insert task above', onPress: () => insertRelativeTo(task, 0) },
+    { key: 'insert-below', label: 'Insert task below', onPress: () => insertRelativeTo(task, 1) },
     { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask(task.id) },
-  ], [onOutline, onReorder, onEdit, onDeleteTask]);
+  ], [onOutline, onReorder, onEdit, onDeleteTask, insertRelativeTo]);
 
   const openRowMenu = useCallback((task: ScheduleTask) => {
     const actions = rowActions(task);
@@ -578,6 +608,17 @@ export default function GridPane({
     setCellError(null);
     setEditing({ row, col });
   }, [tasks, renderIso, cpm, idToWbsMap, idToRowLabel]);
+
+  // After an insert, focus the new row's name cell once it appears in `tasks`.
+  useEffect(() => {
+    const id = pendingEditId.current;
+    if (!id) return;
+    const idx = tasks.findIndex(t => t.id === id);
+    if (idx >= 0) {
+      pendingEditId.current = null;
+      setTimeout(() => beginEdit(idx, 'name'), 0);
+    }
+  }, [tasks, beginEdit]);
 
   const cancelEdit = useCallback(() => {
     setEditing(null);
@@ -820,6 +861,12 @@ export default function GridPane({
               const key = e?.nativeEvent?.key;
               if (key === 'Tab') { e.preventDefault?.(); moveEdit(e.shiftKey ? 'prev' : 'next'); }
               else if (key === 'Escape') { e.preventDefault?.(); cancelEdit(); }
+              else if (key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault?.();
+                if (!commitEdit()) return;
+                const anchor = tasks[rowIndex];
+                if (anchor) insertRelativeTo(anchor, 1);
+              }
               else if (key === 'Enter' && !e.shiftKey) {
                 e.preventDefault?.();
                 if (col.key === 'name') {
@@ -839,6 +886,7 @@ export default function GridPane({
               else if (key === 'ArrowDown') { e.preventDefault?.(); moveEdit('down'); }
               else if (key === 'ArrowUp')   { e.preventDefault?.(); moveEdit('up'); }
             }}
+            {...(Platform.OS === 'web' && col.key === 'name' ? ({ onPaste: handleRowsPaste } as any) : {})}
             testID={`grid-edit-${rowIndex}-${col.key}`}
           />
           {cellError && (
@@ -1486,6 +1534,7 @@ export default function GridPane({
                 returnKeyType="done"
                 blurOnSubmit={false}
                 testID="grid-ghost-input"
+                {...(Platform.OS === 'web' ? ({ onPaste: handleRowsPaste } as any) : {})}
               />
             </View>
           </ScrollView>
