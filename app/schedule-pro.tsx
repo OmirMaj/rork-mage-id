@@ -1034,21 +1034,41 @@ function ScheduleProScreenInner() {
   const [levelingPreview, setLevelingPreview] = useState<{ summary: LevelingSummary; leveled: Map<string, number>; finishDelta: number } | null>(null);
 
   const handleFixOverloads = useCallback(() => {
-    const leveledResult = runCpm(rolledTasks, { levelResources: true });
+    // Run leveling under the SAME calendar options as the live `cpm` so the
+    // previewed finish delta is apples-to-apples — without these, the leveled
+    // finish is in raw days while cpm.projectFinish is in calendar days, and
+    // the delta (and the modal's "+N days / unchanged") would be meaningless.
+    const leveledResult = runCpm(rolledTasks, {
+      levelResources: true,
+      scheduleStartDate: scheduleStartIso,
+      criticalFloatThresholdDays,
+      workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project?.schedule?.nonWorkingDates,
+      taskCalendars,
+    });
     const leveled = leveledResult.leveledStartDays;
-    const summary = leveled ? summarizeLeveling(workingTasks, leveled) : null;
+    // Compare against rolledTasks — the same snapshot the leveled map came
+    // from — so summary rows (whose startDay is a derived min-of-children) do
+    // not register phantom shifts against the raw working array.
+    const summary = leveled ? summarizeLeveling(rolledTasks, leveled) : null;
     if (!leveled || !summary || summary.shiftedCount === 0) {
-      const msg = 'No overloads to resolve — every crew is within capacity.';
+      // Leveling only resolves crew / subcontractor scheduling conflicts. Be
+      // honest instead of claiming "every crew is within capacity" — a Workload
+      // heatmap can still show resource-capacity overloads the leveler doesn't
+      // act on (those are resolved by reassigning or rescheduling manually).
+      const msg = 'Nothing to auto-level — leveling shifts overlapping crew and subcontractor work, and none was found to move.';
       if (Platform.OS === 'web') window.alert?.(msg); else Alert.alert('Fix overloads', msg);
       return;
     }
     setLevelingPreview({ summary, leveled, finishDelta: leveledResult.projectFinish - cpm.projectFinish });
-  }, [rolledTasks, workingTasks, cpm.projectFinish]);
+  }, [rolledTasks, scheduleStartIso, criticalFloatThresholdDays, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates, taskCalendars, cpm.projectFinish]);
 
   const applyLeveling = useCallback(() => {
     const p = levelingPreview;
     if (!p) return;
-    commit(prev => prev.map(t => p.leveled.has(t.id) ? { ...t, startDay: p.leveled.get(t.id)! } : t));
+    // Skip summary rows — their startDay is derived from children (rollup), not
+    // user-owned, so we never write a leveled value back onto them.
+    commit(prev => prev.map(t => (!t.isSummary && p.leveled.has(t.id)) ? { ...t, startDay: p.leveled.get(t.id)! } : t));
     if (project?.id) {
       void appendAuditToAsyncStorage(project.id, buildAuditEntry({
         user: user?.email ?? user?.name ?? 'anonymous',

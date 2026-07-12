@@ -208,6 +208,7 @@ function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
           <SheetRow label="Calendar · soon" active={active === 'calendar'} onPress={() => { onChange('calendar'); close(); }} />
           <SheetRow label="Critical path" onPress={() => { actions.onCriticalPath(); close(); }} />
           <SheetRow label="Fix overloads" onPress={() => { actions.onLevelResources?.(); close(); }} />
+          <SheetRow label="History" onPress={() => { actions.onHistory?.(); close(); }} />
           <SheetRow label="Baseline" onPress={() => { actions.onBaseline(); close(); }} />
           <SheetRow label="Weather re-plan" onPress={() => { actions.onWeather(); close(); }} />
           <Text style={styles.overflowGroup}>Share</Text>
