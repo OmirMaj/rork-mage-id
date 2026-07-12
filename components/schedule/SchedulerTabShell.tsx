@@ -1,6 +1,6 @@
 // components/schedule/SchedulerTabShell.tsx — Phase 27.
 //
-// 7-tab nav at the top + SchedulerHeader below + the active tab's content.
+// 6-tab nav at the top + SchedulerHeader below + the active tab's content.
 // Wraps everything in SchedulerProvider so each tab can pull from
 // useScheduler() instead of receiving 12 props.
 //
@@ -9,17 +9,19 @@
 // etc.). They live at the screen level so the undo stack / persist
 // debounce stays in one place.
 //
-// Phone fallback (bp === 'phone') moves the tab bar to the BOTTOM with 4
-// visible tabs (Gantt · Board · Dash · More). "More" opens a sheet for the
-// remaining tabs (List, Calendar, Workload, Timeline). iOS convention.
+// Phone fallback (bp === 'phone') moves the tab bar to the BOTTOM with 3
+// visible tabs (Timeline · Board · Overview) + a "Menu" button. "Menu" opens a
+// sheet grouped Plan / Track / Share — mirroring the desktop menu-bar taxonomy
+// (remaining views + shared actions). iOS convention.
 
-import { useState, useEffect, type ReactNode } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SchedulerProvider, type CpmResult as ContextCpmResult } from './SchedulerContext';
+import { SchedulerMenuBar, type SchedulerActions } from './SchedulerMenuBar';
 import { SchedulerHeader } from './SchedulerHeader';
 import { GanttTab, type GanttPaneMode } from './tabs/GanttTab';
 import { BoardTab } from './tabs/BoardTab';
@@ -32,24 +34,12 @@ import type { ProjectSchedule, ScheduleTask, ProjectResource } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
 
 export type SchedulerTabKey =
-  | 'gantt'
-  | 'board'
+  | 'overview'
+  | 'timeline'
   | 'list'
-  | 'calendar'
+  | 'board'
   | 'workload'
-  | 'dashboard';
-
-// Timeline tab was retired — it duplicated the Gantt tab's slim-mode
-// rendering and didn't earn its slot in the tab strip. If a one-page
-// stakeholder view is needed later, surface it through Export instead.
-const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
-  { key: 'gantt',     label: 'Gantt' },
-  { key: 'board',     label: 'Board' },
-  { key: 'list',      label: 'List' },
-  { key: 'calendar',  label: 'Calendar',  soon: true },
-  { key: 'workload',  label: 'Workload' },
-  { key: 'dashboard', label: 'Dashboard' },
-];
+  | 'calendar';
 
 export interface SchedulerTabShellProps {
   // ---- Context-level props (fed into SchedulerProvider) ----
@@ -62,18 +52,16 @@ export interface SchedulerTabShellProps {
   onExportPress: () => void;
   onBaselinePress: () => void;
 
-  // ---- Externally-controlled sub-mode for the Gantt tab ----
-  /**
-   * Driven by the top-toolbar Grid/Split/Gantt buttons in schedule-pro.
-   * When set, the shell forces the active tab to 'gantt' and passes this
-   * sub-mode down so the GanttTab swaps between full-grid / split /
-   * full-gantt rendering. Other tabs (Board, List, Dashboard, etc.)
-   * ignore this prop.
-   */
-  ganttPaneMode?: GanttPaneMode;
-  /** Bumped by the parent whenever a paneMode button is pressed, so we can
-   *  re-force the active tab to 'gantt' even if the user navigated away. */
-  paneModeNonce?: number;
+  // ---- Menu-bar action handlers (owned by schedule-pro) ----
+  actions: SchedulerActions;
+
+  // ---- Timeline-tab layout wiring ----
+  /** Initial Timeline layout mode. */
+  initialLayout?: GanttPaneMode;
+  /** Rendered by the Timeline tab when the user picks the Lanes layout. */
+  renderLanes?: () => ReactNode;
+  /** Rendered by the Timeline tab when the user picks the Living Plan layout. */
+  renderLiving?: () => ReactNode;
 
   // ---- GanttTab pass-through props (owned by schedule-pro) ----
   projectStartDate: Date;
@@ -83,11 +71,19 @@ export interface SchedulerTabShellProps {
   utilsCpm: UtilsCpmResult;
   /** Resource pool — feeds WorkloadTab (and ResourceSwimlanes when wired). */
   resources?: ProjectResource[];
+  /** Run the resource-leveling engine — WorkloadTab surfaces this when any lane is over capacity. */
+  onFixOverloads?: () => void;
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
+  /** Bulk-create tasks in one undo step (ghost row / paste / insert). */
+  onAddTasks?: (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number) => string[];
   /** Passed through to GanttTab → InteractiveGantt for double-tap-empty-timeline. */
   onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
+  /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
+  onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
+  /** Reorder — move a task up (-1) or down (+1) in array position. */
+  onReorder?: (id: string, delta: number) => void;
   onDependencyCreate?: (fromId: string, toId: string) => void;
   focusedTaskId?: string | null;
   onFocusTask?: (id: string | null) => void;
@@ -104,18 +100,7 @@ export interface SchedulerTabShellProps {
 export function SchedulerTabShell(props: SchedulerTabShellProps) {
   useTheme();
   const { bp } = useResponsive();
-  const [active, setActive] = useState<SchedulerTabKey>('gantt');
-
-  // When the parent toggles a paneMode button (Grid/Split/Gantt in the top
-  // toolbar), bump the nonce — that forces the Gantt tab to be active so
-  // the user sees the sub-mode change even if they were on Board / List /
-  // Dashboard at the time. We don't want to keep forcing it on every render,
-  // so the effect keys on the nonce, not the paneMode value itself.
-  useEffect(() => {
-    if (props.paneModeNonce !== undefined) {
-      setActive('gantt');
-    }
-  }, [props.paneModeNonce]);
+  const [active, setActive] = useState<SchedulerTabKey>('overview');
 
   if (bp === 'phone') {
     return (
@@ -129,7 +114,7 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
           <View style={styles.body}>
             {renderTab(active, props)}
           </View>
-          <PhoneTabBar active={active} onChange={setActive} />
+          <PhoneTabBar active={active} onChange={setActive} actions={props.actions} />
         </View>
       </SchedulerProvider>
     );
@@ -138,33 +123,13 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
   return (
     <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
       <View style={styles.shellRoot}>
-        {/* Tab bar — horizontal scroll so it never wraps on narrow screens. */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabBar}
-          style={styles.tabBarOuter}
-        >
-          {TABS.map(t => (
-            <Pressable
-              key={t.key}
-              onPress={() => setActive(t.key)}
-              style={styles.tab}
-              hitSlop={4}
-            >
-              <Text style={[styles.tabLabel, active === t.key && styles.tabLabelActive]}>
-                {t.label}{t.soon ? ' · soon' : ''}
-              </Text>
-              {active === t.key && <View style={styles.tabIndicator} />}
-            </Pressable>
-          ))}
-        </ScrollView>
+        {/* Plan / Track / Share menu bar — replaces the old 6-tab strip. */}
+        <SchedulerMenuBar active={active} onSelectView={setActive} actions={props.actions} />
 
         <SchedulerHeader
           projectName={props.projectName}
           onExportPress={props.onExportPress}
           onBaselinePress={props.onBaselinePress}
-          onAddTaskPress={props.onAddTask}
         />
 
         <View style={styles.body}>
@@ -178,15 +143,17 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
 interface PhoneTabBarProps {
   active: SchedulerTabKey;
   onChange: (k: SchedulerTabKey) => void;
+  actions: SchedulerActions;
 }
 
-function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
+function PhoneTabBar({ active, onChange, actions }: PhoneTabBarProps) {
   const insets = useSafeAreaInsets();
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const close = () => setOverflowOpen(false);
   const VISIBLE: { key: SchedulerTabKey; icon: string; label: string }[] = [
-    { key: 'gantt',     icon: '⬚', label: 'Gantt' },
+    { key: 'timeline',  icon: '⬚', label: 'Timeline' },
     { key: 'board',     icon: '⊞', label: 'Board' },
-    { key: 'dashboard', icon: '◐', label: 'Dash' },
+    { key: 'overview',  icon: '◐', label: 'Overview' },
   ];
   const OVERFLOW: SchedulerTabKey[] = ['list', 'calendar', 'workload'];
   const isOverflowActive = OVERFLOW.includes(active);
@@ -215,11 +182,11 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
         style={styles.bottomTab}
         hitSlop={4}
         accessibilityRole="button"
-        accessibilityLabel="More tabs"
+        accessibilityLabel="Menu"
         accessibilityState={{ selected: isOverflowActive }}
       >
         <Text style={[styles.bottomTabIcon, isOverflowActive && styles.bottomTabActive]}>⋯</Text>
-        <Text style={[styles.bottomTabLabel, isOverflowActive && styles.bottomTabActive]}>More</Text>
+        <Text style={[styles.bottomTabLabel, isOverflowActive && styles.bottomTabActive]}>Menu</Text>
       </Pressable>
       <Modal
         visible={overflowOpen}
@@ -230,43 +197,62 @@ function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
         <Pressable style={styles.overflowBackdrop} onPress={() => setOverflowOpen(false)} />
         <View style={[styles.overflowSheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.overflowHandle} />
-          {OVERFLOW.map(k => {
-            const tabMeta = TABS.find(t => t.key === k);
-            if (!tabMeta) return null;
-            return (
-              <Pressable
-                key={k}
-                onPress={() => { onChange(k); setOverflowOpen(false); }}
-                style={styles.overflowItem}
-                accessibilityRole="button"
-                accessibilityLabel={tabMeta.label}
-                accessibilityState={{ selected: active === k }}
-              >
-                <Text style={[styles.overflowText, active === k && styles.bottomTabActive]}>
-                  {tabMeta.label}{tabMeta.soon ? ' · soon' : ''}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <Text style={styles.overflowGroup}>Plan</Text>
+          <SheetRow label="List" active={active === 'list'} onPress={() => { onChange('list'); close(); }} />
+          <SheetRow label="Add task" onPress={() => { actions.onAddTask(); close(); }} />
+          <SheetRow label="Import" onPress={() => { actions.onImport(); close(); }} />
+          <SheetRow label="Re-plan" onPress={() => { actions.onReflow(); close(); }} />
+          <SheetRow label="Closures" onPress={() => { actions.onClosures(); close(); }} />
+          <Text style={styles.overflowGroup}>Track</Text>
+          <SheetRow label="Workload" active={active === 'workload'} onPress={() => { onChange('workload'); close(); }} />
+          <SheetRow label="Calendar · soon" active={active === 'calendar'} onPress={() => { onChange('calendar'); close(); }} />
+          <SheetRow label="Critical path" onPress={() => { actions.onCriticalPath(); close(); }} />
+          <SheetRow label="Fix overloads" onPress={() => { actions.onLevelResources?.(); close(); }} />
+          <SheetRow label="History" onPress={() => { actions.onHistory?.(); close(); }} />
+          <SheetRow label="Baseline" onPress={() => { actions.onBaseline(); close(); }} />
+          <SheetRow label="Weather re-plan" onPress={() => { actions.onWeather(); close(); }} />
+          <Text style={styles.overflowGroup}>Share</Text>
+          <SheetRow label="Export" onPress={() => { actions.onExport(); close(); }} />
+          <SheetRow label="Share link" onPress={() => { actions.onShare(); close(); }} />
+          <SheetRow label="AI assist" onPress={() => { actions.onAI(); close(); }} />
         </View>
       </Modal>
     </View>
   );
 }
 
+function SheetRow({ label, onPress, active }: { label: string; onPress: () => void; active?: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.overflowItem}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={active ? { selected: true } : undefined}
+    >
+      <Text style={[styles.overflowText, active && styles.bottomTabActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNode {
-  if (key === 'gantt') {
+  if (key === 'timeline') {
     return (
       <GanttTab
         projectStartDate={props.projectStartDate}
         workingDaysPerWeek={props.workingDaysPerWeek}
         nonWorkingDates={props.nonWorkingDates}
         cpm={props.utilsCpm}
-        paneMode={props.ganttPaneMode ?? 'split'}
+        initialLayout={props.initialLayout}
+        renderLanes={props.renderLanes}
+        renderLiving={props.renderLiving}
         onEdit={props.onEdit}
         onAddTask={props.onAddTask}
+        onAddTasks={props.onAddTasks}
         onAddTaskAtDay={props.onAddTaskAtDay}
         onDeleteTask={props.onDeleteTask}
+        onOutline={props.onOutline}
+        onReorder={props.onReorder}
         onDependencyCreate={props.onDependencyCreate}
         focusedTaskId={props.focusedTaskId}
         onFocusTask={props.onFocusTask}
@@ -320,10 +306,10 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
   }
 
   if (key === 'workload') {
-    return <WorkloadTab resources={props.resources} />;
+    return <WorkloadTab resources={props.resources} onFixOverloads={props.onFixOverloads} />;
   }
 
-  if (key === 'dashboard') {
+  if (key === 'overview') {
     return <DashboardTab />;
   }
 
@@ -332,7 +318,7 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
     <View style={styles.comingSoon}>
       <Text style={styles.comingSoonTitle}>Coming soon</Text>
       <Text style={styles.comingSoonSub}>
-        This tab ships next week. The Gantt tab is your current home.
+        This tab ships next week. The Timeline tab is your current home.
       </Text>
     </View>
   );
@@ -359,35 +345,6 @@ const styles = StyleSheet.create({
   // container the shell is mounted into — they compete for horizontal space
   // and the body collapses to whatever the tab bar + header didn't claim.
   shellRoot: { flex: 1 },
-  tabBarOuter: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
-    flexGrow: 0,
-  },
-  tabBar: {
-    paddingHorizontal: 16,
-    gap: 18,
-    flexDirection: 'row',
-  },
-  tab: { paddingVertical: 12, position: 'relative' },
-  tabLabel: {
-    fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  tabLabelActive: {
-    color: Colors.tradeColors.general,
-    fontWeight: '700',
-  },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: Colors.tradeColors.general,
-  },
   body: { flex: 1 },
   comingSoon: {
     flex: 1,
@@ -444,4 +401,12 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(31,37,45,0.6)',
   },
   overflowText: { color: Colors.text, fontSize: 14, fontWeight: '500' },
+  overflowGroup: {
+    ...Type.caption2,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 14,
+    marginBottom: 2,
+  },
 });

@@ -33,10 +33,9 @@ import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic, CalendarPlus, Map as MapIcon, CloudRain, FileInput } from 'lucide-react-native';
+import { ChevronLeft, Undo2, Redo2, Download } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { exportProjectIcs } from '@/utils/icsGenerator';
-import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -54,6 +53,7 @@ import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
 import BaselineManagerModal from '@/components/schedule/BaselineManagerModal';
 import TaskInspector from '@/components/schedule/TaskInspector';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
+import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
 import VoiceCommandModal from '@/components/VoiceCommandModal';
 import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
@@ -61,6 +61,9 @@ import { ExportSheet } from '@/components/schedule/ExportSheet';
 import { computeScheduleHealthScore } from '@/utils/scheduleHealthScore';
 import { EarnedValuePanel } from '@/components/schedule/EarnedValuePanel';
 import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
+import { CriticalPathPanel } from '@/components/schedule/CriticalPathPanel';
+import { ScheduleAuditModal } from '@/components/schedule/ScheduleAuditModal';
+import { buildCriticalPathExplanation } from '@/utils/floatExplain';
 import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
 import { getSimulatedForecast } from '@/utils/weatherService';
 import { computeWeatherReschedule, buildWeatherDelayLog, type WeatherRescheduleResult } from '@/utils/weatherReschedule';
@@ -84,7 +87,10 @@ import {
 } from '@/utils/scheduleEarnedValue';
 import type { CpmResult as ContextCpmResult } from '@/components/schedule/SchedulerContext';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
+import { indentTask, outdentTask, moveTask } from '@/utils/outlineOps';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
+import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary';
+import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
@@ -112,8 +118,6 @@ const GRID_BREAKPOINT = 900;
 // we default to grid alone because 1200px of timeline next to a 1170px grid
 // means the gantt gets ~30px of width — useless.
 const SPLIT_BREAKPOINT = 1600;
-
-type PaneMode = 'grid' | 'split' | 'gantt' | 'resources' | 'living';
 
 export default function ScheduleProScreen() {
   const { colors: themeColors } = useTheme();
@@ -172,20 +176,8 @@ function ScheduleProScreenInner() {
   );
   const workingTasks = hist.present;
 
-  // Pane mode: which view(s) to render. Defaults based on width; user can
-  // override via the segmented control in the header.
-  const [paneMode, setPaneMode] = useState<PaneMode>(() =>
-    width >= SPLIT_BREAKPOINT ? 'split' : 'grid',
-  );
-  // Bumped on every paneMode-button press. SchedulerTabShell uses this to
-  // force the active tab back to 'gantt' whenever the user clicks Grid /
-  // Split / Gantt in the top toolbar — so the user sees the sub-mode change
-  // even if they were on Board / List / Dashboard.
-  const [paneModeNonce, setPaneModeNonce] = useState(0);
-  const setPaneModeAndForceGantt = useCallback((mode: PaneMode) => {
-    setPaneMode(mode);
-    if (mode !== 'resources') setPaneModeNonce(n => n + 1);
-  }, []);
+  // The view-switcher now lives inside the Timeline tab (GanttTab owns all
+  // five layouts). We only derive the tab's opening layout from width below.
 
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
@@ -200,6 +192,9 @@ function ScheduleProScreenInner() {
   // theirs only creates, doesn't mutate.
   const [showVoice, setShowVoice] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
+  const [showAudit, setShowAudit] = useState(false);
+  const [dismissedOnRamp, setDismissedOnRamp] = useState(false);
   const [exportSheetOpen, setExportSheetOpen] = useState(false);
   // Add Task modal — replaces the silent "create a task called 'New task'
   // with defaults" flow. Opens from the SchedulerHeader's "+ Add Task"
@@ -578,6 +573,10 @@ function ScheduleProScreenInner() {
   const commit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
     setHist(h => {
       const next = producer(h.present);
+      // Boundary no-ops (Move up on the top row, Indent on row 1, etc.) return
+      // the same array reference. Skip persist + history for those — otherwise
+      // pushHistory would clear the redo stack and record a phantom undo step.
+      if (next === h.present) return h;
       schedulePersist(next);
       // pushHistory snapshots the old present onto `past` (bounded to 20) and
       // clears the redo stack — a new edit always invalidates redo.
@@ -606,6 +605,13 @@ function ScheduleProScreenInner() {
     }
     commit(prev => prev.map(t => (t.id === taskId ? { ...t, ...patch } : t)));
   }, [commit, workingTasks, project?.id, user]);
+
+  // Small helper so task create/delete can drop audit entries the same way
+  // handleEdit does — builds the entry and enqueues the AsyncStorage append.
+  const writeAudit = useCallback((entry: Parameters<typeof buildAuditEntry>[0]) => {
+    if (!project?.id) return;
+    void appendAuditToAsyncStorage(project.id, buildAuditEntry(entry));
+  }, [project?.id]);
 
   // 14-day forecast keyed off project start. Used for the weather-aware
   // reschedule prompt — surfaces tasks that hit un-workable days.
@@ -777,6 +783,52 @@ function ScheduleProScreenInner() {
     setShowAddTask(false);
   }, [commit, projectStartDate, workingDaysPerWeek]);
 
+  // Bulk-create tasks in ONE undo step. Used by the grid's ghost row, paste,
+  // and insert-anywhere. atIndex undefined → append; atIndex given → splice at
+  // that array position. Returns the new ids in creation order (callers focus
+  // the first). startDay stacks sequentially so a pasted list lays out in order.
+  const handleAddTasks = useCallback(
+    (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number): string[] => {
+      if (partials.length === 0) return []; // never touch history for an empty batch
+      // Generate ids in the OUTER scope so the return is reliable: the commit
+      // producer runs inside a setState updater, which React may not execute
+      // synchronously — so we can't collect ids from inside it and return them.
+      // Insert-anywhere focuses the new row by this returned id.
+      const newIds = partials.map(() => createId('task'));
+      commit(prev => {
+        let runningFinish = prev.reduce((m, t) => Math.max(m, t.startDay + t.durationDays), 0);
+        const built: ScheduleTask[] = partials.map((p, i) => {
+          const durationDays = p.durationDays ?? 1;
+          const startDay = runningFinish > 0 ? runningFinish : 1;
+          runningFinish = startDay + durationDays;
+          return {
+            id: newIds[i],
+            title: p.title,
+            phase: p.phase ?? 'General',
+            durationDays,
+            startDay,
+            progress: 0,
+            crew: '',
+            dependencies: [],
+            notes: '',
+            status: 'not_started',
+          };
+        });
+        const next = atIndex === undefined
+          ? [...prev, ...built]
+          : [...prev.slice(0, atIndex), ...built, ...prev.slice(atIndex)];
+        return generateWbsCodes(next);
+      });
+      writeAudit({
+        user: user?.email ?? user?.name ?? 'anonymous',
+        kind: 'task_create',
+        summary: partials.length === 1 ? `Added task "${partials[0].title || 'Untitled'}"` : `Added ${partials.length} tasks`,
+      });
+      return newIds;
+    },
+    [commit, writeAudit, user?.email, user?.name],
+  );
+
   // Phase 4: create a dependency edge between two tasks via drag in the Gantt.
   // Guards against self-link + cycles are handled in the Gantt before we get
   // the call, so here we just append.
@@ -815,6 +867,7 @@ function ScheduleProScreenInner() {
   }, [commit, workingTasks.length]);
 
   const handleDeleteTask = useCallback((taskId: string) => {
+    const deletedTitle = workingTasks.find(t => t.id === taskId)?.title ?? 'Untitled';
     commit(prev => {
       // Also strip this id out of every other task's dependency references,
       // otherwise the CPM engine will silently skip dangling refs but the
@@ -827,6 +880,17 @@ function ScheduleProScreenInner() {
           dependencyLinks: (t.dependencyLinks ?? []).filter(l => l.taskId !== taskId),
         }));
     });
+    writeAudit({ user: user?.email ?? user?.name ?? 'anonymous', kind: 'task_delete', taskId, summary: `Deleted task "${deletedTitle}"` });
+  }, [commit, writeAudit, workingTasks, user?.email, user?.name]);
+
+  // Outline authoring + reorder — indent/outdent set parentId/outlineLevel,
+  // reorder swaps array position (task order IS array position). Both flow
+  // through the same undo-aware commit() so undo/redo + persist stay intact.
+  const handleOutline = useCallback((id: string, dir: 'indent' | 'outdent') => {
+    commit(prev => (dir === 'indent' ? indentTask(prev, id) : outdentTask(prev, id)));
+  }, [commit]);
+  const handleReorder = useCallback((id: string, delta: number) => {
+    commit(prev => moveTask(prev, id, delta));
   }, [commit]);
 
   // -------------------------------------------------------------------------
@@ -955,6 +1019,65 @@ function ScheduleProScreenInner() {
     if (Platform.OS === 'web') window.alert?.(msg);
     else Alert.alert('Reflow complete', msg);
   }, [workingTasks, commit]);
+
+  // Critical-path / conflict summary — moved out of the toolbar into the
+  // "More" overflow menu (Phase 1 front-door). Extracted to a named callback
+  // so the menu item can invoke it.
+  const showCpmAnalysis = useCallback(() => { setShowCriticalPath(true); }, []);
+
+  // -------------------------------------------------------------------------
+  // Fix overloads — run the resource-leveling engine, preview the shifts,
+  // then apply them undoably. handleFixOverloads runs the pure leveler and
+  // opens the preview; applyLeveling commits the leveled startDays in one
+  // undo step and logs a reflow audit entry.
+  // -------------------------------------------------------------------------
+  const [levelingPreview, setLevelingPreview] = useState<{ summary: LevelingSummary; leveled: Map<string, number>; finishDelta: number } | null>(null);
+
+  const handleFixOverloads = useCallback(() => {
+    // Run leveling under the SAME calendar options as the live `cpm` so the
+    // previewed finish delta is apples-to-apples — without these, the leveled
+    // finish is in raw days while cpm.projectFinish is in calendar days, and
+    // the delta (and the modal's "+N days / unchanged") would be meaningless.
+    const leveledResult = runCpm(rolledTasks, {
+      levelResources: true,
+      scheduleStartDate: scheduleStartIso,
+      criticalFloatThresholdDays,
+      workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project?.schedule?.nonWorkingDates,
+      taskCalendars,
+    });
+    const leveled = leveledResult.leveledStartDays;
+    // Compare against rolledTasks — the same snapshot the leveled map came
+    // from — so summary rows (whose startDay is a derived min-of-children) do
+    // not register phantom shifts against the raw working array.
+    const summary = leveled ? summarizeLeveling(rolledTasks, leveled) : null;
+    if (!leveled || !summary || summary.shiftedCount === 0) {
+      // Leveling only resolves crew / subcontractor scheduling conflicts. Be
+      // honest instead of claiming "every crew is within capacity" — a Workload
+      // heatmap can still show resource-capacity overloads the leveler doesn't
+      // act on (those are resolved by reassigning or rescheduling manually).
+      const msg = 'Nothing to auto-level — leveling shifts overlapping crew and subcontractor work, and none was found to move.';
+      if (Platform.OS === 'web') window.alert?.(msg); else Alert.alert('Fix overloads', msg);
+      return;
+    }
+    setLevelingPreview({ summary, leveled, finishDelta: leveledResult.projectFinish - cpm.projectFinish });
+  }, [rolledTasks, scheduleStartIso, criticalFloatThresholdDays, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates, taskCalendars, cpm.projectFinish]);
+
+  const applyLeveling = useCallback(() => {
+    const p = levelingPreview;
+    if (!p) return;
+    // Skip summary rows — their startDay is derived from children (rollup), not
+    // user-owned, so we never write a leveled value back onto them.
+    commit(prev => prev.map(t => (!t.isSummary && p.leveled.has(t.id)) ? { ...t, startDay: p.leveled.get(t.id)! } : t));
+    if (project?.id) {
+      void appendAuditToAsyncStorage(project.id, buildAuditEntry({
+        user: user?.email ?? user?.name ?? 'anonymous',
+        kind: 'reflow',
+        summary: `Resource leveling: ${p.summary.shiftedCount} task(s) shifted`,
+      }));
+    }
+    setLevelingPreview(null);
+  }, [levelingPreview, commit, project?.id, user?.email, user?.name]);
 
   // -------------------------------------------------------------------------
   // Named baselines — capture / switch / compare via BaselineManagerModal.
@@ -1175,52 +1298,21 @@ function ScheduleProScreenInner() {
   const handleAirPrint = useCallback(async () => {
     try {
       const Print = await import('expo-print');
-      const pName = project?.name ?? 'Schedule';
-      const safeTasks = workingTasks;
-      const html = `
-        <html><head><meta charset="utf-8"><title>${escapeHtml(pName)} schedule</title>
-        <style>
-          body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; }
-          h1 { font-size: 18px; margin-bottom: 4px; }
-          p.sub { color: #666; font-size: 11px; margin-bottom: 16px; }
-          table { width: 100%; border-collapse: collapse; font-size: 11px; }
-          th { text-align: left; padding: 6px 8px; background: #f3f3f3; border-bottom: 2px solid #ddd; }
-          th.r { text-align: right; }
-          td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
-          td.r { text-align: right; }
-        </style>
-        </head>
-        <body>
-          <h1>${escapeHtml(pName)}</h1>
-          <p class="sub">Schedule print from MAGE ID &nbsp;·&nbsp; ${new Date().toLocaleDateString()}</p>
-          <table>
-            <thead><tr>
-              <th>#</th>
-              <th>Task</th>
-              <th>Phase</th>
-              <th class="r">Duration</th>
-              <th class="r">% Done</th>
-              <th>Crew</th>
-            </tr></thead>
-            <tbody>
-              ${safeTasks.map((t, i) => `
-                <tr>
-                  <td>${i + 1}</td>
-                  <td>${escapeHtml(t.title ?? '')}${t.isMilestone ? ' <span style="background:#fef3c7;color:#b45309;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">M</span>' : ''}${t.isCriticalPath ? ' <span style="background:#fee2e2;color:#b91c1c;font-size:9px;padding:1px 4px;border-radius:3px;font-weight:600">CP</span>' : ''}</td>
-                  <td>${escapeHtml(t.phase ?? '—')}</td>
-                  <td class="r">${t.durationDays ?? 0}d</td>
-                  <td class="r">${Math.round(t.progress ?? 0)}%</td>
-                  <td>${escapeHtml(t.crew ?? '—')}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body></html>`;
+      const { buildPrintableGanttHtml } = await import('@/utils/printableGanttHtml');
+      // A real fit-to-page Gantt one-pager (bars, FS dependency arrows, milestone
+      // diamonds, red critical path, today line) — not a plain table. Feed the
+      // SAME rolledTasks the on-screen Gantt draws (summary spans are rolled up
+      // at render, not persisted) so the printout matches the screen.
+      const html = buildPrintableGanttHtml(rolledTasks, {
+        projectName: project?.name ?? 'Schedule',
+        todayDayNumber,
+        totalDays: cpm.projectFinish,
+      });
       await Print.printAsync({ html });
     } catch (e) {
       console.error('AirPrint failed', e);
     }
-  }, [project?.name, workingTasks]);
+  }, [project?.name, rolledTasks, todayDayNumber, cpm.projectFinish]);
 
   // -------------------------------------------------------------------------
   // Undo / Redo (Phase 4 preview — works today for grid edits)
@@ -1353,6 +1445,29 @@ function ScheduleProScreenInner() {
     );
   }
 
+  if (workingTasks.length === 0 && !dismissedOnRamp) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <ChevronLeft size={20} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.headerBackText}>Back</Text>
+          </TouchableOpacity>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
+          </View>
+        </View>
+        <ScheduleOnRamp
+          onBuildWithAI={() => router.push({ pathname: '/generative-setup', params: { projectId: project.id } } as never)}
+          onStartFromTemplate={() => router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never)}
+          onAddManually={() => { setDismissedOnRamp(true); handleAddTask(); }}
+          onLoadExample={handleLoadDemo}
+        />
+      </View>
+    );
+  }
+
   // -------------------------------------------------------------------------
   // Main render
   // -------------------------------------------------------------------------
@@ -1384,58 +1499,15 @@ function ScheduleProScreenInner() {
         </View>
 
         <View style={styles.headerActions}>
-          {/* Pane mode segmented control */}
-          <View style={styles.paneToggle}>
-            <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneModeAndForceGantt('grid')} />
-            <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneModeAndForceGantt('split')} />
-            <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneModeAndForceGantt('gantt')} />
-            <PaneBtn
-              icon={Users}
-              label="Lanes"
-              active={paneMode === 'resources'}
-              // Toggle: clicking Lanes again returns to the regular tab shell
-              // (defaulting to the Gantt sub-mode) so the user has a one-tap
-              // escape from the Lanes view instead of having to find one of
-              // the Grid/Split/Gantt buttons.
-              onPress={() => setPaneMode(paneMode === 'resources' ? 'gantt' : 'resources')}
-            />
-            <PaneBtn
-              icon={MapIcon}
-              label="Living Plan"
-              active={paneMode === 'living'}
-              onPress={() => setPaneMode(paneMode === 'living' ? 'gantt' : 'living')}
-            />
-          </View>
-
           {/* AI first — the headline value-prop. Highlighted so it stands out.
               The "+ Add Task" affordance now lives inline in the SchedulerHeader
               between VIEW and Export (Phase 27 audit feedback), so it's removed
               from this toolbar to avoid two Add-Task buttons on the same row. */}
           <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setShowAI(true)} highlighted />
-          <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
-          <HeaderBtn icon={RefreshCcw} label="Reflow" onPress={handleReflow} />
-          <HeaderBtn icon={Bookmark} label="Baseline" onPress={() => setShowBaselineManager(true)} />
-          <HeaderBtn icon={FileInput} label="Import" onPress={() => router.push(`/schedule-import?projectId=${project.id}`)} />
-          <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
-          <HeaderBtn icon={CalendarPlus} label="iCal" onPress={() => { void handleExportIcs(); }} />
-          <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />
-          <HeaderBtn icon={MageAIMark} label="Demo" onPress={handleLoadDemo} />
           <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} />
           <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} />
-          <HeaderBtn
-            icon={Activity}
-            label="CPM"
-            onPress={() => {
-              const msg = `Project finish: day ${cpm.projectFinish}\nCritical path: ${cpm.criticalPath.length} task(s)\nConflicts: ${cpm.conflicts.length}`;
-              if (Platform.OS === 'web') window.alert?.(msg);
-              else Alert.alert('Schedule analysis', msg);
-            }}
-          />
-          <HeaderBtn icon={CloudRain} label="Weather" onPress={openWeatherReschedule} />
-          <HeaderBtn icon={CalendarX} label="Closures" onPress={() => setShowClosures(true)} />
-          <HeaderBtn icon={Settings} label="Settings" onPress={() => setShowSettings(true)} />
-          <HeaderBtn icon={Share2} label="Share" onPress={handleShare} />
+          <HeaderBtn icon={Download} label="Export" onPress={() => setExportSheetOpen(true)} />
         </View>
       </View>
 
@@ -1484,49 +1556,12 @@ function ScheduleProScreenInner() {
         onPushTasks={handleWeatherPush}
       />
 
-      {/* Body — Phase 27: the new SchedulerTabShell (7-tab nav + SchedulerHeader +
-          active tab content) replaces the old manual paneMode grid/gantt/split
-          rendering. Resource swimlanes are a separate mode that lives outside
-          the tab shell since they are a different axis entirely. */}
-      {paneMode === 'living' ? (() => {
-        const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
-        const firstSheet = planSheets[0] ?? null;
-        const zones = getPlanZonesForProject(project.id).filter(
-          (z) => firstSheet ? z.planSheetId === firstSheet.id : false,
-        );
-        const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
-        const photos = getPhotosForProject(project.id);
-        const photoById = (photoId: string) => { const p = photos.find((ph) => ph.id === photoId); return p ? { uri: p.uri, createdAt: p.createdAt } : undefined; };
-        return (
-          <View style={styles.body}>
-            <View style={styles.paneFull}>
-              <LivingFloorPlan
-                project={project}
-                planSheetId={firstSheet?.id ?? ''}
-                zones={zones}
-                pins={pins}
-                photoById={photoById}
-                imageUri={firstSheet?.imageUri ?? ''}
-                imageW={firstSheet?.width}
-                imageH={firstSheet?.height}
-                onEdit={() => setShowLivingPlanEditor(true)}
-                onAddPlan={() => router.push('/plans' as never)}
-              />
-            </View>
-          </View>
-        );
-      })() : paneMode === 'resources' ? (
-        <View style={styles.body}>
-          <View style={styles.paneFull}>
-            <ResourceSwimlanes
-              tasks={rolledTasks}
-              resources={project?.schedule?.resources}
-              projectStartDate={projectStartDate}
-              projectName={project?.name}
-            />
-          </View>
-        </View>
-      ) : (
+      {/* Body — Phase 27: the SchedulerTabShell (tab nav + SchedulerHeader +
+          active tab content) is the single body. The Timeline tab owns all
+          five layouts (Grid · Split · Gantt · Lanes · Living Plan); Lanes and
+          Living Plan render via the render-props below so their data-fetching
+          stays here in the screen. */}
+      {(
         <View style={styles.tabShellBody}>
           <SchedulerTabShell
             schedule={{
@@ -1547,17 +1582,74 @@ function ScheduleProScreenInner() {
             projectName={project?.name ?? 'Schedule'}
             onExportPress={() => setExportSheetOpen(true)}
             onBaselinePress={() => setShowBaselineManager(true)}
-            ganttPaneMode={paneMode}
-            paneModeNonce={paneModeNonce}
+            actions={{
+              onAddTask: handleAddTask,
+              onImport: () => router.push(`/schedule-import?projectId=${project.id}`),
+              onReflow: handleReflow,
+              onClosures: () => setShowClosures(true),
+              onCriticalPath: showCpmAnalysis,
+              onLevelResources: handleFixOverloads,
+              onHistory: () => setShowAudit(true),
+              onBaseline: () => setShowBaselineManager(true),
+              onWeather: openWeatherReschedule,
+              onExport: () => setExportSheetOpen(true),
+              onShare: handleShare,
+              onAI: () => setShowAI(true),
+            }}
+            initialLayout="split"
+            renderLanes={() => (
+              <View style={styles.body}>
+                <View style={styles.paneFull}>
+                  <ResourceSwimlanes
+                    tasks={rolledTasks}
+                    resources={project?.schedule?.resources}
+                    projectStartDate={projectStartDate}
+                    projectName={project?.name}
+                  />
+                </View>
+              </View>
+            )}
+            renderLiving={() => {
+              const planSheets = getPlanSheetsForProject(project.id).filter((s) => !s.superseded);
+              const firstSheet = planSheets[0] ?? null;
+              const zones = getPlanZonesForProject(project.id).filter(
+                (z) => firstSheet ? z.planSheetId === firstSheet.id : false,
+              );
+              const pins = firstSheet ? getPinsForPlan(firstSheet.id) : [];
+              const photos = getPhotosForProject(project.id);
+              const photoById = (photoId: string) => { const p = photos.find((ph) => ph.id === photoId); return p ? { uri: p.uri, createdAt: p.createdAt } : undefined; };
+              return (
+                <View style={styles.body}>
+                  <View style={styles.paneFull}>
+                    <LivingFloorPlan
+                      project={project}
+                      planSheetId={firstSheet?.id ?? ''}
+                      zones={zones}
+                      pins={pins}
+                      photoById={photoById}
+                      imageUri={firstSheet?.imageUri ?? ''}
+                      imageW={firstSheet?.width}
+                      imageH={firstSheet?.height}
+                      onEdit={() => setShowLivingPlanEditor(true)}
+                      onAddPlan={() => router.push('/plans' as never)}
+                    />
+                  </View>
+                </View>
+              );
+            }}
             projectStartDate={projectStartDate}
             workingDaysPerWeek={workingDaysPerWeek}
             nonWorkingDates={project?.schedule?.nonWorkingDates}
             utilsCpm={cpm}
             resources={project?.schedule?.resources}
+            onFixOverloads={handleFixOverloads}
             onEdit={handleEdit}
             onAddTask={handleAddTask}
+            onAddTasks={handleAddTasks}
             onAddTaskAtDay={handleAddTaskAtDay}
             onDeleteTask={handleDeleteTask}
+            onOutline={handleOutline}
+            onReorder={handleReorder}
             onDependencyCreate={handleDependencyCreate}
             focusedTaskId={focusedTaskId}
             onFocusTask={setFocusedTaskId}
@@ -1619,6 +1711,17 @@ function ScheduleProScreenInner() {
         onApply={applyWeatherReschedule}
       />
 
+      {/* Fix overloads — preview the resource-leveling shifts, apply undoably. */}
+      {levelingPreview !== null && (
+        <LevelingPreviewModal
+          visible
+          summary={levelingPreview.summary}
+          projectFinishDelta={levelingPreview.finishDelta}
+          onApply={applyLeveling}
+          onClose={() => setLevelingPreview(null)}
+        />
+      )}
+
       {/* Voice → schedule mutations. The modal handles transcription +
           parsing + executor; we provide the update functions. CPM re-runs
           on every commit so successors ripple automatically. */}
@@ -1639,6 +1742,23 @@ function ScheduleProScreenInner() {
         visible={showHealth}
         onClose={() => setShowHealth(false)}
         result={healthScore}
+      />
+
+      {/* Critical-path / float explanation — replaces the old raw "Schedule
+          analysis" Alert. Says, per task, "on the critical path" or "can slip
+          N days". Building the explanation each render is a cheap pure map. */}
+      <CriticalPathPanel
+        visible={showCriticalPath}
+        explanation={buildCriticalPathExplanation(cpm, rolledTasks)}
+        onClose={() => setShowCriticalPath(false)}
+      />
+
+      {/* Schedule audit-log viewer — read UI over the append-only history
+          written on every CPM-affecting edit. Grouped by day, newest first. */}
+      <ScheduleAuditModal
+        visible={showAudit}
+        projectId={project?.id ?? ''}
+        onClose={() => setShowAudit(false)}
       />
 
       {/* Multi-baseline manager — capture, switch, compare named baselines.
@@ -1722,14 +1842,7 @@ function ScheduleProScreenInner() {
         onExportPdf={() => { void handleExportPdf(); }}
         onExportCsv={handleExportCsv}
         onShareLink={handleShare}
-        onExportIcal={() => {
-          if (project) {
-            // Inline import keeps the iCal generator out of the initial bundle.
-            void import('@/utils/scheduleExportIcal').then(m =>
-              m.exportScheduleIcal({ project }),
-            );
-          }
-        }}
+        onExportIcal={() => { void handleExportIcs(); }}
         onAirPrint={() => { void handleAirPrint(); }}
       />
 
@@ -1762,39 +1875,6 @@ function ScheduleProScreenInner() {
         );
       })()}
     </View>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// HTML escape helper — used by handleAirPrint above.
-// ---------------------------------------------------------------------------
-
-function escapeHtml(s: string): string {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// ---------------------------------------------------------------------------
-// Pane toggle button
-// ---------------------------------------------------------------------------
-
-function PaneBtn({
-  icon: Icon, label, active, onPress,
-}: { icon: any; label: string; active: boolean; onPress: () => void }) {
-  const { colors: themeColors } = useTheme();
-  const styles = useThemedStyles(makeStyles);
-  return (
-    <TouchableOpacity
-      style={[styles.paneBtn, active && styles.paneBtnActive]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Icon size={13} color={active ? themeColors.accent : themeColors.textSecondary} />
-      <Text style={[styles.paneBtnText, active && styles.paneBtnTextActive]}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -1834,11 +1914,16 @@ function HeaderBtn({
 }
 
 // ---------------------------------------------------------------------------
+// Overflow "More" menu row
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+
   centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 8 },
   emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
@@ -1911,34 +1996,4 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   paneHalf: { flex: 1, minWidth: 440 },
   paneHalfRight: { flex: 1.4, minWidth: 0 },
 
-  paneToggle: {
-    flexDirection: 'row',
-    backgroundColor: t.surfaceAlt,
-    borderRadius: Tokens.radius.sm,
-    padding: 2,
-    marginRight: 4,
-  },
-  paneBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: Tokens.radius.xs,
-  },
-  paneBtnActive: {
-    backgroundColor: t.surface,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  paneBtnText: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '700',
-    color: t.textSecondary,
-  },
-  paneBtnTextActive: {
-    color: t.accent,
-  },
 });

@@ -34,7 +34,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, Alert, Modal, PanResponder,
+  Platform, Alert, Modal, PanResponder, Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle as SvgCircle, G as SvgG } from 'react-native-svg';
@@ -50,7 +50,9 @@ import {
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
-import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
+import { parsePastedRows } from '@/utils/pasteRows';
+import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
+import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -220,8 +222,14 @@ export interface GridPaneProps {
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   /** Creates a new empty task at the bottom. */
   onAddTask: () => void;
+  /** Bulk-create tasks in one undo step (ghost row / paste / insert). Returns new ids. */
+  onAddTasks?: (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number) => string[];
   /** Deletes a task (also removes any dep references to it — parent's job). */
   onDeleteTask: (taskId: string) => void;
+  /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
+  onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
+  /** Reorder — move a task up (-1) or down (+1) in array position. */
+  onReorder?: (id: string, delta: number) => void;
   /** Optional: highlight a specific task (e.g. the one dragged on the Gantt). */
   focusedTaskId?: string | null;
   // ---- Multi-select + bulk edit (optional — grid still works without these) ----
@@ -251,7 +259,7 @@ export interface GridPaneProps {
 
 export default function GridPane({
   tasks, projectStartDate, workingDaysPerWeek,
-  onEdit, onAddTask, onDeleteTask, focusedTaskId,
+  onEdit, onAddTask, onAddTasks, onDeleteTask, onOutline, onReorder, focusedTaskId,
   selectedIds, onSelectionChange,
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
   onBulkSetPhase, onBulkSetCrew, onBulkAskAI,
@@ -345,11 +353,95 @@ export default function GridPane({
   const [editing, setEditing] = useState<{ row: number; col: ColumnKey } | null>(null);
   const [draft, setDraft] = useState<string>('');
   const [cellError, setCellError] = useState<string | null>(null);
+
+  const [ghostDraft, setGhostDraft] = useState('');
+  const ghostRef = useRef<TextInput>(null);
+  // True while the ghost input is focused — gates the window paste handler.
+  const ghostFocusedRef = useRef(false);
+
+  // After an insert, focus the new row's name cell once it appears in `tasks`.
+  const pendingEditId = useRef<string | null>(null);
+
+  // Commit the ghost row → append one task, clear the draft, keep focus so the
+  // user can keep typing tasks. Empty/whitespace title is a no-op.
+  const commitGhost = useCallback(() => {
+    const title = ghostDraft.trim();
+    if (!title) return;
+    onAddTasks?.([{ title }]);
+    setGhostDraft('');
+    if (Platform.OS === 'web') setTimeout(() => ghostRef.current?.focus(), 0);
+  }, [ghostDraft, onAddTasks]);
+
+  // Move focus from a real row's name cell into the ghost row (end of list).
+  const focusGhost = useCallback(() => {
+    setEditing(null);
+    setTimeout(() => ghostRef.current?.focus(), 0);
+  }, []);
+
+  // Web-only: pasting multiline text while focused in the ghost row or an
+  // editing name cell creates one task per line in a single undo step. This is
+  // a window-level 'paste' listener, NOT onPaste on the TextInput —
+  // react-native-web's TextInput prop whitelist silently drops onPaste, which
+  // is exactly why the CSV-onto-selected-rows handler below also uses window
+  // 'paste'. The two are complementary: that one bails when focused in an input;
+  // this one only fires when focused in the ghost/name input. Single-line paste
+  // falls through to the browser so ordinary cell paste still works.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = (e: ClipboardEvent) => {
+      if (!ghostFocusedRef.current && editing?.col !== 'name') return;
+      const text = e.clipboardData?.getData('text/plain') ?? '';
+      if (!text || text.indexOf('\n') < 0) return; // single-line → browser default
+      const rows = parsePastedRows(text);
+      if (rows.length === 0) return;
+      e.preventDefault();
+      onAddTasks?.(rows);
+      setGhostDraft('');
+    };
+    window.addEventListener('paste', handler);
+    return () => window.removeEventListener('paste', handler);
+  }, [editing, onAddTasks]);
+
+  // Insert a blank task at the anchor's array position (offset 0 = above,
+  // 1 = below), then focus its name cell. Index comes from the anchor id, not
+  // the filtered render index, so collapsed summaries can't misplace it.
+  const insertRelativeTo = useCallback((anchor: ScheduleTask, offset: 0 | 1) => {
+    const idx = tasks.findIndex(t => t.id === anchor.id);
+    if (idx < 0) return;
+    const [newId] = onAddTasks?.([{ title: '' }], idx + offset) ?? [];
+    if (newId) pendingEditId.current = newId;
+  }, [tasks, onAddTasks]);
   // Anchor-picker popover. Shows the MAGE "Anchor" modal for a single task.
   // Opens from the Anchor icon on the Start cell. We keep this as in-grid state
   // (rather than lifting to schedule-pro) because the trigger is per-row and
   // the modal is small; lifting would mean threading another callback.
   const [anchorFor, setAnchorFor] = useState<ScheduleTask | null>(null);
+
+  // Row context menu (indent/outdent, move up/down, milestone, complete,
+  // delete). iOS fires the native ActionSheet imperatively; web/Android open
+  // the <ScheduleRowMenu> modal. Triggered by row long-press / right-click —
+  // a gesture distinct from cell-edit taps and selection clicks.
+  const presentRowMenu = useScheduleRowMenu();
+  const [rowMenu, setRowMenu] = useState<{ title: string; actions: RowMenuAction[] } | null>(null);
+
+  const rowActions = useCallback((task: ScheduleTask): RowMenuAction[] => [
+    { key: 'indent',  label: 'Indent',  onPress: () => onOutline?.(task.id, 'indent') },
+    { key: 'outdent', label: 'Outdent', onPress: () => onOutline?.(task.id, 'outdent') },
+    { key: 'up',      label: 'Move up',   onPress: () => onReorder?.(task.id, -1) },
+    { key: 'down',    label: 'Move down', onPress: () => onReorder?.(task.id, 1) },
+    { key: 'ms',      label: task.isMilestone ? 'Unmark milestone' : 'Convert to milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
+    { key: 'done',    label: 'Mark complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
+    { key: 'insert-above', label: 'Insert task above', onPress: () => insertRelativeTo(task, 0) },
+    { key: 'insert-below', label: 'Insert task below', onPress: () => insertRelativeTo(task, 1) },
+    { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask(task.id) },
+  ], [onOutline, onReorder, onEdit, onDeleteTask, insertRelativeTo]);
+
+  const openRowMenu = useCallback((task: ScheduleTask) => {
+    const actions = rowActions(task);
+    const title = task.title || 'Task';
+    // iOS handles it imperatively (returns true); web/Android open the modal.
+    if (!presentRowMenu(title, actions)) setRowMenu({ title, actions });
+  }, [rowActions, presentRowMenu]);
 
   // ---------------------------------------------------------------------------
   // Multi-select state helpers
@@ -528,6 +620,17 @@ export default function GridPane({
     setCellError(null);
     setEditing({ row, col });
   }, [tasks, renderIso, cpm, idToWbsMap, idToRowLabel]);
+
+  // After an insert, focus the new row's name cell once it appears in `tasks`.
+  useEffect(() => {
+    const id = pendingEditId.current;
+    if (!id) return;
+    const idx = tasks.findIndex(t => t.id === id);
+    if (idx >= 0) {
+      pendingEditId.current = null;
+      setTimeout(() => beginEdit(idx, 'name'), 0);
+    }
+  }, [tasks, beginEdit]);
 
   const cancelEdit = useCallback(() => {
     setEditing(null);
@@ -770,7 +873,28 @@ export default function GridPane({
               const key = e?.nativeEvent?.key;
               if (key === 'Tab') { e.preventDefault?.(); moveEdit(e.shiftKey ? 'prev' : 'next'); }
               else if (key === 'Escape') { e.preventDefault?.(); cancelEdit(); }
-              else if (key === 'Enter' && !e.shiftKey) { /* handled by onSubmitEditing */ }
+              else if (key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault?.();
+                if (!commitEdit()) return;
+                const anchor = tasks[rowIndex];
+                if (anchor) insertRelativeTo(anchor, 1);
+              }
+              else if (key === 'Enter' && !e.shiftKey) {
+                e.preventDefault?.();
+                if (col.key === 'name') {
+                  if (!commitEdit()) return; // stay put if invalid
+                  const nextRow = rowIndex + 1;
+                  setTimeout(() => {
+                    if (nextRow < tasks.length) beginEdit(nextRow, 'name');
+                    else focusGhost();
+                  }, 0);
+                } else {
+                  // Excel-style: commit + down one row, same column. moveEdit does
+                  // its OWN commitEdit — do NOT pre-commit here or moveEdit sees
+                  // editing===null, its internal commit returns false, and it bails.
+                  moveEdit('down');
+                }
+              }
               else if (key === 'ArrowDown') { e.preventDefault?.(); moveEdit('down'); }
               else if (key === 'ArrowUp')   { e.preventDefault?.(); moveEdit('up'); }
             }}
@@ -1368,14 +1492,24 @@ export default function GridPane({
                 : Colors.card;
 
               return (
-                <View
+                <Pressable
                   key={task.id}
+                  // Long-press (native) / right-click (web) opens the row
+                  // context menu. onLongPress lives on the row wrapper — it
+                  // does NOT steal cell-edit taps (short press) or selection
+                  // clicks on the # cell, which fire on their own children.
+                  onLongPress={() => openRowMenu(task)}
+                  delayLongPress={350}
+                  {...(Platform.OS === 'web'
+                    ? { onContextMenu: (e: any) => { e.preventDefault?.(); openRowMenu(task); } }
+                    : {})}
                   style={[
                     styles.row,
                     rowIndex % 2 === 1 && styles.rowAlt,
                     isFocused && styles.rowFocused,
                     isSelected && styles.rowSelected,
                     inCycleConflict && styles.rowConflict,
+                    task.isSummary && styles.rowSummary,
                     { borderLeftColor: getPhaseColor(task.phase) },
                   ]}
                   testID={`grid-row-${rowIndex}`}
@@ -1390,20 +1524,30 @@ export default function GridPane({
                       </View>
                     </>
                   )}
-                </View>
+                </Pressable>
               );
             })}
 
-            {/* Footer: add-task button */}
-            <TouchableOpacity
-              style={styles.addRow}
-              onPress={onAddTask}
-              activeOpacity={0.6}
-              testID="grid-add-task"
-            >
-              <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
-              <Text style={styles.addRowText}>Add task</Text>
-            </TouchableOpacity>
+            {/* Ghost row: always-ready inline task entry. Not a member of
+                `tasks`, so it's excluded from selection, bulk ops, hidden-ids,
+                the context menu, and CPM. Enter/blur with a non-empty title
+                appends a task and keeps focus for rapid list entry. */}
+            <View style={styles.ghostRow} testID="grid-ghost-row">
+              <TextInput
+                ref={ghostRef}
+                value={ghostDraft}
+                onChangeText={setGhostDraft}
+                placeholder="＋  Type a task name…"
+                placeholderTextColor={themeColors.textSecondary}
+                style={styles.ghostInput}
+                onFocus={() => { ghostFocusedRef.current = true; }}
+                onSubmitEditing={commitGhost}
+                onBlur={() => { ghostFocusedRef.current = false; commitGhost(); }}
+                returnKeyType="done"
+                blurOnSubmit={false}
+                testID="grid-ghost-input"
+              />
+            </View>
           </ScrollView>
         </View>
       </ScrollView>
@@ -1416,6 +1560,12 @@ export default function GridPane({
           onEdit(anchorFor.id, patch);
           setAnchorFor(null);
         }}
+      />
+      <ScheduleRowMenu
+        visible={rowMenu !== null}
+        title={rowMenu?.title ?? ''}
+        actions={rowMenu?.actions ?? []}
+        onClose={() => setRowMenu(null)}
       />
     </View>
   );
@@ -1715,6 +1865,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: t.line,
   },
+  ghostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 40,
+    paddingHorizontal: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: t.line,
+    backgroundColor: t.surface,
+  },
+  ghostInput: {
+    flex: 1,
+    ...Type.body,
+    color: t.text,
+    padding: 0,
+  },
   headerRow: {
     flexDirection: 'row',
     backgroundColor: Colors.surfaceAlt,
@@ -1760,6 +1925,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   rowConflict: {
     backgroundColor: t.danger + '10',
+  },
+  rowSummary: {
+    backgroundColor: Colors.surfaceAlt,
   },
   cell: {
     paddingHorizontal: 10,

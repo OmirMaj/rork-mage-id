@@ -16,17 +16,27 @@
 // InteractiveGantt is rendered, with `mode="phone"` so it knows to swap
 // to its sticky-task-column / horizontal-scroll layout.
 
+import { useState, type ReactNode } from 'react';
 import { View, StyleSheet, Pressable, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GridPaneDefault from '../GridPane';
 import InteractiveGanttDefault from '../InteractiveGantt';
 import { useScheduler } from '../SchedulerContext';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import { useResponsive } from '@/utils/useResponsive';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 
-export type GanttPaneMode = 'grid' | 'split' | 'gantt';
+export type GanttPaneMode = 'split' | 'gantt' | 'lanes' | 'living';
+
+const LAYOUT_LABEL: Record<GanttPaneMode, string> = {
+  split: 'Split',
+  gantt: 'Gantt',
+  lanes: 'Lanes',
+  living: 'Living Plan',
+};
 
 export interface GanttTabProps {
   /** Propagated from schedule-pro — feeds GridPane + InteractiveGantt. */
@@ -36,19 +46,31 @@ export interface GanttTabProps {
   /** CPM result from utils/cpm (not SchedulerContext.CpmResult). */
   cpm: CpmResult;
   /**
-   * Which sub-view to show in the Gantt tab.
-   *   - 'grid'  → full-width GridPane only (table view)
-   *   - 'split' → GridPane + InteractiveGantt side-by-side (default)
-   *   - 'gantt' → full-width InteractiveGantt only (timeline view)
-   * Driven by the top-toolbar paneMode buttons in schedule-pro.
+   * Which layout the Timeline tab opens on. The tab owns a local segmented
+   * control that switches between all four modes (the spreadsheet lives in the
+   * dedicated List view now, so there is no full-width 'grid' layout here):
+   *   - 'split'  → GridPane + InteractiveGantt side-by-side (default)
+   *   - 'gantt'  → full-width InteractiveGantt only (timeline view)
+   *   - 'lanes'  → ResourceSwimlanes (rendered via renderLanes)
+   *   - 'living' → LivingFloorPlan (rendered via renderLiving)
    */
-  paneMode?: GanttPaneMode;
+  initialLayout?: GanttPaneMode;
+  /** Rendered when the user picks the Lanes layout. */
+  renderLanes?: () => ReactNode;
+  /** Rendered when the user picks the Living Plan layout. */
+  renderLiving?: () => ReactNode;
   /** Callback wired to schedule-pro's undo-aware commit. */
   onEdit: (taskId: string, patch: Partial<ScheduleTask>) => void;
   onAddTask: () => void;
+  /** Bulk-create tasks in one undo step (ghost row / paste / insert). */
+  onAddTasks?: (partials: { title: string; durationDays?: number; phase?: string }[], atIndex?: number) => string[];
   /** Passed through to InteractiveGantt for double-tap-empty-timeline flow. */
   onAddTaskAtDay?: (dayNumber: number) => void;
   onDeleteTask: (taskId: string) => void;
+  /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
+  onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
+  /** Reorder — move a task up (-1) or down (+1) in array position. */
+  onReorder?: (id: string, delta: number) => void;
   onDependencyCreate?: (fromId: string, toId: string) => void;
   focusedTaskId?: string | null;
   onFocusTask?: (id: string | null) => void;
@@ -67,11 +89,16 @@ export function GanttTab({
   workingDaysPerWeek,
   nonWorkingDates,
   cpm,
-  paneMode = 'split',
+  initialLayout,
+  renderLanes,
+  renderLiving,
   onEdit,
   onAddTask,
+  onAddTasks,
   onAddTaskAtDay,
   onDeleteTask,
+  onOutline,
+  onReorder,
   onDependencyCreate,
   focusedTaskId,
   onFocusTask,
@@ -87,6 +114,7 @@ export function GanttTab({
   const { tasks } = useScheduler();
   const { bp } = useResponsive();
   const insets = useSafeAreaInsets();
+  const [layout, setLayout] = useState<GanttPaneMode>(initialLayout ?? 'split');
 
   if (bp === 'phone') {
     return (
@@ -96,6 +124,9 @@ export function GanttTab({
           cpm={cpm}
           projectStartDate={projectStartDate}
           onEdit={onEdit}
+          onDeleteTask={onDeleteTask}
+          onOutline={onOutline}
+          onReorder={onReorder}
           onDependencyCreate={onDependencyCreate}
           focusedTaskId={focusedTaskId}
           onFocusTask={onFocusTask}
@@ -116,93 +147,131 @@ export function GanttTab({
     );
   }
 
-  if (paneMode === 'grid') {
+  // Non-phone: a local segmented control switches between all five layouts.
+  // Lanes / Living Plan are supplied by the screen as render-props so their
+  // data-fetching stays in schedule-pro; the other three render inline.
+  const body = (() => {
+    if (layout === 'lanes') return renderLanes?.() ?? null;
+    if (layout === 'living') return renderLiving?.() ?? null;
+
+    if (layout === 'gantt') {
+      return (
+        <View style={styles.full}>
+          <InteractiveGanttDefault
+            tasks={tasks as ScheduleTask[]}
+            cpm={cpm}
+            projectStartDate={projectStartDate}
+            onEdit={onEdit}
+            onDeleteTask={onDeleteTask}
+            onOutline={onOutline}
+            onReorder={onReorder}
+            onDependencyCreate={onDependencyCreate}
+            focusedTaskId={focusedTaskId}
+            onFocusTask={onFocusTask}
+            onAddTaskAtDay={onAddTaskAtDay}
+          />
+        </View>
+      );
+    }
+
+    // 'split' — the default. Grid on the left, Gantt on the right.
     return (
-      <View style={styles.full}>
-        <GridPaneDefault
-          tasks={tasks as ScheduleTask[]}
-          projectStartDate={projectStartDate}
-          workingDaysPerWeek={workingDaysPerWeek}
-          nonWorkingDates={nonWorkingDates}
-          focusedTaskId={focusedTaskId}
-          onEdit={onEdit}
-          onAddTask={onAddTask}
-          onDeleteTask={onDeleteTask}
-          selectedIds={selectedIds}
-          onSelectionChange={onSelectionChange}
-          onBulkDelete={onBulkDelete}
-          onBulkDuplicate={onBulkDuplicate}
-          onBulkShiftDays={onBulkShiftDays}
-          onBulkSetPhase={onBulkSetPhase}
-          onBulkSetCrew={onBulkSetCrew}
-          onBulkAskAI={onBulkAskAI}
-          showExtendedColumns
-        />
+      <View style={styles.row}>
+        <View style={styles.grid}>
+          <GridPaneDefault
+            tasks={tasks as ScheduleTask[]}
+            projectStartDate={projectStartDate}
+            workingDaysPerWeek={workingDaysPerWeek}
+            nonWorkingDates={nonWorkingDates}
+            focusedTaskId={focusedTaskId}
+            onEdit={onEdit}
+            onAddTask={onAddTask}
+            onAddTasks={onAddTasks}
+            onDeleteTask={onDeleteTask}
+            onOutline={onOutline}
+            onReorder={onReorder}
+            selectedIds={selectedIds}
+            onSelectionChange={onSelectionChange}
+            onBulkDelete={onBulkDelete}
+            onBulkDuplicate={onBulkDuplicate}
+            onBulkShiftDays={onBulkShiftDays}
+            onBulkSetPhase={onBulkSetPhase}
+            onBulkSetCrew={onBulkSetCrew}
+            onBulkAskAI={onBulkAskAI}
+            compact
+          />
+        </View>
+        <View style={styles.gantt}>
+          <InteractiveGanttDefault
+            tasks={tasks as ScheduleTask[]}
+            cpm={cpm}
+            projectStartDate={projectStartDate}
+            onEdit={onEdit}
+            onDeleteTask={onDeleteTask}
+            onOutline={onOutline}
+            onReorder={onReorder}
+            onDependencyCreate={onDependencyCreate}
+            focusedTaskId={focusedTaskId}
+            onFocusTask={onFocusTask}
+            onAddTaskAtDay={onAddTaskAtDay}
+            compact
+          />
+        </View>
       </View>
     );
-  }
+  })();
 
-  if (paneMode === 'gantt') {
-    return (
-      <View style={styles.full}>
-        <InteractiveGanttDefault
-          tasks={tasks as ScheduleTask[]}
-          cpm={cpm}
-          projectStartDate={projectStartDate}
-          onEdit={onEdit}
-          onDependencyCreate={onDependencyCreate}
-          focusedTaskId={focusedTaskId}
-          onFocusTask={onFocusTask}
-          onAddTaskAtDay={onAddTaskAtDay}
-        />
-      </View>
-    );
-  }
-
-  // 'split' — the default. Grid on the left, Gantt on the right.
   return (
-    <View style={styles.row}>
-      <View style={styles.grid}>
-        <GridPaneDefault
-          tasks={tasks as ScheduleTask[]}
-          projectStartDate={projectStartDate}
-          workingDaysPerWeek={workingDaysPerWeek}
-          nonWorkingDates={nonWorkingDates}
-          focusedTaskId={focusedTaskId}
-          onEdit={onEdit}
-          onAddTask={onAddTask}
-          onDeleteTask={onDeleteTask}
-          selectedIds={selectedIds}
-          onSelectionChange={onSelectionChange}
-          onBulkDelete={onBulkDelete}
-          onBulkDuplicate={onBulkDuplicate}
-          onBulkShiftDays={onBulkShiftDays}
-          onBulkSetPhase={onBulkSetPhase}
-          onBulkSetCrew={onBulkSetCrew}
-          onBulkAskAI={onBulkAskAI}
-          compact
-        />
+    <View style={styles.nonPhoneRoot}>
+      <View style={styles.layoutBar}>
+        {(['split', 'gantt', 'lanes', 'living'] as GanttPaneMode[]).map(m => (
+          <Pressable
+            key={m}
+            onPress={() => setLayout(m)}
+            style={[styles.layoutBtn, layout === m && styles.layoutBtnActive]}
+            hitSlop={4}
+          >
+            <Text style={[styles.layoutBtnText, layout === m && styles.layoutBtnTextActive]}>
+              {LAYOUT_LABEL[m]}
+            </Text>
+          </Pressable>
+        ))}
       </View>
-      <View style={styles.gantt}>
-        <InteractiveGanttDefault
-          tasks={tasks as ScheduleTask[]}
-          cpm={cpm}
-          projectStartDate={projectStartDate}
-          onEdit={onEdit}
-          onDependencyCreate={onDependencyCreate}
-          focusedTaskId={focusedTaskId}
-          onFocusTask={onFocusTask}
-          onAddTaskAtDay={onAddTaskAtDay}
-          compact
-        />
-      </View>
+      {body}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  nonPhoneRoot: { flex: 1 },
+  // Local layout segmented control — mirrors the retired top-toolbar pane
+  // toggle (schedule-pro PaneBtn) so the Timeline tab now owns all five modes.
+  layoutBar: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Tokens.radius.sm,
+    padding: 2,
+    margin: 12,
+  },
+  layoutBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Tokens.radius.xs,
+  },
+  layoutBtnActive: {
+    backgroundColor: Colors.surface,
+  },
+  layoutBtnText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  layoutBtnTextActive: {
+    color: Colors.accent,
+  },
   row: { flex: 1, flexDirection: 'row' },
-  // Used for paneMode 'grid' and 'gantt' (single full-width child).
+  // Used for the 'gantt' layout (single full-width child).
   full: { flex: 1 },
   grid: {
     width: '38%',

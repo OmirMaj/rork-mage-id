@@ -12,11 +12,14 @@
 
 import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import Svg, { Polyline, Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
+import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
+import { scheduleVerdict } from '@/utils/scheduleVerdict';
 import { useResponsive } from '@/utils/useResponsive';
 
 export function DashboardTab() {
@@ -47,8 +50,34 @@ export function DashboardTab() {
                     : healthScore >= 60 ? Colors.pillAtRisk
                     : Colors.pillLate;
 
+  const finishLabel = schedule.startDate
+    ? new Date(new Date(schedule.startDate).getTime() + (schedule.totalDurationDays ?? 0) * 86400000)
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—';
+  // The finish-date driver = the last critical-path task (the one that ends the project).
+  const driverTitle = critical.length > 0 ? critical[critical.length - 1].title : undefined;
+  const verdict = scheduleVerdict({
+    slipDaysVsBaseline: cpm.slipDaysVsBaseline ?? null,
+    finishDateLabel: finishLabel,
+    criticalDriverTitle: driverTitle,
+    overdueCount: stats.overdue,
+  });
+  const verdictColor = verdict.tone === 'behind' ? Colors.pillLate
+                     : verdict.tone === 'slightlyBehind' ? Colors.pillAtRisk
+                     : verdict.tone === 'ahead' || verdict.tone === 'onPace' ? Colors.pillOnTrack
+                     : Colors.textSecondary;
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+      {/* Plain-language verdict banner */}
+      <View style={styles.verdictBanner}>
+        <View style={[styles.verdictDot, { backgroundColor: verdictColor }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.verdictHeadline}>{verdict.headline}</Text>
+          {verdict.detail ? <Text style={styles.verdictDetail}>{verdict.detail}</Text> : null}
+        </View>
+      </View>
+
       {/* Stat tiles — desktop: single 4-col row; phone: 2x2 wrap */}
       <View style={[styles.statRow, isPhone && styles.statRowPhone]}>
         <StatCard
@@ -65,9 +94,9 @@ export function DashboardTab() {
           phone={isPhone}
         />
         <StatCard
-          label="COST PERF. (CPI)"
-          value="—"
-          delta="Linked-budget feature coming soon"
+          label="BUDGET"
+          value="Not linked"
+          delta="Link an estimate to track cost"
           phone={isPhone}
         />
         <StatCard
@@ -91,14 +120,9 @@ export function DashboardTab() {
               <Legend color={Colors.pillLate} label="AC" />
             </View>
           </View>
-          {/* Placeholder chart — real EV data wiring is a follow-up */}
-          <View style={{ height: 140 }}>
-            <Svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ flex: 1 }}>
-              <Polyline points="0,90 12,75 28,62 44,52 62,38 78,28 100,18" fill="none" stroke={Colors.textSecondary} strokeWidth={1} strokeDasharray="2,2" />
-              <Polyline points="0,90 12,72 28,58 44,46 62,32 78,20 100,12" fill="none" stroke={Colors.tradeColors.general} strokeWidth={2} />
-              <Polyline points="0,90 12,78 28,68 44,57 62,45 78,38 100,30" fill="none" stroke={Colors.pillLate} strokeWidth={1.5} />
-            </Svg>
-            <Text style={styles.chartHint}>Sample shape · link a budget to populate</Text>
+          {/* Real EV renders at the screen level (EarnedValuePanel) when a budget is linked. */}
+          <View style={{ height: 140, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={styles.chartHint}>Link a budget to see earned value</Text>
           </View>
         </View>
 
@@ -141,7 +165,7 @@ export function DashboardTab() {
               <Text style={styles.cpName} numberOfLines={1}>{t.title}</Text>
               <Text style={styles.cpTrade}>{tradeLabel(tradeKeyForTask(t)).toUpperCase()}</Text>
             </View>
-            <Text style={styles.cpFloat}>0d float</Text>
+            <Text style={styles.cpFloat}>no buffer</Text>
             <Text style={styles.cpDue}>{t.deadline ? new Date(t.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</Text>
           </View>
         ))}
@@ -218,6 +242,10 @@ function StatusDonut({ done, inProgress, notStarted, overdue, total }: { done: n
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { padding: 18, gap: 14 },
+  verdictBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
+  verdictDot: { width: 10, height: 10, borderRadius: Tokens.radius.full, marginTop: 4 },
+  verdictHeadline: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text },
+  verdictDetail: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 3 },
   statRow: { flexDirection: 'row', gap: 10 },
   statCard: {
     flex: 1, backgroundColor: Colors.surface, borderRadius: 10, padding: 14,

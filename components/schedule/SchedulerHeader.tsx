@@ -15,25 +15,25 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { StatusPill } from './StatusPill';
 import { useScheduler, type ViewScale } from './SchedulerContext';
 import { computePillStatus } from '@/utils/scheduleHealth';
+import { scheduleVerdict } from '@/utils/scheduleVerdict';
 import { useResponsive } from '@/utils/useResponsive';
 
 export interface SchedulerHeaderProps {
   projectName: string;
   onExportPress: () => void;
   onBaselinePress: () => void;
-  /** Inline "+ Add Task" button rendered between VIEW and Export. */
-  onAddTaskPress?: () => void;
 }
 
 export function SchedulerHeader({
   projectName,
   onExportPress,
   onBaselinePress,
-  onAddTaskPress,
 }: SchedulerHeaderProps) {
   useTheme();
   const { bp } = useResponsive();
@@ -66,6 +66,18 @@ export function SchedulerHeader({
     overdueCount,
     healthScore: schedule.healthScore ?? 100,
   });
+
+  // Compact verdict for the KPI-strip chip (desktop). The full headline +
+  // detail banner lives only in the Overview tab, so the two never repeat.
+  const v = scheduleVerdict({
+    slipDaysVsBaseline: cpm.slipDaysVsBaseline ?? null,
+    finishDateLabel: finishDate,
+    overdueCount,
+  });
+  const vColor = v.tone === 'behind' ? Colors.pillLate
+               : v.tone === 'slightlyBehind' ? Colors.pillAtRisk
+               : v.tone === 'ahead' || v.tone === 'onPace' ? Colors.pillOnTrack
+               : Colors.textSecondary;
 
   if (bp === 'phone') {
     const slipLabel = cpm.slipDaysVsBaseline == null
@@ -101,7 +113,7 @@ export function SchedulerHeader({
             value={String(overdueCount)}
             color={overdueCount > 0 ? Colors.pillLate : undefined}
           />
-          <KpiChip label="Crit Path" value={`${cpm.criticalPathDays}d`} />
+          <KpiChip label="Finish driver" value={`${cpm.criticalPathDays}d`} />
         </ScrollView>
       </View>
     );
@@ -109,15 +121,11 @@ export function SchedulerHeader({
 
   return (
     <View style={styles.root}>
-      <View style={styles.titleRow}>
-        <Text style={styles.title} numberOfLines={1}>{projectName}</Text>
-        <StatusPill status={pillStatus} />
-      </View>
-      <Text style={styles.subtitle}>
-        {startDate} — {finishDate} · {totalDuration} days · {total} tasks
-      </Text>
-
       <View style={styles.kpiStrip}>
+        <View style={styles.verdictChip}>
+          <View style={[styles.verdictChipDot, { backgroundColor: vColor }]} />
+          <Text style={styles.verdictChipText} numberOfLines={1}>{v.headline}</Text>
+        </View>
         <Kpi label="START"     value={startDate} />
         <Kpi label="FINISH"    value={finishDate} />
         <Kpi label="DURATION"  value={`${totalDuration} days`} />
@@ -141,14 +149,6 @@ export function SchedulerHeader({
           <Text style={styles.kpiLabel}>VIEW</Text>
           <ViewScalePicker value={viewScale} onChange={setViewScale} />
         </View>
-        {onAddTaskPress ? (
-          <Pressable onPress={onAddTaskPress} style={styles.addTaskBtn} hitSlop={8}>
-            <Text style={styles.addTaskBtnText}>＋ Add Task</Text>
-          </Pressable>
-        ) : null}
-        <Pressable onPress={onExportPress} style={styles.exportBtn} hitSlop={8}>
-          <Text style={styles.exportBtnText}>⤓ Export</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -223,6 +223,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: Colors.text, letterSpacing: -0.3, flex: 1 },
   subtitle: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },
   kpiStrip: { flexDirection: 'row', alignItems: 'flex-end', gap: 24, marginTop: 14, flexWrap: 'wrap' },
+  verdictChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
+  verdictChipDot: { width: 8, height: 8, borderRadius: Tokens.radius.full },
+  verdictChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, maxWidth: 240 },
   kpi: { gap: 2 },
   kpiLabel: { fontSize: 9, color: Colors.textSecondary, letterSpacing: 0.8, fontWeight: '700' },
   kpiValue: { fontSize: 14, color: Colors.text, fontWeight: '600' },
@@ -231,28 +234,6 @@ const styles = StyleSheet.create({
   pickerGroup: { gap: 4 },
   picker: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: Colors.surfaceAlt, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border },
   pickerText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
-  exportBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.tradeColors.general, borderRadius: 8, alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center' },
-  exportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
-
-  // Add Task — same shape/size as Export so the two read as a pair.
-  // Slightly different fill (surfaceAlt + accent border) so the visual
-  // weight matches Export without competing with it.
-  addTaskBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.tradeColors.general,
-    alignSelf: 'flex-end',
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  addTaskBtnText: {
-    fontSize: 11,
-    color: Colors.tradeColors.general,
-    fontWeight: '700',
-  },
 
   // ---- Phone layout ----
   phoneRoot: {

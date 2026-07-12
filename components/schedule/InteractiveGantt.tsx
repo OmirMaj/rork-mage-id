@@ -45,7 +45,7 @@ import {
   AccessibilityInfo,
   type GestureResponderEvent,
 } from 'react-native';
-import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle } from 'react-native-svg';
+import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect, Circle as SvgCircle, Text as SvgText } from 'react-native-svg';
 import { Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -56,7 +56,8 @@ import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
 import { colorForTask as canonicalColorForTask, barLabelColorFor } from '@/utils/scheduleColors';
 import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
-import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
+import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
+import { orthogonalArrowPath, CLEARANCE } from '@/utils/ganttArrowPath';
 
 // Bar fill is trade-driven via the canonical colorForTask() from scheduleColors.
 // This delegates so existing internal call sites keep working unchanged.
@@ -115,6 +116,12 @@ export interface InteractiveGanttProps {
    * TaskInspector in schedule-pro) — this callback is for empty-space only.
    */
   onAddTaskAtDay?: (dayNumber: number) => void;
+  /** Delete a task — surfaced from the bar context menu. */
+  onDeleteTask?: (taskId: string) => void;
+  /** Outline authoring — indent/outdent a task (parentId + outlineLevel). */
+  onOutline?: (id: string, dir: 'indent' | 'outdent') => void;
+  /** Reorder — move a task up (-1) or down (+1) in array position. */
+  onReorder?: (id: string, delta: number) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,8 +180,28 @@ function daysBetween(a: Date, b: Date): number {
 export default function InteractiveGantt(props: InteractiveGanttProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask, onAddTaskAtDay } = props;
+  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask, onAddTaskAtDay, onDeleteTask, onOutline, onReorder } = props;
   const isPhone = mode === 'phone';
+
+  // Bar context menu (indent/outdent, move up/down, milestone, complete,
+  // delete). Long-press (native) / right-click (web) on a bar opens it —
+  // distinct from the drag PanResponder. iOS fires the native ActionSheet
+  // imperatively; web/Android open the <ScheduleRowMenu> modal.
+  const presentBarMenu = useScheduleRowMenu();
+  const [barMenu, setBarMenu] = useState<{ title: string; actions: RowMenuAction[] } | null>(null);
+  const openBarMenu = useCallback((task: ScheduleTask) => {
+    const actions: RowMenuAction[] = [
+      { key: 'indent',  label: 'Indent',  onPress: () => onOutline?.(task.id, 'indent') },
+      { key: 'outdent', label: 'Outdent', onPress: () => onOutline?.(task.id, 'outdent') },
+      { key: 'up',      label: 'Move up',   onPress: () => onReorder?.(task.id, -1) },
+      { key: 'down',    label: 'Move down', onPress: () => onReorder?.(task.id, 1) },
+      { key: 'ms',      label: task.isMilestone ? 'Unmark milestone' : 'Convert to milestone', onPress: () => onEdit(task.id, { isMilestone: !task.isMilestone }) },
+      { key: 'done',    label: 'Mark complete', onPress: () => onEdit(task.id, { status: 'done', progress: 100 }) },
+      { key: 'del',     label: 'Delete', destructive: true, onPress: () => onDeleteTask?.(task.id) },
+    ];
+    const title = task.title || 'Task';
+    if (!presentBarMenu(title, actions)) setBarMenu({ title, actions });
+  }, [onOutline, onReorder, onEdit, onDeleteTask, presentBarMenu]);
   // Filter rows belonging to collapsed summaries. CPM still honored them (we
   // received the pre-rolled set); we only hide them visually so the gantt
   // stays uncluttered while the user is focused on top-level phases.
@@ -660,23 +687,32 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
       d: string;
       critical: boolean;
       connected: boolean;  // touches the active task (pred or succ)
+      label: string;       // non-default link type/lag badge (e.g. SS, FS+3); '' for plain FS+0
+      labelX: number;
+      labelY: number;
     }[] = [];
+    const FAN_STEP = 4; // px between stacked arrowheads landing on one bar
     for (const succ of bars) {
       const links = succ.task.dependencyLinks && succ.task.dependencyLinks.length > 0
         ? succ.task.dependencyLinks
         : succ.task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
-      for (const link of links) {
+      const n = links.length;
+      links.forEach((link, i) => {
         const pred = barById.get(link.taskId);
-        if (!pred) continue;
+        if (!pred) return;
         const criticalBoth = pred.isCritical && succ.isCritical;
         const connected = activeId != null && (pred.task.id === activeId || succ.task.id === activeId);
-        // Orthogonal path: pred right-edge → succ left-edge, both at bar midpoint Y.
+        // Fan the landing Y around the bar midpoint: -(n-1)/2 .. +(n-1)/2 steps.
+        const fanY = (i - (n - 1) / 2) * FAN_STEP;
         const d = orthogonalArrowPath(
           { x: pred.x + pred.w, y: pred.y + BAR_HEIGHT / 2 },
-          { x: succ.x,          y: succ.y + BAR_HEIGHT / 2 },
+          { x: succ.x,          y: succ.y + BAR_HEIGHT / 2 + fanY },
         );
-        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, connected });
-      }
+        const label = link.type !== 'FS' || (link.lagDays ?? 0) !== 0
+          ? `${link.type}${link.lagDays ? (link.lagDays > 0 ? `+${link.lagDays}` : `${link.lagDays}`) : ''}`
+          : '';
+        out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, connected, label, labelX: succ.x - CLEARANCE - 2, labelY: succ.y + BAR_HEIGHT / 2 + fanY });
+      });
     }
     return out;
   }, [bars, barById, focusedTaskId, hoverTaskId]);
@@ -1153,19 +1189,23 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   const emphasized = hasActiveTask && dep.connected;
                   const animate = emphasized && !reduceMotion;
                   return (
-                    <AnimatedPath
-                      key={dep.id}
-                      d={dep.d}
-                      stroke={stroke}
-                      strokeWidth={emphasized ? 1.75 : 1.25}
-                      strokeOpacity={dimmed ? 0.2 : 0.85}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeDasharray={animate ? '4 3' : undefined}
-                      strokeDashoffset={animate ? (dashOffset as unknown as number) : 0}
-                      fill="none"
-                      markerEnd={`url(#${dep.critical ? 'gantt-head-crit' : 'gantt-head'})`}
-                    />
+                    <React.Fragment key={dep.id}>
+                      <AnimatedPath
+                        d={dep.d}
+                        stroke={stroke}
+                        strokeWidth={emphasized ? 2 : 1.5}
+                        strokeOpacity={dimmed ? 0.2 : 0.9}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray={animate ? '4 3' : undefined}
+                        strokeDashoffset={animate ? (dashOffset as unknown as number) : 0}
+                        fill="none"
+                        markerEnd={`url(#${dep.critical ? 'gantt-head-crit' : 'gantt-head'})`}
+                      />
+                      {dep.label && !dimmed ? (
+                        <SvgText x={dep.labelX} y={dep.labelY - 3} fill={stroke} fontSize={8} fontWeight="700" textAnchor="end">{dep.label}</SvgText>
+                      ) : null}
+                    </React.Fragment>
                   );
                 })}
 
@@ -1362,6 +1402,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     onMoveLink={updateLinkDrag}
                     onEndLink={endLinkDrag}
                     onFocus={() => onFocusTask?.(isFocusedBar ? null : bar.task.id)}
+                    onRequestMenu={() => openBarMenu(bar.task)}
                     onLogStartToday={() => logStartToday(bar.task)}
                     onLogFinishToday={() => logFinishToday(bar.task)}
                   />
@@ -1670,6 +1711,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           Drag to move · right edge to resize · blue dot to link · grey stripe = baseline · green = actual
         </Text>
       </View>
+      <ScheduleRowMenu
+        visible={barMenu !== null}
+        title={barMenu?.title ?? ''}
+        actions={barMenu?.actions ?? []}
+        onClose={() => setBarMenu(null)}
+      />
     </View>
   );
 }
@@ -1713,6 +1760,8 @@ interface BarViewProps {
   onMoveLink: (evt: any) => void;
   onEndLink: () => void;
   onFocus?: () => void;
+  /** Long-press (native) / right-click (web) opens the row/bar context menu. */
+  onRequestMenu?: () => void;
   onLogStartToday: () => void;
   onLogFinishToday: () => void;
 }
@@ -1723,7 +1772,7 @@ function BarView({
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
-  onFocus,
+  onFocus, onRequestMenu,
   onLogStartToday, onLogFinishToday,
 }: BarViewProps) {
   const { colors: themeColors } = useTheme();
@@ -1733,6 +1782,21 @@ function BarView({
     if (bar.isMilestone) return 'move';
     return offsetX >= width - RESIZE_HANDLE_WIDTH ? 'resize' : 'move';
   };
+
+  // Long-press → context menu. The PanResponder owns the touch, so a plain
+  // Pressable onLongPress can't fire here; instead we run a 500ms timer on
+  // touch-down that fires the menu if the finger hasn't moved (a drag cancels
+  // it). requestMenuRef keeps the latest callback (the responder closure is
+  // frozen at first render, same pattern as onBeginDrag/onMoveDrag).
+  const requestMenuRef = useRef(onRequestMenu);
+  requestMenuRef.current = onRequestMenu;
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+  // If a bar unmounts mid-touch (list re-filters) before release/terminate,
+  // clear the pending timer so it can't fire a menu for a gone bar or leak.
+  useEffect(() => clearLongPress, []);
 
   // One PanResponder per bar. onStartShouldSet = true so it grabs the
   // gesture the instant the user touches it (beats ScrollView's capture).
@@ -1746,12 +1810,15 @@ function BarView({
         const { locationX } = evt.nativeEvent;
         const mode = pickMode(locationX, bar.w);
         onBeginDrag(mode, evt);
+        clearLongPress();
+        longPressTimer.current = setTimeout(() => { requestMenuRef.current?.(); }, 500);
       },
       onPanResponderMove: (evt) => {
+        clearLongPress(); // any movement = a drag, not a long-press
         onMoveDrag(evt);
       },
-      onPanResponderRelease: () => onEndDrag(),
-      onPanResponderTerminate: () => onEndDrag(),
+      onPanResponderRelease: () => { clearLongPress(); onEndDrag(); },
+      onPanResponderTerminate: () => { clearLongPress(); onEndDrag(); },
     }),
   ).current;
 
@@ -1829,9 +1896,12 @@ function BarView({
             borderRadius: 1,
             zIndex: 3,
           }}
-          // @ts-expect-error — RN web pointer events
+          // The onContextMenu spread below is typed `as any`, which widens this
+          // element's props to `any` — so onMouseEnter/onMouseLeave no longer
+          // need their own @ts-expect-error (RN web pointer events).
           onMouseEnter={onHoverIn}
           onMouseLeave={onHoverOut}
+          {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(); } } as any) : {})}
         />
         {/* Left fang */}
         <View
@@ -1888,6 +1958,7 @@ function BarView({
     return (
       <View
         {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => { if (isDragging) return; e?.stopPropagation?.(); onFocus(); } } as any) : {})}
+        {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(); } } as any) : {})}
         style={{
           position: 'absolute',
           left: cx - size / 2,
@@ -1944,6 +2015,7 @@ function BarView({
         e?.stopPropagation?.();
         onFocus();
       } } as any) : {})}
+      {...(Platform.OS === 'web' && onRequestMenu ? ({ onContextMenu: (e: any) => { e?.preventDefault?.(); e?.stopPropagation?.(); onRequestMenu(); } } as any) : {})}
       // Task 2 flat bar restyle: solid fill, borderRadius 4, critical outline,
       // done opacity, name+days label.
       style={{
