@@ -31,7 +31,8 @@
     "test:gantt-arrow": "bun run scripts/validate-gantt-arrow.ts",
     "test:outline-ops": "bun run scripts/validate-outline-ops.ts",
     "test:printable-gantt": "bun run scripts/validate-printable-gantt.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:wip && bun run test:safety-risk && bun run test:safety-osha && bun run test:app-slop && bun run test:crew && bun run test:safety-cert && bun run test:safety-inspection && bun run test:schedule-import && bun run test:scan-routing && bun run test:cost-xray && bun run test:schedule-verdict && bun run test:gantt-arrow && bun run test:outline-ops && bun run test:printable-gantt",
+    "test:paste-rows": "bun run scripts/validate-paste-rows.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:colors && bun run test:health && bun run test:barlabel && bun run test:gating && bun run test:sched-schema && bun run test:sched-history && bun run test:sched-depcycle && bun run test:sched-copilot && bun run test:cpm && bun run test:wip && bun run test:safety-risk && bun run test:safety-osha && bun run test:app-slop && bun run test:crew && bun run test:safety-cert && bun run test:safety-inspection && bun run test:schedule-import && bun run test:scan-routing && bun run test:cost-xray && bun run test:schedule-verdict && bun run test:gantt-arrow && bun run test:outline-ops && bun run test:printable-gantt && bun run test:paste-rows",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
