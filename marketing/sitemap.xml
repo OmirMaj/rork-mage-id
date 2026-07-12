@@ -14,7 +14,7 @@
   - /404.html                          — error page
   - /app-store-screenshots/, /screenshots/ — internal previews
 -->
-<urlset xmlns="http://www.sitemap.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
   <!-- Homepage — highest priority -->
   <url>
@@ -55,7 +55,7 @@
   <!-- Feature subpages -->
   <url>
     <loc>https://mageid.app/features/</loc>
-    <lastmod>2026-05-20</lastmod>
+    <lastmod>2026-07-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
