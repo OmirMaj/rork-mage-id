@@ -2146,9 +2146,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // pattern — code-review #11). Avoids the slim collision risk of the
     // 6-char UUID prefix and reads better on documents the GC sends out.
     const projectCommitments = commitments.filter(c => c.projectId === pkg.projectId);
-    const nextNumber = projectCommitments.length > 0
-      ? `BO-${projectCommitments.length + 1}`
-      : 'BO-1';
+    // max(existing BO-N) + 1, not length + 1 — deleting a commitment must not
+    // reissue an already-used BO number on documents the GC sends out.
+    const maxBo = projectCommitments.reduce((max, c) => {
+      const n = parseInt(String(c.number ?? '').replace(/^BO-/, ''), 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    const nextNumber = `BO-${maxBo + 1}`;
     const commitmentId = generateUUID();
     const commitment: Commitment = {
       id: commitmentId,

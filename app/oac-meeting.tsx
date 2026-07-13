@@ -128,7 +128,9 @@ function OACMeetingInner() {
       const meeting: OACMeeting = {
         id: generateUUID(),
         projectId: project.id,
-        number: meetings.length + 1,
+        // max(existing) + 1, not length + 1 — deleting a meeting must not
+        // reissue an already-used meeting number.
+        number: meetings.reduce((max, m) => Math.max(max, m.number || 0), 0) + 1,
         scheduledAt: new Date().toISOString(),
         durationMinutes: 60,
         attendees: defaultAttendeesFromProject(project),
