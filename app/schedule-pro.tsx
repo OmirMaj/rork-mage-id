@@ -90,6 +90,7 @@ import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { indentTask, outdentTask, moveTask } from '@/utils/outlineOps';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary';
+import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
@@ -223,6 +224,17 @@ function ScheduleProScreenInner() {
   useEffect(() => {
     baselinesRef.current = namedBaselines;
   }, [namedBaselines]);
+
+  // Mirror the schedule's start anchor into a ref for the same reason.
+  // schedulePersist must NEVER fall back to buildScheduleFromTasks' today
+  // default — that silently stamped dateless schedules with today's date on
+  // their first edit, flipping the CPM from raw-day to calendar mode and
+  // jumping the finish date (the 2026-07-12 finish-jump bug). The settings
+  // Apply handler writes this ref eagerly so a rebase commit's debounced
+  // persist can't race the project-state update and clobber the new anchor.
+  useEffect(() => {
+    startDateRef.current = project?.schedule?.startDate;
+  }, [project?.schedule?.startDate]);
 
   // Mirror workingTasks into a ref so the unmount-flush closure (which only
   // re-binds on cpm.projectFinish changes) always reads the latest copy.
@@ -482,6 +494,12 @@ function ScheduleProScreenInner() {
   // latest list without having to re-memoize schedulePersist on every
   // capture (which would kick off the debounce + potentially lose edits).
   const baselinesRef = React.useRef<NamedBaseline[]>([]);
+  // Ref-mirror of the schedule's start anchor. Persist writes read THIS —
+  // never buildScheduleFromTasks' today-default — so a schedule that has no
+  // startDate keeps having none (raw-day CPM mode stays stable). Sync
+  // useEffect lives alongside the baselinesRef sync above; the settings
+  // Apply handler also writes it eagerly to beat the debounced persist.
+  const startDateRef = React.useRef<string | undefined>(undefined);
   // Ref-mirror of workingTasks used by the unmount-flush cleanup. The
   // cleanup only re-binds when cpm.projectFinish changes, so without this
   // ref a keystroke applied after the most recent debounce timer but
@@ -504,8 +522,11 @@ function ScheduleProScreenInner() {
       // column would silently vanish on the next keystroke.
       const withBaselines = {
         ...newSchedule,
-        // Preserve the project's existing start anchor across debounced rebuilds.
-        startDate: project.schedule?.startDate ?? newSchedule.startDate,
+        // Preserve the project's existing start anchor across debounced
+        // rebuilds — via the ref, and with NO today-fallback: a schedule
+        // without an anchor must stay anchorless or its CPM flips from
+        // raw-day to calendar mode and the finish date silently jumps.
+        startDate: startDateRef.current,
         baselines: baselinesRef.current,
         // Preserve schedule-level settings that buildScheduleFromTasks doesn't
         // know about — closures, critical threshold, resource pool, scenarios.
@@ -545,7 +566,8 @@ function ScheduleProScreenInner() {
           updateProject(project.id, {
             schedule: {
               ...newSchedule,
-              startDate: project.schedule?.startDate ?? newSchedule.startDate,
+              // Same no-today-fallback rule as the debounced persist above.
+              startDate: startDateRef.current,
               baselines: baselinesRef.current,
               nonWorkingDates: project.schedule?.nonWorkingDates,
               criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
@@ -650,7 +672,9 @@ function ScheduleProScreenInner() {
     updateProject(project.id, {
       schedule: {
         ...rebuilt,
-        startDate: project.schedule?.startDate ?? rebuilt.startDate,
+        // Same no-today-fallback rule as schedulePersist — a weather re-plan
+        // must not stamp an anchor onto a dateless schedule.
+        startDate: startDateRef.current,
         baselines: baselinesRef.current,
         nonWorkingDates: project.schedule?.nonWorkingDates,
         criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
@@ -1795,14 +1819,41 @@ function ScheduleProScreenInner() {
         visible={showSettings}
         criticalFloatThresholdDays={criticalFloatThresholdDays}
         workingDaysPerWeek={workingDaysPerWeek}
+        startDate={project?.schedule?.startDate}
         onClose={() => setShowSettings(false)}
         onApply={(patch) => {
           if (!project) return;
+          const prevStart = project.schedule?.startDate;
+          const nextStart = patch.startDate ?? prevStart;
+          // First explicit anchor on a raw-day schedule: its startDay values
+          // are working-day ordinals, so re-map them onto the calendar or the
+          // CPM mode flip would silently inflate every multi-day chain (the
+          // finish-jump bug). Runs through commit() = one undoable step.
+          if (!prevStart && nextStart && workingTasks.length > 0) {
+            const rebased = rebaseRawToCalendar(
+              workingTasks, nextStart, patch.workingDaysPerWeek,
+              project.schedule?.nonWorkingDates,
+            );
+            if (rebased !== workingTasks) {
+              const moved = rebased.filter((t, i) => t.startDay !== workingTasks[i].startDay).length;
+              commit(() => rebased);
+              writeAudit({
+                user: user?.email ?? user?.name ?? 'anonymous',
+                kind: 'reflow',
+                summary: `Set start date ${nextStart} — re-anchored ${moved} task(s) onto the working-day calendar`,
+              });
+            }
+          }
+          // Eager ref write: the rebase commit above schedules a debounced
+          // persist whose closure may predate the updateProject below —
+          // without this it would write the OLD (undefined) anchor back.
+          startDateRef.current = nextStart;
           updateProject(project.id, {
             schedule: {
               ...(project.schedule as ProjectSchedule),
               criticalFloatThresholdDays: patch.criticalFloatThresholdDays,
               workingDaysPerWeek: patch.workingDaysPerWeek,
+              startDate: nextStart,
             },
           });
           setShowSettings(false);

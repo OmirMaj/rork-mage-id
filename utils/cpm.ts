@@ -183,7 +183,7 @@ function isoToDay(iso: string | undefined, scheduleStart: string | undefined): n
  * Returns true (permissive) when scheduleStartDate is unparseable so
  * the engine degrades to raw-day behavior instead of crashing.
  */
-function isWorkingDay(
+export function isWorkingDay(
   dayIndex: number,
   workingDaysPerWeek: number,
   scheduleStartDate: string,
