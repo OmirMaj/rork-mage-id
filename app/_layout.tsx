@@ -399,12 +399,19 @@ function RootLayoutNav() {
     // page authenticates via a signed state HMAC, not the user's JWT.
     const inIntegrationsCallback = segments[0] === 'integrations';
     const inClaimCrew = (segments[0] as string) === 'claim-crew';
+    // Read-only client/sub share viewers (`/shared-schedule?t=…`,
+    // `/shared-photos?…`). These are opened by homeowners and subs who have
+    // NO MAGE account — the token in the URL is the credential. Auth-walling
+    // them bounced every external share link to /login (dead on arrival),
+    // breaking the entire "Share with client" feature.
+    const inSharedView = (segments[0] as string) === 'shared-schedule'
+      || (segments[0] as string) === 'shared-photos';
 
     // Public magic-link destinations: never redirect away from these, even
     // when the user is unauthenticated. The prequal-form route is opened by
     // subcontractors via a tokenized email link; if we redirect to /login
     // before the token is consumed, the link is dead on arrival.
-    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew) return;
+    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew || inSharedView) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
