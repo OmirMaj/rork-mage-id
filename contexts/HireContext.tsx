@@ -382,9 +382,11 @@ export const [HireProvider, useHire] = createContextHook(() => {
       void supabaseWrite('messages', 'insert', {
         conversation_id: conversationId, sender_id: senderId, sender_name: senderName, text,
       });
-      void supabase.from('conversations').update({
-        last_message: text, last_message_time: new Date().toISOString(),
-      }).eq('id', conversationId);
+      // Through the queue — the previous direct .update() silently failed
+      // offline, leaving the server's last_message preview stale forever.
+      void supabaseWrite('conversations', 'update', {
+        id: conversationId, last_message: text, last_message_time: new Date().toISOString(),
+      });
     }
   }, [messages, conversations, saveMessagesMutation, saveConvosMutation, canSync]);
 
@@ -405,25 +407,18 @@ export const [HireProvider, useHire] = createContextHook(() => {
     saveConvosMutation.mutate(updatedConvos);
 
     if (canSync) {
-      void (async () => {
-        try {
-          const { error: convoError } = await supabase.from('conversations').insert({
-            id: convoId, participant_ids: participantIds, participant_names: participantNames, last_message: initialMessage,
-          });
-          if (convoError) {
-            console.log('[HireContext] Failed to insert conversation:', convoError.message);
-            return;
-          }
-          const { error: partError } = await supabase
-            .from('conversation_participants')
-            .insert(participantIds.map(pid => ({ conversation_id: convoId, user_id: pid })));
-          if (partError) {
-            console.log('[HireContext] Failed to insert participants:', partError.message);
-          }
-        } catch (err) {
-          console.log('[HireContext] startConversation sync failed:', err);
-        }
-      })();
+      // Through the offline queue. The previous direct inserts swallowed
+      // offline failures, so a conversation started while offline never
+      // reached the server — and its queued first message then died on the
+      // missing conversation_id FK. Queued, the conversation drains once
+      // connectivity returns and the participant/message FKs retry until
+      // the parent row lands.
+      void supabaseWrite('conversations', 'insert', {
+        id: convoId, participant_ids: participantIds, participant_names: participantNames, last_message: initialMessage,
+      });
+      for (const pid of participantIds) {
+        void supabaseWrite('conversation_participants', 'insert', { conversation_id: convoId, user_id: pid });
+      }
     }
 
     if (initialMessage) {
