@@ -1003,8 +1003,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
     setHasSeenOnboarding(true);
     queryClient.setQueryData(['onboarding', userId], true);
-    if (canSync) {
-      try { await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', userId); } catch { /* ok */ }
+    if (canSync && userId) {
+      // Through the offline queue — a direct .update() here swallowed offline
+      // failures, so completing onboarding on a plane never reached the server.
+      void supabaseWrite('profiles', 'update', { id: userId, onboarding_complete: true });
     }
   }, [queryClient, userId, canSync]);
 
@@ -1039,8 +1041,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(USER_ROLE_KEY, role);
     setUserRoleState(role);
     queryClient.setQueryData(['user_role', userId], role);
-    if (canSync) {
-      try { await supabase.from('profiles').update({ user_role: role }).eq('id', userId); } catch { /* ok */ }
+    if (canSync && userId) {
+      // Through the offline queue — same reasoning as completeOnboarding above.
+      void supabaseWrite('profiles', 'update', { id: userId, user_role: role });
     }
   }, [queryClient, userId, canSync]);
 
@@ -1207,7 +1210,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (action === 'delete') {
         await supabaseWrite('projects', 'delete', { id: project.id });
       } else {
-        await supabaseWrite('projects', 'insert', {
+        // MUST be 'upsert', not 'insert': this path also fires on every EDIT,
+        // and a plain insert on the existing PK fails with a duplicate-key
+        // violation (classified terminal) — so edits would silently never
+        // reach the server, and the server-first load on next launch would
+        // revert them locally.
+        await supabaseWrite('projects', 'upsert', {
           id: project.id, user_id: userId, name: project.name, type: project.type,
           location: project.location, square_footage: project.squareFootage, quality: project.quality,
           location_latitude: project.locationLatitude ?? null,
@@ -1318,24 +1326,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const saveSettingsMutation = useMutation({
     mutationFn: async (updatedSettings: AppSettings) => {
       await saveLocal(SETTINGS_KEY, updatedSettings);
-      if (canSync) {
-        try {
-          await supabase.from('profiles').update({
-            location: updatedSettings.location, units: updatedSettings.units,
-            tax_rate: updatedSettings.taxRate, contingency_rate: updatedSettings.contingencyRate,
-            company_name: updatedSettings.branding.companyName, contact_name: updatedSettings.branding.contactName,
-            email: updatedSettings.branding.email, phone: updatedSettings.branding.phone,
-            address: updatedSettings.branding.address, license_number: updatedSettings.branding.licenseNumber,
-            tagline: updatedSettings.branding.tagline, logo_uri: updatedSettings.branding.logoUri,
-            signature_data: updatedSettings.branding.signatureData, theme_colors: updatedSettings.themeColors,
-            biometrics_enabled: updatedSettings.biometricsEnabled, dfr_recipients: updatedSettings.dfrRecipients,
-            digest_enabled: updatedSettings.digest?.enabled ?? false,
-            digest_hour: updatedSettings.digest?.hour ?? 6,
-            digest_channels: updatedSettings.digest?.channels ?? { email: true, in_app: true },
-            digest_timezone: updatedSettings.digest?.timezone ?? 'America/New_York',
-            financing: updatedSettings.financing ?? null,
-          }).eq('id', userId);
-        } catch (err) { console.log('[ProjectContext] Settings sync failed:', err); }
+      if (canSync && userId) {
+        // Through the offline queue — the previous direct .update() swallowed
+        // offline failures, so branding/digest/settings edits made offline
+        // silently never reached the server (and reverted on next launch).
+        void supabaseWrite('profiles', 'update', {
+          id: userId,
+          location: updatedSettings.location, units: updatedSettings.units,
+          tax_rate: updatedSettings.taxRate, contingency_rate: updatedSettings.contingencyRate,
+          company_name: updatedSettings.branding.companyName, contact_name: updatedSettings.branding.contactName,
+          email: updatedSettings.branding.email, phone: updatedSettings.branding.phone,
+          address: updatedSettings.branding.address, license_number: updatedSettings.branding.licenseNumber,
+          tagline: updatedSettings.branding.tagline, logo_uri: updatedSettings.branding.logoUri,
+          signature_data: updatedSettings.branding.signatureData, theme_colors: updatedSettings.themeColors,
+          biometrics_enabled: updatedSettings.biometricsEnabled, dfr_recipients: updatedSettings.dfrRecipients,
+          digest_enabled: updatedSettings.digest?.enabled ?? false,
+          digest_hour: updatedSettings.digest?.hour ?? 6,
+          digest_channels: updatedSettings.digest?.channels ?? { email: true, in_app: true },
+          digest_timezone: updatedSettings.digest?.timezone ?? 'America/New_York',
+          financing: updatedSettings.financing ?? null,
+        });
       }
       return updatedSettings;
     },

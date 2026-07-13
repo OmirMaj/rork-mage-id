@@ -8,7 +8,7 @@ const MAX_QUEUE = 1000;
 export interface OfflineMutation {
   id: string;
   table: string;
-  operation: 'insert' | 'update' | 'delete';
+  operation: 'insert' | 'upsert' | 'update' | 'delete';
   data: Record<string, unknown>;
   timestamp: number;
   retryCount: number;
@@ -85,9 +85,9 @@ export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | '
       };
       queue.push(entry);
       if (queue.length > MAX_QUEUE) {
-        const dropped = queue.length - MAX_QUEUE;
-        queue.splice(0, dropped); // FIFO: drop oldest
-        console.warn(`[OfflineQueue] cap ${MAX_QUEUE} exceeded — dropped ${dropped} oldest mutation(s)`);
+        const droppedEntries = queue.splice(0, queue.length - MAX_QUEUE); // FIFO: drop oldest
+        console.warn(`[OfflineQueue] cap ${MAX_QUEUE} exceeded — dropped ${droppedEntries.length} oldest mutation(s)`);
+        notifyDroppedWrites(droppedEntries.length, droppedEntries.map(d => d.table), 'queue cap exceeded');
       }
       await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
       console.log('[OfflineQueue] Queued mutation:', mutation.table, mutation.operation);
@@ -99,6 +99,14 @@ export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | '
 
 // Auth/permission errors are terminal — the queue can't recover by retrying,
 // and a stuck 401 from a stale session would otherwise loop forever.
+//
+// Foreign-key violations are deliberately NOT terminal: when a parent and its
+// children are created in the same offline session, the flush processes
+// record-groups concurrently, so a child insert can reach the server before
+// its parent. That heals on a later pass once the parent lands — classifying
+// it terminal would permanently discard the child. FK failures fall through
+// to the retryCount path below (bounded by MAX_RETRIES, so a child whose
+// parent GENUINELY never arrives still gets dropped rather than looping).
 function isTerminalError(message: string): boolean {
   const m = message.toLowerCase();
   return (
@@ -106,9 +114,29 @@ function isTerminalError(message: string): boolean {
     m.includes('unauthorized') ||
     m.includes('permission denied') ||
     m.includes('row-level security') ||
-    m.includes('violates') ||
+    (m.includes('violates') && !m.includes('foreign key')) ||
     m.includes('not authenticated')
   );
+}
+
+// A queued write was permanently discarded (terminal error, retry exhaustion,
+// or queue-cap overflow). For an offline-first app, silent data loss is the
+// worst failure mode — surface it on the toast host and forward to Sentry so
+// the user can re-enter the data and we can see the pattern in prod. Lazy
+// requires keep this module side-effect free at load (same pattern as
+// supabaseWrite's AUD-001 handling below).
+function notifyDroppedWrites(count: number, tables: string[], reason: string): void {
+  const tableList = [...new Set(tables)].join(', ');
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { oops } = require('@/components/animations/NailItToast');
+    oops(`${count} change(s) couldn't be synced (${tableList}). Please re-check that data.`);
+  } catch {/* toast host not mounted — nothing actionable */}
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Sentry = require('@sentry/react-native');
+    Sentry.captureMessage(`[OfflineQueue] dropped ${count} write(s): ${tableList} (${reason})`, 'warning');
+  } catch {/* ignore */}
 }
 
 // Re-entrancy guard. Startup, AppState-foreground, AND the self-rescheduling
@@ -156,10 +184,11 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
   }
 
   // Process one group serially; return its accounting totals.
-  async function processGroup(group: OfflineMutation[]): Promise<{ processed: number; failed: number; remaining: OfflineMutation[] }> {
+  async function processGroup(group: OfflineMutation[]): Promise<{ processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[] }> {
     let gProcessed = 0;
     let gFailed = 0;
     const gRemaining: OfflineMutation[] = [];
+    const gDropped: OfflineMutation[] = [];
 
     for (const mutation of group) {
       try {
@@ -169,6 +198,12 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
           // Plain insert — upsert here would silently overwrite a colliding
           // row that some other client already created, masking conflicts.
           const result = await supabase.from(mutation.table).insert(mutation.data);
+          error = result.error;
+        } else if (mutation.operation === 'upsert') {
+          // Explicit create-or-replace for single-owner rows the app is the
+          // source of truth for (e.g. the user's own project row). Callers
+          // opt in — 'insert' stays plain so real conflicts still surface.
+          const result = await supabase.from(mutation.table).upsert(mutation.data);
           error = result.error;
         } else if (mutation.operation === 'update') {
           const { id, ...rest } = mutation.data;
@@ -201,25 +236,27 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
         if (isTerminalError(msg)) {
           console.warn('[OfflineQueue] Terminal error, discarding mutation:', mutation.table, mutation.operation, msg);
           gFailed++;
+          gDropped.push(mutation);
           continue;
         }
         mutation.retryCount++;
         if (mutation.retryCount >= MAX_RETRIES) {
           console.warn('[OfflineQueue] Discarding mutation after max retries:', mutation.table, mutation.operation, err);
           gFailed++;
+          gDropped.push(mutation);
         } else {
           gRemaining.push(mutation);
         }
       }
     }
 
-    return { processed: gProcessed, failed: gFailed, remaining: gRemaining };
+    return { processed: gProcessed, failed: gFailed, remaining: gRemaining, dropped: gDropped };
   }
 
   // Bounded-concurrency async pool: at most MAX_CONCURRENCY groups in flight.
   const MAX_CONCURRENCY = 5;
   const groups = [...groupMap.values()];
-  const results: { processed: number; failed: number; remaining: OfflineMutation[] }[] = [];
+  const results: { processed: number; failed: number; remaining: OfflineMutation[]; dropped: OfflineMutation[] }[] = [];
   for (let i = 0; i < groups.length; i += MAX_CONCURRENCY) {
     const batch = groups.slice(i, i + MAX_CONCURRENCY);
     const batchResults = await Promise.all(batch.map(processGroup));
@@ -228,12 +265,19 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
 
   // Reduce all group results into final accounting.
   const remaining: OfflineMutation[] = [];
+  const dropped: OfflineMutation[] = [];
   let processed = 0;
   let failed = 0;
   for (const r of results) {
     processed += r.processed;
     failed += r.failed;
     remaining.push(...r.remaining);
+    dropped.push(...r.dropped);
+  }
+  // Permanent discards must be visible — silent loss is the one unforgivable
+  // failure mode for an offline-first app.
+  if (dropped.length > 0) {
+    notifyDroppedWrites(dropped.length, dropped.map(d => d.table), 'terminal error or retry exhaustion');
   }
 
   // Atomic write-back under the queue lock. Instead of overwriting the whole
@@ -267,7 +311,7 @@ async function runOfflineQueue(): Promise<{ processed: number; failed: number; r
 
 export async function supabaseWrite(
   table: string,
-  operation: 'insert' | 'update' | 'delete',
+  operation: 'insert' | 'upsert' | 'update' | 'delete',
   data: Record<string, unknown>,
 ): Promise<boolean> {
   if (!isSupabaseConfigured) return false;
@@ -282,6 +326,14 @@ export async function supabaseWrite(
       // created, masking real conflicts. If the unique constraint is hit,
       // the catch below decides retry vs terminal-discard.
       const result = await supabase.from(table).insert(data);
+      error = result.error;
+    } else if (operation === 'upsert') {
+      // Create-or-replace for single-owner rows (e.g. the caller's own
+      // project). Edits to an existing row MUST NOT use 'insert' — a plain
+      // insert on an existing PK fails with a duplicate-key violation, which
+      // is classified terminal, so the edit would silently never reach the
+      // server (and the server-first load would then revert it locally).
+      const result = await supabase.from(table).upsert(data);
       error = result.error;
     } else if (operation === 'update') {
       const { id, ...rest } = data;
