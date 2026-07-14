@@ -475,7 +475,9 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <FeatureHeader
           eyebrow="Cash Flow"
           title="When will money come in?"
-          subtitle="A 12-week chart of expected draws and bills across your projects. We use your invoices, scheduled draws, and payroll to project the next quarter."
+          subtitle={projectId
+            ? 'This project’s invoice income, charted against your company-wide bank balance and recurring expenses. Balance and expenses are shared across all projects — not scoped to this job.'
+            : 'A 12-week chart of expected draws and bills across your projects. We use your invoices, scheduled draws, and payroll to project the next quarter.'}
           explainer={{
             term: 'Cash Flow Forecast',
             definition: 'A cash flow forecast projects when money will arrive (draws from owners, deposits, paid invoices) and when it will leave (sub payments, payroll, materials). The gap between income and outflow each week tells you whether you can cover this Friday\'s payroll or need to chase a draw.',
@@ -492,7 +494,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.heroLabelRow}>
                 <Wallet size={12} color="rgba(255,255,255,0.85)" strokeWidth={1.75} />
                 <Text style={styles.heroLabel}>
-                  Current Balance
+                  {projectId ? 'Company Balance' : 'Current Balance'}
                   {effectiveStartingBalance !== (cashFlowData?.startingBalance ?? 0) ? ' · auto' : ''}
                 </Text>
               </View>
@@ -751,7 +753,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('expenses')} activeOpacity={0.7}>
             <DollarSign size={18} color={themeColors.danger} strokeWidth={1.75} />
-            <Text style={styles.sectionTitle}>Monthly Expenses</Text>
+            <Text style={styles.sectionTitle}>{projectId ? 'Monthly Expenses (company-wide)' : 'Monthly Expenses'}</Text>
             <Text style={styles.sectionAmount}>{formatCurrencyShort(totalMonthlyExpenses)}/mo</Text>
             {expandedSections.expenses ? <ChevronUp size={18} color={themeColors.textMuted} strokeWidth={1.75} /> : <ChevronDown size={18} color={themeColors.textMuted} strokeWidth={1.75} />}
           </TouchableOpacity>

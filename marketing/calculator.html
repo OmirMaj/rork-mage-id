@@ -20,6 +20,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<!-- PostHog — same project key as the rest of the site so the calculator's
+     pageview + CTA click join the unified marketing funnel. -->
+<script>
+  !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+  posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+    api_host: 'https://us.i.posthog.com',
+    capture_pageview: true,
+    capture_pageleave: true,
+    autocapture: false,
+    persistence: 'localStorage+cookie',
+  });
+</script>
 <style>
   /* Brand-aligned palette (ink + amber + cream), matching mageid.app. */
   :root{
@@ -83,15 +95,39 @@
   .cta{margin-top:22px;background:var(--navy);border:1px solid rgba(255,106,26,0.35);border-radius:14px;padding:20px;color:#fff;text-align:center}
   .cta h3{font-family:var(--ff-serif);font-size:18px;margin-bottom:6px}
   .cta p{font-size:14px;opacity:.9;margin-bottom:14px}
-  .cta a{display:inline-block;background:var(--amber);color:#fff;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:9px;font-size:15px}
+  .cta a{display:inline-block;text-decoration:none;font-weight:700;padding:11px 22px;border-radius:9px;font-size:15px}
+  .cta a.cta-primary{background:var(--amber);color:#fff}
+  .cta a.cta-secondary{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.25);margin-top:10px;font-weight:600}
+  /* Site nav — matches the ink/amber brand, sized for this light page */
+  .sitenav{max-width:580px;margin:0 auto 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .sitenav .brand{display:flex;align-items:center;gap:8px;text-decoration:none}
+  .sitenav .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+  .sitenav .brand span{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--navy);text-transform:uppercase}
+  .sitenav .nav-r{display:flex;align-items:center;gap:16px}
+  .sitenav .nav-r a{text-decoration:none;font-size:13px;font-weight:600;color:var(--muted)}
+  .sitenav .nav-r a:hover{color:var(--navy)}
+  .sitenav .nav-r a.start{color:var(--amber);border:1px solid rgba(255,106,26,0.5);border-radius:999px;padding:6px 14px}
+  .sitenav .nav-r a.start:hover{background:var(--amber);color:#fff}
+  @media(max-width:480px){.sitenav .nav-r a:not(.start){display:none}}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px;line-height:1.6}
   .foot a{color:var(--muted)}
+  .footnav{max-width:580px;margin:24px auto 0;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:center}
+  .footnav a{text-decoration:none;font-size:12.5px;font-weight:600;color:var(--muted)}
+  .footnav a:hover{color:var(--navy)}
   @media(max-width:420px){h1{font-size:22px}.price .val{font-size:25px}}
 </style>
 </head>
 <body>
+<nav class="sitenav" aria-label="Primary">
+  <a href="/" class="brand"><span class="dot"></span><span>MAGE ID</span></a>
+  <div class="nav-r">
+    <a href="/playbook.html">How it works</a>
+    <a href="/pricing.html">Pricing</a>
+    <a href="/demo.html">Demo</a>
+    <a href="https://app.mageid.app" class="start">Start free</a>
+  </div>
+</nav>
 <div class="wrap">
-  <div class="brandbar"><a href="/"><span class="dot"></span><span>MAGE ID</span></a></div>
   <h1>Are you actually making money on this job?</h1>
   <p class="sub">The #1 way contractors lose profit: confusing markup with margin. Enter your numbers and see the truth.</p>
 
@@ -141,10 +177,23 @@
   <div class="cta">
     <h3>Stop guessing your margin on every bid.</h3>
     <p>MAGE ID learns your real costs from finished jobs, prices your next bid off your own numbers, and warns you the moment a live job starts bleeding margin.</p>
-    <a href="/">See how MAGE ID protects your profit →</a>
+    <a href="https://app.mageid.app" class="cta-primary">Price your next bid off your real numbers → Start free</a>
+    <a href="/" class="cta-secondary">See how MAGE ID works</a>
   </div>
 
   <p class="foot">Markup = profit as a % of <em>cost</em>. Margin = profit as a % of <em>price</em>. They are not the same — and the gap is where money quietly disappears.<br/>Free tool by <a href="/">MAGE ID</a> · mageid.app</p>
+
+  <nav class="footnav" aria-label="Footer">
+    <a href="/">Home</a>
+    <a href="/playbook.html">How it works</a>
+    <a href="/demo.html">Demo</a>
+    <a href="/compare/">Compare</a>
+    <a href="/pricing.html">Pricing</a>
+    <a href="/support.html">Support</a>
+    <a href="/privacy.html">Privacy</a>
+    <a href="/terms.html">Terms</a>
+  </nav>
+  <p class="foot">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
 </div>
 
 <script>
@@ -209,6 +258,21 @@
   $("cost").addEventListener("input", calc);
   $("pct").addEventListener("input", calc);
   calc();
+
+  // Keep the footer year current site-wide.
+  (function () {
+    var y = document.getElementById("year");
+    if (y) y.textContent = new Date().getFullYear();
+  })();
+
+  // Funnel: measure calculator → CTA click.
+  document.querySelectorAll('a[href="https://app.mageid.app"]').forEach(function (a) {
+    a.addEventListener("click", function () {
+      if (window.posthog) {
+        posthog.capture("calculator_cta_clicked", { href: "https://app.mageid.app" });
+      }
+    });
+  });
 </script>
   <script src="/motion.js" defer></script>
 </body>

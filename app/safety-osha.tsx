@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -45,6 +45,25 @@ function SafetyOshaInner() {
     () => (projectId ? incidents.filter((i) => i.projectId === projectId) : incidents),
     [incidents, projectId],
   );
+  // OSHA 300 logs must be retained for 5 years and are routinely pulled for a
+  // PRIOR year (audits, insurance, EMR). Offer any year that has a recordable
+  // case, plus the current year (so a fresh year's log is reachable even before
+  // its first case). Newest first; the current year is the default selection.
+  const currentYear = String(new Date().getFullYear());
+  const availableYears = useMemo(() => {
+    const years = new Set<string>([currentYear]);
+    for (const inc of scopedIncidents) {
+      if (!inc.oshaRecordable) continue;
+      const y = (inc.occurredAt ?? '').slice(0, 4);
+      if (y.length === 4) years.add(y);
+    }
+    return Array.from(years).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  }, [scopedIncidents, currentYear]);
+
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  // Keep the selection valid if the underlying incident set changes.
+  const year = availableYears.includes(selectedYear) ? selectedYear : currentYear;
+
   // OSHA 300 is a per-establishment form. We only have a clean establishment
   // when a single company profile exists (or a project is selected under it);
   // with multiple company profiles and no project, an org-wide log commingles
@@ -55,8 +74,8 @@ function SafetyOshaInner() {
     const name = orgWideMultiCompany
       ? 'All establishments'
       : (companies[0]?.companyName || 'My Company');
-    return { name, year: String(new Date().getFullYear()) };
-  }, [companies, projectId]);
+    return { name, year };
+  }, [companies, projectId, year]);
   const rows = useMemo(() => buildOsha300Log(scopedIncidents, est.year), [scopedIncidents, est.year]);
 
   const handleExportPdf = useCallback(async () => {
@@ -100,6 +119,31 @@ function SafetyOshaInner() {
           </Text>
         </View>
 
+        {availableYears.length > 1 ? (
+          <View style={styles.yearSection}>
+            <Text style={styles.yearLabel}>Log year</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearRow}>
+              {availableYears.map((y) => {
+                const active = y === year;
+                return (
+                  <TouchableOpacity
+                    key={y}
+                    style={[styles.yearChip, active && styles.yearChipActive]}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                      setSelectedYear(y);
+                    }}
+                    activeOpacity={0.85}
+                    testID={`osha-year-${y}`}
+                  >
+                    <Text style={[styles.yearChipText, active && styles.yearChipTextActive]}>{y}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {rows.length > 0 ? (
           <>
             <View style={styles.exportRow}>
@@ -138,8 +182,12 @@ function SafetyOshaInner() {
           <View style={{ minHeight: 360 }}>
             <EmptyState
               icon={<ShieldAlert size={36} color={themeColors.accent} strokeWidth={1.75} />}
-              title="No recordable cases"
-              message="Recordable incidents from the Incidents log appear here for OSHA 300 reporting."
+              title={`No recordable cases in ${est.year}`}
+              message={
+                availableYears.length > 1
+                  ? 'Pick another log year above, or add recordable incidents in the Incidents log for OSHA 300 reporting.'
+                  : 'Recordable incidents from the Incidents log appear here for OSHA 300 reporting.'
+              }
             />
           </View>
         )}
@@ -175,6 +223,22 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   countBadgeNum: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   countBadgeLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.accent, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   derivedNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, lineHeight: 17 },
+  yearSection: { marginBottom: 16 },
+  yearLabel: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textMuted,
+    letterSpacing: 0.6, textTransform: 'uppercase' as const,
+    marginHorizontal: 20, marginBottom: 8,
+  },
+  yearRow: { paddingHorizontal: 20, gap: 8 },
+  yearChip: {
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1, borderColor: themeColors.line,
+  },
+  yearChipActive: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
+  yearChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, fontVariant: ['tabular-nums'] },
+  yearChipTextActive: { color: '#FFFFFF' },
   exportRow: { flexDirection: 'row' as const, gap: 10, marginHorizontal: 20, marginBottom: 16 },
   exportPrimary: {
     flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,

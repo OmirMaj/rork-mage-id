@@ -24,6 +24,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
+import EmptyState from '@/components/EmptyState';
 import {
   fetchLienWaiversForProject, saveLienWaiver, deleteLienWaiver,
   shareLienWaiverPDF, WAIVER_LABELS,
@@ -215,9 +216,20 @@ export default function LienWaiversScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.emptyTitle}>Project not found</Text>
+        <EmptyState
+          icon={<ShieldCheck size={36} color={themeColors.accent} strokeWidth={1.75} />}
+          title="Lien waivers live inside a project"
+          message="A lien waiver is tied to a specific job's payments, so it lives inside a project. To generate one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Lien Waivers inside the project tile grid.',
+            'Pick the waiver type — we auto-fill the sub, paid amount, and through-date.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }
@@ -231,7 +243,7 @@ export default function LienWaiversScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Proof of Payment</Text>
+          <Text style={styles.title}>Lien Waivers</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
           <Plus size={14} color="#FFF" strokeWidth={1.75} />

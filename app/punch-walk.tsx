@@ -38,6 +38,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { inferTradeFromText, pickSubForTrade } from '@/utils/tradeInference';
@@ -73,6 +75,25 @@ const TRADE_ORDER: SubTrade[] = SUB_TRADES;
 // ─────────────────────────────────────────────────────────────
 
 export default function PunchWalkScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  // Walk Mode builds the same punch list the Punch List screen gates behind
+  // Business — gate the capture surface too, or a free/Pro user could dictate
+  // and save a full list here and only hit the paywall on the read/manage view.
+  if (!canAccess('punch_list_closeout')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Punch List & Closeout"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <PunchWalkScreenInner />;
+}
+
+function PunchWalkScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();

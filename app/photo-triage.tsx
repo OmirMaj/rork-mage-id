@@ -43,6 +43,8 @@ import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -102,13 +104,29 @@ function classColor(t: ThemeColors, cls: AiTriageClass): string {
 
 const ORDER: AiTriageClass[] = ['punch', 'rfi', 'dfr', 'progress', 'noise'];
 
+// Photo Triage is a Pro feature (photo_documentation) — the desktop sidebar
+// and tools grid advertise it as such. Gate the whole screen client-side so
+// free users hit the paywall instead of the full triage UI (the checkAILimit
+// inside handleAnalyze only rate-limits, it does not block by tier).
 export default function PhotoTriageScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('photo_documentation')) {
+    return <Paywall visible feature="Photo Triage" requiredTier="pro" onClose={() => router.back()} />;
+  }
+  return <PhotoTriageInner />;
+}
+
+function PhotoTriageInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, getPhotosForProject, addPunchItem, addRFI, addDailyReport, settings } = useProjects();
+  const {
+    getProject, getPhotosForProject, addPunchItem, addRFI,
+    addDailyReport, updateDailyReport, getDailyReportsForProject, settings,
+  } = useProjects();
   const { tier } = useSubscription();
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
@@ -119,6 +137,10 @@ export default function PhotoTriageScreen() {
   const [error, setError] = useState<string | null>(null);
   const [reviewEntries, setReviewEntries] = useState<ReviewEntry[]>([]);
   const [applying, setApplying] = useState(false);
+  // Idempotency guard: once records are created we flip this so a double-tap,
+  // a dismissed success alert, or a manual re-tap can't re-insert every punch
+  // item / RFI / a second draft DFR for the same batch.
+  const [applied, setApplied] = useState(false);
 
   // ── Photo picking ──────────────────────────────────────────────
   const togglePhotoFromGallery = useCallback((id: string, uri: string) => {
@@ -213,7 +235,7 @@ export default function PhotoTriageScreen() {
 
   const handleApply = useCallback(async () => {
     if (!project) { Alert.alert('No project selected'); return; }
-    if (applying) return;
+    if (applying || applied) return;
     setApplying(true);
 
     let punchAdded = 0;
@@ -278,24 +300,40 @@ export default function PhotoTriageScreen() {
             uri: e.photoUri,
             timestamp: new Date().toISOString(),
           }));
-        const dfr: DailyFieldReport = {
-          id: generateUUID(),
-          projectId: project.id,
-          date: today,
-          weather: { temperature: '', conditions: '', wind: '', isManual: false },
-          manpower: [],
-          workPerformed: workLines.join('\n'),
-          materialsDelivered: [],
-          issuesAndDelays: '',
-          photos: dfrPhotos,
-          status: 'draft',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        addDailyReport(dfr);
+        // Merge into today's existing DRAFT report if there is one, rather than
+        // always stamping out a fresh DFR — otherwise triaging twice in a day
+        // (or a double-tap) leaves multiple draft reports for the same date.
+        const existingDraft = getDailyReportsForProject(project.id)
+          .find(dr => dr.date === today && dr.status === 'draft');
+        if (existingDraft) {
+          updateDailyReport(existingDraft.id, {
+            workPerformed: [existingDraft.workPerformed, workLines.join('\n')]
+              .filter(s => s && s.trim().length > 0).join('\n'),
+            photos: [...existingDraft.photos, ...dfrPhotos],
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          const dfr: DailyFieldReport = {
+            id: generateUUID(),
+            projectId: project.id,
+            date: today,
+            weather: { temperature: '', conditions: '', wind: '', isManual: false },
+            manpower: [],
+            workPerformed: workLines.join('\n'),
+            materialsDelivered: [],
+            issuesAndDelays: '',
+            photos: dfrPhotos,
+            status: 'draft',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          addDailyReport(dfr);
+        }
         dfrAdded = grouped.dfr.length;
       }
 
+      // Records are created — lock the batch so a second Apply can't duplicate.
+      setApplied(true);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const summary = [
         punchAdded > 0 ? `${punchAdded} punch item${punchAdded === 1 ? '' : 's'}` : null,
@@ -314,7 +352,10 @@ export default function PhotoTriageScreen() {
     } finally {
       setApplying(false);
     }
-  }, [project, grouped, addPunchItem, addRFI, addDailyReport, settings, router, applying]);
+  }, [
+    project, grouped, addPunchItem, addRFI, addDailyReport, updateDailyReport,
+    getDailyReportsForProject, settings, router, applying, applied,
+  ]);
 
   // ── Per-entry mutations ────────────────────────────────────────
   const setEntryClass = (id: string, cls: AiTriageClass) => {
@@ -441,7 +482,14 @@ export default function PhotoTriageScreen() {
               style={[styles.analyzeBtn, (busy || pickedPhotos.length === 0) && { opacity: 0.6 }]}
             >
               {busy
-                ? <ActivityIndicator color="#FFF" />
+                ? (
+                  <>
+                    <ActivityIndicator color="#FFF" />
+                    <Text style={styles.analyzeText}>
+                      Reading {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}…
+                    </Text>
+                  </>
+                )
                 : (
                   <>
                     <MageAIMark size={16} color="#FFF" />
@@ -534,13 +582,13 @@ export default function PhotoTriageScreen() {
 
             <TouchableOpacity
               onPress={handleApply}
-              disabled={applying || totalKept === 0}
+              disabled={applying || applied || totalKept === 0}
               activeOpacity={0.85}
-              style={[styles.applyBtn, (applying || totalKept === 0) && { opacity: 0.6 }]}
+              style={[styles.applyBtn, (applying || applied || totalKept === 0) && { opacity: 0.6 }]}
             >
               {applying
                 ? <ActivityIndicator color="#FFF" />
-                : <Text style={styles.applyText}>Apply triage</Text>}
+                : <Text style={styles.applyText}>{applied ? 'Applied' : 'Apply triage'}</Text>}
             </TouchableOpacity>
           </>
         )}

@@ -9,6 +9,11 @@
 
   Excluded by design:
   - /portal/, /sub-portal/, /architect/ — token-gated, noindex
+  - /builders/                         — per-project portfolio viewer hydrated
+                                         by URL hash; bare route renders
+                                         "Project not found", so noindex (see
+                                         its <head>) + excluded here. A real
+                                         crawlable /builders/ index is backlog.
   - /unsubscribe, /preferences        — functional email subdirs
   - /thanks.html                       — form-submission landing
   - /404.html                          — error page
@@ -39,14 +44,6 @@
   </url>
   <url>
     <loc>https://mageid.app/access.html</loc>
-    <lastmod>2026-05-20</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Segmented landing pages -->
-  <url>
-    <loc>https://mageid.app/builders/</loc>
     <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -155,6 +152,14 @@
   </url>
 
   <!-- Comparison / "alternative" landing pages + lead-magnet calculator. -->
+  <!-- The /compare/ hub is the category entry point for "MAGE ID alternatives"
+       intent — higher priority than its child pages. -->
+  <url>
+    <loc>https://mageid.app/compare/</loc>
+    <lastmod>2026-07-14</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
   <url>
     <loc>https://mageid.app/compare/procore.html</loc>
     <lastmod>2026-06-20</lastmod>

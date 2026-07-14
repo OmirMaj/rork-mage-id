@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, ActivityIndicator,
+  Alert, Platform, ActivityIndicator, Modal, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -110,6 +110,33 @@ function OACMeetingInner() {
   const [generatingAgenda, setGeneratingAgenda] = useState(false);
   const [generatingMinutes, setGeneratingMinutes] = useState(false);
   const [distributing, setDistributing] = useState(false);
+
+  // Add-attendee modal — replaces the old iOS-only Alert.prompt chain, which
+  // was a silent no-op on Android + web (Alert.prompt is undefined there). A
+  // real in-app modal works on every platform CLAUDE.md supports.
+  const [showAddAttendee, setShowAddAttendee] = useState(false);
+  const [newAttendeeName, setNewAttendeeName] = useState('');
+  const [newAttendeeEmail, setNewAttendeeEmail] = useState('');
+
+  const handleSaveAttendee = useCallback(() => {
+    if (!active) return;
+    const name = newAttendeeName.trim();
+    if (!name) {
+      Alert.alert('Name required', "Enter the attendee's name.");
+      return;
+    }
+    const email = newAttendeeEmail.trim();
+    addAttendee(active, ctx, {
+      id: generateUUID(),
+      name,
+      email: email || undefined,
+      role: 'other',
+    });
+    setNewAttendeeName('');
+    setNewAttendeeEmail('');
+    setShowAddAttendee(false);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+  }, [active, ctx, newAttendeeName, newAttendeeEmail]);
 
   // ─── Build a fresh meeting ──────────────────────────────────────
   const handleNewMeeting = useCallback(() => {
@@ -446,7 +473,7 @@ function OACMeetingInner() {
             )}
             <TouchableOpacity
               style={styles.smallBtn}
-              onPress={() => promptAddAttendee(active, ctx)}
+              onPress={() => { setNewAttendeeName(''); setNewAttendeeEmail(''); setShowAddAttendee(true); }}
               testID="oac-add-attendee"
             >
               <Plus size={14} color={themeColors.accent} strokeWidth={1.75} />
@@ -631,6 +658,49 @@ function OACMeetingInner() {
             </View>
           )}
         </ScrollView>
+
+        {/* Add-attendee modal — cross-platform replacement for Alert.prompt.
+            Name required, email optional (needed only for minutes distribution). */}
+        <Modal visible={showAddAttendee} transparent animationType="slide" onRequestClose={() => setShowAddAttendee(false)}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <Pressable style={styles.attendeeModalOverlay} onPress={() => setShowAddAttendee(false)}>
+              <Pressable style={[styles.attendeeModalCard, { paddingBottom: insets.bottom + 20 }]} onPress={() => undefined}>
+                <View style={styles.attendeeModalHeader}>
+                  <Text style={styles.attendeeModalTitle}>Add attendee</Text>
+                  <TouchableOpacity onPress={() => setShowAddAttendee(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.attendeeFieldLabel}>Name *</Text>
+                <TextInput
+                  style={styles.attendeeInput}
+                  value={newAttendeeName}
+                  onChangeText={setNewAttendeeName}
+                  placeholder="e.g. Jane Okafor (Architect)"
+                  placeholderTextColor={themeColors.textMuted}
+                  autoFocus
+                  testID="oac-attendee-name"
+                />
+                <Text style={styles.attendeeFieldLabel}>Email (optional)</Text>
+                <TextInput
+                  style={styles.attendeeInput}
+                  value={newAttendeeEmail}
+                  onChangeText={setNewAttendeeEmail}
+                  placeholder="For sending minutes"
+                  placeholderTextColor={themeColors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  testID="oac-attendee-email"
+                />
+                <TouchableOpacity style={styles.attendeeSaveBtn} onPress={handleSaveAttendee} activeOpacity={0.85} testID="oac-attendee-save">
+                  <Plus size={16} color="#fff" strokeWidth={1.75} />
+                  <Text style={styles.attendeeSaveBtnText}>Add attendee</Text>
+                </TouchableOpacity>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
       </View>
     );
   }
@@ -736,42 +806,6 @@ function defaultAttendeesFromProject(project: any): OACAttendee[] {
   if (inv) out.push({ id: generateUUID(), name: inv.name ?? 'Owner', email: inv.email, role: 'owner' });
   // GC from contract / settings — we keep this generic since settings live elsewhere
   return out;
-}
-
-function promptAddAttendee(meeting: OACMeeting, ctx: any) {
-  Alert.prompt?.(
-    'Add attendee',
-    'Name (then we\'ll ask for email)',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Next',
-        onPress: (name?: string) => {
-          if (!name?.trim()) return;
-          Alert.prompt?.(
-            'Email (optional)',
-            'For sending minutes',
-            [
-              { text: 'Skip',
-                onPress: () => addAttendee(meeting, ctx, { id: generateUUID(), name: name.trim(), role: 'other' }),
-              },
-              { text: 'Add',
-                onPress: (email?: string) => addAttendee(meeting, ctx, {
-                  id: generateUUID(), name: name.trim(),
-                  email: email?.trim() || undefined,
-                  role: 'other',
-                }),
-              },
-            ],
-            'plain-text',
-            '',
-            'email-address',
-          );
-        },
-      },
-    ],
-    'plain-text',
-  );
 }
 
 function addAttendee(meeting: OACMeeting, ctx: any, attendee: OACAttendee) {
@@ -1012,4 +1046,30 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   uploadAudioLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
   uploadAudioSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
+
+  // Add-attendee modal (cross-platform)
+  attendeeModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' as const },
+  attendeeModalCard: {
+    backgroundColor: t.surface,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 20,
+  },
+  attendeeModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 8 },
+  attendeeModalTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text },
+  attendeeFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 10, marginBottom: 6 },
+  attendeeInput: {
+    backgroundColor: t.bg,
+    borderRadius: Tokens.radius.md,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: Type.subhead.fontSize, color: t.text,
+    borderWidth: 1, borderColor: t.line,
+  },
+  attendeeSaveBtn: {
+    marginTop: 16,
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: t.accent,
+    borderRadius: Tokens.radius.card, paddingVertical: 14,
+  },
+  attendeeSaveBtnText: { color: '#fff', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 });

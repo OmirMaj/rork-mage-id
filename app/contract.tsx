@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { MageContract } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import Paywall from '@/components/Paywall';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -65,7 +66,31 @@ const CONTRACT_PIPELINE_STAGES: PipelineStage<ContractStatus>[] = [
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+// Gate: contracts are a Pro billing tool alongside invoices, change orders,
+// and AIA pay apps — all of which hard-gate behind Pro. Previously the
+// contract screen imported useTierAccess only for a growth badge and had NO
+// paywall, so a free user could draft, sign, send, and seal a full
+// construction contract (which also flips the project to in_progress and
+// auto-creates selection categories) yet couldn't create the invoice to bill
+// against it. `client_portal` is the closest Pro FeatureKey and matches the
+// product bible, where client-portal / contract is a Pro feature.
 export default function ContractScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('client_portal')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Contracts"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <ContractScreenInner />;
+}
+
+function ContractScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();

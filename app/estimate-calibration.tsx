@@ -143,11 +143,11 @@ function EstimateCalibrationInner() {
           ))}
 
           <Text style={styles.note}>
-            Applied factors are saved on this device and will feed future estimates —
-            when you price one of these categories again, MAGE will surface the
-            correction so the bid starts from what the work really costs you.
-            Suggestions are clamped to a 0.8–1.5 band; bias beyond that usually means
-            a scope bust or an unlinked commitment, not a pricing habit.
+            Applied factors are saved on this device. They record your decision so
+            you can revisit it here, but they don't yet sync across devices or feed
+            new estimates automatically — reapply them after a reinstall or on a new
+            phone. Suggestions are clamped to a 0.8–1.5 band; bias beyond that usually
+            means a scope bust or an unlinked commitment, not a pricing habit.
           </Text>
 
           <TouchableOpacity

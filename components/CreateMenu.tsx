@@ -104,7 +104,14 @@ const OPTIONS: CreateOption[] = [
 
   // Tools
   { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', category: 'tools', scoped: true },
-  { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', category: 'tools', tier: 'pro', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
+  // AI Takeoff is a metered free demo (aiTakeoff freeLifetimeCap=1), NOT a
+  // Pro-locked feature — the /takeoff screen has no canAccess gate, it only
+  // meters via checkAILimit and gives free users 1 lifetime trial. Every
+  // other entry point (the Estimator tab CTAs) routes here ungated, so the
+  // Create menu must NOT paint a Pro lock chip on it or the same feature has
+  // two contradictory doors. The Pro wall lives one step later, on
+  // "Convert to estimate" (takeoff-estimate.tsx), where it belongs.
+  { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', category: 'tools', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
   { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: MageAIMark as unknown as LucideIcon, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
 ];
 

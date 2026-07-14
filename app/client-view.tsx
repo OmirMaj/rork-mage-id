@@ -4,7 +4,7 @@ import {
   Dimensions, TextInput, Platform, Modal, Alert, FlatList,
 } from 'react-native';
 import MageRefreshControl from '@/components/MageRefreshControl';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured, SUPABASE_FUNCTIONS_URL } from '@/lib/supabase';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,7 +24,10 @@ import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
-import { MOCK_DOCUMENTS, DOCUMENT_TYPE_INFO } from '@/mocks/documents';
+import { DOCUMENT_TYPE_INFO } from '@/mocks/documents';
+import { fetchActiveContract } from '@/utils/contractEngine';
+import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
+import type { ProjectDocument } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -90,7 +93,8 @@ export default function ClientViewScreen() {
   const { portalId, inviteId, clientName: clientNameParam } = useLocalSearchParams<{ portalId: string; inviteId?: string; clientName?: string }>();
   const {
     projects, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject,
-    getPunchItemsForProject, getPhotosForProject, getRFIsForProject, updateProject, updateChangeOrder,
+    getPunchItemsForProject, getPhotosForProject, getRFIsForProject, getWarrantiesForProject,
+    updateProject, updateChangeOrder,
     settings,
   } = useProjects();
 
@@ -114,10 +118,89 @@ export default function ClientViewScreen() {
   const punchItems = useMemo(() => project ? getPunchItemsForProject(project.id) : [], [project, getPunchItemsForProject]);
   const photos = useMemo(() => project ? getPhotosForProject(project.id) : [], [project, getPhotosForProject]);
   const rfis = useMemo(() => project ? getRFIsForProject(project.id) : [], [project, getRFIsForProject]);
-  const documents = useMemo(
-    () => project ? MOCK_DOCUMENTS.filter(d => d.projectId === project.id) : [],
-    [project]
+
+  // Real documents shared with the homeowner. Sourced from the SAME places
+  // the setup screen builds the portal snapshot from — the signed contract,
+  // the closeout binder, and any warranty docs — instead of the old
+  // hardcoded MOCK_DOCUMENTS (which were keyed to fictional 'p-1'/'p-2'
+  // projects and could never match a real UUID). Only surface items that
+  // are genuinely client-facing: a contract once it's been sent/signed, a
+  // binder once it's finalized/sent, warranties on the project.
+  const contractQ = useQuery({
+    queryKey: ['portal-contract', project?.id],
+    queryFn: () => project ? fetchActiveContract(project.id) : Promise.resolve(null),
+    enabled: !!project?.id && portal?.showDocuments === true,
+  });
+  const closeoutQ = useQuery({
+    queryKey: ['portal-closeout', project?.id],
+    queryFn: () => project ? fetchCloseoutBinder(project.id) : Promise.resolve(null),
+    enabled: !!project?.id && portal?.showDocuments === true,
+  });
+  const warranties = useMemo(
+    () => project ? getWarrantiesForProject(project.id) : [],
+    [project, getWarrantiesForProject],
   );
+
+  const documents = useMemo<ProjectDocument[]>(() => {
+    if (!project) return [];
+    const out: ProjectDocument[] = [];
+
+    const contract = contractQ.data;
+    // The contract is only a client-facing document once the GC has sent it
+    // (draft contracts are internal). contractEngine gates portal viewers on
+    // status >= sent as well.
+    if (contract && (contract.status === 'sent' || contract.status === 'signed')) {
+      out.push({
+        id: contract.id,
+        projectId: project.id,
+        projectName: project.name,
+        type: contract.kind === 'proposal' ? 'proposal' : 'contract',
+        title: contract.title,
+        status: contract.status === 'signed' ? 'signed' : 'pending_signature',
+        createdAt: contract.createdAt,
+        signedAt: contract.signedAt,
+        signedBy: contract.homeownerSignature?.name,
+        fileUrl: contract.signedPdfUrl,
+      });
+    }
+
+    const binder = closeoutQ.data;
+    // Closeout binder becomes visible to the homeowner once finalized/sent.
+    if (binder && (binder.status === 'finalized' || binder.status === 'sent')) {
+      out.push({
+        id: binder.id,
+        projectId: project.id,
+        projectName: project.name,
+        type: 'other',
+        title: `${project.name} — Closeout Binder`,
+        status: 'signed',
+        createdAt: binder.createdAt,
+        signedAt: binder.finalizedAt ?? binder.sentAt,
+        fileUrl: binder.pdfUrl,
+      });
+    }
+
+    for (const w of warranties) {
+      // Only warranty docs the GC has actually SENT to the portal. Drafts /
+      // recalled items must never leak to the client — matches the app's
+      // "edits-after-send never leak" portal contract.
+      if (w.portalState?.status !== 'sent') continue;
+      out.push({
+        id: w.id,
+        projectId: project.id,
+        projectName: project.name,
+        type: 'other',
+        title: w.title,
+        status: 'signed',
+        createdAt: w.createdAt,
+        expiresAt: w.endDate,
+        signedBy: w.provider,
+        fileUrl: w.documentUri,
+      });
+    }
+
+    return out;
+  }, [project, contractQ.data, closeoutQ.data, warranties]);
 
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     messages: true, schedule: true, budget: true, invoices: true, changeOrders: false,
@@ -400,8 +483,12 @@ export default function ClientViewScreen() {
     }
 
     const verb = approvalMode === 'approve' ? 'approved' : 'rejected';
+    // Don't assert a notification we don't actively send. The insert lands in
+    // the contractor's dashboard (change_order_approvals), but there's no
+    // push/email fan-out on this path — so tell the homeowner exactly what
+    // happened rather than implying the GC was pinged.
     const tail = serverPersisted
-      ? 'The contractor has been notified.'
+      ? 'Your response has been recorded and will appear in your contractor\'s dashboard.'
       : 'We saved your response locally. If you don\'t hear back within a day, please contact the contractor directly.';
     Alert.alert(
       approvalMode === 'approve' ? 'Approved' : 'Rejected',

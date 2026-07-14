@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { MapPin, DollarSign, Clock, Award, Mail, Phone, MessageCircle, Briefcase } from 'lucide-react-native';
+import { MapPin, DollarSign, Clock, Award, Mail, Phone, MessageCircle, Briefcase, HardHat, ChevronLeft } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -38,10 +38,33 @@ export default function WorkerDetailScreen() {
   }, [worker, jobs]);
 
   if (!HIRE_ENABLED) {
+    // Direct Hire (the marketplace) is not shipping yet — HIRE_ENABLED is a
+    // hardcoded false flag. Rather than strand the user on a bare error, give
+    // a clear "coming soon" state with an explicit way back. NOTE: the real
+    // fix is to not route here at all — see the FLAG in the audit report about
+    // removing the /worker-detail entry point in app/job-detail.tsx.
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Worker Profile' }} />
-        <View style={styles.center}><Text style={styles.errorText}>Direct Hire is coming soon — the hiring marketplace isn&apos;t available yet.</Text></View>
+        <View style={styles.comingSoon}>
+          <View style={styles.comingSoonIcon}>
+            <HardHat size={32} color={themeColors.accent} strokeWidth={1.75} />
+          </View>
+          <Text style={styles.comingSoonTitle}>Direct Hire is coming soon</Text>
+          <Text style={styles.comingSoonBody}>
+            The hiring marketplace isn&apos;t available yet. We&apos;ll let you know the moment worker profiles go live.
+          </Text>
+          <TouchableOpacity
+            style={styles.comingSoonBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <ChevronLeft size={16} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.comingSoonBtnText}>Go back</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -192,6 +215,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   scrollContent: { paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: Type.callout.fontSize, color: t.textSecondary },
+  comingSoon: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 12 },
+  comingSoonIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: t.accent + '15',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  comingSoonTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, textAlign: 'center' as const },
+  comingSoonBody: { fontSize: Type.subhead.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 21 },
+  comingSoonBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    marginTop: 8, paddingVertical: 12, paddingHorizontal: 20,
+    borderRadius: Tokens.radius.card, backgroundColor: t.accent + '12',
+  },
+  comingSoonBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.accent },
   profileHeader: { backgroundColor: t.surface, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, borderBottomWidth: 0.5, borderBottomColor: t.line },
   avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: t.accent + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   avatarText: { fontSize: 30, fontWeight: '800' as const, color: t.accent },

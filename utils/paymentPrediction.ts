@@ -170,6 +170,10 @@ Be concrete. Use specific invoice numbers and project names in headline/topActio
     schemaHint: predictionHint,
     tier: 'smart',
     maxTokens: 2000,
+    // Attribute this call so the relay meters/attributes it by feature rather
+    // than as an anonymous ai_text spend (matches sibling metered call sites).
+    // The screen is already client-gated at Pro (cash_flow_forecaster).
+    feature: 'invoicePrediction',
   });
 
   if (!aiResult.success || !aiResult.data) {

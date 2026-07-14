@@ -63,6 +63,16 @@ export default function PostBidScreen() {
       return;
     }
 
+    // Deadline is free-text — validate it parses to a real calendar date
+    // (and is in ISO YYYY-MM-DD shape) before we call toISOString(), which
+    // throws a RangeError on an Invalid Date. Blocking here keeps an
+    // uncomputable deadline out of the feed's daysLeft math downstream.
+    const deadlineDate = new Date(deadline.trim());
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline.trim()) || isNaN(deadlineDate.getTime())) {
+      Alert.alert('Invalid Deadline', 'Enter the deadline as YYYY-MM-DD (e.g. 2026-06-01).');
+      return;
+    }
+
     const bid: PublicBid = {
       id: generateUUID(),
       title: title.trim(),
@@ -73,7 +83,7 @@ export default function PostBidScreen() {
       bidType,
       estimatedValue: parseFloat(estimatedValue) || 0,
       bondRequired: parseFloat(bondRequired) || 0,
-      deadline: new Date(deadline).toISOString(),
+      deadline: deadlineDate.toISOString(),
       description: description.trim(),
       postedBy: 'You',
       postedDate: new Date().toISOString(),
@@ -85,9 +95,16 @@ export default function PostBidScreen() {
 
     addBid(bid);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Bid Posted', 'Your bid has been published.', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+    // Honest confirmation: a community/agency bid posted here is matched to
+    // contractors by bond capacity + required certifications and surfaces on
+    // the relevant company's opportunities — it is NOT broadcast into the
+    // homeowner-RFP "near you" feed (that feed filters is_homeowner_rfp), so
+    // we don't imply it will show up there.
+    Alert.alert(
+      'Bid Posted',
+      'Your solicitation is saved. Contractors whose bond capacity and certifications match will see it in their matching opportunities.',
+      [{ text: 'OK', onPress: () => router.back() }],
+    );
   }, [title, agency, city, state, category, bidType, estimatedValue, bondRequired, deadline, description, contactEmail, applyUrl, selectedCerts, addBid, router]);
 
   return (

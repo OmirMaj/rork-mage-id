@@ -36,6 +36,8 @@ import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -103,6 +105,25 @@ const PRIORITY_COLORS: Record<PunchItemPriority, string> = {
 };
 
 export default function AiPunchScreen() {
+  // AI Punch produces punch-list items — a Business feature (punch_list_closeout).
+  // punch-walk (the primary entry) is already gated, but this screen is routable
+  // directly, so gate it here too. Mirrors app/punch-list.tsx.
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('punch_list_closeout')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="AI Punch from Photos"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <AiPunchScreenInner />;
+}
+
+function AiPunchScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();

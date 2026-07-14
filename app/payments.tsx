@@ -22,11 +22,16 @@ import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-// Stripe's posted rate — good enough for a rough "net after fees" column on the
-// payments dashboard. We never charge this ourselves; Stripe takes it out of
-// the deposit. Keeping it here means the GC can see what they actually cleared.
+// Total deduction on a successful card payment, matched to what payments-setup
+// tells the GC: "A 1% platform fee plus standard Stripe processing (2.9% +
+// 30¢)". Both come out of the deposit, so the "net after fees" column must
+// account for BOTH — otherwise the dashboard's Received / net figures overstate
+// what actually cleared the bank. Kept in sync with payments-setup.tsx.
 const STRIPE_FEE_PERCENT = 0.029;
 const STRIPE_FEE_FIXED = 0.30;
+const PLATFORM_FEE_PERCENT = 0.01;
+// Combined percent taken off the gross (Stripe processing + MAGE platform fee).
+const TOTAL_FEE_PERCENT = STRIPE_FEE_PERCENT + PLATFORM_FEE_PERCENT;
 
 // Map the narrower PaymentMethod used on InvoicePayment to the broader
 // PaymentProvider used on the dashboard. credit_card is assumed to flow through
@@ -76,7 +81,7 @@ function derivePayments(
     for (const p of inv.payments ?? []) {
       const provider = methodToProvider(p.method);
       const fee = provider === 'stripe'
-        ? Math.round((p.amount * STRIPE_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
+        ? Math.round((p.amount * TOTAL_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
         : 0;
       rows.push({
         id: p.id,
@@ -106,7 +111,7 @@ function derivePayments(
     ) {
       const hasStripeLink = !!inv.payLinkUrl;
       const estimatedFee = hasStripeLink
-        ? Math.round((balance * STRIPE_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
+        ? Math.round((balance * TOTAL_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
         : 0;
       rows.push({
         id: `pending-${inv.id}`,
@@ -251,7 +256,10 @@ export default function PaymentsScreen() {
 
   // Route to the oldest outstanding invoice so the GC can generate a Stripe
   // link from there. Picking the oldest (not newest) matches "collect what's
-  // overdue first" intuition and is what the user reported needing most.
+  // overdue first" intuition. The button doesn't SEND anything on its own —
+  // it opens a specific invoice editor — so we confirm which invoice we're
+  // opening (and how many others are outstanding) before routing, instead of
+  // silently teleporting the GC into a random-looking invoice.
   const handleSendInvoice = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const outstanding = invoices
@@ -270,11 +278,26 @@ export default function PaymentsScreen() {
       return;
     }
     const target = outstanding[0];
-    router.push({
-      pathname: '/invoice' as any,
-      params: { projectId: target.projectId, invoiceId: target.id },
-    });
-  }, [invoices]);
+    const targetProject = projects.find(p => p.id === target.projectId);
+    const targetLabel = `Invoice #${target.number}${targetProject ? ` — ${targetProject.name}` : ''}`;
+    const openTarget = () => {
+      router.push({
+        pathname: '/invoice' as any,
+        params: { projectId: target.projectId, invoiceId: target.id },
+      });
+    };
+    const othersNote = outstanding.length > 1
+      ? ` It's the oldest of ${outstanding.length} outstanding invoices — collect the rest from each project.`
+      : '';
+    Alert.alert(
+      'Collect oldest unpaid',
+      `Opening ${targetLabel} so you can send a pay link or record payment.${othersNote}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open', onPress: openTarget },
+      ],
+    );
+  }, [invoices, projects]);
 
   return (
     <View style={styles.container}>
@@ -299,7 +322,7 @@ export default function PaymentsScreen() {
 
         <View style={styles.feeRow}>
           <View style={styles.feeItem}>
-            <Text style={styles.feeItemLabel}>Processing Fees</Text>
+            <Text style={styles.feeItemLabel}>Est. Fees (1% + 2.9% + 30¢)</Text>
             <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
           </View>
           {stats.failedCount > 0 && (
@@ -312,7 +335,7 @@ export default function PaymentsScreen() {
 
         <TouchableOpacity style={styles.sendButton} onPress={handleSendInvoice} activeOpacity={0.85}>
           <Send size={18} color="#fff" strokeWidth={1.75} />
-          <Text style={styles.sendButtonText}>Send Payment Request</Text>
+          <Text style={styles.sendButtonText}>Collect Oldest Unpaid</Text>
         </TouchableOpacity>
 
         <View style={styles.tabRow}>

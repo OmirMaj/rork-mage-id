@@ -47,6 +47,24 @@ function daysBetween(a: string, b: string): number {
   return Math.ceil((new Date(a).getTime() - new Date(b).getTime()) / msPerDay);
 }
 
+// Derive the warranty's status at READ time from its endDate — the stored
+// `w.status` is only recomputed inside add/updateWarranty, so a warranty that
+// silently crossed its endDate keeps rendering a stale "Active" pill. Mirrors
+// ProjectContext.computeWarrantyStatus so the pill, metric cards, and daysText
+// all agree. Terminal states (claimed/void) are never auto-recomputed.
+function deriveStatus(w: Warranty): Warranty['status'] {
+  if (w.status === 'claimed' || w.status === 'void') return w.status;
+  const end = new Date(w.endDate).getTime();
+  if (Number.isNaN(end)) return w.status;
+  const now = Date.now();
+  if (end < now) return 'expired';
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysLeft = Math.ceil((end - now) / msPerDay);
+  const threshold = w.reminderDays ?? 30;
+  if (daysLeft <= threshold) return 'expiring_soon';
+  return 'active';
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
@@ -75,8 +93,15 @@ export default function WarrantiesScreen() {
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
 
   const list: Warranty[] = useMemo(() => {
-    if (project) return getWarrantiesForProject(project.id);
-    return [...warranties].sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+    const base = project
+      ? getWarrantiesForProject(project.id)
+      : [...warranties].sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+    // Recompute status on read so an expired warranty stops showing "Active"
+    // even though nothing wrote to it since it crossed its endDate.
+    return base.map(w => {
+      const status = deriveStatus(w);
+      return status === w.status ? w : { ...w, status };
+    });
   }, [project, warranties, getWarrantiesForProject]);
 
   const [showForm, setShowForm] = useState(false);
@@ -125,8 +150,17 @@ export default function WarrantiesScreen() {
     if (!formProjectId) { Alert.alert('Missing Project', 'Please select a project.'); return; }
     const months = parseInt(durationMonths, 10);
     if (!Number.isFinite(months) || months <= 0) { Alert.alert('Invalid Duration', 'Enter months as a positive integer.'); return; }
+    // Guard the start date before deriving start/end. new Date('garbage')
+    // yields Invalid Date, whose toISOString() throws — and addMonths would
+    // otherwise silently fall back to "today + N months", saving dates the GC
+    // never intended with no warning.
+    const startParsed = new Date(startDate);
+    if (Number.isNaN(startParsed.getTime())) {
+      Alert.alert('Invalid Start Date', 'Enter the start date as YYYY-MM-DD (e.g. 2026-07-14).');
+      return;
+    }
     const proj = projects.find(p => p.id === formProjectId);
-    const startISO = new Date(startDate).toISOString();
+    const startISO = startParsed.toISOString();
     const endISO = addMonths(startISO, months);
     const payload = {
       projectId: formProjectId,
@@ -222,7 +256,13 @@ export default function WarrantiesScreen() {
                     {daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
                   </Text>
                 </View>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(w)} accessibilityRole="button" accessibilityLabel="Delete">
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={(e) => { e.stopPropagation(); handleDelete(w); }}
+                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete"
+                >
                   <Trash2 size={14} color={"#C84038"} strokeWidth={1.75} />
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -362,7 +402,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: t.line },
   dateText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   daysText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  deleteBtn: { position: 'absolute' as const, top: 10, right: 10, width: 26, height: 26, borderRadius: Tokens.radius.xs, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
+  deleteBtn: { position: 'absolute' as const, top: 6, right: 6, width: 44, height: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
   addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: t.accent + '12', borderWidth: 1, borderColor: t.accent + '25' },
   addBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.accent },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' as const },

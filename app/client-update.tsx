@@ -20,7 +20,8 @@ import {
   draftWeeklyUpdate, gatherWeeklyContext, renderDraftToPlainText, renderDraftToHtml,
   type WeeklyUpdateDraft,
 } from '@/utils/weeklyClientUpdate';
-import { sendEmailNative } from '@/utils/emailService';
+import { sendEmail } from '@/utils/emailService';
+import { wrapEmailHtml } from '@/utils/emailLayout';
 import { checkAILimit } from '@/utils/aiRateLimiter';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
@@ -116,20 +117,55 @@ export default function ClientUpdateScreen() {
     try {
       setSending(true);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const html = renderDraftToHtml(draft);
-      const res = await sendEmailNative({
-        to: recipients.join(','),
-        subject: draft.subject,
-        body: html,
-        isHtml: true,
+
+      // Route through Resend (via the send-email edge fn) with branded HTML +
+      // unsubscribe headers, exactly like the portal-invite path. Pre-fix this
+      // dropped to the native mail composer (sendEmailNative), which meant no
+      // branding, no delivery confirmation, a manual "hit send" step, and a
+      // "Sent" alert that lied (the composer merely opened). Now the highest-
+      // value recurring homeowner touchpoint matches the rest of the email
+      // infrastructure. sendEmail already falls back to the native composer
+      // internally when Resend is unavailable, so no GC is stranded.
+      const contentHtml = renderDraftToHtml(draft);
+      const html = wrapEmailHtml({
+        preheader: draft.subject,
+        eyebrow: 'Weekly update',
+        title: project?.name ?? 'Project update',
+        bodyHtml: contentHtml,
+        companyName: gcName,
+        logoUri: settings?.branding?.logoUri,
+        project: project ? { name: project.name } : undefined,
+        contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
+        contactEmail: settings?.branding?.email,
+        contactPhone: settings?.branding?.phone,
       });
-      if (res.success) {
+
+      const results = await Promise.all(
+        recipients.map(to =>
+          sendEmail({
+            to,
+            subject: draft.subject,
+            html,
+            replyTo: settings?.branding?.email,
+            fromCompanyName: gcName,
+            unsubscribe: { recipientEmail: to, eventKey: 'weekly_update', enabled: true },
+          }),
+        ),
+      );
+
+      const sent = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success && r.error !== 'cancelled');
+
+      if (sent > 0) {
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Sent', 'Weekly update sent via your mail app.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        const tail = failed.length > 0 ? ` (${failed.length} could not be delivered)` : '';
+        Alert.alert(
+          'Sent',
+          `Weekly update sent to ${sent} ${sent === 1 ? 'recipient' : 'recipients'}${tail}.`,
+          [{ text: 'OK', onPress: () => router.back() }],
+        );
       } else {
-        Alert.alert('Could not open mail', res.error ?? 'Unknown error');
+        Alert.alert('Send failed', failed[0]?.error ?? 'Could not send the update. Check your connection and try again.');
       }
     } catch (err) {
       console.error('[ClientUpdate] send failed', err);
@@ -137,7 +173,7 @@ export default function ClientUpdateScreen() {
     } finally {
       setSending(false);
     }
-  }, [draft, recipients, router]);
+  }, [draft, recipients, router, project, gcName, settings]);
 
   const addRecipient = useCallback(() => {
     const e = newEmail.trim().toLowerCase();

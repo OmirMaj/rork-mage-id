@@ -29,6 +29,12 @@ import { Tokens } from '@/constants/designTokens';
 
 let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 
+// Lightweight client-side email format check so a typo'd address gets
+// immediate feedback instead of a false "check your inbox." Mirrors the
+// server-side regex in AuthContext.sendMagicLink; the backend remains the
+// authoritative validator.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 export default function LoginScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -150,6 +156,25 @@ export default function LoginScreen() {
     }
   }, [email, password, rememberMe, login, router, buttonScale, shake]);
 
+  // Distinguish a normal user-cancel (closed the account chooser / dismissed
+  // the Face ID sheet) from a real failure. Cancels are silent; real failures
+  // surface the same inline error banner + error haptic as the email / magic-
+  // link paths so a failed tap never looks like nothing happened. The auth
+  // context already returns without throwing on most cancels, but we guard the
+  // known cancel shapes here too in case one bubbles up.
+  const isUserCancel = useCallback((err: unknown): boolean => {
+    if (!err || typeof err !== 'object') return false;
+    if ('userCancelled' in err && (err as { userCancelled?: boolean }).userCancelled) return true;
+    const code = (err as { code?: string | number }).code;
+    return (
+      code === 'ERR_REQUEST_CANCELED' ||
+      code === 'ERR_CANCELED' ||
+      code === 'SIGN_IN_CANCELLED' ||
+      code === '-5' ||
+      code === 12501
+    );
+  }, []);
+
   const handleGoogleLogin = useCallback(async () => {
     setIsGoogleLoading(true);
     setErrorMessage('');
@@ -162,10 +187,16 @@ export default function LoginScreen() {
       router.replace('/(tabs)/summary' as any);
     } catch (err) {
       console.log('[Login] Google login failed:', err);
+      if (isUserCancel(err)) return;
+      setErrorMessage("Couldn't sign in with Google. Please try again.");
+      shake();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setIsGoogleLoading(false);
     }
-  }, [signInWithGoogle, router]);
+  }, [signInWithGoogle, router, isUserCancel, shake]);
 
   const handleAppleLogin = useCallback(async () => {
     setIsAppleLoading(true);
@@ -179,10 +210,16 @@ export default function LoginScreen() {
       router.replace('/(tabs)/summary' as any);
     } catch (err) {
       console.log('[Login] Apple login failed:', err);
+      if (isUserCancel(err)) return;
+      setErrorMessage("Couldn't sign in with Apple. Please try again.");
+      shake();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setIsAppleLoading(false);
     }
-  }, [signInWithApple, router]);
+  }, [signInWithApple, router, isUserCancel, shake]);
 
   // Magic link handler — sends a one-tap login link to the user's
   // email. They tap the link from their inbox, the app's deep-link
@@ -193,6 +230,12 @@ export default function LoginScreen() {
     if (!email.trim()) {
       setErrorMessage('Enter your email address first.');
       shake();
+      return;
+    }
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setErrorMessage('That email address looks off — please double-check it.');
+      shake();
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     setIsMagicLinkLoading(true);
@@ -459,6 +502,10 @@ export default function LoginScreen() {
             onPress={async () => {
               if (!email.trim()) {
                 Alert.alert('Enter Email', 'Please enter your email address first, then tap Forgot Password.');
+                return;
+              }
+              if (!EMAIL_REGEX.test(email.trim())) {
+                Alert.alert('Check Your Email', 'That email address looks off — please double-check it.');
                 return;
               }
               try {

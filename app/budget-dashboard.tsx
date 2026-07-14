@@ -13,6 +13,7 @@ import {
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import Svg, { Path, Line } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -62,7 +63,7 @@ function BudgetDashboardScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, invoices, getChangeOrdersForProject } = useProjects();
+  const { projects, getProject, invoices, getChangeOrdersForProject } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const projectInvoices = useMemo(() => invoices.filter(inv => inv.projectId === (projectId ?? '')), [invoices, projectId]);
@@ -153,6 +154,42 @@ Be specific and actionable. Use construction industry terminology.`;
     };
   }, [cashFlowData]);
 
+  // Opened without a projectId (e.g. from the Tools launcher) but the user
+  // has projects → show a picker instead of dead-ending on the empty state.
+  // Budget Dashboard is single-project EVM, so it needs a project to chart.
+  if (!project && projects.length > 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
+        <Stack.Screen options={{
+          title: 'Budget Dashboard',
+          headerStyle: { backgroundColor: themeColors.bg },
+          headerTintColor: themeColors.accent,
+          headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
+        }} />
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+          <FeatureHeader
+            eyebrow="Earned Value"
+            title="Pick a project to chart"
+            subtitle="Budget Dashboard tracks earned value (CPI / SPI) for one project at a time. Choose which job to open."
+            style={styles.featureHeader}
+          />
+          {projects.map((p) => (
+            <TouchableOpacity
+              key={p.id}
+              style={styles.pickerRow}
+              activeOpacity={0.85}
+              onPress={() => router.setParams({ projectId: p.id })}
+              testID={`budget-dashboard-pick-${p.id}`}
+            >
+              <BarChart3 size={18} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.pickerRowText} numberOfLines={1}>{p.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (!project || !metrics) {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
@@ -173,13 +210,57 @@ Be specific and actionable. Use construction industry terminology.`;
     );
   }
 
+  // Plain-language caption under each acronym so a jobsite user doesn't need
+  // to know EVM theory. Captions translate the number into "what it means for
+  // your money," using the actual value (self-explaining pattern).
+  const cpi = metrics.costPerformanceIndex;
+  const spi = metrics.schedulePerformanceIndex;
+  const cpiSpend = cpi > 0 ? (1 / cpi) : 0; // $ spent per $1 of work earned
   const metricCards = [
-    { label: 'CPI', value: metrics.costPerformanceIndex.toFixed(2), icon: DollarSign, color: getMetricColor(metrics.costPerformanceIndex, themeColors) },
-    { label: 'SPI', value: metrics.schedulePerformanceIndex.toFixed(2), icon: Clock, color: getMetricColor(metrics.schedulePerformanceIndex, themeColors) },
-    { label: 'Cost Variance', value: formatCurrency(metrics.costVariance), icon: metrics.costVariance >= 0 ? TrendingUp : TrendingDown, color: metrics.costVariance >= 0 ? themeColors.success : themeColors.danger },
-    { label: 'Schedule Variance', value: formatCurrency(metrics.scheduleVariance), icon: metrics.scheduleVariance >= 0 ? TrendingUp : TrendingDown, color: metrics.scheduleVariance >= 0 ? themeColors.success : themeColors.danger },
-    { label: 'Est. at Completion', value: formatCurrency(metrics.estimateAtCompletion), icon: Target, color: themeColors.info },
-    { label: 'Variance at Comp.', value: formatCurrency(metrics.varianceAtCompletion), icon: BarChart3, color: metrics.varianceAtCompletion >= 0 ? themeColors.success : themeColors.danger },
+    {
+      label: 'CPI',
+      value: cpi.toFixed(2),
+      icon: DollarSign,
+      color: getMetricColor(cpi, themeColors),
+      caption: cpi >= 1
+        ? `On budget — spending $${cpiSpend.toFixed(2)} for every $1 of work earned`
+        : `Over budget — spending $${cpiSpend.toFixed(2)} for every $1 of work earned`,
+    },
+    {
+      label: 'SPI',
+      value: spi.toFixed(2),
+      icon: Clock,
+      color: getMetricColor(spi, themeColors),
+      caption: spi >= 1 ? 'On or ahead of schedule' : 'Behind schedule — work is landing slower than planned',
+    },
+    {
+      label: 'Cost Variance',
+      value: formatCurrency(metrics.costVariance),
+      icon: metrics.costVariance >= 0 ? TrendingUp : TrendingDown,
+      color: metrics.costVariance >= 0 ? themeColors.success : themeColors.danger,
+      caption: metrics.costVariance >= 0 ? 'Under budget so far' : 'Over budget so far',
+    },
+    {
+      label: 'Schedule Variance',
+      value: formatCurrency(metrics.scheduleVariance),
+      icon: metrics.scheduleVariance >= 0 ? TrendingUp : TrendingDown,
+      color: metrics.scheduleVariance >= 0 ? themeColors.success : themeColors.danger,
+      caption: metrics.scheduleVariance >= 0 ? 'Ahead of plan in dollar terms' : 'Behind plan in dollar terms',
+    },
+    {
+      label: 'Est. at Completion',
+      value: formatCurrency(metrics.estimateAtCompletion),
+      icon: Target,
+      color: themeColors.info,
+      caption: 'What this job will really cost if the current pace holds',
+    },
+    {
+      label: 'Variance at Comp.',
+      value: formatCurrency(metrics.varianceAtCompletion),
+      icon: BarChart3,
+      color: metrics.varianceAtCompletion >= 0 ? themeColors.success : themeColors.danger,
+      caption: metrics.varianceAtCompletion >= 0 ? 'Projected to finish under budget' : 'Projected to finish over budget',
+    },
   ];
 
   return (
@@ -191,6 +272,21 @@ Be specific and actionable. Use construction industry terminology.`;
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+        <FeatureHeader
+          eyebrow="Earned Value"
+          title="Are you making or losing money on this job?"
+          subtitle="Tracks how much work you've actually earned against what you've spent and scheduled — so overruns show up early, not at closeout."
+          style={styles.featureHeader}
+          explainer={{
+            term: 'Earned Value Management (EVM)',
+            definition: 'EVM compares three numbers: what you planned to spend, what you actually spent, and the dollar value of the work you\'ve genuinely completed. CPI (cost) and SPI (schedule) boil that down to a single ratio — 1.0 means on track, below 1.0 means over budget or behind schedule.',
+            whenToUse: [
+              'Weekly, to catch a cost overrun while you can still fix it',
+              'Before a draw or owner meeting, to explain where the money went',
+              'When a job "feels" tight but you can\'t point to why',
+            ],
+          }}
+        />
         <View style={styles.projectHeader}>
           <Text style={styles.projectName}>{project.name}</Text>
           <Text style={styles.projectBudget}>Budget: {formatCurrency(metrics.budgetAtCompletion)}</Text>
@@ -219,6 +315,7 @@ Be specific and actionable. Use construction industry terminology.`;
                 <Text style={styles.metricLabel}>{card.label}</Text>
               </View>
               <Text style={[styles.metricValue, { color: card.color }]}>{card.value}</Text>
+              <Text style={styles.metricCaption}>{card.caption}</Text>
             </View>
           ))}
         </View>
@@ -295,6 +392,27 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+  },
+  featureHeader: {
+    paddingHorizontal: 0,
+    marginBottom: 4,
+  },
+  pickerRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    backgroundColor: t.surface,
+    borderRadius: Tokens.radius.lg,
+    padding: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: t.line,
+  },
+  pickerRowText: {
+    flex: 1,
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600' as const,
+    color: t.text,
   },
   projectHeader: {
     backgroundColor: t.surface,
@@ -386,6 +504,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   metricValue: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
+  },
+  metricCaption: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textSecondary,
+    lineHeight: 15,
+    marginTop: 2,
   },
   chartCard: {
     backgroundColor: t.surface,

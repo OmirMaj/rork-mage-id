@@ -27,6 +27,9 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import UpgradeSheet from '@/components/UpgradeSheet';
+import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScopeSheet, ScopeSheetItem } from '@/types';
@@ -54,6 +57,7 @@ export default function ScopeSheetScreen() {
   const insets = useSafeAreaInsets();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { getProject } = useProjects();
+  const { tier } = useSubscription();
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
 
   const [sheet, setSheet] = useState<ScopeSheet | null>(null);
@@ -62,6 +66,7 @@ export default function ScopeSheetScreen() {
   const [warning, setWarning] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ key: SectionKey; index: number } | null>(null);
   const [draft, setDraft] = useState<string>('');
+  const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -80,6 +85,19 @@ export default function ScopeSheetScreen() {
 
   const generate = useCallback(async (forceRegenerate: boolean) => {
     if (!project) return;
+
+    // Rate-limit / tier gate. generateScopeSheet goes through the paid smart
+    // relay (utils/scopeSheet → mageAI, tier:'smart'); pre-fix this screen
+    // had NO gate while every sibling AI-estimating screen does. We meter it
+    // on the shared 'aiEstimateWizard' feature (the Pro estimating key): free
+    // gets its lifetime trials, then the UpgradeSheet; Pro+ is bounded by the
+    // smart-daily cap. Blocked → show the upgrade sheet and stop before spend.
+    const limit = await checkAILimit(tier, 'smart', 'aiEstimateWizard');
+    if (!limit.allowed) {
+      setUpgradeLimit(limit);
+      return;
+    }
+
     setGenerating(true);
     setWarning(null);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -87,13 +105,17 @@ export default function ScopeSheetScreen() {
       const { sheet: s, warning: w } = await generateScopeSheet(project, { forceRegenerate });
       persist(s);
       setWarning(w ?? null);
+      // Only count usage when the AI relay actually produced the draft — the
+      // deterministic heuristic fallback (offline / capped / empty) must not
+      // burn a trial or a daily call.
+      if (s.source === 'ai') void recordAIUsage('smart', 'aiEstimateWizard');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       Alert.alert('Could not generate', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setGenerating(false);
     }
-  }, [project, persist]);
+  }, [project, persist, tier]);
 
   // ── item mutations ─────────────────────────────────────────────────────────
   const commitEdit = useCallback(() => {
@@ -304,6 +326,13 @@ export default function ScopeSheetScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <UpgradeSheet
+        visible={!!upgradeLimit}
+        limit={upgradeLimit}
+        featureLabel="AI Scope Sheet"
+        onClose={() => setUpgradeLimit(null)}
+      />
     </View>
   );
 }

@@ -18,10 +18,10 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { CREW_MEMBERS } from '@/mocks/timeTracking';
 import type { TimeEntry } from '@/types';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useCrew } from '@/contexts/CrewContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -203,6 +203,10 @@ function TimeTrackingScreenInner() {
   } = useTimeEntries();
   const [showAlertPicker, setShowAlertPicker] = useState(false);
   const { projects } = useProjects();
+  // Real crew roster (contexts/CrewContext → AsyncStorage + Supabase
+  // `crew_members`, RLS-scoped to the GC). Replaces the old CREW_MEMBERS
+  // mock so clock-in only ever offers people the GC actually added.
+  const { crewMembers, getCrewForProject } = useCrew();
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'live' | 'history'>('live');
   // Project selection for clock-in. Defaults to the first active project; the
@@ -229,6 +233,30 @@ function TimeTrackingScreenInner() {
   const selectedProject = useMemo(
     () => projects.find(p => p.id === selectedProjectId) ?? null,
     [projects, selectedProjectId],
+  );
+
+  // Roster for the clock-in modal, sourced from real crew. Crew assigned to
+  // the selected project surface first; the rest of the GC's roster follows.
+  // Deduped by id. Each entry carries a display trade string (first trade, or
+  // "Crew" when none is set) so the modal never invents a specialty.
+  const roster = useMemo(() => {
+    const projectCrew = selectedProject ? getCrewForProject(selectedProject.id) : [];
+    const seen = new Set<string>();
+    const ordered = [...projectCrew, ...crewMembers].filter(m => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return m.status !== 'inactive';
+    });
+    return ordered.map(m => ({
+      id: m.id,
+      name: m.fullName || 'Crew member',
+      trade: m.trades?.[0] ?? 'Crew',
+    }));
+  }, [selectedProject, getCrewForProject, crewMembers]);
+
+  const availableRoster = useMemo(
+    () => roster.filter(m => !liveEntries.some(e => e.workerId === m.id)),
+    [roster, liveEntries],
   );
 
   const todayStats = useMemo(() => {
@@ -261,7 +289,7 @@ function TimeTrackingScreenInner() {
   }, [startBreak, resumeFromBreak, doClockOut]);
 
   const handleClockIn = useCallback((memberId: string) => {
-    const member = CREW_MEMBERS.find(m => m.id === memberId);
+    const member = roster.find(m => m.id === memberId);
     if (!member) return;
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -277,7 +305,7 @@ function TimeTrackingScreenInner() {
     });
 
     setShowClockInModal(false);
-  }, [doClockIn, selectedProject]);
+  }, [doClockIn, selectedProject, roster]);
 
   // Payroll CSV export. Drops everything in `entries` into the standard
   // QuickBooks/Sage-friendly column shape and shares via native Share
@@ -528,26 +556,46 @@ function TimeTrackingScreenInner() {
             ) : null}
 
             <ScrollView style={{ maxHeight: 400 }}>
-              {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).map(member => (
+              {availableRoster.map(member => (
                 <TouchableOpacity
                   key={member.id}
                   style={styles.memberRow}
                   onPress={() => handleClockIn(member.id)}
                   activeOpacity={0.7}
+                  testID={`clock-in-member-${member.id}`}
                 >
                   <View style={styles.memberAvatar}>
                     <Text style={styles.memberAvatarText}>{member.name.charAt(0)}</Text>
                   </View>
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>{member.name}</Text>
-                    <Text style={styles.memberTrade}>{member.trade} · ${member.rate}/hr</Text>
+                    <Text style={styles.memberTrade}>{member.trade}</Text>
                   </View>
                   <Play size={16} color={themeColors.accent} strokeWidth={1.75} />
                 </TouchableOpacity>
               ))}
-              {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).length === 0 && (
+              {/* Truthful empty states — no fabricated roster. When the GC has
+                  no crew on file, point them to where crew is actually added
+                  rather than inventing names + pay rates. */}
+              {roster.length === 0 ? (
+                <View style={styles.rosterEmpty}>
+                  <Users size={28} color={themeColors.textMuted} strokeWidth={1.75} />
+                  <Text style={styles.rosterEmptyTitle}>No crew added yet</Text>
+                  <Text style={styles.rosterEmptyBody}>
+                    Add your crew in the Crew screen — verify IDs, set trades — then clock them in here.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.rosterEmptyBtn}
+                    onPress={() => { setShowClockInModal(false); router.push('/crew'); }}
+                    activeOpacity={0.85}
+                    testID="clock-in-add-crew"
+                  >
+                    <Text style={styles.rosterEmptyBtnText}>Add crew</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : availableRoster.length === 0 ? (
                 <Text style={styles.allClockedIn}>All crew members are currently clocked in</Text>
-              )}
+              ) : null}
             </ScrollView>
           </View>
         </View>
@@ -797,6 +845,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   memberName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
   memberTrade: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   allClockedIn: { textAlign: 'center' as const, color: t.textMuted, paddingVertical: 20, fontSize: Type.bodyCompact.fontSize },
+  rosterEmpty: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: 16, gap: 8 },
+  rosterEmptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
+  rosterEmptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 300 },
+  rosterEmptyBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accent, borderRadius: Tokens.radius.md },
+  rosterEmptyBtnText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   projectPickerRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -30,6 +30,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -122,54 +123,85 @@ export default function RfpResponsesReviewScreen() {
 
   const updateStatus = useCallback(async (responseId: string, nextStatus: ResponseRow['status']) => {
     setBusyId(responseId);
+    const respondedAt = new Date().toISOString();
+    // Optimistically reflect the shortlist/decline/restore in the cache so
+    // the card updates immediately even on flaky jobsite connectivity.
+    queryClient.setQueryData<ResponseRow[]>(['rfp-responses', bidId], (prev) =>
+      (prev ?? []).map(r => r.id === responseId ? { ...r, status: nextStatus, responded_at: respondedAt } : r),
+    );
     try {
-      const { error } = await supabase
-        .from('bid_responses')
-        .update({ status: nextStatus, responded_at: new Date().toISOString() })
-        .eq('id', responseId);
-      if (error) throw error;
+      // Route through the offline queue (supabaseWrite) so a write that
+      // can't reach the server right now is re-tried on reconnect instead
+      // of silently lost — matching the rest of the app. supabaseWrite
+      // toasts non-network failures itself; we surface network drops as a
+      // queued write rather than an error.
+      await supabaseWrite('bid_responses', 'update', {
+        id: responseId, status: nextStatus, responded_at: respondedAt,
+      });
       void queryClient.invalidateQueries({ queryKey: ['rfp-responses', bidId] });
-    } catch (e) {
-      Alert.alert('Could not update', String((e as Error).message ?? e));
     } finally {
       setBusyId(null);
     }
   }, [queryClient, bidId]);
 
+  const runAward = useCallback(async (response: ResponseRow) => {
+    setBusyId(response.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('award-rfp', {
+        body: { bidId, responseId: response.id },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error ?? 'Award failed.');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Awarded!',
+        'The contractor has been notified and the project + client portal are set up. They\'ll reach out to schedule kickoff.',
+        [{ text: 'OK', onPress: () => { void queryClient.invalidateQueries({ queryKey: ['rfp-responses', bidId] }); void queryClient.invalidateQueries({ queryKey: ['rfp-header', bidId] }); } }],
+      );
+    } catch (e) {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Could not award', String((e as Error).message ?? e));
+    } finally {
+      setBusyId(null);
+    }
+  }, [bidId, queryClient]);
+
+  // The award is irreversible (declines every other bidder, closes the RFP,
+  // creates the contractor's project + your client portal), so we confirm
+  // TWICE: step 1 explains the blast radius, step 2 makes the committed
+  // amount + company explicit on the final button.
   const handleAward = useCallback((response: ResponseRow) => {
+    const companyName = response.company_name ?? 'this contractor';
+    const amountText = response.bid_amount != null ? formatMoney(response.bid_amount) : null;
     Alert.alert(
       'Award this contractor?',
       `${response.company_name ?? 'This contractor'} will be notified, the project will be set up in their MAGE ID account, and your client portal will be created. All other bidders will be politely declined.\n\nThis can't be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Award',
+          text: 'Continue',
           style: 'default',
-          onPress: async () => {
-            setBusyId(response.id);
-            try {
-              const { data, error } = await supabase.functions.invoke('award-rfp', {
-                body: { bidId, responseId: response.id },
-              });
-              if (error) throw new Error(error.message);
-              if (!data?.success) throw new Error(data?.error ?? 'Award failed.');
-              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert(
-                'Awarded!',
-                'The contractor has been notified and the project + client portal are set up. They\'ll reach out to schedule kickoff.',
-                [{ text: 'OK', onPress: () => { void queryClient.invalidateQueries({ queryKey: ['rfp-responses', bidId] }); void queryClient.invalidateQueries({ queryKey: ['rfp-header', bidId] }); } }],
-              );
-            } catch (e) {
-              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              Alert.alert('Could not award', String((e as Error).message ?? e));
-            } finally {
-              setBusyId(null);
-            }
+          onPress: () => {
+            // Second, distinct confirmation naming the exact commitment.
+            Alert.alert(
+              'Confirm award',
+              amountText
+                ? `Award this project to ${companyName} for ${amountText}? Every other bid will be declined and this cannot be undone.`
+                : `Award this project to ${companyName}? Every other bid will be declined and this cannot be undone.`,
+              [
+                { text: 'Go back', style: 'cancel' },
+                {
+                  text: amountText ? `Award ${amountText}` : 'Award',
+                  style: 'destructive',
+                  onPress: () => { void runAward(response); },
+                },
+              ],
+            );
           },
         },
       ],
     );
-  }, [bidId, queryClient]);
+  }, [runAward]);
 
   if (!isOwner) {
     return (

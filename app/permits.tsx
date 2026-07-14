@@ -23,13 +23,13 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
   Platform, Alert, Modal, Pressable, TextInput, KeyboardAvoidingView,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
   ClipboardCheck, Calendar, AlertTriangle, Check,
-  Clock, Plus, X, Save, Camera, FileText, Trash2, ChevronDown,
+  Clock, Plus, X, Save, Camera, FileText, Trash2, ChevronDown, CalendarDays,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -37,9 +37,12 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO, SPECIAL_INSPECTION_LABELS } from '@/mocks/permits';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
+import DatePickerModal from '@/components/DatePickerModal';
 import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -205,6 +208,29 @@ const EMPTY_FORM: PermitFormState = {
 };
 
 export default function PermitsScreen() {
+  const { canAccess } = useTierAccess();
+  const router = useRouter();
+  // Permit + inspection tracking is a Pro-tier field-PM capability — it rolls
+  // up fees and drives the inspection countdown, matching the paid siblings in
+  // this cluster (material-receipt is also 'job_costing'/Pro). Pre-fix the
+  // screen had NO gate at all while every sibling gated, which read as an
+  // oversight + a monetization leak. Gated on the closest existing FeatureKey;
+  // see FLAG note — a dedicated 'permits_inspections' key would be cleaner but
+  // lives in the shared useTierAccess hook.
+  if (!canAccess('job_costing')) {
+    return (
+      <Paywall
+        visible
+        feature="Permits & Inspections"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <PermitsScreenInner />;
+}
+
+function PermitsScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -215,6 +241,8 @@ export default function PermitsScreen() {
   const [showForm, setShowForm] = useState<boolean>(false);
   const [form, setForm] = useState<PermitFormState>(EMPTY_FORM);
   const [pickerOpen, setPickerOpen] = useState<'project' | 'type' | 'status' | 'specialCategory' | null>(null);
+  // Which date field the DatePickerModal is currently editing (null = closed).
+  const [dateField, setDateField] = useState<'appliedDate' | 'inspectionDate' | 'lastReportDate' | null>(null);
 
   const filters = [
     { id: 'all', label: 'All' },
@@ -669,13 +697,16 @@ export default function PermitsScreen() {
                     />
 
                     <Text style={styles.formLabel}>Last report date</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      value={form.lastReportDate ?? ''}
-                      onChangeText={t => setForm(f => ({ ...f, lastReportDate: t }))}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={themeColors.textMuted}
-                    />
+                    <TouchableOpacity
+                      style={styles.formPicker}
+                      onPress={() => { setPickerOpen(null); setDateField('lastReportDate'); }}
+                      testID="permit-last-report-date"
+                    >
+                      <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                      <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.lastReportDate && { color: themeColors.textMuted }]}>
+                        {form.lastReportDate ? formatDateLabel(form.lastReportDate) : 'Pick a date'}
+                      </Text>
+                    </TouchableOpacity>
 
                     <Text style={styles.formLabel}>Last report summary</Text>
                     <TextInput
@@ -738,23 +769,29 @@ export default function PermitsScreen() {
                 <View style={styles.formRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.formLabel}>Applied Date</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      value={form.appliedDate}
-                      onChangeText={t => setForm(f => ({ ...f, appliedDate: t }))}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={themeColors.textMuted}
-                    />
+                    <TouchableOpacity
+                      style={styles.formPicker}
+                      onPress={() => { setPickerOpen(null); setDateField('appliedDate'); }}
+                      testID="permit-applied-date"
+                    >
+                      <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                      <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.appliedDate && { color: themeColors.textMuted }]}>
+                        {form.appliedDate ? formatDateLabel(form.appliedDate) : 'Pick a date'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.formLabel}>Inspection Date</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      value={form.inspectionDate}
-                      onChangeText={t => setForm(f => ({ ...f, inspectionDate: t }))}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={themeColors.textMuted}
-                    />
+                    <TouchableOpacity
+                      style={styles.formPicker}
+                      onPress={() => { setPickerOpen(null); setDateField('inspectionDate'); }}
+                      testID="permit-inspection-date"
+                    >
+                      <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                      <Text style={[styles.formPickerText, { marginLeft: 8 }, !form.inspectionDate && { color: themeColors.textMuted }]}>
+                        {form.inspectionDate ? formatDateLabel(form.inspectionDate) : 'Pick a date'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -813,8 +850,36 @@ export default function PermitsScreen() {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Shared date picker for the permit form's three date fields. Applied
+          + last-report dates are "today or earlier"; the inspection date can
+          be scheduled in the future (it drives the countdown hero), so we
+          allow future picks only for that field. */}
+      <DatePickerModal
+        visible={dateField !== null}
+        value={dateField ? (form[dateField] ?? '') : ''}
+        allowFuture={dateField === 'inspectionDate'}
+        title={
+          dateField === 'appliedDate' ? 'Applied date'
+          : dateField === 'inspectionDate' ? 'Inspection date'
+          : 'Last report date'
+        }
+        onClose={() => setDateField(null)}
+        onChange={(iso) => {
+          const field = dateField;
+          if (field) setForm(f => ({ ...f, [field]: iso }));
+        }}
+      />
     </View>
   );
+}
+
+// Formats a stored date (either a 'YYYY-MM-DD' slice or a full ISO string)
+// into a short, human label for the permit date-picker buttons.
+function formatDateLabel(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({

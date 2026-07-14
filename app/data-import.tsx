@@ -146,8 +146,9 @@ export default function DataImportScreen() {
           <View style={styles.heroIcon}><FolderInput size={24} color={themeColors.accent} strokeWidth={1.75} /></View>
           <Text style={styles.heroTitle}>Import data</Text>
           <Text style={styles.heroSub}>
-            Bring in a MAGE ID export (.json) — restore a backup, move to a new device, or carry your
-            book of business over when you switch tools.
+            Bring in a MAGE ID export (.json) to move to a new device or carry your book of business
+            over when you switch tools. Restore currently brings back your projects, contacts, and
+            subcontractors — the rest of the file is preserved and read but not re-imported yet.
           </Text>
           <View style={styles.roBadge}>
             <ShieldCheck size={13} color={themeColors.success} strokeWidth={1.75} />

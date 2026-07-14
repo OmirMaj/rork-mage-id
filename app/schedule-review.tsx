@@ -7,7 +7,7 @@
 // "Use this schedule". Nothing is written to the project until then.
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -21,6 +21,7 @@ import { takeDraft, generateScheduleFromEstimate } from '@/utils/autoScheduleFro
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { Type } from '@/constants/typography';
@@ -30,6 +31,11 @@ import type { ScheduleTask } from '@/types';
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
 
+// Schedule Pro (the drag/CPM grid) only renders above this width and is Pro-gated.
+// Below it — or below Pro — send the GC to the classic schedule instead of
+// bouncing them into a paywall/empty grid after they accept the draft.
+const GRID_BREAKPOINT = 900;
+
 export default function ScheduleReviewScreen() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -38,6 +44,8 @@ export default function ScheduleReviewScreen() {
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { getProject, updateProject } = useProjects();
   const { tier } = useSubscription();
+  const { width } = useWindowDimensions();
+  const { canAccess } = useTierAccess();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
@@ -76,8 +84,16 @@ export default function ScheduleReviewScreen() {
     );
     updateProject(project.id, { schedule: { ...draft.schedule, ...rebuilt, tasks } });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
-  }, [project, draft, tasks, updateProject, router]);
+    // The schedule is committed above regardless; only the destination differs.
+    // Schedule Pro needs both a wide viewport and Pro — otherwise land the GC in
+    // the classic schedule instead of a paywall/empty grid.
+    const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
+    if (wideEnoughForPro) {
+      router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
+    } else {
+      router.replace({ pathname: '/(tabs)/schedule', params: { projectId: project.id } } as any);
+    }
+  }, [project, draft, tasks, updateProject, router, width, canAccess]);
 
   // Whole-draft regenerate — re-runs generation and replaces the ENTIRE draft.
   // A per-phase splice was broken: fresh ids dangle every retained/injected

@@ -59,7 +59,7 @@ export default function ExtractSubmittalsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, addSubmittal, settings } = useProjects();
+  const { getProject, addSubmittals, settings } = useProjects();
   const { tier } = useSubscription();
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
@@ -147,32 +147,28 @@ export default function ExtractSubmittalsScreen() {
     setSaving(true);
     try {
       const today = new Date();
-      let added = 0;
-      for (const row of items) {
-        if (!row.selected) continue;
-        const requiredDate = new Date(today.getTime() + row.dueRelativeDays * 24 * 60 * 60 * 1000);
-        const submittal: Submittal = {
-          id: generateUUID(),
-          projectId: project.id,
-          // Real number gets assigned in the addSubmittal handler when
-          // it deduplicates against existing project submittals. We pass
-          // 0 here as a placeholder — it'll be overwritten if the context
-          // re-numbers, otherwise this row sits as #0 (which is fine).
-          number: 0,
-          title: row.title,
-          specSection: row.specSection || '',
-          submittedBy: settings?.branding?.companyName || 'Project Team',
-          submittedDate: today.toISOString(),
-          requiredDate: requiredDate.toISOString(),
-          reviewCycles: [],
-          currentStatus: 'pending',
-          attachments: [],
-          createdAt: today.toISOString(),
-          updatedAt: today.toISOString(),
-        };
-        addSubmittal(submittal);
-        added += 1;
-      }
+      // Build every keeper first, then insert as ONE batch. Looping
+      // addSubmittal (which used a stale render closure) collapsed all rows
+      // onto the same number so only the last survived, yet the count below
+      // reported the full total. addSubmittals numbers + commits atomically.
+      const toAdd: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[] = items
+        .filter(row => row.selected)
+        .map(row => {
+          const requiredDate = new Date(today.getTime() + row.dueRelativeDays * 24 * 60 * 60 * 1000);
+          return {
+            projectId: project.id,
+            title: row.title,
+            specSection: row.specSection || '',
+            submittedBy: settings?.branding?.companyName || 'Project Team',
+            submittedDate: today.toISOString(),
+            requiredDate: requiredDate.toISOString(),
+            reviewCycles: [],
+            currentStatus: 'pending',
+            attachments: [],
+          };
+        });
+      addSubmittals(toAdd);
+      const added = toAdd.length;
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Submittals added',
@@ -185,7 +181,7 @@ export default function ExtractSubmittalsScreen() {
     } finally {
       setSaving(false);
     }
-  }, [project, items, selectedCount, addSubmittal, settings, router]);
+  }, [project, items, selectedCount, addSubmittals, settings, router]);
 
   if (!project) {
     return (

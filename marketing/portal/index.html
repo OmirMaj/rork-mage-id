@@ -8,7 +8,7 @@
 <title>Project Portal — MAGE ID</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,800;1,9..144,500;1,9..144,800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,800;1,9..144,500;1,9..144,800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='Inter,system-ui' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
@@ -2317,7 +2317,7 @@
       <div class="gate-logo" style="margin-bottom:18px">M</div>
       <h1>Portal link expired</h1>
       <p>This link doesn't include any project data — it may have been truncated. Ask your contractor for a fresh portal link from the MAGE ID app.</p>
-      <a class="cta" href="mailto:support@mageid.app?subject=Portal%20Help">Contact support</a>
+      <a class="cta" href="mailto:help@mageid.app?subject=Portal%20Help">Contact support</a>
       <a class="cta secondary" href="/">Visit mageid.app</a>
     </div>
   </div>
@@ -2369,7 +2369,7 @@
           <span class="footer-mark">M</span>
           Powered by <a href="https://mageid.app">MAGE ID</a>
         </div>
-        <div>Snapshot taken <span id="snapshot-time">just now</span> · <a href="mailto:support@mageid.app">Contact support</a></div>
+        <div>Snapshot taken <span id="snapshot-time">just now</span> · <a href="mailto:help@mageid.app">Contact support</a></div>
       </footer>
     </main>
   </div>
@@ -4170,7 +4170,7 @@
   }
 
   function buildMailtoFallback(cfg, amount, note, projectName) {
-    var to = cfg.contactEmail || 'support@mageid.app';
+    var to = cfg.contactEmail || 'help@mageid.app';
     var subject = 'Budget proposal — ' + (projectName || 'project');
     var bodyLines = [
       'I\'d like to propose a target budget for the project:',

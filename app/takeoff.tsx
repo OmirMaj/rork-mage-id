@@ -53,6 +53,7 @@ import {
 import { markFirstTakeoffDone } from '@/utils/onboardingProgress';
 import { recordCorrection } from '@/utils/takeoffCorrections';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { TakeoffPageInspector } from '@/components/TakeoffPageInspector';
 import { TakeoffFieldVerifyButton } from '@/components/TakeoffFieldVerifyButton';
 import { TakeoffAccuracyPanel } from '@/components/TakeoffAccuracyPanel';
@@ -102,7 +103,15 @@ function TakeoffInner() {
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, addBidPackage } = useProjects();
   const { isBusinessTier, isEnterpriseTier, tier } = useSubscription();
+  const { canAccess } = useTierAccess();
   const { refresh: refreshQuota } = useUsageStatus();
+
+  // Same gate the destination screen (takeoff-estimate.tsx) enforces. A free
+  // user gets their metered takeoff, but the priced-estimate conversion is
+  // Pro+. Knowing this up here lets the "Convert to estimate" CTA present as
+  // an explicit upsell at the moment of intent instead of silently bouncing
+  // the user into a full-screen paywall (audit P1: free trial dead-ends).
+  const canConvertToEstimate = canAccess('ai_estimate_wizard');
 
   const [step, setStep] = useState<Step>('idle');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -306,6 +315,16 @@ function TakeoffInner() {
 
   const handleConvertToEstimate = useCallback(() => {
     if (!result) return;
+    // Free/sub-Pro users can't reach the priced-estimate screen — it hard-
+    // gates on canAccess('ai_estimate_wizard'). Rather than push them into
+    // /takeoff-estimate only to slam a full-screen Paywall over their result
+    // (a silent bounce at the moment of maximum intent), send them straight
+    // to the paywall from the already-upsell-labeled CTA. The intent is
+    // explicit; the transition isn't a dead-end.
+    if (!canConvertToEstimate) {
+      router.push('/paywall');
+      return;
+    }
     // New flow (May 2026): route to /takeoff-estimate, a dedicated screen
     // that auto-prices every takeoff line via Gemini and shows them in an
     // editable table with running totals. Pre-fix this routed to
@@ -319,7 +338,7 @@ function TakeoffInner() {
       pathname: '/takeoff-estimate',
       params: pickedProjectId ? { projectId: pickedProjectId } : {},
     } as never);
-  }, [result, router, pickedProjectId]);
+  }, [result, router, pickedProjectId, canConvertToEstimate]);
 
   // Look up the AI's original value + confidence + sourcePages for a row
   // key. Used by the correction-recording path so we capture training
@@ -723,6 +742,7 @@ function TakeoffInner() {
             onSetOverride={setOverride}
             onReset={handleReset}
             onConvert={handleConvertToEstimate}
+            canConvertToEstimate={canConvertToEstimate}
             showProTeaser={!isBusinessTier && modelUsed === 'gemini-2.5-flash'}
             onUpgrade={() => router.push('/paywall')}
             onInspectPage={setInspectorPage}
@@ -899,7 +919,7 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
 // ---------------------------------------------------------------------------
 function ResultView({
   result, pages, modelUsed, overrides, onSetOverride,
-  onReset, onConvert, showProTeaser, onUpgrade, onInspectPage,
+  onReset, onConvert, canConvertToEstimate, showProTeaser, onUpgrade, onInspectPage,
   specMatch, specMatchLoading, specMatchError, onMatchSpecs, onClearSpecs,
   onPreviewBuyouts,
   verificationsByRow, onCaptureVerification, onDeleteVerification,
@@ -912,6 +932,10 @@ function ResultView({
   onSetOverride: (key: string, value: number) => void;
   onReset: () => void;
   onConvert: () => void;
+  /** True when the current tier can reach the priced-estimate screen. When
+   *  false, the Convert CTA reframes as an explicit upgrade prompt instead
+   *  of silently bouncing to a paywall. */
+  canConvertToEstimate: boolean;
   showProTeaser: boolean;
   onUpgrade: () => void;
   onInspectPage: (page: number) => void;
@@ -1383,14 +1407,30 @@ function ResultView({
       {/* Corrections roll-up — only renders if user has actually edited rows. */}
       <TakeoffAccuracyPanel takeoff={result} overrides={overrides} />
 
-      {/* CTA bar */}
+      {/* CTA bar. For a free/sub-Pro user, priced conversion is walled — so
+          the primary CTA reframes as an explicit upsell ("See these priced —
+          upgrade to Pro") that routes to the paywall, rather than a silent
+          bounce into a full-screen Paywall over their result. */}
       <View style={styles.ctaBar}>
         <TouchableOpacity style={styles.ctaSecondary} onPress={onReset}>
           <Text style={styles.ctaSecondaryText}>Run again</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.ctaPrimary} onPress={onConvert}>
-          <CheckCircle2 size={16} color="#FFF" strokeWidth={1.75} />
-          <Text style={styles.ctaPrimaryText}>Convert to estimate</Text>
+        <TouchableOpacity
+          style={styles.ctaPrimary}
+          onPress={onConvert}
+          testID="takeoff-convert-cta"
+        >
+          {canConvertToEstimate ? (
+            <>
+              <CheckCircle2 size={16} color="#FFF" strokeWidth={1.75} />
+              <Text style={styles.ctaPrimaryText}>Convert to estimate</Text>
+            </>
+          ) : (
+            <>
+              <Crown size={16} color="#FFF" strokeWidth={1.75} />
+              <Text style={styles.ctaPrimaryText}>See these priced — upgrade to Pro</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
       <View style={styles.ctaBarSecondary}>

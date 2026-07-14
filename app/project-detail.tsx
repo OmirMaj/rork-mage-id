@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager, Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -167,7 +168,7 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -179,8 +180,21 @@ export default function ProjectDetailScreen() {
     if (!canAccess('punch_list_closeout')) s.add('punchList');
     if (!canAccess('rfis_submittals')) { s.add('rfis'); s.add('submittals'); }
     if (!canAccess('change_orders_invoicing')) s.add('changeOrders');
+    // Plans tile routes to /plans, which hard-gates on 'plan_markup' (Pro).
+    // Without this a free user tapped Plans and hit a full-screen wall with
+    // no warning — the same surprise the lock hint exists to prevent.
+    if (!canAccess('plan_markup')) s.add('plans');
     return s;
   }, [canAccess]);
+
+  // Inline gate flags for the Financial Health sub-buttons and the AI
+  // spec-book extract. These route into hard paywalls; a small trailing lock
+  // sets the expectation instead of dropping the user onto a wall. Most of
+  // these destinations gate on 'job_costing' (Pro); the Full Budget Dashboard
+  // is Business, and Extract-from-spec-book is a Pro AI feature.
+  const lockJobCosting = !canAccess('job_costing');
+  const lockBudgetDashboard = !canAccess('full_budget_dashboard');
+  const lockSpecExtract = !canAccess('job_costing'); // Pro AI feature (spec book vision spend)
 
   const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
   const projectInvoices = useMemo(() => getInvoicesForProject(id ?? ''), [id, getInvoicesForProject]);
@@ -555,20 +569,35 @@ export default function ProjectDetailScreen() {
     if (stage === currentStage) return;
     const label = LIFECYCLE_STAGES.find(s => s.key === stage)?.label ?? stage;
     if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
-    Alert.alert(
-      'Move project stage?',
-      `Mark "${project.name}" as ${label}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Move',
-          onPress: () => {
-            updateProject(id, { status: STAGE_TO_STATUS[stage] });
-            if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-          },
-        },
-      ],
-    );
+    // Distinguish a backward move (e.g. Closeout → Pre-Con) from a normal
+    // advance. Regressing can hide/disable downstream affordances, so it
+    // gets explicit "this moves backward" copy and a destructive button.
+    const currentIdx = LIFECYCLE_STAGES.findIndex(s => s.key === currentStage);
+    const targetIdx = LIFECYCLE_STAGES.findIndex(s => s.key === stage);
+    const isBackward = targetIdx < currentIdx;
+    const apply = () => {
+      updateProject(id, { status: STAGE_TO_STATUS[stage] });
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    };
+    if (isBackward) {
+      Alert.alert(
+        `Move back to ${label}?`,
+        `This regresses "${project.name}" to an earlier stage. Downstream stages will be treated as incomplete and some later-stage tools may be hidden.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Move back', style: 'destructive', onPress: apply },
+        ],
+      );
+    } else {
+      Alert.alert(
+        'Move project stage?',
+        `Mark "${project.name}" as ${label}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Move', onPress: apply },
+        ],
+      );
+    }
   }, [project, id, currentStage, updateProject]);
 
   const handleSaveEdit = useCallback(() => {
@@ -894,6 +923,10 @@ export default function ProjectDetailScreen() {
     ]);
   }, [id, removeCollaborator]);
 
+  // Set the instant a delete is confirmed so the render between
+  // deleteProject(id) (project becomes null) and router.back() completing
+  // shows the loading state, not a "Project not found" flash.
+  const deletingRef = useRef(false);
   const handleDelete = useCallback(() => {
     Alert.alert(
       'Delete Project',
@@ -904,6 +937,7 @@ export default function ProjectDetailScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
+            deletingRef.current = true;
             if (id) deleteProject(id);
             if (Platform.OS !== 'web') {
               void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -1202,6 +1236,18 @@ export default function ProjectDetailScreen() {
   );
 
   if (!project) {
+    // Distinguish "still hydrating" (or mid-delete) from "genuinely missing".
+    // getProject(id) returns null in every case, so without this a valid
+    // project deep-linked on a cold start flashed "Project not found" for a
+    // frame before the store loaded — and again briefly right after a delete.
+    if (!projectsLoaded || deletingRef.current) {
+      return (
+        <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]}>
+          <Stack.Screen options={{ title: 'Loading…' }} />
+          <ActivityIndicator size="large" color={themeColors.accent} />
+        </View>
+      );
+    }
     return (
       <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Not Found' }} />
@@ -1590,11 +1636,22 @@ export default function ProjectDetailScreen() {
 
           const renderTile = (tile: Tile) => {
             const TileIcon = tile.icon;
+            const isLocked = lockedTileKeys.has(tile.key);
+            // VoiceOver label: name + item count + locked state, so a
+            // screen-reader user hears the tile is a button, how many items
+            // it holds, and whether it's gated before opening it.
+            const a11yLabel = `${tile.label}`
+              + (tile.count != null ? `, ${tile.count} ${tile.count === 1 ? 'item' : 'items'}` : '')
+              + (isLocked ? ', locked, upgrade required' : '');
             return (
               <HardHatTap
                 key={tile.key}
                 style={styles.sectionTile}
                 hatColor={tile.color}
+                accessibilityRole="button"
+                accessibilityLabel={a11yLabel}
+                accessibilityState={{ disabled: false }}
+                hitSlop={6}
                 onPress={() => {
                   if (tile.key === 'activity') { router.push({ pathname: '/activity-feed' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'calendar') { void handleExportCalendar(); return; }
@@ -2416,28 +2473,46 @@ export default function ProjectDetailScreen() {
                     onPress={() => {
                       const impactDays = co.scheduleImpactDays ?? 0;
                       const shouldApplyImpact = impactDays > 0 && !co.scheduleImpactApplied && !!project?.schedule;
-                      updateChangeOrder(co.id, {
-                        status: 'approved',
-                        scheduleImpactApplied: shouldApplyImpact ? true : co.scheduleImpactApplied,
-                      });
-                      // Burst — change orders are real money/scope
-                      // events; the GC celebrates each approval.
-                      fireConfetti({ count: 35 });
-                      if (shouldApplyImpact && project?.schedule) {
-                        const nextSchedule = {
-                          ...project.schedule,
-                          bufferDays: (project.schedule.bufferDays ?? 0) + impactDays,
-                          totalDurationDays: (project.schedule.totalDurationDays ?? 0) + impactDays,
-                          updatedAt: new Date().toISOString(),
-                        };
-                        updateProject(project.id, { schedule: nextSchedule });
-                      }
-                      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      // Approving commits real dollars and pushes the finish
+                      // date — a one-handed jobsite mis-tap must not do that
+                      // silently. Spell out the commitment before applying it.
+                      const scheduleLine = shouldApplyImpact
+                        ? ` and add ${impactDays} day${impactDays === 1 ? '' : 's'} to the schedule`
+                        : '';
                       Alert.alert(
-                        'Approved',
-                        shouldApplyImpact
-                          ? `CO #${co.number} has been approved. Schedule extended by ${impactDays} day${impactDays === 1 ? '' : 's'}.`
-                          : `CO #${co.number} has been approved.`
+                        `Approve CO #${co.number}?`,
+                        `This commits ${formatMoney(co.changeAmount)} to the contract${scheduleLine}. This can't be undone with a tap.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Approve',
+                            onPress: () => {
+                              updateChangeOrder(co.id, {
+                                status: 'approved',
+                                scheduleImpactApplied: shouldApplyImpact ? true : co.scheduleImpactApplied,
+                              });
+                              // Burst — change orders are real money/scope
+                              // events; the GC celebrates each approval.
+                              fireConfetti({ count: 35 });
+                              if (shouldApplyImpact && project?.schedule) {
+                                const nextSchedule = {
+                                  ...project.schedule,
+                                  bufferDays: (project.schedule.bufferDays ?? 0) + impactDays,
+                                  totalDurationDays: (project.schedule.totalDurationDays ?? 0) + impactDays,
+                                  updatedAt: new Date().toISOString(),
+                                };
+                                updateProject(project.id, { schedule: nextSchedule });
+                              }
+                              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                              Alert.alert(
+                                'Approved',
+                                shouldApplyImpact
+                                  ? `CO #${co.number} has been approved. Schedule extended by ${impactDays} day${impactDays === 1 ? '' : 's'}.`
+                                  : `CO #${co.number} has been approved.`
+                              );
+                            },
+                          },
+                        ],
                       );
                     }}
                     activeOpacity={0.7}
@@ -2447,8 +2522,21 @@ export default function ProjectDetailScreen() {
                   <TouchableOpacity
                     style={styles.coRejectBtn}
                     onPress={() => {
-                      updateChangeOrder(co.id, { status: 'rejected' });
-                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                      Alert.alert(
+                        `Reject CO #${co.number}?`,
+                        'This marks the change order rejected. You can reopen it later from the change-order screen.',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Reject',
+                            style: 'destructive',
+                            onPress: () => {
+                              updateChangeOrder(co.id, { status: 'rejected' });
+                              if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                            },
+                          },
+                        ],
+                      );
                     }}
                     activeOpacity={0.7}
                   >
@@ -2982,9 +3070,12 @@ export default function ProjectDetailScreen() {
                 onPress={() => navigateFromTile({ pathname: '/extract-submittals' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="extract-submittals-btn"
+                accessibilityRole="button"
+                accessibilityLabel={`Extract from spec book with AI${lockSpecExtract ? ', locked, upgrade required' : ''}`}
               >
                 <MageAIMark size={16} color={themeColors.accent} />
                 <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Extract from spec book (AI)</Text>
+                {lockSpecExtract && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
               </TouchableOpacity>
             </View>
           )}
@@ -3029,90 +3120,120 @@ export default function ProjectDetailScreen() {
                   onPress={() => navigateFromTile({ pathname: '/generative-setup' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-generative-setup"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Set up project from estimate${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <MageAIMark size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Set up project from estimate</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.coAddBtn}
                   onPress={() => navigateFromTile({ pathname: '/budget-dashboard' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-budget-dashboard"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Full Budget Dashboard${lockBudgetDashboard ? ', locked, upgrade required' : ''}`}
                 >
                   <DollarSign size={16} color={themeColors.success} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.success }]}>Full Budget Dashboard</Text>
+                  {lockBudgetDashboard && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/job-costing' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-job-costing"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Job Cost-to-Complete${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <BarChart3 size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Job Cost-to-Complete</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/living-estimate' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-living-estimate"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Living Estimate, margin at completion${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <Activity size={16} color={themeColors.info} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.info }]}>Living Estimate · margin at completion</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/margin-risk' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-margin-risk"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Margin Risk Score${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <ShieldAlert size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Margin Risk Score</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/buyout-scope-gap' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-buyout-scope-gap"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Buyout Scope-Gap Audit${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <ScanSearch size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Buyout Scope-Gap Audit</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/estimate-accuracy' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-estimate-accuracy"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Estimate Accuracy, bid vs actual${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <Scale size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Accuracy · bid vs actual</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/estimate-confidence' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-estimate-confidence"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Estimate Confidence, price check${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <ShieldCheck size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Estimate Confidence · price check</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/area-takeoff' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-area-takeoff"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Visual Takeoff, trace to priced line${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <PenTool size={16} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Visual Takeoff · trace → priced line</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { marginTop: 8 }]}
                   onPress={() => navigateFromTile({ pathname: '/project-memory' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-project-memory"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Project Memory, ask this job's history${lockJobCosting ? ', locked, upgrade required' : ''}`}
                 >
                   <MageAIMark size={16} color={themeColors.accent} />
                   <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Project Memory · ask this job&apos;s history</Text>
+                  {lockJobCosting && <Lock size={13} color={themeColors.textMuted} strokeWidth={2.5} style={{ marginLeft: 'auto' }} />}
                 </TouchableOpacity>
               </View>
             )}

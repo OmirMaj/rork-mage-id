@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
   Alert, TextInput, Keyboard,
@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, TrendingUp, Lock, FileSpreadsheet, X, AlertTriangle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -16,6 +17,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
+import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useWip } from '@/contexts/WipContext';
 import {
@@ -33,6 +35,17 @@ function money(n: number): string {
 }
 function pct(n: number): string {
   return `${(n * 100).toFixed(0)}%`;
+}
+
+// Per-project cost-to-date overrides are persisted so the GC's typed
+// cost-to-date (incl. self-performed labor) survives across sessions — it was
+// previously component-only state that reset every time WIP Report reopened,
+// silently falling back to subs+materials and quietly wrong for CPA/bank review.
+// Tenant-namespaced by user id so switching accounts on one device never bleeds
+// one company's cost figures into another's view.
+const WIP_COST_OVERRIDES_KEY = 'tertiary_wip_cost_overrides';
+function costOverridesKey(userId: string | undefined): string {
+  return userId ? `${WIP_COST_OVERRIDES_KEY}_${userId}` : WIP_COST_OVERRIDES_KEY;
 }
 
 export default function WipReportScreen() {
@@ -66,9 +79,43 @@ function WipReportScreenInner() {
   } = useProjects();
   const { periods, addPeriod, lockPeriod } = useWip();
   const { getReceiptsForProject } = useMaterialReceipts();
+  const { user } = useAuth();
+  const userId = user?.id;
 
-  // Per-project cost-to-date overrides (keyed by project id).
+  // Per-project cost-to-date overrides (keyed by project id). Persisted to
+  // AsyncStorage (tenant-namespaced) so a typed cost-to-date survives session
+  // reopens instead of resetting to the subs+materials suggestion.
   const [costOverrides, setCostOverrides] = useState<Record<string, number>>({});
+  // Gate persistence on hydration so the initial empty state doesn't clobber
+  // stored overrides before they load in.
+  const overridesHydratedRef = useRef(false);
+
+  // Hydrate stored overrides whenever the tenant changes. Clear first so a prior
+  // account's cost figures never linger into a new session.
+  useEffect(() => {
+    let cancelled = false;
+    overridesHydratedRef.current = false;
+    setCostOverrides({});
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(costOverridesKey(userId));
+        if (cancelled) return;
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, number>;
+          if (parsed && typeof parsed === 'object') setCostOverrides(parsed);
+        }
+      } catch { /* fresh install / bad cache → start empty */ }
+      finally { if (!cancelled) overridesHydratedRef.current = true; }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  // Persist on every change once hydrated. Cheap write; overrides are a small map.
+  useEffect(() => {
+    if (!overridesHydratedRef.current) return;
+    void AsyncStorage.setItem(costOverridesKey(userId), JSON.stringify(costOverrides))
+      .catch(() => { /* non-fatal cache write */ });
+  }, [costOverrides, userId]);
   const [drillProjectId, setDrillProjectId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   // Controlled buffer for the drill-in cost-to-date field so a typed-but-not-
@@ -266,6 +313,10 @@ function WipReportScreenInner() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.projectName}>{r.projectName}</Text>
                   <Text style={styles.muted}>{pct(r.output.percentComplete)} complete · {money(r.output.earnedRevenue)} earned</Text>
+                  <Text style={styles.muted}>
+                    Cost-to-date {money(r.input.costToDate)}
+                    {costOverrides[r.projectId] === undefined ? ' · est. (tap to add labor)' : ''}
+                  </Text>
                 </View>
                 {flagged ? <AlertTriangle size={16} color={themeColors.danger} strokeWidth={2} /> : null}
                 <Text style={r.output.overbilling > 0 ? styles.over : styles.under}>

@@ -59,15 +59,20 @@ import { Tokens } from '@/constants/designTokens';
 const STORAGE_KEY_FIRST_SEEN = 'buildwise_onboarding_paywall_first_at';
 const STORAGE_KEY_LAST_SEEN = 'buildwise_onboarding_paywall_last_at';
 
-// Canonical pricing the user specified. Used as a fallback when RC hasn't
-// loaded, and as source-of-truth for copy like "Save 20%" derivation.
+// Canonical published pricing — MUST match app/paywall.tsx and the tiers in
+// CLAUDE.md: Pro $29/mo, Business $79/mo (Enterprise $150/mo lives in the full
+// paywall). Used as a fallback when RC hasn't loaded, and as source-of-truth
+// for the "SAVE 20%" annual copy. Annual figures are an exact 20% discount off
+// the monthly base so the badge and "billed annually" footnote stay truthful:
+//   Pro:      $29 × 12 × 0.8 = $278.40/yr  → $23.20/mo
+//   Business: $79 × 12 × 0.8 = $758.40/yr  → $63.20/mo
 const FALLBACK_PRICING = {
-  proMonthly: '$29.99',
-  proAnnualPerMonth: '$24.16',
-  proAnnualTotal: '$289.99',
-  businessMonthly: '$79.99',
-  businessAnnualPerMonth: '$64.16',
-  businessAnnualTotal: '$769.99',
+  proMonthly: '$29.00',
+  proAnnualPerMonth: '$23.20',
+  proAnnualTotal: '$278.40',
+  businessMonthly: '$79.00',
+  businessAnnualPerMonth: '$63.20',
+  businessAnnualTotal: '$758.40',
 } as const;
 
 type Plan = 'pro' | 'business';
@@ -91,18 +96,18 @@ const FEATURES: Feature[] = [
     Icon: CalendarDays,
   },
   {
-    title: 'PDF Export & Sharing',
-    description: 'Export estimates, invoices, and reports as branded PDFs.',
+    title: 'AI Takeoff',
+    description: 'Turn a plan PDF into linear- and square-foot quantities.',
     Icon: FileText,
   },
   {
-    title: 'Daily Field Reports',
-    description: 'Log work completed, issues, and weather from the field.',
+    title: 'AI Photo Triage',
+    description: 'Snap jobsite photos and auto-build punch and issue items.',
     Icon: ClipboardList,
   },
   {
     title: 'Voice-to-Report',
-    description: 'Dictate updates and let MAGE build the report for you.',
+    description: 'Dictate updates and let MAGE build the daily report for you.',
     Icon: Mic,
   },
   {

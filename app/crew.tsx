@@ -15,6 +15,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useCrew } from '@/contexts/CrewContext';
+import { useSafety } from '@/contexts/SafetyContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -25,7 +26,7 @@ import type { CrewMember, IdDocumentType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
-import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified } from '@/utils/crew';
+import { verifiedBadge, certExpiryStatus, maskIdLast4, computeIdVerified, type CertExpiryStatus } from '@/utils/crew';
 import { scanGovernmentId, sendClaimInvite, type IdScanResult } from '@/utils/crewScan';
 import { uploadWorkerIdImage } from '@/utils/storage';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
@@ -164,6 +165,7 @@ function CrewScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { crewMembers, addCrewMember, updateCrewMember, deleteCrewMember, getCrewMember, startClaimInvite } = useCrew();
+  const { getCertificationsForWorker } = useSafety();
   const { projects } = useProjects();
   const auth = useAuth();
   const subscription = useSubscription();
@@ -518,12 +520,11 @@ function CrewScreenInner() {
                     </Text>
                   </View>
 
-                  {/* Certifications */}
+                  {/* Certifications — person-anchored via Certification.workerId === member.id (Safety Wave B). */}
                   <View style={styles.section}>
                     <Text style={styles.sectionLabel}>Certifications</Text>
-                    {/* Safety Wave B populates via Certification.workerId === member.id; render certExpiryStatus(cert.expiresDate, today) badges here. */}
                     {(() => {
-                      const certs: { id: string; name: string; expiresDate?: string }[] = [];
+                      const certs = getCertificationsForWorker(member.id);
                       if (certs.length === 0) {
                         return <Text style={styles.emptyRowText}>No certifications on file yet.</Text>;
                       }
@@ -531,8 +532,8 @@ function CrewScreenInner() {
                         const status = certExpiryStatus(cert.expiresDate, today);
                         return (
                           <View key={cert.id} style={styles.certRow}>
-                            <Text style={styles.certName}>{cert.name}</Text>
-                            <Text style={styles.certStatus}>{status}</Text>
+                            <Text style={styles.certName} numberOfLines={1}>{cert.type}</Text>
+                            <Text style={[styles.certStatus, CERT_STATUS_STYLE(themeColors)[status]]}>{CERT_STATUS_LABEL[status]}</Text>
                           </View>
                         );
                       });
@@ -775,6 +776,20 @@ const ID_TYPE_OPTIONS: { value: IdDocumentType; label: string }[] = [
   { value: 'passport', label: 'Passport' },
   { value: 'other', label: 'Other' },
 ];
+
+// Human-readable cert-expiry labels + status coloring for the crew detail view.
+const CERT_STATUS_LABEL: Record<CertExpiryStatus, string> = {
+  none: 'No expiry',
+  valid: 'Valid',
+  expiring: 'Expiring soon',
+  expired: 'Expired',
+};
+const CERT_STATUS_STYLE = (t: ThemeColors): Record<CertExpiryStatus, { color: string }> => ({
+  none: { color: t.textSecondary },
+  valid: { color: t.success },
+  expiring: { color: t.accent },
+  expired: { color: t.danger },
+});
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
