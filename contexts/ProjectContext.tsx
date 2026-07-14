@@ -470,6 +470,23 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               taxRate: Number(r.tax_rate), taxAmount: Number(r.tax_amount), totalDue: Number(r.total_due),
               amountPaid: Number(r.amount_paid), status: r.status as Invoice['status'],
               payments: r.payments as Invoice['payments'], createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // Hydrate every persisted field the mapper used to drop — otherwise a
+              // refetch wiped retention (A/R money) + pay links (no DB copy) and
+              // blanked portal/qbo state in memory. numeric columns come back as
+              // strings from PostgREST, so wrap in Number().
+              retentionPercent: r.retention_percent == null ? undefined : Number(r.retention_percent),
+              retentionAmount: r.retention_amount == null ? undefined : Number(r.retention_amount),
+              retentionReleased: r.retention_released == null ? undefined : Number(r.retention_released),
+              retentionReleases: (r.retention_releases as Invoice['retentionReleases']) ?? undefined,
+              payLinkUrl: (r.pay_link_url as string | null) ?? undefined,
+              payLinkId: (r.pay_link_id as string | null) ?? undefined,
+              portalState: (r.portal_state as Invoice['portalState']) ?? undefined,
+              qboId: (r.qbo_id as string | null) ?? undefined,
+              qboHash: (r.qbo_hash as string | null) ?? undefined,
+              qboSyncedAt: (r.qbo_synced_at as string | null) ?? undefined,
+              qboSyncStatus: (r.qbo_sync_status as Invoice['qboSyncStatus']) ?? undefined,
+              qboError: (r.qbo_error as string | null) ?? undefined,
+              qboRetryCount: r.qbo_retry_count == null ? undefined : Number(r.qbo_retry_count),
             })) as Invoice[];
             await saveLocal(INVOICES_KEY, mapped);
             return mapped;
@@ -1571,6 +1588,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         tax_amount: finalInvoice.taxAmount, total_due: finalInvoice.totalDue, amount_paid: finalInvoice.amountPaid,
         status: finalInvoice.status, payments: finalInvoice.payments, created_at: finalInvoice.createdAt, updated_at: finalInvoice.updatedAt,
         qbo_sync_status: 'pending', portal_state: finalInvoice.portalState,
+        // Retention + pay-link are cloud-backed as of the 20260713 migration —
+        // without these they were local-only and lost on the next refetch.
+        retention_percent: finalInvoice.retentionPercent ?? null,
+        retention_amount: finalInvoice.retentionAmount ?? null,
+        retention_released: finalInvoice.retentionReleased ?? null,
+        retention_releases: finalInvoice.retentionReleases ?? null,
+        pay_link_url: finalInvoice.payLinkUrl ?? null,
+        pay_link_id: finalInvoice.payLinkId ?? null,
       });
       void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', finalInvoice.id));
     }
@@ -1626,6 +1651,21 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           payload.status = inv.status;
         } else if ('status' in updates) {
           payload.status = inv.status;
+        }
+        // Retention + pay-link (cloud-backed as of the 20260713 migration). Use
+        // ?? null, NOT bare undefined: clearing a stale pay-link (set to
+        // undefined when the total changes) must reach the DB as null, or the
+        // omitted key leaves the old link and the client is shown a Pay button
+        // for the wrong amount on the next refetch.
+        if ('retentionPercent' in updates) payload.retention_percent = inv.retentionPercent ?? null;
+        if ('retentionAmount' in updates) payload.retention_amount = inv.retentionAmount ?? null;
+        if ('retentionReleased' in updates || 'retentionReleases' in updates) {
+          payload.retention_released = inv.retentionReleased ?? null;
+          payload.retention_releases = inv.retentionReleases ?? null;
+        }
+        if ('payLinkUrl' in updates || 'payLinkId' in updates) {
+          payload.pay_link_url = inv.payLinkUrl ?? null;
+          payload.pay_link_id = inv.payLinkId ?? null;
         }
         void supabaseWrite('invoices', 'update', payload);
       }
