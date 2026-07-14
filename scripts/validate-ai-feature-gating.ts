@@ -81,5 +81,28 @@ for (const k of relayKeys) {
   ok(`relay key ${k} is a recognised feature id`, (k in FEATURE_CONFIG) || CANACCESS_GATED.has(k));
 }
 
+// 4. Every KNOWN mageAI relay path for a gated feature actually passes the
+//    feature tag. The relay gate is skipped when the payload omits `feature`, so
+//    enforcement needs EVERY call site tagged — a tagged sibling would otherwise
+//    mask an untagged path (this exact miss: weeklyAnalysis had two paths,
+//    draftWeeklyUpdate tagged + generateWeeklySummary untagged). When you add a
+//    new relay path for a gated feature, add its file here.
+const TAG_MANIFEST: Record<string, string[]> = {
+  bidLeveling: ['app/bid-leveling.tsx', 'utils/bidLevelingEngine.ts'],
+  weeklyAnalysis: ['utils/weeklyClientUpdate.ts', 'utils/aiService.ts'],
+  aiEstimateWizard: ['app/takeoff-estimate.tsx'],
+  cashFlowForecaster: ['app/cash-flow.tsx'],
+  fullBudgetDashboard: ['app/budget-dashboard.tsx'],
+};
+for (const [feat, files] of Object.entries(TAG_MANIFEST)) {
+  for (const f of files) {
+    let src = '';
+    try { src = readFileSync(f, 'utf8'); } catch { /* missing file → fail below */ }
+    const tagged = src.includes(`feature: '${feat}'`) || src.includes(`feature: "${feat}"`);
+    ok(`${f} tags mageAI with feature '${feat}'`, tagged,
+      `add feature: '${feat}' to the mageAI() call in ${f} (the relay skips the gate when the tag is absent)`);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
