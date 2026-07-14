@@ -1053,6 +1053,12 @@ export default function SettingsScreen() {
                 <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.danger, marginTop: 2 }}>
                   Reconnect required
                 </Text>
+              ) : (tier !== 'business' && tier !== 'enterprise') ? (
+                // QuickBooks sync is a Business feature — signal it before the
+                // tap so the row isn't a bait-and-switch into the paywall.
+                <Text style={{ fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 }}>
+                  Requires Business
+                </Text>
               ) : null}
             </View>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
