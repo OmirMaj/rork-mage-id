@@ -37,6 +37,9 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useScans } from '@/contexts/ScanContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import Paywall from '@/components/Paywall';
 import { resolveDestination, defaultTitleFor } from '@/utils/scanRouting';
 import { normalizeExtraction } from '@/utils/materialReceipt';
@@ -114,6 +117,7 @@ function ScanInner() {
   const { projects, getProject, subcontractors, addContact, addCOI } = useProjects();
   const { addReceipt } = useMaterialReceipts();
   const { addScan } = useScans();
+  const { tier } = useSubscription();
 
   const initialProjectId = params.projectId ?? projects[0]?.id ?? '';
   const [projectId, setProjectId] = useState(initialProjectId);
@@ -186,6 +190,12 @@ function ScanInner() {
   const runScan = useCallback(async () => {
     if (busy || captures.length === 0) return;
     if (!projectId) { Alert.alert('Pick a project', 'Choose which project this document belongs to.'); return; }
+    // Meter the vision call against the same monthly photoAnalysis budget every
+    // other vision surface uses (material-receipt / photo-triage). The server is
+    // still the authority (see FLAG below) — this is the client pre-check so the
+    // user sees the cap before we burn an uncapped Gemini call.
+    const limit = await checkAILimit(tier, 'smart', 'photoAnalysis');
+    if (!limit.allowed) { showAILimitAlert({ limit, router, monthly: true }); return; }
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setBusy(true);
     setError(null);
@@ -199,6 +209,7 @@ function ScanInner() {
       });
       if (fnError) throw new Error(fnError.message || 'Scan failed');
       if (!data?.success) throw new Error(data?.error || 'Scan failed');
+      await recordAIUsage('smart', 'photoAnalysis');
       setResult(data);
       // The redirect (gov-ID) path returns empty fields — nothing to edit.
       setEditedFields(data.redirect ? {} : { ...(data.fields ?? {}) });
@@ -209,7 +220,7 @@ function ScanInner() {
     } finally {
       setBusy(false);
     }
-  }, [busy, captures, projectId]);
+  }, [busy, captures, projectId, tier, router]);
 
   // ── Field edits ──────────────────────────────────────────────
   const patchField = useCallback((key: string, value: string) => {

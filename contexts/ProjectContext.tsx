@@ -97,6 +97,9 @@ type CoreDataValue = {
    *  picked one (route them to /persona-select). */
   userRole: UserRole | null;
   isLoading: boolean;
+  /** True once projects have hydrated from storage/network. Distinguishes
+   *  "still loading" from "not found" for deep-linked detail screens. */
+  projectsLoaded: boolean;
   addProject: (project: Project) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
@@ -249,6 +252,7 @@ type DocsDataValue = {
   getSubPortalLinksForProject: (projectId: string) => SubPortalLink[];
   submittals: Submittal[];
   addSubmittal: (sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => void;
+  addSubmittals: (subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[]) => void;
   updateSubmittal: (id: string, updates: Partial<Submittal>) => void;
   deleteSubmittal: (id: string) => void;
   getSubmittalsForProject: (projectId: string) => Submittal[];
@@ -308,6 +312,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const userId = user?.id ?? null;
 
   const [projects, setProjects] = useState<Project[]>([]);
+  // True once the projects query has settled AND local state has been hydrated
+  // from it. Screens use this to tell "still loading" apart from "genuinely not
+  // found" — getProject(id) returns null in BOTH cases, so a cold deep-link
+  // would otherwise flash a false "Project not found" for a frame.
+  const [projectsLoaded, setProjectsLoaded] = useState<boolean>(false);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [userRole, setUserRoleState] = useState<UserRole | null>(null);
@@ -327,6 +336,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [commEvents, setCommEvents] = useState<CommunicationEvent[]>([]);
   const [rfis, setRfis] = useState<RFI[]>([]);
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
+  // Mirror of `submittals` kept in sync so add handlers called repeatedly in a
+  // single synchronous loop (e.g. extract-submittals bulk save, dev-seeder)
+  // read the just-inserted rows instead of a stale render closure — otherwise
+  // every iteration computes the same nextNumber and each setState clobbers the
+  // previous, so only the last row survives.
+  const submittalsRef = useRef<Submittal[]>([]);
+  useEffect(() => { submittalsRef.current = submittals; }, [submittals]);
   const [oacMeetings, setOacMeetings] = useState<OACMeeting[]>([]);
   const [cois, setCois] = useState<CertificateOfInsurance[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
@@ -1065,6 +1081,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }, [queryClient, userId, canSync]);
 
   useEffect(() => { if (projectsQuery.data) setProjects(projectsQuery.data); }, [projectsQuery.data]);
+  // Mark hydration complete once the query settles (success OR error). We flip
+  // it here — not off `projectsQuery.data` — so an empty/failed load still
+  // clears the loading state instead of hanging on a spinner forever.
+  useEffect(() => {
+    if (!projectsQuery.isLoading) setProjectsLoaded(true);
+  }, [projectsQuery.isLoading]);
   useEffect(() => { if (settingsQuery.data) setSettings(settingsQuery.data); }, [settingsQuery.data]);
   useEffect(() => { if (changeOrdersQuery.data) setChangeOrders(changeOrdersQuery.data); }, [changeOrdersQuery.data]);
   useEffect(() => { if (invoicesQuery.data) setInvoices(invoicesQuery.data); }, [invoicesQuery.data]);
@@ -2973,8 +2995,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
     [subPortalLinks]);
 
-  const addSubmittal = useCallback((sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => {
-    const projectSubs = submittals.filter(s => s.projectId === sub.projectId);
+  // Build one Submittal off the current list, assigning the next per-project
+  // number. Reads `base` (the authoritative current array) so callers looping
+  // synchronously can thread the just-updated array through each iteration.
+  const buildSubmittal = useCallback((
+    sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>,
+    base: Submittal[],
+  ): { newSub: Submittal; row: Record<string, unknown> } => {
+    const projectSubs = base.filter(s => s.projectId === sub.projectId);
     const nextNumber = projectSubs.length > 0 ? Math.max(...projectSubs.map(s => s.number)) + 1 : 1;
     const now = new Date().toISOString();
     const newSub: Submittal = {
@@ -2985,20 +3013,46 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       updatedAt: now,
       portalState: sub.portalState ?? initialPortalState('submittal', sub.projectId),
     };
-    const updated = [newSub, ...submittals];
+    const row = {
+      id: newSub.id, user_id: userId, project_id: newSub.projectId, number: newSub.number,
+      title: newSub.title, spec_section: newSub.specSection, submitted_by: newSub.submittedBy,
+      submitted_date: newSub.submittedDate, required_date: newSub.requiredDate,
+      review_cycles: newSub.reviewCycles, current_status: newSub.currentStatus,
+      attachments: newSub.attachments, created_at: now, updated_at: now,
+      portal_state: newSub.portalState,
+    };
+    return { newSub, row };
+  }, [userId, initialPortalState]);
+
+  const addSubmittal = useCallback((sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => {
+    // Read the ref (not `submittals`) so numbering stays correct when this is
+    // called N times in one synchronous loop before React re-renders.
+    const base = submittalsRef.current;
+    const { newSub, row } = buildSubmittal(sub, base);
+    const updated = [newSub, ...base];
+    submittalsRef.current = updated;
     setSubmittals(updated);
     saveSubmittalsMutation.mutate(updated);
-    if (canSync) {
-      void supabaseWrite('submittals', 'insert', {
-        id: newSub.id, user_id: userId, project_id: newSub.projectId, number: newSub.number,
-        title: newSub.title, spec_section: newSub.specSection, submitted_by: newSub.submittedBy,
-        submitted_date: newSub.submittedDate, required_date: newSub.requiredDate,
-        review_cycles: newSub.reviewCycles, current_status: newSub.currentStatus,
-        attachments: newSub.attachments, created_at: now, updated_at: now,
-        portal_state: newSub.portalState,
-      });
+    if (canSync) void supabaseWrite('submittals', 'insert', row);
+  }, [buildSubmittal, saveSubmittalsMutation, canSync]);
+
+  // Batch insert — assigns sequential per-project numbers to every row and
+  // commits in ONE setState. Use this from bulk flows (e.g. extract-submittals)
+  // instead of looping addSubmittal, so the review count matches what persists.
+  const addSubmittals = useCallback((subs: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>[]) => {
+    if (subs.length === 0) return;
+    let working = submittalsRef.current;
+    const rows: Record<string, unknown>[] = [];
+    for (const sub of subs) {
+      const { newSub, row } = buildSubmittal(sub, working);
+      working = [newSub, ...working];
+      rows.push(row);
     }
-  }, [submittals, saveSubmittalsMutation, canSync, userId, initialPortalState]);
+    submittalsRef.current = working;
+    setSubmittals(working);
+    saveSubmittalsMutation.mutate(working);
+    if (canSync) rows.forEach(row => { void supabaseWrite('submittals', 'insert', row); });
+  }, [buildSubmittal, saveSubmittalsMutation, canSync]);
 
   const updateSubmittal = useCallback((id: string, updates: Partial<Submittal>) => {
     const now = new Date().toISOString();
@@ -3698,12 +3752,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const coreData = useMemo<CoreDataValue>(() => ({
     projects: sortedProjects, settings, hasSeenOnboarding, userRole,
     isLoading: projectsQuery.isLoading || settingsQuery.isLoading || onboardingQuery.isLoading || userRoleQuery.isLoading,
+    projectsLoaded,
     addProject, updateProject, deleteProject, getProject, updateSettings,
     addCollaborator, removeCollaborator,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
+  }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
     changeOrders, addChangeOrder, getChangeOrdersForProject,
@@ -3740,11 +3795,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
     permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
     subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
-    submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
+    submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
     portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
-  }), [rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
+  }), [rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
 
   const stableActions = useMemo<StableActionsValue>(() => ({
     completeOnboarding,

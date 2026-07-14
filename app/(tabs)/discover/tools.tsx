@@ -303,7 +303,7 @@ export default function DiscoverToolsScreen() {
               <NavRow
                 Icon={BarChart3}
                 title="Budget dashboard"
-                subtitle="Planned vs actual across the portfolio"
+                subtitle="Earned-value (CPI/SPI) for one project — pick a project to chart"
                 tone="success"
                 onPress={() => router.push('/budget-dashboard' as never)}
                 testID="tools-budget-dashboard"

@@ -72,12 +72,15 @@ export default function PlanViewerScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
-  if (!canAccess('plan_viewer')) {
+  // Gate MUST match the Plans library gate (plans.tsx uses 'plan_markup' = Pro).
+  // Previously this gated on 'plan_viewer' (Business), so a paying Pro user who
+  // imported drawings hit a Business paywall the instant they opened a sheet.
+  if (!canAccess('plan_markup')) {
     return (
       <Paywall
         visible={true}
         feature="Plan Viewer"
-        requiredTier="business"
+        requiredTier="pro"
         onClose={() => router.back()}
       />
     );

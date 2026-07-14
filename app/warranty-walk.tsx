@@ -27,6 +27,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { sendEmail } from '@/utils/emailService';
 import { wrapEmailHtml, escapeHtml } from '@/utils/emailLayout';
+import { generateUUID } from '@/utils/generateId';
+import type { PunchItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -72,7 +74,7 @@ export default function WarrantyWalkScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, updateProject, settings } = useProjects();
+  const { getProject, updateProject, addPunchItem, settings } = useProjects();
   const { isFree } = useTierAccess();
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
 
@@ -108,10 +110,41 @@ export default function WarrantyWalkScreen() {
       updateProject(project.id, {
         warrantyWalkCompletedAt: new Date().toISOString(),
       });
+
+      // Convert every flagged item into a durable, high-priority punch item so
+      // the flag survives the walk — pre-fix the per-item state lived only in
+      // local useState and evaporated once the screen closed, leaving no
+      // tracked follow-up despite the hero copy's "flag it now" promise.
+      const now = new Date().toISOString();
+      let createdPunchCount = 0;
+      for (const it of DEFAULT_WALK_ITEMS) {
+        const state = items[it.id];
+        if (!state?.needsAttention) continue;
+        const note = state.notes.trim();
+        const punch: PunchItem = {
+          id: generateUUID(),
+          projectId: project.id,
+          description: note ? `${it.title} — ${note}` : it.title,
+          location: it.phase,
+          assignedSub: '',
+          dueDate: '',
+          priority: 'high',
+          status: 'open',
+          createdAt: now,
+          updatedAt: now,
+        };
+        addPunchItem(punch);
+        createdPunchCount += 1;
+      }
+
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Walk logged',
-        `${totals.checkedCount} item${totals.checkedCount === 1 ? '' : 's'} checked${totals.flaggedCount > 0 ? `, ${totals.flaggedCount} flagged for follow-up` : ''}. The home-screen banner will clear once you reload.`,
+        `${totals.checkedCount} item${totals.checkedCount === 1 ? '' : 's'} checked${
+          createdPunchCount > 0
+            ? `, ${createdPunchCount} flagged item${createdPunchCount === 1 ? '' : 's'} added to the punch list for follow-up`
+            : ''
+        }. The home-screen banner will clear once you reload.`,
         [{ text: 'OK', onPress: () => router.back() }],
       );
     } catch (err) {
@@ -119,7 +152,7 @@ export default function WarrantyWalkScreen() {
     } finally {
       setCompleting(false);
     }
-  }, [project, totals, updateProject, router]);
+  }, [project, items, totals, updateProject, addPunchItem, router]);
 
   const handleEmailHomeowner = useCallback(async () => {
     if (!project) return;

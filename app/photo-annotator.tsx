@@ -21,6 +21,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import type { PhotoMarkup } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { Type } from '@/constants/typography';
@@ -37,16 +39,29 @@ const COLOR_HEX: Record<AnnotationColor, string> = {
 
 const CANVAS_SIZE = 380;       // logical canvas — actual size is responsive
 
+// Photo markup is a paid capability, consistent with plan markup (plans.tsx
+// gates on 'plan_markup', Pro). A saved annotation feeds directly into an RFI
+// or punch item, so the two markup surfaces are gated the same way behind the
+// Pro 'photo_documentation' key rather than one being free and one paid.
 export default function PhotoAnnotatorScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('photo_documentation')) {
+    return <Paywall visible feature="Photo Markup" requiredTier="pro" onClose={() => router.back()} />;
+  }
+  return <PhotoAnnotatorInner />;
+}
+
+function PhotoAnnotatorInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { photoId } = useLocalSearchParams<{ photoId: string }>();
-  const ctx = useProjects() as any;
+  const { projectPhotos, updateProjectPhoto } = useProjects();
   const photo = useMemo(
-    () => (ctx.projectPhotos ?? []).find((p: any) => p.id === photoId),
-    [ctx.projectPhotos, photoId],
+    () => projectPhotos.find(p => p.id === photoId),
+    [projectPhotos, photoId],
   );
 
   const [tool, setTool] = useState<Tool>('arrow');
@@ -162,7 +177,7 @@ export default function PhotoAnnotatorScreen() {
 
   const handleSave = useCallback(() => {
     if (!photo) return;
-    ctx.updateProjectPhoto(photo.id, { markup: markups });
+    updateProjectPhoto(photo.id, { markup: markups });
     if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     // After save, offer to attach this annotated photo to a new RFI
     // or punch item. This is the connector that turns a "thing I saw"
@@ -193,7 +208,7 @@ export default function PhotoAnnotatorScreen() {
         },
       ],
     );
-  }, [photo, markups, ctx, router]);
+  }, [photo, markups, updateProjectPhoto, router]);
 
   if (!photo) {
     return (

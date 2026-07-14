@@ -13,6 +13,8 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import { predictInvoicePayments } from '@/utils/paymentPrediction';
@@ -44,6 +46,28 @@ const RISK_LABEL: Record<InvoicePrediction['riskLevel'], string> = {
 };
 
 export default function PaymentPredictionsScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  // Payment Predictions is an AI-driven A/R collection tool — advertised as a
+  // Pro cash-management feature and reachable from the Pro-gated Cash Flow
+  // Forecaster. Gate it with the same Pro key so a free user can't run
+  // unlimited smart-tier forecasts. (See FLAG in the ship report: a dedicated
+  // `payment_predictions` FeatureKey + AI_LIMITS row would be more honest, but
+  // adding a key requires editing the shared hooks/useTierAccess.ts.)
+  if (!canAccess('cash_flow_forecaster')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Payment Predictions"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <PaymentPredictionsScreenInner />;
+}
+
+function PaymentPredictionsScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();

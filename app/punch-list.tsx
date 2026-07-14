@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, Modal, KeyboardAvoidingView,
+  Alert, Platform, Modal, KeyboardAvoidingView, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -160,6 +160,9 @@ function PunchListScreenInner() {
     setDescription(''); setLocation(''); setAssignedSub('');
     setDueDate(''); setPriority('medium'); setEditingItem(null);
     setLinkedTaskId('');
+    // Clear any attached photo so a cancelled form doesn't silently carry
+    // it into the next new item.
+    setAttachedPhotoUri(undefined);
   }, []);
 
   const closedCount = items.filter(i => i.status === 'closed').length;
@@ -258,13 +261,16 @@ function PunchListScreenInner() {
         setTimeout(() => {
           Alert.alert(
             'All punch items closed',
-            `Nice — ${project.name}'s punch list is wrapped. Move the project to Closeout so it stops showing in your active list?`,
+            `Nice — ${project.name}'s punch list is wrapped. Close the project so it stops showing in your active list?`,
             [
               { text: 'Not yet', style: 'cancel' },
               {
-                text: 'Move to Closeout',
+                text: 'Close Project',
                 onPress: () => {
-                  updateProject(project.id, { status: 'completed' });
+                  // Land in the SAME terminal state the Close Project button
+                  // sets — 'closed' + closedAt — so both paths agree instead
+                  // of one leaving the project 'completed' and the other 'closed'.
+                  updateProject(project.id, { status: 'closed', closedAt: new Date().toISOString() });
                   if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 },
               },
@@ -556,11 +562,18 @@ function PunchListScreenInner() {
           <Text style={styles.walkBtnText}>Walk Mode — voice capture</Text>
         </TouchableOpacity>
 
-        {allClosed && totalCount > 0 && (
+        {allClosed && totalCount > 0 && project.status !== 'completed' && project.status !== 'closed' && (
           <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85}>
             <CheckCircle size={18} color="#fff" strokeWidth={1.75} />
             <Text style={styles.closeProjectBtnText}>Close Project</Text>
           </TouchableOpacity>
+        )}
+
+        {(project.status === 'completed' || project.status === 'closed') && (
+          <View style={styles.projectClosedNote}>
+            <CheckCircle size={16} color={themeColors.success} strokeWidth={1.75} />
+            <Text style={styles.projectClosedNoteText}>Project closed — punch list is archived.</Text>
+          </View>
         )}
       </ScrollView>
 
@@ -575,6 +588,24 @@ function PunchListScreenInner() {
                     <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
+
+                {attachedPhotoUri ? (
+                  <View style={styles.photoPreview}>
+                    <Image source={{ uri: attachedPhotoUri }} style={styles.photoImg} />
+                    <TouchableOpacity
+                      style={styles.photoRemove}
+                      onPress={() => setAttachedPhotoUri(undefined)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove attached photo"
+                      testID="punch-remove-photo"
+                    >
+                      <X size={12} color="#fff" strokeWidth={1.75} />
+                    </TouchableOpacity>
+                    <View style={styles.photoBadge}>
+                      <Text style={styles.photoBadgeText}>Photo attached</Text>
+                    </View>
+                  </View>
+                ) : null}
 
                 <Text style={styles.fieldLabel}>Description *</Text>
                 <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={themeColors.textMuted} multiline testID="punch-desc-input" />
@@ -981,10 +1012,17 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   walkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 16, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.success },
   closeProjectBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
+  projectClosedNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.successSoft },
+  projectClosedNoteText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.success },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'flex-end' },
   formCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  photoPreview: { position: 'relative' as const, alignSelf: 'flex-start' as const, marginBottom: 4, borderRadius: Tokens.radius.md, overflow: 'hidden' as const },
+  photoImg: { width: 120, height: 90, borderRadius: Tokens.radius.md },
+  photoRemove: { position: 'absolute' as const, top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.7)", alignItems: 'center' as const, justifyContent: 'center' as const },
+  photoBadge: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 6, paddingVertical: 3 },
+  photoBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: '#fff' },
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 4 },
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   subChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },
