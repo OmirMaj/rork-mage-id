@@ -46,14 +46,16 @@ serve(async (req: Request) => {
   if (!projectId || !query) return json({ success: false, error: "Missing projectId or query" }, 400);
 
   // Cost ceiling (audit): monthly cap (fail-closed) + hourly burst limit, checked
-  // before spending on the query embedding. Charged per call after success.
+  // before spending on the query embedding. Search embeds ONE query, so it charges
+  // 1 (unlike embed, which charges docs.length). Rate limiter fails OPEN (rl < 0):
+  // the monthly counter is the cost ceiling, so a limiter blip shouldn't lock out.
   const cap = MONTHLY_CAPS[auth.tier]?.project_memory ?? 0;
   const used = await aiUsageGet(auth.userId, "project_memory");
   if (used + 1 > cap) {
     return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
   }
   const rl = await rateLimitCount(`pm:${auth.userId}`);
-  if (rl < 0 || rl > PM_HOURLY_LIMIT) {
+  if (rl > PM_HOURLY_LIMIT) {
     return json({ success: false, error: "Too many Project Memory requests — please wait a moment and retry.", code: "rate_limited" }, 429);
   }
 

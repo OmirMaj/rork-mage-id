@@ -74,14 +74,52 @@ function isPrivateIpv4(host: string): boolean {
   return false;
 }
 
+// Decode an IPv4 embedded in an IPv6 literal. The WHATWG URL parser normalizes an
+// IPv4-mapped host to COMPRESSED HEX (http://[::ffff:169.254.169.254] →
+// "::ffff:a9fe:a9fe"), so a dotted-only check missed it. Handle mapped (dotted +
+// hex), 6to4, and NAT64 embeddings so a mapped internal IP can't slip past.
+function embeddedIpv4(h: string): string | null {
+  // ::ffff:HHHH:HHHH  — hex-compressed IPv4-mapped (what the URL parser emits)
+  const hex = h.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hex) {
+    const hi = parseInt(hex[1], 16), lo = parseInt(hex[2], 16);
+    return `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`;
+  }
+  // Any dotted-quad tail on a mapped/compat/6to4/NAT64 literal (::ffff:1.2.3.4,
+  // ::1.2.3.4, 64:ff9b::1.2.3.4, 2002::1.2.3.4).
+  const dotted = h.match(/(?:^|:)((?:\d{1,3}\.){3}\d{1,3})$/);
+  if (dotted && (h.startsWith("::") || h.startsWith("64:ff9b:") || h.startsWith("2002:"))) return dotted[1];
+  // 6to4 (2002:AABB:CCDD::/48) embeds the IPv4 in hex groups 2-3.
+  if (h.startsWith("2002:")) {
+    const g = h.split(":");
+    const hi = parseInt(g[1] || "0", 16), lo = parseInt(g[2] || "0", 16);
+    return `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`;
+  }
+  return null;
+}
+
 function isPrivateIpv6(host: string): boolean {
   const h = host.toLowerCase();
   if (h === "::1" || h === "::") return true;                    // loopback / unspecified
   if (h.startsWith("fe80")) return true;                          // link-local
   if (h.startsWith("fc") || h.startsWith("fd")) return true;      // unique-local (ULA)
-  const mapped = h.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/); // IPv4-mapped
-  if (mapped) return isPrivateIpv4(mapped[1]);
+  const v4 = embeddedIpv4(h);
+  if (v4) return isPrivateIpv4(v4);
   return false;
+}
+
+// DNS-over-HTTPS resolver (fetch-based, always available) used when the runtime
+// doesn't expose Deno.resolveDns — so the private-IP check still runs and the
+// nip.io / rebind class stays closed regardless of edge-runtime capabilities.
+async function resolveViaDoh(host: string, type: "A" | "AAAA"): Promise<string[]> {
+  try {
+    const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=${type}`,
+      { headers: { accept: "application/dns-json" } });
+    if (!r.ok) return [];
+    const j = await r.json() as { Answer?: { type: number; data: string }[] };
+    const want = type === "A" ? 1 : 28;
+    return (j.Answer ?? []).filter((a) => a.type === want).map((a) => a.data);
+  } catch { return []; }
 }
 
 function isPrivateIp(ip: string): boolean {
@@ -98,16 +136,15 @@ async function hostAllowed(hostname: string): Promise<boolean> {
   if (!h) return false;
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal") || h.endsWith(".local")) return false;
   if (isIpLiteral(h)) return !isPrivateIp(h);
-  // Resolve and validate every A/AAAA record.
-  const resolve = (Deno as { resolveDns?: unknown }).resolveDns;
-  if (typeof resolve !== "function") {
-    // Runtime doesn't expose DNS resolution — fall back to the literal denylist
-    // (weaker, but better than deny-all which would break the whole feature).
-    return !isPrivateIp(h);
-  }
+  // Resolve (native if available, else DoH) and validate EVERY A/AAAA record.
   const ips: string[] = [];
-  for (const rt of ["A", "AAAA"] as const) {
-    try { ips.push(...(await Deno.resolveDns(h, rt))); } catch { /* no records of this type */ }
+  const resolve = (Deno as { resolveDns?: unknown }).resolveDns;
+  if (typeof resolve === "function") {
+    for (const rt of ["A", "AAAA"] as const) {
+      try { ips.push(...(await Deno.resolveDns(h, rt))); } catch { /* no records of this type */ }
+    }
+  } else {
+    for (const rt of ["A", "AAAA"] as const) ips.push(...(await resolveViaDoh(h, rt)));
   }
   if (ips.length === 0) return false;                 // can't verify → deny
   return ips.every((ip) => !isPrivateIp(ip));

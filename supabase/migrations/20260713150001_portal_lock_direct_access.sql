@@ -6,8 +6,14 @@
 -- the NEW HTML reads/writes through the PART 1 token-gated RPCs instead. Applying
 -- this WITHOUT the HTML deploy will break every live client portal.
 --
--- The authenticated GC app is UNAFFECTED: its owner-scoped policies
--- (portal_snapshots_owner_write / "gc reads own …") remain intact.
+-- The authenticated GC app keeps all its access EXCEPT two in-app "client-view"
+-- write paths that rode on the dropped {anon,authenticated} "client …" policies:
+-- app/client-view.tsx inserts a change_order_approval, and
+-- hooks/usePortalThread.ts inserts a portal_message with author_type='client'.
+-- We replace those with OWNER-SCOPED authenticated INSERT policies below so the
+-- GC's own in-app client preview keeps persisting, while anon stays blocked. All
+-- other GC access survives via the untouched owner-scoped policies
+-- (portal_snapshots_owner_write / "gc reads/inserts/updates own …").
 
 -- Revoke the OLD tokenless snapshot RPCs from anon/authenticated (a bypass — they
 -- return the snapshot given only the guessable portalId). Nothing legitimate calls
@@ -36,3 +42,18 @@ revoke insert on public.change_order_approvals from anon;
 revoke insert on public.portal_messages        from anon;
 revoke insert on public.portal_budget_proposals from anon;
 revoke insert on public.sub_submitted_invoices from anon;
+
+-- Preserve the two authenticated in-app "client-view" write paths (GC previewing
+-- their OWN portal) that used to ride on the dropped anon "client …" policies.
+-- Owner-scoped: the caller must own the project the portal_id belongs to.
+create policy "gc records client CO approval in own portal"
+  on public.change_order_approvals for insert to authenticated
+  with check (exists (
+    select 1 from public.projects p
+    where p.client_portal->>'portalId' = portal_id and p.user_id = auth.uid()));
+
+create policy "gc records client message in own portal"
+  on public.portal_messages for insert to authenticated
+  with check (author_type = 'client' and exists (
+    select 1 from public.projects p
+    where p.client_portal->>'portalId' = portal_id and p.user_id = auth.uid()));

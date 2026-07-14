@@ -47,8 +47,16 @@ for (const fn of ['project-memory-embed', 'project-memory-search']) {
   ok(`${fn} loaded`, src.length > 0);
   ok(`${fn} prechecks the monthly cap`, /aiUsageGet\(auth\.userId,\s*"project_memory"\)/.test(src) && /MONTHLY_CAPS\[auth\.tier\]/.test(src));
   ok(`${fn} enforces the hourly rate limit`, /rateLimitCount\(`pm:\$\{auth\.userId\}`\)/.test(src) && /PM_HOURLY_LIMIT/.test(src));
-  ok(`${fn} charges usage after success`, /aiUsageIncrement\(auth\.userId,\s*"project_memory",\s*1\)/.test(src));
+  // Rate limiter must fail OPEN — the deny guard must NOT include the `rl < 0 ||`
+  // (limiter-unavailable) branch; the monthly cap is the cost ceiling.
+  ok(`${fn} rate limiter fails open (no rl<0 deny branch)`, !/rl\s*<\s*0\s*\|\|/.test(src));
 }
+// embed charges PER DOC (docs.length); search charges 1 (single query).
+const embedSrc = read('supabase/functions/project-memory-embed/index.ts');
+ok('embed charges per-doc (docs.length)', /aiUsageIncrement\(auth\.userId,\s*"project_memory",\s*docs\.length\)/.test(embedSrc));
+ok('embed charges before the DB upsert', embedSrc.indexOf('aiUsageIncrement(auth.userId, "project_memory", docs.length)') < embedSrc.indexOf('memory_embeddings?on_conflict'));
+const searchSrc = read('supabase/functions/project-memory-search/index.ts');
+ok('search charges per-call (1)', /aiUsageIncrement\(auth\.userId,\s*"project_memory",\s*1\)/.test(searchSrc));
 
 // ── 4. public-lead-intake: per-IP + per-slug rate limit ───────────────────────
 const lead = read('supabase/functions/public-lead-intake/index.ts');

@@ -53,15 +53,19 @@ serve(async (req: Request) => {
   if (!projectId || docs.length === 0) return json({ success: false, error: "Missing projectId or docs" }, 400);
 
   // Cost ceiling (audit: this + project-memory-search were the ONLY paid-AI
-  // endpoints with no server-side cap or rate limit). Precheck BEFORE spending
-  // on Gemini: monthly cap (fail-closed via aiUsageGet) + hourly burst limit.
+  // endpoints with no server-side cap or rate limit). Precheck BEFORE spending on
+  // Gemini. Metered PER DOC (docs.length) — one embed call batches up to 250 docs,
+  // so per-call metering under-counted the real Gemini cost by up to ~250×.
   const cap = MONTHLY_CAPS[auth.tier]?.project_memory ?? 0;
-  const used = await aiUsageGet(auth.userId, "project_memory");
-  if (used + 1 > cap) {
+  const used = await aiUsageGet(auth.userId, "project_memory");     // fail-closed on error
+  if (used + docs.length > cap) {
     return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
   }
+  // Hourly burst / shared-key-drain limit. Fail OPEN (rl < 0 = limiter
+  // unavailable → allow): the monthly counter above is the cost ceiling and
+  // already fails closed, so a limiter blip must not lock out a paying user.
   const rl = await rateLimitCount(`pm:${auth.userId}`);
-  if (rl < 0 || rl > PM_HOURLY_LIMIT) {
+  if (rl > PM_HOURLY_LIMIT) {
     return json({ success: false, error: "Too many Project Memory requests — please wait a moment and retry.", code: "rate_limited" }, 429);
   }
 
@@ -75,6 +79,11 @@ serve(async (req: Request) => {
   if (vectors.length !== docs.length) {
     return json({ success: false, error: "Embedding count mismatch" }, 502);
   }
+
+  // Charge PER DOC now — the Gemini embedding cost is already incurred once the
+  // embed succeeds, so charge here (before the DB upsert) rather than after, or a
+  // write failure would yield unmetered Gemini spend.
+  await aiUsageIncrement(auth.userId, "project_memory", docs.length);
 
   const now = new Date().toISOString();
   const rows = docs.map((d, i) => ({
@@ -104,10 +113,6 @@ serve(async (req: Request) => {
     console.error("[project-memory-embed] upsert failed:", r.status, t.slice(0, 300));
     return json({ success: false, error: "Index write failed" }, 500);
   }
-
-  // Charge the monthly counter only after a successful embed+write (charge-after-
-  // success like the other AI endpoints, so an upstream failure isn't billed).
-  await aiUsageIncrement(auth.userId, "project_memory", 1);
 
   return json({ success: true, embedded: rows.length });
 });

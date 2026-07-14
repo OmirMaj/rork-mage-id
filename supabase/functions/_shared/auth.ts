@@ -320,11 +320,13 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 20,
     scan_anything: 0,
     cost_xray: 0,
-    // Project Memory (embed + search) metered PER CALL. The app re-embeds a
-    // project's docs best-effort on screen open (idempotent upsert), so per-call
-    // (not per-doc) keeps a heavy legit user well under the cap while a runaway
-    // loop still hits it; the hourly rate limit is the burst/shared-key control.
-    project_memory: 1500,
+    // Project Memory metered PER DOCUMENT embedded (embed charges docs.length,
+    // search charges 1) — a single embed call batches up to 250 docs × 8000
+    // chars, so per-CALL metering under-counted the real Gemini cost by up to
+    // ~250×. Caps are a per-DOC budget: generous for a heavy legit user (the app
+    // re-embeds a project's docs on screen open) while still bounding a runaway
+    // loop; the hourly rate limit is the burst/shared-key-drain control.
+    project_memory: 50000,
   },
   business: {
     analyze_drawings: 50,
@@ -338,7 +340,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 60,
     scan_anything: 120,
     cost_xray: 50,
-    project_memory: 5000,
+    project_memory: 200000,
   },
   enterprise: {
     analyze_drawings: 100,
@@ -352,6 +354,6 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 150,
     scan_anything: 300,
     cost_xray: 150,
-    project_memory: 15000,
+    project_memory: 600000,
   },
 };
