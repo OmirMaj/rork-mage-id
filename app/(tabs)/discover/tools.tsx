@@ -239,7 +239,7 @@ export default function DiscoverToolsScreen() {
             <NavRow
               Icon={Clock}
               title="Time tracking"
-              subtitle="Crew hours & labor cost rollups"
+              subtitle="Crew hours & timesheets"
               tone="primary"
               onPress={() => router.push('/time-tracking' as never)}
               testID="tools-time-tracking"

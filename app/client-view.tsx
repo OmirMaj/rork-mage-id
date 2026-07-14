@@ -35,6 +35,7 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -90,6 +91,7 @@ export default function ClientViewScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
   const { portalId, inviteId, clientName: clientNameParam } = useLocalSearchParams<{ portalId: string; inviteId?: string; clientName?: string }>();
   const {
     projects, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject,
@@ -644,7 +646,13 @@ export default function ClientViewScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={[
+          { paddingBottom: insets.bottom + 32 },
+          // On wide desktop windows, constrain the portal content column to a
+          // comfortable centered max-width so it doesn't stretch edge-to-edge
+          // and read poorly. Same pattern as project-detail / bid-detail.
+          layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as const },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <MageRefreshControl

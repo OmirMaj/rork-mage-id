@@ -5584,8 +5584,18 @@
     var portalIdForRefresh = parsePortalIdFromPath();
     if (portalIdForRefresh) {
       void fetchSnapshotFromServer(portalIdForRefresh).then(function (fresh) {
+        // Only re-render when the server snapshot actually differs from the
+        // hash one — otherwise re-rendering identical data just flickers.
         if (fresh && JSON.stringify(fresh) !== JSON.stringify(data)) {
-          window.__portalData = fresh;
+          try {
+            // Re-boot with the fresher snapshot so the homeowner sees current
+            // data, not the stale hash version. boot() re-stashes
+            // window.__portalData AND re-runs the gate/render path; once the
+            // passcode is unlocked (sessionStorage) the gate short-circuits and
+            // render() runs immediately, so no re-prompt on an already-open
+            // portal.
+            boot(fresh);
+          } catch (e) { /* keep the already-rendered hash snapshot on error */ }
         }
       });
     }

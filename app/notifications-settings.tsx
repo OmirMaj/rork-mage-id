@@ -18,6 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { supabase } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -244,11 +245,7 @@ export default function NotificationsSettingsScreen() {
 
   const toggle = useCallback(async (key: string, channel: 'push' | 'email', value: boolean) => {
     void Haptics.selectionAsync().catch(() => {});
-    // Optimistic update — flip the toggle immediately so the UI feels
-    // snappy. If the persist fails, we roll back to the previous state
-    // and surface an Alert so the user knows their preference didn't
-    // stick (otherwise next session would silently revert).
-    const previous = prefs;
+    // Optimistic update — flip the toggle immediately so the UI feels snappy.
     const next: Prefs = {
       ...prefs,
       [key]: { ...(prefs[key] ?? {}), [channel]: value },
@@ -257,19 +254,17 @@ export default function NotificationsSettingsScreen() {
     if (!user?.id) return;
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ notification_preferences: next })
-        .eq('id', user.id);
-      if (error) throw error;
-    } catch (err) {
-      console.log('[NotificationsSettings] save failed', err);
-      // Roll back the toggle.
-      setPrefs(previous);
-      Alert.alert(
-        'Could not save',
-        'Your notification preference didn\'t save. Check your connection and try again.',
-      );
+      // Route through the offline queue (supabaseWrite) — a direct
+      // .update() here lost the preference in airplane mode and silently
+      // swallowed RLS failures. supabaseWrite optimistically enqueues a
+      // transient/offline write (retried on reconnect) and toasts + reports
+      // a genuine terminal failure (RLS / validation / 500) itself, so the
+      // optimistic local flip stays put and durability is handled uniformly
+      // with the rest of the app. Update op keyed on the user id.
+      await supabaseWrite('profiles', 'update', {
+        id: user.id,
+        notification_preferences: next,
+      });
     } finally {
       setSaving(false);
     }
@@ -323,9 +318,11 @@ export default function NotificationsSettingsScreen() {
       const { status } = await Notifications.getPermissionsAsync();
       setPushPermStatus(status as 'granted' | 'denied' | 'undetermined');
       if (token && user?.id) {
-        try {
-          await supabase.from('profiles').update({ push_token: token }).eq('id', user.id);
-        } catch { /* non-fatal */ }
+        // Route through the offline queue so a token registered on flaky
+        // jobsite connectivity is retried on reconnect rather than lost, and
+        // an RLS/constraint failure surfaces instead of being swallowed by a
+        // bare catch. Update op keyed on the user id.
+        await supabaseWrite('profiles', 'update', { id: user.id, push_token: token });
       }
       if (status === 'granted' && Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

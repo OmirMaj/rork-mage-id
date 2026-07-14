@@ -589,7 +589,11 @@ export default function HomeScreen() {
         }
         contentContainerStyle={[
           styles.listContent,
-          { paddingTop: insets.top, paddingBottom: insets.bottom + 90 },
+          // Bottom padding must clear the floating AICopilot FAB, which sits at
+          // bottom: insets.bottom + 70 with a 56px button (see components/AICopilot.tsx).
+          // 70 + 56 + 14px margin = 140, so the last project card never clips
+          // behind the FAB. (Was insets.bottom + 90, which overlapped it.)
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 140 },
           projects.length === 0 && styles.emptyList,
         ]}
         ListHeaderComponent={

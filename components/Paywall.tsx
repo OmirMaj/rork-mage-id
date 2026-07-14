@@ -54,7 +54,7 @@ const PRO_BENEFITS: string[] = [
   'Cash Flow Forecaster & Budget Health',
   'Schedule Maker with Gantt & PDF export',
   'Daily Field Reports with photos',
-  'AI Code Check (20/day) & Voice-to-Report',
+  'AI Code Check (15/day) & Voice-to-Report',
   'Client Portal for your customers',
   'Lien Waivers, Proposals, Change Orders',
   'Equipment tracking & Price Alerts',
