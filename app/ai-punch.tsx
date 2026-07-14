@@ -129,7 +129,7 @@ function AiPunchScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, getPhotosForProject, addPunchItem } = useProjects();
+  const { getProject, getPhotosForProject, addPunchItem, addPunchItems } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
@@ -277,29 +277,13 @@ function AiPunchScreenInner() {
   }, []);
 
   /**
-   * Save one item. The optional `presetStamp` is the bulk-save's
-   * single-fix GPS stamp — passed in by handleSaveAll so we don't
-   * re-fix per item (round-2 #4: 10 saves × 3s GPS budget = 30s).
-   * For single-item saves (the per-row Save button) the stamp is
-   * captured at save time as before.
+   * Pure builder — turns a reviewed item into a PunchItem, applying
+   * the location+trade stamp and GPS geo-stamp. Shared by the single-
+   * save path (handleSaveOne) and the batch path (handleSaveAll) so the
+   * two construct identical rows. `stamp` is decided by the caller
+   * (single-save fixes per item; batch reuses one shared fix).
    */
-  const handleSaveOne = useCallback(async (item: ReviewableItem, presetStamp?: PhotoGeoStamp | null) => {
-    if (!project || item.saved) return;
-    if (!item.editedDescription.trim()) {
-      Alert.alert('Description required');
-      return;
-    }
-    // For gallery photos the source already has its own stamp; the
-    // GC's CURRENT location is wrong if they're reviewing yesterday's
-    // photos in the office. Only stamp on camera/library picks.
-    // (Round-2 #8.) Look up by stable id, not URI (round-3 #3) —
-    // iOS file:// URIs sometimes mutate after the picker.
-    const sourcePicked = pickedPhotos.find(p => p.id === item.sourcePhotoId);
-    const shouldStamp = sourcePicked ? !sourcePicked.fromProject : true;
-    let stamp: PhotoGeoStamp | null = null;
-    if (shouldStamp) {
-      stamp = presetStamp !== undefined ? presetStamp : await stampPhotoLocation();
-    }
+  const buildPunchItem = useCallback((item: ReviewableItem, stamp: PhotoGeoStamp | null): PunchItem => {
     const now = new Date().toISOString();
     // PunchItem doesn't have a `trade` column — trade is implicit via
     // assignedSubId. We surface the AI-inferred trade in the location
@@ -308,9 +292,9 @@ function AiPunchScreenInner() {
     const locationWithTrade = item.editedLocation.trim()
       ? `${item.editedLocation.trim()} — ${item.editedTrade}`
       : item.editedTrade;
-    const punch: PunchItem = {
+    return {
       id: generateUUID(),
-      projectId: project.id,
+      projectId: project!.id,
       description: item.editedDescription.trim(),
       location: locationWithTrade,
       assignedSub: '',
@@ -325,55 +309,81 @@ function AiPunchScreenInner() {
       createdAt: now,
       updatedAt: now,
     };
-    addPunchItem(punch);
+  }, [project]);
+
+  // Whether a given item's source photo should get the GC's CURRENT
+  // location stamped on save. Gallery photos already carry their own
+  // stamp; the GC reviewing yesterday's photos in the office would
+  // stamp the wrong place (round-2 #8). Look up by stable id, not URI
+  // (round-3 #3) — iOS file:// URIs sometimes mutate after the picker.
+  const shouldStampItem = useCallback((item: ReviewableItem): boolean => {
+    const sourcePicked = pickedPhotos.find(p => p.id === item.sourcePhotoId);
+    return sourcePicked ? !sourcePicked.fromProject : true;
+  }, [pickedPhotos]);
+
+  /**
+   * Save one item. The optional `presetStamp` is the bulk-save's
+   * single-fix GPS stamp — passed in by handleSaveAll so we don't
+   * re-fix per item (round-2 #4: 10 saves × 3s GPS budget = 30s).
+   * For single-item saves (the per-row Save button) the stamp is
+   * captured at save time as before.
+   */
+  const handleSaveOne = useCallback(async (item: ReviewableItem, presetStamp?: PhotoGeoStamp | null) => {
+    if (!project || item.saved) return;
+    if (!item.editedDescription.trim()) {
+      Alert.alert('Description required');
+      return;
+    }
+    let stamp: PhotoGeoStamp | null = null;
+    if (shouldStampItem(item)) {
+      stamp = presetStamp !== undefined ? presetStamp : await stampPhotoLocation();
+    }
+    addPunchItem(buildPunchItem(item, stamp));
     updateReviewItem(item.id, { saved: true });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, addPunchItem, updateReviewItem, pickedPhotos]);
+  }, [project, addPunchItem, updateReviewItem, shouldStampItem, buildPunchItem]);
 
   const [saving, setSaving] = useState(false);
   const handleSaveAll = useCallback(async () => {
+    if (!project) return;
     const pending = reviewItems.filter(r => !r.saved && !r.discarded);
     if (pending.length === 0) return;
     setSaving(true);
-    let saved = 0;
-    let failed = 0;
-    let firstError: string | null = null;
     try {
       // Single GPS fix for the whole batch — a punch walk takes a
       // few minutes in one room of the same project, so one stamp is
       // representative. Only stamp if any pending item came from
       // camera/library (gallery picks shouldn't be re-stamped with
       // the GC's current location). (Round-2 #4 + #8.)
-      const needsStamp = pending.some(p => {
-        const src = pickedPhotos.find(x => x.id === p.sourcePhotoId);
-        return src ? !src.fromProject : true;
-      });
+      const needsStamp = pending.some(shouldStampItem);
       const sharedStamp: PhotoGeoStamp | null = needsStamp ? await stampPhotoLocation() : null;
-      for (const item of pending) {
-        try {
-           
-          await handleSaveOne(item, sharedStamp);
-          saved += 1;
-        } catch (err) {
-          failed += 1;
-          if (!firstError) firstError = String((err as Error)?.message || err);
-        }
-      }
+      // Build EVERY pending row up front, then commit in ONE batch.
+      // Looping single-add here collapsed to only the last row (the
+      // single-add read a stale `punchItems` closure between synchronous
+      // iterations) — the data-loss bug this batch path fixes. Items
+      // without a description are dropped, matching handleSaveOne's
+      // early-return so the honest count reflects what was saved.
+      const items: PunchItem[] = pending
+        .filter(item => item.editedDescription.trim())
+        .map(item => buildPunchItem(item, shouldStampItem(item) ? sharedStamp : null));
+      addPunchItems(items);
+      // Mark the rows we committed as saved so the review list reflects it.
+      const savedIds = new Set(pending.filter(item => item.editedDescription.trim()).map(item => item.id));
+      setReviewItems(prev => prev.map(r => savedIds.has(r.id) ? { ...r, saved: true } : r));
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const saved = items.length;
+      Alert.alert(
+        `Saved ${saved} punch item${saved === 1 ? '' : 's'}`,
+        'They’re now in the punch list.',
+        [{
+          text: 'OK',
+          onPress: () => router.replace({ pathname: '/punch-list' as never, params: { projectId: project.id } as never }),
+        }],
+      );
     } finally {
       setSaving(false);
     }
-    // Report partial success accurately (code-review #4).
-    const title = failed === 0
-      ? `Saved ${saved} punch item${saved === 1 ? '' : 's'}`
-      : `Saved ${saved} of ${pending.length}`;
-    const body = failed === 0
-      ? 'They’re now in the punch list.'
-      : `${failed} failed${firstError ? ` — first error: ${firstError}` : '.'}\nReview the screen for items still pending.`;
-    Alert.alert(title, body, [{
-      text: 'OK',
-      onPress: () => failed === 0 && router.replace({ pathname: '/punch-list' as never, params: { projectId: project?.id } as never }),
-    }]);
-  }, [reviewItems, handleSaveOne, router, project, pickedPhotos]);
+  }, [project, reviewItems, shouldStampItem, buildPunchItem, addPunchItems, router]);
 
   const reviewMode = reviewItems.length > 0 || error !== null;
   const savedCount = reviewItems.filter(r => r.saved).length;

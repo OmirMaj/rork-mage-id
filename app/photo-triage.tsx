@@ -124,7 +124,7 @@ function PhotoTriageInner() {
   const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const {
-    getProject, getPhotosForProject, addPunchItem, addRFI,
+    getProject, getPhotosForProject, addPunchItems, addRFIs,
     addDailyReport, updateDailyReport, getDailyReportsForProject, settings,
   } = useProjects();
   const { tier } = useSubscription();
@@ -246,10 +246,14 @@ function PhotoTriageInner() {
       // Punch items — direct insert, status=open by default. The trade
       // is captured via assignedSub free-text (the model has no enum
       // for trade on the punch item itself); assignedSubId stays empty
-      // until the GC routes it to a specific sub.
-      for (const e of grouped.punch) {
+      // until the GC routes it to a specific sub. Build the whole array
+      // and insert in ONE batch call — the single-add path read the
+      // punch list from a stale render closure per iteration, so only
+      // the last item survived locally.
+      const punchItems: PunchItem[] = grouped.punch.map(e => {
         const tradeLabel = aiTradeToSubTrade(e.trade);
-        const item: PunchItem = {
+        const now = new Date().toISOString();
+        return {
           id: generateUUID(),
           projectId: project.id,
           description: e.editedTitle || e.title,
@@ -259,18 +263,26 @@ function PhotoTriageInner() {
           priority: ((['low', 'medium', 'high'].includes(e.priority) ? e.priority : 'medium') as PunchItemPriority),
           status: 'open',
           photoUri: e.photoUri || undefined,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: now,
+          updatedAt: now,
         };
-        addPunchItem(item);
-        punchAdded += 1;
-      }
+      });
+      addPunchItems(punchItems);
+      punchAdded = punchItems.length;
 
       // RFIs — open status, blank assignedTo (the GC fills this when sending).
+      // Build the whole array and insert in ONE batch call. We do NOT compute
+      // `number` here: addRFIs assigns SEQUENTIAL per-project numbers off an
+      // advancing counter (the single-add path recomputed from a stale closure,
+      // so every RFI collided on the same number and only the last survived).
+      // `number` below is a placeholder the batch overrides.
       const today = new Date().toISOString().slice(0, 10);
       const oneWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      for (const e of grouped.rfi) {
-        const rfi: Omit<RFI, 'id' | 'createdAt' | 'updatedAt' | 'number'> = {
+      const rfis: RFI[] = grouped.rfi.map(e => {
+        const now = new Date().toISOString();
+        return {
+          id: generateUUID(),
+          number: 0,
           projectId: project.id,
           subject: e.editedTitle || e.title,
           question: e.rationale || e.title,
@@ -281,10 +293,12 @@ function PhotoTriageInner() {
           status: 'open',
           priority: e.priority === 'high' ? 'urgent' : e.priority === 'low' ? 'low' : 'normal',
           attachments: e.photoUri ? [e.photoUri] : [],
+          createdAt: now,
+          updatedAt: now,
         };
-        addRFI(rfi);
-        rfiAdded += 1;
-      }
+      });
+      addRFIs(rfis);
+      rfiAdded = rfis.length;
 
       // DFR — collapse all DFR-classified entries into a single draft
       // daily report for today. workPerformed gets the bulleted list
@@ -353,7 +367,7 @@ function PhotoTriageInner() {
       setApplying(false);
     }
   }, [
-    project, grouped, addPunchItem, addRFI, addDailyReport, updateDailyReport,
+    project, grouped, addPunchItems, addRFIs, addDailyReport, updateDailyReport,
     getDailyReportsForProject, settings, router, applying, applied,
   ]);
 

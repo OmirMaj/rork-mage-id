@@ -112,8 +112,16 @@ function shouldExpenseOccurInWeek(
     case 'biweekly':
       return weekIndex % 2 === 0;
     case 'monthly': {
+      // Fire exactly ONCE per calendar month, anchored to the expense's
+      // start day-of-month. Walk each day in the week and check whether it is
+      // the anchor day for its own month — clamping the anchor to that month's
+      // last day so a dom of 29/30/31 still fires once in shorter months
+      // (e.g. dom=31 in a 30-day month fires on the 30th).
+      const dom = start.getDate();
       for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
-        if (d.getDate() === 1 || d.getDate() === 15) return true;
+        const lastDayOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        const anchorDay = Math.min(dom, lastDayOfMonth);
+        if (d.getDate() === anchorDay) return true;
       }
       return false;
     }
@@ -171,26 +179,15 @@ export function generateForecast(
       }
     });
 
-    // Approved change orders that haven't been invoiced yet show as projected
-    // future income. Timing: approval date (updatedAt) + payment terms.
-    // Pending / submitted COs show with 'hopeful' confidence at a conservative
-    // date — today + 21 days (typical approval delay) + payment terms.
+    // NOTE: Approved change orders are intentionally NOT projected as income
+    // here. In normal GC practice an approved CO is billed through a progress
+    // invoice, so its dollars already appear in that invoice's totalDue and
+    // are captured by the invoice loop above. Projecting the standalone
+    // approved-CO line too would double-count the same money.
+    // Pending / submitted COs are NOT yet invoiced, so they remain a
+    // legitimate 'hopeful' projection here.
     changeOrders.forEach(co => {
-      if (co.status === 'approved') {
-        const approvedAt = new Date(co.updatedAt);
-        const expectedDate = new Date(approvedAt);
-        expectedDate.setDate(expectedDate.getDate() + getPaymentTermsDays(defaultPaymentTerms));
-        // Only project future CO cash — past expected dates are assumed to have
-        // rolled into invoices already (invoice loop will capture them).
-        if (expectedDate < today) return;
-        if (co.changeAmount > 0 && isDateInWeek(expectedDate.toISOString(), weekStart, weekEnd)) {
-          incomeItems.push({
-            description: `Change Order #${co.number} (approved)`,
-            amount: co.changeAmount,
-            confidence: 'expected',
-          });
-        }
-      } else if (co.status === 'submitted' || co.status === 'under_review') {
+      if (co.status === 'submitted' || co.status === 'under_review') {
         const projectedApproval = new Date(today);
         projectedApproval.setDate(projectedApproval.getDate() + 21);
         const expectedDate = new Date(projectedApproval);

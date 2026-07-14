@@ -123,8 +123,8 @@ function SubPortalSetupScreenInner() {
 
   const portalUrl = useMemo(() => {
     if (!snapshot) return `${SUB_PORTAL_BASE_URL}/${link.id}`;
-    return buildSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, snapshot);
-  }, [snapshot, link.id]);
+    return buildSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, snapshot, link.accessToken);
+  }, [snapshot, link.id, link.accessToken]);
 
   // Server-side persistence so the sub portal URL works even when the
   // URL hash is missing or corrupt. Same model as the homeowner portal:
@@ -149,10 +149,31 @@ function SubPortalSetupScreenInner() {
     return () => clearTimeout(t);
   }, [snapshot, project?.id, link.id]);
 
+  // Auto-heal: a link enabled before the access-token wiring landed carries no
+  // `?t=` token in local state, so its share link would ship token-less and the
+  // sub's submits would fall back to mailto. Mirror client-portal-setup's heal —
+  // on mount, if the link is enabled but token-less, run it through
+  // upsertSubPortalLink (which mints + preserves the token) and adopt the
+  // resolved, token-bearing link. Ref-guarded so it fires once per screen.
+  const tokenHealRef = React.useRef(false);
+  useEffect(() => {
+    if (tokenHealRef.current) return;
+    if (!link.enabled || link.accessToken) return;
+    tokenHealRef.current = true;
+    const resolved = upsertSubPortalLink(link);
+    setLink(resolved);
+  }, [link, upsertSubPortalLink]);
+
   const persist = useCallback((updates: Partial<SubPortalLink>) => {
     const next = { ...link, ...updates, updatedAt: new Date().toISOString() };
-    setLink(next);
-    upsertSubPortalLink(next);
+    // upsertSubPortalLink mints + returns the `?t=` access token the first
+    // time the link is enabled without one. Adopt the RESOLVED link (not our
+    // pre-token `next`) as local state, mirroring client-portal-setup — so the
+    // token-bearing link is what buildSubPortalUrl reads on the next render.
+    // Otherwise the share link would ship token-less and every submit would
+    // fall back to mailto.
+    const resolved = upsertSubPortalLink(next);
+    setLink(resolved);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [link, upsertSubPortalLink]);
 
