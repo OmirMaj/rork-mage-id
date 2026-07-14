@@ -17,7 +17,7 @@
 // the smallest possible footprint that still catches the eye when a
 // user is staring at the screen wondering what to do next.
 
-import React, { memo, useState, useCallback } from 'react';
+import React, { memo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, Linking, Platform,
 } from 'react-native';
@@ -44,9 +44,17 @@ export interface HelpFabProps {
    *  parent to set its own `showTutorial` state without us reaching
    *  across screens. */
   onReplayTutorial?: () => void;
+  /** Speed-dial integration: when true, render NO floating "?" button —
+   *  the HomeFabStack draws the mini-FAB and opens this component's help
+   *  sheet via `openSignal`. All sheet content/handlers stay here; only
+   *  the trigger moves out. */
+  hideFab?: boolean;
+  /** Monotonic counter — each increment opens the help sheet. Lets a
+   *  parent trigger the existing open flow without touching internals. */
+  openSignal?: number;
 }
 
-function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
+function HelpFabImpl({ bottomOffset = 0, onReplayTutorial, hideFab = false, openSignal }: HelpFabProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
@@ -58,6 +66,19 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
   }, []);
 
   const handleClose = useCallback(() => setOpen(false), []);
+
+  // Speed-dial trigger — when the parent HomeFabStack bumps `openSignal`,
+  // open the help sheet just as tapping the "?" would. Guarded so it never
+  // auto-opens on mount / when the prop is undefined.
+  const prevOpenSignal = useRef<number | undefined>(openSignal);
+  useEffect(() => {
+    if (openSignal === undefined) return;
+    if (prevOpenSignal.current === undefined) { prevOpenSignal.current = openSignal; return; }
+    if (openSignal !== prevOpenSignal.current) {
+      prevOpenSignal.current = openSignal;
+      handleOpen();
+    }
+  }, [openSignal, handleOpen]);
 
   const handleVideos = useCallback(() => {
     setOpen(false);
@@ -84,15 +105,17 @@ function HelpFabImpl({ bottomOffset = 0, onReplayTutorial }: HelpFabProps) {
 
   return (
     <>
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + bottomOffset + 16 }]}
-        onPress={handleOpen}
-        activeOpacity={0.8}
-        accessibilityLabel="Help"
-        testID="help-fab"
-      >
-        <HelpCircle size={20} color="#FFF" strokeWidth={2.4} />
-      </TouchableOpacity>
+      {!hideFab && (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + bottomOffset + 16 }]}
+          onPress={handleOpen}
+          activeOpacity={0.8}
+          accessibilityLabel="Help"
+          testID="help-fab"
+        >
+          <HelpCircle size={20} color="#FFF" strokeWidth={2.4} />
+        </TouchableOpacity>
+      )}
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={handleClose}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />

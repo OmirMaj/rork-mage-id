@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator,
   Platform, Alert,
@@ -43,11 +43,19 @@ interface Props {
   // Render mode: 'fab' floats bottom-right; 'inline' is a flat button you
   // can drop into a header or row.
   variant?: 'fab' | 'inline';
+  // Speed-dial integration: when true, the component renders NO floating
+  // button of its own — the HomeFabStack draws the mini-FAB and opens this
+  // component's modal via `openSignal`. All the recorder/parse/create logic
+  // (and the modal) stay inside this component; only its trigger moves out.
+  hideFab?: boolean;
+  // Monotonic counter — each increment opens the voice modal. Lets a parent
+  // trigger the existing `handleOpen` flow without reaching into internals.
+  openSignal?: number;
 }
 
 type Step = 'idle' | 'recording' | 'parsing' | 'reviewing' | 'creating';
 
-export default function UniversalMicButton({ projectId, variant = 'fab' }: Props) {
+export default function UniversalMicButton({ projectId, variant = 'fab', hideFab = false, openSignal }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   // Hook order is fixed regardless of project availability, so the same
@@ -101,6 +109,19 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     setOpen(true);
     if (!pickedProjectId && project) setPickedProjectId(project.id);
   }, [project, pickedProjectId]);
+
+  // Speed-dial trigger — when the parent HomeFabStack bumps `openSignal`,
+  // run the same open flow as tapping the FAB. Guarded against the initial
+  // mount / undefined so it never auto-opens on load.
+  const prevOpenSignal = useRef<number | undefined>(openSignal);
+  useEffect(() => {
+    if (openSignal === undefined) return;
+    if (prevOpenSignal.current === undefined) { prevOpenSignal.current = openSignal; return; }
+    if (openSignal !== prevOpenSignal.current) {
+      prevOpenSignal.current = openSignal;
+      handleOpen();
+    }
+  }, [openSignal, handleOpen]);
 
   const handleTranscript = useCallback(async (transcript: string) => {
     if (!transcript || transcript.trim().length === 0) {
@@ -511,7 +532,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
 
   return (
     <>
-      {shouldRender && variant === 'fab' && (
+      {shouldRender && variant === 'fab' && !hideFab && (
         <TouchableOpacity
           // Stack ABOVE the AICopilot FAB which sits at insets.bottom + 70
           // with size 52. Add gap so the two don't touch.

@@ -21,7 +21,7 @@ import { generateUUID } from '@/utils/generateId';
 import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';
 import AIWeeklySummary from '@/components/AIWeeklySummary';
-import AICopilot from '@/components/AICopilot';
+import { HomeFabStack } from '@/components/HomeFabStack';
 import AIHomeBriefing from '@/components/AIHomeBriefing';
 import SmartInbox from '@/components/SmartInbox';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -33,7 +33,6 @@ import EntityActionSheet from '@/components/EntityActionSheet';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseProjectFromTranscript } from '@/utils/voiceFormParsers';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
-import UniversalMicButton from '@/components/UniversalMicButton';
 import EmptyState from '@/components/EmptyState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,7 +40,6 @@ import Tutorial from '@/components/Tutorial';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
-import { HelpFab } from '@/components/HelpFab';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -979,7 +977,12 @@ export default function HomeScreen() {
         onClose={() => setShowWeeklySummary(false)}
       />
 
-      <AICopilot />
+      {/* Single speed-dial FAB — consolidates what used to be three stacked
+          floating buttons (AI Copilot, Voice, Help) into one footprint so
+          they no longer overlap the project cards. The AI Copilot is the
+          always-visible main button; tapping the "+" toggle reveals the
+          Voice + Help mini-FABs. See components/HomeFabStack.tsx. */}
+      <HomeFabStack onReplayTutorial={() => setShowTutorial(true)} />
 
       <EntityActionSheet
         entityRef={actionSheetRef}
@@ -1028,24 +1031,9 @@ export default function HomeScreen() {
         }}
       />
 
-      {/* Always-rendered FAB — internally hides itself if there are no
-          projects to scope an action to. Keeping it unconditional avoids
-          parent hook-tree churn on data load. */}
-      <UniversalMicButton />
-
       {/* First-run tutorial. Auto-opens once; close persists the seen
           flag so it doesn't re-open on subsequent launches. */}
       <Tutorial visible={showTutorial} onClose={() => setShowTutorial(false)} />
-
-      {/* Floating help — answers "what is this thing" without forcing the
-          user to navigate away. Must stack ABOVE the mic button, which itself
-          sits above the AICopilot FAB (insets.bottom + 70). Mic tops out at
-          insets.bottom + 180 (bottom 134 + height 46); HelpFab renders at
-          insets.bottom + bottomOffset + 16, so 172 leaves an 8px gap and keeps
-          all three right-edge FABs in a clean vertical stack. A smaller offset
-          parked the orange help button directly behind the AI FAB — it poked
-          out as an orange sliver and was unreachable. */}
-      <HelpFab bottomOffset={172} onReplayTutorial={() => setShowTutorial(true)} />
 
       {/* Demo-seed picker — small ($420K) or large ($14M). Empty-state
           "Try a sample project" CTA toggles this open. */}
