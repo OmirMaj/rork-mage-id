@@ -23,8 +23,22 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
   <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
+
+  <!-- PostHog — same project key as the homepage so demo pageviews + CTA
+       clicks join the unified marketing funnel. Async; never blocks render. -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+      api_host: 'https://us.i.posthog.com',
+      capture_pageview: true,
+      capture_pageleave: true,
+      autocapture: false,
+      persistence: 'localStorage+cookie',
+    });
+  </script>
+
   <style>
-    /* Page-scoped — the demo grid + video frames */
+    /* Page-scoped — the demo grid + real-screen frames */
     .demo-hero {
       max-width: 1200px;
       margin: 0 auto;
@@ -48,84 +62,6 @@
       color: var(--fog);
       max-width: 640px;
       margin: 0 auto 24px;
-    }
-
-    .video-frame {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 16 / 9;
-      border-radius: 18px;
-      overflow: hidden;
-      background: linear-gradient(135deg, #1A1D22 0%, #0B0D10 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
-    }
-    .video-frame iframe,
-    .video-frame video {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      border: 0;
-    }
-    .video-placeholder {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      color: var(--fog);
-      cursor: pointer;
-      transition: background 220ms ease;
-    }
-    .video-placeholder:hover {
-      background: rgba(255, 106, 26, 0.06);
-    }
-    .video-placeholder .play-icon {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: rgba(255, 106, 26, 0.16);
-      border: 2px solid var(--amber);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 220ms ease;
-    }
-    .video-placeholder:hover .play-icon {
-      transform: scale(1.08);
-      background: rgba(255, 106, 26, 0.24);
-    }
-    .video-placeholder .play-icon svg {
-      width: 28px;
-      height: 28px;
-      fill: var(--amber);
-      margin-left: 4px;
-    }
-    .video-placeholder .vp-title {
-      font-family: var(--ff-serif);
-      font-size: 1.6rem;
-      letter-spacing: -0.01em;
-      color: var(--cream);
-    }
-    .video-placeholder .vp-subtitle {
-      font-size: 13px;
-      color: var(--fog);
-      max-width: 420px;
-      text-align: center;
-      padding: 0 20px;
-    }
-    .video-placeholder .vp-duration {
-      font-family: var(--ff-mono);
-      font-size: 11px;
-      letter-spacing: 1px;
-      color: var(--amber);
-      background: rgba(255, 106, 26, 0.1);
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 106, 26, 0.3);
     }
 
     .hero-video-wrap {
@@ -153,13 +89,6 @@
       transform: translateY(-2px);
       border-color: rgba(255, 106, 26, 0.4);
     }
-    .tutorial-card .video-frame {
-      border-radius: 14px 14px 0 0;
-      border-left: 0;
-      border-right: 0;
-      border-top: 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
     .tutorial-card .tc-body {
       padding: 18px 20px 20px;
     }
@@ -184,18 +113,6 @@
       color: var(--fog);
       margin: 0;
     }
-    .tutorial-card .video-placeholder .vp-title {
-      font-size: 1.1rem;
-    }
-    .tutorial-card .video-placeholder .play-icon {
-      width: 48px;
-      height: 48px;
-    }
-    .tutorial-card .video-placeholder .play-icon svg {
-      width: 18px;
-      height: 18px;
-    }
-
     .section-heading-light {
       font-family: var(--ff-serif);
       font-size: clamp(1.8rem, 3.5vw, 2.6rem);
@@ -299,6 +216,131 @@
       margin: 0 auto 24px;
     }
 
+    /* Nav "Start free" — amber accent to match the homepage CTA, using the
+       shared brand tokens (no shared-CSS edit). */
+    .nav-start-free {
+      color: var(--amber) !important;
+      border: 1px solid rgba(255, 106, 26, 0.5) !important;
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-weight: 600;
+      transition: background 220ms ease, color 220ms ease, border-color 220ms ease;
+    }
+    .nav-start-free:hover {
+      background: var(--amber);
+      color: var(--ink) !important;
+      border-color: var(--amber) !important;
+    }
+
+    /* Hero CTA row */
+    .demo-hero-cta {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    /* Truthful screenshot frames — real app screens shown in the video slots,
+       replacing the dead play buttons. A 16:9 frame that letterboxes a tall
+       phone screenshot on a dark backdrop. */
+    .shot-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 18px;
+      overflow: hidden;
+      background:
+        radial-gradient(600px 300px at 50% 0%, rgba(255,106,26,0.10), transparent 70%),
+        linear-gradient(135deg, #1A1D22 0%, #0B0D10 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .shot-frame img {
+      max-height: 100%;
+      max-width: 100%;
+      width: auto;
+      border-radius: 12px;
+      box-shadow: 0 18px 40px -14px rgba(0,0,0,0.7);
+      display: block;
+    }
+    .shot-caption {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      font-family: var(--ff-mono);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      color: var(--cream);
+      background: rgba(11, 13, 16, 0.66);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 6px 12px;
+      border-radius: 999px;
+    }
+    .shot-caption .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+
+    /* Tutorial card screenshot — replaces the dead placeholder inside .video-frame */
+    .tutorial-card .shot-frame {
+      aspect-ratio: 16 / 10;
+      border-radius: 14px 14px 0 0;
+      padding: 14px;
+    }
+    .tutorial-card .shot-frame img { border-radius: 8px; }
+
+    /* Bid Confidence moat band — the differentiator, up top */
+    .demo-moat {
+      max-width: 1100px;
+      margin: 8px auto 20px;
+      padding: 28px clamp(20px, 4vw, 40px);
+    }
+    .demo-moat-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(255,106,26,0.08) 0%, rgba(255,106,26,0.02) 100%);
+      border: 1px solid rgba(255, 106, 26, 0.30);
+      border-radius: 22px;
+      padding: 28px;
+    }
+    .demo-moat-card .dm-eyebrow {
+      font-family: var(--ff-mono);
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--amber);
+    }
+    .demo-moat-card h2 {
+      font-family: var(--ff-serif);
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+      color: var(--cream);
+      margin: 8px 0 10px;
+    }
+    .demo-moat-card p { font-size: 14.5px; line-height: 1.6; color: var(--fog); margin: 0; }
+    .demo-moat-card p b { color: var(--cream); font-weight: 600; }
+    .demo-moat-shot {
+      background: linear-gradient(135deg, #1A1D22 0%, #0B0D10 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .demo-moat-shot img { max-height: 300px; width: auto; border-radius: 10px; box-shadow: 0 18px 40px -14px rgba(0,0,0,0.7); }
+    @media (max-width: 760px) {
+      .demo-moat-card { grid-template-columns: 1fr; }
+      .demo-moat-shot { order: -1; }
+    }
+
     /* FAQ accordion */
     .faq-list {
       max-width: 880px;
@@ -354,6 +396,7 @@
         <a href="/pricing.html">Pricing</a>
         <a href="/demo.html" class="active">Demo</a>
         <a href="/support.html">Support</a>
+        <a href="https://app.mageid.app" class="nav-start-free">Start free</a>
       </nav>
     </div>
   </header>
@@ -363,55 +406,69 @@
       <span class="eyebrow"><span style="color: var(--amber);">●</span> See it in motion</span>
       <h1>See how MAGE ID <em>actually works</em>.</h1>
       <p class="lede">
-        90 seconds for the gist. 15 minutes for the full tour. Short how-to clips for every
-        feature. Or jump on a live 30-minute demo and we&apos;ll run it on your own plan set.
+        Real screens from the app, walked through step by step &mdash; from a plan upload to a
+        <strong>Bid Confidence</strong> score to a sent estimate. Start free right now, or book a live
+        30-minute demo and we&apos;ll run it on your own plan set.
       </p>
+      <div class="demo-hero-cta">
+        <a class="btn btn-primary" href="https://app.mageid.app">
+          <span>Start free</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a class="btn btn-secondary" href="/access.html">Book a live demo</a>
+      </div>
     </section>
 
     <!-- =====================================================================
-         Hero — 90-second tour
+         The differentiator — Bid Confidence, up top (moat framing)
          ===================================================================== -->
-    <section class="hero-video-wrap">
-      <div class="video-frame" id="hero-video" data-video-id="HERO_TOUR">
-        <!--
-          Replace the placeholder below with the embed iframe once the tour
-          video is uploaded. Examples:
-            <iframe src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&rel=0" allowfullscreen></iframe>
-            <iframe src="https://player.vimeo.com/video/VIDEO_ID?autoplay=1" allowfullscreen></iframe>
-            <video controls poster="/assets/hero-poster.jpg"><source src="/videos/hero-tour.mp4" type="video/mp4"></video>
-        -->
-        <div class="video-placeholder">
-          <div class="vp-duration">90 SECONDS</div>
-          <div class="play-icon">
-            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          </div>
-          <div class="vp-title">The 90-second tour</div>
-          <div class="vp-subtitle">From plan upload to a sent estimate, in less time than your morning coffee.</div>
+    <section class="demo-moat">
+      <div class="demo-moat-card">
+        <div>
+          <span class="dm-eyebrow">The difference · Bid Confidence</span>
+          <h2>See the number before you send the bid.</h2>
+          <p>
+            Every finished job teaches MAGE your real costs &mdash; your subs, your supply house, your
+            market. Your next estimate gets a <b>Bid Confidence</b> score priced off <b>your own numbers</b>,
+            not a generic catalog. Then a <b>live margin-risk alert</b> flags erosion <em>during</em> the job,
+            not after the final invoice. The screens below show the whole loop.
+          </p>
+        </div>
+        <div class="demo-moat-shot">
+          <img src="/screenshots/screens/18-budget-evm.png" alt="MAGE ID live budget and margin tracking — the real numbers behind your Bid Confidence score" loading="lazy" />
         </div>
       </div>
+    </section>
+
+    <!-- =====================================================================
+         Hero — the plan-to-estimate walkthrough (real app screens)
+         ===================================================================== -->
+    <section class="hero-video-wrap">
+      <div class="shot-frame">
+        <img src="/screenshots/screens/16-ai-estimator.png" alt="MAGE ID AI estimator — a priced estimate generated from an uploaded plan set" loading="lazy" />
+        <span class="shot-caption"><span class="dot"></span>Plan upload → priced estimate</span>
+      </div>
+      <p class="section-sub-light" style="margin: 20px auto 0;">
+        The core loop, on real screens: drop a plan set, the AI reads it and prices a starting estimate,
+        and every line carries the reasoning behind the number.
+        <a href="https://app.mageid.app" style="color: var(--amber); font-weight: 600;">Start free and try it on your own plans &rarr;</a>
+      </p>
     </section>
 
     <!-- =====================================================================
          Full walkthrough — 15 min
          ===================================================================== -->
     <section class="section-wrap">
-      <h2 class="section-heading-light">The <em>full walkthrough</em>.</h2>
+      <h2 class="section-heading-light">One project, <em>end to end</em>.</h2>
       <p class="section-sub-light">
-        15 minutes of an actual project, end to end &mdash; plan upload, AI takeoff, spec book
-        match, sub-trade buyout, schedule, AIA pay app, client portal. The rest of this page
-        breaks each piece into its own short clip.
+        A single job carried across every screen &mdash; plan upload, AI takeoff, sub-trade buyout,
+        schedule, AIA pay app, client portal. The tour below breaks each piece into its own screen.
       </p>
 
       <div class="hero-video-wrap" style="max-width: 960px; margin: 0 auto;">
-        <div class="video-frame" id="full-demo" data-video-id="FULL_DEMO">
-          <div class="video-placeholder">
-            <div class="vp-duration">15:00</div>
-            <div class="play-icon">
-              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            </div>
-            <div class="vp-title">Full product demo</div>
-            <div class="vp-subtitle">One project, every feature. Watch this if you want the complete picture before signing up.</div>
-          </div>
+        <div class="shot-frame">
+          <img src="/screenshots/screens/02-henderson.png" alt="MAGE ID project detail — a live job with budget, schedule, and every tool in one place" loading="lazy" />
+          <span class="shot-caption"><span class="dot"></span>A live job in MAGE ID</span>
         </div>
       </div>
     </section>
@@ -420,23 +477,19 @@
          Tutorial library — by feature
          ===================================================================== -->
     <section class="section-wrap" id="tutorials">
-      <h2 class="section-heading-light">Tutorial library.</h2>
+      <h2 class="section-heading-light">Feature by feature.</h2>
       <p class="section-sub-light">
-        Short clips, one feature each. Use these when a contractor on your team gets stuck,
-        or to drop into a Slack thread when training a new estimator.
+        One real screen per feature, with what it does. Want to see any of these in motion on your
+        own project? <a href="https://app.mageid.app" style="color: var(--amber); font-weight: 600;">Start free</a>
+        or <a href="/access.html" style="color: var(--amber); font-weight: 600;">book a live demo</a>.
       </p>
 
       <div class="tutorials-grid">
 
         <!-- AI Takeoff -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_TAKEOFF">
-            <div class="video-placeholder">
-              <div class="vp-duration">3:42</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/17-takeoff.png" alt="AI takeoff — LF, SF, and EA quantities measured from an uploaded plan set" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">AI takeoff</div>
@@ -447,13 +500,8 @@
 
         <!-- Spec book matcher -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_SPEC">
-            <div class="video-placeholder">
-              <div class="vp-duration">2:30</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/15-estimator.png" alt="Estimate line items matched against the spec book, callout by callout" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Spec book matcher</div>
@@ -464,13 +512,8 @@
 
         <!-- Sub-trade buyout -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_BUYOUT">
-            <div class="video-placeholder">
-              <div class="vp-duration">3:10</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/09-bulk-savings.png" alt="Sub-trade buyout — leveled bids and the running buyout savings tally" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Sub-trade buyout</div>
@@ -481,13 +524,8 @@
 
         <!-- Drawing analyzer -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_DRAWING">
-            <div class="video-placeholder">
-              <div class="vp-duration">2:50</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/24-estimate-hero.png" alt="AI drawing analyzer — a priced, CSI-organized estimate with reasoning and concerns" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">AI drawing analyzer</div>
@@ -498,13 +536,8 @@
 
         <!-- AIA pay app -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_AIA">
-            <div class="video-placeholder">
-              <div class="vp-duration">4:00</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/12-summary-tools.png" alt="AIA G702/G703 progress billing generated from the project's line items" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">AIA progress billing</div>
@@ -515,13 +548,8 @@
 
         <!-- Daily reports + voice -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_DFR">
-            <div class="video-placeholder">
-              <div class="vp-duration">2:20</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/04-daily-report.png" alt="Daily field report — manpower, weather, work performed, structured from a voice note" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Daily field reports</div>
@@ -532,13 +560,8 @@
 
         <!-- Client portal -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_PORTAL">
-            <div class="video-placeholder">
-              <div class="vp-duration">3:00</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/20-client-portal.png" alt="The client portal — what the homeowner sees: updates, photos, schedule, approvals" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Client portal</div>
@@ -549,13 +572,8 @@
 
         <!-- Sub portal -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_SUB_PORTAL">
-            <div class="video-placeholder">
-              <div class="vp-duration">2:15</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/28-companies.png" alt="Subcontractor management — companies, invoices, COIs, and lien waivers in one place" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Sub portal</div>
@@ -566,13 +584,8 @@
 
         <!-- Schedule + AI -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_SCHEDULE">
-            <div class="video-placeholder">
-              <div class="vp-duration">3:30</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/05-schedule-gantt.png" alt="Phase Gantt with critical path, drafted from the estimate" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Scheduling</div>
@@ -583,13 +596,8 @@
 
         <!-- Cash flow -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_CASHFLOW">
-            <div class="video-placeholder">
-              <div class="vp-duration">2:45</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/10-cashflow.png" alt="Cash-flow forecaster — 12 weeks ahead across every job" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Cash flow forecaster</div>
@@ -600,13 +608,8 @@
 
         <!-- Field verification -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_FIELD">
-            <div class="video-placeholder">
-              <div class="vp-duration">1:50</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/17-takeoff.png" alt="Field verification — tap a takeoff row, photograph the condition, log what you measured" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Field verification</div>
@@ -617,13 +620,8 @@
 
         <!-- Voice everywhere -->
         <div class="tutorial-card">
-          <div class="video-frame" data-video-id="TUTORIAL_VOICE">
-            <div class="video-placeholder">
-              <div class="vp-duration">1:40</div>
-              <div class="play-icon">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-            </div>
+          <div class="shot-frame">
+            <img src="/screenshots/screens/08-ai-copilot.png" alt="The universal mic — speak, and the AI structures it as an RFI, CO, punch item, or invoice" loading="lazy" />
           </div>
           <div class="tc-body">
             <div class="tc-eyebrow">Voice everywhere</div>
@@ -801,18 +799,19 @@
          ===================================================================== -->
     <section class="section-wrap">
       <div class="demo-cta">
-        <h2>Want a live demo on your own plan set?</h2>
+        <h2>Ready to run it on your own project?</h2>
         <p>
-          30 minutes. We screen-share, you upload one of your real projects, we walk it together.
-          You keep the takeoff and matched specs whether you sign up or not.
+          Start free on the web right now &mdash; your first project is $0 forever, no credit card, no download.
+          Or book a live 30-minute demo: we screen-share, you upload one of your real projects, and you keep
+          the takeoff and matched specs whether you sign up or not.
         </p>
         <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-          <a class="btn btn-primary" href="mailto:demo@mageid.app?subject=Live%20demo%20request">
-            <span>Email demo@mageid.app</span>
+          <a class="btn btn-primary" href="https://app.mageid.app">
+            <span>Start free</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
-          <a class="btn btn-ghost" href="/support.html" style="border-color: rgba(255,255,255,0.3); color: #fff;">
-            <span>Talk to support</span>
-          </a>
+          <a class="btn btn-secondary" href="/access.html">Book a live demo</a>
+          <a class="btn btn-secondary" href="mailto:demo@mageid.app?subject=Live%20demo%20request">Email demo@mageid.app</a>
         </div>
       </div>
     </section>
@@ -837,20 +836,15 @@
         <a href="/terms.html">Terms</a>
       </div>
     </div>
+    <p style="font-size: 12px; color: var(--fog); text-align: center; margin-top: 20px;">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
   </footer>
 
+  <!-- Keep the footer copyright year current across every page. -->
   <script>
-    document.querySelectorAll('.video-frame .video-placeholder').forEach(el => {
-      el.addEventListener('click', () => {
-        if (el.classList.contains('is-notice')) return;
-        el.classList.add('is-notice');
-        el.innerHTML =
-          '<div class="vp-title">Book a live walkthrough</div>' +
-          '<div class="vp-subtitle">Want to see it live? ' +
-          '<a href="/access.html">Book a live demo</a> and we&rsquo;ll walk you ' +
-          'through your first project, start to finish.</div>';
-      });
-    });
+    (function () {
+      var y = document.getElementById('year');
+      if (y) y.textContent = new Date().getFullYear();
+    })();
   </script>
   <script src="/nav-mobile.js" defer></script>
   <script src="/motion.js" defer></script>

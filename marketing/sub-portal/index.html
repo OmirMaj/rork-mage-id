@@ -623,7 +623,7 @@
       <div class="gate-logo" style="margin-bottom:18px">M</div>
       <h1>Sub portal link expired</h1>
       <p>This link doesn't include any data. Ask your contractor for a fresh link from the MAGE ID app.</p>
-      <a class="cta" href="mailto:support@mageid.app?subject=Sub%20Portal%20Help">Contact support</a>
+      <a class="cta" href="mailto:help@mageid.app?subject=Sub%20Portal%20Help">Contact support</a>
     </div>
   </div>
 
@@ -1090,7 +1090,7 @@
   }
 
   function buildMailto(cfg, payload, projectName, subName) {
-    var to = cfg.contactEmail || 'support@mageid.app';
+    var to = cfg.contactEmail || 'help@mageid.app';
     var subject = 'Invoice from ' + (subName || 'sub') + ' — ' + (projectName || 'project');
     var lines = [
       'Invoice #' + payload.invoice_number,

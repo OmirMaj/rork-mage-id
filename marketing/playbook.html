@@ -26,10 +26,38 @@
 
   <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
 
+  <!-- PostHog — same project key as the homepage so playbook pageviews + CTA
+       clicks join the unified marketing funnel. Async; never blocks render. -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+      api_host: 'https://us.i.posthog.com',
+      capture_pageview: true,
+      capture_pageleave: true,
+      autocapture: false,
+      persistence: 'localStorage+cookie',
+    });
+  </script>
+
   <style>
     /* Playbook-specific UI: the page is dense with content so we use
        subtle deviations from the rest of the site to keep it scannable.
        Everything here is additive — no overrides of base styles. */
+
+    /* Nav "Start free" — amber accent matching the homepage CTA, brand tokens only. */
+    .nav-start-free {
+      color: var(--amber) !important;
+      border: 1px solid rgba(255, 106, 26, 0.5) !important;
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-weight: 600;
+      transition: background 220ms ease, color 220ms ease, border-color 220ms ease;
+    }
+    .nav-start-free:hover {
+      background: var(--amber);
+      color: #0B0D10 !important;
+      border-color: var(--amber) !important;
+    }
 
     .pb-toc {
       position: sticky;
@@ -263,6 +291,7 @@
         <a href="/pricing.html">Pricing</a>
         <a href="/demo.html">Demo</a>
         <a href="/support.html">Support</a>
+        <a href="https://app.mageid.app" class="nav-start-free">Start free</a>
       </nav>
     </div>
   </header>
@@ -311,6 +340,7 @@
         <a href="#buyout">5b. Bid out the work (Buyout)</a>
         <a href="#ai-photos">6b. AI photo analysis</a>
         <a href="#close">7. Close the job</a>
+        <a href="#bid-confidence">The payoff: Bid Confidence</a>
         <a href="#cheatsheet">Voice cheat sheet</a>
       </div>
     </nav>
@@ -813,6 +843,59 @@
             <p>One PDF: warranty roster, finish list, trade contacts, maintenance schedule, your business card,
               emergency contact info. Tap "Deliver" — homeowner gets it forever in their portal.</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── BID CONFIDENCE (THE MOAT) ─────────── -->
+    <section class="pb-section" id="bid-confidence" style="background: rgba(255, 106, 26, 0.06); border-top: 1px solid rgba(255, 106, 26, 0.25);">
+      <div class="wrap">
+        <span class="pb-eyebrow">The payoff · Bid Confidence</span>
+        <h2>Every finished job makes your next bid smarter.</h2>
+        <p class="pb-lede">
+          Here's the part that pays for the whole app. Everything you just did &mdash; the estimate, the
+          buyout, the pay apps, the closeout &mdash; feeds one thing: <strong>your real costs</strong>. MAGE ID
+          learns them job over job, so your next bid is priced off <strong>your own numbers</strong>, not a
+          generic catalog. That's <strong>Bid Confidence</strong>, and no other contractor app does it.
+        </p>
+
+        <div class="pb-card">
+          <h3>1. Finished jobs teach MAGE your true costs</h3>
+          <p>As each project closes out, MAGE ID captures what things <em>actually</em> cost you &mdash;
+            your subs, your supply house, your market, your crew's real production rates. It builds a private
+            cost database that only gets sharper the more you run through it.</p>
+        </div>
+
+        <div class="pb-card">
+          <h3>2. Your next estimate gets a Bid Confidence score</h3>
+          <p>When you build the next bid, MAGE ID scores it against your learned costs and flags the lines
+            where your number looks thin or optimistic &mdash; <em>before</em> you send it. You see the number
+            before the client does. That's the difference between winning a job and winning a job you actually
+            make money on.</p>
+        </div>
+
+        <div class="pb-card">
+          <h3>3. A live margin-risk alert while the job runs</h3>
+          <p>Once the job is live, the Budget Dashboard watches cost variance against the plan in real time.
+            The moment margin starts eroding, MAGE ID tells you &mdash; while you can still fix it, not after the
+            final invoice reveals the profit is gone.</p>
+          <div class="pb-pro-tip">
+            <strong>Why it matters:</strong> most contractors find out a job lost money when it's too late.
+            Bid Confidence + the margin-risk alert move that discovery to the front of the job, where you can
+            still do something about it.
+          </div>
+        </div>
+
+        <div class="feature-row" style="margin: 28px 0 8px;">
+          <div>
+            <h2>The numbers behind the score.</h2>
+            <p>
+              CPI, cost variance, estimate-at-completion &mdash; the live Budget Dashboard is the same margin
+              math that scores every bid and fires the alert. Red when you're trending over, green when you're
+              on plan.
+            </p>
+          </div>
+          <div class="screenshot phone" data-label="Budget Dashboard · Live EVM"><img src="/screenshots/screens/18-budget-evm.png" alt="Budget Dashboard showing live CPI and cost variance — the margin math behind Bid Confidence" /></div>
         </div>
       </div>
     </section>

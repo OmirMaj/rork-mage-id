@@ -258,12 +258,8 @@
         <p class="moat-sub reveal">Not "all-in-one." Everyone says that. Bid Confidence is the part that actually keeps you in business.</p>
         <div class="moat-grid" style="grid-template-columns: 1fr 1fr; align-items:center;">
           <div class="moat-card reveal" style="padding:0;overflow:hidden;">
-            <!-- BID CONFIDENCE PROOF — replace with an annotated capture/clip of the
-                 cost-learning loop + margin-risk alert (the in-app BidConfidenceBadge).
-                 Until the annotated asset exists, the closest real screen is used below.
-                 Owner to supply the annotated version. -->
-            <img src="/screenshots/screens/18-budget-evm.png" alt="MAGE ID Bid Confidence — a bid priced off your real costs with a live margin-risk score" loading="lazy" style="width:100%;display:block;" />
-            <p style="font-size:12px;color:rgba(244,239,230,0.5);margin:8px 12px;">Live budget &amp; margin tracking &mdash; the real numbers behind your Bid Confidence score.</p>
+            <img src="/screenshots/screens/18-budget-evm.png" alt="MAGE ID Budget Dashboard — live CPI and cost variance, the margin-risk math behind Bid Confidence" loading="lazy" style="width:100%;display:block;" />
+            <p style="font-size:12px;color:rgba(244,239,230,0.5);margin:8px 12px;">The live Budget Dashboard: CPI, cost variance, and estimate-at-completion &mdash; the same margin math that scores every bid and fires the margin-risk alert.</p>
           </div>
           <div class="moat-card reveal">
             <span class="moat-num">Bid Confidence</span>
@@ -748,6 +744,14 @@
         });
       }
     });
+  </script>
+
+  <!-- Keep the footer copyright year current so it never freezes at 2026. -->
+  <script>
+    (function () {
+      var y = document.getElementById('year');
+      if (y) y.textContent = new Date().getFullYear();
+    })();
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
