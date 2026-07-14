@@ -1604,12 +1604,30 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) {
       const inv = updated.find(i => i.id === id);
       if (inv) {
-        void supabaseWrite('invoices', 'update', {
-          id, notes: inv.notes, line_items: inv.lineItems, subtotal: inv.subtotal, tax_rate: inv.taxRate,
-          tax_amount: inv.taxAmount, total_due: inv.totalDue, amount_paid: inv.amountPaid,
-          status: inv.status, payments: inv.payments, updated_at: now,
-          qbo_sync_status: 'pending',
-        });
+        // Scope the write to the columns this edit actually touched. amount_paid,
+        // payments, and status are ALSO written by the Stripe webhook when a
+        // payment succeeds; a passive edit (notes, line items, retention release,
+        // pay-link attach) that blindly rewrote them would clobber a
+        // webhook-recorded payment with stale local state, silently un-collecting
+        // real money. The offline-queue 'update' op only SETs the keys present,
+        // so omitting a column leaves the webhook's value intact.
+        const payload: Record<string, unknown> = { id, updated_at: now, qbo_sync_status: 'pending' };
+        if ('notes' in updates) payload.notes = inv.notes;
+        if ('lineItems' in updates) payload.line_items = inv.lineItems;
+        if ('subtotal' in updates) payload.subtotal = inv.subtotal;
+        if ('taxRate' in updates) payload.tax_rate = inv.taxRate;
+        if ('taxAmount' in updates) payload.tax_amount = inv.taxAmount;
+        if ('totalDue' in updates) payload.total_due = inv.totalDue;
+        // Only write the webhook-owned reconciliation columns when this edit
+        // changed a payment field (or explicitly set status).
+        if ('amountPaid' in updates || 'payments' in updates) {
+          payload.amount_paid = inv.amountPaid;
+          payload.payments = inv.payments;
+          payload.status = inv.status;
+        } else if ('status' in updates) {
+          payload.status = inv.status;
+        }
+        void supabaseWrite('invoices', 'update', payload);
       }
       void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', id));
       // Detect newly-added MAGE-sourced payments and fire a payment sync for each.
