@@ -19,12 +19,20 @@
 // failures to slow brute force from a single client even further.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { rateLimitCount } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY =
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   Deno.env.get("SERVICE_ROLE_KEY") ||
   "";
+
+// Brute-force ceilings. The 4-digit passcode has only ~9000 values, and a fixed
+// 250ms delay is fully parallelizable. The portal's DATA is now gated by the
+// 192-bit accessToken RPCs (portal_get_snapshot etc.), so the passcode is a
+// SECONDARY control — fail OPEN (allow) if the limiter is unavailable.
+const PASSCODE_PORTAL_HOURLY_LIMIT = 10;
+const PASSCODE_IP_HOURLY_LIMIT = 30;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +85,16 @@ serve(async (req) => {
   const passcode = (body.passcode ?? "").trim();
   if (!portalId || !passcode) {
     return jsonResponse({ ok: false, error: "Missing portalId or passcode" }, 400);
+  }
+
+  // Brute-force limiter: cap attempts per portal + per IP per hour. Fail OPEN
+  // (count < 0 = limiter unavailable → allow) since the accessToken RPCs are the
+  // primary data gate and we don't want to lock out a legit homeowner on a blip.
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+  const portalHits = await rateLimitCount(`passcode:portal:${portalId}`);
+  const ipHits = ip ? await rateLimitCount(`passcode:ip:${ip}`) : 0;
+  if (portalHits > PASSCODE_PORTAL_HOURLY_LIMIT || ipHits > PASSCODE_IP_HOURLY_LIMIT) {
+    return jsonResponse({ ok: false, error: "Too many attempts. Please wait and try again." }, 429);
   }
 
   // Look up the project that owns this portal_id and read its stored

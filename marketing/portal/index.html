@@ -4133,20 +4133,34 @@
     try { localStorage.setItem(localBudgetKey(portalId), JSON.stringify(payload)); } catch (e) {}
   }
 
+  // The ?t= access token gates every server read/write for this portal. It is
+  // the 192-bit client_portal.accessToken (same secret the sign/selection RPCs
+  // already require); portal reads/writes now go through token-gated RPCs so the
+  // guessable portalId alone can no longer dump or forge tenant data.
+  function getPortalToken() {
+    try { return new URLSearchParams(window.location.search).get('t') || ''; }
+    catch (e) { return ''; }
+  }
+
   async function postBudgetProposal(cfg, body) {
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
       throw new Error('No Supabase config in snapshot');
     }
-    var url = cfg.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/portal_budget_proposals';
+    var url = cfg.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/portal_submit_budget_proposal';
     var resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': cfg.supabaseAnonKey,
         'Authorization': 'Bearer ' + cfg.supabaseAnonKey,
-        'Prefer': 'return=minimal',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        p_portal_id: body.portal_id,
+        p_access_token: getPortalToken(),
+        p_amount: body.amount,
+        p_note: body.note || null,
+        p_proposer_name: body.proposer_name || null,
+      }),
     });
     if (!resp.ok) {
       var text = '';
@@ -4356,21 +4370,19 @@
 
   async function postPortalMessage(api, body, clientName) {
     if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
-    var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/portal_messages';
+    var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/portal_post_message';
     var resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': api.supabaseAnonKey,
         'Authorization': 'Bearer ' + api.supabaseAnonKey,
-        'Prefer': 'return=minimal',
       },
       body: JSON.stringify({
-        portal_id: api.portalId,
-        invite_id: api.inviteId || null,
-        author_type: 'client',
-        author_name: clientName || null,
-        body: body,
+        p_portal_id: api.portalId,
+        p_access_token: getPortalToken(),
+        p_body: body,
+        p_author_name: clientName || null,
       }),
     });
     if (!resp.ok) {
@@ -4388,18 +4400,19 @@
   // null on rows posted from this page).
   async function fetchLiveMessages(api) {
     if (!api || !api.supabaseUrl || !api.supabaseAnonKey || !api.portalId) return null;
-    var url = api.supabaseUrl.replace(/\/+$/, '')
-      + '/rest/v1/portal_messages'
-      + '?portal_id=eq.' + encodeURIComponent(api.portalId)
-      + '&order=created_at.asc'
-      + '&select=id,portal_id,author_type,author_name,body,created_at';
+    var token = getPortalToken();
+    if (!token) return null;
+    var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/portal_get_messages';
     try {
       var resp = await fetch(url, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'apikey': api.supabaseAnonKey,
           'Authorization': 'Bearer ' + api.supabaseAnonKey,
           'Accept': 'application/json',
         },
+        body: JSON.stringify({ p_portal_id: api.portalId, p_access_token: token }),
       });
       if (!resp.ok) return null;
       var rows = await resp.json();
@@ -4418,16 +4431,23 @@
 
   async function postCOApproval(api, payload) {
     if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
-    var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/change_order_approvals';
+    var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/portal_submit_co_approval';
     var resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': api.supabaseAnonKey,
         'Authorization': 'Bearer ' + api.supabaseAnonKey,
-        'Prefer': 'return=minimal',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        p_portal_id: payload.portal_id,
+        p_access_token: getPortalToken(),
+        p_change_order_id: payload.change_order_id,
+        p_decision: payload.decision,
+        p_signer_name: payload.signer_name || null,
+        p_note: payload.note || null,
+        p_user_agent: payload.user_agent || null,
+      }),
     });
     if (!resp.ok) {
       var text = '';
@@ -5527,17 +5547,21 @@
     } catch (e) { return null; }
   }
 
+  // Reads the snapshot through the token-gated portal_get_snapshot RPC.
+  // portal_snapshots is no longer anon-readable (cross-tenant leak fix); the RPC
+  // validates the ?t= accessToken against the project before returning the blob.
   function fetchSnapshotFromServer(portalId) {
     if (!portalId) return Promise.resolve(null);
-    var url = SUPABASE_URL_PUBLIC + '/rest/v1/portal_snapshots?portal_id=eq.' + encodeURIComponent(portalId) + '&select=snapshot,updated_at';
+    var token = getPortalToken();
+    if (!token) return Promise.resolve(null);
+    var url = SUPABASE_URL_PUBLIC + '/rest/v1/rpc/portal_get_snapshot';
     return fetch(url, {
-      headers: { 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+      body: JSON.stringify({ p_portal_id: portalId, p_access_token: token }),
     })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (rows) {
-        if (!rows || !rows[0] || !rows[0].snapshot) return null;
-        return rows[0].snapshot;
-      })
+      .then(function (snapshot) { return snapshot || null; })
       .catch(function () { return null; });
   }
 
