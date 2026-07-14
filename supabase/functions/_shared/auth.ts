@@ -190,11 +190,20 @@ export async function aiUsageIncrement(userId: string, feature: string, amount =
       },
       body: JSON.stringify({ p_user_id: userId, p_feature: feature, p_amount: Math.max(1, amount) }),
     });
-    if (!r.ok) return 0; // fail-open on infra glitch — better than blocking paid users
+    // Fail CLOSED. This counter is the ONLY server-side cost ceiling (there is no
+    // per-IP/per-minute limiter on most AI endpoints). Returning 0 on error made
+    // `used > cap` false, so EVERY paid AI endpoint ran uncapped for ALL users
+    // during any RPC/DB outage — a bad redeploy, pool exhaustion, or statement
+    // timeout silently removed the ceiling (audit finding). Return a sentinel that
+    // exceeds every cap so the caller DENIES ("temporarily unavailable") instead of
+    // spending. The RPC is healthy in steady state, so legit paid users are never
+    // affected — only genuine outages deny, which is the correct trade for a
+    // cost-control. A real count of 0 (row absent) is only returned on a 2xx.
+    if (!r.ok) return Number.MAX_SAFE_INTEGER;
     const v = await r.json();
-    return typeof v === 'number' ? v : 0;
+    return typeof v === 'number' ? v : Number.MAX_SAFE_INTEGER;
   } catch {
-    return 0;
+    return Number.MAX_SAFE_INTEGER;
   }
 }
 
@@ -219,11 +228,41 @@ export async function aiUsageGet(userId: string, feature: string): Promise<numbe
       },
       body: JSON.stringify({ p_user_id: userId, p_feature: feature }),
     });
-    if (!r.ok) return 0;
+    // Fail CLOSED (see aiUsageIncrement): a failed read returns the sentinel so
+    // `remaining = max(0, cap - used)` collapses to 0 and the precheck denies,
+    // rather than reporting a full quota and letting an oversized job through.
+    if (!r.ok) return Number.MAX_SAFE_INTEGER;
     const v = await r.json();
-    return typeof v === 'number' ? v : 0;
+    return typeof v === 'number' ? v : Number.MAX_SAFE_INTEGER;
   } catch {
-    return 0;
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+/**
+ * Coarse per-scope hourly rate limiter (defense-in-depth on top of the monthly
+ * counter). Backed by the `rate_limit_increment(text)` SQL function used by
+ * auth-magic-link / notify — an atomic hourly bucket keyed by an arbitrary
+ * scope string. Returns the post-increment count for the current hour, or -1 if
+ * the limiter itself is unavailable so each caller can choose fail-open (drop a
+ * low-value request) vs fail-closed (deny an expensive one).
+ */
+export async function rateLimitCount(scope: string): Promise<number> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/rate_limit_increment`, {
+      method: 'POST',
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_scope: scope }),
+    });
+    if (!r.ok) return -1;
+    const v = await r.json();
+    return typeof v === 'number' ? v : -1;
+  } catch {
+    return -1;
   }
 }
 
@@ -267,6 +306,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 0,
     scan_anything: 0,
     cost_xray: 0,
+    project_memory: 0,
   },
   pro: {
     analyze_drawings: 15,
@@ -280,6 +320,13 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 20,
     scan_anything: 0,
     cost_xray: 0,
+    // Project Memory metered PER DOCUMENT embedded (embed charges docs.length,
+    // search charges 1) — a single embed call batches up to 250 docs × 8000
+    // chars, so per-CALL metering under-counted the real Gemini cost by up to
+    // ~250×. Caps are a per-DOC budget: generous for a heavy legit user (the app
+    // re-embeds a project's docs on screen open) while still bounding a runaway
+    // loop; the hourly rate limit is the burst/shared-key-drain control.
+    project_memory: 50000,
   },
   business: {
     analyze_drawings: 50,
@@ -293,6 +340,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 60,
     scan_anything: 120,
     cost_xray: 50,
+    project_memory: 200000,
   },
   enterprise: {
     analyze_drawings: 100,
@@ -306,5 +354,6 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     schedule_import: 150,
     scan_anything: 300,
     cost_xray: 150,
+    project_memory: 600000,
   },
 };

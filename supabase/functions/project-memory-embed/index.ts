@@ -13,8 +13,14 @@
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier } from "../_shared/auth.ts";
+import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
+
+// Burst / shared-key ceiling: at most this many embed+search calls per user per
+// hour. A normal user opens the Project Memory screen a handful of times a day;
+// this only bites a scripted loop that would otherwise drain the shared
+// GEMINI_API_KEY's quota and degrade AI for every tenant.
+const PM_HOURLY_LIMIT = 90;
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -46,6 +52,23 @@ serve(async (req: Request) => {
   const docs = (body.docs || []).filter(d => d && d.doc_id && d.content).slice(0, MAX_DOCS);
   if (!projectId || docs.length === 0) return json({ success: false, error: "Missing projectId or docs" }, 400);
 
+  // Cost ceiling (audit: this + project-memory-search were the ONLY paid-AI
+  // endpoints with no server-side cap or rate limit). Precheck BEFORE spending on
+  // Gemini. Metered PER DOC (docs.length) — one embed call batches up to 250 docs,
+  // so per-call metering under-counted the real Gemini cost by up to ~250×.
+  const cap = MONTHLY_CAPS[auth.tier]?.project_memory ?? 0;
+  const used = await aiUsageGet(auth.userId, "project_memory");     // fail-closed on error
+  if (used + docs.length > cap) {
+    return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
+  }
+  // Hourly burst / shared-key-drain limit. Fail OPEN (rl < 0 = limiter
+  // unavailable → allow): the monthly counter above is the cost ceiling and
+  // already fails closed, so a limiter blip must not lock out a paying user.
+  const rl = await rateLimitCount(`pm:${auth.userId}`);
+  if (rl > PM_HOURLY_LIMIT) {
+    return json({ success: false, error: "Too many Project Memory requests — please wait a moment and retry.", code: "rate_limited" }, 429);
+  }
+
   let vectors: number[][];
   try {
     vectors = await geminiEmbed(docs.map(d => d.content));
@@ -56,6 +79,11 @@ serve(async (req: Request) => {
   if (vectors.length !== docs.length) {
     return json({ success: false, error: "Embedding count mismatch" }, 502);
   }
+
+  // Charge PER DOC now — the Gemini embedding cost is already incurred once the
+  // embed succeeds, so charge here (before the DB upsert) rather than after, or a
+  // write failure would yield unmetered Gemini spend.
+  await aiUsageIncrement(auth.userId, "project_memory", docs.length);
 
   const now = new Date().toISOString();
   const rows = docs.map((d, i) => ({

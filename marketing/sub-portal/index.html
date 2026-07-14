@@ -1051,18 +1051,36 @@
   }
 
   // ───────── Submit ─────────
+  // The ?t= access token gates every sub-portal server read/write. sub_portal_links
+  // now carries a 192-bit access_token; reads/writes go through token-gated RPCs so
+  // the guessable sub_portal_id alone can no longer dump snapshots or inject invoices.
+  function getSubToken() {
+    try { return new URLSearchParams(window.location.search).get('t') || ''; }
+    catch (e) { return ''; }
+  }
+
   async function postInvoice(cfg, body) {
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) throw new Error('No Supabase config');
-    var url = cfg.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/sub_submitted_invoices';
+    var url = cfg.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/sub_portal_submit_invoice';
     var resp = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': cfg.supabaseAnonKey,
         'Authorization': 'Bearer ' + cfg.supabaseAnonKey,
-        'Prefer': 'return=minimal',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        p_sub_portal_id: body.sub_portal_id,
+        p_access_token: getSubToken(),
+        p_invoice_number: body.invoice_number || null,
+        p_amount: body.amount,
+        p_retention_amount: body.retention_amount || null,
+        p_description: body.description || null,
+        p_line_items: body.line_items || null,
+        p_commitment_id: body.commitment_id || null,
+        p_submitted_by_name: body.submitted_by_name || null,
+        p_submitted_by_email: body.submitted_by_email || null,
+      }),
     });
     if (!resp.ok) {
       var text = '';
@@ -1283,14 +1301,20 @@
     } catch (e) { return null; }
   }
 
+  // Reads the sub-portal snapshot through the token-gated sub_portal_get_snapshot
+  // RPC (sub_portal_snapshots is no longer anon-readable — cross-tenant leak fix).
   function fetchSubSnapshot(subPortalId) {
     if (!subPortalId) return Promise.resolve(null);
-    var url = SUPABASE_URL_PUBLIC + '/rest/v1/sub_portal_snapshots?sub_portal_id=eq.' + encodeURIComponent(subPortalId) + '&select=snapshot,updated_at';
+    var token = getSubToken();
+    if (!token) return Promise.resolve(null);
+    var url = SUPABASE_URL_PUBLIC + '/rest/v1/rpc/sub_portal_get_snapshot';
     return fetch(url, {
-      headers: { 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+      body: JSON.stringify({ p_sub_portal_id: subPortalId, p_access_token: token }),
     })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (rows) { return (rows && rows[0] && rows[0].snapshot) ? rows[0].snapshot : null; })
+      .then(function (snapshot) { return snapshot || null; })
       .catch(function () { return null; });
   }
 
