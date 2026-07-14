@@ -130,6 +130,7 @@ Keep each bullet under 20 words. Do not hallucinate line items that aren't in th
     schemaHint: DRAFT_SCHEMA_HINT,
     tier: 'smart',
     maxTokens: 2000,
+    feature: 'weeklyAnalysis',
   });
 
   if (!res.success || !res.data) {

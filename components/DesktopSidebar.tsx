@@ -173,15 +173,20 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
     router.push(route as any);
   }, [router]);
 
-  const isClient = userRole === 'client';
+  // Mirror the tab bar's isMinimalPersona (app/(tabs)/_layout.tsx): both
+  // client AND property_manager get the minimal nav. Previously the sidebar
+  // only checked 'client', so a property manager saw the full contractor rail
+  // on web while their phone showed the minimal one (CLAUDE.md: keep sidebar
+  // and tab bar in sync).
+  const isMinimalPersona = userRole === 'client' || userRole === 'property_manager';
   // Direct Hire + Messages belong to the same orphaned subsystem, gated
   // behind HIRE_ENABLED for launch. Hide their rail entries when it's off.
   const navItems = useMemo(
-    () => (isClient ? CLIENT_NAV_ITEMS : NAV_ITEMS)
+    () => (isMinimalPersona ? CLIENT_NAV_ITEMS : NAV_ITEMS)
       .filter(item => HIRE_ENABLED || (item.key !== 'hire' && item.key !== 'messages')),
-    [isClient],
+    [isMinimalPersona],
   );
-  const sections = isClient ? CLIENT_SECTIONS : SECTIONS;
+  const sections = isMinimalPersona ? CLIENT_SECTIONS : SECTIONS;
 
   // Account items render pinned to the bottom of the rail (dimmed), separate
   // from the scrollable section list.
@@ -225,8 +230,8 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   }, []);
 
   const recentProjects = useMemo(
-    () => (isClient ? [] : projects.slice(0, 3)),
-    [isClient, projects],
+    () => (isMinimalPersona ? [] : projects.slice(0, 3)),
+    [isMinimalPersona, projects],
   );
 
   const renderNavItem = useCallback((item: NavItem, dimmed = false) => {
@@ -352,7 +357,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
           if (items.length === 0) return null;
           const isProjectGroup = PROJECT_SECTIONS.includes(section);
           const open = openSections[section] ?? !isProjectGroup;
-          const showProjectDivider = !isClient && section === PROJECT_SECTIONS[0];
+          const showProjectDivider = !isMinimalPersona && section === PROJECT_SECTIONS[0];
 
           return (
             <View key={section} style={styles.navSection}>

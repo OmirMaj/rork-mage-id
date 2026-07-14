@@ -470,6 +470,23 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               taxRate: Number(r.tax_rate), taxAmount: Number(r.tax_amount), totalDue: Number(r.total_due),
               amountPaid: Number(r.amount_paid), status: r.status as Invoice['status'],
               payments: r.payments as Invoice['payments'], createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              // Hydrate every persisted field the mapper used to drop — otherwise a
+              // refetch wiped retention (A/R money) + pay links (no DB copy) and
+              // blanked portal/qbo state in memory. numeric columns come back as
+              // strings from PostgREST, so wrap in Number().
+              retentionPercent: r.retention_percent == null ? undefined : Number(r.retention_percent),
+              retentionAmount: r.retention_amount == null ? undefined : Number(r.retention_amount),
+              retentionReleased: r.retention_released == null ? undefined : Number(r.retention_released),
+              retentionReleases: (r.retention_releases as Invoice['retentionReleases']) ?? undefined,
+              payLinkUrl: (r.pay_link_url as string | null) ?? undefined,
+              payLinkId: (r.pay_link_id as string | null) ?? undefined,
+              portalState: (r.portal_state as Invoice['portalState']) ?? undefined,
+              qboId: (r.qbo_id as string | null) ?? undefined,
+              qboHash: (r.qbo_hash as string | null) ?? undefined,
+              qboSyncedAt: (r.qbo_synced_at as string | null) ?? undefined,
+              qboSyncStatus: (r.qbo_sync_status as Invoice['qboSyncStatus']) ?? undefined,
+              qboError: (r.qbo_error as string | null) ?? undefined,
+              qboRetryCount: r.qbo_retry_count == null ? undefined : Number(r.qbo_retry_count),
             })) as Invoice[];
             await saveLocal(INVOICES_KEY, mapped);
             return mapped;
@@ -1003,8 +1020,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
     setHasSeenOnboarding(true);
     queryClient.setQueryData(['onboarding', userId], true);
-    if (canSync) {
-      try { await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', userId); } catch { /* ok */ }
+    if (canSync && userId) {
+      // Through the offline queue — a direct .update() here swallowed offline
+      // failures, so completing onboarding on a plane never reached the server.
+      void supabaseWrite('profiles', 'update', { id: userId, onboarding_complete: true });
     }
   }, [queryClient, userId, canSync]);
 
@@ -1039,8 +1058,9 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(USER_ROLE_KEY, role);
     setUserRoleState(role);
     queryClient.setQueryData(['user_role', userId], role);
-    if (canSync) {
-      try { await supabase.from('profiles').update({ user_role: role }).eq('id', userId); } catch { /* ok */ }
+    if (canSync && userId) {
+      // Through the offline queue — same reasoning as completeOnboarding above.
+      void supabaseWrite('profiles', 'update', { id: userId, user_role: role });
     }
   }, [queryClient, userId, canSync]);
 
@@ -1207,7 +1227,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       if (action === 'delete') {
         await supabaseWrite('projects', 'delete', { id: project.id });
       } else {
-        await supabaseWrite('projects', 'insert', {
+        // MUST be 'upsert', not 'insert': this path also fires on every EDIT,
+        // and a plain insert on the existing PK fails with a duplicate-key
+        // violation (classified terminal) — so edits would silently never
+        // reach the server, and the server-first load on next launch would
+        // revert them locally.
+        await supabaseWrite('projects', 'upsert', {
           id: project.id, user_id: userId, name: project.name, type: project.type,
           location: project.location, square_footage: project.squareFootage, quality: project.quality,
           location_latitude: project.locationLatitude ?? null,
@@ -1318,24 +1343,26 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const saveSettingsMutation = useMutation({
     mutationFn: async (updatedSettings: AppSettings) => {
       await saveLocal(SETTINGS_KEY, updatedSettings);
-      if (canSync) {
-        try {
-          await supabase.from('profiles').update({
-            location: updatedSettings.location, units: updatedSettings.units,
-            tax_rate: updatedSettings.taxRate, contingency_rate: updatedSettings.contingencyRate,
-            company_name: updatedSettings.branding.companyName, contact_name: updatedSettings.branding.contactName,
-            email: updatedSettings.branding.email, phone: updatedSettings.branding.phone,
-            address: updatedSettings.branding.address, license_number: updatedSettings.branding.licenseNumber,
-            tagline: updatedSettings.branding.tagline, logo_uri: updatedSettings.branding.logoUri,
-            signature_data: updatedSettings.branding.signatureData, theme_colors: updatedSettings.themeColors,
-            biometrics_enabled: updatedSettings.biometricsEnabled, dfr_recipients: updatedSettings.dfrRecipients,
-            digest_enabled: updatedSettings.digest?.enabled ?? false,
-            digest_hour: updatedSettings.digest?.hour ?? 6,
-            digest_channels: updatedSettings.digest?.channels ?? { email: true, in_app: true },
-            digest_timezone: updatedSettings.digest?.timezone ?? 'America/New_York',
-            financing: updatedSettings.financing ?? null,
-          }).eq('id', userId);
-        } catch (err) { console.log('[ProjectContext] Settings sync failed:', err); }
+      if (canSync && userId) {
+        // Through the offline queue — the previous direct .update() swallowed
+        // offline failures, so branding/digest/settings edits made offline
+        // silently never reached the server (and reverted on next launch).
+        void supabaseWrite('profiles', 'update', {
+          id: userId,
+          location: updatedSettings.location, units: updatedSettings.units,
+          tax_rate: updatedSettings.taxRate, contingency_rate: updatedSettings.contingencyRate,
+          company_name: updatedSettings.branding.companyName, contact_name: updatedSettings.branding.contactName,
+          email: updatedSettings.branding.email, phone: updatedSettings.branding.phone,
+          address: updatedSettings.branding.address, license_number: updatedSettings.branding.licenseNumber,
+          tagline: updatedSettings.branding.tagline, logo_uri: updatedSettings.branding.logoUri,
+          signature_data: updatedSettings.branding.signatureData, theme_colors: updatedSettings.themeColors,
+          biometrics_enabled: updatedSettings.biometricsEnabled, dfr_recipients: updatedSettings.dfrRecipients,
+          digest_enabled: updatedSettings.digest?.enabled ?? false,
+          digest_hour: updatedSettings.digest?.hour ?? 6,
+          digest_channels: updatedSettings.digest?.channels ?? { email: true, in_app: true },
+          digest_timezone: updatedSettings.digest?.timezone ?? 'America/New_York',
+          financing: updatedSettings.financing ?? null,
+        });
       }
       return updatedSettings;
     },
@@ -1561,6 +1588,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         tax_amount: finalInvoice.taxAmount, total_due: finalInvoice.totalDue, amount_paid: finalInvoice.amountPaid,
         status: finalInvoice.status, payments: finalInvoice.payments, created_at: finalInvoice.createdAt, updated_at: finalInvoice.updatedAt,
         qbo_sync_status: 'pending', portal_state: finalInvoice.portalState,
+        // Retention + pay-link are cloud-backed as of the 20260713 migration —
+        // without these they were local-only and lost on the next refetch.
+        retention_percent: finalInvoice.retentionPercent ?? null,
+        retention_amount: finalInvoice.retentionAmount ?? null,
+        retention_released: finalInvoice.retentionReleased ?? null,
+        retention_releases: finalInvoice.retentionReleases ?? null,
+        pay_link_url: finalInvoice.payLinkUrl ?? null,
+        pay_link_id: finalInvoice.payLinkId ?? null,
       });
       void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', finalInvoice.id));
     }
@@ -1594,12 +1629,45 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     if (canSync) {
       const inv = updated.find(i => i.id === id);
       if (inv) {
-        void supabaseWrite('invoices', 'update', {
-          id, notes: inv.notes, line_items: inv.lineItems, subtotal: inv.subtotal, tax_rate: inv.taxRate,
-          tax_amount: inv.taxAmount, total_due: inv.totalDue, amount_paid: inv.amountPaid,
-          status: inv.status, payments: inv.payments, updated_at: now,
-          qbo_sync_status: 'pending',
-        });
+        // Scope the write to the columns this edit actually touched. amount_paid,
+        // payments, and status are ALSO written by the Stripe webhook when a
+        // payment succeeds; a passive edit (notes, line items, retention release,
+        // pay-link attach) that blindly rewrote them would clobber a
+        // webhook-recorded payment with stale local state, silently un-collecting
+        // real money. The offline-queue 'update' op only SETs the keys present,
+        // so omitting a column leaves the webhook's value intact.
+        const payload: Record<string, unknown> = { id, updated_at: now, qbo_sync_status: 'pending' };
+        if ('notes' in updates) payload.notes = inv.notes;
+        if ('lineItems' in updates) payload.line_items = inv.lineItems;
+        if ('subtotal' in updates) payload.subtotal = inv.subtotal;
+        if ('taxRate' in updates) payload.tax_rate = inv.taxRate;
+        if ('taxAmount' in updates) payload.tax_amount = inv.taxAmount;
+        if ('totalDue' in updates) payload.total_due = inv.totalDue;
+        // Only write the webhook-owned reconciliation columns when this edit
+        // changed a payment field (or explicitly set status).
+        if ('amountPaid' in updates || 'payments' in updates) {
+          payload.amount_paid = inv.amountPaid;
+          payload.payments = inv.payments;
+          payload.status = inv.status;
+        } else if ('status' in updates) {
+          payload.status = inv.status;
+        }
+        // Retention + pay-link (cloud-backed as of the 20260713 migration). Use
+        // ?? null, NOT bare undefined: clearing a stale pay-link (set to
+        // undefined when the total changes) must reach the DB as null, or the
+        // omitted key leaves the old link and the client is shown a Pay button
+        // for the wrong amount on the next refetch.
+        if ('retentionPercent' in updates) payload.retention_percent = inv.retentionPercent ?? null;
+        if ('retentionAmount' in updates) payload.retention_amount = inv.retentionAmount ?? null;
+        if ('retentionReleased' in updates || 'retentionReleases' in updates) {
+          payload.retention_released = inv.retentionReleased ?? null;
+          payload.retention_releases = inv.retentionReleases ?? null;
+        }
+        if ('payLinkUrl' in updates || 'payLinkId' in updates) {
+          payload.pay_link_url = inv.payLinkUrl ?? null;
+          payload.pay_link_id = inv.payLinkId ?? null;
+        }
+        void supabaseWrite('invoices', 'update', payload);
       }
       void import('@/utils/qboSync').then(m => m.triggerQboSync('invoice', 'upsert', id));
       // Detect newly-added MAGE-sourced payments and fire a payment sync for each.
@@ -2136,9 +2204,13 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // pattern — code-review #11). Avoids the slim collision risk of the
     // 6-char UUID prefix and reads better on documents the GC sends out.
     const projectCommitments = commitments.filter(c => c.projectId === pkg.projectId);
-    const nextNumber = projectCommitments.length > 0
-      ? `BO-${projectCommitments.length + 1}`
-      : 'BO-1';
+    // max(existing BO-N) + 1, not length + 1 — deleting a commitment must not
+    // reissue an already-used BO number on documents the GC sends out.
+    const maxBo = projectCommitments.reduce((max, c) => {
+      const n = parseInt(String(c.number ?? '').replace(/^BO-/, ''), 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    const nextNumber = `BO-${maxBo + 1}`;
     const commitmentId = generateUUID();
     const commitment: Commitment = {
       id: commitmentId,

@@ -376,6 +376,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         schema: cashFlowAnalysisSchema,
         tier: 'smart',
         maxTokens: 3500,
+        feature: 'cashFlowForecaster',
       });
       if (!aiResult.success) {
         Alert.alert('AI Unavailable', aiResult.error || 'Try again.');

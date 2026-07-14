@@ -25,28 +25,48 @@ export interface ScheduleSettingsMenuProps {
   visible: boolean;
   criticalFloatThresholdDays: number;
   workingDaysPerWeek: number;
+  /** Current schedule anchor (ISO YYYY-MM-DD). Undefined = raw-day schedule. */
+  startDate?: string;
   onClose: () => void;
-  onApply: (patch: { criticalFloatThresholdDays: number; workingDaysPerWeek: number }) => void;
+  /** startDate is present in the patch only when the user typed a new valid
+   *  date. It can set or change the anchor but never clear it — clearing
+   *  would silently flip the CPM back to raw-day mode (the same class of
+   *  finish-jump surprise the anchor flow exists to prevent). */
+  onApply: (patch: { criticalFloatThresholdDays: number; workingDaysPerWeek: number; startDate?: string }) => void;
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 export default function ScheduleSettingsMenu({
-  visible, criticalFloatThresholdDays, workingDaysPerWeek, onClose, onApply,
+  visible, criticalFloatThresholdDays, workingDaysPerWeek, startDate, onClose, onApply,
 }: ScheduleSettingsMenuProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [threshold, setThreshold] = useState(String(criticalFloatThresholdDays));
   const [wdpw, setWdpw] = useState<number>(workingDaysPerWeek);
+  const [startText, setStartText] = useState(startDate ?? '');
 
   useEffect(() => {
     if (visible) {
       setThreshold(String(criticalFloatThresholdDays));
       setWdpw(workingDaysPerWeek);
+      setStartText(startDate ?? '');
     }
-  }, [visible, criticalFloatThresholdDays, workingDaysPerWeek]);
+  }, [visible, criticalFloatThresholdDays, workingDaysPerWeek, startDate]);
+
+  const trimmedStart = startText.trim();
+  const dateOk = trimmedStart === ''
+    || (ISO_DATE_RE.test(trimmedStart) && Number.isFinite(Date.parse(trimmedStart + 'T00:00:00Z')));
 
   const apply = () => {
+    if (!dateOk) return; // inline hint is showing — don't half-apply
     const parsed = Math.max(0, Math.min(30, Math.round(Number(threshold) || 0)));
-    onApply({ criticalFloatThresholdDays: parsed, workingDaysPerWeek: wdpw });
+    onApply({
+      criticalFloatThresholdDays: parsed,
+      workingDaysPerWeek: wdpw,
+      // Empty input = leave the anchor as-is (never clears an existing one).
+      ...(trimmedStart !== '' && trimmedStart !== (startDate ?? '') ? { startDate: trimmedStart } : {}),
+    });
   };
 
   return (
@@ -114,6 +134,29 @@ export default function ScheduleSettingsMenu({
             </View>
           </View>
 
+          <View style={[styles.row, { marginTop: 18 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Schedule start date</Text>
+              <Text style={styles.help}>
+                {startDate
+                  ? 'Day 1 of the schedule. Task days are dated from here.'
+                  : 'No calendar anchor yet — days count 1, 2, 3… with no weekends. Setting a date re-anchors tasks onto real working days (undoable).'}
+              </Text>
+              {!dateOk && <Text style={styles.helpError}>Use YYYY-MM-DD</Text>}
+            </View>
+            <TextInput
+              value={startText}
+              onChangeText={setStartText}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={themeColors.textSecondary}
+              style={styles.dateInput}
+              maxLength={10}
+              autoCapitalize="none"
+              autoCorrect={false}
+              testID="settings-start-date"
+            />
+          </View>
+
           <View style={styles.footer}>
             <TouchableOpacity style={styles.btnGhost} onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.btnGhostText}>Cancel</Text>
@@ -179,6 +222,19 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   unit: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  helpError: { fontSize: Type.caption2.fontSize, color: t.danger, marginTop: 4, fontWeight: '600' },
+  dateInput: {
+    fontSize: Type.bodyCompact.fontSize,
+    color: t.text,
+    width: 112,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.xs,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
+  },
   quickRow: {
     flexDirection: 'row',
     gap: 6,

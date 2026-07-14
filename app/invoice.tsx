@@ -68,6 +68,7 @@ import { generateUUID } from '@/utils/generateId';
 import { copyToClipboard } from '@/utils/clipboard';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { safeJsonParse } from '@/utils/safeJson';
+import { progressSubtotal, netBalanceDue, markupInclusiveUnitPrice } from '@/utils/invoiceBilling';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function createId(_prefix: string): string {
@@ -205,8 +206,13 @@ function InvoiceInner() {
         name: item.name,
         description: item.category,
         quantity: item.quantity,
+        // The estimate stores a PRE-markup unitPrice but a markup-INCLUSIVE
+        // lineTotal. Copying both verbatim makes the printed row not foot
+        // (100 × $10 shown beside a $1,200 total). Fold markup into the shown
+        // unit price so quantity × unitPrice = total; `total` stays the source
+        // of truth, so this changes nothing about what the client is charged.
         unit: item.unit,
-        unitPrice: item.usesBulk ? item.bulkPrice : item.unitPrice,
+        unitPrice: markupInclusiveUnitPrice(item.lineTotal, item.quantity, item.usesBulk ? item.bulkPrice : item.unitPrice),
         total: item.lineTotal,
       }));
     }
@@ -275,11 +281,16 @@ function InvoiceInner() {
   const pctValue = parseFloat(progressPercent) || 0;
   const retentionPctValue = Math.max(0, Math.min(100, parseFloat(retentionPercent) || 0));
 
-  const subtotal = useMemo(() => {
-    const rawTotal = lineItems.reduce((sum, item) => sum + item.total, 0);
-    if (isProgressType) return rawTotal * (pctValue / 100);
-    return rawTotal;
-  }, [lineItems, isProgressType, pctValue]);
+  // Bill-from-Estimate lines carry `billedPercent` and store an ALREADY-scaled
+  // `total`. Applying the invoice-level progress % to them scales a second time
+  // (the 30%-of-30% double-scale bug). When any line is pre-scaled, the % is
+  // inoperative for this invoice, so we also hide the Billing Percentage field.
+  const anyPreScaledLine = useMemo(() => lineItems.some(li => li.billedPercent != null), [lineItems]);
+
+  const subtotal = useMemo(
+    () => progressSubtotal(lineItems, isProgressType, pctValue),
+    [lineItems, isProgressType, pctValue],
+  );
 
   // Tax rate is IMMUTABLE once an invoice is issued. Re-totaling an existing
   // invoice from the CURRENT global settings.taxRate would let a later change
@@ -419,9 +430,14 @@ function InvoiceInner() {
     // get an invoice they can read but not pay, and we lose the whole
     // value prop of the integration. Graceful degradation: if Stripe is
     // unreachable we still send, just without the button.
+    // Charge the retention-NET balance, not the gross totalDue. Retention is
+    // held back until closeout, so an emailed pay link must bill the same
+    // amount as the in-app "Generate Payment Link" button (balanceDue =
+    // netPayable − amountPaid). Charging totalDue overcharges the client by the
+    // held retention.
     let payLinkUrl: string | undefined = workingInvoice.payLinkUrl;
     let stripeNotConnected = false;
-    if (!payLinkUrl && totalDue > 0) {
+    if (!payLinkUrl && balanceDue > 0) {
       try {
         // Look up the GC's Stripe Connect account so the payment lands in
         // their bank, not the platform's. If they're not connected we skip
@@ -438,7 +454,7 @@ function InvoiceInner() {
             invoiceId: workingInvoice.id,
             invoiceNumber: workingInvoice.number,
             projectName: project?.name ?? 'Project',
-            amountCents: Math.round(totalDue * 100),
+            amountCents: Math.round(balanceDue * 100),
             customerEmail: sendRecipientEmail.trim(),
             companyName: branding.companyName,
             stripeAccountId,
@@ -476,12 +492,17 @@ function InvoiceInner() {
       console.log('[invoice] financing block skipped:', e);
     }
 
+    // The email headline + Pay button must show the amount the pay link actually
+    // charges (retention-net, less payments) — otherwise the client taps a
+    // "$100,000" button that charges $90,000. Retention still owed shows in the
+    // attached/portal invoice detail, not this collect-now nudge.
+    const amountDueNow = Math.max(0, balanceDue);
     const html = buildInvoiceEmailHtml({
       companyName: branding.companyName,
       recipientName: sendRecipientName,
       projectName: project?.name ?? 'Project',
       invoiceNumber: workingInvoice.number,
-      totalDue,
+      totalDue: amountDueNow,
       dueDate,
       paymentTerms,
       contactName: branding.contactName,
@@ -495,7 +516,7 @@ function InvoiceInner() {
 
     const result = await sendEmail({
       to: sendRecipientEmail.trim(),
-      subject: `Invoice #${workingInvoice.number}: ${(() => { const v = totalDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
+      subject: `Invoice #${workingInvoice.number}: ${(() => { const v = amountDueNow; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
       html,
       replyTo: branding.email || undefined,
       fromCompanyName: branding.companyName || undefined,
@@ -553,7 +574,7 @@ function InvoiceInner() {
       nailIt(`Invoice #${workingInvoice.number} sent${recipientInfo}`);
     }
     router.back();
-  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral]);
+  }, [sendRecipientEmail, sendRecipientName, projectId, lineItems, settings, project, existingInvoice, buildNewInvoice, addInvoice, totalDue, balanceDue, user, tier, paymentTerms, notes, subtotal, taxRate, taxAmount, isProgressType, pctValue, retentionPctValue, retentionAmount, updateInvoice, router, ensureReferral]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;
@@ -565,9 +586,12 @@ function InvoiceInner() {
 
       // Same auto-generate logic as handleConfirmSend — the PDF send path
       // is the other entry point for "send to client", so it needs the
-      // same guarantee that a payment link will be embedded.
+      // same guarantee that a payment link will be embedded. Charge the
+      // retention-NET balance (held retention isn't collectible yet); this
+      // path reads the stored invoice fields, so compute net from them.
+      const pdfNetDue = netBalanceDue(existingInvoice);
       let payLinkUrl: string | undefined = existingInvoice.payLinkUrl;
-      if (!payLinkUrl && (existingInvoice.totalDue - existingInvoice.amountPaid) > 0) {
+      if (!payLinkUrl && pdfNetDue > 0) {
         try {
           let stripeAccountId: string | undefined;
           if (user?.id) {
@@ -581,7 +605,7 @@ function InvoiceInner() {
               invoiceId: existingInvoice.id,
               invoiceNumber: existingInvoice.number,
               projectName: project.name,
-              amountCents: Math.round((existingInvoice.totalDue - existingInvoice.amountPaid) * 100),
+              amountCents: Math.round(pdfNetDue * 100),
               customerEmail: options.recipient.trim(),
               companyName: branding.companyName,
               stripeAccountId,
@@ -599,12 +623,15 @@ function InvoiceInner() {
         }
       }
 
+      // Email headline + Pay button show the retention-net collectible (matches
+      // the pay-link charge); the attached PDF carries the full invoice total and
+      // retention breakdown.
       const emailHtml = buildInvoiceEmailHtml({
         companyName: branding.companyName,
         recipientName: '',
         projectName: project.name,
         invoiceNumber: existingInvoice.number,
-        totalDue: existingInvoice.totalDue,
+        totalDue: pdfNetDue,
         dueDate,
         paymentTerms: existingInvoice.paymentTerms,
         message: options.message,
@@ -618,7 +645,7 @@ function InvoiceInner() {
 
       const result = await sendEmail({
         to: options.recipient.trim(),
-        subject: `Invoice #${existingInvoice.number}: ${(() => { const v = existingInvoice.totalDue ?? 0; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project.name}`,
+        subject: `Invoice #${existingInvoice.number}: ${(() => { const v = pdfNetDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project.name}`,
         html: emailHtml,
         replyTo: branding.email || undefined,
         attachments: pdfUri ? [pdfUri] : undefined,
@@ -944,7 +971,7 @@ function InvoiceInner() {
             </View>
           )}
 
-          {isProgressType && !isLocked && (
+          {isProgressType && !isLocked && !anyPreScaledLine && (
             <View style={styles.progressSection}>
               <Text style={styles.progressLabel}>Billing Percentage</Text>
               <View style={styles.progressRow}>

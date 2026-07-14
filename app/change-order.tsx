@@ -109,7 +109,10 @@ function ChangeOrderInner() {
 
   const nextCoNumber = useMemo(() => {
     if (existingCO) return existingCO.number;
-    return existingCOs.length + 1;
+    // max(existing) + 1, NOT length + 1: deleting a CO out of the middle would
+    // otherwise reissue an already-used number, producing duplicate CO numbers
+    // on signed, client-facing documents.
+    return existingCOs.reduce((max, c) => Math.max(max, c.number || 0), 0) + 1;
   }, [existingCOs, existingCO]);
 
   // Prefill from selections-overage CTA: when the homeowner picks an

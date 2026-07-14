@@ -755,6 +755,10 @@ Return ONLY JSON matching the schema. Be specific with project names so the GC k
     schema: weeklySummarySchema,
     tier: 'smart',
     maxTokens: 4500,
+    // Full Project Analysis is the SECOND weeklyAnalysis surface (the home-tab
+    // AIWeeklySummary), separate from draftWeeklyUpdate — it must carry the same
+    // feature tag so the relay enforces Pro on this path too, not just the UI.
+    feature: 'weeklyAnalysis',
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Weekly summary unavailable');

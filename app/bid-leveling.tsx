@@ -74,7 +74,7 @@ function BidLevelingInner() {
     setAiMsg(null);
     try {
       const prompt = buildLevelingPrompt(pkg, bids, resolveVendor);
-      const res = await mageAI({ prompt, tier: 'smart', schemaHint: BID_LEVELING_SCHEMA_HINT, maxTokens: 1200 });
+      const res = await mageAI({ prompt, tier: 'smart', schemaHint: BID_LEVELING_SCHEMA_HINT, maxTokens: 1200, feature: 'bidLeveling' });
       const data = (res.data && typeof res.data === 'object' ? res.data : safeParse(res.raw)) as { suggestions?: AILevelSuggestion[] } | null;
       const suggestions = Array.isArray(data?.suggestions) ? data!.suggestions : [];
       if (!res.success || suggestions.length === 0) {

@@ -21,6 +21,8 @@ import {
   type WeeklyUpdateDraft,
 } from '@/utils/weeklyClientUpdate';
 import { sendEmailNative } from '@/utils/emailService';
+import { checkAILimit } from '@/utils/aiRateLimiter';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -34,6 +36,7 @@ export default function ClientUpdateScreen() {
     projects, settings, getProject, getDailyReportsForProject, getPhotosForProject,
     getChangeOrdersForProject, getInvoicesForProject, getPunchItemsForProject, getRFIsForProject,
   } = useProjects();
+  const { tier: subscriptionTier } = useSubscription();
 
   const initialProject = params.projectId ?? projects[0]?.id;
   const [projectId, setProjectId] = useState<string | undefined>(initialProject);
@@ -66,6 +69,15 @@ export default function ClientUpdateScreen() {
     try {
       setDrafting(true);
       setErrorMsg(null);
+      // Weekly AI analysis is Pro+ (the relay now enforces this server-side too;
+      // this client gate turns a raw 403 into a clear upgrade message and mirrors
+      // components/AIWeeklySummary.tsx). Without it a free user just saw an error.
+      const limit = await checkAILimit(subscriptionTier, 'smart', 'weeklyAnalysis');
+      if (!limit.allowed) {
+        setErrorMsg(limit.message ?? 'Weekly AI analysis requires Pro. Upgrade to unlock it.');
+        setDrafting(false);
+        return;
+      }
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const ctx = gatherWeeklyContext(
@@ -92,7 +104,7 @@ export default function ClientUpdateScreen() {
     } finally {
       setDrafting(false);
     }
-  }, [project, gcName, ownerName, getDailyReportsForProject, getPhotosForProject,
+  }, [project, gcName, ownerName, subscriptionTier, getDailyReportsForProject, getPhotosForProject,
       getChangeOrdersForProject, getInvoicesForProject, getPunchItemsForProject, getRFIsForProject]);
 
   const handleSend = useCallback(async () => {
