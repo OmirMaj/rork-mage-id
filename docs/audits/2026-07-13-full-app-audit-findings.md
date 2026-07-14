@@ -30,16 +30,47 @@ snapshot/message reads — needs a coordinated portal deploy). **Not auto-applie
 
 ---
 
-## 💰 Financials — UNVERIFIED, do NOT fix blind (live money)
+## 💰 Financials — ✅ ALL 6 VERIFIED + FIXED on branch (2026-07-13)
 
-Each needs verification against the actual invoice/estimate/Stripe code before any
-change; a wrong "fix" here mis-bills real clients.
-1. Progress invoices from Bill-from-Estimate **double-scaled** when reopened in the editor.
-2. Local `updateInvoice` **clobbers Stripe-webhook-recorded payments** in Supabase.
-3. Invoice refetch mapping **drops retention / pay-link / portal fields** — restart wipes them.
-4. Emailed pay link charges **full `totalDue`, ignoring retention** (disagrees with the other two pay-link paths).
-5. Estimate **markup excluded from invoice `unitPrice`** → `qty × price ≠ total` on invoices/PDFs.
-6. "Already billed" counts **full unscaled line totals** from editor-created progress invoices → blocks billing the remainder.
+Each was verified against the real invoice/estimate/Stripe code by a dedicated
+reviewer, then adversarially re-checked (a skeptic tried to prove it a false
+positive or that the fix would mis-bill). **All 6 came back CONFIRMED and every
+one survived the skeptic** (`refuted: false`). Money math extracted to the
+validator-covered `utils/invoiceBilling.ts`.
+
+| # | Finding | Commit | Fix |
+|---|---|---|---|
+| 1 | Bill-from-Estimate progress invoices **double-scaled** on reopen (30% of stored-30% = 9%); corrupted subtotal saved back | `5807818` | `progressSubtotal()` skips invoice-level scaling when any line is pre-scaled; Billing % field hidden for those invoices; self-heals on next save |
+| 4 | Emailed pay link charged **gross `totalDue`, ignoring retention** (in-app button already netted it) | `5807818` | both send paths now charge the retention-net balance (`balanceDue` / `netBalanceDue()`) |
+| 5 | Estimate **markup in `lineTotal` but not `unitPrice`** → `qty × price ≠ total` on the PDF | `5807818` | `markupInclusiveUnitPrice()` folds markup into the shown unit price; `total` stays authoritative so the charge is unchanged |
+| 2 | `updateInvoice` **clobbered Stripe-webhook payments** — every edit rewrote stale `amount_paid`/`payments`/`status` | `8d1912f` | conditional payload: reconciliation columns written only when a payment field actually changed |
+| 6 | "Already billed" summed **raw line totals** → editor progress lines counted at 100%, blocking the remainder | `3b939a4` | both reducers weight each line via `billedAmountForLine(li, inv)` |
+| 3 | Refetch **dropped retention / pay-link fields** (no DB column) → permanent loss on window-focus refetch | `fdf7bd6` | migration `20260713120000` adds the columns; write + map hydrate them (`?? null` so pay-link clears propagate) |
+
+### ⚠️ Owner-gated follow-ups these fixes depend on
+- **Apply migration `20260713120000` to prod BEFORE the OTA ships** (#3). The
+  offline queue 400s on unknown columns and drops the invoice write — the same
+  hazard as the punch_location gate. Migration-first, then OTA.
+- **One-time historical reconcile** (#1, #3, #4): invoices already corrupted by
+  the double-scale, and existing on-device retention/pay-link values with no
+  cloud copy, and pre-existing gross pay links, need a one-pass recompute/upload.
+  The fixes stop all *future* loss; they do not retroactively repair rows.
+- **Manual-payment race** (#2 residual): the manual payment entry still
+  read-modify-writes from stale local `amountPaid`, so a manual entry racing a
+  webhook can still drop the Stripe credit. Durable fix = re-read / realtime
+  before that write.
+
+### Adversarial review of the fixes (post-implementation)
+A second workflow put one skeptic on each fix trying to prove it introduced a
+NEW regression. 3/5 clean; it caught **2 real regressions**, both fixed:
+- **already-billed** (`progressSubtotal` gates per-invoice, but `billedAmountForLine`
+  scaled per-line) → a MIXED invoice (voice-added line on a bill-from-estimate
+  invoice) under-counted already-billed → double-charge exposure. Fixed by
+  threading the invoice-level pre-scaled gate so `sum(billedAmountForLine) ===
+  progressSubtotal` for every invoice (validator invariant added).
+- **paylink-retention** — the pay-link charge went net but the email still showed
+  gross, so the client saw a "$100k" button that charged $90k. Fixed: email
+  headline + subject now show the net collectible (matches the charge).
 
 ## 🛡️ Tier-gating / server security — UNVERIFIED (needs DB + edge-fn read)
 1. Monthly AI-cap RPC not pinned to `auth.uid()` — one user could exhaust another's quota.
