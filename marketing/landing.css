@@ -1429,3 +1429,39 @@ html.intro-on, html.intro-on body { overflow: hidden; }
   .intro-spark { animation: none; }
   .pillar-mockup { clip-path: none; }
 }
+
+/* ============================================================
+   originkit-inspired accents — rebuilt in-brand (ink/paper/amber).
+   Restrained additions on top of the existing motion layer:
+   Inkbleed headline, Scramble mono label, Shiny "shipping" pill.
+   ============================================================ */
+
+/* Inkbleed: the serif headline settles like ink into paper.
+   Crisp at rest; motion.js triggers the SVG-filter bleed on scroll-in. */
+.inkbleed { filter: url(#mage-inkbleed); }
+
+/* Scramble mono label — keep glyph metrics stable while resolving */
+[data-scramble] { font-variant-ligatures: none; white-space: nowrap; }
+
+/* Shiny pill — a specular sweep across a small "shipping" badge */
+.pill-shine {
+  position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: #F4EFE6; background: #14181D;
+  border: 1px solid rgba(244, 239, 230, 0.10); border-radius: 999px;
+  padding: 7px 13px; line-height: 1;
+}
+.pill-shine .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--amber); box-shadow: 0 0 9px rgba(255, 106, 26, 0.8); }
+.pill-shine::after {
+  content: ""; position: absolute; top: 0; left: -140%; width: 55%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 106, 26, 0.5), transparent);
+  transform: skewX(-18deg); animation: pill-sheen 3.6s ease-in-out infinite;
+}
+@keyframes pill-sheen { 0% { left: -140%; } 55% { left: 150%; } 100% { left: 150%; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .inkbleed { filter: none; }
+  .pill-shine::after { animation: none; opacity: 0.3; }
+}

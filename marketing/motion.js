@@ -377,4 +377,58 @@
       }
     });
   }
+
+  // =========================================================
+  // Inkbleed headline (opt-in via [data-inkbleed]) — the serif
+  // headline settles like ink into paper as it scrolls into view.
+  // Crisp at rest (filter stdDeviation 0.4); we trigger the bleed on
+  // enter. Reduced-motion / no-IO: stays crisp, never hidden.
+  // =========================================================
+  (function () {
+    let targets = document.querySelectorAll('[data-inkbleed]');
+    if (!targets.length) return;
+    targets.forEach(function (el) { el.classList.add('inkbleed'); });
+    if (reduceMotion || !('IntersectionObserver' in window)) return;
+    let anim = document.getElementById('mage-ink-anim');
+    function bleed() { if (anim && anim.beginElement) { try { anim.beginElement(); } catch (e) {} } }
+    let ib = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) { bleed(); ib.unobserve(entry.target); }
+      });
+    }, { threshold: 0.6 });
+    targets.forEach(function (el) { ib.observe(el); });
+  })();
+
+  // =========================================================
+  // Scramble mono labels (opt-in via [data-scramble]) — the label
+  // resolves from noise, echoing the "computed by the engine" moat.
+  // Preserves spaces + separators so the shape stays readable.
+  // =========================================================
+  (function () {
+    let els = document.querySelectorAll('[data-scramble]');
+    if (!els.length || reduceMotion || !('IntersectionObserver' in window)) return;
+    let GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789/#*+';
+    function scramble(el) {
+      let target = el.getAttribute('data-scramble-text') || el.textContent;
+      el.setAttribute('data-scramble-text', target);
+      let start = performance.now(), dur = 900;
+      function step(now) {
+        let p = Math.min(1, (now - start) / dur), out = '', reveal = p * target.length;
+        for (let i = 0; i < target.length; i++) {
+          let c = target[i];
+          if (i < reveal - 0.5 || c === ' ' || c === '·' || c === '.') out += c;
+          else out += GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+        }
+        el.textContent = out;
+        if (p < 1) requestAnimationFrame(step); else el.textContent = target;
+      }
+      requestAnimationFrame(step);
+    }
+    let so = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) { scramble(entry.target); so.unobserve(entry.target); }
+      });
+    }, { threshold: 0.6 });
+    els.forEach(function (el) { so.observe(el); });
+  })();
 })();
