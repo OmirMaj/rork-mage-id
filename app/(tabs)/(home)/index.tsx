@@ -66,6 +66,32 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
 
+// Canonical 1-indexed, working-day-aware "which schedule day is today" — the
+// exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
+// startDate, startDay - 1)). Day 1 = the schedule start date; a date on/before
+// start is day 1; weekends are skipped when workingDaysPerWeek < 7 so the count
+// matches how task bars are laid out. Replicated verbatim in
+// app/(tabs)/summary/index.tsx so Home and Summary agree on "today on site".
+function todayScheduleDayNumber(baseMs: number, now: Date, workingDaysPerWeek?: number): number {
+  const base = new Date(baseMs);
+  base.setHours(0, 0, 0, 0);
+  const tgt = new Date(now);
+  tgt.setHours(0, 0, 0, 0);
+  if (tgt.getTime() <= base.getTime()) return 1;
+  const wdpw = workingDaysPerWeek ?? 5;
+  if (wdpw >= 7) {
+    return Math.floor((tgt.getTime() - base.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  }
+  let count = 1;
+  const cur = new Date(base);
+  while (cur < tgt) {
+    cur.setDate(cur.getDate() + 1);
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -318,13 +344,17 @@ export default function HomeScreen() {
 
   // ── Today on site ──────────────────────────────────────────────
   // Active projects whose schedule has at least one task running today.
-  // "Running today" = the task started by today (startDay <= todayDay)
-  // and hasn't finished (startDay + durationDays > todayDay). Uses the
-  // project's schedule.startDate as day-0; falls back to project.createdAt
-  // if startDate is missing. Hides the strip entirely when nothing is on.
+  // Membership MUST match the Summary tab's "Today on site" exactly — both
+  // surfaces use the canonical 1-indexed, working-day-aware model that the
+  // schedule engine uses (utils/scheduleEngine getTaskDateRange:
+  //   start = addWorkingDays(startDate, startDay - 1); end = +durationDays-1).
+  // So `todayDayNumber` is a 1-INDEXED working-day count from the schedule
+  // start (day 1 = start date; weekends skipped when workingDaysPerWeek < 7),
+  // and a task is live when startDay <= todayDayNumber <= startDay+dur-1.
+  // Uses schedule.startDate as day 1; falls back to project.createdAt.
   const todayOnSite = useMemo(() => {
     const out: { project: Project; activeTaskTitles: string[] }[] = [];
-    const now = Date.now();
+    const now = new Date();
     for (const p of projects) {
       if (p.status !== 'in_progress') continue;
       const sched = p.schedule;
@@ -332,13 +362,13 @@ export default function HomeScreen() {
       const baseIso = sched.startDate || p.createdAt;
       const baseMs = Date.parse(baseIso);
       if (!Number.isFinite(baseMs)) continue;
-      const dayMs = 24 * 60 * 60 * 1000;
-      const todayDay = Math.floor((now - baseMs) / dayMs);
+      const todayDayNumber = todayScheduleDayNumber(baseMs, now, sched.workingDaysPerWeek);
       const liveTasks = sched.tasks.filter(t => {
         if (t.status === 'done') return false;
-        const start = t.startDay ?? 0;
-        const dur = t.durationDays ?? 0;
-        return start <= todayDay && start + dur > todayDay;
+        const start = Math.max(1, t.startDay ?? 1);
+        const dur = Math.max(0, t.durationDays ?? 0);
+        // Inclusive last active day = start + dur - 1 (matches getTaskDateRange).
+        return todayDayNumber >= start && todayDayNumber <= start + dur - 1;
       });
       if (liveTasks.length > 0) {
         out.push({

@@ -34,7 +34,8 @@ export function LivingFloorPlan({ project, planSheetId, zones, pins, photoById, 
   const tasks = useMemo(() => project.schedule?.tasks ?? [], [project.schedule]);
   const startDate = project.schedule?.startDate ?? new Date().toISOString().slice(0, 10);
   const baseMs = useMemo(() => { const d = new Date(startDate); d.setHours(0, 0, 0, 0); return d.getTime(); }, [startDate]);
-  const totalDays = useMemo(() => Math.max(1, tasks.reduce((m, t) => Math.max(m, (t.startDay ?? 0) + Math.max(1, t.durationDays || 1)), 1)), [tasks]);
+  // startDay is 1-indexed; the scrubber runs on a 0-indexed day offset, so shift down by one.
+  const totalDays = useMemo(() => Math.max(1, tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 1)), [tasks]);
   const todayIndex = Math.round((Date.now() - baseMs) / MS_DAY);
 
   const [dayIndex, setDayIndex] = useState(Math.max(0, Math.min(totalDays, todayIndex)));

@@ -88,7 +88,7 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── PROJECT · FIELD OPS
   { key: 'daily-report',      label: 'Daily Report',     icon: MageDailyReport, route: '/daily-report',                     section: 'FIELD OPS' },
-  { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS' },
+  { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS', requires: 'subcontractor_management' },
   { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
   { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
   { key: 'safety',            label: 'Safety',           icon: HardHat,         route: '/safety',                           section: 'FIELD OPS', requires: 'safety_management' },

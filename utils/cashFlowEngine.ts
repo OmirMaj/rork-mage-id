@@ -109,8 +109,22 @@ function shouldExpenseOccurInWeek(
   switch (expense.frequency) {
     case 'weekly':
       return true;
-    case 'biweekly':
-      return weekIndex % 2 === 0;
+    case 'biweekly': {
+      // Fire every 14 days ANCHORED to the expense's own startDate, not to the
+      // absolute forecast week (weekIndex). Using weekIndex phased every
+      // biweekly expense off week 0 of the forecast regardless of when it
+      // actually starts, so an expense starting next week could fire this week.
+      // Count whole weeks from the expense's start week to this week and fire
+      // on even parity — mirrors the monthly branch's startDate anchoring.
+      const MS_WEEK = 7 * 24 * 60 * 60 * 1000;
+      // Normalize both anchors to their week-start so partial-week offsets in
+      // startDate don't flip the parity. weekStart is already a week boundary
+      // in the forecast; align the expense start the same way by flooring.
+      const startWeekMs = new Date(start).setHours(0, 0, 0, 0);
+      const weekStartMs = new Date(weekStart).setHours(0, 0, 0, 0);
+      const weeksSinceStart = Math.round((weekStartMs - startWeekMs) / MS_WEEK);
+      return weeksSinceStart >= 0 && weeksSinceStart % 2 === 0;
+    }
     case 'monthly': {
       // Fire exactly ONCE per calendar month, anchored to the expense's
       // start day-of-month. Walk each day in the week and check whether it is

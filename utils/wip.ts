@@ -82,9 +82,17 @@ export function sumApprovedChangeOrders(changeOrders: ChangeOrder[]): number {
 /**
  * Recover the original (pre-change-order) contract value. `Project` has no
  * direct contract field, so fall back through the best available sources.
+ *
+ * Final fallback (added so a project with ONLY a legacy estimate still gets a
+ * non-zero contract basis — otherwise revisedContract=0 and earnedRevenue=0):
+ * the linked-estimate grandTotal, else the legacy estimate.grandTotal. These
+ * are the PRICED (revenue) figures — grandTotal already includes markup — so
+ * they are the correct contract-value basis, unlike baseTotal (cost) which
+ * belongs to deriveEstimatedCost. gmpCap stays ahead of the estimate fallback
+ * since a GMP cap is a truer contract ceiling than a working estimate.
  */
 export function deriveOriginalContract(
-  project: Pick<Project, 'targetBudget' | 'gmpCap'> | null | undefined,
+  project: Pick<Project, 'targetBudget' | 'gmpCap' | 'linkedEstimate' | 'estimate'> | null | undefined,
   changeOrders: ChangeOrder[],
   payApps: SavedAIAPayApp[],
 ): number {
@@ -94,7 +102,13 @@ export function deriveOriginalContract(
   if (typeof fromCo === 'number' && fromCo > 0) return fromCo;
   const fromBudget = project?.targetBudget?.amount;
   if (typeof fromBudget === 'number' && fromBudget > 0) return fromBudget;
-  return project?.gmpCap ?? 0;
+  const fromGmp = project?.gmpCap;
+  if (typeof fromGmp === 'number' && fromGmp > 0) return fromGmp;
+  const fromLinkedEstimate = project?.linkedEstimate?.grandTotal;
+  if (typeof fromLinkedEstimate === 'number' && fromLinkedEstimate > 0) return fromLinkedEstimate;
+  const fromLegacyEstimate = project?.estimate?.grandTotal;
+  if (typeof fromLegacyEstimate === 'number' && fromLegacyEstimate > 0) return fromLegacyEstimate;
+  return 0;
 }
 
 /**

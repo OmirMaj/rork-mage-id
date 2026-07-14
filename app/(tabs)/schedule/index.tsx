@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -89,6 +89,7 @@ import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
 import { getSimulatedForecast, getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
+import { geocodeProjectLocation, type GeocodeResult } from '@/utils/geocodeProject';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
@@ -180,6 +181,12 @@ function ScheduleScreen() {
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
   const [showDepPicker, setShowDepPicker] = useState(false);
   const [weatherAlerts, setWeatherAlerts] = useState<{ taskName: string; date: string; condition: string }[]>([]);
+
+  // Cache geocoded project coords so the weather button doesn't re-hit Nominatim
+  // (rate-limited to 1 req/sec) on every press. Keyed by the exact location
+  // string that was geocoded; a project address edit invalidates naturally
+  // because the key no longer matches.
+  const geocodeCacheRef = useRef<Map<string, GeocodeResult>>(new Map());
 
   const [taskDraft, setTaskDraft] = useState<TaskDraft>({ ...EMPTY_DRAFT });
   const [showAdvancedTaskFields, setShowAdvancedTaskFields] = useState(false);
@@ -855,8 +862,29 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
   const fetchWeather = useCallback(async () => {
     try {
+      // Default (New York) — used only when the project has no address or
+      // geocoding fails, so the button still returns *some* forecast rather
+      // than crashing or going blank.
+      let latitude = 40.71;
+      let longitude = -74.01;
+
+      const location = selectedProject?.location?.trim();
+      if (location && location.length >= 3) {
+        // Reuse a cached geocode for this exact address; only hit Nominatim
+        // the first time we see a given location string.
+        let coords = geocodeCacheRef.current.get(location) ?? null;
+        if (!coords) {
+          coords = await geocodeProjectLocation(location);
+          if (coords) geocodeCacheRef.current.set(location, coords);
+        }
+        if (coords) {
+          latitude = coords.latitude;
+          longitude = coords.longitude;
+        }
+      }
+
       const response = await fetch(
-        'https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&daily=precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7'
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7`
       );
       const data = await response.json();
       if (data.daily) {
@@ -885,7 +913,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
     } catch (err) {
       console.log('[Schedule] Weather fetch failed:', err);
     }
-  }, [sortedTasks, projectStartDate, activeSchedule]);
+  }, [sortedTasks, projectStartDate, activeSchedule, selectedProject?.location]);
 
   const hasSchedule = sortedTasks.length > 0;
   const hasEstimate = selectedProject?.estimate !== null || selectedProject?.linkedEstimate !== null;

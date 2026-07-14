@@ -34,7 +34,7 @@ export function ProgressTab({ tasks, startDate }: ProgressTabProps) {
     return order.map((p) => ({ phase: p, pct: weighted(by.get(p)!), count: by.get(p)!.length }));
   }, [tasks]);
   const milestones = useMemo(
-    () => tasks.filter((t) => t.isMilestone).sort((a, b) => (a.startDay ?? 0) - (b.startDay ?? 0)),
+    () => tasks.filter((t) => t.isMilestone).sort((a, b) => (a.startDay ?? 1) - (b.startDay ?? 1)),
     [tasks],
   );
 
@@ -63,7 +63,8 @@ export function ProgressTab({ tasks, startDate }: ProgressTabProps) {
         {milestones.length === 0 ? (
           <Text style={styles.empty}>No milestones set.</Text>
         ) : milestones.map((m, i) => {
-          const d = new Date(baseMs + (m.startDay ?? 0) * MS_DAY);
+          // startDay is 1-indexed (day 1 = schedule start); shift -1 to a day-offset.
+          const d = new Date(baseMs + ((m.startDay ?? 1) - 1) * MS_DAY);
           const done = m.status === 'done';
           return (
             <View key={m.id} style={[styles.prow, i > 0 ? styles.rowDivider : null]}>

@@ -78,8 +78,11 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
 
   const phaseColor = getPhaseColor(task.phase || 'Other');
   const dur = Math.max(1, task.durationDays || 1);
-  const start = new Date(baseMs + (task.startDay ?? 0) * MS_DAY);
-  const end = new Date(baseMs + ((task.startDay ?? 0) + dur - 1) * MS_DAY);
+  // startDay is 1-indexed (day 1 = schedule start), matching the desktop + CPM
+  // engine; shift by -1 to a 0-indexed day-offset from baseMs for the date math.
+  const startOffset = (task.startDay ?? 1) - 1;
+  const start = new Date(baseMs + startOffset * MS_DAY);
+  const end = new Date(baseMs + (startOffset + dur - 1) * MS_DAY);
   const predNames = (task.dependencyLinks ?? []).map((l) => allTasks.find((t) => t.id === l.taskId)?.title).filter(Boolean) as string[];
   const checklist = task.checklist ?? [];
 
@@ -93,7 +96,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
     const status: TaskStatus = p >= 100 ? 'done' : p <= 0 ? 'not_started' : 'in_progress';
     onUpdateTask({ ...task, progress: p, status });
   };
-  const shiftStart = (delta: number) => { haptic(); onUpdateTask({ ...task, startDay: Math.max(0, (task.startDay ?? 0) + delta) }); };
+  const shiftStart = (delta: number) => { haptic(); onUpdateTask({ ...task, startDay: Math.max(1, (task.startDay ?? 1) + delta) }); };
   const shiftDuration = (delta: number) => { haptic(); onUpdateTask({ ...task, durationDays: Math.max(1, (task.durationDays || 1) + delta) }); };
   const toggleMilestone = (v: boolean) => { haptic(); onUpdateTask({ ...task, isMilestone: v }); };
   const commitTitle = () => { const v = title.trim(); if (v && v !== task.title) onUpdateTask({ ...task, title: v }); else if (!v) setTitle(task.title); };
