@@ -72,10 +72,31 @@ NEW regression. 3/5 clean; it caught **2 real regressions**, both fixed:
   gross, so the client saw a "$100k" button that charged $90k. Fixed: email
   headline + subject now show the net collectible (matches the charge).
 
-## 🛡️ Tier-gating / server security — UNVERIFIED (needs DB + edge-fn read)
-1. Monthly AI-cap RPC not pinned to `auth.uid()` — one user could exhaust another's quota.
-2. Daily-usage RPCs likewise unpinned.
-3. Pro-only AI text features (Bid Leveling, Weekly Analysis) gated client-side only, no server `requireTier`.
+## 🛡️ Tier-gating / server security — ✅ ALL 3 VERIFIED + FIXED (2026-07-13)
+
+Verified against the real RPC/edge-function code (2 analysis agents), then the
+fixes were adversarially reviewed (3 skeptics: RPC-pin safety, relay free-trial
+preservation, completeness). All 3 confirmed exploitable; the review caught one
+gap that was fixed.
+
+| # | Bug | Fix | Commit |
+|---|---|---|---|
+| 1 | Monthly `ai_usage_increment` (+ get/summary) is `SECURITY DEFINER`, granted to `authenticated`, unpinned → any user could `rpc('ai_usage_increment',{p_user_id:<victim>,p_feature:'ai_text',p_amount:2^31-1})` to max out a paying user's cap (silent DoS) or read their usage | pin all 5 unpinned RPCs with `v_uid := COALESCE(auth.uid(), p_user_id)` (the pattern the newer `ai_usage_daily_*` already uses); transparent to legit callers, blocks forged ids | migration `20260713130000` |
+| 2 | `ai_daily_usage_get/increment` likewise unpinned (daily griefing + usage leak) | same migration | `20260713130000` |
+| 3 | Pro/Business AI text features (Bid Leveling, Weekly Analysis, AI Estimate, Cash Flow, Budget Dashboard) gated **client-side only** — a free user could POST straight to `/functions/v1/ai` and get the result | `mageAI` threads a `feature` id; the relay enforces a per-feature min-tier allowlist (unlisted → free, no regression); tagged every call site incl. the previously-**ungated** `client-update.tsx`; drift-guard validator | relay + client commits |
+
+### ⚠️ Owner-gated before this ships
+- **Apply migration `20260713130000`** via Supabase MCP `apply_migration` (project nteoqhcswappxxjlpvap) — NOT `db push`. Transparent, but it's a live-DB change.
+- **Redeploy the `ai` edge function** (`supabase functions deploy ai`) for the relay gate; the client `feature` tags ship with the OTA.
+
+### Adversarial-review-caught gap (fixed)
+- **weeklyAnalysis had TWO relay paths** — `draftWeeklyUpdate` (tagged) and
+  `generateWeeklySummary` in `aiService.ts` (the home-tab "Full Project Analysis",
+  **untagged**). A free user POSTing that prompt with no feature id skipped the
+  gate. Fixed: tagged the second path + hardened the validator with a per-path
+  manifest so a tagged sibling can't mask an untagged path. RPC-pin and
+  free-trial preservation (`aiEstimateWizard`'s 2 free lifetime trials use a
+  separate untagged `mageAISmart` path — confirmed intact) were clean.
 
 ## 🧭 Routing / sharing — UNVERIFIED, client-side (safer to fix next)
 1. **Public share routes `/shared-schedule`, `/shared-photos` auth-walled** → every external share link bounces to `/login` (high impact — breaks the whole share feature). *Verify against `app/_layout.tsx` auth gate + the shared-* screens.*
