@@ -15,9 +15,17 @@
 // (mis-coloring a "Plumbing inspection" task as plumbing).
 
 import { Colors } from '@/constants/colors';
-import type { ScheduleTask, TradeKey } from '@/types';
+import type { ThemeColors } from '@/constants/colors';
+import type { ScheduleTask, TaskStatus, TradeKey } from '@/types';
 
 export type { TradeKey };  // re-export so existing imports `import { type TradeKey } from '@/utils/scheduleColors'` still work
+
+/**
+ * How the Gantt colors its bars.
+ *   'status' — by task STATUS (progress signal; the default, see useGanttColorMode)
+ *   'trade'  — by task TRADE  (coordination signal; opt-in)
+ */
+export type GanttColorMode = 'status' | 'trade';
 
 const INFERENCE_RULES: ReadonlyArray<readonly [RegExp, TradeKey]> = [
   [/concrete|foundation|footing|slab|pour|rebar/i, 'concrete'],
@@ -49,6 +57,60 @@ export function tradeKeyForTask(task: ScheduleTask): TradeKey {
 export function colorForTask(task: ScheduleTask): string {
   return Colors.tradeColors[tradeKeyForTask(task)];
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// STATUS-driven bar color (the Gantt default).
+//
+// Why status is the default fill: trade inference above is conservative, so a
+// schedule of generic "General crew" tasks collapses to one amber bar per row —
+// no signal. Status (done / in-progress / on-hold / not-started) is the
+// progress read that field teams actually scan the timeline for.
+//
+// Mapping is CONSISTENT with GridPane's statusChip(): done=green,
+// in_progress=blue, on_hold=amber, not_started=neutral-gray. These are SOLID
+// bar fills (not the chip's translucent tint), so we prefer the saturated
+// theme tokens (themeColors.success / .info — which are theme-aware and legible
+// with barLabelColorFor's white/black text pick) and fall back to the solid
+// Colors.statusFills tokens for on_hold/not_started, which ThemeColors has no
+// dedicated slot for. Passing themeColors keeps dark-mode contrast correct; it
+// is optional so non-React callers (e.g. validators) can still resolve a color.
+// ─────────────────────────────────────────────────────────────────────
+
+export function statusColor(
+  status: TaskStatus,
+  themeColors?: Pick<ThemeColors, 'success' | 'info'>,
+): string {
+  switch (status) {
+    case 'done':        return themeColors?.success ?? Colors.statusFills.done;
+    case 'in_progress': return themeColors?.info ?? Colors.statusFills.in_progress;
+    case 'on_hold':     return Colors.statusFills.on_hold;
+    case 'not_started':
+    default:            return Colors.statusFills.not_started;
+  }
+}
+
+export function statusColorForTask(
+  task: ScheduleTask,
+  themeColors?: Pick<ThemeColors, 'success' | 'info'>,
+): string {
+  return statusColor(task.status, themeColors);
+}
+
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  done: 'Done',
+  in_progress: 'Active',
+  on_hold: 'Hold',
+  not_started: 'To do',
+};
+
+export function statusLabel(status: TaskStatus): string {
+  return STATUS_LABELS[status];
+}
+
+/** Status keys in Gantt legend order (progress left→right). */
+export const STATUS_KEYS: readonly TaskStatus[] = [
+  'done', 'in_progress', 'on_hold', 'not_started',
+] as const;
 
 /**
  * Pick a legible label color for text sitting ON a trade-colored bar.
