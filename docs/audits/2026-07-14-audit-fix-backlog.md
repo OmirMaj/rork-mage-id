@@ -526,3 +526,26 @@ Features that were previously open and are now tier-gated per the audit:
 3. Marketing deploy: Netlify (build-paused) via `netlify deploy --dir` + PAT.
 4. Also still pending from prior sessions: merge `claude/marketing-motion`,
    the staged portal-RLS Part-2 migration + coordinated Netlify HTML deploy.
+
+## From the adversarial review pass (2026-07-14)
+
+The 12-skeptic review of the highest-risk fixes found **1 real P1** (fixed) and
+these lower-priority follow-ons:
+
+- **supabaseWrite tri-state return** (`utils/offlineQueue.ts`): it returns a bare
+  boolean that conflates not-configured / offline-queued / dropped. The
+  submit-bid P1 fix (now correct) had to under-credit offline-queued bids as a
+  result (an offline bid lands on the server but never bumps the monthly counter
+  or creates a CRM lead, and shows a soft "couldn't confirm" message). Proper fix:
+  return `'accepted' | 'queued' | 'dropped'` so callers can credit + lead + show
+  a "queued, will send on reconnect" success on `queued`. Benefits every offline
+  write's UX, not just bids.
+- **Schedule tab ignores the projectId route param** (`app/(tabs)/schedule/index.tsx`):
+  it initializes `selectedProjectId` from `projects[0]`, so a GC routed to the
+  classic schedule after the wizard/review may land on a different project (they
+  can switch project chips). Pre-existing; schedule IS persisted, so no data loss.
+- **Grid breakpoint inconsistency**: wizard/review use `GRID_BREAKPOINT=900` while
+  `useResponsiveLayout.isDesktop` uses 1024 (native)/900 (web). On a native device
+  in [900,1024) a Pro user's wizard routes into schedule-pro even though the tab
+  wouldn't show its desktop Pro button. schedule-pro renders fine at 900+ — a
+  threshold cosmetic inconsistency, not a crash.

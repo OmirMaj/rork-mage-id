@@ -265,14 +265,26 @@ export default function SubmitBidResponseScreen() {
         view_site_requested: viewSiteFirst,
         status: 'submitted',
       });
-      // supabaseWrite returns false for a queued-offline write (retried on
-      // reconnect) OR a toasted non-network failure. Count the bid against
-      // the monthly cap only when it was accepted or queued — a hard config
-      // failure (isSupabaseConfigured false) shouldn't burn the allowance.
-      if (ok || isSupabaseConfigured) {
-        await bumpBidResponsesThisMonth(user.id);
-        setUsedThisMonth(n => n + 1);
+      // supabaseWrite returns true ONLY on an immediately-accepted write. It
+      // returns false for a not-configured build, an offline-queued write
+      // (retried on reconnect), AND a dropped non-network failure (RLS /
+      // validation / 500 — already toasted inside supabaseWrite). The boolean
+      // can't distinguish queued from dropped, so treat a non-accepted write as
+      // "not confirmed": don't burn a monthly bid, don't create a lead, and
+      // don't show a false "Bid submitted" success.
+      // (Prev bug: `ok || isSupabaseConfigured` was always true in real builds,
+      // so a DROPPED bid still decremented the free allowance and showed
+      // success — permanently locking the contractor out of bidding.)
+      if (!ok) {
+        setError(
+          "We couldn't confirm your bid was sent. If you're offline it'll send " +
+          'automatically when you reconnect — otherwise please try again.',
+        );
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
       }
+      await bumpBidResponsesThisMonth(user.id);
+      setUsedThisMonth(n => n + 1);
 
       // Auto-create a CRM lead so the contractor's pipeline + speed-to-lead
       // metrics reflect marketplace activity. firstRespondedAt = now because
