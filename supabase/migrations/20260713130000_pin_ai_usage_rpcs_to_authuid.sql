@@ -2,10 +2,21 @@
 --
 -- Close a cross-user quota-abuse + usage-leak hole in the AI usage RPCs.
 --
--- These five SECURITY DEFINER functions are GRANTed to `authenticated` and used
+-- These SEVEN SECURITY DEFINER functions are GRANTed to `authenticated` and used
 -- `p_user_id` VERBATIM. Because SECURITY DEFINER bypasses the owner-only RLS on
 -- ai_usage_counters / ai_daily_usage, any signed-in user could call them with
 -- ANOTHER user's uuid:
+--
+-- NOTE ON PROD DIVERGENCE: the repo migration 20260525120000 defines
+-- ai_usage_daily_get/increment WITH the pin and reading ai_feature_daily_usage,
+-- but the LIVE prod functions (verified via pg_get_functiondef on
+-- nteoqhcswappxxjlpvap, 2026-07-13) are UNPINNED and read/write the monthly
+-- ai_usage_counters table keyed by CURRENT_DATE. This migration pins ALL SEVEN
+-- unpinned prod functions, faithfully PRESERVING each prod body (including the
+-- ai_usage_daily_* CURRENT_DATE behavior) and adding ONLY the security pin — it
+-- deliberately does NOT "fix" that pre-existing divergence, which is a separate
+-- concern. All five monthly/daily bodies below were confirmed byte-equivalent to
+-- the deployed prod definitions before the pin was added.
 --   • ai_usage_increment(victim, 'ai_text', 2147483647) → instantly max out the
 --     victim's monthly cap so the relay 429s them for the rest of the month (a
 --     silent denial-of-service on a paying user's AI).
@@ -156,3 +167,66 @@ BEGIN
        AND u.usage_date = v_date;
 END;
 $function$;
+
+-- ── Per-feature daily counters (ai_usage_daily_*) ─────────────────────────
+-- Prod's deployed versions diverge from repo 20260525120000: they read/write
+-- the monthly ai_usage_counters table keyed by CURRENT_DATE (not
+-- ai_feature_daily_usage). We preserve that exact behavior and add ONLY the pin.
+CREATE OR REPLACE FUNCTION public.ai_usage_daily_get(
+  p_user_id uuid,
+  p_feature text
+)
+RETURNS integer
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT COALESCE(
+    (SELECT count FROM ai_usage_counters
+      WHERE user_id = COALESCE(auth.uid(), p_user_id)
+        AND feature = p_feature
+        AND month_bucket = CURRENT_DATE),
+    0
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.ai_usage_daily_increment(
+  p_user_id uuid,
+  p_feature text
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_uid   uuid;
+  v_today date;
+  v_count int;
+BEGIN
+  v_uid := COALESCE(auth.uid(), p_user_id);
+  v_today := CURRENT_DATE;
+  INSERT INTO ai_usage_counters (user_id, month_bucket, feature, count)
+  VALUES (v_uid, v_today, p_feature, 1)
+  ON CONFLICT (user_id, month_bucket, feature) DO UPDATE
+    SET count = ai_usage_counters.count + 1
+  RETURNING count INTO v_count;
+  RETURN v_count;
+END;
+$function$;
+
+-- ── Revoke anon ───────────────────────────────────────────────────────────
+-- The COALESCE(auth.uid(), p_user_id) pin forces an AUTHENTICATED caller to
+-- their own id, but an ANON caller (public anon key) also has a null auth.uid(),
+-- so the COALESCE would fall through to p_user_id and let anon forge a victim id.
+-- These counters are only ever written for an authenticated user (client passes
+-- its session) or by service_role edge functions; the AI relay itself rejects
+-- anon, so nothing legitimately calls these anonymously. Revoke anon to close
+-- the anon-forge vector. (authenticated + service_role grants stay.)
+REVOKE EXECUTE ON FUNCTION public.ai_usage_increment(uuid, text, integer) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.ai_usage_get(uuid, text)                 FROM anon;
+REVOKE EXECUTE ON FUNCTION public.ai_usage_summary(uuid)                   FROM anon;
+REVOKE EXECUTE ON FUNCTION public.ai_daily_usage_increment(uuid, text)     FROM anon;
+REVOKE EXECUTE ON FUNCTION public.ai_daily_usage_get(uuid)                 FROM anon;
+REVOKE EXECUTE ON FUNCTION public.ai_usage_daily_get(uuid, text)           FROM anon;
+REVOKE EXECUTE ON FUNCTION public.ai_usage_daily_increment(uuid, text)     FROM anon;
