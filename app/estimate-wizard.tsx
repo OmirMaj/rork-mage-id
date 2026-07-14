@@ -83,7 +83,46 @@ function buildLinkedEstimate(data: EstimateResult): LinkedEstimate {
     lineTotal: li.total,
     supplier: '',
   }));
-  const baseTotal = data.subtotal + data.contingency + data.permits;
+  // Represent contingency and permits as explicit line items so the Estimate
+  // Items table in project-detail reconciles with the Base/Total. Previously
+  // they were folded into baseTotal but not itemized, leaving an unexplained
+  // gap (e.g. rows summing to $100k while summary showed "Base $130k").
+  // Only appended when > 0. Same shape as the priced rows above:
+  // quantity 1, unitPrice = the amount, markup 0.
+  if (data.contingency > 0) {
+    items.push({
+      materialId: generateUUID(),
+      name: 'Contingency (~10%)',
+      category: 'Contingency',
+      unit: 'ls',
+      quantity: 1,
+      unitPrice: data.contingency,
+      bulkPrice: data.contingency,
+      markup: 0,
+      usesBulk: false,
+      lineTotal: data.contingency,
+      supplier: '',
+    });
+  }
+  if (data.permits > 0) {
+    items.push({
+      materialId: generateUUID(),
+      name: 'Permits & fees',
+      category: 'Permits & fees',
+      unit: 'ls',
+      quantity: 1,
+      unitPrice: data.permits,
+      bulkPrice: data.permits,
+      markup: 0,
+      usesBulk: false,
+      lineTotal: data.permits,
+      supplier: '',
+    });
+  }
+  // baseTotal now equals data.total (Σ all line items, including the
+  // contingency/permits rows). No markup is applied here — the GC tunes it
+  // in the estimator — so markupTotal stays 0 and grandTotal = data.total.
+  const baseTotal = items.reduce((s, i) => s + i.lineTotal, 0);
   return {
     id: generateUUID(),
     items,

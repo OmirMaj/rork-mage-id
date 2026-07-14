@@ -31,6 +31,7 @@ import {
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
+  Clock,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -499,34 +500,60 @@ Be specific to the cited location if possible. If the location is not in the US,
 
   const presets = PRESET_QUESTIONS[category];
 
+  // Only free / pro users have a higher tier to upsell to. Business and
+  // Enterprise already own the top of the ladder for these features, so a
+  // "Upgrade to Business" wall would tell them to buy a tier they have (or,
+  // for Enterprise, a LOWER one). Show a plain "limit reached, resets…"
+  // message instead — no upsell. Free → pro, pro → business.
+  const canUpsellCap = tier === 'free' || tier === 'pro';
+  const upsellCapTier: 'pro' | 'business' = tier === 'free' ? 'pro' : 'business';
+
   if (overLimit) {
-    return (
+    return canUpsellCap ? (
       <Paywall
         visible={true}
         feature={`Code Check Daily Limit (${dailyCap}/day on ${tier})`}
-        requiredTier={tier === 'free' ? 'pro' : 'business'}
+        requiredTier={upsellCapTier}
+        onClose={() => setOverLimit(false)}
+      />
+    ) : (
+      <LimitReachedView
+        title="Daily code check limit reached"
+        message={`You've used today's ${dailyCap} code checks. Resets at midnight.`}
         onClose={() => setOverLimit(false)}
       />
     );
   }
 
   if (roadmapOverLimit) {
-    return (
+    return canUpsellCap ? (
       <Paywall
         visible={true}
         feature={`Roadmap Daily Limit (${roadmapDailyCap}/day on ${tier})`}
-        requiredTier={tier === 'free' ? 'pro' : 'business'}
+        requiredTier={upsellCapTier}
+        onClose={() => setRoadmapOverLimit(false)}
+      />
+    ) : (
+      <LimitReachedView
+        title="Daily roadmap limit reached"
+        message={`You've used today's ${roadmapDailyCap} roadmap generations. Resets at midnight.`}
         onClose={() => setRoadmapOverLimit(false)}
       />
     );
   }
 
   if (planOverLimit) {
-    return (
+    return canUpsellCap ? (
       <Paywall
         visible={true}
         feature={`Plan Review Monthly Limit (${planMonthlyCap}/month on ${tier})`}
-        requiredTier={tier === 'free' ? 'pro' : 'business'}
+        requiredTier={upsellCapTier}
+        onClose={() => setPlanOverLimit(false)}
+      />
+    ) : (
+      <LimitReachedView
+        title="Monthly plan review limit reached"
+        message={`You've used this month's ${planMonthlyCap} plan reviews. Resets on the 1st.`}
         onClose={() => setPlanOverLimit(false)}
       />
     );
@@ -1446,6 +1473,37 @@ function AccordionSection({
         }
       </TouchableOpacity>
       {expanded ? <View style={styles.accordionBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+// ── Limit-reached view ──────────────────────────────────────────────────
+// Shown when a Business/Enterprise user exhausts a usage cap. There is no
+// higher tier to sell them (Enterprise is the ceiling; Business already owns
+// these features), so this is a plain "you've hit the limit, it resets…"
+// screen — never an upsell Paywall. Reuses the locked-hero styling.
+function LimitReachedView({
+  title, message, onClose,
+}: { title: string; message: string; onClose: () => void }) {
+  const styles = useThemedStyles(makeStyles);
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.container, { paddingTop: insets.top + 16, paddingHorizontal: 24 }]}>
+      <View style={styles.lockedHero}>
+        <View style={styles.lockedIconWrap}>
+          <Clock size={36} color={Colors.primary} strokeWidth={1.75} />
+        </View>
+        <Text style={styles.lockedTitle}>{title}</Text>
+        <Text style={styles.lockedBody}>{message}</Text>
+        <TouchableOpacity
+          style={styles.lockedCta}
+          onPress={onClose}
+          activeOpacity={0.85}
+          testID="construction-ai-limit-dismiss"
+        >
+          <Text style={styles.lockedCtaText}>Got it</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

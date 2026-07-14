@@ -290,7 +290,12 @@ export default function HomeScreen() {
   useEffect(() => {
     if (didAutoFilter) return;
     if (projects.length === 0) return;
-    if (statusBuckets.active.length > 0) setStatusFilter('active');
+    // Only auto-select 'active' when the filter chips are actually
+    // rendered (projects.length >= 5, matching the chip render guard
+    // below). Otherwise a user with 1-4 projects — at least one
+    // in_progress — got silently pinned to 'active' with NO chip to
+    // switch back, hiding their completed/closed jobs with no way out.
+    if (projects.length >= 5 && statusBuckets.active.length > 0) setStatusFilter('active');
     setDidAutoFilter(true);
   }, [projects.length, statusBuckets.active.length, didAutoFilter]);
 
@@ -674,7 +679,7 @@ export default function HomeScreen() {
                 right project quickly. Threshold raised from > 0 to >= 5
                 (May 2026 UX rollup): filtering 1-3 projects is noise that
                 competes with the NextStepHero card for attention. */}
-            {projects.length >= 5 && (
+            {(projects.length >= 5 || projects.some(p => p.status !== 'in_progress')) && (
               <View style={styles.filterChipsWrap}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
                   {([

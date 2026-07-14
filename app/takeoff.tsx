@@ -187,7 +187,10 @@ function TakeoffInner() {
   const handlePick = useCallback(async () => {
     setError(null);
     try {
-      // Metered gate — a free user gets 1 lifetime AI takeoff, then a wall.
+      // Tier gate — AI Takeoff is Pro-only. The server hard-gates every step
+      // (convert-pdf-to-images, analyze-takeoff) to Pro+, so a free user is
+      // walled here (reason: 'pro_only') BEFORE any upload, matching the
+      // server. Pro+ pass through subject to their smart daily quota.
       const gate = await checkAILimit(tier, 'smart', 'aiTakeoff');
       if (!gate.allowed) {
         setUpgradeLimit(gate);
@@ -243,8 +246,8 @@ function TakeoffInner() {
       setStep('review');
       // Mark the onboarding milestone — drives the home-screen checklist.
       void markFirstTakeoffDone();
-      // Increment ONLY on a successful analysis — a cancelled pick or a
-      // failed analyze never burns the single free trial.
+      // Record usage on success only — counts toward the Pro+ smart daily
+      // quota. A cancelled pick or a failed analyze records nothing.
       void recordAIUsage('smart', 'aiTakeoff');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {

@@ -471,10 +471,11 @@ function ScheduleProScreenInner() {
   // Anchored early so the export/share/AI handlers below can reference it
   // without running into the `used before declaration` trap — TS is strict
   // about const TDZ inside useCallback closures.
-  const projectStartDate = useMemo(() => {
-    if (project?.createdAt) return new Date(project.createdAt);
-    return new Date();
-  }, [project?.createdAt]);
+  const projectStartDate = useMemo(() => (
+    project?.schedule?.startDate ? new Date(project.schedule.startDate + 'T00:00:00')
+    : project?.createdAt ? new Date(project.createdAt)
+    : new Date()
+  ), [project?.schedule?.startDate, project?.createdAt]);
 
   const workingDaysPerWeek = project?.schedule?.workingDaysPerWeek ?? 5;
 

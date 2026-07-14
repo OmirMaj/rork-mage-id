@@ -25,16 +25,18 @@ expect('aiEstimateWizard free 1/2 → allowed (bypasses smart daily 0)',
 expect('aiEstimateWizard free 2/2 → lifetime_cap',
   evaluateLimit('free', 'smart', 'aiEstimateWizard', 0, 0, 2).reason, 'lifetime_cap');
 
-// aiTakeoff — free, SMART tier, cap 1
-expect('aiTakeoff free 0/1 → allowed',
-  evaluateLimit('free', 'smart', 'aiTakeoff', 0, 0, 0).allowed, true);
-expect('aiTakeoff free 1/1 → lifetime_cap',
-  evaluateLimit('free', 'smart', 'aiTakeoff', 0, 0, 1).reason, 'lifetime_cap');
-expect('aiTakeoff free 1/1 → over cap stays lifetime_cap',
-  evaluateLimit('free', 'smart', 'aiTakeoff', 0, 0, 5).reason, 'lifetime_cap');
+// aiTakeoff — Pro-only (server hard-gates convert-pdf + analyze-takeoff to
+// Pro+). Free users are walled with reason 'pro_only' BEFORE any upload — no
+// free trial, matching the server + the paywall FEATURES table (free:false).
+expect('aiTakeoff free → pro_only (no free trial)',
+  evaluateLimit('free', 'smart', 'aiTakeoff', 0, 0, 0).reason, 'pro_only');
+expect('aiTakeoff free → blocked',
+  evaluateLimit('free', 'smart', 'aiTakeoff', 0, 0, 0).allowed, false);
+expect('aiTakeoff free → upgradeTo pro',
+  evaluateLimit('free', 'smart', 'aiTakeoff', 0, 0, 0).upgradeTo, 'pro');
 
-// Paid tier ignores lifetime caps entirely
-expect('aiTakeoff pro 5 lifetime → still allowed',
+// Paid tier passes the pro-only gate (subject to its smart daily quota).
+expect('aiTakeoff pro → allowed',
   evaluateLimit('pro', 'smart', 'aiTakeoff', 0, 0, 5).allowed, true);
 
 // Fail-open sentinel

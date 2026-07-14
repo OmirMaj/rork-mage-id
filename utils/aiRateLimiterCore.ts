@@ -30,8 +30,8 @@ export type AIFeature =
   | 'estimateValidation' // free: 3 lifetime trials
   | 'voiceCapture'       // free: 3 lifetime trials (marquee field feature)
   | 'aiEstimateWizard'   // free: 2 lifetime trials
-  | 'aiTakeoff'          // free: 1 lifetime trial
   // Pro+ only — too expensive for free tier
+  | 'aiTakeoff'          // pro-only: server hard-gates every step to Pro+
   | 'weeklyAnalysis'
   | 'bidLeveling'
   | 'photoAnalysis'
@@ -71,9 +71,13 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   estimateValidation: { tier: 'smart', freeLifetimeCap: 3, displayName: 'Estimate Validation' },
   voiceCapture:       { tier: 'fast',  freeLifetimeCap: 3, displayName: 'Voice Capture' },
   aiEstimateWizard:   { tier: 'smart', freeLifetimeCap: 2, displayName: 'AI Estimate' },
-  aiTakeoff:          { tier: 'smart', freeLifetimeCap: 1, displayName: 'AI Takeoff' },
 
   // Pro+ only — high-value features that require subscription
+  // aiTakeoff is Pro-only: every server step (convert-pdf-to-images,
+  // analyze-takeoff) hard-gates on requireTier(['pro','business']), and the
+  // paywall FEATURES table lists it as free:false. A freeLifetimeCap here
+  // would have the client promise a trial the server rejects.
+  aiTakeoff:          { tier: 'smart', proOnly: true, displayName: 'AI Takeoff' },
   weeklyAnalysis:     { tier: 'smart', proOnly: true, displayName: 'Weekly Full Analysis' },
   bidLeveling:        { tier: 'smart', proOnly: true, displayName: 'AI Bid Leveling' },
   photoAnalysis:      { tier: 'smart', proOnly: true, displayName: 'Photo Analysis' },

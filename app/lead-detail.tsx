@@ -102,27 +102,32 @@ export default function LeadDetailScreen() {
 
   const canSave = name.trim().length > 0;
 
+  // Single source of truth for the current form values. Both saveAndExit and
+  // the convert flow persist THIS payload so unsaved edits (contact, scope,
+  // budget) are never dropped when the GC taps "Convert to project".
+  const buildPayload = useCallback(() => ({
+    name: name.trim(),
+    phone: phone.trim() || undefined,
+    email: email.trim() || undefined,
+    address: address.trim() || undefined,
+    projectType: projectType.trim() || undefined,
+    scope: scope.trim() || undefined,
+    budgetMin: budgetMin ? Number(budgetMin) : undefined,
+    budgetMax: budgetMax ? Number(budgetMax) : undefined,
+    timeline: timeline.trim() || undefined,
+    source,
+    stage,
+    score,
+    scoreReason: scoreReason || undefined,
+    lostReason: lostReason || undefined,
+  }), [name, phone, email, address, projectType, scope, budgetMin, budgetMax, timeline, source, stage, score, scoreReason, lostReason]);
+
   const saveAndExit = useCallback(() => {
     if (!canSave) {
       Alert.alert('Missing name', 'Add a name for this lead.');
       return;
     }
-    const payload = {
-      name: name.trim(),
-      phone: phone.trim() || undefined,
-      email: email.trim() || undefined,
-      address: address.trim() || undefined,
-      projectType: projectType.trim() || undefined,
-      scope: scope.trim() || undefined,
-      budgetMin: budgetMin ? Number(budgetMin) : undefined,
-      budgetMax: budgetMax ? Number(budgetMax) : undefined,
-      timeline: timeline.trim() || undefined,
-      source,
-      stage,
-      score,
-      scoreReason: scoreReason || undefined,
-      lostReason: lostReason || undefined,
-    };
+    const payload = buildPayload();
     if (isNew) {
       addLead({ ...payload, touches: [] });
     } else if (existing) {
@@ -130,7 +135,7 @@ export default function LeadDetailScreen() {
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
-  }, [canSave, name, phone, email, address, projectType, scope, budgetMin, budgetMax, timeline, source, stage, score, scoreReason, lostReason, isNew, existing, addLead, updateLead, router]);
+  }, [canSave, buildPayload, isNew, existing, addLead, updateLead, router]);
 
   // Wrap stage changes so flipping to 'lost' opens the reason modal.
   // The actual stage flip stays gated until the modal closes — if the
@@ -151,6 +156,14 @@ export default function LeadDetailScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [stage, lostReason]);
 
+  // Two-phase convert so unsaved form edits are carried into the project.
+  // convertLeadToProject reads from the STORED lead (via a captured closure),
+  // so we must persist the current form first and let the provider re-render
+  // before converting — otherwise phone/scope/budget edits made since the last
+  // save are silently dropped. Phase 1 (handleConvert): persist + arm the
+  // pending flag. Phase 2 (effect below): after the fresh lead lands, convert.
+  const [pendingConvert, setPendingConvert] = useState(false);
+
   const handleConvert = useCallback(() => {
     if (!existing) return;
     Alert.alert(
@@ -161,16 +174,26 @@ export default function LeadDetailScreen() {
         {
           text: 'Convert',
           onPress: () => {
-            const projectId = convertLeadToProject(existing.id);
-            if (projectId) {
-              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              router.replace({ pathname: '/project-detail' as never, params: { id: projectId } as never });
-            }
+            // Persist current form values first, then arm the convert effect.
+            updateLead(existing.id, buildPayload());
+            setPendingConvert(true);
           },
         },
       ],
     );
-  }, [existing, convertLeadToProject, router]);
+  }, [existing, updateLead, buildPayload]);
+
+  useEffect(() => {
+    if (!pendingConvert || !existing) return;
+    // Runs after updateLead has flushed and the provider re-rendered, so
+    // convertLeadToProject now sees the freshly-saved lead values.
+    setPendingConvert(false);
+    const projectId = convertLeadToProject(existing.id);
+    if (projectId) {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace({ pathname: '/project-detail' as never, params: { id: projectId } as never });
+    }
+  }, [pendingConvert, existing, convertLeadToProject, router]);
 
   const handleDelete = useCallback(() => {
     if (!existing) return;

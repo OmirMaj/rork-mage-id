@@ -161,7 +161,8 @@ export function aggregateAttention(
   const out: AttentionItem[] = [];
 
   const overdue = invoices.filter(
-    (i) => i.status !== 'paid' && i.dueDate && new Date(i.dueDate).getTime() < nowMs,
+    // Drafts are unsent and not collectible — they can't be overdue.
+    (i) => i.status !== 'paid' && i.status !== 'draft' && i.dueDate && new Date(i.dueDate).getTime() < nowMs,
   );
   if (overdue.length > 0) {
     const worst = [...overdue].sort(

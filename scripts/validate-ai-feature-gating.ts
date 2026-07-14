@@ -33,10 +33,11 @@ const EXPECTED: Record<string, number> = {
 };
 
 // proOnly FEATURE_CONFIG features that DON'T go through the text relay — they
-// each have their own vision edge function with its own requireTier. They must
-// NOT appear in the relay map (dead config / drift trap).
+// each have their own edge function(s) with their own requireTier. They must
+// NOT appear in the relay map (dead config / drift trap). aiTakeoff runs
+// through convert-pdf-to-images + analyze-takeoff, both hard-gated to Pro+.
 const VISION_FEATURES = new Set<AIFeature>([
-  'photoAnalysis', 'drawingAnalysis', 'specBookExtract', 'scanCredential',
+  'photoAnalysis', 'drawingAnalysis', 'specBookExtract', 'scanCredential', 'aiTakeoff',
 ]);
 
 // Feature ids the relay gates that are gated client-side via useTierAccess

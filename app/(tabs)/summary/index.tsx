@@ -61,7 +61,9 @@ export default function SummaryScreen() {
   );
   const outstanding = useMemo(
     () => invoices
-      .filter(i => i.status !== 'paid')
+      // Exclude drafts — an unsent draft invoice isn't owed yet, so it must
+      // not inflate Outstanding (mirrors how SmartInbox already excludes drafts).
+      .filter(i => i.status !== 'paid' && i.status !== 'draft')
       .reduce((s, i) => s + Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)), 0),
     [invoices],
   );

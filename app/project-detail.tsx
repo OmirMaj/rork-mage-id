@@ -451,6 +451,11 @@ export default function ProjectDetailScreen() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
+  // Inline note composer — the fallback for platforms without Alert.prompt
+  // (iOS) or window.prompt (web). Chiefly Android, where the old button was
+  // a dead "use the note feature" Alert that created nothing.
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
   const [showEditModal, setShowEditModal] = useState<EditModalType>(false);
   const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
   // Tile group collapse state — Field & Money expanded by default, Docs & People collapsed.
@@ -483,6 +488,24 @@ export default function ProjectDetailScreen() {
   const [selectedRevision, setSelectedRevision] = useState<EstimateRevision | null>(null);
   // Revision detail sub-view: null = summary+delta, 'items' = line-items list.
   const [revDetailView, setRevDetailView] = useState<'delta' | 'items'>('delta');
+
+  // Persist a private internal note. Single path used by every platform's
+  // note-entry UI (iOS Alert.prompt, web window.prompt, Android/other modal)
+  // so the addCommEvent payload stays identical regardless of surface.
+  const submitNote = useCallback((raw: string | null | undefined) => {
+    const text = raw?.trim();
+    if (!text) return;
+    addCommEvent({
+      id: generateUUID(),
+      projectId: id ?? '',
+      type: 'internal_note',
+      summary: text,
+      actor: settings.branding?.contactName || 'You',
+      isPrivate: true,
+      timestamp: new Date().toISOString(),
+    });
+  }, [addCommEvent, id, settings.branding?.contactName]);
+
   const toggleGroup = useCallback((key: TileGroupKey) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // Animate the collapse/expand. Using scaleXY (not opacity) so the
@@ -3614,21 +3637,14 @@ export default function ProjectDetailScreen() {
                 style={styles.commAddNoteBtn}
                 onPress={() => {
                   if (Platform.OS === 'ios' && typeof (Alert as any).prompt === 'function') {
-                    (Alert as any).prompt('Internal Note', 'Add a private note to this project', (text: string) => {
-                      if (text?.trim()) {
-                        addCommEvent({
-                          id: generateUUID(),
-                          projectId: id ?? '',
-                          type: 'internal_note',
-                          summary: text.trim(),
-                          actor: settings.branding?.contactName || 'You',
-                          isPrivate: true,
-                          timestamp: new Date().toISOString(),
-                        });
-                      }
-                    });
+                    (Alert as any).prompt('Internal Note', 'Add a private note to this project', (text: string) => submitNote(text));
+                  } else if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+                    // Web: native browser prompt.
+                    submitNote(window.prompt('Add a private note to this project', ''));
                   } else {
-                    Alert.alert('Add Note', 'Use the note feature to log internal project notes.');
+                    // Android / anything without a system prompt: inline composer.
+                    setNoteDraft('');
+                    setShowNoteModal(true);
                   }
                 }}
                 activeOpacity={0.7}
@@ -4124,6 +4140,66 @@ export default function ProjectDetailScreen() {
             </View>
           </ScrollView>
         </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Inline internal-note composer — fallback for platforms without a
+          system prompt (Android, and any web runtime lacking window.prompt).
+          Reuses the invite-modal styles so no new tokens are introduced. */}
+      <Modal
+        visible={showNoteModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowNoteModal(false)}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.inviteModalOverlay}>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
+                <View style={styles.inviteModalHeader}>
+                  <Text style={styles.inviteModalTitle}>Internal Note</Text>
+                  <TouchableOpacity onPress={() => setShowNoteModal(false)} accessibilityRole="button" accessibilityLabel="Close">
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.inviteDesc}>
+                  Add a private note to "{project.name}". Only your team can see it.
+                </Text>
+
+                <TextInput
+                  style={styles.inviteInput}
+                  value={noteDraft}
+                  onChangeText={setNoteDraft}
+                  placeholder="Type your note…"
+                  placeholderTextColor={themeColors.textMuted}
+                  multiline
+                  autoFocus
+                  testID="internal-note-input"
+                />
+
+                <View style={styles.inviteActionRow}>
+                  <TouchableOpacity style={styles.inviteCancelBtn} onPress={() => setShowNoteModal(false)} activeOpacity={0.8}>
+                    <Text style={styles.inviteCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.inviteSendBtn}
+                    onPress={() => { submitNote(noteDraft); setShowNoteModal(false); }}
+                    activeOpacity={0.85}
+                    disabled={!noteDraft.trim()}
+                    testID="save-internal-note-btn"
+                  >
+                    <Plus size={16} color={"#FFFFFF"} strokeWidth={1.75} />
+                    <Text style={styles.inviteSendBtnText}>Add Note</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
