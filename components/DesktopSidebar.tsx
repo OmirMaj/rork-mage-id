@@ -80,7 +80,11 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
   { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
   { key: 'plans',             label: 'Plans',            icon: MagePlans,       route: '/plans',                            section: 'OVERVIEW' },
-  { key: 'weekly-snapshot',   label: 'Weekly Snapshot',  icon: TrendingUp,      route: '/weekly-snapshot',                  section: 'OVERVIEW' },
+  // Weekly Snapshot intentionally omitted from the global rail: it's a
+  // single-project screen (reads ?projectId, dead-ends on "No project to
+  // snapshot yet" without one). It's reachable from inside each project
+  // (project-detail passes { projectId }); a global rail link had no
+  // projectId and always landed on the empty state.
 
   // ── PROJECT · FIELD OPS
   { key: 'daily-report',      label: 'Daily Report',     icon: MageDailyReport, route: '/daily-report',                     section: 'FIELD OPS' },

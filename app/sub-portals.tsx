@@ -1,14 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, HardHat, Inbox } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, HardHat, Inbox, Lock, Building2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -28,6 +30,14 @@ export default function SubPortalsListScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { canAccess } = useTierAccess();
+  // Sub portals are a Business feature. We keep this list visible as a teaser
+  // (rather than hard-gating the whole screen) but every locked row routes to
+  // the paywall instead of the setup screen — so the gate is expected, not a
+  // bait-and-switch dead-end. Live invoice-count badges are hidden for locked
+  // tiers since they can't open a portal to act on them.
+  const isUnlocked = canAccess('subcontractor_management');
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const {
     projects, subcontractors, commitments,
   } = useProjects();
@@ -79,6 +89,25 @@ export default function SubPortalsListScreen() {
         </Text>
       </View>
 
+      {!isUnlocked && (
+        <TouchableOpacity
+          style={styles.upgradeBanner}
+          onPress={() => setPaywallOpen(true)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Upgrade to Business to unlock sub portals"
+        >
+          <View style={styles.upgradeBannerIcon}>
+            <Building2 size={18} color={themeColors.accent} strokeWidth={1.75} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.upgradeBannerTitle}>Sub portals are a Business feature</Text>
+            <Text style={styles.upgradeBannerBody}>Upgrade to send self-serve links and collect invoices from your subs.</Text>
+          </View>
+          <ChevronRight size={18} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
+      )}
+
       <FlatList
         data={pairs}
         keyExtractor={p => p.key}
@@ -90,15 +119,24 @@ export default function SubPortalsListScreen() {
             <Text style={styles.emptyBody}>Add a sub commitment to a project — that&apos;s the link between a sub and a project, and what powers their portal.</Text>
           </View>
         }
-        renderItem={({ item }) => <PairRowItem item={item} onPress={() =>
-          router.push({ pathname: '/sub-portal-setup', params: { projectId: item.projectId, subId: item.subId } } as never)
+        renderItem={({ item }) => <PairRowItem item={item} locked={!isUnlocked} onPress={() =>
+          isUnlocked
+            ? router.push({ pathname: '/sub-portal-setup', params: { projectId: item.projectId, subId: item.subId } } as never)
+            : setPaywallOpen(true)
         } />}
+      />
+
+      <Paywall
+        visible={paywallOpen}
+        feature="Subcontractor Portals"
+        requiredTier="business"
+        onClose={() => setPaywallOpen(false)}
       />
     </View>
   );
 }
 
-function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) {
+function PairRowItem({ item, locked, onPress }: { item: PairRow; locked: boolean; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const submitted = useSubSubmittedInvoices({ projectId: item.projectId });
@@ -118,11 +156,19 @@ function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) 
         </Text>
         <View style={styles.rowFoot}>
           <Text style={styles.rowAmount}>{formatMoney(item.totalCommitment)}</Text>
-          {pendingForThisSub.length > 0 && (
+          {locked ? (
+            // Show the gate on the row itself so tapping into a paywall is
+            // expected. Hide the live invoice-count badge — a locked tier
+            // can't open the portal to act on it.
+            <View style={styles.lockBadge}>
+              <Lock size={11} color={themeColors.textSecondary} strokeWidth={2} />
+              <Text style={styles.lockBadgeText}>Business</Text>
+            </View>
+          ) : pendingForThisSub.length > 0 ? (
             <View style={styles.pendingBadge}>
               <Text style={styles.pendingBadgeText}>{pendingForThisSub.length} new invoice{pendingForThisSub.length === 1 ? '' : 's'}</Text>
             </View>
-          )}
+          ) : null}
         </View>
       </View>
       <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -165,4 +211,25 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accent + '18',
   },
   pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
+  lockBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
+    backgroundColor: t.surfaceAlt,
+  },
+  lockBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary },
+
+  upgradeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginBottom: 14, padding: 14,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: t.accent + '10',
+    borderWidth: 1, borderColor: t.accent + '25',
+  },
+  upgradeBannerIcon: {
+    width: 36, height: 36, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accent + '18',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  upgradeBannerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  upgradeBannerBody: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
 });

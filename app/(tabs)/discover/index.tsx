@@ -394,14 +394,16 @@ export default function DiscoverScreen() {
           </View>
         </View>
 
+        {/* No hardcoded counts — the old count={1317}/{2957}/{869} literals
+            weren't query results, so a GC who tapped in and saw a different
+            number stopped trusting every figure in the app. The destination
+            screen shows the real count; these cards just route there. */}
         <NavigationCard
           icon={Gavel}
           iconColor={Colors.info}
           iconBg={Colors.info + '15'}
           title="Public Bids"
           subtitle="Government & private bid opportunities"
-          count={1317}
-          countColor={Colors.info}
           onPress={() => navigateTo('/(tabs)/discover/bids')}
         />
 
@@ -411,8 +413,6 @@ export default function DiscoverScreen() {
           iconBg={Colors.info + '15'}
           title="Companies"
           subtitle="Bond capacity & certifications"
-          count={2957}
-          countColor={Colors.info}
           onPress={() => navigateTo('/(tabs)/discover/companies')}
         />
 
@@ -423,8 +423,6 @@ export default function DiscoverScreen() {
             iconBg={Colors.info + '15'}
             title="Job Listings"
             subtitle="Construction jobs & direct hire openings"
-            count={869}
-            countColor={Colors.info}
             onPress={() => navigateTo('/(tabs)/discover/hire')}
           />
         )}

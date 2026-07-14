@@ -24,6 +24,8 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   computeWIPReport, computeProfitReport, computeARAgingReport,
@@ -44,9 +46,16 @@ export default function ReportsScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { canAccess } = useTierAccess();
   const { projects, invoices, changeOrders, commitments, settings } = useProjects();
 
-  const [tab, setTab] = useState<Tab>('wip');
+  // WIP is the bank-ready Business deliverable — gate it exactly like
+  // /wip-report does (canAccess('wip_reporting')). Non-Business users can
+  // still open the Profit + A/R Aging tabs; selecting WIP shows the Paywall
+  // instead of the report chrome, and WIP export actions are blocked.
+  const wipUnlocked = canAccess('wip_reporting');
+  // Land sub-Business users on Profit so the default tab isn't a locked wall.
+  const [tab, setTab] = useState<Tab>(wipUnlocked ? 'wip' : 'profit');
   const [generating, setGenerating] = useState(false);
 
   const wip    = useMemo(() => computeWIPReport(projects, invoices, changeOrders, commitments), [projects, invoices, changeOrders, commitments]);
@@ -65,6 +74,7 @@ export default function ReportsScreen() {
   }), [settings]);
 
   const handleSharePdf = useCallback(async () => {
+    if (tab === 'wip' && !wipUnlocked) return; // WIP export is Business-gated
     setGenerating(true);
     try {
       if (tab === 'wip') {
@@ -80,9 +90,10 @@ export default function ReportsScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [tab, wip, profit, aging, branding]);
+  }, [tab, wip, profit, aging, branding, wipUnlocked]);
 
   const handleCopyCsv = useCallback(async () => {
+    if (tab === 'wip' && !wipUnlocked) return; // WIP CSV is Business-gated
     const csv = tab === 'wip' ? wipReportToCSV(wip)
               : tab === 'aging' ? arAgingReportToCSV(aging)
               : ''; // profit doesn't ship a CSV — it's tiny + the PDF is the deliverable
@@ -93,7 +104,12 @@ export default function ReportsScreen() {
       ok ? 'Copied' : 'Copy failed',
       ok ? 'CSV is on your clipboard. Paste into Excel/QuickBooks/Sage.' : 'Could not copy CSV.',
     );
-  }, [tab, wip, aging]);
+  }, [tab, wip, aging, wipUnlocked]);
+
+  // WIP tab selected but tier doesn't unlock it → full-screen Paywall,
+  // mirroring app/wip-report.tsx. The report chrome (data, PDF, CSV) never
+  // renders, so the Business-only deliverable stays behind the gate.
+  const wipLocked = tab === 'wip' && !wipUnlocked;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -129,12 +145,24 @@ export default function ReportsScreen() {
           </Text>
         </View>
 
-        {tab === 'wip'    && <WIPView    report={wip} />}
-        {tab === 'profit' && <ProfitView profit={profit} />}
-        {tab === 'aging'  && <AgingView  report={aging} />}
+        {tab === 'wip' && !wipLocked && <WIPView    report={wip} />}
+        {tab === 'profit'               && <ProfitView profit={profit} />}
+        {tab === 'aging'                && <AgingView  report={aging} />}
       </ScrollView>
 
-      {/* Action bar */}
+      {/* WIP is Business-only. Render the same Paywall wip-report.tsx uses.
+          Closing it drops the user back onto the Profit tab (still usable). */}
+      {wipLocked && (
+        <Paywall
+          visible={true}
+          feature="WIP Reporting"
+          requiredTier="business"
+          onClose={() => setTab('profit')}
+        />
+      )}
+
+      {/* Action bar — hidden on the locked WIP tab so no WIP export leaks. */}
+      {!wipLocked && (
       <View style={[styles.actionBar, { paddingBottom: insets.bottom + 12 }]}>
         {tab !== 'profit' && (
           <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleCopyCsv} activeOpacity={0.85}>
@@ -160,6 +188,7 @@ export default function ReportsScreen() {
           )}
         </TouchableOpacity>
       </View>
+      )}
     </View>
   );
 }

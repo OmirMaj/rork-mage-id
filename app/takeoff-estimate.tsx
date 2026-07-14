@@ -419,32 +419,35 @@ function TakeoffEstimateInner() {
     );
   }, [takeoff, runPricing]);
 
-  const handleSave = useCallback(async () => {
-    if (!project) {
-      Alert.alert('No project linked', 'Run the takeoff against a project first to save the estimate.');
-      return;
-    }
-    if (lines.length === 0) {
-      Alert.alert('Nothing to save', 'Add at least one line before saving.');
-      return;
-    }
+  // Build the per-line estimate items at a given markup %. Shared by the
+  // Replace path (uses the screen's globalMarkup) and the Append path (uses
+  // the existing estimate's effective markup ratio so permits / contingency
+  // baked into that estimate are preserved).
+  const buildItems = useCallback((markupPct: number): LinkedEstimateItem[] =>
+    lines.map(l => ({
+      materialId: l.id,
+      name: l.description,
+      category: l.csiDivision,
+      unit: l.unit,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      bulkPrice: l.unitPrice,
+      markup: markupPct,
+      usesBulk: false,
+      lineTotal: l.quantity * l.unitPrice * (1 + markupPct / 100),
+      supplier: 'AI Takeoff',
+      csiDivision: l.csiDivision.split(' ')[0],
+    })),
+  [lines]);
+
+  // Replace: wholesale-swap the project estimate with the takeoff lines.
+  // commitEstimatePatch snapshots the outgoing estimate as a revision, so
+  // it's recoverable from history — but the user is warned first (below).
+  const doReplace = useCallback(() => {
+    if (!project) return;
     setSaving(true);
     try {
-      const items: LinkedEstimateItem[] = lines.map(l => ({
-        materialId: l.id,
-        name: l.description,
-        category: l.csiDivision,
-        unit: l.unit,
-        quantity: l.quantity,
-        unitPrice: l.unitPrice,
-        bulkPrice: l.unitPrice,
-        markup: globalMarkup,
-        usesBulk: false,
-        lineTotal: l.quantity * l.unitPrice * (1 + globalMarkup / 100),
-        supplier: 'AI Takeoff',
-        csiDivision: l.csiDivision.split(' ')[0],
-      }));
-
+      const items = buildItems(globalMarkup);
       const linkedEstimate: LinkedEstimate = {
         id: generateUUID(),
         items,
@@ -454,7 +457,6 @@ function TakeoffEstimateInner() {
         grandTotal: totals.grandTotal,
         createdAt: new Date().toISOString(),
       };
-
       updateProject(project.id, commitEstimatePatch(project, linkedEstimate, { reason: 'pre_overwrite' }));
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
@@ -467,7 +469,71 @@ function TakeoffEstimateInner() {
     } finally {
       setSaving(false);
     }
-  }, [project, lines, globalMarkup, totals, updateProject, router]);
+  }, [project, buildItems, globalMarkup, totals, updateProject, router, lines.length]);
+
+  // Append: add the takeoff lines onto the existing estimate, preserving its
+  // items and applying its effective markup ratio to the new base (matches
+  // the append semantics in area-takeoff.tsx). Nothing prior is discarded.
+  const doAppend = useCallback(() => {
+    if (!project?.linkedEstimate) return;
+    setSaving(true);
+    try {
+      const est = project.linkedEstimate;
+      // Reuse the estimate's effective markup ratio so permits/contingency
+      // and current markup carry over instead of being recomputed.
+      const ratio = est.baseTotal > 0 ? est.markupTotal / est.baseTotal : (globalMarkup / 100);
+      const markupPct = ratio * 100;
+      const newItems = buildItems(markupPct);
+      const addedBase = totals.subtotal;
+      const addedMarkup = addedBase * ratio;
+      const next: LinkedEstimate = {
+        ...est,
+        items: [...est.items, ...newItems],
+        baseTotal: est.baseTotal + addedBase,
+        markupTotal: est.markupTotal + addedMarkup,
+        grandTotal: est.grandTotal + addedBase + addedMarkup,
+      };
+      updateProject(project.id, commitEstimatePatch(project, next, { reason: 'manual', note: 'Appended from AI takeoff' }));
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Lines appended',
+        `${lines.length} priced lines added to ${project.name}. New grand total: ${formatMoney(next.grandTotal)}.`,
+        [{ text: 'OK', onPress: () => router.back() }],
+      );
+    } catch (e) {
+      Alert.alert('Save failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [project, buildItems, totals.subtotal, globalMarkup, updateProject, router, lines.length]);
+
+  const handleSave = useCallback(() => {
+    if (!project) {
+      Alert.alert('No project linked', 'Run the takeoff against a project first to save the estimate.');
+      return;
+    }
+    if (lines.length === 0) {
+      Alert.alert('Nothing to save', 'Add at least one line before saving.');
+      return;
+    }
+    // If the project already has a real estimate, never silently overwrite it.
+    // Offer Replace vs Append (append preserves the prior lines + markup),
+    // matching the semantics area-takeoff and cost-xray already use.
+    const existing = project.linkedEstimate;
+    if (existing && existing.items.length > 0) {
+      Alert.alert(
+        'This project already has an estimate',
+        `${project.name} has a ${formatMoney(existing.grandTotal ?? 0)} estimate (${existing.items.length} line${existing.items.length === 1 ? '' : 's'}). Replace it, or append these ${lines.length} takeoff line${lines.length === 1 ? '' : 's'} to it?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Append these lines', onPress: doAppend },
+          { text: 'Replace', style: 'destructive', onPress: doReplace },
+        ],
+      );
+      return;
+    }
+    doReplace();
+  }, [project, lines.length, doReplace, doAppend]);
 
   // ── Render ────────────────────────────────────────────────────────────
 

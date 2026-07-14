@@ -20,15 +20,15 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Platform, KeyboardAvoidingView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  ActivityIndicator, Alert, Platform, KeyboardAvoidingView, Modal,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, FileDown,
-  RotateCcw, Users,
+  RotateCcw, Users, FolderPlus, Plus, X,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
@@ -46,7 +46,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import { generateUUID } from '@/utils/generateId';
-import type { CompanyBranding, LinkedEstimate, LinkedEstimateItem } from '@/types';
+import type { CompanyBranding, LinkedEstimate, LinkedEstimateItem, Project, ProjectType, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
   scopeCacheKey, estimateSchema, QUALITY_LABELS,
@@ -62,6 +62,62 @@ const ESTIMATE_THINKING_STEPS = [
   'Assembling line items…',
 ];
 
+// Map an AI EstimateResult into a project LinkedEstimate. Item shape mirrors
+// utils/estimateAssemblies.ts applyAssembly and app/drawing-analyzer.tsx (the
+// canonical "AI lineItems → LinkedEstimate" mappers): bulkPrice = unitPrice,
+// usesBulk=false, markup=0, supplier='', stable materialId. No markup is
+// applied (globalMarkup=0) — the GC tunes it in the estimator. Shared by the
+// ?projectId link-back and the standalone "Save to a project" flow so they
+// can't drift.
+function buildLinkedEstimate(data: EstimateResult): LinkedEstimate {
+  const items: LinkedEstimateItem[] = data.lineItems.map<LinkedEstimateItem>((li) => ({
+    materialId: generateUUID(),
+    name: li.description,
+    category: li.category,
+    unit: li.unit,
+    quantity: li.quantity,
+    unitPrice: li.unitCost,
+    bulkPrice: li.unitCost,
+    markup: 0,
+    usesBulk: false,
+    lineTotal: li.total,
+    supplier: '',
+  }));
+  const baseTotal = data.subtotal + data.contingency + data.permits;
+  return {
+    id: generateUUID(),
+    items,
+    globalMarkup: 0,
+    baseTotal,
+    markupTotal: 0,
+    grandTotal: data.total,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+// Map the wizard's free-text project-type answer onto the legacy Project.type
+// enum so a newly-created project still classifies sensibly. Falls back to
+// 'renovation' (the app's generic default) for anything unrecognized.
+function mapProjectType(answer: string): ProjectType {
+  const a = answer.toLowerCase();
+  if (a.includes('new build') || a.includes('new construction') || a.includes('adu')) return 'new_build';
+  if (a.includes('addition')) return 'addition';
+  if (a.includes('commercial') || a.includes(' ti')) return 'commercial';
+  if (a.includes('roof')) return 'roofing';
+  if (a.includes('deck') || a.includes('outdoor') || a.includes('landscap')) return 'landscape';
+  if (a.includes('remodel')) return 'remodel';
+  return 'renovation';
+}
+
+// Map the wizard's quality answer onto the legacy Project.quality enum.
+function mapQuality(quality: WizardAnswers['quality']): QualityTier {
+  switch (quality) {
+    case 'budget': return 'economy';
+    case 'high_end': return 'premium';
+    default: return 'standard';
+  }
+}
+
 export default function EstimateWizardScreen() {
   return <EstimateWizardScreenInner />;
 }
@@ -71,7 +127,7 @@ function EstimateWizardScreenInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { settings, getProject, updateProject } = useProjects();
+  const { settings, getProject, updateProject, addProject, projects } = useProjects();
   const { tier } = useSubscription();
 
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -83,6 +139,14 @@ function EstimateWizardScreenInner() {
   const [sharingPdf, setSharingPdf] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
   const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
+  // Standalone "Save to a project" flow. When the wizard is launched with no
+  // ?projectId, the result would otherwise be a dead end (Share PDF + start
+  // over only) — the number is thrown away the moment they leave. This modal
+  // lets them attach the estimate to an existing project OR spin up a new
+  // one, folding the AI line items into its linkedEstimate.
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     if (scopedProject?.scope) {
@@ -176,39 +240,13 @@ function EstimateWizardScreenInner() {
         // flow (no projectId) skips this entirely and is byte-identical
         // to before.
         //
-        // Item shape mirrors utils/estimateAssemblies.ts applyAssembly and
-        // app/drawing-analyzer.tsx (the canonical "AI lineItems →
-        // LinkedEstimate" mappers): bulkPrice = unitPrice, usesBulk=false,
-        // markup=0, supplier='', stable materialId. No markup is applied
-        // here (globalMarkup=0) — the GC tunes it in the estimator, same
-        // as the analyzer path. LinkedEstimate has no notes field, so the
-        // AI notes + refineWith are NOT folded onto it (doing so would
-        // require an unsafe cast); they remain surfaced to the user in
-        // this screen's result UI instead.
+        // Item shape and mapping live in buildLinkedEstimate (shared with
+        // the standalone "Save to a project" flow). LinkedEstimate has no
+        // notes field, so the AI notes + refineWith are NOT folded onto it
+        // (doing so would require an unsafe cast); they remain surfaced to
+        // the user in this screen's result UI instead.
         if (projectId && scopedProject) {
-          const items: LinkedEstimateItem[] = data.lineItems.map<LinkedEstimateItem>((li) => ({
-            materialId: generateUUID(),
-            name: li.description,
-            category: li.category,
-            unit: li.unit,
-            quantity: li.quantity,
-            unitPrice: li.unitCost,
-            bulkPrice: li.unitCost,
-            markup: 0,
-            usesBulk: false,
-            lineTotal: li.total,
-            supplier: '',
-          }));
-          const baseTotal = data.subtotal + data.contingency + data.permits;
-          const linkedEstimate: LinkedEstimate = {
-            id: generateUUID(),
-            items,
-            globalMarkup: 0,
-            baseTotal,
-            markupTotal: 0,
-            grandTotal: data.total,
-            createdAt: new Date().toISOString(),
-          };
+          const linkedEstimate = buildLinkedEstimate(data);
           updateProject(projectId, commitEstimatePatch(getProject(projectId), linkedEstimate, { reason: 'pre_overwrite' }));
         }
 
@@ -265,7 +303,70 @@ function EstimateWizardScreenInner() {
     setAnswers(INITIAL_SCOPE);
     setResult(null);
     setStep(0);
+    setSavedProjectId(null);
   }, []);
+
+  // Attach the just-generated estimate to an EXISTING project, then jump to
+  // it. Reuses commitEstimatePatch (same revision-history behavior as the
+  // ?projectId link-back and the drawing analyzer).
+  const attachToExisting = useCallback((targetId: string) => {
+    if (!result) return;
+    const linkedEstimate = buildLinkedEstimate(result);
+    updateProject(targetId, commitEstimatePatch(getProject(targetId), linkedEstimate, { reason: 'pre_overwrite' }));
+    setShowSaveModal(false);
+    setSavedProjectId(targetId);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
+  }, [result, updateProject, getProject, router]);
+
+  // Create a NEW project from the wizard answers, hydrate its linkedEstimate,
+  // and jump to it. The wizard answers are also stamped onto project.scope so
+  // the estimate re-opens in the wizard with zero re-keying.
+  const createFromEstimate = useCallback(() => {
+    if (!result) return;
+    const name = newProjectName.trim();
+    if (!name) {
+      Alert.alert('Name required', 'Give this project a name so you can find it later.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const id = generateUUID();
+    const baseProject: Project = {
+      id,
+      name,
+      type: mapProjectType(answers.projectType),
+      location: answers.location.trim() || 'United States',
+      squareFootage: Number(answers.sizeSqft) || 0,
+      quality: mapQuality(answers.quality),
+      description: answers.scope.trim(),
+      scope: {
+        projectType: answers.projectType,
+        sizeSqft: answers.sizeSqft,
+        location: answers.location,
+        quality: answers.quality,
+        scope: answers.scope,
+        timelineWeeks: answers.timelineWeeks,
+        specialRequirements: answers.specialRequirements,
+        targetBudget: answers.targetBudget,
+        updatedAt: now,
+      },
+      createdAt: now,
+      updatedAt: now,
+      estimate: null,
+      schedule: null,
+      status: 'estimated',
+    };
+    // Fold the AI estimate in through the same commit path so the new
+    // project starts with an estimate revision (rev 1), not a bare project.
+    const linkedEstimate = buildLinkedEstimate(result);
+    const withEstimate = { ...baseProject, ...commitEstimatePatch(baseProject, linkedEstimate, { reason: 'pre_overwrite' }) };
+    addProject(withEstimate);
+    setShowSaveModal(false);
+    setNewProjectName('');
+    setSavedProjectId(id);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.push({ pathname: '/project-detail', params: { id } } as never);
+  }, [result, newProjectName, answers, addProject, router]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
@@ -559,34 +660,55 @@ function EstimateWizardScreenInner() {
             testID="estimate-subbid-cta"
           />
 
+          {(() => {
+            // Which project (if any) this estimate is now attached to:
+            // either the ?projectId link-back, or a project the standalone
+            // user just saved to via the modal.
+            const attachedId = (projectId && scopedProject) ? projectId : savedProjectId;
+            const attachedProject = attachedId ? getProject(attachedId) : null;
+            const hasProject = !!attachedProject;
+            return (
           <View style={styles.resultActions}>
-            {projectId && scopedProject && (
+            {hasProject ? (
               <TouchableOpacity
                 style={styles.resultPrimaryBtn}
-                onPress={() => router.replace({ pathname: '/project-detail', params: { id: projectId } } as never)}
+                onPress={() => router.push({ pathname: '/project-detail', params: { id: attachedId! } } as never)}
                 activeOpacity={0.85}
                 disabled={sharingPdf}
                 testID="wizard-view-project"
               >
                 <CheckCircle2 size={18} color="#FFF" strokeWidth={1.75} />
                 <Text style={styles.resultPrimaryText} numberOfLines={1}>
-                  Saved to {scopedProject.name} — open project
+                  Saved to {attachedProject.name} — open project
                 </Text>
+              </TouchableOpacity>
+            ) : (
+              // Standalone result — the estimate is not attached anywhere.
+              // Without this the number is discarded the moment they leave.
+              <TouchableOpacity
+                style={styles.resultPrimaryBtn}
+                onPress={() => { setShowSaveModal(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+                activeOpacity={0.85}
+                disabled={sharingPdf}
+                testID="wizard-save-to-project"
+              >
+                <FolderPlus size={18} color="#FFF" strokeWidth={1.75} />
+                <Text style={styles.resultPrimaryText} numberOfLines={1}>Save to a project</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={projectId && scopedProject ? styles.resultSecondaryBtn : styles.resultPrimaryBtn}
+              style={styles.resultSecondaryBtn}
               onPress={share}
               activeOpacity={0.85}
               disabled={sharingPdf}
               testID="wizard-share"
             >
               {sharingPdf ? (
-                <ActivityIndicator size="small" color={projectId && scopedProject ? themeColors.text : '#FFF'} />
+                <ActivityIndicator size="small" color={themeColors.text} />
               ) : (
                 <>
-                  <FileDown size={18} color={projectId && scopedProject ? themeColors.text : '#FFF'} strokeWidth={1.75} />
-                  <Text style={projectId && scopedProject ? styles.resultSecondaryText : styles.resultPrimaryText}>
+                  <FileDown size={18} color={themeColors.text} strokeWidth={1.75} />
+                  <Text style={styles.resultSecondaryText}>
                     {Platform.OS === 'web' ? 'Open PDF preview' : 'Download & share PDF'}
                   </Text>
                 </>
@@ -603,7 +725,72 @@ function EstimateWizardScreenInner() {
               <Text style={styles.resultSecondaryText}>Start a new estimate</Text>
             </TouchableOpacity>
           </View>
+            );
+          })()}
         </ScrollView>
+
+        {/* Save-to-project modal — cross-platform (no Alert.prompt). Lets a
+            standalone user attach the estimate to an existing project or
+            create a new one, folding the AI line items into its estimate. */}
+        <Modal visible={showSaveModal} transparent animationType="slide" onRequestClose={() => setShowSaveModal(false)}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.saveOverlay}>
+              <View style={[styles.saveCard, { paddingBottom: insets.bottom + 20 }]}>
+                <View style={styles.saveHeader}>
+                  <Text style={styles.saveTitle}>Save estimate</Text>
+                  <TouchableOpacity onPress={() => setShowSaveModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                    <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Create a brand-new project from this estimate */}
+                <Text style={styles.saveSectionLabel}>New project</Text>
+                <View style={styles.saveInputRow}>
+                  <TextInput
+                    style={styles.saveInput}
+                    value={newProjectName}
+                    onChangeText={setNewProjectName}
+                    placeholder={answers.projectType || 'Project name'}
+                    placeholderTextColor={themeColors.textMuted}
+                    returnKeyType="done"
+                    onSubmitEditing={createFromEstimate}
+                    testID="wizard-new-project-name"
+                  />
+                  <TouchableOpacity
+                    style={styles.saveCreateBtn}
+                    onPress={createFromEstimate}
+                    activeOpacity={0.85}
+                    testID="wizard-create-project"
+                  >
+                    <Plus size={16} color="#FFF" strokeWidth={2} />
+                    <Text style={styles.saveCreateText}>Create</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {projects.length > 0 ? (
+                  <>
+                    <Text style={[styles.saveSectionLabel, { marginTop: 18 }]}>Or add to an existing project</Text>
+                    <ScrollView style={styles.saveList} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                      {projects.map((p) => (
+                        <TouchableOpacity
+                          key={p.id}
+                          style={styles.saveProjectRow}
+                          onPress={() => attachToExisting(p.id)}
+                          activeOpacity={0.7}
+                          testID={`wizard-attach-${p.id}`}
+                        >
+                          <Text style={styles.saveProjectName} numberOfLines={1}>{p.name}</Text>
+                          <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </>
+                ) : null}
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
         <UpgradeSheet
           visible={!!upgradeLimit}
           limit={upgradeLimit}
@@ -1060,6 +1247,92 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   resultSecondaryText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
+    color: themeColors.text,
+  },
+  // Save-to-project modal
+  saveOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end' as const,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  saveCard: {
+    backgroundColor: themeColors.bg,
+    borderTopLeftRadius: Tokens.radius.panel,
+    borderTopRightRadius: Tokens.radius.panel,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+  },
+  saveHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 16,
+  },
+  saveTitle: {
+    fontSize: Type.title3.fontSize,
+    fontWeight: '800' as const,
+    color: themeColors.text,
+  },
+  saveSectionLabel: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    color: themeColors.textMuted,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
+    marginBottom: 8,
+  },
+  saveInputRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  saveInput: {
+    flex: 1,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    borderRadius: Tokens.radius.card,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: Type.bodyCompact.fontSize,
+    color: themeColors.text,
+  },
+  saveCreateBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 4,
+    backgroundColor: themeColors.accent,
+    borderRadius: Tokens.radius.card,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  saveCreateText: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '800' as const,
+    color: '#FFF',
+  },
+  saveList: {
+    maxHeight: 240,
+    marginTop: 2,
+  },
+  saveProjectRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    borderRadius: Tokens.radius.card,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 8,
+    gap: 10,
+  },
+  saveProjectName: {
+    flex: 1,
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600' as const,
     color: themeColors.text,
   },
 });

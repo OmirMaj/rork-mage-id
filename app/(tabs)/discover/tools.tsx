@@ -457,21 +457,17 @@ export default function DiscoverToolsScreen() {
             <NavRow
               Icon={Inbox}
               title="Reports inbox"
-              subtitle="Daily field reports waiting for review"
+              subtitle="Every DFR, RFI, submittal, invoice & CO across all jobs, in one filterable list"
               tone="info"
               onPress={() => router.push('/report-inbox' as never)}
               testID="tools-reports-inbox"
             />
             <Divider styles={styles} />
-            <NavRow
-              Icon={TrendingUp}
-              title="Weekly snapshot"
-              subtitle="Auto-generated portfolio rollup, every Monday"
-              tone="primary"
-              onPress={() => router.push('/weekly-snapshot' as never)}
-              testID="tools-weekly-snapshot"
-            />
-            <Divider styles={styles} />
+            {/* Weekly snapshot is a single-project view — it needs a projectId
+                and shows a dead-end "No project to snapshot yet" empty state
+                when opened without one. It's surfaced from inside each project
+                (project-detail passes { projectId }); linking it here globally
+                only ever dead-ended, so it's removed from this cross-project hub. */}
             <NavRow
               Icon={Download}
               title="Data export"
