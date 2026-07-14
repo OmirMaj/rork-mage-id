@@ -10,8 +10,35 @@ import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 import { connectQuickBooks, fetchQboStatus, type QboStatus } from '@/utils/qboSync';
 import { QboSuccessCheckmark } from '@/components/QboSuccessCheckmark';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 
 export default function QboSetupScreen() {
+  // Client-side tier gate BEFORE the OAuth browser can open. The server
+  // (qbo-connect-start) already requires Business/Enterprise via
+  // requireTier(['business','enterprise'], 'qbo_connect'); without this
+  // check a Free/Pro user reads the full sell-hero, taps "Connect
+  // QuickBooks," completes Intuit OAuth, and only then hits an opaque
+  // server rejection. Show the paywall up front so the requirement is
+  // honest before they commit. There is no 'quickbooks_sync' FeatureKey
+  // (removed in a prior audit), so we gate on the Business tier bucket
+  // directly — which mirrors the server's allowed-tier list.
+  const router = useRouter();
+  const { isBusinessOrAbove } = useTierAccess();
+  if (!isBusinessOrAbove) {
+    return (
+      <Paywall
+        visible={true}
+        feature="QuickBooks Sync"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <QboSetupScreenInner />;
+}
+
+function QboSetupScreenInner() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);

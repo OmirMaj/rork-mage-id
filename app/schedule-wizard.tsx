@@ -17,7 +17,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Platform, Alert,
+  Platform, Alert, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -31,9 +31,11 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate, TemplateTask } from '@/constants/scheduleTemplates';
 import { PHASE_COLORS } from '@/utils/scheduleEngine';
+import { runCpm } from '@/utils/cpm';
 import { generateUUID } from '@/utils/generateId';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
@@ -41,6 +43,27 @@ import { Tokens } from '@/constants/designTokens';
 
 const STEPS = ['Project', 'Tasks', 'Schedule', 'Review'] as const;
 type StepIndex = 0 | 1 | 2 | 3;
+
+// The wizard commits a 5-day work week and hands off to Schedule Pro, which
+// runs CPM in CALENDAR mode (weekend-aware) whenever a startDate is present.
+// We MUST preview + persist through that same calendar math — otherwise a
+// raw-day plan re-expands across weekends the instant Pro mounts and the
+// finish date jumps (the raw-day→calendar finish-jump bug). Keep this in sync
+// with the workingDaysPerWeek written in handleSave.
+const WIZARD_WORKING_DAYS_PER_WEEK = 5;
+
+// Mirror of schedule-pro's GRID_BREAKPOINT. Below this width the Pro grid is
+// unusable and schedule-pro bounces the user to the classic schedule — so we
+// send the wizard's completed hand-off straight to the classic schedule
+// instead of routing through a screen that immediately redirects again.
+const GRID_BREAKPOINT = 900;
+
+function toIsoDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 const TEMPLATE_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
   'kitchen-remodel': HomeIcon,
@@ -68,6 +91,13 @@ export default function ScheduleWizardScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const { canAccess } = useTierAccess();
+  // Route to Schedule Pro only when the grid is both usable (wide screen) AND
+  // unlocked for this tier. Otherwise land in the classic schedule — the
+  // wizard's value is available to every tier, and free users shouldn't finish
+  // the flow only to hit a full-screen paywall.
+  const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, updateProject } = useProjects();
 
@@ -108,21 +138,38 @@ export default function ScheduleWizardScreen() {
     return new Date();
   }, [project]);
 
-  // Compute startDay for each task by walking dependencies.
+  const isoStart = useMemo(() => toIsoDate(startDate), [startDate]);
+
+  // Compute each task's start/end DAY through the SAME weekend-aware CPM the
+  // operational view runs. startDay/endDay are 1-indexed calendar-day offsets
+  // from `startDate` (day 1 = startDate), so a task spanning a weekend widens
+  // exactly as it will in Schedule Pro — no raw-day→calendar jump on handoff.
   const scheduledTasks = useMemo(() => {
-    const map = new Map<string, { startDay: number; endDay: number }>();
-    for (const t of tasks) {
-      const predEnds = t.predecessorIds
-        .map(pid => map.get(pid)?.endDay ?? 0);
-      const startDay = predEnds.length > 0 ? Math.max(...predEnds) + 1 : 1;
-      const endDay = startDay + Math.max(0, t.duration - 1);
-      map.set(t.id, { startDay, endDay });
-    }
-    return tasks.map(t => {
-      const range = map.get(t.id) ?? { startDay: 1, endDay: t.duration };
-      return { ...t, startDay: range.startDay, endDay: range.endDay };
+    const cpmTasks: ScheduleTask[] = tasks.map(t => ({
+      id: t.id,
+      title: t.name,
+      phase: t.phase,
+      durationDays: t.duration,
+      startDay: 1,
+      dependencies: t.predecessorIds,
+      crew: '',
+      crewSize: t.crewSize,
+      isMilestone: t.isMilestone,
+      notes: '',
+      status: 'not_started',
+      progress: 0,
+    }));
+    const result = runCpm(cpmTasks, {
+      scheduleStartDate: isoStart,
+      workingDaysPerWeek: WIZARD_WORKING_DAYS_PER_WEEK,
     });
-  }, [tasks]);
+    return tasks.map(t => {
+      const r = result.perTask.get(t.id);
+      const startDay = r?.es ?? 1;
+      const endDay = r?.ef ?? startDay + Math.max(0, t.duration - 1);
+      return { ...t, startDay, endDay };
+    });
+  }, [tasks, isoStart]);
 
   const totalDays = useMemo(() => {
     if (scheduledTasks.length === 0) return 0;
@@ -158,7 +205,6 @@ export default function ScheduleWizardScreen() {
   // ── Save ───────────────────────────────────────────────────────
   const handleSave = useCallback(() => {
     if (!project) return;
-    const isoStart = startDate.toISOString().slice(0, 10);
     // Map TemplateTask → ScheduleTask. We preserve template ids inside the
     // dependency arrays by translating to fresh UUIDs — Supabase requires
     // UUIDs as primary keys, but the predecessor refs are internal to the
@@ -187,7 +233,7 @@ export default function ScheduleWizardScreen() {
         name: `${project.name} — Schedule`,
         projectId: project.id,
         startDate: isoStart,
-        workingDaysPerWeek: 5,
+        workingDaysPerWeek: WIZARD_WORKING_DAYS_PER_WEEK,
         bufferDays: 0,
         tasks: newTasks,
         totalDurationDays: totalDays,
@@ -199,8 +245,15 @@ export default function ScheduleWizardScreen() {
     });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace({ pathname: '/schedule-pro' as never, params: { projectId: project.id } as never });
-  }, [project, startDate, scheduledTasks, tasks, updateProject, router]);
+    // On phone-width screens the Pro grid is unusable and /schedule-pro just
+    // bounces back to the classic schedule — routing there directly avoids a
+    // jarring double redirect right after the primary conversion action.
+    if (wideEnoughForPro) {
+      router.replace({ pathname: '/schedule-pro' as never, params: { projectId: project.id } as never });
+    } else {
+      router.replace('/(tabs)/schedule' as never);
+    }
+  }, [project, isoStart, totalDays, scheduledTasks, tasks, updateProject, router, wideEnoughForPro]);
 
   // Confirmation guard — overwrites an existing schedule.
   const onSavePressed = useCallback(() => {
@@ -297,6 +350,7 @@ export default function ScheduleWizardScreen() {
             scheduledTasks={scheduledTasks}
             startDate={startDate}
             totalDays={totalDays}
+            wideEnoughForPro={wideEnoughForPro}
           />
         )}
         {step === 3 && project && (
@@ -307,6 +361,7 @@ export default function ScheduleWizardScreen() {
             startDate={startDate}
             endDate={projectEndDate}
             totalDays={totalDays}
+            wideEnoughForPro={wideEnoughForPro}
           />
         )}
       </ScrollView>
@@ -514,10 +569,11 @@ function ScheduleStep(props: {
   scheduledTasks: (TemplateTask & { startDay: number; endDay: number })[];
   startDate: Date;
   totalDays: number;
+  wideEnoughForPro: boolean;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { scheduledTasks, startDate, totalDays } = props;
+  const { scheduledTasks, startDate, totalDays, wideEnoughForPro } = props;
   const PX_PER_DAY = 16;
   const timelineWidth = Math.max(320, totalDays * PX_PER_DAY);
 
@@ -561,7 +617,9 @@ function ScheduleStep(props: {
       </ScrollView>
 
       <Text style={[styles.helper, { marginTop: 16 }]}>
-        You can drag, resize, and reorder these tasks once you tap Save — this preview keeps the wizard quick.
+        {wideEnoughForPro
+          ? 'You can drag, resize, and reorder these tasks in Schedule Pro once you tap Save — this preview keeps the wizard quick.'
+          : 'You can fine-tune dates, durations, and dependencies once you tap Save — this preview keeps the wizard quick.'}
       </Text>
     </View>
   );
@@ -575,10 +633,11 @@ function ReviewStep(props: {
   startDate: Date;
   endDate: Date;
   totalDays: number;
+  wideEnoughForPro: boolean;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { project, template, tasksCount, startDate, endDate, totalDays } = props;
+  const { project, template, tasksCount, startDate, endDate, totalDays, wideEnoughForPro } = props;
   return (
     <View style={styles.stepContent}>
       <View style={styles.reviewCard}>
@@ -600,7 +659,9 @@ function ReviewStep(props: {
         <Text style={styles.reviewSub}>{fmtShort(startDate)} → {fmtShort(endDate)}</Text>
       </View>
       <Text style={[styles.helper, { marginTop: 8 }]}>
-        Saving creates the schedule and opens the operational view, where you can fine-tune dependencies, dates, and crew assignments.
+        {wideEnoughForPro
+          ? 'Saving creates the schedule and opens Schedule Pro, where you can fine-tune dependencies, dates, and crew assignments.'
+          : 'Saving creates the schedule and opens your schedule, where you can fine-tune dependencies, dates, and crew assignments.'}
       </Text>
     </View>
   );

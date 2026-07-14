@@ -46,6 +46,7 @@ import {
   LayoutGrid,
   FileText,
   Save,
+  Lock,
 } from 'lucide-react-native';
 import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -53,6 +54,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import type { Project, ProjectSchedule, ScheduleTask, DependencyLink, DependencyType } from '@/types';
 import {
   createId,
@@ -136,6 +139,7 @@ function ScheduleScreen() {
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { projects, updateProject, addProject, contacts } = useProjects();
+  const { canAccess } = useTierAccess();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const desktopStyles = useThemedStyles(makeDesktopStyles);
@@ -145,6 +149,18 @@ function ScheduleScreen() {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduleTask | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Schedule Pro is a Pro+ feature (schedule_gantt_pdf). Rather than dead-end
+  // free users at a full-screen paywall AFTER they tap a plain "Pro" pill or
+  // finish the wizard, we badge the entry points and open this in-context
+  // paywall so the wall is expected, not a surprise.
+  const canUseSchedulePro = canAccess('schedule_gantt_pdf');
+  const [isProPaywallOpen, setIsProPaywallOpen] = useState(false);
+  const openSchedulePro = useCallback(() => {
+    if (!selectedProjectId) return;
+    if (!canUseSchedulePro) { setIsProPaywallOpen(true); return; }
+    router.push({ pathname: '/schedule-pro', params: { projectId: selectedProjectId } } as any);
+  }, [selectedProjectId, canUseSchedulePro, router]);
 
   // projectStartDate is derived from activeSchedule.startDate when set; otherwise today.
   // Changes persist through the schedule object via setProjectStartDate().
@@ -1583,6 +1599,16 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           </View>
         </View>
       </Modal>
+
+      {/* In-context Schedule Pro upsell — opened from the badged "Pro" entry
+          so free users meet an expected, framed paywall instead of a
+          surprise full-screen wall after a click. */}
+      <Paywall
+        visible={isProPaywallOpen}
+        onClose={() => setIsProPaywallOpen(false)}
+        feature="Schedule Pro (Gantt + CPM)"
+        requiredTier="pro"
+      />
     </>
   );
 
@@ -1659,12 +1685,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           {selectedProjectId && (
             <TouchableOpacity
               style={desktopStyles.proBtn}
-              onPress={() => router.push({ pathname: '/schedule-pro', params: { projectId: selectedProjectId } } as any)}
+              onPress={openSchedulePro}
               activeOpacity={0.85}
               testID="open-schedule-pro"
+              accessibilityRole="button"
+              accessibilityLabel={canUseSchedulePro ? 'Open Schedule Pro' : 'Schedule Pro — upgrade to unlock Gantt and CPM'}
             >
-              <MageAIMark size={14} color={"#FFFFFF"} />
+              {canUseSchedulePro
+                ? <MageAIMark size={14} color={"#FFFFFF"} />
+                : <Lock size={13} color={"#FFFFFF"} strokeWidth={2} />}
               <Text style={desktopStyles.proBtnText}>Pro</Text>
+              {!canUseSchedulePro && (
+                <Text style={desktopStyles.proBtnTeaser}>Gantt + CPM</Text>
+              )}
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -3514,6 +3547,13 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontWeight: '800' as const,
     color: "#FFFFFF",
     letterSpacing: 0.3,
+  },
+  proBtnTeaser: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600' as const,
+    color: "#FFFFFF",
+    opacity: 0.85,
+    letterSpacing: 0.2,
   },
   desktopHeaderLeft: {
     width: 260,
