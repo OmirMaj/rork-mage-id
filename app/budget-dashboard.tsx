@@ -112,7 +112,7 @@ Write a 3-paragraph project financial health summary covering:
 
 Be specific and actionable. Use construction industry terminology.`;
 
-      const aiResult = await mageAI({ prompt, tier: 'fast' });
+      const aiResult = await mageAI({ prompt, tier: 'fast', feature: 'fullBudgetDashboard' });
       if (!aiResult.success) {
         Alert.alert('AI Unavailable', aiResult.error || 'Try again.');
         return;

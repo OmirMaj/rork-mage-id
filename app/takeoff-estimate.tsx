@@ -296,6 +296,7 @@ function TakeoffEstimateInner() {
         schemaHint: SCHEMA_HINT,
         tier: 'smart',
         maxTokens: 16000,
+        feature: 'aiEstimateWizard',
       });
 
       if (!r.success) {

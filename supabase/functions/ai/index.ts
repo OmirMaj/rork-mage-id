@@ -111,6 +111,37 @@ serve(async (req) => {
       return jsonResp({ success: false, error: "Missing prompt", finishReason: "BAD_REQUEST" }, 400);
     }
 
+    // Per-feature minimum subscription tier. The requireTier above only checks
+    // "signed in" (['free',...]); these text-AI features are Pro/Business-only in
+    // the UI, but a free user could POST the prompt straight here and get the
+    // result, spending only their generic ai_text quota. Enforce the floor
+    // server-side using the tier we ALREADY resolved (no second JWT verify).
+    // Rank semantics: business/enterprise auto-satisfy a 'pro' floor. Vision
+    // features (photo/drawing/scan/cost-xray) are intentionally ABSENT — they run
+    // through their own edge functions with their own requireTier; adding them
+    // here would be dead config. Unlisted/absent feature → no floor (free ok).
+    // Keep this map in sync with FEATURE_CONFIG.proOnly text features
+    // (scripts/validate-ai-feature-gating.ts guards the parity).
+    const FEATURE_MIN_RANK: Record<string, number> = {
+      bidLeveling: 1,         // pro
+      weeklyAnalysis: 1,      // pro
+      aiEstimateWizard: 1,    // pro
+      cashFlowForecaster: 1,  // pro
+      fullBudgetDashboard: 2, // business
+    };
+    const TIER_RANK: Record<string, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+    const feature = typeof body.feature === "string" ? body.feature : undefined;
+    const minRank = feature ? FEATURE_MIN_RANK[feature] : undefined;
+    if (minRank !== undefined && (TIER_RANK[auth.tier] ?? 0) < minRank) {
+      const needed = minRank >= 2 ? "business" : "pro";
+      return jsonResp({
+        success: false,
+        error: `This feature requires ${needed} or higher. You're currently on ${auth.tier}.`,
+        code: "tier_required",
+        finishReason: "TIER_REQUIRED",
+      }, 403);
+    }
+
     // Input length cap — defense against per-tier cost bypass via giant
     // prompts. The MONTHLY_CAPS economic model assumes "average" prompt
     // sizes (~5-15KB legitimate range for estimate-context generations).

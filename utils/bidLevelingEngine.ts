@@ -105,6 +105,7 @@ YOUR JOB
     },
     tier: 'fast',
     maxTokens: 1200,
+    feature: 'bidLeveling',
   });
 
   if (!r.success) {
