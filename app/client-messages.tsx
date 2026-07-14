@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import MageRefreshControl from '@/components/MageRefreshControl';
 import { MessageSquare, Send, Inbox } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -217,6 +218,19 @@ export default function ClientMessagesScreen() {
   const sending = threadQ.isSending;
   const scrollRef = useRef<ScrollView | null>(null);
 
+  // Pull-to-refresh — force a fetch of the client's latest replies. Matches
+  // the homeowner's client-view, which already has MageRefreshControl. Gives
+  // the GC a manual pull when a poll is stale or the realtime channel drops.
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await threadQ.refetchMessages();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [threadQ]);
+
   // Mark any unread client messages as read once when the GC opens this
   // screen. Server-side update via the Supabase row's read_by_gc column.
   useEffect(() => {
@@ -351,6 +365,9 @@ export default function ClientMessagesScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 16 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <MageRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
         {display.length === 0 ? (
           <View style={styles.empty}>

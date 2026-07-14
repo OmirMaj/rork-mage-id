@@ -190,6 +190,16 @@ function ChangeOrderInner() {
     return originalContractValue + changeAmount;
   }, [originalContractValue, changeAmount]);
 
+  // Tax preview — the CO's changeAmount is stored pre-tax (correct: it's
+  // folded into the contract total, and invoices apply settings.taxRate on
+  // top when billing). Previously the CO showed ONLY the pre-tax figure, so
+  // a homeowner approved e.g. $5,000 and then got billed $5,000 + tax on the
+  // progress invoice. Surface the same tax the invoice will add so the
+  // approved number matches what gets billed. Sign-aware for credit COs.
+  const taxRatePct = settings.taxRate ?? 7.5;
+  const changeTaxAmount = useMemo(() => changeAmount * (taxRatePct / 100), [changeAmount, taxRatePct]);
+  const changeAmountWithTax = useMemo(() => changeAmount + changeTaxAmount, [changeAmount, changeTaxAmount]);
+
   const estimateItems = useMemo(() => {
     if (!project) return [];
     const linked = project.linkedEstimate;
@@ -552,12 +562,31 @@ function ChangeOrderInner() {
             <View style={styles.divider} />
             <View style={styles.totalRow}>
               <Text style={[styles.totalLabel, { color: changeAmount >= 0 ? themeColors.accent : themeColors.success }]}>
-                This CO Amount
+                This CO (Subtotal)
               </Text>
               <Text style={[styles.totalValueBold, { color: changeAmount >= 0 ? themeColors.accent : themeColors.success }]}>
                 {changeAmount >= 0 ? '+' : ''}{formatCurrency(changeAmount)}
               </Text>
             </View>
+            {taxRatePct > 0 && changeAmount !== 0 && (
+              <>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Sales Tax ({taxRatePct}%)</Text>
+                  <Text style={styles.totalValue}>
+                    {changeAmount >= 0 ? '+' : ''}{formatCurrency(changeTaxAmount)}
+                  </Text>
+                </View>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>CO Total (incl. tax)</Text>
+                  <Text style={styles.totalValueBold}>
+                    {changeAmount >= 0 ? '+' : ''}{formatCurrency(changeAmountWithTax)}
+                  </Text>
+                </View>
+                <Text style={styles.coTaxNote}>
+                  Sales tax is applied when this change is billed on a progress invoice — shown here so the total you approve matches what gets invoiced.
+                </Text>
+              </>
+            )}
             <View style={styles.dividerThick} />
             <View style={styles.totalRow}>
               <Text style={styles.grandLabel}>New Contract Total</Text>
@@ -1145,6 +1174,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   dividerThick: { height: 2, backgroundColor: themeColors.accent + '30', borderRadius: 1, marginVertical: 6 },
   grandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: themeColors.text },
   grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  coTaxNote: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, marginTop: 6, lineHeight: 15 },
   fieldSection: { marginHorizontal: 20, marginTop: 18 },
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   helperText: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 6, fontStyle: 'italic' as const },

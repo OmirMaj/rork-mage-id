@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal,
+  Alert, Platform, KeyboardAvoidingView, Modal, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -979,6 +979,8 @@ export default function DailyReportScreen() {
                 projectName={project.name}
                 tasks={project.schedule.tasks}
                 weatherStr={weather.conditions || 'Clear'}
+                isLocked={voiceBlocked}
+                onLockedPress={openVoiceUpgrade}
                 onGenerated={(result: DailyReportGenResult) => {
                   if (result.workCompleted.length > 0 || result.workInProgress.length > 0) {
                     const workText = [
@@ -1547,10 +1549,18 @@ export default function DailyReportScreen() {
               <View style={styles.photoGrid}>
                 {photos.map((photo) => (
                   <View key={photo.id} style={styles.photoCard}>
-                    <View style={styles.photoPlaceholder}>
-                      <Camera size={20} color={themeColors.textMuted} strokeWidth={1.75} />
-                      <Text style={styles.photoTimestamp}>
-                        {new Date(photo.timestamp).toLocaleTimeString()}
+                    {/* Render the actual captured/library photo. photoCard is a
+                        fixed 80x80 with overflow:hidden, so cover-fit fills the
+                        tile. The capture time sits in a small overlay caption
+                        at the bottom so the GC can still read it at a glance. */}
+                    <Image
+                      source={{ uri: photo.uri }}
+                      style={styles.photoImage}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.photoTimestampOverlay}>
+                      <Text style={styles.photoTimestampOverlayText} numberOfLines={1}>
+                        {new Date(photo.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                       </Text>
                     </View>
                     {!isLocked && (
@@ -2115,8 +2125,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   photoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   photoCard: { width: 80, height: 80, borderRadius: Tokens.radius.md, backgroundColor: themeColors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
-  photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  photoTimestamp: { fontSize: 9, color: themeColors.textMuted },
+  photoImage: { width: '100%' as const, height: '100%' as const },
+  photoTimestampOverlay: { position: 'absolute' as const, left: 0, right: 0, bottom: 0, backgroundColor: Colors.overlay, paddingHorizontal: 4, paddingVertical: 2 },
+  photoTimestampOverlayText: { fontSize: 9, color: '#FFFFFF', fontWeight: '600' as const },
   photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: Tokens.radius.md, backgroundColor: themeColors.danger, alignItems: 'center', justifyContent: 'center' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopWidth: 0.5, borderTopColor: themeColors.line, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   toggleRow: {

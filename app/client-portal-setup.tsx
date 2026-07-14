@@ -24,7 +24,7 @@ import { generateUUID } from '@/utils/generateId';
 import { sendEmailNative, sendEmail, buildPortalInviteEmailHtml } from '@/utils/emailService';
 import { copyToClipboard } from '@/utils/clipboard';
 import { SendPortalLinkModal } from '@/components/SendPortalLinkModal';
-import { wrapEmailHtml, emailQuote } from '@/utils/emailLayout';
+import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
 } from '@/utils/portalSnapshot';
@@ -435,13 +435,25 @@ function ClientPortalSetupScreenInner() {
   const [showSendModal, setShowSendModal] = useState(false);
 
   const shareMessage = useMemo(() => {
-    const passcodeLine = portal.requirePasscode && portal.passcode
-      ? `\n\nPasscode: ${portal.passcode}`
-      : '';
+    // Deliberately DON'T bundle the passcode into the invite body. The whole
+    // point of the passcode gate is out-of-band delivery — putting the code
+    // in the same message as the link is security theater (one intercepted
+    // message defeats it) and contradicts the "Share it separately" guidance
+    // on this screen. We prompt the GC to text the code separately after send.
     return portal.welcomeMessage
-      ? `${portal.welcomeMessage}\n\nView your project here:\n${portalLink}${passcodeLine}`
-      : `You're invited to view live updates for "${project?.name}".\n\nLink: ${portalLink}${passcodeLine}`;
-  }, [portal.welcomeMessage, portal.requirePasscode, portal.passcode, portalLink, project?.name]);
+      ? `${portal.welcomeMessage}\n\nView your project here:\n${portalLink}`
+      : `You're invited to view live updates for "${project?.name}".\n\nLink: ${portalLink}`;
+  }, [portal.welcomeMessage, portalLink, project?.name]);
+
+  // Prompt the GC to deliver the passcode over a SEPARATE channel after an
+  // invite goes out — matching the on-screen "share it separately" guidance.
+  const promptPasscodeSeparately = useCallback(() => {
+    if (!portal.requirePasscode || !portal.passcode) return;
+    Alert.alert(
+      'Now share the passcode separately',
+      `Your portal is passcode-protected. Text or tell your client the passcode over a different channel than the link:\n\nPasscode: ${portal.passcode}`,
+    );
+  }, [portal.requirePasscode, portal.passcode]);
 
   // Premium HTML for the Share → Email path. Built once + passed to
   // SendPortalLinkModal so every email looks identical to the
@@ -459,7 +471,10 @@ function ClientPortalSetupScreenInner() {
       projectName: project.name,
       welcomeMessage: portal.welcomeMessage || undefined,
       portalUrl: portalLink,
-      passcode: portal.requirePasscode ? (portal.passcode || null) : null,
+      // Never embed the passcode in the invite email — it must travel over a
+      // separate channel (we prompt the GC to send it after). Bundling code +
+      // link in one message defeats the gate.
+      passcode: null,
       visibleSections,
       contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
       contactEmail: settings?.branding?.email,
@@ -490,9 +505,12 @@ function ClientPortalSetupScreenInner() {
   const handleShare = useCallback(() => {
     // Open the Send-by-Email/Text modal on every platform. We no longer
     // route through the native share sheet because the user explicitly
-    // asked for a modal where they can add recipients directly.
+    // asked for a modal where they can add recipients directly. The share
+    // body no longer carries the passcode (out-of-band delivery), so remind
+    // the GC to send the code separately after the link goes out.
     setShowSendModal(true);
-  }, []);
+    if (portal.requirePasscode && portal.passcode) promptPasscodeSeparately();
+  }, [portal.requirePasscode, portal.passcode, promptPasscodeSeparately]);
 
   // Auto-send a branded portal invite email through Resend (via the
   // send-email edge function). The homeowner gets a polished email with
@@ -508,8 +526,12 @@ function ClientPortalSetupScreenInner() {
     const projectName = project?.name ?? 'your project';
     const recipientFirstName = invite.name?.split(' ')[0];
     const subject = `Your project portal — ${projectName}`;
-    const passcodeLine = portal.requirePasscode && portal.passcode
-      ? `<p style="margin:14px 0 0;padding:12px 14px;background:#F4EFE6;border:1px solid #E8DFCD;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;"><strong>Passcode:</strong> <span style="font-family:monospace;font-size:18px;color:#FF6A1A;letter-spacing:2px;">${portal.passcode}</span><br/><span style="color:#9AA3AD;font-size:12px;">Keep this private — it protects your portal.</span></p>`
+    // The passcode is INTENTIONALLY not in this email. A passcode that ships
+    // in the same message as the link protects nothing. We prompt the GC to
+    // deliver it separately (SMS/call) after the invite sends — matching the
+    // on-screen "share it separately" guidance.
+    const passcodeHint = portal.requirePasscode && portal.passcode
+      ? `<p style="margin:14px 0 0;padding:12px 14px;background:#F4EFE6;border:1px solid #E8DFCD;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;">This portal is passcode-protected. ${escapeHtml(recipientFirstName ?? 'You')} will receive the passcode from your contractor in a separate message.</p>`
       : '';
     const welcomeBlock = portal.welcomeMessage
       ? emailQuote(portal.welcomeMessage)
@@ -517,7 +539,7 @@ function ClientPortalSetupScreenInner() {
     const bodyHtml = `
       ${welcomeBlock}
       <p style="margin:0 0 8px;">We've set up a private portal where you can follow along with the project in real time — daily updates, photos, budget, schedule, contract, and any decisions that need your sign-off.</p>
-      ${passcodeLine}
+      ${passcodeHint}
       <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">No app to install. Open the link on your phone or computer — that's it. The portal stays at this URL for the life of the project.</p>
     `;
     const html = wrapEmailHtml({
@@ -547,13 +569,19 @@ function ClientPortalSetupScreenInner() {
 
     if (result.success) {
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Sent', `Invitation sent to ${invite.email}.`);
+      if (portal.requirePasscode && portal.passcode) {
+        // Passcode intentionally not in the email — prompt out-of-band delivery.
+        promptPasscodeSeparately();
+      } else {
+        Alert.alert('Sent', `Invitation sent to ${invite.email}.`);
+      }
       return;
     }
 
     // Fallback: if Resend is down, drop into the native composer with
-    // the short link so the GC can verify + send manually.
-    const fallbackBody = `${invite.name ? `Hi ${invite.name.split(' ')[0]},` : 'Hi,'}\n\nWe've set up a private portal for ${projectName} so you can follow along with the build.\n\nOpen it here:\n${link}\n${portal.requirePasscode && portal.passcode ? `\nPasscode: ${portal.passcode}\n(keep this private — it protects your portal)\n` : ''}\nNo app to install, no password to remember. Open on your phone or computer.\n\n— ${companyName}`;
+    // the short link so the GC can verify + send manually. Passcode is
+    // deliberately omitted here too — the GC delivers it separately.
+    const fallbackBody = `${invite.name ? `Hi ${invite.name.split(' ')[0]},` : 'Hi,'}\n\nWe've set up a private portal for ${projectName} so you can follow along with the build.\n\nOpen it here:\n${link}\n\nNo app to install, no password to remember. Open on your phone or computer.\n\n— ${companyName}`;
     if (Platform.OS === 'web') {
       if (typeof window !== 'undefined') {
         window.open(`mailto:${encodeURIComponent(invite.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(fallbackBody)}`);
@@ -569,7 +597,7 @@ function ClientPortalSetupScreenInner() {
     if (!fallback.success && fallback.error && fallback.error !== 'cancelled') {
       Alert.alert('Email Not Sent', fallback.error);
     }
-  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage]);
+  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage, promptPasscodeSeparately]);
 
   const handleResetPasscode = useCallback(() => {
     const generate = () => {

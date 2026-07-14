@@ -6,9 +6,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send } from 'lucide-react-native';
+import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send, CalendarDays } from 'lucide-react-native';
 import { MageSubmittal } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -28,6 +29,15 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+
+// Formats the required-date value for the picker button. Falls back to the
+// raw value if it isn't a parseable date (e.g. a voice-prefilled fragment),
+// so we never render "Invalid Date".
+function formatRequiredDateLabel(value: string): string {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 function getStatusColor(t: ThemeColors, status: SubmittalStatus): string {
   switch (status) {
@@ -109,6 +119,7 @@ function SubmittalScreenInner() {
 
   const [linkedTaskId, setLinkedTaskId] = useState('');
   const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [newReviewer, setNewReviewer] = useState('');
   const [newCycleStatus, setNewCycleStatus] = useState<SubmittalStatus>('pending');
   const [newCycleComments, setNewCycleComments] = useState('');
@@ -367,12 +378,27 @@ function SubmittalScreenInner() {
         />
 
         <Text style={styles.fieldLabel}>Required Date</Text>
-        <TextInput
-          style={styles.input}
+        <TouchableOpacity
+          style={styles.pickerBtn}
+          onPress={() => setShowDatePicker(true)}
+          activeOpacity={0.7}
+          testID="submittal-required-date"
+        >
+          <CalendarDays size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+          <Text
+            style={[styles.pickerBtnText, !requiredDate && { color: themeColors.textMuted }]}
+            numberOfLines={1}
+          >
+            {requiredDate ? formatRequiredDateLabel(requiredDate) : 'Select a date'}
+          </Text>
+        </TouchableOpacity>
+        <DatePickerModal
+          visible={showDatePicker}
           value={requiredDate}
-          onChangeText={setRequiredDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={themeColors.textMuted}
+          allowFuture
+          title="Required date"
+          onClose={() => setShowDatePicker(false)}
+          onChange={(iso) => setRequiredDate(iso)}
         />
 
         {existingSubmittal && existingSubmittal.reviewCycles.length > 0 && (

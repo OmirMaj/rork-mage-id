@@ -3,7 +3,7 @@
 // "request to view site first" flag (which suppresses estimate fields
 // since they can't price it sight-unseen).
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, ActivityIndicator,
@@ -11,10 +11,11 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Send, DollarSign, MessageSquare, Eye,
-  AlertTriangle, FileText, Check, CheckCircle2,
+  AlertTriangle, FileText, Check, CheckCircle2, Lock, ArrowRight,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -24,12 +25,56 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
+import { generateUUID } from '@/utils/generateId';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import type { TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+
+// Free/Pro contractors get a monthly cap on marketplace bid responses;
+// Business+ (the 'unlimited_bid_responses' FeatureKey) is uncapped. There
+// is no bid-response entry in the shared FEATURE_LIMITS table yet, so the
+// free cap lives here — see FLAG in the work-order report: this constant
+// ideally belongs in hooks/useTierAccess.ts FEATURE_LIMITS alongside
+// post_community_bid so client + server stay in sync.
+const FREE_MONTHLY_BID_RESPONSES = 3;
+const BID_RESPONSE_USAGE_KEY = 'mageid_bid_responses_usage';
+
+function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+async function getBidResponsesThisMonth(userId: string): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(BID_RESPONSE_USAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, { month: string; count: number }>) : {};
+    const entry = map[userId];
+    if (!entry || entry.month !== currentMonthKey()) return 0;
+    return entry.count;
+  } catch {
+    return 0;
+  }
+}
+
+async function bumpBidResponsesThisMonth(userId: string): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(BID_RESPONSE_USAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, { month: string; count: number }>) : {};
+    const month = currentMonthKey();
+    const entry = map[userId];
+    map[userId] = entry && entry.month === month
+      ? { month, count: entry.count + 1 }
+      : { month, count: 1 };
+    await AsyncStorage.setItem(BID_RESPONSE_USAGE_KEY, JSON.stringify(map));
+  } catch {
+    // Best-effort — never block a submitted bid on the local counter.
+  }
+}
 
 interface RfpRow {
   id: string;
@@ -53,7 +98,21 @@ export default function SubmitBidResponseScreen() {
   const { user } = useAuth();
   const { companies } = useCompanies();
   const { settings, addLead } = useProjects();
+  const { canAccess } = useTierAccess();
   const { bidId } = useLocalSearchParams<{ bidId: string }>();
+
+  // Business+ ('unlimited_bid_responses') bids without limit; everyone
+  // else is capped per calendar month. This is the marketplace's core
+  // monetization lever — high-intent contractors upgrade to keep bidding.
+  const unlimitedBids = canAccess('unlimited_bid_responses');
+  const [usedThisMonth, setUsedThisMonth] = useState(0);
+  useEffect(() => {
+    if (!user?.id || unlimitedBids) return;
+    let cancelled = false;
+    void getBidResponsesThisMonth(user.id).then(n => { if (!cancelled) setUsedThisMonth(n); });
+    return () => { cancelled = true; };
+  }, [user?.id, unlimitedBids]);
+  const atMonthlyCap = !unlimitedBids && usedThisMonth >= FREE_MONTHLY_BID_RESPONSES;
 
   // Only one company per user for now — first one wins (most apps have a single org).
   const company = useMemo(() => companies[0], [companies]);
@@ -155,6 +214,26 @@ export default function SubmitBidResponseScreen() {
       return;
     }
 
+    // Tier gate — Business+ bids without limit; free/Pro hit a monthly cap.
+    // Re-read the counter at submit-time (not just on mount) so rapid
+    // back-to-back bids can't slip past a stale in-state count.
+    if (!unlimitedBids) {
+      const used = await getBidResponsesThisMonth(user.id);
+      setUsedThisMonth(used);
+      if (used >= FREE_MONTHLY_BID_RESPONSES) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert(
+          'Monthly bid limit reached',
+          `You've sent your ${FREE_MONTHLY_BID_RESPONSES} bids for this month. Upgrade to Business for unlimited marketplace bidding.`,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/paywall' as never) },
+          ],
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const proposerName = company?.companyName ?? user.name ?? user.email ?? 'Anonymous contractor';
@@ -166,7 +245,13 @@ export default function SubmitBidResponseScreen() {
       // was previously unused — no schema change). bid_amount mirrors the
       // selected tier so the existing review/award screens, which read
       // bid_amount, keep working unchanged.
-      const { error: insertErr } = await supabase.from('bid_responses').insert({
+      //
+      // Route the insert through the offline queue (supabaseWrite) so a bid
+      // submitted on flaky jobsite connectivity is retried on reconnect
+      // rather than silently lost — matching the rest of the app. An
+      // explicit id keeps the queued write idempotent.
+      const ok = await supabaseWrite('bid_responses', 'insert', {
+        id: generateUUID(),
         bid_id: bidId,
         user_id: user.id,
         proposer_company_id: company?.id ?? null,
@@ -180,7 +265,14 @@ export default function SubmitBidResponseScreen() {
         view_site_requested: viewSiteFirst,
         status: 'submitted',
       });
-      if (insertErr) throw insertErr;
+      // supabaseWrite returns false for a queued-offline write (retried on
+      // reconnect) OR a toasted non-network failure. Count the bid against
+      // the monthly cap only when it was accepted or queued — a hard config
+      // failure (isSupabaseConfigured false) shouldn't burn the allowance.
+      if (ok || isSupabaseConfigured) {
+        await bumpBidResponsesThisMonth(user.id);
+        setUsedThisMonth(n => n + 1);
+      }
 
       // Auto-create a CRM lead so the contractor's pipeline + speed-to-lead
       // metrics reflect marketplace activity. firstRespondedAt = now because
@@ -226,7 +318,7 @@ export default function SubmitBidResponseScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [validate, user, bidId, rfp, company, viewSiteFirst, estimateAmount, estimateSummary, message, proposal, addLead, router]);
+  }, [validate, user, bidId, rfp, company, viewSiteFirst, estimateAmount, estimateSummary, message, proposal, addLead, router, unlimitedBids]);
 
   if (isLoading || !rfp) {
     return (
@@ -427,14 +519,43 @@ export default function SubmitBidResponseScreen() {
           </View>
         )}
 
+        {/* Tier meter — free/Pro see remaining bids this month; Business+
+            bids without limit so we show nothing. At the cap, this becomes
+            an upgrade prompt. */}
+        {!unlimitedBids && (
+          atMonthlyCap ? (
+            <TouchableOpacity
+              style={styles.capCard}
+              onPress={() => router.push('/paywall' as never)}
+              activeOpacity={0.85}
+            >
+              <Lock size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.capTitle}>You&apos;ve used your {FREE_MONTHLY_BID_RESPONSES} bids this month</Text>
+                <Text style={styles.capSub}>Upgrade to Business for unlimited marketplace bidding.</Text>
+              </View>
+              <ArrowRight size={16} color={themeColors.accent} strokeWidth={1.75} />
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.usageLine}>
+              {Math.max(0, FREE_MONTHLY_BID_RESPONSES - usedThisMonth)} of {FREE_MONTHLY_BID_RESPONSES} free bids left this month
+            </Text>
+          )
+        )}
+
         <TouchableOpacity
           style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
-          onPress={handleSubmit}
+          onPress={atMonthlyCap ? () => router.push('/paywall' as never) : handleSubmit}
           disabled={submitting}
           activeOpacity={0.85}
         >
           {submitting ? (
             <ActivityIndicator size="small" color="#FFF" />
+          ) : atMonthlyCap ? (
+            <>
+              <Lock size={16} color="#FFF" strokeWidth={1.75} />
+              <Text style={styles.submitBtnText}>Upgrade to bid</Text>
+            </>
           ) : (
             <>
               {viewSiteFirst ? <MessageSquare size={16} color="#FFF" strokeWidth={1.75} /> : <Send size={16} color="#FFF" strokeWidth={1.75} />}
@@ -518,6 +639,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+
+  capCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    padding: 14, borderRadius: Tokens.radius.card,
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '33',
+    marginBottom: 12,
+  },
+  capTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
+  capSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
+  usageLine: {
+    fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textMuted,
+    textAlign: 'center', marginBottom: 10,
+  },
 
   disclaimer: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
 

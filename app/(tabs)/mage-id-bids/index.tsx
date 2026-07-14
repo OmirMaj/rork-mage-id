@@ -139,23 +139,39 @@ export default function MageIdBidsTabScreen() {
     },
   });
 
-  const filteredBrowse = useMemo<BrowseWithDistance[]>(() => {
+  const enrichedBrowse = useMemo<BrowseWithDistance[]>(() => {
     const rows = browseQ.data ?? [];
-    const enriched = rows.map(r => {
+    return rows.map(r => {
       const distance = (location && r.latitude != null && r.longitude != null)
         ? getDistanceMiles(location.latitude, location.longitude, Number(r.latitude), Number(r.longitude))
         : null;
       return { ...r, distance };
     });
-    if (!location) return enriched.sort((a, b) => +new Date(b.posted_date) - +new Date(a.posted_date));
-    return enriched
-      .filter(r => r.distance == null || r.distance <= radius)
-      .sort((a, b) => {
-        if (a.distance == null) return 1;
-        if (b.distance == null) return -1;
-        return a.distance - b.distance;
-      });
-  }, [browseQ.data, location, radius]);
+  }, [browseQ.data, location]);
+
+  // With a location set, "near you" must mean exactly that: only RFPs with
+  // a known distance inside the radius. RFPs whose address never geocoded
+  // (distance == null) are NOT silently mixed in — they're surfaced in a
+  // separate, clearly-labeled "Location unknown" section so the radius +
+  // the Browse count stay honest. Without a location we can't compute
+  // distance at all, so we fall back to the full list, newest first.
+  const filteredBrowse = useMemo<BrowseWithDistance[]>(() => {
+    if (!location) {
+      return [...enrichedBrowse].sort((a, b) => +new Date(b.posted_date) - +new Date(a.posted_date));
+    }
+    return enrichedBrowse
+      .filter(r => r.distance != null && r.distance <= radius)
+      .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+  }, [enrichedBrowse, location, radius]);
+
+  // RFPs we can't place on the map. Only meaningful once the user has a
+  // location (otherwise everything is "unknown" and lives in filteredBrowse).
+  const locationUnknownBrowse = useMemo<BrowseWithDistance[]>(() => {
+    if (!location) return [];
+    return enrichedBrowse
+      .filter(r => r.distance == null)
+      .sort((a, b) => +new Date(b.posted_date) - +new Date(a.posted_date));
+  }, [enrichedBrowse, location]);
 
   const handlePost = useCallback(() => router.push('/post-rfp' as never), [router]);
   const handleOpenRfp = useCallback((id: string) => {
@@ -164,6 +180,64 @@ export default function MageIdBidsTabScreen() {
   const handleOpenReview = useCallback((id: string) => {
     router.push({ pathname: '/rfp-responses-review' as never, params: { bidId: id } as never });
   }, [router]);
+
+  const renderBrowseCard = useCallback((r: BrowseWithDistance) => {
+    const heroPhoto = (r.photo_urls && r.photo_urls.length > 0) ? r.photo_urls[0] : null;
+    const distanceText = r.distance != null ? `${r.distance.toFixed(1)} mi away` : 'Distance unknown';
+    const deadline = new Date(r.deadline);
+    const daysLeft = Math.floor((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    return (
+      <TouchableOpacity
+        key={r.id}
+        style={styles.rfpCard}
+        onPress={() => handleOpenRfp(r.id)}
+        activeOpacity={0.85}
+        testID={`browse-card-${r.id}`}
+      >
+        {heroPhoto && (
+          <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
+        )}
+        <View style={styles.rfpBody}>
+          <View style={styles.rfpHead}>
+            <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
+            {r.address_verified ? (
+              <View style={styles.verifyDot}><ShieldCheck size={10} color={Colors.success} strokeWidth={1.75} /></View>
+            ) : (
+              <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
+                <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
+              </View>
+            )}
+          </View>
+          {r.scope_description ? (
+            <Text style={styles.rfpScope} numberOfLines={3}>{r.scope_description}</Text>
+          ) : null}
+          <View style={styles.rfpMeta}>
+            <MapPin size={11} color={Colors.textMuted} strokeWidth={1.75} />
+            <Text style={styles.rfpMetaText}>
+              {[r.city, r.state].filter(Boolean).join(', ') || 'Location pending'} · {distanceText}
+            </Text>
+          </View>
+          <View style={styles.rfpFoot}>
+            {(r.budget_min || r.budget_max) ? (
+              <View style={styles.footChip}>
+                <DollarSign size={11} color={Colors.primary} strokeWidth={1.75} />
+                <Text style={styles.footChipText}>
+                  {r.budget_min ? formatMoney(r.budget_min) : '?'} – {r.budget_max ? formatMoney(r.budget_max) : '?'}
+                </Text>
+              </View>
+            ) : <View />}
+            <View style={[styles.footChip, daysLeft < 3 ? { backgroundColor: Colors.error + '15' } : null]}>
+              <Clock size={11} color={daysLeft < 3 ? Colors.error : Colors.textMuted} strokeWidth={1.75} />
+              <Text style={[styles.footChipText, daysLeft < 3 ? { color: Colors.error } : null]}>
+                {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
+              </Text>
+            </View>
+            <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [styles, handleOpenRfp]);
 
   const myStats = useMemo(() => {
     const rows = mineQ.data ?? [];
@@ -283,7 +357,7 @@ export default function MageIdBidsTabScreen() {
         )}
 
         {/* BROWSE mode */}
-        {mode === 'browse' && !isLoading && filteredBrowse.length === 0 && (
+        {mode === 'browse' && !isLoading && filteredBrowse.length === 0 && locationUnknownBrowse.length === 0 && (
           <View style={styles.emptyCard}>
             <Inbox size={28} color={Colors.textMuted} strokeWidth={1.75} />
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
@@ -295,63 +369,25 @@ export default function MageIdBidsTabScreen() {
           </View>
         )}
 
-        {mode === 'browse' && filteredBrowse.map(r => {
-          const heroPhoto = (r.photo_urls && r.photo_urls.length > 0) ? r.photo_urls[0] : null;
-          const distanceText = r.distance != null ? `${r.distance.toFixed(1)} mi away` : 'Distance unknown';
-          const deadline = new Date(r.deadline);
-          const daysLeft = Math.floor((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-          return (
-            <TouchableOpacity
-              key={r.id}
-              style={styles.rfpCard}
-              onPress={() => handleOpenRfp(r.id)}
-              activeOpacity={0.85}
-              testID={`browse-card-${r.id}`}
-            >
-              {heroPhoto && (
-                <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
-              )}
-              <View style={styles.rfpBody}>
-                <View style={styles.rfpHead}>
-                  <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
-                  {r.address_verified ? (
-                    <View style={styles.verifyDot}><ShieldCheck size={10} color={Colors.success} strokeWidth={1.75} /></View>
-                  ) : (
-                    <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
-                      <AlertTriangle size={10} color={Colors.warning} strokeWidth={1.75} />
-                    </View>
-                  )}
-                </View>
-                {r.scope_description ? (
-                  <Text style={styles.rfpScope} numberOfLines={3}>{r.scope_description}</Text>
-                ) : null}
-                <View style={styles.rfpMeta}>
-                  <MapPin size={11} color={Colors.textMuted} strokeWidth={1.75} />
-                  <Text style={styles.rfpMetaText}>
-                    {[r.city, r.state].filter(Boolean).join(', ') || 'Location pending'} · {distanceText}
-                  </Text>
-                </View>
-                <View style={styles.rfpFoot}>
-                  {(r.budget_min || r.budget_max) ? (
-                    <View style={styles.footChip}>
-                      <DollarSign size={11} color={Colors.primary} strokeWidth={1.75} />
-                      <Text style={styles.footChipText}>
-                        {r.budget_min ? formatMoney(r.budget_min) : '?'} – {r.budget_max ? formatMoney(r.budget_max) : '?'}
-                      </Text>
-                    </View>
-                  ) : <View />}
-                  <View style={[styles.footChip, daysLeft < 3 ? { backgroundColor: Colors.error + '15' } : null]}>
-                    <Clock size={11} color={daysLeft < 3 ? Colors.error : Colors.textMuted} strokeWidth={1.75} />
-                    <Text style={[styles.footChipText, daysLeft < 3 ? { color: Colors.error } : null]}>
-                      {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
-                    </Text>
-                  </View>
-                  <ChevronRight size={14} color={Colors.textMuted} strokeWidth={1.75} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+        {mode === 'browse' && filteredBrowse.map(r => renderBrowseCard(r))}
+
+        {/* Location-unknown RFPs — posts whose address never geocoded, so we
+            can't distance-filter them. Surfaced separately (not mixed into
+            the radius results) so "within N miles" stays truthful. */}
+        {mode === 'browse' && !isLoading && locationUnknownBrowse.length > 0 && (
+          <>
+            <View style={styles.unknownHeader}>
+              <MapPin size={12} color={Colors.textMuted} strokeWidth={1.75} />
+              <Text style={styles.unknownHeaderText}>
+                Location unknown · {locationUnknownBrowse.length}
+              </Text>
+            </View>
+            <Text style={styles.unknownHint}>
+              These projects don&apos;t have a verified address yet, so we can&apos;t tell how far they are.
+            </Text>
+            {locationUnknownBrowse.map(r => renderBrowseCard(r))}
+          </>
+        )}
 
         {/* MINE mode */}
         {mode === 'mine' && !user && (
@@ -552,6 +588,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 4, textAlign: 'center' as const },
   emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center' as const, lineHeight: 19, maxWidth: 340 },
+  unknownHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, marginBottom: 2 },
+  unknownHeaderText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
+  unknownHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 15, marginBottom: 10 },
   bigCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11,

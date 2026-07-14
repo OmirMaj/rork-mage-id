@@ -22,9 +22,15 @@ interface Props {
   tasks: ScheduleTask[];
   weatherStr: string;
   onGenerated: (result: DailyReportGenResult) => void;
+  /** When true, this AI path is out of budget for the current tier — tapping
+   *  routes to the upgrade nudge instead of generating. Mirrors the lock the
+   *  sibling AI surfaces (VoiceRecorder / AIDFRFromPhotos) already expose so
+   *  every AI generation button on the DFR nudges toward upgrade consistently. */
+  isLocked?: boolean;
+  onLockedPress?: () => void;
 }
 
-export default React.memo(function AIDailyReportGen({ projectName, tasks, weatherStr, onGenerated }: Props) {
+export default React.memo(function AIDailyReportGen({ projectName, tasks, weatherStr, onGenerated, isLocked, onLockedPress }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
   const router = useRouter();
@@ -32,6 +38,8 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
 
   const handleGenerate = useCallback(async () => {
     if (isLoading) return;
+    // Locked (tier budget exhausted) → surface the upgrade nudge, don't generate.
+    if (isLocked) { onLockedPress?.(); return; }
 
     const limit = await checkAILimit(tier, 'fast', 'dailyReport');
     if (!limit.allowed) {
@@ -51,7 +59,7 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, projectName, tasks, weatherStr, onGenerated, tier, router]);
+  }, [isLoading, isLocked, onLockedPress, projectName, tasks, weatherStr, onGenerated, tier, router]);
 
   return (
     <TouchableOpacity style={styles.btn} onPress={handleGenerate} disabled={isLoading}>
