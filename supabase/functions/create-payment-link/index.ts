@@ -76,6 +76,15 @@ interface CreatePaymentLinkBody {
   customerEmail?: string;
   companyName?: string;
   /**
+   * Which table the `invoiceId` refers to. Defaults to 'invoice' so every
+   * existing caller keeps working byte-for-byte. When 'aia_pay_app', the
+   * ownership check runs against public.aia_pay_apps instead of
+   * public.invoices, and the record type is propagated into the Stripe
+   * session metadata so the webhook knows which table to reconcile the
+   * successful payment back into.
+   */
+  recordType?: "invoice" | "aia_pay_app";
+  /**
    * The contractor's Stripe Connect Express account id (acct_xxx). When
    * present, the Payment Link is created ON BEHALF OF that account, so
    * money flows directly to the contractor's bank — not the platform's.
@@ -263,22 +272,32 @@ serve(async (req) => {
   if (!callerSub) {
     return jsonResponse({ success: false, error: "Unauthenticated" }, 401);
   }
-  // Verify the caller owns the invoice they're creating a payment link for.
+  // Which table does the id point at? Default 'invoice' keeps every existing
+  // caller's behavior byte-for-byte identical.
+  const recordType: "invoice" | "aia_pay_app" =
+    body.recordType === "aia_pay_app" ? "aia_pay_app" : "invoice";
+
+  // Verify the caller owns the record they're creating a payment link for.
+  // The aia_pay_app branch mirrors the invoice ownership check EXACTLY — same
+  // 500/404/403 posture — because it carries the identical attack surface:
+  // an authenticated attacker must not be able to mint a Stripe link (and
+  // therefore a webhook that flips paid_at) against a record they don't own.
   try {
-    const invRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/invoices?id=eq.${encodeURIComponent(body.invoiceId)}&select=id,user_id&limit=1`,
+    const table = recordType === "aia_pay_app" ? "aia_pay_apps" : "invoices";
+    const ownRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(body.invoiceId)}&select=id,user_id&limit=1`,
       { headers: { apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` } },
     );
-    if (!invRes.ok) {
-      console.error("[create-payment-link] invoice lookup failed:", invRes.status);
+    if (!ownRes.ok) {
+      console.error("[create-payment-link]", recordType, "lookup failed:", ownRes.status);
       return jsonResponse({ success: false, error: "Could not verify invoice ownership" }, 500);
     }
-    const invRows = await invRes.json() as { id: string; user_id: string }[];
-    if (invRows.length === 0) {
+    const ownRows = await ownRes.json() as { id: string; user_id: string }[];
+    if (ownRows.length === 0) {
       return jsonResponse({ success: false, error: "Invoice not found" }, 404);
     }
-    if (invRows[0].user_id !== callerSub) {
-      console.warn("[create-payment-link] caller", callerSub, "tried to create link for invoice owned by", invRows[0].user_id);
+    if (ownRows[0].user_id !== callerSub) {
+      console.warn("[create-payment-link] caller", callerSub, "tried to create link for", recordType, "owned by", ownRows[0].user_id);
       return jsonResponse({ success: false, error: "Invoice does not belong to caller" }, 403);
     }
   } catch (e) {
@@ -376,6 +395,11 @@ serve(async (req) => {
     metadata: {
       invoice_id: body.invoiceId,
       invoice_number: String(body.invoiceNumber),
+      // Route the webhook to the correct table. `record_id` is the same value
+      // as invoice_id here, kept as a distinct key so the webhook reads an
+      // unambiguous (record_type, record_id) pair regardless of table.
+      record_type: recordType,
+      record_id: body.invoiceId,
     },
     billing_address_collection: "auto",
     allow_promotion_codes: true,
@@ -409,6 +433,6 @@ serve(async (req) => {
     );
   }
 
-  console.log("[create-payment-link] Created", id, "for invoice", body.invoiceId);
+  console.log("[create-payment-link] Created", id, "for", recordType, body.invoiceId);
   return jsonResponse({ success: true, url, id });
 });

@@ -65,7 +65,14 @@ function escapeHtml(text: unknown): string {
 }
 
 function formatMoney(amount: number): string {
-  return "$" + Math.round(amount * 100) / 100;
+  // Guard non-finite input (NaN / Infinity from a bad amount_total) so the
+  // receipt never renders "$NaN". Falls back to a plain zero. Otherwise
+  // render with thousands separators + 2 decimals, e.g. 12500.5 → "$12,500.50".
+  if (!Number.isFinite(amount)) return "$0.00";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount);
 }
 
 const corsHeaders = {
@@ -216,6 +223,44 @@ async function handleAccountUpdated(
     "details:", acct.details_submitted,
     "payouts:", acct.payouts_enabled,
   );
+  return { ok: true };
+}
+
+/**
+ * Reconciles a successful checkout back to an AIA pay application. AIA pay
+ * apps live in their own table (public.aia_pay_apps) and — unlike invoices —
+ * carry no amount_paid / payments ledger, so "paid" is a single flip of
+ * paid_at + payment_intent_id. Uses the same service-role client the invoice
+ * path uses, so the write is a service-role REST PATCH under the hood.
+ *
+ * Idempotency: paid_at is set once. A Stripe retry re-runs this, but the
+ * PATCH is naturally idempotent (same paid_at/payment_intent_id values land
+ * again — no double-credit ledger to corrupt like there is for invoices).
+ */
+async function handleAiaPayAppCompleted(
+  recordId: string,
+  session: StripeCheckoutSession,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (session.payment_status !== "paid") {
+    return { ok: false, reason: `session.payment_status is ${session.payment_status}, not paid` };
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  const { error: updateError } = await supabase
+    .from("aia_pay_apps")
+    .update({
+      paid_at: new Date().toISOString(),
+      payment_intent_id: session.payment_intent ?? null,
+    })
+    .eq("id", recordId);
+
+  if (updateError) {
+    console.error("[stripe-webhook] Failed to update aia_pay_app:", recordId, updateError);
+    return { ok: false, reason: "db update failed" };
+  }
+
+  console.log("[stripe-webhook] Marked aia_pay_app", recordId, "paid, PI:", session.payment_intent ?? "(none)");
   return { ok: true };
 }
 
@@ -465,7 +510,16 @@ serve(async (req) => {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as StripeCheckoutSession;
-      const result = await handleCheckoutCompleted(session);
+      // Route by record_type stamped at link-creation time. Default (absent
+      // or "invoice") preserves the original invoice reconciliation path
+      // byte-for-byte. "aia_pay_app" flips paid_at on the AIA record instead.
+      const recordType = session.metadata?.record_type;
+      const result = recordType === "aia_pay_app"
+        ? await handleAiaPayAppCompleted(
+            session.metadata?.record_id ?? session.metadata?.invoice_id ?? "",
+            session,
+          )
+        : await handleCheckoutCompleted(session);
       if (!result.ok) {
         console.warn("[stripe-webhook] checkout.session.completed handling failed:", result.reason);
         // Distinguish recoverable from terminal outcomes. A transient DB
