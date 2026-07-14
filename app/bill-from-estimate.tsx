@@ -37,6 +37,7 @@ import { Tokens } from '@/constants/designTokens';
  */
 
 import { generateUUID } from '@/utils/generateId';
+import { billedAmountForLine } from '@/utils/invoiceBilling';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -112,11 +113,15 @@ export default function BillFromEstimateScreen() {
         const full = item.lineTotal;
         const already = existingInvoices
           .filter(inv => inv.status !== 'draft')
-          .flatMap(inv => inv.lineItems)
-          .filter(li => li.sourceEstimateItemId
+          .flatMap(inv => inv.lineItems.map(li => ({ li, inv })))
+          .filter(({ li }) => li.sourceEstimateItemId
             ? li.sourceEstimateItemId === key
             : li.name === item.name)
-          .reduce((sum, li) => sum + li.total, 0);
+          // Weight by the amount actually billed: bill-from-estimate lines store
+          // a pre-scaled total, but native editor progress lines store the FULL
+          // total and scale only at the invoice level — summing raw totals
+          // counted those at 100% and blocked billing the remainder.
+          .reduce((sum, { li, inv }) => sum + billedAmountForLine(li, inv), 0);
         const remaining = Math.max(0, full - already);
         return {
           key,
@@ -136,11 +141,12 @@ export default function BillFromEstimateScreen() {
       const full = item.totalPrice;
       const already = existingInvoices
         .filter(inv => inv.status !== 'draft')
-        .flatMap(inv => inv.lineItems)
-        .filter(li => li.sourceEstimateItemId
+        .flatMap(inv => inv.lineItems.map(li => ({ li, inv })))
+        .filter(({ li }) => li.sourceEstimateItemId
           ? li.sourceEstimateItemId === key
           : li.name === item.name)
-        .reduce((sum, li) => sum + li.total, 0);
+        // Weight by the amount actually billed (see linked branch above).
+        .reduce((sum, { li, inv }) => sum + billedAmountForLine(li, inv), 0);
       const remaining = Math.max(0, full - already);
       return {
         key,
