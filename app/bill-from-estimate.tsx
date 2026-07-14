@@ -113,7 +113,13 @@ export default function BillFromEstimateScreen() {
         const full = item.lineTotal;
         const already = existingInvoices
           .filter(inv => inv.status !== 'draft')
-          .flatMap(inv => inv.lineItems.map(li => ({ li, inv })))
+          .flatMap(inv => {
+            // Mirror progressSubtotal's invoice-level gate: if ANY line is
+            // pre-scaled, the invoice charged EVERY line unscaled, so the
+            // per-line attribution below must not re-scale the plain lines.
+            const anyPreScaled = inv.lineItems.some(l => l.billedPercent != null);
+            return inv.lineItems.map(li => ({ li, inv, anyPreScaled }));
+          })
           .filter(({ li }) => li.sourceEstimateItemId
             ? li.sourceEstimateItemId === key
             : li.name === item.name)
@@ -121,7 +127,7 @@ export default function BillFromEstimateScreen() {
           // a pre-scaled total, but native editor progress lines store the FULL
           // total and scale only at the invoice level — summing raw totals
           // counted those at 100% and blocked billing the remainder.
-          .reduce((sum, { li, inv }) => sum + billedAmountForLine(li, inv), 0);
+          .reduce((sum, { li, inv, anyPreScaled }) => sum + billedAmountForLine(li, inv, anyPreScaled), 0);
         const remaining = Math.max(0, full - already);
         return {
           key,
@@ -141,12 +147,15 @@ export default function BillFromEstimateScreen() {
       const full = item.totalPrice;
       const already = existingInvoices
         .filter(inv => inv.status !== 'draft')
-        .flatMap(inv => inv.lineItems.map(li => ({ li, inv })))
+        .flatMap(inv => {
+          const anyPreScaled = inv.lineItems.some(l => l.billedPercent != null);
+          return inv.lineItems.map(li => ({ li, inv, anyPreScaled }));
+        })
         .filter(({ li }) => li.sourceEstimateItemId
           ? li.sourceEstimateItemId === key
           : li.name === item.name)
         // Weight by the amount actually billed (see linked branch above).
-        .reduce((sum, { li, inv }) => sum + billedAmountForLine(li, inv), 0);
+        .reduce((sum, { li, inv, anyPreScaled }) => sum + billedAmountForLine(li, inv, anyPreScaled), 0);
       const remaining = Math.max(0, full - already);
       return {
         key,

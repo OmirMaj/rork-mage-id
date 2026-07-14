@@ -70,11 +70,19 @@ export interface BilledInvoiceMeta {
 /**
  * How much a single invoice line actually billed against its estimate row —
  * used to compute "already billed" so the remaining balance can be re-billed.
+ * MUST stay consistent with progressSubtotal: for any invoice,
+ * sum(billedAmountForLine) === progressSubtotal(its lines) — otherwise the
+ * already-billed total drifts from what was actually charged.
  *
  *  - Bill-from-Estimate lines (billedPercent present) store the SCALED amount in
  *    `total`, so `total` IS the billed dollars.
  *  - Native editor progress invoices store FULL line totals and scale only at the
- *    invoice level, so the line is weighted by the invoice's progress %.
+ *    invoice level — UNLESS the invoice also contains a pre-scaled line, in which
+ *    case progressSubtotal charges every line unscaled (the anyPreScaled gate), so
+ *    this line's billed amount is its full `total`, not a fraction of it. That
+ *    mixed case (e.g. a voice-added line on a bill-from-estimate invoice) is why
+ *    `anyPreScaledInInvoice` is threaded in: without it, a mixed line is
+ *    under-counted and the difference is wrongly offered for re-billing.
  *  - Full (non-progress) invoices bill 100% of the line.
  *
  * Unknown progress % (null/undefined on a progress invoice — a data-integrity
@@ -83,10 +91,14 @@ export interface BilledInvoiceMeta {
  * still bill in the editor), whereas under-counting would let the same work be
  * billed twice and double-charge the client. When in doubt, do not under-count.
  */
-export function billedAmountForLine(li: BilledLine, inv: BilledInvoiceMeta | undefined): number {
+export function billedAmountForLine(
+  li: BilledLine,
+  inv: BilledInvoiceMeta | undefined,
+  anyPreScaledInInvoice = false,
+): number {
   const total = li.total || 0;
   if (li.billedPercent != null) return total;
-  if (inv?.type === 'progress') {
+  if (inv?.type === 'progress' && !anyPreScaledInInvoice) {
     const ratio = (inv.progressPercent ?? 100) / 100;
     return total * ratio;
   }

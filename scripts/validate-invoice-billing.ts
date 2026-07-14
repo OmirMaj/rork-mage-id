@@ -88,6 +88,34 @@ function close(n: string, got: number, want: number, eps = 1e-9) {
 
   // No invoice meta → treat as full line.
   close('missing invoice meta → full line', billedAmountForLine({ total: 750 }, undefined), 750);
+
+  // MIXED invoice (a voice-added line with no billedPercent alongside pre-scaled
+  // bill-from-estimate lines): progressSubtotal charges EVERY line unscaled, so
+  // the plain line's billed amount is its FULL total, not progressPercent of it.
+  // Under-counting here would offer already-billed work for re-billing (double
+  // charge). anyPreScaledInInvoice=true must return the full $6,000, not $2,400.
+  const mixedInv = { type: 'progress', progressPercent: 40 };
+  close('mixed invoice: plain line counts full when siblings are pre-scaled',
+    billedAmountForLine({ total: 6000 }, mixedInv, true), 6000);
+  close('mixed invoice: pre-scaled line still counts its stored total',
+    billedAmountForLine({ total: 8000, billedPercent: 40 }, mixedInv, true), 8000);
+
+  // The invariant that guards against drift: sum(billedAmountForLine) over an
+  // invoice's lines must equal progressSubtotal(those lines). Verify on the
+  // mixed invoice above ($8,000 pre-scaled + $6,000 full = $14,000 charged).
+  {
+    const lines: { total: number; billedPercent?: number }[] = [{ total: 8000, billedPercent: 40 }, { total: 6000 }];
+    const anyPre = lines.some(l => l.billedPercent != null);
+    const summed = lines.reduce((s, li) => s + billedAmountForLine(li, mixedInv, anyPre), 0);
+    close('sum(billedAmountForLine) === progressSubtotal (mixed)', summed, progressSubtotal(lines, true, 40));
+  }
+  // Same invariant for a PURE editor progress invoice (no pre-scaled line).
+  {
+    const lines: { total: number; billedPercent?: number }[] = [{ total: 10000 }, { total: 5000 }];
+    const anyPre = lines.some(l => l.billedPercent != null);
+    const summed = lines.reduce((s, li) => s + billedAmountForLine(li, { type: 'progress', progressPercent: 30 }, anyPre), 0);
+    close('sum(billedAmountForLine) === progressSubtotal (pure editor progress)', summed, progressSubtotal(lines, true, 30));
+  }
 }
 
 // ── markupInclusiveUnitPrice — footing on the PDF (finding #5) ─────────────
