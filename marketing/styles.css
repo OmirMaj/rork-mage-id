@@ -938,6 +938,89 @@ nav.links a.active, .links a.active { color: var(--amber); }
 .faq-item h3 { font-size: 17px; color: var(--cream); margin: 0 0 6px; }
 .faq-item p { font-size: 15px; color: var(--fog); line-height: 1.6; margin: 0; }
 
+/* =============================================================
+   COMPARE HUB — editorial treatment for /compare/ (index).
+   Deliberately NOT the generic stat-box + card-grid look: a quiet
+   mono spec-line under the hero, and a magazine-style numbered index
+   of the head-to-heads (mono numerals, Fraunces names, hairline rules,
+   amber used only as the single accent). No glow, no boxes.
+   ============================================================= */
+.spec-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(244, 239, 230, 0.12);
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fog);
+}
+.spec-line span { white-space: nowrap; }
+.spec-line span strong { color: var(--cream); font-weight: 500; }
+.spec-line .spec-sep { color: var(--amber); padding: 0 2px; }
+
+.vs-index {
+  border-top: 1px solid rgba(244, 239, 230, 0.12);
+  margin-top: 28px;
+}
+.vs-index-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: clamp(16px, 3vw, 44px);
+  padding: 28px 6px;
+  border-bottom: 1px solid rgba(244, 239, 230, 0.12);
+  transition: background 0.25s ease, padding-left 0.25s ease;
+}
+.vs-index-item:hover {
+  background: rgba(244, 239, 230, 0.025);
+  padding-left: 14px;
+}
+.vs-index-num {
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+}
+.vs-index-body h3 {
+  font-family: var(--ff-serif);
+  font-weight: 500;
+  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
+  letter-spacing: -0.02em;
+  color: var(--cream);
+  margin: 0 0 7px;
+}
+.vs-index-body p {
+  color: var(--fog);
+  font-size: 14.5px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 640px;
+}
+.vs-index-go {
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amber);
+  white-space: nowrap;
+}
+.vs-index-item:hover .vs-index-go { color: var(--amber-hot); }
+.vs-index-more {
+  margin: 26px 0 0;
+  font-size: 14.5px;
+  color: var(--fog);
+}
+@media (max-width: 620px) {
+  .vs-index-item { grid-template-columns: auto 1fr; row-gap: 10px; }
+  .vs-index-go { grid-column: 2; }
+  .vs-index-item:hover { padding-left: 6px; }
+}
+
 /* Footer variant used by client-experience.html (.footer / .footer-inner /
    .footer-cols) — aligns it with the shared footer styling so the column
    layout and link treatment match the .footer-grid pages. The base
