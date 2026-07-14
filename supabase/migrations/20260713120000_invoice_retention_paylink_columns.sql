@@ -11,10 +11,12 @@
 -- 400s on unknown columns and can drop the entire invoice write, silently
 -- failing totalDue/amountPaid/status sync. Apply here first, then OTA.
 --
--- No backfill: existing retention/pay-link values only live on-device; a
--- one-time local->cloud reconcile on first launch after the fix preserves them
--- (see app-side reconcile), otherwise they are lost at the first post-fix
--- refetch just as before. All columns nullable; absent = unset.
+-- No backfill, and NO app-side reconcile is implemented yet: existing
+-- retention/pay-link values only live on-device and are still overwritten by
+-- the first post-fix cloud refetch, just as before. This fix only prevents loss
+-- going FORWARD (values written from now on survive). Preserving the CURRENT
+-- on-device values needs a one-time local->cloud reconcile — owner-gated
+-- follow-up. All columns nullable; absent = unset.
 
 alter table public.invoices add column if not exists retention_percent  numeric;
 alter table public.invoices add column if not exists retention_amount   numeric;

@@ -492,12 +492,17 @@ function InvoiceInner() {
       console.log('[invoice] financing block skipped:', e);
     }
 
+    // The email headline + Pay button must show the amount the pay link actually
+    // charges (retention-net, less payments) — otherwise the client taps a
+    // "$100,000" button that charges $90,000. Retention still owed shows in the
+    // attached/portal invoice detail, not this collect-now nudge.
+    const amountDueNow = Math.max(0, balanceDue);
     const html = buildInvoiceEmailHtml({
       companyName: branding.companyName,
       recipientName: sendRecipientName,
       projectName: project?.name ?? 'Project',
       invoiceNumber: workingInvoice.number,
-      totalDue,
+      totalDue: amountDueNow,
       dueDate,
       paymentTerms,
       contactName: branding.contactName,
@@ -511,7 +516,7 @@ function InvoiceInner() {
 
     const result = await sendEmail({
       to: sendRecipientEmail.trim(),
-      subject: `Invoice #${workingInvoice.number}: ${(() => { const v = totalDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
+      subject: `Invoice #${workingInvoice.number}: ${(() => { const v = amountDueNow; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
       html,
       replyTo: branding.email || undefined,
       fromCompanyName: branding.companyName || undefined,
@@ -618,12 +623,15 @@ function InvoiceInner() {
         }
       }
 
+      // Email headline + Pay button show the retention-net collectible (matches
+      // the pay-link charge); the attached PDF carries the full invoice total and
+      // retention breakdown.
       const emailHtml = buildInvoiceEmailHtml({
         companyName: branding.companyName,
         recipientName: '',
         projectName: project.name,
         invoiceNumber: existingInvoice.number,
-        totalDue: existingInvoice.totalDue,
+        totalDue: pdfNetDue,
         dueDate,
         paymentTerms: existingInvoice.paymentTerms,
         message: options.message,
@@ -637,7 +645,7 @@ function InvoiceInner() {
 
       const result = await sendEmail({
         to: options.recipient.trim(),
-        subject: `Invoice #${existingInvoice.number}: ${(() => { const v = existingInvoice.totalDue ?? 0; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project.name}`,
+        subject: `Invoice #${existingInvoice.number}: ${(() => { const v = pdfNetDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project.name}`,
         html: emailHtml,
         replyTo: branding.email || undefined,
         attachments: pdfUri ? [pdfUri] : undefined,
