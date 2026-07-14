@@ -72,10 +72,28 @@ wip.ts contract-value fallback of 0 · DesktopSidebar time-tracking `requires` (
 
 ---
 
+## Update — later same session (authorized follow-ups)
+
+- **Daily-report P1 is now FIXED (not deferred).** `daily_reports.incident jsonb` + `work_progress jsonb`
+  migration **applied to prod** via Supabase MCP + verified live; app insert/update/load wired
+  (commit `56c2424`, migration file `supabase/migrations/20260714160000_...`). Only the **AIA pay-app**
+  P1 remains owner-gated (needs a `create-payment-link` + stripe-webhook change and redeploy).
+- **NEW: Quick Quote** (commit `3049cd5`) — DMG-Pro-style fast small-job bidding. One screen
+  (`app/quick-quote.tsx`) → single-tier `SmartProposal` (`kind:'quick'`) reusing useSmartProposals +
+  proposalToShareText; entry via the `+` Create menu. Verified rendering on the iOS sim.
+- **NEW: Home speed-dial FAB** (commit `90ef1ab`) — the 3 stacked Home FABs (AI/voice/help) collapsed
+  into one `HomeFabStack` (AI FAB + `+` expander). Verified on the iOS sim (2 buttons, was 3).
+
 ## Ship checklist (owner-gated)
 
-- [ ] Review the four commits on `claude/compare-audit` (`1f8a696`, `6de0d7c`, `4bc7cfa`, `668bd96`).
+- [ ] Review the commits on `claude/compare-audit`: `1f8a696` (contractor), `6de0d7c` (P0),
+      `4bc7cfa` (P1×12), `668bd96` (P2×12), `56c2424` (daily-report P1 + migration),
+      `3049cd5` (Quick Quote), `90ef1ab` (speed-dial FAB), + docs.
 - [ ] Merge to `main`.
 - [ ] **OTA** to production (all JS-only, runtime `expo.version` unchanged) — reaches existing installs.
 - [ ] **Netlify** deploy for the marketing/portal change (`marketing/portal/index.html`) — separate from OTA.
-- [ ] The two deferred P1s need infra: a `daily_reports` migration and a `create-payment-link`/webhook redeploy.
+- [ ] Visually eyeball the two contractor fixes (status colors + task-editor declutter) on the **web app**
+      (they're desktop-only surfaces the iOS sim can't show).
+- [ ] The one remaining deferred P1 (AIA pay-app) needs a `create-payment-link`/webhook redeploy.
+- [ ] The `daily_reports` migration is ALREADY applied to prod — so ship the app change with it (already
+      coupled in `56c2424`); no separate migration step needed.
