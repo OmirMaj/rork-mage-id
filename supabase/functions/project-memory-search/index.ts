@@ -11,8 +11,11 @@
 // DB:      match_project_memory RPC (migration 20260608010000).
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier } from "../_shared/auth.ts";
+import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
+
+// Shared with project-memory-embed: per-user hourly ceiling on memory calls.
+const PM_HOURLY_LIMIT = 90;
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -41,6 +44,18 @@ serve(async (req: Request) => {
   const query = (body.query || "").trim();
   const matchCount = Math.max(1, Math.min(24, body.matchCount ?? 8));
   if (!projectId || !query) return json({ success: false, error: "Missing projectId or query" }, 400);
+
+  // Cost ceiling (audit): monthly cap (fail-closed) + hourly burst limit, checked
+  // before spending on the query embedding. Charged per call after success.
+  const cap = MONTHLY_CAPS[auth.tier]?.project_memory ?? 0;
+  const used = await aiUsageGet(auth.userId, "project_memory");
+  if (used + 1 > cap) {
+    return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
+  }
+  const rl = await rateLimitCount(`pm:${auth.userId}`);
+  if (rl < 0 || rl > PM_HOURLY_LIMIT) {
+    return json({ success: false, error: "Too many Project Memory requests — please wait a moment and retry.", code: "rate_limited" }, 429);
+  }
 
   let qvec: number[][];
   try {
@@ -71,5 +86,6 @@ serve(async (req: Request) => {
     return json({ success: false, error: "Search failed" }, 500);
   }
   const matches = await r.json();
+  await aiUsageIncrement(auth.userId, "project_memory", 1);
   return json({ success: true, matches: Array.isArray(matches) ? matches : [] });
 });

@@ -13,8 +13,14 @@
 // Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier } from "../_shared/auth.ts";
+import { requireTier, aiUsageGet, aiUsageIncrement, rateLimitCount, MONTHLY_CAPS } from "../_shared/auth.ts";
 import { geminiEmbed, toVectorLiteral } from "../_shared/embeddings.ts";
+
+// Burst / shared-key ceiling: at most this many embed+search calls per user per
+// hour. A normal user opens the Project Memory screen a handful of times a day;
+// this only bites a scripted loop that would otherwise drain the shared
+// GEMINI_API_KEY's quota and degrade AI for every tenant.
+const PM_HOURLY_LIMIT = 90;
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
@@ -45,6 +51,19 @@ serve(async (req: Request) => {
   const projectId = (body.projectId || "").trim();
   const docs = (body.docs || []).filter(d => d && d.doc_id && d.content).slice(0, MAX_DOCS);
   if (!projectId || docs.length === 0) return json({ success: false, error: "Missing projectId or docs" }, 400);
+
+  // Cost ceiling (audit: this + project-memory-search were the ONLY paid-AI
+  // endpoints with no server-side cap or rate limit). Precheck BEFORE spending
+  // on Gemini: monthly cap (fail-closed via aiUsageGet) + hourly burst limit.
+  const cap = MONTHLY_CAPS[auth.tier]?.project_memory ?? 0;
+  const used = await aiUsageGet(auth.userId, "project_memory");
+  if (used + 1 > cap) {
+    return json({ success: false, error: "Monthly Project Memory limit reached — try again next month or upgrade.", code: "cap_reached" }, 429);
+  }
+  const rl = await rateLimitCount(`pm:${auth.userId}`);
+  if (rl < 0 || rl > PM_HOURLY_LIMIT) {
+    return json({ success: false, error: "Too many Project Memory requests — please wait a moment and retry.", code: "rate_limited" }, 429);
+  }
 
   let vectors: number[][];
   try {
@@ -85,6 +104,10 @@ serve(async (req: Request) => {
     console.error("[project-memory-embed] upsert failed:", r.status, t.slice(0, 300));
     return json({ success: false, error: "Index write failed" }, 500);
   }
+
+  // Charge the monthly counter only after a successful embed+write (charge-after-
+  // success like the other AI endpoints, so an upstream failure isn't billed).
+  await aiUsageIncrement(auth.userId, "project_memory", 1);
 
   return json({ success: true, embedded: rows.length });
 });

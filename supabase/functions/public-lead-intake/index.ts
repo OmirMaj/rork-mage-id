@@ -16,9 +16,17 @@
 //   (see migration 20260608000000_public_lead_intake.sql).
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { rateLimitCount } from "../_shared/auth.ts";
 
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
+
+// Abuse ceilings for this anonymous (--no-verify-jwt) endpoint. The honeypot
+// only stops naive bots; without these a script could flood any GC's pipeline by
+// slug. Hourly buckets, keyed per-IP and per-target-slug. Fails OPEN (a limiter
+// outage must not drop real quote requests) — see the count < 0 handling below.
+const LEAD_IP_HOURLY_LIMIT = 10;
+const LEAD_SLUG_HOURLY_LIMIT = 30;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -118,6 +126,16 @@ serve(async (req: Request) => {
   }
   if (!clip(body.email, 200) && !clip(body.phone, 40)) {
     return jsonResponse({ error: "Provide an email or phone so the contractor can reply." }, 400);
+  }
+
+  // Rate limit: bound flooding per-IP and per-target-slug. Fail OPEN — if the
+  // limiter is unavailable (count < 0) we still accept the lead rather than
+  // risk dropping a real customer's quote request.
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+  const ipCount = ip ? await rateLimitCount(`lead:ip:${ip}`) : 0;
+  const slugCount = await rateLimitCount(`lead:slug:${slug}`);
+  if (ipCount > LEAD_IP_HOURLY_LIMIT || slugCount > LEAD_SLUG_HOURLY_LIMIT) {
+    return jsonResponse({ error: "Too many requests right now — please try again later." }, 429);
   }
 
   let userId: string | null;
