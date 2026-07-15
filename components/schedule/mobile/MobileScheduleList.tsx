@@ -110,8 +110,11 @@ export function MobileScheduleList({
               <View style={styles.card}>
                 {ph.tasks.map((t, i) => {
                   const dur = Math.max(1, t.durationDays || 1);
-                  const start = new Date(baseMs + (t.startDay ?? 0) * MS_DAY);
-                  const end = new Date(baseMs + ((t.startDay ?? 0) + dur - 1) * MS_DAY);
+                  // startDay is 1-indexed (day 1 = schedule start), matching the
+                  // desktop + CPM engine; shift by -1 to a 0-indexed day-offset.
+                  const startOffset = (t.startDay ?? 1) - 1;
+                  const start = new Date(baseMs + startOffset * MS_DAY);
+                  const end = new Date(baseMs + (startOffset + dur - 1) * MS_DAY);
                   const done = t.status === 'done';
                   const crit = !!t.isCriticalPath && !done;
                   const pct = Math.min(100, t.progress ?? 0);

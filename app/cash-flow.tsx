@@ -247,7 +247,9 @@ function CashFlowScreenInner() {
   // Aggregate "Total Pending" across every source of expected money that hasn't landed:
   //   - unpaid invoice balances (totalDue - amountPaid)
   //   - manually-entered expected payments
-  //   - approved change orders not yet rolled into an invoice
+  // Approved change orders are intentionally excluded — a CO is billed through a
+  // progress invoice, so its dollars already live in that invoice's totalDue.
+  // Adding the standalone approved-CO amount would double-count the same money.
   // Used for the Expected Income header so the GC can see the real dollar figure,
   // not just a "3 pending" count.
   const totalPending = useMemo(() => {
@@ -256,11 +258,8 @@ function CashFlowScreenInner() {
       .reduce((sum, i) => sum + Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)), 0);
     const expectedTotal = (cashFlowData?.expectedPayments ?? [])
       .reduce((sum, p) => sum + (p.amount ?? 0), 0);
-    const changeOrderTotal = relevantChangeOrders
-      .filter(co => co.status === 'approved')
-      .reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
-    return invoiceTotal + expectedTotal + changeOrderTotal;
-  }, [relevantInvoices, cashFlowData?.expectedPayments, relevantChangeOrders]);
+    return invoiceTotal + expectedTotal;
+  }, [relevantInvoices, cashFlowData?.expectedPayments]);
 
   const pendingCount = useMemo(() => {
     const inv = relevantInvoices.filter(i => i.status !== 'paid').length;

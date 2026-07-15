@@ -35,6 +35,7 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -90,6 +91,7 @@ export default function ClientViewScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
   const { portalId, inviteId, clientName: clientNameParam } = useLocalSearchParams<{ portalId: string; inviteId?: string; clientName?: string }>();
   const {
     projects, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject,
@@ -644,7 +646,13 @@ export default function ClientViewScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={[
+          { paddingBottom: insets.bottom + 32 },
+          // On wide desktop windows, constrain the portal content column to a
+          // comfortable centered max-width so it doesn't stretch edge-to-edge
+          // and read poorly. Same pattern as project-detail / bid-detail.
+          layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as const },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <MageRefreshControl
@@ -1169,14 +1177,21 @@ export default function ClientViewScreen() {
                   documents.map(doc => {
                     const typeInfo = DOCUMENT_TYPE_INFO[doc.type] ?? { label: doc.type, color: themeColors.textMuted, bgColor: Colors.surfaceAlt };
                     const statusColor = doc.status === 'signed' ? '#34C759' : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
-                    return (
-                      <View key={doc.id} style={styles.listRow}>
+                    const hasFile = !!doc.fileUrl;
+                    const rowInner = (
+                      <>
                         <View style={styles.listRowLeft}>
-                          <Text style={styles.listRowTitle} numberOfLines={1}>{doc.title}</Text>
+                          <Text
+                            style={[styles.listRowTitle, !hasFile && { color: themeColors.textMuted }]}
+                            numberOfLines={1}
+                          >
+                            {doc.title}
+                          </Text>
                           <Text style={styles.listRowMeta}>
                             {typeInfo.label}
                             {doc.signedAt ? ` · Signed ${new Date(doc.signedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
                             {doc.expiresAt ? ` · Exp ${new Date(doc.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+                            {!hasFile ? ' · Not available yet' : ''}
                           </Text>
                         </View>
                         <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
@@ -1184,7 +1199,31 @@ export default function ClientViewScreen() {
                             {doc.status === 'pending_signature' ? 'Pending' : doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
                           </Text>
                         </View>
-                      </View>
+                      </>
+                    );
+                    if (!hasFile) {
+                      return (
+                        <View
+                          key={doc.id}
+                          style={[styles.listRow, { opacity: 0.5 }]}
+                          accessibilityRole="text"
+                          accessibilityLabel={`${doc.title}, not available yet`}
+                        >
+                          {rowInner}
+                        </View>
+                      );
+                    }
+                    return (
+                      <TouchableOpacity
+                        key={doc.id}
+                        style={styles.listRow}
+                        activeOpacity={0.7}
+                        onPress={() => { void Linking.openURL(doc.fileUrl!); }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${doc.title}`}
+                      >
+                        {rowInner}
+                      </TouchableOpacity>
                     );
                   })
                 )}

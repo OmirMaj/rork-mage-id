@@ -72,7 +72,9 @@ export default function LeadsScreen() {
 
   // KPIs.
   const kpi = useMemo(() => {
-    const total = leads.length;
+    // "Open" = still in the pipeline. Excludes won/lost so the KPI reflects
+    // active deals, not the full historical count.
+    const total = leads.filter(l => l.stage !== 'won' && l.stage !== 'lost').length;
     const newCount = grouped.new.length;
     const wonCount = grouped.won.length;
     const lostCount = grouped.lost.length;

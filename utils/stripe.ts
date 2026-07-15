@@ -42,6 +42,13 @@ export interface CreatePaymentLinkParams {
    * falls back to 50 bps if it's missing.
    */
   userTier?: 'free' | 'pro' | 'business' | 'enterprise';
+  /**
+   * Which table `invoiceId` refers to. Defaults to 'invoice' on the server
+   * when omitted, so regular invoice callers need not pass it. AIA pay apps
+   * pass 'aia_pay_app' so the edge function verifies ownership against the
+   * aia_pay_apps table and the webhook reconciles the payment there.
+   */
+  recordType?: 'invoice' | 'aia_pay_app';
 }
 
 export interface CreatePaymentLinkResult {
@@ -94,6 +101,9 @@ export async function createPaymentLink(
         companyName: params.companyName,
         stripeAccountId: params.stripeAccountId,
         userTier: params.userTier,
+        // Omit entirely when unset so existing invoice callers send an
+        // identical body; the edge function defaults to 'invoice'.
+        ...(params.recordType ? { recordType: params.recordType } : {}),
       },
     });
 

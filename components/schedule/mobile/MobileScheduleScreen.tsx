@@ -95,13 +95,17 @@ export function MobileScheduleScreen() {
   }, [tasks, saveTasks]);
 
   const onCreate = useCallback((values: NewTaskValues) => {
+    // startDay is 1-indexed to MATCH the desktop + CPM engine (day 1 = schedule
+    // start). Legacy mobile-created tasks stored 0-indexed self-correct on their
+    // next edit; we intentionally do NOT mutate stored data (can't safely tell a
+    // 0-indexed mobile task apart from a 1-indexed desktop one).
     const base = new Date(startDate); base.setHours(0, 0, 0, 0);
     let startDay: number;
     if (values.startIso) {
       const target = new Date(values.startIso); target.setHours(0, 0, 0, 0);
-      startDay = Math.max(0, Math.round((target.getTime() - base.getTime()) / MS_DAY));
+      startDay = 1 + Math.max(0, Math.round((target.getTime() - base.getTime()) / MS_DAY));
     } else {
-      startDay = tasks.length === 0 ? 0 : Math.max(...tasks.map((t) => (t.startDay ?? 0) + Math.max(1, t.durationDays || 1)));
+      startDay = tasks.length === 0 ? 1 : Math.max(...tasks.map((t) => (t.startDay ?? 1) + Math.max(1, t.durationDays || 1)));
     }
     const newTask: ScheduleTask = {
       id: createId('task'),

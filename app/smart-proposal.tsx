@@ -153,13 +153,17 @@ function SmartProposalInner() {
 
   const handleShare = async () => {
     if (!built) return;
-    // Persist first so "sent" is recorded even if the GC cancels the sheet —
-    // the proposal left the building as far as tracking is concerned only
-    // when Share resolves, so flip status after.
-    const record = persistProposal(status === 'draft' ? 'sent' : status);
+    // Persist the current inputs WITHOUT advancing the status, so the record
+    // exists to share from. Only flip to "sent" once the OS Share sheet
+    // reports the user actually shared — cancelling/dismissing must NOT mark
+    // the proposal sent.
+    const record = persistProposal(status);
     if (!record) return;
     try {
-      await Share.share({ message: proposalToShareText(record) });
+      const result = await Share.share({ message: proposalToShareText(record) });
+      if (result.action === Share.sharedAction && status === 'draft') {
+        persistProposal('sent');
+      }
     } catch (err) {
       console.warn('[smartProposal] share failed:', err);
     }

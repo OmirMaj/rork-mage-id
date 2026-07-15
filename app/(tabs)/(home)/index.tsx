@@ -21,7 +21,7 @@ import { generateUUID } from '@/utils/generateId';
 import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';
 import AIWeeklySummary from '@/components/AIWeeklySummary';
-import AICopilot from '@/components/AICopilot';
+import { HomeFabStack } from '@/components/HomeFabStack';
 import AIHomeBriefing from '@/components/AIHomeBriefing';
 import SmartInbox from '@/components/SmartInbox';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -33,7 +33,6 @@ import EntityActionSheet from '@/components/EntityActionSheet';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseProjectFromTranscript } from '@/utils/voiceFormParsers';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
-import UniversalMicButton from '@/components/UniversalMicButton';
 import EmptyState from '@/components/EmptyState';
 import { IconWrapper } from '@/components/ui/IconWrapper';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,7 +40,6 @@ import Tutorial from '@/components/Tutorial';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { NextStepHero } from '@/components/NextStepHero';
 import { useOnboardingMilestones } from '@/utils/onboardingProgress';
-import { HelpFab } from '@/components/HelpFab';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,6 +65,32 @@ import ProjectRow from '@/components/ProjectRow';
 import { useTheme } from '@/contexts/ThemeContext';
 import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
+
+// Canonical 1-indexed, working-day-aware "which schedule day is today" — the
+// exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
+// startDate, startDay - 1)). Day 1 = the schedule start date; a date on/before
+// start is day 1; weekends are skipped when workingDaysPerWeek < 7 so the count
+// matches how task bars are laid out. Replicated verbatim in
+// app/(tabs)/summary/index.tsx so Home and Summary agree on "today on site".
+function todayScheduleDayNumber(baseMs: number, now: Date, workingDaysPerWeek?: number): number {
+  const base = new Date(baseMs);
+  base.setHours(0, 0, 0, 0);
+  const tgt = new Date(now);
+  tgt.setHours(0, 0, 0, 0);
+  if (tgt.getTime() <= base.getTime()) return 1;
+  const wdpw = workingDaysPerWeek ?? 5;
+  if (wdpw >= 7) {
+    return Math.floor((tgt.getTime() - base.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  }
+  let count = 1;
+  const cur = new Date(base);
+  while (cur < tgt) {
+    cur.setDate(cur.getDate() + 1);
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+}
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -290,7 +314,12 @@ export default function HomeScreen() {
   useEffect(() => {
     if (didAutoFilter) return;
     if (projects.length === 0) return;
-    if (statusBuckets.active.length > 0) setStatusFilter('active');
+    // Only auto-select 'active' when the filter chips are actually
+    // rendered (projects.length >= 5, matching the chip render guard
+    // below). Otherwise a user with 1-4 projects — at least one
+    // in_progress — got silently pinned to 'active' with NO chip to
+    // switch back, hiding their completed/closed jobs with no way out.
+    if (projects.length >= 5 && statusBuckets.active.length > 0) setStatusFilter('active');
     setDidAutoFilter(true);
   }, [projects.length, statusBuckets.active.length, didAutoFilter]);
 
@@ -315,13 +344,17 @@ export default function HomeScreen() {
 
   // ── Today on site ──────────────────────────────────────────────
   // Active projects whose schedule has at least one task running today.
-  // "Running today" = the task started by today (startDay <= todayDay)
-  // and hasn't finished (startDay + durationDays > todayDay). Uses the
-  // project's schedule.startDate as day-0; falls back to project.createdAt
-  // if startDate is missing. Hides the strip entirely when nothing is on.
+  // Membership MUST match the Summary tab's "Today on site" exactly — both
+  // surfaces use the canonical 1-indexed, working-day-aware model that the
+  // schedule engine uses (utils/scheduleEngine getTaskDateRange:
+  //   start = addWorkingDays(startDate, startDay - 1); end = +durationDays-1).
+  // So `todayDayNumber` is a 1-INDEXED working-day count from the schedule
+  // start (day 1 = start date; weekends skipped when workingDaysPerWeek < 7),
+  // and a task is live when startDay <= todayDayNumber <= startDay+dur-1.
+  // Uses schedule.startDate as day 1; falls back to project.createdAt.
   const todayOnSite = useMemo(() => {
     const out: { project: Project; activeTaskTitles: string[] }[] = [];
-    const now = Date.now();
+    const now = new Date();
     for (const p of projects) {
       if (p.status !== 'in_progress') continue;
       const sched = p.schedule;
@@ -329,13 +362,13 @@ export default function HomeScreen() {
       const baseIso = sched.startDate || p.createdAt;
       const baseMs = Date.parse(baseIso);
       if (!Number.isFinite(baseMs)) continue;
-      const dayMs = 24 * 60 * 60 * 1000;
-      const todayDay = Math.floor((now - baseMs) / dayMs);
+      const todayDayNumber = todayScheduleDayNumber(baseMs, now, sched.workingDaysPerWeek);
       const liveTasks = sched.tasks.filter(t => {
         if (t.status === 'done') return false;
-        const start = t.startDay ?? 0;
-        const dur = t.durationDays ?? 0;
-        return start <= todayDay && start + dur > todayDay;
+        const start = Math.max(1, t.startDay ?? 1);
+        const dur = Math.max(0, t.durationDays ?? 0);
+        // Inclusive last active day = start + dur - 1 (matches getTaskDateRange).
+        return todayDayNumber >= start && todayDayNumber <= start + dur - 1;
       });
       if (liveTasks.length > 0) {
         out.push({
@@ -584,7 +617,11 @@ export default function HomeScreen() {
         }
         contentContainerStyle={[
           styles.listContent,
-          { paddingTop: insets.top, paddingBottom: insets.bottom + 90 },
+          // Bottom padding must clear the floating AICopilot FAB, which sits at
+          // bottom: insets.bottom + 70 with a 56px button (see components/AICopilot.tsx).
+          // 70 + 56 + 14px margin = 140, so the last project card never clips
+          // behind the FAB. (Was insets.bottom + 90, which overlapped it.)
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 140 },
           projects.length === 0 && styles.emptyList,
         ]}
         ListHeaderComponent={
@@ -674,7 +711,7 @@ export default function HomeScreen() {
                 right project quickly. Threshold raised from > 0 to >= 5
                 (May 2026 UX rollup): filtering 1-3 projects is noise that
                 competes with the NextStepHero card for attention. */}
-            {projects.length >= 5 && (
+            {(projects.length >= 5 || projects.some(p => p.status !== 'in_progress')) && (
               <View style={styles.filterChipsWrap}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
                   {([
@@ -970,7 +1007,12 @@ export default function HomeScreen() {
         onClose={() => setShowWeeklySummary(false)}
       />
 
-      <AICopilot />
+      {/* Single speed-dial FAB — consolidates what used to be three stacked
+          floating buttons (AI Copilot, Voice, Help) into one footprint so
+          they no longer overlap the project cards. The AI Copilot is the
+          always-visible main button; tapping the "+" toggle reveals the
+          Voice + Help mini-FABs. See components/HomeFabStack.tsx. */}
+      <HomeFabStack onReplayTutorial={() => setShowTutorial(true)} />
 
       <EntityActionSheet
         entityRef={actionSheetRef}
@@ -1019,24 +1061,9 @@ export default function HomeScreen() {
         }}
       />
 
-      {/* Always-rendered FAB — internally hides itself if there are no
-          projects to scope an action to. Keeping it unconditional avoids
-          parent hook-tree churn on data load. */}
-      <UniversalMicButton />
-
       {/* First-run tutorial. Auto-opens once; close persists the seen
           flag so it doesn't re-open on subsequent launches. */}
       <Tutorial visible={showTutorial} onClose={() => setShowTutorial(false)} />
-
-      {/* Floating help — answers "what is this thing" without forcing the
-          user to navigate away. Must stack ABOVE the mic button, which itself
-          sits above the AICopilot FAB (insets.bottom + 70). Mic tops out at
-          insets.bottom + 180 (bottom 134 + height 46); HelpFab renders at
-          insets.bottom + bottomOffset + 16, so 172 leaves an 8px gap and keeps
-          all three right-edge FABs in a clean vertical stack. A smaller offset
-          parked the orange help button directly behind the AI FAB — it poked
-          out as an orange sliver and was unreachable. */}
-      <HelpFab bottomOffset={172} onReplayTutorial={() => setShowTutorial(true)} />
 
       {/* Demo-seed picker — small ($420K) or large ($14M). Empty-state
           "Try a sample project" CTA toggles this open. */}

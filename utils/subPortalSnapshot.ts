@@ -300,8 +300,18 @@ export function buildSubPortalUrl(
   baseUrl: string,
   portalId: string,
   snapshot: SubPortalSnapshot,
+  accessToken?: string,
 ): string {
   const json = JSON.stringify(snapshot);
   const encoded = encodeBase64Url(json);
-  return `${baseUrl}/${portalId}#d=${encoded}`;
+  // accessToken (`?t=`) is the server-managed gate the sub-portal RPCs
+  // (sub_portal_get_snapshot / sub_portal_submit_invoice) require. It rides
+  // the share link ONLY — never inside the snapshot hash — so it cannot leak
+  // via a snapshot fetched by portalId. Mirror buildShortPortalUrl exactly:
+  // query BEFORE the hash, omitted entirely when there's no token.
+  const params = new URLSearchParams();
+  if (accessToken) params.set('t', accessToken);
+  const q = params.toString();
+  const query = q ? `?${q}` : '';
+  return `${baseUrl}/${portalId}${query}#d=${encoded}`;
 }

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Alert, Platform, Dimensions,
+  Alert, Platform, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -24,10 +24,13 @@ import { mageAI } from '@/utils/mageAI';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const CHART_WIDTH = SCREEN_WIDTH - 64;
 const CHART_HEIGHT = 200;
 const CHART_PADDING = 40;
+// Horizontal chrome subtracted from the window width to get the chart's drawable
+// width: 16pt scroll padding + 16pt chart-card padding on each side = 64pt total.
+const CHART_HORIZONTAL_INSET = 64;
+// Cap the chart width on desktop so the S-curve doesn't stretch absurdly wide.
+const CHART_MAX_WIDTH = 720;
 
 function formatCurrency(n: number): string {
   if (Math.abs(n) >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
@@ -59,6 +62,12 @@ export default function BudgetDashboardScreen() {
 
 function BudgetDashboardScreenInner() {
   const insets = useSafeAreaInsets();
+  // Reactive chart width. Captured per-render from the live window size (not a
+  // module-level Dimensions snapshot) so the S-curve re-lays-out on web window
+  // resize / rotation. Clamped to CHART_MAX_WIDTH so it doesn't get absurdly
+  // wide on desktop; phones fall through to (width - inset), matching before.
+  const { width: windowWidth } = useWindowDimensions();
+  const chartWidth = Math.min(windowWidth - CHART_HORIZONTAL_INSET, CHART_MAX_WIDTH);
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -136,7 +145,7 @@ Be specific and actionable. Use construction industry terminology.`;
       1,
     );
 
-    const toX = (i: number) => CHART_PADDING + (i / (cashFlowData.length - 1)) * (CHART_WIDTH - CHART_PADDING * 2);
+    const toX = (i: number) => CHART_PADDING + (i / (cashFlowData.length - 1)) * (chartWidth - CHART_PADDING * 2);
     const toY = (v: number) => CHART_HEIGHT - CHART_PADDING - ((v / maxVal) * (CHART_HEIGHT - CHART_PADDING * 2));
 
     const buildPath = (key: 'plannedCumulative' | 'actualCumulative' | 'forecastCumulative') => {
@@ -152,7 +161,7 @@ Be specific and actionable. Use construction industry terminology.`;
       actual: buildPath('actualCumulative'),
       forecast: buildPath('forecastCumulative'),
     };
-  }, [cashFlowData]);
+  }, [cashFlowData, chartWidth]);
 
   // Opened without a projectId (e.g. from the Tools launcher) but the user
   // has projects → show a picker instead of dead-ending on the empty state.
@@ -322,8 +331,8 @@ Be specific and actionable. Use construction industry terminology.`;
 
         <Text style={styles.sectionTitle}>Cash Flow S-Curve</Text>
         <View style={styles.chartCard}>
-          <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-            <Line x1={CHART_PADDING} y1={CHART_HEIGHT - CHART_PADDING} x2={CHART_WIDTH - CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
+          <Svg width={chartWidth} height={CHART_HEIGHT}>
+            <Line x1={CHART_PADDING} y1={CHART_HEIGHT - CHART_PADDING} x2={chartWidth - CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
             <Line x1={CHART_PADDING} y1={CHART_PADDING} x2={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
 
             {chartPath.planned && <Path d={chartPath.planned} stroke={themeColors.info} strokeWidth={2.5} fill="none" />}

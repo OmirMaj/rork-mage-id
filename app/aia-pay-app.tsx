@@ -364,6 +364,11 @@ function AIAPayAppScreenInner() {
         if (status.success && status.chargesEnabled && status.accountId) {
           const res = await createPaymentLink({
             invoiceId: rec.id,
+            // rec.id is a SavedAIAPayApp id (aia_pay_apps.id), NOT an
+            // invoices.id — tell the edge fn to verify ownership against the
+            // aia_pay_apps table and route the webhook there. Without this the
+            // Pay button 404s "Invoice not found".
+            recordType: 'aia_pay_app',
             invoiceNumber: rec.applicationNumber,
             projectName: rec.projectName ?? 'Project',
             amountCents: Math.round(due * 100),

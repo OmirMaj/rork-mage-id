@@ -589,6 +589,24 @@ export default function DailyReportScreen() {
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublished,
       });
+      // Mirror NEW photos into the project gallery on edit too — previously
+      // this only happened in the create branch, so photos added while
+      // editing an existing report never reached the gallery. Diff against
+      // the report's already-saved photo ids so we don't re-add (duplicate)
+      // photos that were mirrored on the original save. Same payload shape
+      // as the create branch below.
+      const alreadyMirrored = new Set((existingReport.photos ?? []).map(p => p.id));
+      for (const p of photos) {
+        if (alreadyMirrored.has(p.id)) continue;
+        addProjectPhoto({
+          id: p.id,
+          projectId,
+          uri: p.uri,
+          timestamp: p.timestamp,
+          tag: 'Daily Report',
+          createdAt: p.timestamp,
+        });
+      }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
     } else {

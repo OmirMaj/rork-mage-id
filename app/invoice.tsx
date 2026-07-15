@@ -812,7 +812,7 @@ function InvoiceInner() {
     } finally {
       setGeneratingPayLink(false);
     }
-  }, [existingInvoice, project, balanceDue, contacts, settings, updateInvoice]);
+  }, [existingInvoice, project, balanceDue, contacts, settings, updateInvoice, user, tier, router]);
 
   const handleCopyPayLink = useCallback(async () => {
     if (!existingInvoice?.payLinkUrl) return;

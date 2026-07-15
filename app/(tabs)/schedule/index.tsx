@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -89,6 +89,7 @@ import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
 import ScenariosModal from '@/components/schedule/ScenariosModal';
 import { getSimulatedForecast, getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
+import { geocodeProjectLocation, type GeocodeResult } from '@/utils/geocodeProject';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
@@ -181,7 +182,14 @@ function ScheduleScreen() {
   const [showDepPicker, setShowDepPicker] = useState(false);
   const [weatherAlerts, setWeatherAlerts] = useState<{ taskName: string; date: string; condition: string }[]>([]);
 
+  // Cache geocoded project coords so the weather button doesn't re-hit Nominatim
+  // (rate-limited to 1 req/sec) on every press. Keyed by the exact location
+  // string that was geocoded; a project address edit invalidates naturally
+  // because the key no longer matches.
+  const geocodeCacheRef = useRef<Map<string, GeocodeResult>>(new Map());
+
   const [taskDraft, setTaskDraft] = useState<TaskDraft>({ ...EMPTY_DRAFT });
+  const [showAdvancedTaskFields, setShowAdvancedTaskFields] = useState(false);
   const [isProjectStartDatePickerOpen, setIsProjectStartDatePickerOpen] = useState(false);
   const [projectStartDateInput, setProjectStartDateInput] = useState<string>('');
 
@@ -514,6 +522,7 @@ function ScheduleScreen() {
       assignedSubId: task.assignedSubId ?? '',
       assignedSubName: task.assignedSubName ?? '',
     });
+    setShowAdvancedTaskFields(false);
     setIsEditModalOpen(true);
     setTaskDetailModal(null);
   }, []);
@@ -853,8 +862,29 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
   const fetchWeather = useCallback(async () => {
     try {
+      // Default (New York) — used only when the project has no address or
+      // geocoding fails, so the button still returns *some* forecast rather
+      // than crashing or going blank.
+      let latitude = 40.71;
+      let longitude = -74.01;
+
+      const location = selectedProject?.location?.trim();
+      if (location && location.length >= 3) {
+        // Reuse a cached geocode for this exact address; only hit Nominatim
+        // the first time we see a given location string.
+        let coords = geocodeCacheRef.current.get(location) ?? null;
+        if (!coords) {
+          coords = await geocodeProjectLocation(location);
+          if (coords) geocodeCacheRef.current.set(location, coords);
+        }
+        if (coords) {
+          latitude = coords.latitude;
+          longitude = coords.longitude;
+        }
+      }
+
       const response = await fetch(
-        'https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&daily=precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7'
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7`
       );
       const data = await response.json();
       if (data.daily) {
@@ -883,7 +913,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
     } catch (err) {
       console.log('[Schedule] Weather fetch failed:', err);
     }
-  }, [sortedTasks, projectStartDate, activeSchedule]);
+  }, [sortedTasks, projectStartDate, activeSchedule, selectedProject?.location]);
 
   const hasSchedule = sortedTasks.length > 0;
   const hasEstimate = selectedProject?.estimate !== null || selectedProject?.linkedEstimate !== null;
@@ -1353,17 +1383,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   </View>
                 </View>
 
-                <View style={styles.dualRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Crew / Trade</Text>
-                    <TextInput style={styles.input} value={taskDraft.crew} onChangeText={val => setTaskDraft(p => ({ ...p, crew: val }))} placeholder="Crew name" placeholderTextColor={themeColors.textMuted} />
-                  </View>
-                  {editingTask && taskDraft.dependencyLinks.length === 0 && (
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Start Day Override</Text>
-                      <TextInput style={styles.input} value={taskDraft.startDayOverride} onChangeText={val => setTaskDraft(p => ({ ...p, startDayOverride: val }))} keyboardType="number-pad" placeholder="Auto" placeholderTextColor={themeColors.textMuted} />
-                    </View>
-                  )}
+                <View style={{ marginTop: 4 }}>
+                  <Text style={styles.fieldLabel}>Crew / Trade</Text>
+                  <TextInput style={styles.input} value={taskDraft.crew} onChangeText={val => setTaskDraft(p => ({ ...p, crew: val }))} placeholder="Crew name" placeholderTextColor={themeColors.textMuted} />
                 </View>
 
                 <View style={{ marginTop: 12 }}>
@@ -1396,19 +1418,6 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       </Text>
                     ) : null}
                   </ScrollView>
-                </View>
-
-                <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Flag size={14} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Milestone</Text></View>
-                  <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: themeColors.line, true: themeColors.accent }} thumbColor="#FFF" />
-                </View>
-                <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><GitBranch size={14} color={themeColors.danger} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
-                  <Switch value={taskDraft.isCriticalPath} onValueChange={val => setTaskDraft(p => ({ ...p, isCriticalPath: val }))} trackColor={{ false: themeColors.line, true: themeColors.danger }} thumbColor="#FFF" />
-                </View>
-                <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Cloud size={14} color={themeColors.info} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
-                  <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: themeColors.line, true: themeColors.info }} thumbColor="#FFF" />
                 </View>
 
                 <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>
@@ -1467,6 +1476,43 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput style={[styles.input, { minHeight: 70, textAlignVertical: 'top' as const }]} value={taskDraft.notes} onChangeText={val => setTaskDraft(p => ({ ...p, notes: val }))} placeholder="Notes..." placeholderTextColor={themeColors.textMuted} multiline />
+
+                {/* Advanced — collapsed by default. Rarely-used scheduling flags. */}
+                <TouchableOpacity
+                  style={styles.advancedHeader}
+                  onPress={() => setShowAdvancedTaskFields(v => !v)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={showAdvancedTaskFields ? 'Hide advanced options' : 'Show advanced options'}
+                >
+                  <Text style={styles.advancedHeaderText}>Advanced</Text>
+                  {showAdvancedTaskFields
+                    ? <ChevronDown size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+                    : <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />}
+                </TouchableOpacity>
+
+                {showAdvancedTaskFields && (
+                  <View style={styles.advancedBody}>
+                    {editingTask && taskDraft.dependencyLinks.length === 0 && (
+                      <View>
+                        <Text style={styles.fieldLabel}>Start Day Override</Text>
+                        <TextInput style={styles.input} value={taskDraft.startDayOverride} onChangeText={val => setTaskDraft(p => ({ ...p, startDayOverride: val }))} keyboardType="number-pad" placeholder="Auto" placeholderTextColor={themeColors.textMuted} />
+                      </View>
+                    )}
+                    <View style={styles.toggleRow}>
+                      <View style={styles.toggleInfo}><Flag size={14} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Milestone</Text></View>
+                      <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: themeColors.line, true: themeColors.accent }} thumbColor="#FFF" />
+                    </View>
+                    <View style={styles.toggleRow}>
+                      <View style={styles.toggleInfo}><GitBranch size={14} color={themeColors.danger} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
+                      <Switch value={taskDraft.isCriticalPath} onValueChange={val => setTaskDraft(p => ({ ...p, isCriticalPath: val }))} trackColor={{ false: themeColors.line, true: themeColors.danger }} thumbColor="#FFF" />
+                    </View>
+                    <View style={styles.toggleRow}>
+                      <View style={styles.toggleInfo}><Cloud size={14} color={themeColors.info} strokeWidth={1.75} /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
+                      <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: themeColors.line, true: themeColors.info }} thumbColor="#FFF" />
+                    </View>
+                  </View>
+                )}
 
                 <View style={styles.editActionRow}>
                   <TouchableOpacity style={styles.editCancelBtn} onPress={() => setIsEditModalOpen(false)}>
@@ -3410,6 +3456,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10, marginTop: 4 },
   toggleInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  advancedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Tokens.spacing.lg, paddingVertical: Tokens.spacing.xs, borderTopWidth: 1, borderTopColor: themeColors.line },
+  advancedHeaderText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+  advancedBody: { gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
   depPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, minHeight: 44, borderWidth: 1, borderColor: themeColors.line },
   depPickerBtnText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary },
   editActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },

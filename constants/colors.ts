@@ -156,6 +156,24 @@ export const Colors = {
   get fillTertiary()     { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.06)' : 'rgba(120,120,128,0.12)'; },
   get fillSecondary()    { return _currentTheme === 'dark' ? 'rgba(244,239,230,0.10)' : 'rgba(120,120,128,0.08)'; },
 
+  // ── Status bar-fill colors — drive the Gantt "Color: Status" mode ──
+  // SOLID, saturated fills (not the translucent chip tints) so a bar reads as
+  // a strong block at any zoom. Semantics match GridPane's statusChip():
+  //   done         → green   (successDark #2E7D32 — darker than #34C759 so
+  //                           white bar labels clear WCAG on the fill)
+  //   in_progress  → blue    (info #007AFF)
+  //   on_hold      → amber   (warning #FF9500)
+  //   not_started  → neutral (solid mid-gray; the translucent fillTertiary is
+  //                           too faint to read as a bar, so this is opaque)
+  // `barLabelColorFor()` picks black/white text per fill brightness, so these
+  // stay legible without hardcoding a label color at the call site.
+  statusFills: {
+    done:        '#2E7D32',
+    in_progress: '#007AFF',
+    on_hold:     '#FF9500',
+    not_started: '#8E9299',
+  } as const,
+
   // ── Trade colors (Phase 27) — drive Gantt bar + Board phase-dot ──
   // Industry-conventional palette. Saturation-matched for dark mode
   // contrast against `surface` #14181D. Brand amber anchors `general`

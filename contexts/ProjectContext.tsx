@@ -151,6 +151,7 @@ type FieldDataValue = {
   getDailyReportsForProject: (projectId: string) => DailyFieldReport[];
   punchItems: PunchItem[];
   addPunchItem: (item: PunchItem) => void;
+  addPunchItems: (items: PunchItem[]) => void;
   updatePunchItem: (id: string, updates: Partial<PunchItem>) => void;
   deletePunchItem: (id: string) => void;
   getPunchItemsForProject: (projectId: string) => PunchItem[];
@@ -237,6 +238,7 @@ type PreconDataValue = {
 type DocsDataValue = {
   rfis: RFI[];
   addRFI: (rfi: Omit<RFI, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => RFI;
+  addRFIs: (rfis: RFI[]) => void;
   updateRFI: (id: string, updates: Partial<RFI>) => void;
   deleteRFI: (id: string) => void;
   getRFIsForProject: (projectId: string) => RFI[];
@@ -330,11 +332,22 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   const [dailyReports, setDailyReports] = useState<DailyFieldReport[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [punchItems, setPunchItems] = useState<PunchItem[]>([]);
+  // Mirror of `punchItems` (see submittalsRef note below) so batch adds looped
+  // synchronously read the just-inserted rows instead of a stale render closure
+  // — otherwise each setState clobbers the previous and only the last survives.
+  const punchItemsRef = useRef<PunchItem[]>([]);
+  useEffect(() => { punchItemsRef.current = punchItems; }, [punchItems]);
   const [projectPhotos, setProjectPhotos] = useState<ProjectPhoto[]>([]);
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [commEvents, setCommEvents] = useState<CommunicationEvent[]>([]);
   const [rfis, setRfis] = useState<RFI[]>([]);
+  // Mirror of `rfis` (see submittalsRef note below) so batch adds looped
+  // synchronously assign advancing per-project numbers off the just-inserted
+  // rows instead of recomputing from a stale closure (which collides all rows
+  // on the same number and drops all but the last on setState).
+  const rfisRef = useRef<RFI[]>([]);
+  useEffect(() => { rfisRef.current = rfis; }, [rfis]);
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
   // Mirror of `submittals` kept in sync so add handlers called repeatedly in a
   // single synchronous loop (e.g. extract-submittals bulk save, dev-seeder)
@@ -605,6 +618,8 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               workPerformed: (r.work_performed as string) ?? '', materialsDelivered: (r.materials_delivered as string[]) ?? [],
               issuesAndDelays: (r.issues_and_delays as string) ?? '', photos: (r.photos as DailyFieldReport['photos']) ?? [],
               status: (r.status as DailyFieldReport['status']) ?? 'draft',
+              incident: (r.incident as DailyFieldReport['incident']) ?? undefined,
+              workProgress: (r.work_progress as DailyFieldReport['workProgress']) ?? undefined,
               homeownerSummary: (r.homeowner_summary as string | null) ?? undefined,
               homeownerSummaryGeneratedAt: (r.homeowner_summary_generated_at as string | null) ?? undefined,
               homeownerSummaryPublished: !!r.homeowner_summary_published,
@@ -1865,6 +1880,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         weather: finalReport.weather, manpower: finalReport.manpower, work_performed: finalReport.workPerformed,
         materials_delivered: finalReport.materialsDelivered, issues_and_delays: finalReport.issuesAndDelays,
         photos: finalReport.photos, status: finalReport.status,
+        incident: finalReport.incident ?? null, work_progress: finalReport.workProgress ?? null,
         homeowner_summary: finalReport.homeownerSummary ?? null,
         homeowner_summary_generated_at: finalReport.homeownerSummaryGeneratedAt ?? null,
         homeowner_summary_published: finalReport.homeownerSummaryPublished ?? false,
@@ -1887,6 +1903,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
           id, weather: dr.weather, manpower: dr.manpower, work_performed: dr.workPerformed,
           materials_delivered: dr.materialsDelivered, issues_and_delays: dr.issuesAndDelays,
           photos: dr.photos, status: dr.status, updated_at: now,
+          incident: dr.incident ?? null, work_progress: dr.workProgress ?? null,
           homeowner_summary: dr.homeownerSummary ?? null,
           homeowner_summary_generated_at: dr.homeownerSummaryGeneratedAt ?? null,
           homeowner_summary_published: dr.homeownerSummaryPublished ?? false,
@@ -2585,27 +2602,46 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const getSubcontractor = useCallback((id: string) => subcontractors.find(s => s.id === id) ?? null, [subcontractors]);
 
+  // Snake/camel mapping for the punch_items insert payload — shared by the
+  // single-add and batch-add paths so they stay byte-identical.
+  const punchItemToRow = useCallback((item: PunchItem) => ({
+    id: item.id, user_id: userId, project_id: item.projectId, description: item.description,
+    location: item.location, assigned_sub: item.assignedSub, assigned_sub_id: item.assignedSubId,
+    due_date: item.dueDate, priority: item.priority, status: item.status, photo_uri: item.photoUri,
+    // Plan-pin anchor + captured GPS. Client camelCase → snake_case column
+    // (see migration 20260707120000_punch_location.sql). Previously omitted,
+    // so this data was captured locally then silently dropped on sync.
+    plan_sheet_id: item.planSheetId, pin_x: item.pinX, pin_y: item.pinY,
+    photo_latitude: item.photoLatitude, photo_longitude: item.photoLongitude,
+    photo_accuracy_meters: item.photoLocationAccuracyMeters,
+    photo_location_label: item.photoLocationLabel,
+    rejection_note: item.rejectionNote, closed_at: item.closedAt,
+    created_at: item.createdAt, updated_at: item.updatedAt,
+  }), [userId]);
+
   const addPunchItem = useCallback((item: PunchItem) => {
-    const updated = [item, ...punchItems];
+    // Read the ref (not `punchItems`) so a later synchronous call in the same
+    // tick sees this row — keeps single-add composable with the batch path.
+    const updated = [item, ...punchItemsRef.current];
+    punchItemsRef.current = updated;
     setPunchItems(updated);
     savePunchItemsMutation.mutate(updated);
-    if (canSync) {
-      void supabaseWrite('punch_items', 'insert', {
-        id: item.id, user_id: userId, project_id: item.projectId, description: item.description,
-        location: item.location, assigned_sub: item.assignedSub, assigned_sub_id: item.assignedSubId,
-        due_date: item.dueDate, priority: item.priority, status: item.status, photo_uri: item.photoUri,
-        // Plan-pin anchor + captured GPS. Client camelCase → snake_case column
-        // (see migration 20260707120000_punch_location.sql). Previously omitted,
-        // so this data was captured locally then silently dropped on sync.
-        plan_sheet_id: item.planSheetId, pin_x: item.pinX, pin_y: item.pinY,
-        photo_latitude: item.photoLatitude, photo_longitude: item.photoLongitude,
-        photo_accuracy_meters: item.photoLocationAccuracyMeters,
-        photo_location_label: item.photoLocationLabel,
-        rejection_note: item.rejectionNote, closed_at: item.closedAt,
-        created_at: item.createdAt, updated_at: item.updatedAt,
-      });
-    }
-  }, [punchItems, savePunchItemsMutation, canSync, userId]);
+    if (canSync) void supabaseWrite('punch_items', 'insert', punchItemToRow(item));
+  }, [savePunchItemsMutation, canSync, punchItemToRow]);
+
+  // Batch insert — prepends the WHOLE array in ONE setState via the ref, so all
+  // N rows survive (the single-add read `punchItems` from a stale closure, so a
+  // caller looping it kept only the last). One supabaseWrite per row, same shape.
+  const addPunchItems = useCallback((items: PunchItem[]) => {
+    if (items.length === 0) return;
+    // Newest-first: reverse so the first input ends up last after prepending,
+    // matching the single-add ordering when called in sequence.
+    const updated = [...[...items].reverse(), ...punchItemsRef.current];
+    punchItemsRef.current = updated;
+    setPunchItems(updated);
+    savePunchItemsMutation.mutate(updated);
+    if (canSync) items.forEach(item => { void supabaseWrite('punch_items', 'insert', punchItemToRow(item)); });
+  }, [savePunchItemsMutation, canSync, punchItemToRow]);
 
   const updatePunchItem = useCallback((id: string, updates: Partial<PunchItem>) => {
     const now = new Date().toISOString();
@@ -2784,33 +2820,74 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // resolves to undefined and the RFI screen opens in "new" mode with
   // empty fields — visible to the user as a "blank RFI" even though the
   // actual saved row was filled correctly.
+  // Snake/camel mapping for the rfis insert payload — shared by single-add and
+  // batch-add so the two write the same shape.
+  const rfiToRow = useCallback((newRfi: RFI) => ({
+    id: newRfi.id, user_id: userId, project_id: newRfi.projectId, number: newRfi.number,
+    subject: newRfi.subject, question: newRfi.question, submitted_by: newRfi.submittedBy,
+    assigned_to: newRfi.assignedTo, date_submitted: newRfi.dateSubmitted, date_required: newRfi.dateRequired,
+    status: newRfi.status, priority: newRfi.priority, linked_drawing: newRfi.linkedDrawing,
+    linked_task_id: newRfi.linkedTaskId, attachments: newRfi.attachments,
+    created_at: newRfi.createdAt, updated_at: newRfi.updatedAt, portal_state: newRfi.portalState,
+  }), [userId]);
+
+  // Next per-project RFI number given an authoritative current array (`base`).
+  // RFI numbers are per project — one advancing counter per projectId.
+  const nextRfiNumber = useCallback((projectId: string, base: RFI[]) => {
+    const projectRfis = base.filter(r => r.projectId === projectId);
+    return projectRfis.length > 0 ? Math.max(...projectRfis.map(r => r.number)) + 1 : 1;
+  }, []);
+
   const addRFI = useCallback((rfi: Omit<RFI, 'id' | 'createdAt' | 'updatedAt' | 'number'>): RFI => {
-    const projectRfis = rfis.filter(r => r.projectId === rfi.projectId);
-    const nextNumber = projectRfis.length > 0 ? Math.max(...projectRfis.map(r => r.number)) + 1 : 1;
+    // Read the ref (not `rfis`) so numbering stays correct when this is called
+    // N times in one synchronous loop before React re-renders.
+    const base = rfisRef.current;
     const now = new Date().toISOString();
     const newRfi: RFI = {
       ...rfi,
       id: generateUUID(),
-      number: nextNumber,
+      number: nextRfiNumber(rfi.projectId, base),
       createdAt: now,
       updatedAt: now,
       portalState: rfi.portalState ?? initialPortalState('rfi', rfi.projectId),
     };
-    const updated = [newRfi, ...rfis];
+    const updated = [newRfi, ...base];
+    rfisRef.current = updated;
     setRfis(updated);
     saveRfisMutation.mutate(updated);
-    if (canSync) {
-      void supabaseWrite('rfis', 'insert', {
-        id: newRfi.id, user_id: userId, project_id: newRfi.projectId, number: newRfi.number,
-        subject: newRfi.subject, question: newRfi.question, submitted_by: newRfi.submittedBy,
-        assigned_to: newRfi.assignedTo, date_submitted: newRfi.dateSubmitted, date_required: newRfi.dateRequired,
-        status: newRfi.status, priority: newRfi.priority, linked_drawing: newRfi.linkedDrawing,
-        linked_task_id: newRfi.linkedTaskId, attachments: newRfi.attachments,
-        created_at: now, updated_at: now, portal_state: newRfi.portalState,
-      });
-    }
+    if (canSync) void supabaseWrite('rfis', 'insert', rfiToRow(newRfi));
     return newRfi;
-  }, [rfis, saveRfisMutation, canSync, userId, initialPortalState]);
+  }, [saveRfisMutation, canSync, initialPortalState, nextRfiNumber, rfiToRow]);
+
+  // Batch insert — prepends the WHOLE array in ONE setState via the ref, and
+  // assigns SEQUENTIAL per-project numbers off an advancing counter seeded from
+  // the current max (the single-add recomputed from a stale closure every
+  // iteration, so batch RFIs all collided on the same number and only the last
+  // survived). Only `number` is assigned/overridden — all caller fields (id,
+  // title, description, etc.) are preserved.
+  const addRFIs = useCallback((incoming: RFI[]) => {
+    if (incoming.length === 0) return;
+    let working = rfisRef.current;
+    const rows: Record<string, unknown>[] = [];
+    for (const rfi of incoming) {
+      const now = new Date().toISOString();
+      const newRfi: RFI = {
+        ...rfi,
+        number: nextRfiNumber(rfi.projectId, working),
+        createdAt: rfi.createdAt ?? now,
+        updatedAt: rfi.updatedAt ?? now,
+        portalState: rfi.portalState ?? initialPortalState('rfi', rfi.projectId),
+      };
+      // Prepend so `working` carries this row's number into the next
+      // iteration's max — advancing the per-project counter by one.
+      working = [newRfi, ...working];
+      rows.push(rfiToRow(newRfi));
+    }
+    rfisRef.current = working;
+    setRfis(working);
+    saveRfisMutation.mutate(working);
+    if (canSync) rows.forEach(row => { void supabaseWrite('rfis', 'insert', row); });
+  }, [saveRfisMutation, canSync, initialPortalState, nextRfiNumber, rfiToRow]);
 
   const updateRFI = useCallback((id: string, updates: Partial<RFI>) => {
     const now = new Date().toISOString();
@@ -2956,27 +3033,44 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   // Sub portal links. Each (project, sub) pair gets one link. upsert keeps
   // a stable id so the share URL doesn't change when the GC tweaks settings.
   const upsertSubPortalLink = useCallback((link: SubPortalLink) => {
-    const filtered = subPortalLinks.filter(l => l.id !== link.id);
-    const updated = [link, ...filtered];
+    // The sub-portal RPCs (sub_portal_get_snapshot / sub_portal_submit_invoice)
+    // require `access_token = p_access_token`. The column has a DB default, but
+    // the local-first optimistic write never reads it back — so the app never
+    // knew the token and every invoice submit fell back to mailto. Fix: mirror
+    // the client-portal token heal — when the link is enabled and has no token,
+    // generate one app-side and write the column explicitly so the value the
+    // app holds is exactly what the RPC compares against. An existing token is
+    // preserved (never regenerated), so previously-issued share links stay valid.
+    let resolved = link;
+    if (link.enabled && !link.accessToken) {
+      const token = (generateUUID() + generateUUID()).replace(/-/g, '');
+      resolved = { ...link, accessToken: token };
+    }
+    const filtered = subPortalLinks.filter(l => l.id !== resolved.id);
+    const updated = [resolved, ...filtered];
     setSubPortalLinks(updated);
     saveSubPortalLinksMutation.mutate(updated);
     if (canSync && userId) {
       void supabaseWrite('sub_portal_links', 'insert', {
-        id: link.id,
+        id: resolved.id,
         user_id: userId,
-        project_id: link.projectId,
-        subcontractor_id: link.subcontractorId,
-        passcode: link.passcode ?? null,
-        require_passcode: !!link.requirePasscode,
-        enabled: link.enabled,
-        welcome_message: link.welcomeMessage ?? null,
-        commitment_ids: link.commitmentIds ?? null,
-        created_at: link.createdAt,
-        updated_at: link.updatedAt,
-        last_shared_at: link.lastSharedAt ?? null,
+        project_id: resolved.projectId,
+        subcontractor_id: resolved.subcontractorId,
+        passcode: resolved.passcode ?? null,
+        require_passcode: !!resolved.requirePasscode,
+        enabled: resolved.enabled,
+        welcome_message: resolved.welcomeMessage ?? null,
+        // Write the token explicitly (only when we hold one) so it matches what
+        // the RPC checks — the DB default only fills when the column is empty,
+        // so writing our value keeps app and server in agreement.
+        ...(resolved.accessToken ? { access_token: resolved.accessToken } : {}),
+        commitment_ids: resolved.commitmentIds ?? null,
+        created_at: resolved.createdAt,
+        updated_at: resolved.updatedAt,
+        last_shared_at: resolved.lastSharedAt ?? null,
       });
     }
-    return link;
+    return resolved;
   }, [subPortalLinks, saveSubPortalLinksMutation, canSync, userId]);
 
   const deleteSubPortalLink = useCallback((id: string) => {
@@ -3770,7 +3864,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, getDailyReportsForProject,
-    punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject,
+    punchItems, addPunchItem, addPunchItems, updatePunchItem, deletePunchItem, getPunchItemsForProject,
     projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
@@ -3780,7 +3874,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
     permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap,
-  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
+  }), [dailyReports, getDailyReportsForProject, punchItems, addPunchItem, addPunchItems, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planZones, addPlanZone, updatePlanZone, deletePlanZone, getPlanZonesForPlan, getPlanZonesForProject, persistPlanZones, planReviews, getPlanReviewForSheet, savePlanReview, updatePlanReview, deletePlanReview, persistPlanReviews, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan, permitRoadmaps, getPermitRoadmapForProject, savePermitRoadmap, updatePermitRoadmap, deletePermitRoadmap, persistPermitRoadmaps]);
 
   const preconData = useMemo<PreconDataValue>(() => ({
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
@@ -3792,14 +3886,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }), [subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, cois, addCOI, updateCOI, deleteCOI, getCOIsForSub]);
 
   const docsData = useMemo<DocsDataValue>(() => ({
-    rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
+    rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject,
     permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
     subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
     submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
     portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
-  }), [rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
+  }), [rfis, addRFI, addRFIs, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, addSubmittals, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
 
   const stableActions = useMemo<StableActionsValue>(() => ({
     completeOnboarding,

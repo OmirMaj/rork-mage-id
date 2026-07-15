@@ -2680,6 +2680,12 @@ export interface SubPortalLink {
   requirePasscode?: boolean;
   enabled: boolean;
   welcomeMessage?: string;
+  /** Server-managed token gating sub-portal RPCs (snapshot + invoice submit).
+   *  The DB default generates one, but the local-first optimistic write never
+   *  reads it back, so we generate it app-side when the link is first enabled
+   *  and write it explicitly — mirroring ClientPortalSettings.accessToken.
+   *  Travels only in the share link, never in the snapshot. */
+  accessToken?: string;
   createdAt: string;
   updatedAt: string;
   // Last time the GC built / refreshed a share link for this sub.

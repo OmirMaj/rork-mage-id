@@ -16,6 +16,7 @@
 import type { Lead } from '@/types';
 import { computeWinOptimizer, type BidPoint } from '@/utils/winOptimizer';
 import { formatMoney } from '@/utils/formatters';
+import { generateUUID } from '@/utils/generateId';
 
 export type ProposalTierKey = 'essential' | 'signature' | 'premium';
 
@@ -79,8 +80,78 @@ export interface SmartProposal {
   tiers: ProposalTier[];
   selectedTierKey?: ProposalTierKey;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
+  /**
+   * How the proposal was authored. Absence means the classic tiered flow
+   * (smart-proposal.tsx) — keeps every existing record valid without a
+   * migration. `'quick'` is a Quick Quote: a single flat-priced tier for a
+   * small job. Filter on this to list Quick Quotes separately.
+   */
+  kind?: 'quick' | 'tiered';
   createdAt: string;
   updatedAt: string;
+}
+
+/** A single Quick Quote line item — a plain-English scope line and its price. */
+export interface QuickQuoteLineItem {
+  description: string;
+  amount: number;
+}
+
+export interface BuildQuickQuoteInput {
+  clientName: string;
+  jobTitle: string;
+  scope?: string;
+  lineItems: QuickQuoteLineItem[];
+  /** Markup as a percent (e.g. 15 → 15%). Absent/≤0 means no markup. */
+  markupPct?: number;
+  /** Sales tax as a percent, applied to subtotal + markup. Absent/≤0 means none. */
+  taxPct?: number;
+}
+
+/**
+ * Build a Quick Quote — DMG-Pro-style fast path for small jobs. A single
+ * flat-priced tier, no Win Optimizer curve: the GC types line items and an
+ * optional markup/tax, and gets one professional number to send.
+ *
+ * Pure — no storage, no network, no React. subtotal = Σ line amounts;
+ * markup = subtotal × markupPct%; tax = (subtotal + markup) × taxPct%;
+ * total = subtotal + markup + tax. The single tier reuses ProposalTier so
+ * `proposalToShareText` (which just loops tiers) renders it unchanged.
+ */
+export function buildQuickQuote(input: BuildQuickQuoteInput): SmartProposal {
+  const subtotal = input.lineItems.reduce(
+    (sum, li) => sum + (Number.isFinite(li.amount) ? li.amount : 0),
+    0,
+  );
+  const markupPct = input.markupPct && input.markupPct > 0 ? input.markupPct : 0;
+  const taxPct = input.taxPct && input.taxPct > 0 ? input.taxPct : 0;
+  const markup = subtotal * (markupPct / 100);
+  const tax = (subtotal + markup) * (taxPct / 100);
+  const total = subtotal + markup + tax;
+
+  const now = new Date().toISOString();
+  const tier: ProposalTier = {
+    key: 'signature',
+    label: input.jobTitle || 'Quote',
+    tagline: input.scope ?? '',
+    price: total,
+    markup: markupPct ? markupPct / 100 : 0,
+    winProbability: 0,
+    expectedProfit: 0,
+    inclusions: input.lineItems.map((li) => li.description).filter(Boolean),
+    recommended: true,
+  };
+
+  return {
+    id: generateUUID(),
+    clientName: input.clientName,
+    projectName: input.jobTitle,
+    tiers: [tier],
+    kind: 'quick',
+    status: 'draft',
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 /** Normalize a markup that may arrive as a percent (18) or a fraction (0.18). */

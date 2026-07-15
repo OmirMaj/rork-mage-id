@@ -782,7 +782,7 @@ export default function EstimateScreen() {
   }, [ctxRemoveFromCart]);
 
   const buildLinkedEstimate = useCallback((): LinkedEstimate => {
-    const items: LinkedEstimateItem[] = cart.map(item => {
+    const materialItems: LinkedEstimateItem[] = cart.map(item => {
       const usesBulk = item.quantity >= item.material.bulkMinQty;
       const base = usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
       const lineTotal = base * (1 + item.markup / 100) * item.quantity;
@@ -800,16 +800,58 @@ export default function EstimateScreen() {
         supplier: item.material.supplier,
       };
     });
+    // Fold labor into the same LinkedEstimateItem shape. Labor carries no
+    // markup — the adjusted hourly rate is the all-in cost — so unitPrice and
+    // bulkPrice both hold the rate, markup=0, usesBulk=false, and the line
+    // total is rate × hours. Without this, an estimate with $X of labor was
+    // silently dropped when linked to a project or emailed as a PDF.
+    const laborItems: LinkedEstimateItem[] = laborCart.map(item => {
+      const lineTotal = item.adjustedRate * item.hours;
+      return {
+        materialId: item.labor.id,
+        name: item.labor.trade,
+        category: 'Labor',
+        unit: 'hrs',
+        quantity: item.hours,
+        unitPrice: item.adjustedRate,
+        bulkPrice: item.adjustedRate,
+        markup: 0,
+        usesBulk: false,
+        lineTotal,
+        supplier: item.labor.category,
+      };
+    });
+    // Fold assemblies in the same way. An assembly's totalCost already bakes in
+    // its material + labor costs at the chosen quantity, so it becomes a single
+    // qty=1 line priced at that total.
+    const assemblyItems: LinkedEstimateItem[] = assemblyCart.map(item => ({
+      materialId: item.assembly.id,
+      name: item.assembly.name,
+      category: 'Assemblies',
+      unit: item.assembly.unit,
+      quantity: 1,
+      unitPrice: item.totalCost,
+      bulkPrice: item.totalCost,
+      markup: 0,
+      usesBulk: false,
+      lineTotal: item.totalCost,
+      supplier: `${item.quantity} ${item.assembly.unit}`,
+    }));
+    const items: LinkedEstimateItem[] = [...materialItems, ...laborItems, ...assemblyItems];
+    // grandTotal must equal what the estimator footer shows: materials + labor
+    // + assemblies. Labor and assemblies are all-in costs (no markup), so they
+    // fold into baseTotal; markupTotal stays materials-only. That keeps
+    // baseTotal + markupTotal === grandTotal.
     return {
       id: generateUUID(),
       items,
       globalMarkup,
-      baseTotal: cartBaseTotal,
+      baseTotal: cartBaseTotal + laborTotal + assemblyTotal,
       markupTotal,
-      grandTotal: cartTotal,
+      grandTotal: cartTotal + laborTotal + assemblyTotal,
       createdAt: new Date().toISOString(),
     };
-  }, [cart, globalMarkup, cartBaseTotal, markupTotal, cartTotal]);
+  }, [cart, laborCart, assemblyCart, globalMarkup, cartBaseTotal, markupTotal, cartTotal, laborTotal, assemblyTotal]);
 
   const handleSelectProject = useCallback(() => {
     if (!selectedProjectId) {
@@ -3103,7 +3145,10 @@ export default function EstimateScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.addToProjectDesc}>
-              Select a project to attach this {cart.length}-item estimate ({formatMoney(cartTotal, 2)}) to.
+              Select a project to attach this {totalItemCount}-item estimate ({formatMoney(grandTotal, 2)}) to.
+              {laborCart.length > 0 || assemblyCart.length > 0
+                ? ` Includes ${cart.length} material${cart.length === 1 ? '' : 's'}${laborCart.length > 0 ? `, ${laborCart.length} labor line${laborCart.length === 1 ? '' : 's'}` : ''}${assemblyCart.length > 0 ? `, ${assemblyCart.length} assembly${assemblyCart.length === 1 ? '' : 's'}` : ''}.`
+                : ''}
             </Text>
 
             {projects.length === 0 ? (
@@ -3198,11 +3243,29 @@ export default function EstimateScreen() {
                 <View style={styles.confirmSummaryCard}>
                   <View style={styles.confirmSummaryRow}>
                     <Text style={styles.confirmSummaryLabel}>Items</Text>
-                    <Text style={styles.confirmSummaryValue}>{cart.length}</Text>
+                    <Text style={styles.confirmSummaryValue}>{totalItemCount}</Text>
                   </View>
+                  {cart.length > 0 && (laborTotal > 0 || assemblyTotal > 0) && (
+                    <View style={styles.confirmSummaryRow}>
+                      <Text style={styles.confirmSummaryLabel}>Materials</Text>
+                      <Text style={styles.confirmSummaryValue}>{formatMoney(cartTotal, 2)}</Text>
+                    </View>
+                  )}
+                  {laborTotal > 0 && (
+                    <View style={styles.confirmSummaryRow}>
+                      <Text style={styles.confirmSummaryLabel}>Labor ({laborHoursTotal.toFixed(0)} hrs)</Text>
+                      <Text style={styles.confirmSummaryValue}>{formatMoney(laborTotal, 2)}</Text>
+                    </View>
+                  )}
+                  {assemblyTotal > 0 && (
+                    <View style={styles.confirmSummaryRow}>
+                      <Text style={styles.confirmSummaryLabel}>Assemblies</Text>
+                      <Text style={styles.confirmSummaryValue}>{formatMoney(assemblyTotal, 2)}</Text>
+                    </View>
+                  )}
                   <View style={styles.confirmSummaryRow}>
                     <Text style={styles.confirmSummaryLabel}>Estimate Value</Text>
-                    <Text style={styles.confirmSummaryValueBold}>${cartTotal.toFixed(2)}</Text>
+                    <Text style={styles.confirmSummaryValueBold}>{formatMoney(grandTotal, 2)}</Text>
                   </View>
                   <View style={styles.confirmDivider} />
                   <View style={styles.confirmSummaryRow}>

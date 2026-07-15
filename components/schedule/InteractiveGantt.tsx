@@ -53,7 +53,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
-import { colorForTask as canonicalColorForTask, barLabelColorFor } from '@/utils/scheduleColors';
+import { colorForTask as canonicalColorForTask, statusColorForTask, statusColor, statusLabel, STATUS_KEYS, barLabelColorFor, type GanttColorMode } from '@/utils/scheduleColors';
+import { useGanttColorMode } from '@/hooks/useGanttColorMode';
 import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
@@ -182,6 +183,11 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   const styles = useThemedStyles(makeStyles);
   const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, mode, focusedTaskId, onFocusTask, onAddTaskAtDay, onDeleteTask, onOutline, onReorder } = props;
   const isPhone = mode === 'phone';
+
+  // Bar-fill color mode — persisted, defaults to 'status' (progress signal).
+  // Trade stays available as an opt-in; the phase/gutter dot always shows trade
+  // regardless, so trade info is never lost.
+  const { colorMode, toggleColorMode } = useGanttColorMode();
 
   // Bar context menu (indent/outdent, move up/down, milestone, complete,
   // delete). Long-press (native) / right-click (web) on a bar opens it —
@@ -928,16 +934,49 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             <Text style={styles.navBtnText}>Focus</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendStripe, { backgroundColor: themeColors.danger }]} />
-            <Text style={styles.legendText}>Critical</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendStripe, { backgroundColor: themeColors.accent }]} />
-            <Text style={styles.legendText}>Normal</Text>
-          </View>
+        {/* Color-mode toggle — pick whether bars are colored by task status
+            (progress signal, default) or by trade (coordination signal). */}
+        <View style={styles.colorModeGroup} accessibilityRole="tablist">
+          <Text style={styles.colorModeLabel}>Color</Text>
+          {(['status', 'trade'] as GanttColorMode[]).map(m => (
+            <TouchableOpacity
+              key={m}
+              onPress={() => { if (colorMode !== m) toggleColorMode(); }}
+              style={[styles.colorModeBtn, colorMode === m && styles.colorModeBtnActive]}
+              activeOpacity={0.7}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: colorMode === m }}
+              testID={`gantt-colormode-${m}`}
+            >
+              <Text style={[styles.colorModeBtnText, colorMode === m && styles.colorModeBtnTextActive]}>
+                {m === 'status' ? 'Status' : 'Trade'}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
+        {/* Legend — reflects the active color mode. In status mode, swatches
+            name each progress state; in trade mode, the critical/normal key. */}
+        {colorMode === 'status' ? (
+          <View style={styles.legend}>
+            {STATUS_KEYS.map(s => (
+              <View key={s} style={styles.legendItem}>
+                <View style={[styles.legendStripe, { backgroundColor: statusColor(s, themeColors) }]} />
+                <Text style={styles.legendText}>{statusLabel(s)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendStripe, { backgroundColor: themeColors.danger }]} />
+              <Text style={styles.legendText}>Critical</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendStripe, { backgroundColor: themeColors.accent }]} />
+              <Text style={styles.legendText}>Normal</Text>
+            </View>
+          </View>
+        )}
       </View>
       )}
 
@@ -1384,6 +1423,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   <BarView
                     key={bar.task.id}
                     bar={bar}
+                    colorMode={colorMode}
                     isHovered={hoverTaskId === bar.task.id}
                     isDragging={dragState?.taskId === bar.task.id}
                     isLinkTarget={linkDrag?.hoverTargetId === bar.task.id}
@@ -1738,6 +1778,8 @@ interface BarViewProps {
     w: number;
     cpmRow: ReturnType<CpmResult['perTask']['get']>;
   };
+  /** How to color the bar fill: by STATUS (default) or by TRADE. */
+  colorMode: GanttColorMode;
   isHovered: boolean;
   isDragging: boolean;
   isLinkTarget: boolean;
@@ -1767,7 +1809,7 @@ interface BarViewProps {
 }
 
 function BarView({
-  bar, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
+  bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
   dimmed, isFocusTarget, isLastMilestone, showCrewAvatar,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
@@ -1858,11 +1900,16 @@ function BarView({
     else varianceLabel = 'started on time';
   }
 
-  // Trade-driven fill via colorForTask() (canonical scheduleColors palette).
-  // Critical-path is conveyed via the red gutter dot + red arrow lines —
-  // putting an outline on the bar itself made dense schedules where every task
-  // is critical (a common case) read as rectangular "loops" enclosing each bar.
-  const barColor = colorForTask(bar.task);
+  // Bar fill: STATUS by default (progress signal), TRADE when the user opts in.
+  // Status wins because trade inference collapses generic "General crew" tasks
+  // to one amber color — a dead signal — whereas status (done/active/hold/todo)
+  // is what field teams scan the timeline for. Trade info stays on the gutter
+  // dot regardless of this mode. Critical-path is conveyed via the red gutter
+  // dot + red arrow lines, not a bar outline (dense all-critical schedules read
+  // as rectangular "loops" enclosing each bar).
+  const barColor = colorMode === 'status'
+    ? statusColorForTask(bar.task, themeColors)
+    : colorForTask(bar.task);
   // Label color follows the fill's brightness so text stays legible on light
   // trade colors (finish/demo/cyan), not always-white.
   const barTextColor = barLabelColorFor(barColor);
@@ -2361,6 +2408,43 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     color: t.textSecondary,
     fontWeight: '600',
     letterSpacing: 0.1,
+  },
+
+  // Color-mode segmented toggle (Status / Trade). Mirrors the zoom segmented
+  // control's surfaceAlt track + active-tile treatment so the toolbar reads as
+  // one consistent control family.
+  colorModeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 8,
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.sm,
+    padding: 2,
+  },
+  colorModeLabel: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600',
+    color: t.textSecondary,
+    paddingHorizontal: 4,
+  },
+  colorModeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Tokens.radius.xs,
+  },
+  colorModeBtnActive: {
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.line,
+  },
+  colorModeBtnText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600',
+    color: t.textSecondary,
+  },
+  colorModeBtnTextActive: {
+    color: t.text,
   },
 
   body: {

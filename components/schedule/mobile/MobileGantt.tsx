@@ -73,7 +73,7 @@ function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, d
         if (c !== stepRef.current) { stepRef.current = c; if (Platform.OS !== 'web') void Haptics.selectionAsync(); }
         setDragCols(c);
       })
-      .onEnd((e) => { onReschedule(task, dragToStartDay(task.startDay ?? 0, e.translationX) - (task.startDay ?? 0)); })
+      .onEnd((e) => { onReschedule(task, dragToStartDay(task.startDay ?? 1, e.translationX) - (task.startDay ?? 1)); })
       .onFinalize(() => { setDragCols(null); onDragChange(null); });
     return Gesture.Race(pan, tap);
   }, [task, dayW, onPress, onReschedule, dragToStartDay, onDragChange]);
@@ -108,8 +108,9 @@ export function MobileGantt({
   const [weekdayOnly, setWeekdayOnly] = useState<boolean>(false);
   const [viewportW, setViewportW] = useState<number>(0);
   const handleReschedule = useCallback((t: ScheduleTask, delta: number) => {
-    const ns = Math.max(0, (t.startDay ?? 0) + delta);
-    if (ns !== (t.startDay ?? 0) && onUpdateTask) onUpdateTask({ ...t, startDay: ns });
+    // startDay is 1-indexed (day 1 = schedule start), so floor the clamp at 1.
+    const ns = Math.max(1, (t.startDay ?? 1) + delta);
+    if (ns !== (t.startDay ?? 1) && onUpdateTask) onUpdateTask({ ...t, startDay: ns });
   }, [onUpdateTask]);
 
   // True when calendar day-offset `d` (from baseMs) lands on Sat/Sun.
@@ -145,7 +146,9 @@ export function MobileGantt({
     return out;
   }, [phases, collapsedPhases]);
 
-  const maxDay = useMemo(() => tasks.reduce((m, t) => Math.max(m, (t.startDay ?? 0) + Math.max(1, t.durationDays || 1)), 7), [tasks]);
+  // startDay is 1-indexed; convert to a 0-indexed day-offset ((startDay ?? 1) - 1)
+  // before combining with duration to get the task's end day-offset from baseMs.
+  const maxDay = useMemo(() => tasks.reduce((m, t) => Math.max(m, ((t.startDay ?? 1) - 1) + Math.max(1, t.durationDays || 1)), 7), [tasks]);
   const numDays = maxDay + 2;
 
   // --- COLUMN ABSTRACTION ---------------------------------------------------
@@ -187,11 +190,12 @@ export function MobileGantt({
 
   const dayToX = useCallback((dayOffset: number): number => colOf(dayOffset) * dayW, [colOf, dayW]);
 
-  // Convert a live pixel drag into a new calendar startDay: move in columns, then
-  // map the resulting column back to a calendar day-offset (clamped to >= 0).
+  // Convert a live pixel drag into a new 1-indexed startDay: startDay maps to a
+  // 0-indexed day-offset (startDay - 1) for the column math, then the resulting
+  // day-offset (clamped to >= 0) is re-indexed to 1-based on the way out.
   const dragToStartDay = useCallback((currentStartDay: number, translationX: number): number => {
-    const targetCol = Math.max(0, colOf(currentStartDay) + Math.round(translationX / dayW));
-    return colToDay(targetCol);
+    const targetCol = Math.max(0, colOf(currentStartDay - 1) + Math.round(translationX / dayW));
+    return colToDay(targetCol) + 1;
   }, [colOf, colToDay, dayW]);
 
   const timelineW = totalCols * dayW;
@@ -216,9 +220,10 @@ export function MobileGantt({
     const m = new Map<string, { x: number; w: number; yMid: number }>();
     rows.forEach((r, i) => {
       if (r.kind !== 'task') return;
-      const startDay = r.task.startDay ?? 0;
-      const x = dayToX(startDay);
-      const endX = dayToX(startDay + Math.max(1, r.task.durationDays || 1));
+      // startDay is 1-indexed; dayToX/colOf take a 0-indexed day-offset from baseMs.
+      const startOffset = (r.task.startDay ?? 1) - 1;
+      const x = dayToX(startOffset);
+      const endX = dayToX(startOffset + Math.max(1, r.task.durationDays || 1));
       const w = Math.max(dayW * 0.6, endX - x - 3);
       m.set(r.task.id, { x, w, yMid: HEADER_H + i * ROW_H + ROW_H / 2 });
     });

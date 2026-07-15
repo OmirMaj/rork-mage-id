@@ -6,6 +6,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import * as Notifications from 'expo-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
 import {
   registerForPushNotifications,
   addNotificationResponseListener,
@@ -34,15 +35,15 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         console.log('[NotificationContext] Push token obtained');
 
         if (user.id) {
-          try {
-            await supabase
-              .from('profiles')
-              .update({ push_token: token })
-              .eq('id', user.id);
-            console.log('[NotificationContext] Push token saved to Supabase');
-          } catch (err) {
-            console.log('[NotificationContext] Failed to save push token:', err);
-          }
+          // Route through the offline queue. A direct .update() here both
+          // lost the token in airplane mode AND silently swallowed failures:
+          // supabase-js RESOLVES (never rejects) on an RLS/constraint error,
+          // so the try/catch never fired and the returned { error } was
+          // ignored. supabaseWrite enqueues transient/offline writes for
+          // retry on reconnect and toasts + reports genuine terminal
+          // failures. Update op keyed on the user id.
+          await supabaseWrite('profiles', 'update', { id: user.id, push_token: token });
+          console.log('[NotificationContext] Push token save routed through offline queue');
         }
       }
     });

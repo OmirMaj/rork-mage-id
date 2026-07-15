@@ -30,6 +30,7 @@ import SignaturePad from '@/components/SignaturePad';
 import Tutorial from '@/components/Tutorial';
 import Paywall from '@/components/Paywall';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { fetchQboStatus, type QboStatus } from '@/utils/qboSync';
 import { track, AnalyticsEvents } from '@/utils/analytics';
@@ -86,6 +87,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { settings, updateSettings, projects, deleteProject, userRole } = useCoreData();
   const { user, logout, deleteAccount, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const { tier } = useSubscription();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -313,14 +315,60 @@ export default function SettingsScreen() {
       {
         text: 'Delete Everything', style: 'destructive',
         onPress: async () => {
-          for (const project of projects) deleteProject(project.id);
-          await AsyncStorage.removeItem('buildwise_projects');
+          // Clear in ONE shot. The old loop called deleteProject(id) per
+          // project — but deleteProject is a useCallback closed over a
+          // single `projects` snapshot, so every call re-filtered that
+          // SAME full array (dropping only one id) and the last write
+          // persisted an array still holding all-but-one project, racing
+          // the AsyncStorage.removeItem below. Instead we: (1) snapshot
+          // the ids once, (2) fire each project's Supabase delete through
+          // the existing per-project delete path (the sync debounce map
+          // keys on project.id, so all N deletes are enqueued, not
+          // collapsed), (3) wipe every namespaced local key in a single
+          // multiRemove, and (4) empty the in-memory react-query caches
+          // to [] via setQueryData — which fires ProjectContext's
+          // data→setProjects effect WITHOUT a refetch, so a server-first
+          // reload can't race projects back in before the queued deletes
+          // flush.
+          const ids = projects.map(p => p.id);
+          for (const id of ids) deleteProject(id);
+
+          const userId = user?.id ?? null;
+          // Namespaced keys the app persists to: buildwise_* core +
+          // the tertiary_* project sub-collections. Keep in sync with
+          // ProjectContext's *_KEY constants.
+          await AsyncStorage.multiRemove([
+            'buildwise_projects',
+            'tertiary_change_orders',
+            'tertiary_invoices',
+            'tertiary_daily_reports',
+            'tertiary_punch_items',
+            'tertiary_photos',
+            'tertiary_rfis',
+            'tertiary_submittals',
+            'tertiary_warranties',
+            'tertiary_portal_messages',
+          ]);
+
+          // Empty the in-memory lists now. setQueryData (not invalidate)
+          // updates the cached data reference so ProjectContext's
+          // `if (query.data) setProjects(query.data)` effects run and
+          // zero out state, with no network refetch to re-populate from
+          // a server that hasn't processed the queued deletes yet.
+          const emptyQueryKeys = [
+            'projects', 'changeOrders', 'invoices', 'dailyReports',
+            'punchItems', 'projectPhotos', 'rfis', 'submittals',
+          ];
+          for (const name of emptyQueryKeys) {
+            queryClient.setQueryData([name, userId], []);
+          }
+
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           Alert.alert('Done', 'All data has been cleared.');
         },
       },
     ]);
-  }, [projects, deleteProject]);
+  }, [projects, deleteProject, user?.id, queryClient]);
 
   // Apple Guideline 5.1.1(v) requires every app with sign-in to offer
   // an in-app account deletion path. Two-step confirmation:

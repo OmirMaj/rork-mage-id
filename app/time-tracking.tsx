@@ -4,7 +4,7 @@ import {
   Platform, Alert, Modal, Share,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -192,6 +192,10 @@ function TimeTrackingScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Deep-link param: project-detail links here with { projectId }. When it
+  // matches a real project we default the clock-in picker to it so hours land
+  // on the job the GC navigated from, not silently on projects[0].
+  const { projectId: routeProjectId } = useLocalSearchParams<{ projectId?: string }>();
   // Real backend hook (created May 2026 to replace MOCK_TIME_ENTRIES).
   // Data is persisted to AsyncStorage immediately and synced to Supabase
   // `time_entries` table via the offline queue. Cross-device sync works
@@ -214,21 +218,25 @@ function TimeTrackingScreenInner() {
   // clock-in silently went to projects[0] regardless of where the worker
   // actually was, so the payroll CSV mis-allocated hours when the GC was
   // running multiple jobs.
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(routeProjectId ?? null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
-  // Keep the selection consistent: when projects load, default to the first
-  // one. If the user switches accounts (projects array changes identity) and
-  // the previously-selected id is gone, fall back to the new first.
+  // Keep the selection consistent: when projects load, prefer the deep-linked
+  // routeProjectId if it matches a real project, otherwise default to the
+  // first one. If the user switches accounts (projects array changes identity)
+  // and the previously-selected id is gone, fall back to the same order.
   useEffect(() => {
     if (projects.length === 0) {
       if (selectedProjectId !== null) setSelectedProjectId(null);
       return;
     }
     if (!selectedProjectId || !projects.some(p => p.id === selectedProjectId)) {
-      setSelectedProjectId(projects[0].id);
+      const preferred = (routeProjectId && projects.some(p => p.id === routeProjectId))
+        ? routeProjectId
+        : projects[0].id;
+      setSelectedProjectId(preferred);
     }
-  }, [projects, selectedProjectId]);
+  }, [projects, selectedProjectId, routeProjectId]);
 
   const selectedProject = useMemo(
     () => projects.find(p => p.id === selectedProjectId) ?? null,
