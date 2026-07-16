@@ -1322,8 +1322,8 @@ export default function ProjectDetailScreen() {
             <View style={styles.heroStats}>
               <TouchableOpacity
                 style={styles.heroStatMain}
-                onPress={() => estimate ? openDetail('total') : undefined}
-                activeOpacity={estimate ? 0.7 : 1}
+                onPress={() => estimate && !linkedEstimate ? openDetail('total') : undefined}
+                activeOpacity={estimate && !linkedEstimate ? 0.7 : 1}
                 testID="hero-total-tap"
               >
                 <Text style={styles.heroStatLabel}>Total Estimate</Text>
@@ -1335,7 +1335,7 @@ export default function ProjectDetailScreen() {
                   style={styles.heroStatValue}
                   duration={900}
                 />
-                <Text style={styles.heroTapHint}>{heroLabel}{estimate ? ' · Tap for breakdown' : ''}</Text>
+                <Text style={styles.heroTapHint}>{heroLabel}{estimate && !linkedEstimate ? ' · Tap for breakdown' : ''}</Text>
               </TouchableOpacity>
               <View style={{ marginTop: 10, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <BidConfidenceBadge project={project} variant="hero" />
@@ -1349,7 +1349,11 @@ export default function ProjectDetailScreen() {
                 )}
               </View>
               <View style={styles.heroStatsRow}>
-                {estimate && (
+                {/* Legacy estimate sub-stats only when NO linkedEstimate drives the
+                    headline total (effectiveEstimateTotal prefers linkedEstimate).
+                    Otherwise per-sqft/duration/bulk-savings would contradict the
+                    headline (stale legacy figures vs the linked grandTotal). */}
+                {estimate && !linkedEstimate && (
                   <>
                     <View style={styles.heroStatSmall}>
                       <Text style={styles.smallStatLabel}>Per Sq Ft</Text>
@@ -1373,7 +1377,7 @@ export default function ProjectDetailScreen() {
                     </TouchableOpacity>
                   </>
                 )}
-                {!estimate && linkedEstimate && (
+                {linkedEstimate && (
                   <>
                     <View style={styles.heroStatSmall}>
                       <Text style={styles.smallStatLabel}>Markup</Text>
