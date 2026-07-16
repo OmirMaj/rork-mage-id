@@ -41,6 +41,7 @@ export function buildScheduleShareUrl(projectName: string, projectStartDate: Dat
   const res = tryEncodeShareToken(payload);
   if (res.kind !== 'inline') return null;
   // Public web-app host (app.mageid.app serves the Expo /shared-schedule route).
-  // NOT rork.com — that's only the Expo Router origin pin, not a reachable host.
+  // This is the reachable host — distinct from the Expo Router `origin` pin in
+  // app.json, which is only a deep-link resolution hint, not fetched at runtime.
   return `https://app.mageid.app/shared-schedule?t=${encodeURIComponent(res.token)}`;
 }

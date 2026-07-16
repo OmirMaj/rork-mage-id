@@ -421,8 +421,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     // Site URL (currently mageid.app — the marketing site), which dumps
     // freshly-confirmed users on the wrong domain. Platform-aware:
     //   - web  → https://app.mageid.app (the actual app)
-    //   - native → mageid:// (deep-link back into the installed app; the
-    //     binary registers both mageid:// and the legacy rork-app://)
+    //   - native → mageid:// (deep-link back into the installed app)
     const emailRedirectTo = Platform.OS === 'web'
       ? 'https://app.mageid.app/'
       : PRIMARY_SCHEME;
@@ -585,13 +584,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Sending password reset email');
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.toLowerCase().trim(),
-      // Deep-link back into the app's reset-password screen using the
-      // primary mageid:// scheme. The binary registers mageid:// (app.json
-      // `scheme` array) alongside the legacy rork-app://, so this resolves
-      // AND already-sent rork-app:// links still work. Note: a past
-      // regression pointed here at mageid:// while the binary only
-      // registered rork-app://, which opened nothing and locked users out —
-      // registering BOTH schemes is what makes this safe now.
+      // Deep-link back into the app's reset-password screen via the app's
+      // mageid:// scheme (app.json `scheme`). Must match a scheme the native
+      // binary registers, or the reset link opens nothing — that's why the
+      // scheme string is centralized in utils/deepLinkScheme.
       { redirectTo: `${PRIMARY_SCHEME}reset-password` }
     );
 

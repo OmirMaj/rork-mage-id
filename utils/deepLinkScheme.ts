@@ -1,45 +1,33 @@
 // Deep-link scheme — single source of truth for the app's custom URL scheme.
 //
-// The app registers TWO schemes during (and after) the mageid:// migration:
-//   • mageid://   — the PRIMARY, MAGE-branded scheme. Every NEW outbound
-//                   deep link (magic links, password reset, share links,
-//                   OAuth hand-off) is built with this.
-//   • rork-app:// — the LEGACY scheme from the original scaffold. Kept
-//                   REGISTERED (see app.json `scheme` array) so links that
-//                   were already emailed/generated with the old scheme still
-//                   resolve on updated installs. Incoming routing accepts it;
-//                   we just never mint new links with it.
+// The app uses ONE scheme: mageid://. (The project was originally scaffolded
+// with a rork-app:// scheme; it was retired in the pre-launch clean-up. No
+// magic links / OAuth deep links using the old scheme were ever sent to a
+// real user, so there is no legacy scheme to keep supporting.)
 //
-// IMPORTANT: the redirect scheme MUST match a scheme the native binary
-// registers. A past regression set redirects to mageid:// while the binary
-// only registered rork-app://, which opened nothing and locked users out of
-// password reset (see contexts/AuthContext.tsx history). Registering BOTH in
-// app.json is what makes flipping the primary to mageid:// safe.
+// Every outbound deep link is built from PRIMARY_SCHEME; every inbound link is
+// normalized through stripAppScheme. Keeping the scheme in one place means a
+// future rename touches this file only.
 //
-// This module is intentionally dependency-free so it can be unit-validated in
-// isolation (scripts/validate-scheme-routing.ts).
+// Dependency-free on purpose, so it can be unit-validated in isolation
+// (scripts/validate-scheme-routing.ts).
 
-/** Primary scheme prefix — use this to build every NEW outbound deep link. */
+/** The app's custom URL scheme prefix — use this to build every deep link. */
 export const PRIMARY_SCHEME = 'mageid://';
 
-/** Legacy scheme prefix, still accepted on inbound links. Do not mint new. */
-export const LEGACY_SCHEME = 'rork-app://';
+/** Bare scheme name(s) (no `://`) as registered in app.json `scheme`. */
+export const APP_SCHEMES = ['mageid'] as const;
 
-/** Bare scheme names (no `://`) as registered in app.json — primary first. */
-export const APP_SCHEMES = ['mageid', 'rork-app'] as const;
-
-// Matches either registered scheme at the very start of a path.
-const SCHEME_PREFIX_RE = /^(?:mageid|rork-app):\/\//;
+// Matches the app scheme at the very start of a path.
+const SCHEME_PREFIX_RE = /^mageid:\/\//;
 
 /**
- * Strip any registered app scheme prefix AND a single leading slash, leaving
- * the route + query string. Scheme-agnostic so mageid:// and rork-app:// (and
- * a bare `/path`) all normalize identically.
+ * Strip the app scheme prefix AND a single leading slash, leaving the route +
+ * query string. A bare in-app path (`/route?x=1`) normalizes the same way.
  *
- *   mageid://prequal-form?token=abc   → prequal-form?token=abc
- *   rork-app://prequal-form?token=abc → prequal-form?token=abc
- *   /prequal-form?token=abc           → prequal-form?token=abc
- *   mageid://                         → ''
+ *   mageid://prequal-form?token=abc → prequal-form?token=abc
+ *   /prequal-form?token=abc         → prequal-form?token=abc
+ *   mageid://                       → ''
  */
 export function stripAppScheme(path: string): string {
   return path.replace(SCHEME_PREFIX_RE, '').replace(/^\//, '');

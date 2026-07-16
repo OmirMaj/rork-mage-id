@@ -16,8 +16,7 @@
 //    the redirect, return the URL to openAuthSessionAsync, and our
 //    connectQuickBooks() would call completeQuickBooksCallback() itself —
 //    this page would never load on native. Kept compatible anyway so a
-//    direct mageid://integrations/qbo/callback?code=... still works (the
-//    legacy rork-app:// scheme stays registered too, so old links resolve).
+//    direct mageid://integrations/qbo/callback?code=... still works.
 //
 // The page runs WITHOUT authentication on web: a fresh browser session has no
 // MAGE auth, but the qbo-connect-callback edge function is JWT-disabled and
