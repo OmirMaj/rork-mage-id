@@ -23,7 +23,7 @@
 //
 // Scoring: each rule emits a severity 1..3 (3 = hottest). The list is sorted
 // by severity desc, then by the source date asc (earlier = first). Tap-closed
-// dismissals are persisted in AsyncStorage key `tertiary_inbox_dismissed` as
+// dismissals are persisted in AsyncStorage key `mageid_inbox_dismissed` as
 // a string[] of item IDs. A dismissed item re-appears if it re-qualifies under
 // a different source date (e.g. a new invoice hitting overdue).
 // ============================================================================
@@ -72,7 +72,7 @@ export interface SmartInboxResult {
   isReady: boolean;
 }
 
-const DISMISSED_STORAGE_KEY = 'tertiary_inbox_dismissed';
+const DISMISSED_STORAGE_KEY = 'mageid_inbox_dismissed';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Module-level dismissed store so every call site (tab badge, inbox card,

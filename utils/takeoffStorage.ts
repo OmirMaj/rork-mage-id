@@ -6,8 +6,8 @@
 // stays put per project until they explicitly clear it.
 //
 // Storage layout:
-//   tertiary_takeoff::<projectId>          → { result, overrides, modelUsed, savedAt, fileName }
-//   tertiary_takeoff::standalone           → same shape; for runs without a project
+//   mageid_takeoff::<projectId>          → { result, overrides, modelUsed, savedAt, fileName }
+//   mageid_takeoff::standalone           → same shape; for runs without a project
 //
 // We DO NOT enqueue these through the offline queue — they're local-only
 // state. If the user is offline the takeoff function won't run, full stop.
@@ -17,7 +17,7 @@ import type { TakeoffResult } from '@/types';
 import type { TakeoffModel } from '@/utils/takeoffAnalyzer';
 import type { RenderedPlanPage } from '@/utils/pdfRenderClient';
 
-const KEY_PREFIX = 'tertiary_takeoff::';
+const KEY_PREFIX = 'mageid_takeoff::';
 const STANDALONE_KEY = 'standalone';
 
 export interface PersistedTakeoff {

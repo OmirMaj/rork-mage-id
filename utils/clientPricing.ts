@@ -39,10 +39,9 @@ export const CLIENT_PRICING = {
 export type ClientSubscriptionTier = 'free' | 'client_pro' | 'client_pm';
 
 // ── AsyncStorage keys ────────────────────────────────────────────────────
-// `mageid_*` prefix mirrors the rest of the auth/credentials code; we
-// don't reuse the `buildwise_*` legacy prefix or the `tertiary_*` per-
-// project prefix because client pricing state is per-account, not per-
-// project. These keys are wiped by AuthContext on logout via the
+// `mageid_*` prefix, like the rest of the app's storage keys. Client pricing
+// state is per-account (not per-project). These keys are wiped by AuthContext
+// on logout via the
 // LOCAL_USER_CACHE_KEYS list (already includes the user-role mirror;
 // we add the credit ledger + trial state below in a follow-up if real
 // billing isn't shipped first).

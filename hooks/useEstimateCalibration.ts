@@ -2,7 +2,7 @@
 //
 // utils/estimateCalibration computes the suggested corrections; this hook
 // remembers which ones the GC actually chose to apply. V1 persists to
-// AsyncStorage under the `tertiary_estimate_calibration` key (the app's
+// AsyncStorage under the `mageid_estimate_calibration` key (the app's
 // convention for newer project sub-collections) and shares state across
 // screens via the react-query cache — the same pattern as useMaterialReceipts.
 // Cloud sync (a Supabase table behind the offline queue) is an intentional
@@ -18,7 +18,7 @@ export interface AppliedCalibration {
   appliedAt: string;
 }
 
-const CALIBRATION_KEY = 'tertiary_estimate_calibration';
+const CALIBRATION_KEY = 'mageid_estimate_calibration';
 const QUERY_KEY = ['estimate-calibration'] as const;
 
 async function load(): Promise<AppliedCalibration[]> {

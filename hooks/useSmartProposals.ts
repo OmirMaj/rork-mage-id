@@ -1,7 +1,7 @@
 // useSmartProposals — local-first store for tiered Smart Proposals.
 //
 // Same shape as useMaterialReceipts: persists to AsyncStorage under the
-// `tertiary_smart_proposals` key (the app's convention for newer project
+// `mageid_smart_proposals` key (the app's convention for newer project
 // sub-collections) and shares state across screens via the react-query cache.
 // Cloud sync is an intentional follow-up — proposal accept/decline already
 // closes the learning loop by flipping the linked Lead, which DOES sync.
@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { SmartProposal } from '@/utils/proposalBuilder';
 
-const PROPOSALS_KEY = 'tertiary_smart_proposals';
+const PROPOSALS_KEY = 'mageid_smart_proposals';
 const QUERY_KEY = ['smart-proposals'] as const;
 
 async function load(): Promise<SmartProposal[]> {

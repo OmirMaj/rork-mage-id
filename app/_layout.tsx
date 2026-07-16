@@ -1202,7 +1202,7 @@ function ThemeLoader({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const stored = await AsyncStorage.getItem('buildwise_settings');
+        const stored = await AsyncStorage.getItem('mageid_settings');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed.themeColors) {

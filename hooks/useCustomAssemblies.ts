@@ -1,7 +1,7 @@
 // useCustomAssemblies — offline-first CRUD for user-authored assembly presets.
 //
 // Storage flow mirrors useTimeEntries.ts exactly:
-//  - Local source of truth: AsyncStorage `tertiary_custom_assemblies` keyed by
+//  - Local source of truth: AsyncStorage `mageid_custom_assemblies` keyed by
 //    user. Reads are synchronous from React state, hydrated on mount.
 //  - Server mirror: Supabase `assemblies` table (is_custom=true rows owned by
 //    the current user) via `supabaseWrite()` from utils/offlineQueue.ts. Writes
@@ -24,7 +24,7 @@ import type { AssemblyItem } from '@/constants/assemblies';
 import { assemblyItemToRow, rowToAssemblyItem } from '@/utils/assemblyRows';
 import type { AssemblyRow } from '@/utils/assemblyRows';
 
-const STORAGE_KEY = 'tertiary_custom_assemblies';
+const STORAGE_KEY = 'mageid_custom_assemblies';
 
 export function useCustomAssemblies(): {
   customAssemblies: AssemblyItem[];

@@ -136,7 +136,7 @@ Stack at a glance:
 - **EAS** for native builds, submissions, and OTA updates (runtime `appVersion`).
 - **State**: Zustand for UI, TanStack Query + tRPC for server, context providers
   for cross-screen domain state.
-- **Persistence**: AsyncStorage with `buildwise_*` (legacy) and `tertiary_*`
+- **Persistence**: AsyncStorage with `mageid_*` (legacy) and `mageid_*`
   (newer) key prefixes. Writes go through an offline queue that replays when
   connectivity returns.
 - **Subscription gating** via RevenueCat (`react-native-purchases`); a single
@@ -250,7 +250,7 @@ Auth → Subscription → Project → Bids → Companies → Hire → Notificati
 
 Highlights:
 - **`ProjectContext`**: central project store. Owns `projects`, the `linkedEstimate`
-  draw-down logic, and all `tertiary_*` sub-collections (change orders, invoices,
+  draw-down logic, and all `mageid_*` sub-collections (change orders, invoices,
   daily reports, punch items, photos, RFIs, submittals, warranties, portal
   messages). All writes go through `utils/offlineQueue.ts` so they survive
   dropped connections.
@@ -447,7 +447,7 @@ bundle(
     "09-FIELD-OPS.md",
     "Field Operations — Daily Reports, Punch, RFIs, Submittals, Warranties",
     """Field-operations screens — daily reports, punch lists, RFIs, submittals,
-warranties, permits, and time tracking. All persist under the `tertiary_*`
+warranties, permits, and time tracking. All persist under the `mageid_*`
 AsyncStorage key family and sync through the offline queue.
 
 - Voice-parsed daily field updates via `utils/voiceDFRParser.ts` and

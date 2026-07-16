@@ -7,7 +7,7 @@
 // and daily reports.
 //
 // Storage flow:
-//  - Local source of truth: AsyncStorage `tertiary_time_entries` keyed by
+//  - Local source of truth: AsyncStorage `mageid_time_entries` keyed by
 //    user. Reads are synchronous from React state, hydrated on mount.
 //  - Server mirror: Supabase `time_entries` table via `supabaseWrite()`
 //    from utils/offlineQueue.ts. Writes are queued so airplane-mode
@@ -29,8 +29,8 @@ import { generateUUID } from '@/utils/generateId';
 import { scheduleLocalNotificationAt, cancelScheduledNotification } from '@/utils/notifications';
 import type { TimeEntry, TimeEntryStatus } from '@/types';
 
-const STORAGE_KEY = 'tertiary_time_entries';
-const SHIFT_ALERT_HOURS_KEY = 'tertiary_shift_alert_hours';
+const STORAGE_KEY = 'mageid_time_entries';
+const SHIFT_ALERT_HOURS_KEY = 'mageid_shift_alert_hours';
 const DEFAULT_SHIFT_ALERT_HOURS = 8;
 const SHIFT_ALERT_NOTIF_PREFIX = 'shift-alert:';
 

@@ -99,7 +99,7 @@ const COLUMNS: ColumnDef[] = [
 // reasonable task title (and stops a runaway drag from breaking layout).
 const COL_MIN_WIDTH = 44;
 const COL_MAX_WIDTH = 800;
-const COL_WIDTHS_STORAGE_KEY = 'tertiary_grid_col_widths_v1';
+const COL_WIDTHS_STORAGE_KEY = 'mageid_grid_col_widths_v1';
 
 // ---------------------------------------------------------------------------
 // ColumnResizeHandle — Excel-style drag-to-resize.

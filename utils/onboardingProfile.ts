@@ -61,7 +61,7 @@ export interface OnboardingProfile {
 }
 
 // NOTE: `userRole` is intentionally NOT stored on this profile blob — it
-// lives in its own AsyncStorage key (`buildwise_user_role`) and on
+// lives in its own AsyncStorage key (`mageid_user_role`) and on
 // `public.profiles.user_role`. Keeping them separate so changing persona
 // later doesn't require rewriting / re-validating the entire onboarding
 // state, and so we can read role on cold boot without parsing JSON.

@@ -13,7 +13,7 @@
 // finalize markup → attach to a project (existing flow).
 //
 // Notes:
-// - Persisted to AsyncStorage under `tertiary_material_cart` (the new
+// - Persisted to AsyncStorage under `mageid_material_cart` (the new
 //   namespace convention). Survives app restarts.
 // - dedup-by-id semantics for addToCart so repeat taps bump quantity.
 // - `usesBulk` is recomputed on every quantity change so the bulk-pricing
@@ -27,8 +27,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import type { MaterialItem } from '@/constants/materials';
 
-const CART_KEY = 'tertiary_material_cart';
-const MARKUP_KEY = 'tertiary_material_cart_markup';
+const CART_KEY = 'mageid_material_cart';
+const MARKUP_KEY = 'mageid_material_cart_markup';
 
 export interface MaterialCartItem {
   material: MaterialItem;

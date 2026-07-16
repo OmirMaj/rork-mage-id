@@ -56,8 +56,8 @@ import { Tokens } from '@/constants/designTokens';
  * hydrated (cold boot, offline, or a mis-configured build).
  */
 
-const STORAGE_KEY_FIRST_SEEN = 'buildwise_onboarding_paywall_first_at';
-const STORAGE_KEY_LAST_SEEN = 'buildwise_onboarding_paywall_last_at';
+const STORAGE_KEY_FIRST_SEEN = 'mageid_onboarding_paywall_first_at';
+const STORAGE_KEY_LAST_SEEN = 'mageid_onboarding_paywall_last_at';
 
 // Canonical published pricing — MUST match app/paywall.tsx and the tiers in
 // CLAUDE.md: Pro $29/mo, Business $79/mo (Enterprise $150/mo lives in the full

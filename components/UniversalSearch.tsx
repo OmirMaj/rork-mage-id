@@ -4,7 +4,7 @@
 // Modal wrapper around useUniversalSearch. One autofocused input, results
 // grouped by entity kind, Cmd+K / Ctrl+K on web, ESC closes. Tapping any row
 // hands the EntityRef to `useEntityNavigation().navigateTo`. Empty query
-// shows the last 5 searches from AsyncStorage (tertiary_recent_searches).
+// shows the last 5 searches from AsyncStorage (mageid_recent_searches).
 // ============================================================================
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -35,7 +35,7 @@ import { Tokens } from '@/constants/designTokens';
 // Storage
 // ---------------------------------------------------------------------------
 
-const RECENT_KEY = 'tertiary_recent_searches';
+const RECENT_KEY = 'mageid_recent_searches';
 const MAX_RECENT = 5;
 
 // ---------------------------------------------------------------------------

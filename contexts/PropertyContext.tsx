@@ -8,7 +8,7 @@
 // the contractor core. Follows the same createContextHook + AsyncStorage
 // pattern as MaterialCartContext.
 //
-// v1 is local-first — persisted under the `tertiary_*` namespace, no
+// v1 is local-first — persisted under the `mageid_*` namespace, no
 // Supabase sync yet (documented intentional; mirrors how OAC meetings
 // shipped local-first first). The work-order → contractor bridge lives in
 // the UI (app/work-order.tsx), which consumes both this context and
@@ -20,8 +20,8 @@ import createContextHook from '@nkzw/create-context-hook';
 import { generateUUID } from '@/utils/generateId';
 import type { ManagedProperty, WorkOrder } from '@/types';
 
-const PROPERTIES_KEY = 'tertiary_managed_properties';
-const WORK_ORDERS_KEY = 'tertiary_work_orders';
+const PROPERTIES_KEY = 'mageid_managed_properties';
+const WORK_ORDERS_KEY = 'mageid_work_orders';
 
 async function loadLocal<T>(key: string, fallback: T): Promise<T> {
   try {

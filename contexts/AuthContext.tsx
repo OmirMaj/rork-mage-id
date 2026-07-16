@@ -24,24 +24,24 @@ const AUTH_PASSWORD_KEY = 'mageid_auth_password';
 // while Supabase is still hydrating the new user's rows.
 //
 // Keep in sync with the Project/Bids/Companies/Hire context persistence
-// layer — adding a new tertiary_* prefix without listing it here is how
+// layer — adding a new mageid_* prefix without listing it here is how
 // cross-tenant leaks happen.
 const LOCAL_USER_CACHE_KEYS = [
-  'buildwise_projects', 'buildwise_settings', 'buildwise_user_role',
+  'mageid_projects', 'mageid_settings', 'mageid_user_role',
   'mageid_client_rfp_credits_v1', 'mageid_client_sub_state_v1',
-  'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
-  'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
-  'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
-  'tertiary_price_alerts', 'tertiary_contacts', 'tertiary_comm_events',
-  'tertiary_rfis', 'tertiary_submittals', 'tertiary_oac_meetings',
-  'tertiary_cois', 'tertiary_equipment', 'tertiary_warranties',
-  'tertiary_portal_messages', 'tertiary_commitments', 'tertiary_prequal_packets',
-  'tertiary_drawing_pins', 'tertiary_plan_calibrations', 'tertiary_plan_sheets',
-  'tertiary_plan_markups', 'tertiary_permits', 'tertiary_aia_pay_apps',
-  'tertiary_sub_portal_links',
+  'mageid_leads', 'mageid_bid_packages', 'mageid_bid_package_bids',
+  'mageid_change_orders', 'mageid_invoices', 'mageid_daily_reports',
+  'mageid_subcontractors', 'mageid_punch_items', 'mageid_photos',
+  'mageid_price_alerts', 'mageid_contacts', 'mageid_comm_events',
+  'mageid_rfis', 'mageid_submittals', 'mageid_oac_meetings',
+  'mageid_cois', 'mageid_equipment', 'mageid_warranties',
+  'mageid_portal_messages', 'mageid_commitments', 'mageid_prequal_packets',
+  'mageid_drawing_pins', 'mageid_plan_calibrations', 'mageid_plan_sheets',
+  'mageid_plan_markups', 'mageid_permits', 'mageid_aia_pay_apps',
+  'mageid_sub_portal_links',
 ] as const;
 
-// The re-fetchable caches (buildwise_* / tertiary_*) are always safe to wipe —
+// The re-fetchable caches (mageid_*) are always safe to wipe —
 // they rehydrate from Supabase under the incoming JWT. The offline WRITE queue
 // (`mageid_offline_queue`) is the ONE cache that CANNOT be re-fetched, so
 // dropping it is opt-in. `dropOfflineQueue` defaults to true to preserve the

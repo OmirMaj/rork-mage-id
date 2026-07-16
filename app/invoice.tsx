@@ -559,9 +559,9 @@ function InvoiceInner() {
     // send. After the first time, the user knows; nagging on each invoice
     // is friction. A failed flag read counts as "not seen" (show it);
     // the flag write is fire-and-forget and never blocks the send.
-    const stripeNudgeSeen = await AsyncStorage.getItem('buildwise_stripe_nudge_seen').catch(() => null);
+    const stripeNudgeSeen = await AsyncStorage.getItem('mageid_stripe_nudge_seen').catch(() => null);
     if (stripeNotConnected && totalDue > 0 && stripeNudgeSeen !== '1') {
-      void AsyncStorage.setItem('buildwise_stripe_nudge_seen', '1');
+      void AsyncStorage.setItem('mageid_stripe_nudge_seen', '1');
       Alert.alert(
         'Invoice sent — no Pay button included',
         "You haven't connected Stripe yet, so this invoice was emailed without a one-tap Pay button. Set up Stripe in Payments to add Pay buttons to future invoices.",

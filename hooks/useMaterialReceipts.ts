@@ -1,6 +1,6 @@
 // useMaterialReceipts — local-first store for snapped supplier invoices.
 //
-// V1 persists to AsyncStorage under the `tertiary_material_receipts` key (the
+// V1 persists to AsyncStorage under the `mageid_material_receipts` key (the
 // app's convention for newer project sub-collections) and shares state across
 // screens via the react-query cache, the same data layer the rest of the app
 // uses. Cloud sync (a Supabase table behind the offline queue) and the
@@ -12,7 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MaterialReceipt } from '@/types';
 
-const RECEIPTS_KEY = 'tertiary_material_receipts';
+const RECEIPTS_KEY = 'mageid_material_receipts';
 const QUERY_KEY = ['material-receipts'] as const;
 
 async function load(): Promise<MaterialReceipt[]> {

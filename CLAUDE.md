@@ -73,7 +73,7 @@ Contexts are built with `@nkzw/create-context-hook` (`createContextHook`), which
 - **Local / UI**: `zustand` stores.
 - **Server / remote**: `@tanstack/react-query` + Supabase client (`lib/supabase.ts`) + Supabase edge functions (`supabase/functions/*`). The app does NOT use tRPC — earlier docs claimed it did, but `lib/trpc.ts` and `backend/trpc/` do not exist.
 - **Cross-screen domain state**: the context providers listed above.
-- **Persistence**: `AsyncStorage`. Keys are namespaced — `buildwise_*` for core (legacy prefix, do not rename) and `tertiary_*` for the newer project sub-collections (`tertiary_change_orders`, `tertiary_invoices`, `tertiary_daily_reports`, `tertiary_punch_items`, `tertiary_photos`, `tertiary_rfis`, `tertiary_submittals`, `tertiary_warranties`, `tertiary_portal_messages`).
+- **Persistence**: `AsyncStorage`. All keys are namespaced under the single `mageid_*` prefix — core (`mageid_projects`, `mageid_settings`, `mageid_user_role`), project sub-collections (`mageid_change_orders`, `mageid_invoices`, `mageid_daily_reports`, `mageid_punch_items`, `mageid_photos`, `mageid_rfis`, `mageid_submittals`, `mageid_warranties`, `mageid_portal_messages`), and app state (`mageid_offline_queue`, `mageid_theme`, `mageid_auth_*`). (Historically core keys used `buildwise_*` and sub-collections used `tertiary_*`; both were unified to `mageid_*` in the pre-launch de-branding. Any NEW `mageid_*` per-user key must be added to `LOCAL_USER_CACHE_KEYS` in `contexts/AuthContext.tsx` or it leaks across tenants on shared devices.)
 
 ### Offline-first sync
 
