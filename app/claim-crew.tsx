@@ -8,7 +8,7 @@ import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 
 // Worker claim redemption. Opened from the magic-link invite
-// (rork-app://claim-crew?token=crew_...). MagicLinkHandler (app/_layout.tsx)
+// (mageid://claim-crew?token=crew_...). MagicLinkHandler (app/_layout.tsx)
 // establishes the session from the URL hash; once authenticated we redeem the
 // claim token via the SERVICE-ROLE claim-crew edge function — NOT a client
 // context mutation. The claiming worker is a different auth user than the GC,

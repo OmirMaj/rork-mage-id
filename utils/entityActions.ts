@@ -12,6 +12,7 @@
 
 import type { EntityRef, EntityKind } from '@/types';
 import { getEntityRoute } from '@/utils/entityResolver';
+import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 
 export type EntityActionId =
   | 'open'
@@ -97,9 +98,9 @@ export function getEntityActions(ref: EntityRef): EntityAction[] {
 // Deep-link URLs — used by copyLink / share.
 // ---------------------------------------------------------------------------
 
-// App scheme is rork-app:// per app.json (legacy, do not rename). Deep-link
+// App scheme is mageid:// (single source: utils/deepLinkScheme). Deep-link
 // URLs are passed through expo-linking so they resolve correctly on device.
-const APP_SCHEME = 'rork-app://';
+const APP_SCHEME = PRIMARY_SCHEME;
 
 /**
  * Build a deep-link URL for a ref. Returns null if the ref has no dedicated

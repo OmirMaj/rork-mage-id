@@ -21,9 +21,9 @@ export interface QboStatus {
  *  B) iOS does NOT intercept (current state — no Universal Links):
  *     the in-app browser navigates to app.mageid.app/integrations/qbo/callback,
  *     where the web build's callback page completes the OAuth via JS and
- *     then deep-links back to `rork-app://qbo-setup`. iOS catches that
+ *     then deep-links back to `mageid://qbo-setup`. iOS catches that
  *     custom scheme, closes the browser session, and returns
- *     `{type: 'success', url: 'rork-app://qbo-setup'}`. The URL has no
+ *     `{type: 'success', url: 'mageid://qbo-setup'}`. The URL has no
  *     code/realmId/state — we fall through and let the caller's polling
  *     loop confirm the connection.
  *

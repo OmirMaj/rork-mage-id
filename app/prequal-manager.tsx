@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
+import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import {
   ShieldCheck, ShieldAlert, ShieldX, Clock, Send, ChevronRight,
   ChevronLeft, X, CheckCircle2, AlertTriangle, Copy, Scale,
@@ -120,7 +121,7 @@ function PrequalManagerInner() {
     upsertPrequalPacket(packet);
 
     // Compose email.
-    const link = `rork-app://prequal-form?token=${token}`;
+    const link = `${PRIMARY_SCHEME}prequal-form?token=${token}`;
     const subject = encodeURIComponent(`Prequalification for ${sub.companyName}`);
     const body = encodeURIComponent(
       `Hi ${sub.contactName || 'there'},\n\n` +
@@ -450,7 +451,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
                 <TouchableOpacity
                   style={styles.copyLinkRow}
                   onPress={async () => {
-                    const link = `rork-app://prequal-form?token=${packet.inviteToken}`;
+                    const link = `${PRIMARY_SCHEME}prequal-form?token=${packet.inviteToken}`;
                     const ok = await copyToClipboard(link);
                     Alert.alert(
                       ok ? 'Copied' : 'Copy failed',

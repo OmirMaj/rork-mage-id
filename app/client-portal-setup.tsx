@@ -4,6 +4,7 @@ import {
   TextInput, Alert, Platform, Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -43,7 +44,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
-const DEEP_LINK_SCHEME = 'rork-app://client-view';
+const DEEP_LINK_SCHEME = `${PRIMARY_SCHEME}client-view`;
 // Supabase URL + anon key are public — fine to bake into the static portal
 // page so it can POST a budget proposal back to the GC. RLS gates access.
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
