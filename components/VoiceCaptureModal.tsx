@@ -25,6 +25,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { transcribeAudio } from '@/utils/transcribeAudio';
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'error';
 
@@ -141,13 +142,13 @@ export default function VoiceCaptureModal({
         playsInSilentModeIOS: true,
       });
       const recording = new Audio.Recording();
-      // IMPORTANT: the Rork toolkit STT endpoint at
-      // https://toolkit.rork.com/stt/transcribe/ silently returns
-      // {"text":"","language":""} for M4A/AAC uploads (verified — it
-      // doesn't error, it just emits no transcript). It transcribes WAV
-      // perfectly. So we record as 16-kHz mono LPCM and send a real
-      // .wav. 16kHz/16-bit mono is the standard speech bandwidth — half
-      // the file size of 44.1kHz stereo, identical accuracy for STT.
+      // IMPORTANT: the upstream STT provider (behind our transcribe-audio
+      // proxy) silently returns {"text":"","language":""} for M4A/AAC
+      // uploads (verified — it doesn't error, it just emits no transcript).
+      // It transcribes WAV perfectly. So we record as 16-kHz mono LPCM and
+      // send a real .wav. 16kHz/16-bit mono is the standard speech
+      // bandwidth — half the file size of 44.1kHz stereo, identical
+      // accuracy for STT.
       await recording.prepareToRecordAsync({
         isMeteringEnabled: true,
         ios: {
@@ -229,19 +230,10 @@ export default function VoiceCaptureModal({
         webm: 'audio/webm',
       };
       const mime = mimeMap[fileType] || `audio/${fileType}`;
-      const formData = new FormData();
-      formData.append('audio', { uri, name: `recording.${fileType}`, type: mime } as any);
-
-      const resp = await fetch('https://toolkit.rork.com/stt/transcribe/', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => '');
-        throw new Error(`Transcription server returned ${resp.status}. ${text.slice(0, 120)}`);
-      }
-      const data = await resp.json();
-      const transcript: string = (data?.text || '').trim();
+      // Transcribe through the MAGE STT proxy (utils/transcribeAudio) rather
+      // than posting to the third-party endpoint directly — that keeps the
+      // vendor host out of the shipped bundle.
+      const transcript = await transcribeAudio({ uri, name: `recording.${fileType}`, type: mime });
       if (!transcript) {
         setErrorMsg("Didn't catch any speech. Try again — speak a bit louder or closer to the mic.");
         setStep('error');
