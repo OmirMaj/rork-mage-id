@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { IdDocumentType } from '@/types';
+import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 
 export interface IdScanResult {
   fullName: string;
@@ -39,7 +40,7 @@ export async function scanCertification(imageBase64: string, mimeType = 'image/j
 /** Send a branded magic-link invite so a worker can claim their CrewMember.
  *  The redirectTo carries the claim token; app/claim-crew.tsx redeems it. */
 export async function sendClaimInvite(email: string, claimToken: string): Promise<void> {
-  const redirectTo = `rork-app://claim-crew?token=${encodeURIComponent(claimToken)}`;
+  const redirectTo = `${PRIMARY_SCHEME}claim-crew?token=${encodeURIComponent(claimToken)}`;
   const { error } = await supabase.functions.invoke('auth-magic-link', {
     body: { email, redirectTo },
   });

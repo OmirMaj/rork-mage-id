@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
+import { PRIMARY_SCHEME } from '@/utils/deepLinkScheme';
 import { processOfflineQueue, getOfflineQueue } from '@/utils/offlineQueue';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -420,10 +421,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     // Site URL (currently mageid.app — the marketing site), which dumps
     // freshly-confirmed users on the wrong domain. Platform-aware:
     //   - web  → https://app.mageid.app (the actual app)
-    //   - native → rork-app:// (deep-link back into the installed app)
+    //   - native → mageid:// (deep-link back into the installed app; the
+    //     binary registers both mageid:// and the legacy rork-app://)
     const emailRedirectTo = Platform.OS === 'web'
       ? 'https://app.mageid.app/'
-      : 'rork-app://';
+      : PRIMARY_SCHEME;
     const { data, error } = await supabase.auth.signUp({
       email: email.toLowerCase().trim(),
       password,
@@ -583,11 +585,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Sending password reset email');
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.toLowerCase().trim(),
-      // The app's URL scheme is `rork-app://` (see app.json `scheme`).
-      // Pre-fix this used `mageid://` which doesn't resolve, so the
-      // reset-password email link opened nothing on iOS/Android and
-      // the user was locked out with no way to reset.
-      { redirectTo: 'rork-app://reset-password' }
+      // Deep-link back into the app's reset-password screen using the
+      // primary mageid:// scheme. The binary registers mageid:// (app.json
+      // `scheme` array) alongside the legacy rork-app://, so this resolves
+      // AND already-sent rork-app:// links still work. Note: a past
+      // regression pointed here at mageid:// while the binary only
+      // registered rork-app://, which opened nothing and locked users out —
+      // registering BOTH schemes is what makes this safe now.
+      { redirectTo: `${PRIMARY_SCHEME}reset-password` }
     );
 
     if (error) {

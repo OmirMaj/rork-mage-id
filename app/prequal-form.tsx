@@ -1,6 +1,7 @@
 // app/prequal-form.tsx — Subcontractor-side magic-link prequal form.
 //
-// Reached via the emailed link: rork-app://prequal-form?token=XXXX
+// Reached via the emailed link: mageid://prequal-form?token=XXXX
+// (the legacy rork-app:// scheme still resolves for older links).
 // No auth. No tier gate. The trust boundary is that the GC sent the
 // token to a verified email. Anyone holding the token can fill out the
 // packet for that specific sub — which is the entire point (the sub's

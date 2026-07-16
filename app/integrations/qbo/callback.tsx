@@ -10,13 +10,14 @@
 //    unless Universal Links are configured — so the in-app browser actually
 //    navigates here. We complete the token exchange via the edge function
 //    (which doesn't require auth — trust root is the signed state HMAC),
-//    then hand the user back to the native app via the rork-app:// deep link.
+//    then hand the user back to the native app via the mageid:// deep link.
 //
 //  - NATIVE (rare): if Universal Links are ever set up, iOS would intercept
 //    the redirect, return the URL to openAuthSessionAsync, and our
 //    connectQuickBooks() would call completeQuickBooksCallback() itself —
 //    this page would never load on native. Kept compatible anyway so a
-//    direct rork-app://integrations/qbo/callback?code=... still works.
+//    direct mageid://integrations/qbo/callback?code=... still works (the
+//    legacy rork-app:// scheme stays registered too, so old links resolve).
 //
 // The page runs WITHOUT authentication on web: a fresh browser session has no
 // MAGE auth, but the qbo-connect-callback edge function is JWT-disabled and
@@ -27,6 +28,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet, Linking, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams } from "expo-router";
+import { PRIMARY_SCHEME } from "@/utils/deepLinkScheme";
 import { AlertTriangle, ExternalLink } from "lucide-react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useThemedStyles } from "@/hooks/useThemedStyles";
@@ -80,7 +82,7 @@ export default function QboCallbackScreen() {
   useEffect(() => {
     if (status !== "success") return;
     const t = setTimeout(() => {
-      const deepLink = "rork-app://qbo-setup";
+      const deepLink = `${PRIMARY_SCHEME}qbo-setup`;
       if (Platform.OS === "web") {
         // From the in-app browser, this navigates to the custom scheme,
         // which iOS hands off to the host app. On desktop browsers without
@@ -94,7 +96,7 @@ export default function QboCallbackScreen() {
   }, [status]);
 
   const openMage = () => {
-    const deepLink = "rork-app://qbo-setup";
+    const deepLink = `${PRIMARY_SCHEME}qbo-setup`;
     if (Platform.OS === "web") {
       try { window.location.href = deepLink; } catch { /* no-op */ }
     } else {
