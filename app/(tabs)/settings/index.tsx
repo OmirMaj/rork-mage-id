@@ -334,20 +334,20 @@ export default function SettingsScreen() {
           for (const id of ids) deleteProject(id);
 
           const userId = user?.id ?? null;
-          // Namespaced keys the app persists to: buildwise_* core +
-          // the tertiary_* project sub-collections. Keep in sync with
+          // Namespaced keys the app persists to: mageid_* core +
+          // the mageid_* project sub-collections. Keep in sync with
           // ProjectContext's *_KEY constants.
           await AsyncStorage.multiRemove([
-            'buildwise_projects',
-            'tertiary_change_orders',
-            'tertiary_invoices',
-            'tertiary_daily_reports',
-            'tertiary_punch_items',
-            'tertiary_photos',
-            'tertiary_rfis',
-            'tertiary_submittals',
-            'tertiary_warranties',
-            'tertiary_portal_messages',
+            'mageid_projects',
+            'mageid_change_orders',
+            'mageid_invoices',
+            'mageid_daily_reports',
+            'mageid_punch_items',
+            'mageid_photos',
+            'mageid_rfis',
+            'mageid_submittals',
+            'mageid_warranties',
+            'mageid_portal_messages',
           ]);
 
           // Empty the in-memory lists now. setQueryData (not invalidate)

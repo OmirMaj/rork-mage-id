@@ -5,7 +5,7 @@
 //
 // Architecture notes:
 //   - Source of truth is ProjectContext.permits (local AsyncStorage,
-//     keyed `tertiary_permits`). No Supabase table yet — when we add one,
+//     keyed `mageid_permits`). No Supabase table yet — when we add one,
 //     mirror the rfis pattern in ProjectContext.
 //   - Phase tagging is a free-text field. We considered a fixed enum
 //     (Foundation / Rough-in / Final / Closeout) but every jurisdiction

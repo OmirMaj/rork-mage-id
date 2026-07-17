@@ -132,7 +132,7 @@ Tiers (RevenueCat): **free**, **Pro $29/mo**, **Business $79/mo**, **Enterprise 
 
 ## 8. Architecture (the essentials)
 
-- **Stack:** React Native + Expo (Expo Router 6, typed routes), New Architecture on. Package manager **bun** (scripts shell out to `bunx rork`). TypeScript strict.
+- **Stack:** React Native + Expo (Expo Router 6, typed routes), New Architecture on. Package manager **bun** (dev/build scripts run Expo directly). TypeScript strict.
 - **Routing:** `app/_layout.tsx` is the single root — mounts the provider stack + declares every `Stack.Screen`. `app/(tabs)/_layout.tsx` = mobile tab bar; `components/DesktopSidebar.tsx` = web/desktop nav (keep both in sync).
 - **Provider stack (order matters):** QueryClient → GestureHandler → ThemeLoader → **Auth** → Subscription (RevenueCat) → Project → Bids → Companies → Hire → Notification → OfflineSyncManager + the Stack. Contexts use `@nkzw/create-context-hook`. Anything below Auth gets the user.
 - **State:** local/UI = zustand; server = `@tanstack/react-query` + Supabase; cross-screen domain state = the context providers; persistence = AsyncStorage (`buildwise_*` legacy core keys, `tertiary_*` newer sub-collections). **Note: the app does NOT use tRPC** (old docs lied; `lib/trpc.ts`/`backend/trpc/` don't exist).

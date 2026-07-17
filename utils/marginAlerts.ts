@@ -62,9 +62,9 @@ export interface MarginBaseline {
 export type BaselineMap = Record<string, MarginBaseline>;
 
 /** What the user last acknowledged — alerts are diffed against this. */
-export const MARGIN_ALERTS_BASELINE_KEY = 'buildwise_margin_alerts_baseline';
+export const MARGIN_ALERTS_BASELINE_KEY = 'mageid_margin_alerts_baseline';
 /** Alert ids already pushed as a local notification (so each fires once). */
-export const MARGIN_ALERTS_NOTIFIED_KEY = 'buildwise_margin_alerts_notified';
+export const MARGIN_ALERTS_NOTIFIED_KEY = 'mageid_margin_alerts_notified';
 
 export interface PortfolioInput {
   projects: Project[];

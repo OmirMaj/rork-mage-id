@@ -5,7 +5,7 @@
 // before/after. Bounded at 500 entries on the project; older entries
 // roll off (FIFO).
 //
-// Storage: AsyncStorage (key `tertiary_schedule_audit::<projectId>`).
+// Storage: AsyncStorage (key `mageid_schedule_audit::<projectId>`).
 // The Settings → Schedule audit viewer reads from here.
 //
 // The field `ProjectSchedule.auditLog` used to exist for "ride-with-
@@ -16,7 +16,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ScheduleAuditEntry } from '@/types';
 
-const STORAGE_KEY_PREFIX = 'tertiary_schedule_audit::';
+const STORAGE_KEY_PREFIX = 'mageid_schedule_audit::';
 const MAX_ENTRIES = 500;
 
 function generateId(): string {

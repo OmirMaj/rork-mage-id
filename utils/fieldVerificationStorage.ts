@@ -8,13 +8,13 @@
 // module is the single touch-point to swap.
 //
 // Storage layout:
-//   tertiary_takeoff_field::<projectId>          → TakeoffFieldVerification[]
-//   tertiary_takeoff_field::standalone           → TakeoffFieldVerification[]
+//   mageid_takeoff_field::<projectId>          → TakeoffFieldVerification[]
+//   mageid_takeoff_field::standalone           → TakeoffFieldVerification[]
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { TakeoffFieldVerification } from '@/types';
 
-const KEY_PREFIX = 'tertiary_takeoff_field::';
+const KEY_PREFIX = 'mageid_takeoff_field::';
 const STANDALONE_KEY = 'standalone';
 
 function keyFor(projectId: string | undefined): string {

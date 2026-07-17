@@ -3,11 +3,11 @@
 // Two pieces of state, both AsyncStorage-backed and shared across screens via
 // the react-query cache (same data layer as useMaterialReceipts):
 //
-//   - memory   (`tertiary_plan_room_memory`)   — the per-room-type learning
+//   - memory   (`mageid_plan_room_memory`)   — the per-room-type learning
 //     state: sqft correction factors, learned $/SF rates, recent notes. This
 //     is GLOBAL (not per project): the AI's read on "how this GC's plans run"
 //     transfers between jobs — that's the whole point.
-//   - sessions (`tertiary_plan_room_sessions`) — the last confirmed room set
+//   - sessions (`mageid_plan_room_sessions`) — the last confirmed room set
 //     per project, so reopening a project shows where the GC left off instead
 //     of forcing a re-analyze.
 //
@@ -18,8 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PlanRoom, PlanRoomMemory } from '@/utils/planIntelligence';
 
-const MEMORY_KEY = 'tertiary_plan_room_memory';
-const SESSIONS_KEY = 'tertiary_plan_room_sessions';
+const MEMORY_KEY = 'mageid_plan_room_memory';
+const SESSIONS_KEY = 'mageid_plan_room_sessions';
 const MEMORY_QK = ['plan-room-memory'] as const;
 const SESSIONS_QK = ['plan-room-sessions'] as const;
 

@@ -1,6 +1,6 @@
 // SafetyContext — Wave A safety collections (JHAs, Toolbox Talks, Incidents,
 // Hazard Log). Kept OUT of the already-large ProjectContext: this is a new
-// feature surface with its own tertiary_* collections and its own server
+// feature surface with its own mageid_* collections and its own server
 // tables. Follows the createContextHook + AsyncStorage pattern (PropertyContext)
 // but adds offline-first Supabase sync via supabaseWrite (ProjectContext's
 // punchItems shape): optimistic setState → persist local → queue remote write.
@@ -39,17 +39,17 @@ const TEMPLATES_TABLE = 'safety_templates';
 // (`${BASE}_${userId}`) so one account's cache can never render for another
 // on a shared/handoff device — see `keys` below. The legacy un-namespaced
 // keys are intentionally abandoned; synced records rehydrate from Supabase.
-const JHAS_KEY = 'tertiary_jhas';
-const TOOLBOX_KEY = 'tertiary_toolbox_talks';
-const INCIDENTS_KEY = 'tertiary_safety_incidents';
-const HAZARDS_KEY = 'tertiary_hazards';
+const JHAS_KEY = 'mageid_jhas';
+const TOOLBOX_KEY = 'mageid_toolbox_talks';
+const INCIDENTS_KEY = 'mageid_safety_incidents';
+const HAZARDS_KEY = 'mageid_hazards';
 // Wave B: inspections are project-scoped; certifications + templates are
 // company-scoped (RLS scopes by user_id server-side). All three still use the
 // same per-user namespaced local cache so no cross-account leakage on a shared
 // device.
-const INSPECTIONS_KEY = 'tertiary_safety_inspections';
-const CERTIFICATIONS_KEY = 'tertiary_certifications';
-const TEMPLATES_KEY = 'tertiary_safety_templates';
+const INSPECTIONS_KEY = 'mageid_safety_inspections';
+const CERTIFICATIONS_KEY = 'mageid_certifications';
+const TEMPLATES_KEY = 'mageid_safety_templates';
 
 async function loadLocal<T>(key: string, fallback: T): Promise<T> {
   try {

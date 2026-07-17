@@ -1,17 +1,16 @@
 // scripts/validate-scheme-routing.ts — pure-fn validator for utils/deepLinkScheme.ts.
 //
-// Guards the mageid:// migration invariants:
-//   • Both the primary (mageid://) and legacy (rork-app://) schemes strip
-//     identically, so an old emailed link routes exactly like a new one.
+// Guards the single-scheme (mageid://) routing invariants:
+//   • The app scheme strips correctly (and a bare in-app path normalizes the
+//     same way), so inbound routing is uniform.
 //   • Public paths pass through with their query string; everything else
 //     routes to home ('/').
-//   • The primary scheme is mageid:// and it's first in APP_SCHEMES (so the
-//     native binary registers it as primary while keeping the legacy one).
+//   • The scheme is mageid:// and APP_SCHEMES lists exactly ['mageid'] (the
+//     rork-app:// scaffold scheme was retired pre-launch).
 import {
   stripAppScheme,
   resolveDeepLinkPath,
   PRIMARY_SCHEME,
-  LEGACY_SCHEME,
   APP_SCHEMES,
 } from '../utils/deepLinkScheme';
 
@@ -23,31 +22,28 @@ function eq<T>(n: string, got: T, want: T) {
 
 // ── Constants ────────────────────────────────────────────────────────────
 eq('PRIMARY_SCHEME is mageid://', PRIMARY_SCHEME, 'mageid://');
-eq('LEGACY_SCHEME is rork-app://', LEGACY_SCHEME, 'rork-app://');
-eq('APP_SCHEMES lists mageid first (primary), rork-app second (legacy)', [...APP_SCHEMES], ['mageid', 'rork-app']);
+eq('APP_SCHEMES is exactly [mageid] (legacy rork-app retired)', [...APP_SCHEMES], ['mageid']);
 
-// ── stripAppScheme: both schemes + bare path normalize identically ───────
+// ── stripAppScheme ───────────────────────────────────────────────────────
 eq('strip mageid:// prefix', stripAppScheme('mageid://prequal-form?token=abc'), 'prequal-form?token=abc');
-eq('strip rork-app:// prefix (legacy)', stripAppScheme('rork-app://prequal-form?token=abc'), 'prequal-form?token=abc');
 eq('strip leading slash (in-app path)', stripAppScheme('/prequal-form?token=abc'), 'prequal-form?token=abc');
 eq('bare mageid:// → empty', stripAppScheme('mageid://'), '');
-eq('bare rork-app:// → empty', stripAppScheme('rork-app://'), '');
 eq('no scheme, no slash → unchanged', stripAppScheme('reset-password?x=1'), 'reset-password?x=1');
-// A scheme name appearing mid-path must NOT be stripped (anchored at start).
+// A scheme name mid-path must NOT be stripped (anchored at start).
 eq('scheme only stripped at start', stripAppScheme('mageid://a/mageid://b'), 'a/mageid://b');
+// A foreign/retired scheme is left intact (the OS won't even deliver it to us).
+eq('unknown scheme left intact', stripAppScheme('rork-app://prequal-form'), 'rork-app://prequal-form');
 
-// ── resolveDeepLinkPath: whitelist passes through, else home ─────────────
-eq('mageid:// public path passes through with query', resolveDeepLinkPath('mageid://prequal-form?token=abc'), '/prequal-form?token=abc');
-eq('rork-app:// public path passes through (legacy link)', resolveDeepLinkPath('rork-app://prequal-form?token=abc'), '/prequal-form?token=abc');
+// ── resolveDeepLinkPath ──────────────────────────────────────────────────
+eq('public path passes through with query', resolveDeepLinkPath('mageid://prequal-form?token=abc'), '/prequal-form?token=abc');
 eq('reset-password (bare) is public', resolveDeepLinkPath('mageid://reset-password'), '/reset-password');
 eq('reset-password with query passes through', resolveDeepLinkPath('mageid://reset-password?token=x'), '/reset-password?token=x');
-// A #hash-bearing recovery link routes to home; the token in the URL
-// fragment is redeemed separately by MagicLinkHandler (a Linking listener),
-// NOT by this router. Route extraction splits on '?' only — this matches the
-// original native-intent behavior, preserved deliberately through the rename.
+// A #hash-bearing recovery link routes to home; the token in the URL fragment
+// is redeemed separately by MagicLinkHandler (a Linking listener), NOT by this
+// router. Route extraction splits on '?' only.
 eq('reset-password with #hash → home (token handled by MagicLinkHandler)', resolveDeepLinkPath('mageid://reset-password#access_token=x'), '/');
 eq('non-public path → home', resolveDeepLinkPath('mageid://qbo-setup'), '/');
-eq('legacy non-public path → home', resolveDeepLinkPath('rork-app://claim-crew?token=crew_1'), '/');
+eq('unknown scheme → home', resolveDeepLinkPath('rork-app://prequal-form?token=abc'), '/');
 eq('bare scheme → home', resolveDeepLinkPath('mageid://'), '/');
 eq('empty → home', resolveDeepLinkPath(''), '/');
 

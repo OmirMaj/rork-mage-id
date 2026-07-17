@@ -12,7 +12,7 @@ import { generateClaimToken } from '@/utils/crew';
 import { HIRE_ENABLED } from '@/contexts/HireContext';
 import { shouldSurfaceToMarketplace, crewMemberToWorkerProfile } from '@/utils/crew';
 
-const CREW_KEY = 'tertiary_crew_members';
+const CREW_KEY = 'mageid_crew_members';
 
 /** Tenant-safe local key: namespace the roster by the owning user so a second
  *  account on the same device can never read the previous user's cached crew

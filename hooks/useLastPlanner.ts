@@ -1,6 +1,6 @@
 // useLastPlanner — local-first store for the Last Planner production-control
 // layer: per-project readiness CONSTRAINTS + weekly COMMITMENTS (which feed
-// the PPC scorecard). Persisted under `tertiary_last_planner` in AsyncStorage
+// the PPC scorecard). Persisted under `mageid_last_planner` in AsyncStorage
 // and shared across screens via the react-query cache, same as
 // useMaterialReceipts. Cloud sync is an intentional follow-up.
 //
@@ -14,7 +14,7 @@ import type {
   Constraint, ConstraintCategory, WeeklyCommitment, VarianceReason,
 } from '@/utils/lastPlanner';
 
-const KEY = 'tertiary_last_planner';
+const KEY = 'mageid_last_planner';
 const QK = ['last-planner'] as const;
 
 interface ProjectBucket {

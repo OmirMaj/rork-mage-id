@@ -10,13 +10,13 @@
 // barn doors").
 //
 // Storage layout:
-//   tertiary_takeoff_corrections   → TakeoffCorrection[]
+//   mageid_takeoff_corrections   → TakeoffCorrection[]
 // Capped at 500 entries (FIFO eviction) so a heavy user doesn't blow
 // AsyncStorage. 500 corrections is ~150 takeoffs of edit-heavy work.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'tertiary_takeoff_corrections';
+const STORAGE_KEY = 'mageid_takeoff_corrections';
 const MAX_ENTRIES = 500;
 
 export type CorrectionKind = 'override' | 'reject' | 'restore';

@@ -43,7 +43,7 @@ function pct(n: number): string {
 // silently falling back to subs+materials and quietly wrong for CPA/bank review.
 // Tenant-namespaced by user id so switching accounts on one device never bleeds
 // one company's cost figures into another's view.
-const WIP_COST_OVERRIDES_KEY = 'tertiary_wip_cost_overrides';
+const WIP_COST_OVERRIDES_KEY = 'mageid_wip_cost_overrides';
 function costOverridesKey(userId: string | undefined): string {
   return userId ? `${WIP_COST_OVERRIDES_KEY}_${userId}` : WIP_COST_OVERRIDES_KEY;
 }

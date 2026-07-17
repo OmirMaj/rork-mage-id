@@ -24,24 +24,24 @@ const AUTH_PASSWORD_KEY = 'mageid_auth_password';
 // while Supabase is still hydrating the new user's rows.
 //
 // Keep in sync with the Project/Bids/Companies/Hire context persistence
-// layer — adding a new tertiary_* prefix without listing it here is how
+// layer — adding a new mageid_* prefix without listing it here is how
 // cross-tenant leaks happen.
 const LOCAL_USER_CACHE_KEYS = [
-  'buildwise_projects', 'buildwise_settings', 'buildwise_user_role',
+  'mageid_projects', 'mageid_settings', 'mageid_user_role',
   'mageid_client_rfp_credits_v1', 'mageid_client_sub_state_v1',
-  'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
-  'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
-  'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
-  'tertiary_price_alerts', 'tertiary_contacts', 'tertiary_comm_events',
-  'tertiary_rfis', 'tertiary_submittals', 'tertiary_oac_meetings',
-  'tertiary_cois', 'tertiary_equipment', 'tertiary_warranties',
-  'tertiary_portal_messages', 'tertiary_commitments', 'tertiary_prequal_packets',
-  'tertiary_drawing_pins', 'tertiary_plan_calibrations', 'tertiary_plan_sheets',
-  'tertiary_plan_markups', 'tertiary_permits', 'tertiary_aia_pay_apps',
-  'tertiary_sub_portal_links',
+  'mageid_leads', 'mageid_bid_packages', 'mageid_bid_package_bids',
+  'mageid_change_orders', 'mageid_invoices', 'mageid_daily_reports',
+  'mageid_subcontractors', 'mageid_punch_items', 'mageid_photos',
+  'mageid_price_alerts', 'mageid_contacts', 'mageid_comm_events',
+  'mageid_rfis', 'mageid_submittals', 'mageid_oac_meetings',
+  'mageid_cois', 'mageid_equipment', 'mageid_warranties',
+  'mageid_portal_messages', 'mageid_commitments', 'mageid_prequal_packets',
+  'mageid_drawing_pins', 'mageid_plan_calibrations', 'mageid_plan_sheets',
+  'mageid_plan_markups', 'mageid_permits', 'mageid_aia_pay_apps',
+  'mageid_sub_portal_links',
 ] as const;
 
-// The re-fetchable caches (buildwise_* / tertiary_*) are always safe to wipe —
+// The re-fetchable caches (mageid_*) are always safe to wipe —
 // they rehydrate from Supabase under the incoming JWT. The offline WRITE queue
 // (`mageid_offline_queue`) is the ONE cache that CANNOT be re-fetched, so
 // dropping it is opt-in. `dropOfflineQueue` defaults to true to preserve the
@@ -421,8 +421,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     // Site URL (currently mageid.app — the marketing site), which dumps
     // freshly-confirmed users on the wrong domain. Platform-aware:
     //   - web  → https://app.mageid.app (the actual app)
-    //   - native → mageid:// (deep-link back into the installed app; the
-    //     binary registers both mageid:// and the legacy rork-app://)
+    //   - native → mageid:// (deep-link back into the installed app)
     const emailRedirectTo = Platform.OS === 'web'
       ? 'https://app.mageid.app/'
       : PRIMARY_SCHEME;
@@ -585,13 +584,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Sending password reset email');
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.toLowerCase().trim(),
-      // Deep-link back into the app's reset-password screen using the
-      // primary mageid:// scheme. The binary registers mageid:// (app.json
-      // `scheme` array) alongside the legacy rork-app://, so this resolves
-      // AND already-sent rork-app:// links still work. Note: a past
-      // regression pointed here at mageid:// while the binary only
-      // registered rork-app://, which opened nothing and locked users out —
-      // registering BOTH schemes is what makes this safe now.
+      // Deep-link back into the app's reset-password screen via the app's
+      // mageid:// scheme (app.json `scheme`). Must match a scheme the native
+      // binary registers, or the reset link opens nothing — that's why the
+      // scheme string is centralized in utils/deepLinkScheme.
       { redirectTo: `${PRIMARY_SCHEME}reset-password` }
     );
 

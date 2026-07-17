@@ -7,7 +7,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import type { ScanRecord, ScanDocType, ScanRecordKind } from '@/types';
 
-const SCAN_RECORDS_KEY = 'tertiary_scan_records';
+const SCAN_RECORDS_KEY = 'mageid_scan_records';
 
 // Tenant-safe, namespaced storage key. A signed-in user's scan audit log lives
 // under a per-user key so switching accounts on one device never bleeds one

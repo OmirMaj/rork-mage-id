@@ -1,7 +1,7 @@
 // useRateOverrides — offline-first CRUD for the GC's rate-override cost-book.
 //
 // Storage flow mirrors useCustomAssemblies.ts exactly:
-//  - Local source of truth: AsyncStorage `tertiary_rate_overrides` keyed by
+//  - Local source of truth: AsyncStorage `mageid_rate_overrides` keyed by
 //    user. Reads are synchronous from React state, hydrated on mount.
 //  - Server mirror: Supabase `rate_overrides` table (rows owned by the current
 //    user) via `supabaseWrite()` from utils/offlineQueue.ts. Writes are queued
@@ -26,7 +26,7 @@ import {
   rowToRateOverride,
 } from '@/utils/rateOverrides';
 
-const STORAGE_KEY = 'tertiary_rate_overrides';
+const STORAGE_KEY = 'mageid_rate_overrides';
 
 export function useRateOverrides(): {
   overrides: RateOverride[];

@@ -59,3 +59,8 @@ FULL_SOURCE_EXPORT.txt
 QA_AUDIT_EXPORT.txt
 export_part_*
 sentry-wizard-installation-error-*.log
+
+# Stale full-source export dumps (Rork export tool, Apr 2026). Redundant
+# with the real source tree and needlessly embed the public anon key.
+# Kept on disk but out of version control.
+export_sections/

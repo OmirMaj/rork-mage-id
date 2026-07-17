@@ -3,7 +3,7 @@
 // schedule URL; both sides (sub posting + GC reading) cache locally.
 //
 // Storage layout:
-//   tertiary_sub_updates::<projectId>   → SubScheduleUpdate[]
+//   mageid_sub_updates::<projectId>   → SubScheduleUpdate[]
 // Newest-first, capped at 1,000 entries (~3 years of daily updates
 // across 25 active subs).
 //
@@ -14,7 +14,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { SubScheduleUpdate } from '@/types';
 
-const KEY_PREFIX = 'tertiary_sub_updates::';
+const KEY_PREFIX = 'mageid_sub_updates::';
 const MAX_ENTRIES = 1_000;
 
 function keyFor(projectId: string): string {

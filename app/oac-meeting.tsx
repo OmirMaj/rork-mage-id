@@ -35,6 +35,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { sendEmail } from '@/utils/emailService';
+import { transcribeAudio } from '@/utils/transcribeAudio';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -275,20 +276,9 @@ function OACMeetingInner() {
       // Convert base64 → Blob for the multipart upload. (React Native
       // FormData accepts a { uri, name, type } shape; we use that to
       // avoid a giant base64 round-trip in JS memory.)
-      const formData = new FormData();
-      // @ts-expect-error — RN FormData accepts the file shape
-      formData.append('audio', { uri: asset.uri, name: filename, type: mime });
-
-      const r = await fetch('https://toolkit.rork.com/stt/transcribe/', {
-        method: 'POST',
-        body: formData,
-      });
-      if (!r.ok) {
-        const text = await r.text().catch(() => '');
-        throw new Error(`STT ${r.status}: ${text.slice(0, 200)}`);
-      }
-      const json = await r.json().catch(() => ({}));
-      const transcribed = (json?.text ?? json?.transcript ?? '').trim();
+      // Transcribe through the MAGE STT proxy (utils/transcribeAudio) so the
+      // vendor host never ships in the client bundle.
+      const transcribed = await transcribeAudio({ uri: asset.uri, name: filename, type: mime });
       // Suppress the unused-var lint on base64 — held for parity with
       // any future inline-base64 path.
       void base64;

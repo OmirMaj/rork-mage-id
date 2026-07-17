@@ -1225,7 +1225,7 @@ export interface Invoice {
 // surfaces these as a dedicated "Pay Applications" section so the client (and
 // architect/lender) can review the cover summary and download a printable PDF
 // without ever needing to come back to email. Stored locally under the key
-// `tertiary_aia_pay_apps`; mirrored into the portal snapshot as a compact
+// `mageid_aia_pay_apps`; mirrored into the portal snapshot as a compact
 // summary that the static portal page can render and print.
 export interface SavedAIAPayAppLine {
   id: string;
@@ -1574,8 +1574,8 @@ export interface Lead {
 // app/work-order.tsx): dispatch to a saved contractor from Contacts
 // (local, immediate), or post to the marketplace for competitive bids.
 //
-// v1 is local-first (AsyncStorage `tertiary_managed_properties` /
-// `tertiary_work_orders`, via contexts/PropertyContext.tsx); server sync
+// v1 is local-first (AsyncStorage `mageid_managed_properties` /
+// `mageid_work_orders`, via contexts/PropertyContext.tsx); server sync
 // can follow once the persona is validated.
 
 /** A building / unit under management. Long-lived container that spawns
@@ -2087,7 +2087,7 @@ export interface PunchItem {
 // ─────────────────────────────────────────────────────────────────────────
 // SAFETY MANAGEMENT — Wave A (JHAs, Toolbox Talks, Incidents, Hazard Log)
 // All records carry id / projectId / createdAt / createdBy; mutated records
-// also carry updatedAt. Collections persist under tertiary_* keys and mirror
+// also carry updatedAt. Collections persist under mageid_* keys and mirror
 // to snake_case Supabase tables via SafetyContext.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -2290,7 +2290,7 @@ export interface Certification {
   id: string;
   workerId?: string;            // → CrewMember.id — person anchor (Worker Profile feature)
   holderName?: string;          // display fallback when no CrewMember is linked
-  subId?: string;               // links to tertiary_subcontractors / PrequalSafetyRecord
+  subId?: string;               // links to mageid_subcontractors / PrequalSafetyRecord
   type: string;                 // e.g. 'OSHA 10', 'OSHA 30', 'SST', 'CPR', trade license
   issuedDate?: string;          // 'YYYY-MM-DD'
   expiresDate?: string;         // 'YYYY-MM-DD'; absent = non-expiring

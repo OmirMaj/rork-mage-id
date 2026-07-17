@@ -10,41 +10,41 @@ import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
 
-const PROJECTS_KEY = 'buildwise_projects';
-const SETTINGS_KEY = 'buildwise_settings';
-const ONBOARDING_KEY = 'buildwise_onboarding_complete';
-const USER_ROLE_KEY = 'buildwise_user_role';
-const LEADS_KEY = 'tertiary_leads';
-const BID_PACKAGES_KEY = 'tertiary_bid_packages';
-const BID_PACKAGE_BIDS_KEY = 'tertiary_bid_package_bids';
-const CHANGE_ORDERS_KEY = 'tertiary_change_orders';
-const INVOICES_KEY = 'tertiary_invoices';
-const DAILY_REPORTS_KEY = 'tertiary_daily_reports';
-const SUBS_KEY = 'tertiary_subcontractors';
-const PUNCH_ITEMS_KEY = 'tertiary_punch_items';
-const PHOTOS_KEY = 'tertiary_photos';
-const PRICE_ALERTS_KEY = 'tertiary_price_alerts';
-const CONTACTS_KEY = 'tertiary_contacts';
-const COMM_EVENTS_KEY = 'tertiary_comm_events';
-const RFIS_KEY = 'tertiary_rfis';
-const SUBMITTALS_KEY = 'tertiary_submittals';
-const OAC_MEETINGS_KEY = 'tertiary_oac_meetings';
-const COIS_KEY = 'tertiary_cois';
-const EQUIPMENT_KEY = 'tertiary_equipment';
-const WARRANTIES_KEY = 'tertiary_warranties';
-const PORTAL_MESSAGES_KEY = 'tertiary_portal_messages';
-const COMMITMENTS_KEY = 'tertiary_commitments';
-const PREQUAL_KEY = 'tertiary_prequal_packets';
-const DRAWING_PINS_KEY = 'tertiary_drawing_pins';
-const PLAN_CALIBRATIONS_KEY = 'tertiary_plan_calibrations';
-const PLAN_SHEETS_KEY = 'tertiary_plan_sheets';
-const PLAN_MARKUPS_KEY = 'tertiary_plan_markups';
-const PLAN_ZONES_KEY = 'tertiary_plan_zones';
-const PLAN_REVIEWS_KEY = 'tertiary_plan_reviews';
-const PLAN_ROADMAPS_KEY = 'tertiary_plan_roadmaps';
-const PERMITS_KEY = 'tertiary_permits';
-const AIA_PAY_APPS_KEY = 'tertiary_aia_pay_apps';
-const SUB_PORTAL_LINKS_KEY = 'tertiary_sub_portal_links';
+const PROJECTS_KEY = 'mageid_projects';
+const SETTINGS_KEY = 'mageid_settings';
+const ONBOARDING_KEY = 'mageid_onboarding_complete';
+const USER_ROLE_KEY = 'mageid_user_role';
+const LEADS_KEY = 'mageid_leads';
+const BID_PACKAGES_KEY = 'mageid_bid_packages';
+const BID_PACKAGE_BIDS_KEY = 'mageid_bid_package_bids';
+const CHANGE_ORDERS_KEY = 'mageid_change_orders';
+const INVOICES_KEY = 'mageid_invoices';
+const DAILY_REPORTS_KEY = 'mageid_daily_reports';
+const SUBS_KEY = 'mageid_subcontractors';
+const PUNCH_ITEMS_KEY = 'mageid_punch_items';
+const PHOTOS_KEY = 'mageid_photos';
+const PRICE_ALERTS_KEY = 'mageid_price_alerts';
+const CONTACTS_KEY = 'mageid_contacts';
+const COMM_EVENTS_KEY = 'mageid_comm_events';
+const RFIS_KEY = 'mageid_rfis';
+const SUBMITTALS_KEY = 'mageid_submittals';
+const OAC_MEETINGS_KEY = 'mageid_oac_meetings';
+const COIS_KEY = 'mageid_cois';
+const EQUIPMENT_KEY = 'mageid_equipment';
+const WARRANTIES_KEY = 'mageid_warranties';
+const PORTAL_MESSAGES_KEY = 'mageid_portal_messages';
+const COMMITMENTS_KEY = 'mageid_commitments';
+const PREQUAL_KEY = 'mageid_prequal_packets';
+const DRAWING_PINS_KEY = 'mageid_drawing_pins';
+const PLAN_CALIBRATIONS_KEY = 'mageid_plan_calibrations';
+const PLAN_SHEETS_KEY = 'mageid_plan_sheets';
+const PLAN_MARKUPS_KEY = 'mageid_plan_markups';
+const PLAN_ZONES_KEY = 'mageid_plan_zones';
+const PLAN_REVIEWS_KEY = 'mageid_plan_reviews';
+const PLAN_ROADMAPS_KEY = 'mageid_plan_roadmaps';
+const PERMITS_KEY = 'mageid_permits';
+const AIA_PAY_APPS_KEY = 'mageid_aia_pay_apps';
+const SUB_PORTAL_LINKS_KEY = 'mageid_sub_portal_links';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '',
@@ -937,7 +937,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   });
 
   // OAC Meetings — local-only for now (no Supabase mirror). Lives in
-  // tertiary_oac_meetings AsyncStorage key. Add server sync later if
+  // mageid_oac_meetings AsyncStorage key. Add server sync later if
   // cross-device meetings become a need.
   // OAC Meetings — server-synced. Reads from Supabase first, falls back
   // to local AsyncStorage when offline. Writes go through supabaseWrite

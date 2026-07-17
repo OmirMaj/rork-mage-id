@@ -8,7 +8,7 @@ import { supabaseWrite } from '@/utils/offlineQueue';
 import { assertPeriodEditable } from '@/utils/wip';
 import type { WipPeriod, WipSnapshotRow, WipPortfolio } from '@/types';
 
-const WIP_PERIODS_KEY = 'tertiary_wip_periods';
+const WIP_PERIODS_KEY = 'mageid_wip_periods';
 
 // Tenant-safe, namespaced storage key. A signed-in user's periods live under a
 // per-user key so switching accounts on one device never bleeds one tenant's

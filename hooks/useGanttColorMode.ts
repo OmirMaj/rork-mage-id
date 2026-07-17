@@ -23,7 +23,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type GanttColorMode = 'status' | 'trade';
 
-export const GANTT_COLOR_MODE_KEY = 'buildwise_gantt_color_mode';
+export const GANTT_COLOR_MODE_KEY = 'mageid_gantt_color_mode';
 export const DEFAULT_GANTT_COLOR_MODE: GanttColorMode = 'status';
 
 function isValidMode(v: unknown): v is GanttColorMode {

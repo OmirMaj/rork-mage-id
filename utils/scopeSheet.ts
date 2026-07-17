@@ -10,14 +10,14 @@
 // Generation goes through the existing `ai` relay (utils/mageAI → Gemini,
 // structured JSON via schemaHint). If the model is unavailable / the user is
 // offline / capped, we fall back to a deterministic heuristic sheet so the
-// screen is never empty. Persistence is local (AsyncStorage, tertiary_*
+// screen is never empty. Persistence is local (AsyncStorage, mageid_*
 // namespace) keyed by project — Supabase sync is a deliberate follow-up.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mageAI } from '@/utils/mageAI';
 import type { Project, ScopeSheet, ScopeSheetItem } from '@/types';
 
-const STORAGE_KEY = 'tertiary_scope_sheets'; // map: projectId -> ScopeSheet
+const STORAGE_KEY = 'mageid_scope_sheets'; // map: projectId -> ScopeSheet
 
 // ── estimate extraction ──────────────────────────────────────────────────────
 interface DigestItem { name: string; group: string; qty: number; unit: string; total: number; isAllowance: boolean }
