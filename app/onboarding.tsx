@@ -46,6 +46,7 @@ import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import {
   saveOnboardingProfile,
@@ -129,6 +130,7 @@ export default function OnboardingScreen() {
   const projectCtx = useProjects();
   const { completeOnboarding, addLead } = projectCtx;
   const { colors: themeColors } = useTheme();
+  const { tier } = useSubscription();
 
   const [step, setStep] = useState<Step>('splash');
 
@@ -261,8 +263,15 @@ export default function OnboardingScreen() {
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await completeOnboarding();
-    router.replace('/(tabs)/(home)' as never);
-  }, [runDemoSeed, completeOnboarding, router]);
+    // First-run monetization: non-subscribers land on the onboarding paywall
+    // once (it's dismissible → summary, so it's a soft gate, not a wall).
+    // Paying tiers skip straight to the app.
+    if (tier === 'free') {
+      router.replace('/onboarding-paywall' as never);
+    } else {
+      router.replace('/(tabs)/(home)' as never);
+    }
+  }, [runDemoSeed, completeOnboarding, router, tier]);
 
   const handleBandPick = useCallback(async (band: ProjectSizeBand) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
