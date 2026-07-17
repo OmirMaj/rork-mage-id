@@ -112,7 +112,7 @@ const FEATURES: Feature[] = [
   },
   {
     title: 'Construction AI',
-    description: 'Look up building codes, permits, and inspection requirements.',
+    description: 'Code checks, an AI permit roadmap, and plan review.',
     Icon: BookOpen,
   },
 ];

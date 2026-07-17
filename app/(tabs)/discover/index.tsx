@@ -338,7 +338,7 @@ export default function DiscoverScreen() {
           iconColor={Colors.primary}
           iconBg={Colors.primary + '15'}
           title="Construction AI"
-          subtitle="Ask building code questions, get instant answers"
+          subtitle="Code check, permit roadmap & plan review — instant"
           onPress={() => navigateTo('/(tabs)/construction-ai')}
         />
 
