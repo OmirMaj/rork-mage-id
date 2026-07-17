@@ -10,10 +10,10 @@ MAGE ID — React Native / Expo construction management app (iOS primary, Androi
 
 ## Commands
 
-Package manager is **bun** (scripts shell out to `bunx rork`, the custom Rork CLI wrapping Expo).
+Package manager is **bun**. The dev/build scripts run Expo directly (see `package.json` — `expo start`, `eas build`).
 
 ```bash
-# Dev server (tunnel required — Rork CLI does not support LAN-only)
+# Dev server (scripts default to --tunnel)
 bun run start                 # native, tunneled
 bun run start-web             # web, tunneled
 bun run start-web-dev         # web with expo debug logs
@@ -44,7 +44,7 @@ eas submit --platform ios --latest    # uses ascAppId 6762229238, team HKT2J284D
 
 - `app/_layout.tsx` is the single root. It mounts the provider stack and declares every `Stack.Screen` (30+ routes including `estimate-wizard` as `presentation: "modal"`).
 - `app/(tabs)/_layout.tsx` renders the bottom tab bar on mobile. On wide screens, `components/DesktopSidebar.tsx` is the primary nav — keep both in sync when adding/removing destinations. Hidden routes use `href: null`.
-- Deep-link scheme is `rork-app://`. Expo Router origin is pinned to `https://rork.com/` in both `app.json` plugins and `extra.router`.
+- Deep-link scheme is `mageid://` (single source: `utils/deepLinkScheme.ts`). Expo Router origin is `https://app.mageid.app/` in both `app.json` plugins and `extra.router`.
 - `experiments.typedRoutes` is on — router autocomplete and type-checks route strings. Don't cast your way around a red squiggle; fix the path.
 
 ### Provider stack (order matters)
