@@ -67,7 +67,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK' },
 
   // ── NETWORK — people + AI
-  { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
+  { key: 'leads',             label: 'Pipeline',         icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
   { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
   { key: 'crew',              label: 'Crew',             icon: IdCard,          route: '/crew',                             section: 'NETWORK', requires: 'crew_management' },
   { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
