@@ -19,6 +19,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useCopilotConversation } from '@/hooks/useCopilotConversation';
+import { optionsForGap } from '@/utils/copilot/gapOptions';
 import type { CopilotCapabilityId, CopilotContext } from '@/utils/copilot/types';
 
 interface Props {
@@ -164,10 +165,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
               </View>
             ) : (
               <View style={styles.options}>
-                {(state.currentGap.choices ?? [
-                  { label: 'Yes', value: true, recommended: true },
-                  { label: 'No', value: false },
-                ]).map((c, i) => (
+                {optionsForGap(state.currentGap).map((c, i) => (
                   <TouchableOpacity
                     key={i}
                     style={[styles.opt, c.recommended && styles.optRec]}
