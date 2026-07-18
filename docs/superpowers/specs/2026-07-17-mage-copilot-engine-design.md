@@ -121,6 +121,21 @@ Jobsite noise (70–90 dBA) degrades STT, so the engine **never applies from raw
 
 Both surfaces render the **same** engine (React Native + RN-web). Phone opens the capability from a mic FAB and leads with `VoiceCaptureModal`; web opens the same shell from a "+ New" / command bar and leads with a text input (voice is iOS-native only — `VoiceCaptureModal` already returns an on-web error, and the shell falls back to typing on web). Apply is identical on both because it goes through the shared context adders → `offlineQueue` → Supabase. A draft started on phone can be finished on web via the "Edit on web" escape (draft stashed the way `autoScheduleFromEstimate.stashDraft`/`takeDraft` already hand a draft between screens).
 
+### 3.7 Conversational UI — visual design (premium, anti-slop)
+
+The interview modal is the whole experience; it must read as a crafted product, not a generic AI chat. It uses the app's **established craft language** (`constants/colors.ts`, `constants/typography.ts`, `constants/designTokens.ts`) — never new one-off styling — and honors the anti-slop lint (no raw hex / inline `fontSize` / `borderRadius`; use `Colors`/`Type`/`Tokens`).
+
+Design principles (visual mockup: the published "MAGE Copilot — the interview" artifact):
+
+- **Ground: ink, not the cream-serif AI cliché.** Near-black `Colors.background` (`#0B0D10`) ground, cream text (`#F4EFE6`). MAGE hot-orange (`#FF6A1A`) is the **single** bold accent — the mic and the one *Suggested* pick only. Amber (`#FFCC00`) is reserved as the **"grounded in your data" signal**. Flat and tactile — no gradients, no glassmorphism, no chat bubbles.
+- **Fraunces carries ONLY the AI's question.** The one editorial serif moment reframes "chatbot" into "a sharp foreman asking you one good question" (`Type.serifHeadline`/`serifTitle`). Everything else is system sans (options/body) — the question is the hero.
+- **JetBrains Mono carries every "your-data" citation** (`Type.monoEyebrow`/`monoLabel`). The grounded basis under each question and default ("`CABINETS · $28,000 · ~4-wk lead — 3 of your past jobs`") is the signature treatment — precise, instrument-like, the thing competitors can't fake.
+- **"Ask only when it matters" is made visible.** Resolved defaults appear as quiet, checked, **non-tappable** chips ("Framing — 5 days · *avg of your last two 1,800 SF jobs*") above the single asked question — the user SEES that the app filled in everything its data already answered.
+- **Tap-to-pick options**, the Suggested one accented in orange with a mono sub-reason; a correction option is always offered ("It's a 2-week lead this time"). An **editable transcript chip** (dashed) lets a mishear be fixed before it feeds the draft (jobsite-noise mitigation, §3.4). Persistent bottom escapes: the mic (answer by voice), "Build it now" (skip rest), "Open on web to fine-tune ↗" (handoff).
+- Motion is minimal (a listening waveform + transcript caret), gated on `prefers-reduced-motion`.
+
+This section is the acceptance bar for the shell's look; the writing-plans step will translate it into `Colors`/`Type`/`Tokens`-based RN styles.
+
 ---
 
 ## 4. Capability map — specific per area
