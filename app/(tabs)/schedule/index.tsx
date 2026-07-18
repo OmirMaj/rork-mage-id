@@ -47,6 +47,7 @@ import {
   FileText,
   Save,
   Lock,
+  Mic,
 } from 'lucide-react-native';
 import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -2221,6 +2222,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <MageSchedule size={44} color={themeColors.accent} />
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
+
+            <TouchableOpacity
+              style={styles.emptyAction}
+              onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
+              testID="open-copilot-schedule"
+            >
+              <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emptyActionTitle}>Build by voice</Text>
+                <Text style={styles.emptyActionDesc}>Speak the job — AI asks the smart questions, then builds it</Text>
+              </View>
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.emptyAction}
