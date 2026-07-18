@@ -2324,6 +2324,17 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               </View>
             </View>
 
+            <TouchableOpacity
+              style={styles.copilotEntry}
+              onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
+              testID="schedule-copilot-entry"
+              activeOpacity={0.85}
+            >
+              <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+              <Text style={styles.copilotEntryText}>Rebuild by voice</Text>
+              <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+            </TouchableOpacity>
+
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.viewTabScroll}>
               <View style={styles.viewTabBar}>
                 {([
@@ -3217,6 +3228,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
   topBar: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: themeColors.line },
+  copilotEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
+  copilotEntryText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
   topBarStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   topBarStat: { alignItems: 'center' },
   topBarStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text },

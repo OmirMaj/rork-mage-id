@@ -8,7 +8,7 @@
 //   for the question only, JetBrains-Mono for every grounded citation. Built
 //   from Colors/Type/Tokens (no raw hex / inline fontSize / borderRadius).
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer } from 'lucide-react-native';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
@@ -33,14 +33,21 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
   const convo = useCopilotConversation(capabilityId, ctx);
   const { state, cap, start, utterance, answer, skip, confirm, cancel } = convo;
   const [micOpen, setMicOpen] = useState(false);
+  const [compose, setCompose] = useState('');
 
-  // On mount: build grounding → listening → open the mic.
+  // On mount: build grounding → listening (the compose view; voice is optional).
   useEffect(() => {
-    void start().then(() => setMicOpen(true));
+    void start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onTranscript = useCallback((t: string) => { setMicOpen(false); utterance(t); }, [utterance]);
+  const submitCompose = useCallback(() => {
+    const t = compose.trim();
+    if (!t) return;
+    setCompose('');
+    utterance(t);
+  }, [compose, utterance]);
   const openWeb = useCallback(() => { onDone(); router.push({ pathname: '/schedule-pro' as never, params: { id: ctx.projectId } as never }); }, [onDone, router, ctx.projectId]);
   const close = useCallback(() => { cancel(); onDone(); }, [cancel, onDone]);
 
@@ -86,6 +93,26 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
                 </View>
               </View>
             ))}
+          </View>
+        )}
+
+        {(state.phase === 'listening' || state.phase === 'idle') && (
+          <View style={styles.ask}>
+            <Text style={styles.askEyebrow}>TELL ME ABOUT THE JOB</Text>
+            <Text style={styles.question}>What are we building?</Text>
+            <Text style={styles.grounding}>Speak it or type it — scope, rooms, start date, what’s ordered.</Text>
+            <TextInput
+              style={styles.composeInput}
+              value={compose}
+              onChangeText={setCompose}
+              placeholder={cap.suggestions[0]}
+              placeholderTextColor={colors.textMuted}
+              multiline
+              testID="copilot-compose"
+            />
+            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={submitCompose} testID="copilot-send">
+              <Text style={styles.buildBtnText}>Continue</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -211,6 +238,7 @@ function makeStyles(colors: ThemeColors) {
     askEyebrow: { ...Type.monoEyebrow, color: Colors.accentLight },
     question: { ...Type.serifHeadline, color: colors.text },
     grounding: { ...Type.monoLabel, color: colors.textMuted, borderLeftWidth: 2, borderLeftColor: Colors.accentLight, paddingLeft: Tokens.spacing.sm },
+    composeInput: { ...Type.body, color: colors.text, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, minHeight: 96, textAlignVertical: 'top', marginTop: Tokens.spacing.xxs },
 
     options: { gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
     opt: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.md, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
