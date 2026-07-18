@@ -2223,18 +2223,22 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
-            <TouchableOpacity
-              style={styles.emptyAction}
-              onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
-              testID="open-copilot-schedule"
-            >
-              <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emptyActionTitle}>Build by voice</Text>
-                <Text style={styles.emptyActionDesc}>Speak the job — AI asks the smart questions, then builds it</Text>
-              </View>
-              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
+            {/* Voice-build generates from the linked estimate — only offer it
+                when there is one, else it dead-ends at "Build it". */}
+            {!!selectedProject.linkedEstimate && (
+              <TouchableOpacity
+                style={styles.emptyAction}
+                onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
+                testID="open-copilot-schedule"
+              >
+                <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.emptyActionTitle}>Build by voice</Text>
+                  <Text style={styles.emptyActionDesc}>Speak the job — AI asks the smart questions, then builds it</Text>
+                </View>
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.emptyAction}
@@ -2324,16 +2328,20 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               </View>
             </View>
 
-            <TouchableOpacity
-              style={styles.copilotEntry}
-              onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
-              testID="schedule-copilot-entry"
-              activeOpacity={0.85}
-            >
-              <Mic size={16} color={themeColors.accent} strokeWidth={2} />
-              <Text style={styles.copilotEntryText}>Rebuild by voice</Text>
-              <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-            </TouchableOpacity>
+            {/* Voice rebuild regenerates from the linked estimate — hide it when
+                there's none (it would dead-end at "Build it"). */}
+            {!!selectedProject?.linkedEstimate && (
+              <TouchableOpacity
+                style={styles.copilotEntry}
+                onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
+                testID="schedule-copilot-entry"
+                activeOpacity={0.85}
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.copilotEntryText}>Rebuild by voice</Text>
+                <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            )}
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.viewTabScroll}>
               <View style={styles.viewTabBar}>
