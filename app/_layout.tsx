@@ -504,6 +504,7 @@ function RootLayoutNav() {
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
       <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="copilot" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="schedule-import" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
