@@ -508,17 +508,24 @@ export default function ProjectDetailScreen() {
 
   const toggleGroup = useCallback((key: TileGroupKey) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    // Animate the collapse/expand. Using scaleXY (not opacity) so the
-    // body view's HEIGHT actually shrinks during collapse — fixes the
-    // "huge gap that only disappears after clicking another collapsible"
-    // bug, which was caused by opacity-only animation leaving the
-    // collapsed body's phantom layout space behind for one frame.
+    // Animate the collapse/expand. The smooth height-collapse (no "huge gap
+    // that only disappears after clicking another collapsible") comes from the
+    // body being CONDITIONALLY RENDERED (mount/unmount) plus the `update`
+    // easeInEaseOut collapsing sibling layout — NOT from the create/delete
+    // property. Create/delete MUST use `opacity`, never `scaleXY`: on the New
+    // Architecture (Fabric), a `scaleXY` create/delete makes the layout-anim
+    // driver interpolate the view's `transform` array, and when a
+    // created/deleted subtree contains any view with its own `transform`, the
+    // interpolator indexes past the shorter TransformOperation vector →
+    // out-of-bounds → SIGABRT (hard native crash to springboard). This fired
+    // reliably navigating out of a tile section. `opacity` sidesteps transform
+    // interpolation entirely (same crash-safe config as HomeFabStack).
     if (Platform.OS !== 'web') {
       LayoutAnimation.configureNext({
         duration: 220,
-        create: { type: 'easeInEaseOut', property: 'scaleXY' },
+        create: { type: 'easeInEaseOut', property: 'opacity' },
         update: { type: 'easeInEaseOut' },
-        delete: { type: 'easeInEaseOut', property: 'scaleXY' },
+        delete: { type: 'easeInEaseOut', property: 'opacity' },
       });
     }
     setCollapsedGroups(prev => {
