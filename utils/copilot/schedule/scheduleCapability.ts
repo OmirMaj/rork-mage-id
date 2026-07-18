@@ -8,6 +8,7 @@
 import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types';
 import { scheduleGaps, type ScheduleDraft } from './scheduleGaps';
 import { buildScheduleGrounding } from './scheduleGrounding';
+import { shouldAcceptStartDate } from './dateSignal';
 import { generateScheduleFromEstimate, stashDraft } from '@/utils/autoScheduleFromEstimate';
 
 export interface ScheduleApplied { route: '/schedule-review'; projectId: string }
@@ -35,9 +36,22 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
   buildTurnPrompt: ({ transcript, draft, grounding, asking }) => ({
     prompt: [
       'You are MAGE Copilot helping a contractor scope a construction schedule.',
-      'Extract structured fields from what they said. Use their own history below;',
-      'do NOT invent durations. Fields: startDate (ISO or null), phased (bool),',
-      'longLeadMilestones (string[]), crewCap (number), weatherBuffer (bool).',
+      'Extract structured fields ONLY from what the contractor actually said, or',
+      'from their history below. Do NOT invent durations, dates, or values.',
+      '',
+      'CRITICAL — a null field is how you ASK the contractor about it. Leave a',
+      'field null unless they explicitly stated it (or their history directly',
+      'supports it). Filling a field with a guess SKIPS a question you should',
+      'have asked. Specifically:',
+      '• startDate: null UNLESS they named a start / break-ground date, including',
+      '  a concrete relative one like "in two weeks" or "end of March". NEVER',
+      '  guess or assume a date, and never default to today.',
+      '• phased / weatherBuffer: null unless they said so.',
+      '• crewCap: null unless they gave a crew size.',
+      '• longLeadMilestones: omit unless they named ordered / long-lead items.',
+      '',
+      'Fields: startDate (ISO string or null), phased (bool or null),',
+      'longLeadMilestones (string[]), crewCap (number or null), weatherBuffer (bool or null).',
       '',
       'THEIR HISTORY:', ...grounding.facts,
       '',
@@ -46,16 +60,25 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
       'WHAT THEY SAID: ' + transcript,
       'Return ONLY the updated draft JSON.',
     ].filter(Boolean).join('\n'),
-    schemaHint: { startDate: '2026-03-21', phased: false, longLeadMilestones: ['Cabinets'], crewCap: 3, weatherBuffer: true },
+    // Example shows the SHAPE with unknowns left null — reinforces "don't guess".
+    schemaHint: { startDate: null, phased: null, longLeadMilestones: [], crewCap: null, weatherBuffer: null },
   }),
 
-  mergeDraft: (draft, aiJson): ScheduleDraft => ({
-    startDate: typeof aiJson?.startDate === 'string' ? aiJson.startDate : draft.startDate ?? null,
-    phased: typeof aiJson?.phased === 'boolean' ? aiJson.phased : draft.phased ?? null,
-    longLeadMilestones: Array.isArray(aiJson?.longLeadMilestones) ? aiJson.longLeadMilestones : draft.longLeadMilestones,
-    crewCap: typeof aiJson?.crewCap === 'number' ? aiJson.crewCap : draft.crewCap ?? null,
-    weatherBuffer: typeof aiJson?.weatherBuffer === 'boolean' ? aiJson.weatherBuffer : draft.weatherBuffer ?? null,
-  }),
+  mergeDraft: (draft, aiJson, meta): ScheduleDraft => {
+    // Only ACCEPT a model-extracted startDate when the contractor's own words
+    // carried a real date signal, OR they are directly answering the start-date
+    // question. Otherwise the model presumed it — drop it so the "when do you
+    // break ground?" gap (impact 0.9) fires and the interview actually asks.
+    // This also protects the startDate-jump bug (never let a guessed date land).
+    const acceptStart = shouldAcceptStartDate(aiJson?.startDate, meta?.transcript ?? '', meta?.asking?.field === 'startDate');
+    return {
+      startDate: acceptStart ? aiJson.startDate : draft.startDate ?? null,
+      phased: typeof aiJson?.phased === 'boolean' ? aiJson.phased : draft.phased ?? null,
+      longLeadMilestones: Array.isArray(aiJson?.longLeadMilestones) ? aiJson.longLeadMilestones : draft.longLeadMilestones,
+      crewCap: typeof aiJson?.crewCap === 'number' ? aiJson.crewCap : draft.crewCap ?? null,
+      weatherBuffer: typeof aiJson?.weatherBuffer === 'boolean' ? aiJson.weatherBuffer : draft.weatherBuffer ?? null,
+    };
+  },
 
   apply: async (draft: ScheduleDraft, ctx: CopilotContext): Promise<ScheduleApplied> => {
     const project = ctx.project;

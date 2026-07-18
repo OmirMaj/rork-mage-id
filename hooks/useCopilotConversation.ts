@@ -40,7 +40,11 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
     }
     void recordAIUsage('smart', cap.aiFeature);
 
-    const draft = cap.mergeDraft(s.draft, res.data);
+    // Pass the raw utterance + the gap being answered so a capability can reject
+    // a field the model *presumed* but the contractor never actually stated
+    // (e.g. a guessed start date) — which is what keeps the clarifying question
+    // from ever appearing.
+    const draft = cap.mergeDraft(s.draft, res.data, { transcript: transcriptText, asking });
     const gaps = cap.gaps(draft, s.grounding);
     const threshold = cap.askThreshold ?? 0.35;
     const decision = decideAsk(gaps, { asked: s.askedFields, count: s.questionCount, cap: cap.maxQuestions ?? 4, threshold });

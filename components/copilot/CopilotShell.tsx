@@ -10,8 +10,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer } from 'lucide-react-native';
+import { Mic, Check, ChevronRight, X, Monitor, Pencil, Hammer, CalendarDays } from 'lucide-react-native';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
+import DatePickerModal from '@/components/DatePickerModal';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -34,6 +35,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
   const { state, cap, start, utterance, answer, skip, confirm, cancel } = convo;
   const [micOpen, setMicOpen] = useState(false);
   const [compose, setCompose] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // On mount: build grounding → listening (the compose view; voice is optional).
   useEffect(() => {
@@ -64,6 +66,19 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
         contextLine={ctx.project?.name ? `for ${ctx.project.name}` : undefined}
         suggestions={cap.suggestions}
         topicChecklist={cap.topicChecklist}
+      />
+
+      {/* date wheel for a `date` gap — answers with a real ISO date. */}
+      <DatePickerModal
+        visible={datePickerOpen}
+        value=""
+        allowFuture
+        title={state.currentGap?.question ?? 'Pick the start date'}
+        onClose={() => setDatePickerOpen(false)}
+        onChange={(iso) => {
+          setDatePickerOpen(false);
+          if (state.currentGap) answer(state.currentGap.field, iso);
+        }}
       />
 
       {/* top bar */}
@@ -130,26 +145,45 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
             <Text style={styles.question}>{state.currentGap.question}</Text>
             <Text style={styles.grounding}>{state.currentGap.groundedDefault.basis}</Text>
 
-            <View style={styles.options}>
-              {(state.currentGap.choices ?? [
-                { label: 'Yes', value: true, recommended: true },
-                { label: 'No', value: false },
-              ]).map((c, i) => (
+            {/* A `date` gap (e.g. the start date) needs a real day, not a
+                Yes/No — open the date wheel so the answer is a true ISO date. */}
+            {state.currentGap.kind === 'date' ? (
+              <View style={styles.options}>
                 <TouchableOpacity
-                  key={i}
-                  style={[styles.opt, c.recommended && styles.optRec]}
+                  style={[styles.opt, styles.optRec]}
                   activeOpacity={0.85}
-                  onPress={() => answer(state.currentGap!.field, c.value)}
+                  onPress={() => setDatePickerOpen(true)}
                 >
-                  <View style={[styles.radio, c.recommended && styles.radioRec]} />
+                  <CalendarDays size={20} color={colors.accent} strokeWidth={2} />
                   <View style={styles.optLab}>
-                    <Text style={styles.optText}>{c.label}</Text>
-                    {!!c.basis && <Text style={styles.optSub}>{c.basis}</Text>}
+                    <Text style={styles.optText}>Pick the start date</Text>
+                    <Text style={styles.optSub}>Tap to choose the day you break ground</Text>
                   </View>
-                  {c.recommended && <Text style={styles.suggested}>SUGGESTED</Text>}
+                  <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
                 </TouchableOpacity>
-              ))}
-            </View>
+              </View>
+            ) : (
+              <View style={styles.options}>
+                {(state.currentGap.choices ?? [
+                  { label: 'Yes', value: true, recommended: true },
+                  { label: 'No', value: false },
+                ]).map((c, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.opt, c.recommended && styles.optRec]}
+                    activeOpacity={0.85}
+                    onPress={() => answer(state.currentGap!.field, c.value)}
+                  >
+                    <View style={[styles.radio, c.recommended && styles.radioRec]} />
+                    <View style={styles.optLab}>
+                      <Text style={styles.optText}>{c.label}</Text>
+                      {!!c.basis && <Text style={styles.optSub}>{c.basis}</Text>}
+                    </View>
+                    {c.recommended && <Text style={styles.suggested}>SUGGESTED</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* editable transcript chip */}
             {state.transcript.length > 0 && (

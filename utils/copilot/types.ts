@@ -49,7 +49,10 @@ export interface CopilotCapability<Draft = any, Applied = any> {
   buildGrounding(ctx: CopilotContext): Promise<Grounding>;
   gaps(draft: Draft, grounding: Grounding): Gap[];
   buildTurnPrompt(a: { transcript: string; draft: Draft; grounding: Grounding; asking: Gap | null }): { prompt: string; schemaHint: object };
-  mergeDraft(draft: Draft, aiJson: any): Draft;
+  /** Fold the AI's JSON into the running draft. `meta` (optional, back-compat)
+   *  carries the raw utterance + the gap being answered so a capability can
+   *  refuse a field the model presumed but the user never stated. */
+  mergeDraft(draft: Draft, aiJson: any, meta?: { transcript: string; asking: Gap | null }): Draft;
   apply(draft: Draft, ctx: CopilotContext): Promise<Applied>;
   suggestions: string[];
   topicChecklist?: { label: string; hint?: string }[];
