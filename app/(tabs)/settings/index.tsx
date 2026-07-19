@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat, Gem } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -1215,6 +1215,21 @@ export default function SettingsScreen() {
             <View style={styles.group}>
               <TouchableOpacity
                 style={styles.row}
+                onPress={() => router.push('/dev-flagship-seeder' as any)}
+                activeOpacity={0.7}
+                testID="dev-flagship-seeder-link"
+              >
+                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
+                  <Gem size={14} color="#fff" strokeWidth={1.75} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>Flagship demo (Overlook Estate)</Text>
+                  <Text style={styles.sectionSubtext}>$3.24M luxury estate, everything filled</Text>
+                </View>
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.row}
                 onPress={() => router.push('/dev-seeder' as any)}
                 activeOpacity={0.7}
                 testID="dev-seeder-link"
@@ -1222,7 +1237,7 @@ export default function SettingsScreen() {
                 <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
                   <Database size={14} color="#fff" strokeWidth={1.75} />
                 </View>
-                <Text style={[styles.rowLabel, { flex: 1 }]}>Demo data seeder</Text>
+                <Text style={[styles.rowLabel, { flex: 1 }]}>Demo data seeder (Westlake)</Text>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
               </TouchableOpacity>
             </View>
