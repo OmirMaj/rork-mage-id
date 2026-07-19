@@ -6,11 +6,13 @@ import type { CopilotCapability, CopilotCapabilityId } from './types';
 import { scheduleCapability } from './schedule/scheduleCapability';
 import { estimateCapability } from './estimate/estimateCapability';
 import { dailyReportCapability } from './dailyReport/dfrCapability';
+import { changeOrderCapability } from './changeOrder/coCapability';
 
 const REGISTRY: Partial<Record<CopilotCapabilityId, CopilotCapability>> = {
   schedule: scheduleCapability as CopilotCapability,
   estimate: estimateCapability as CopilotCapability,
   daily_report: dailyReportCapability as CopilotCapability,
+  change_order: changeOrderCapability as CopilotCapability,
 };
 
 export function getCapability(id: CopilotCapabilityId): CopilotCapability | null {

@@ -2574,6 +2574,17 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 </View>
               ))}
+              {/* Draft by voice — MAGE Copilot: speak the change, confirm the
+                  amount + schedule impact, hand off to the CO screen pre-filled. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'change_order', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-change-order-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.coAddBtnText}>Draft by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id } })}
