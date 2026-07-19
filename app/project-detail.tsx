@@ -2910,6 +2910,16 @@ export default function ProjectDetailScreen() {
               {punchItems.length > 5 && (
                 <Text style={styles.punchMoreText}>+{punchItems.length - 5} more items</Text>
               )}
+              {/* Add by voice — MAGE Copilot: speak the defect, confirm the trade. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'punch', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-punch-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Add by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/punch-list' as any, params: { projectId: id } })}
@@ -3035,6 +3045,16 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {/* Raise by voice — MAGE Copilot: speak the question, confirm recipient. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'rfi', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-rfi-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Raise by voice</Text>
+              </TouchableOpacity>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
