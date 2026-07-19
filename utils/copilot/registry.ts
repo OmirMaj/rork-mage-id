@@ -9,6 +9,7 @@ import { dailyReportCapability } from './dailyReport/dfrCapability';
 import { changeOrderCapability } from './changeOrder/coCapability';
 import { rfiCapability } from './rfi/rfiCapability';
 import { punchCapability } from './punch/punchCapability';
+import { billingCapability } from './billing/billingCapability';
 
 const REGISTRY: Partial<Record<CopilotCapabilityId, CopilotCapability>> = {
   schedule: scheduleCapability as CopilotCapability,
@@ -17,6 +18,7 @@ const REGISTRY: Partial<Record<CopilotCapabilityId, CopilotCapability>> = {
   change_order: changeOrderCapability as CopilotCapability,
   rfi: rfiCapability as CopilotCapability,
   punch: punchCapability as CopilotCapability,
+  invoice: billingCapability as CopilotCapability,
 };
 
 export function getCapability(id: CopilotCapabilityId): CopilotCapability | null {

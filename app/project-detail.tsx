@@ -2701,6 +2701,17 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {/* Bill by voice — MAGE Copilot: say the draw, it opens billing
+                  pre-set to progress or full. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'invoice', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-invoice-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Bill by voice</Text>
+              </TouchableOpacity>
               <View style={styles.invBtnRow}>
                 {/* Quick Invoice — skips bill-from-estimate entirely.
                     Goes straight to /invoice with no prefill so the GC
