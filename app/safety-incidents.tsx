@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, Modal, KeyboardAvoidingView,
@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ShieldAlert, Plus, X, Sparkles, Trash2, AlertTriangle, ChevronLeft, Check,
+  ShieldAlert, Plus, X, Sparkles, Trash2, AlertTriangle, ChevronLeft, Check, Mic,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -105,7 +105,13 @@ function SafetyIncidentsInner() {
   const { tier } = useTierAccess();
   const { user } = useAuth();
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId, prefillDescription, prefillTreatment, prefillType, prefillLocation } = useLocalSearchParams<{
+    projectId: string;
+    prefillDescription?: string;
+    prefillTreatment?: string;
+    prefillType?: string;
+    prefillLocation?: string;
+  }>();
   const { getProject } = useProjects();
   const { getIncidentsForProject, addIncident, updateIncident, deleteIncident } = useSafety();
 
@@ -134,6 +140,20 @@ function SafetyIncidentsInner() {
   // AI draft-from-notes.
   const [draftNotes, setDraftNotes] = useState('');
   const [drafting, setDrafting] = useState(false);
+
+  // Prefill from MAGE Copilot (voice incident capture): open the form with the
+  // spoken description + the OSHA treatment level already set for the GC to finish.
+  const prefillApplied = useRef(false);
+  useEffect(() => {
+    if (prefillApplied.current) return;
+    if (!prefillDescription && !prefillTreatment) return;
+    prefillApplied.current = true;
+    if (prefillDescription) setDescription(prefillDescription);
+    if (prefillLocation) setLocation(prefillLocation);
+    if (prefillType === 'injury' || prefillType === 'near_miss' || prefillType === 'property' || prefillType === 'environmental') setType(prefillType);
+    if (prefillTreatment === 'none' || prefillTreatment === 'first_aid' || prefillTreatment === 'medical_beyond_first_aid') setTreatment(prefillTreatment);
+    setShowForm(true);
+  }, [prefillDescription, prefillTreatment, prefillType, prefillLocation]);
 
   const resetForm = useCallback(() => {
     setEditingIncident(null);
@@ -329,6 +349,17 @@ function SafetyIncidentsInner() {
           </View>
         )}
 
+        {/* Report by voice — MAGE Copilot: speak what happened, answer the one
+            OSHA-recordability question, land in this form pre-filled. */}
+        <TouchableOpacity
+          style={styles.addItemBtn}
+          onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'safety_incident', projectId: projectId ?? '' } } as never)}
+          activeOpacity={0.7}
+          testID="add-incident-voice"
+        >
+          <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+          <Text style={styles.addItemBtnText}>Report by voice</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-incident">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
           <Text style={styles.addItemBtnText}>Report Incident</Text>
