@@ -51,7 +51,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
     setCompose('');
     utterance(t);
   }, [compose, utterance]);
-  const openWeb = useCallback(() => { onDone(); router.push({ pathname: '/schedule-pro' as never, params: { id: ctx.projectId } as never }); }, [onDone, router, ctx.projectId]);
+  const openWeb = useCallback(() => { onDone(); router.push({ pathname: cap.copy.webRoute as never, params: { id: ctx.projectId } as never }); }, [onDone, router, ctx.projectId, cap.copy.webRoute]);
   const close = useCallback(() => { cancel(); onDone(); }, [cancel, onDone]);
 
   const thinking = state.phase === 'thinking';
@@ -63,7 +63,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
         visible={micOpen}
         onClose={() => setMicOpen(false)}
         onTranscriptReady={onTranscript}
-        title="Build a schedule"
+        title={cap.copy.voiceTitle}
         contextLine={ctx.project?.name ? `for ${ctx.project.name}` : undefined}
         suggestions={cap.suggestions}
         topicChecklist={cap.topicChecklist}
@@ -198,8 +198,8 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
         {state.phase === 'review' && (
           <View style={styles.ask}>
             <Text style={styles.askEyebrow}>READY TO BUILD</Text>
-            <Text style={styles.question}>Here’s your schedule, grounded in your jobs.</Text>
-            <Text style={styles.grounding}>Review the details, then build. You can fine-tune the full Gantt on the web app.</Text>
+            <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
+            <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
             <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId } as never }); } }}>
               <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
               <Text style={styles.buildBtnText}>Build it</Text>
@@ -208,7 +208,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
         )}
 
         {state.phase === 'applying' && (
-          <View style={styles.center}><ActivityIndicator color={colors.accent} /><Text style={styles.thinkingText}>Building your schedule…</Text></View>
+          <View style={styles.center}><ActivityIndicator color={colors.accent} /><Text style={styles.thinkingText}>{cap.copy.buildingLabel}</Text></View>
         )}
 
         {state.phase === 'error' && (

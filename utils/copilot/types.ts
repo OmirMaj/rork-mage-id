@@ -7,6 +7,7 @@
 // confirm-back, and the review→apply handoff. Pure types; no runtime imports
 // except the domain Project type.
 import type { Project } from '@/types';
+import type { AIFeature } from '@/utils/aiRateLimiterCore';
 
 export type CopilotCapabilityId =
   | 'schedule' | 'estimate' | 'daily_report' | 'change_order'
@@ -43,7 +44,10 @@ export interface CopilotCapability<Draft = any, Applied = any> {
   id: CopilotCapabilityId;
   label: string;
   featureKey?: string;
-  aiFeature: 'scheduleCopilot';
+  /** Which metered AI feature this capability draws on (per-tier caps + free
+   *  lifetime trials live in aiRateLimiterCore). Schedule uses scheduleCopilot,
+   *  Estimate uses quickEstimate, etc. */
+  aiFeature: AIFeature;
   maxQuestions?: number;
   askThreshold?: number;
   buildGrounding(ctx: CopilotContext): Promise<Grounding>;
@@ -56,6 +60,22 @@ export interface CopilotCapability<Draft = any, Applied = any> {
   apply(draft: Draft, ctx: CopilotContext): Promise<Applied>;
   suggestions: string[];
   topicChecklist?: { label: string; hint?: string }[];
+  /** Per-capability presentation copy so ONE shell serves every capability
+   *  (schedule/estimate/…). Keeps domain nouns out of CopilotShell. */
+  copy: CopilotCopy;
+}
+
+export interface CopilotCopy {
+  /** VoiceCaptureModal title, e.g. "Build a schedule" / "Price an estimate". */
+  voiceTitle: string;
+  /** Review-phase headline, e.g. "Here's your schedule, grounded in your jobs." */
+  reviewHeadline: string;
+  /** Review-phase sub-line (cite the web surface for fine-tuning). */
+  reviewSub: string;
+  /** Applying-phase spinner label, e.g. "Building your schedule…". */
+  buildingLabel: string;
+  /** Route the "Open on web to fine-tune" escape opens (with {id} param). */
+  webRoute: string;
 }
 
 export type CopilotPhase =

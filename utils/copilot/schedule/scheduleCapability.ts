@@ -30,6 +30,13 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
     { label: 'Start', hint: 'when you break ground' },
     { label: 'Long-lead items', hint: 'cabinets, windows, ordered yet?' },
   ],
+  copy: {
+    voiceTitle: 'Build a schedule',
+    reviewHeadline: 'Here’s your schedule, grounded in your jobs.',
+    reviewSub: 'Review the details, then build. You can fine-tune the full Gantt on the web app.',
+    buildingLabel: 'Building your schedule…',
+    webRoute: '/schedule-pro',
+  },
   buildGrounding: buildScheduleGrounding,
   gaps: (draft: ScheduleDraft, grounding: Grounding): Gap[] => scheduleGaps(draft, grounding),
 
