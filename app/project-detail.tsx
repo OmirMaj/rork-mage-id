@@ -1538,7 +1538,7 @@ export default function ProjectDetailScreen() {
           {hasAnyEstimate && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.replace('/(tabs)/estimate' as any)}
+              onPress={() => router.replace({ pathname: '/(tabs)/estimate', params: { projectId: id ?? '' } } as any)}
               activeOpacity={0.7}
               testID="project-view-estimate-btn"
             >

@@ -18,7 +18,7 @@ import {
  Wifi, PlusCircle, History, Star, FileUp, ScanSearch, Mic } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Linking from 'expo-linking';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
@@ -198,6 +198,14 @@ export default function EstimateScreen() {
   type PendingCartModal = 'addToProject' | 'comparison' | 'ai' | 'pdf';
   const [pendingCartModal, setPendingCartModal] = useState<PendingCartModal | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  // Inherit the project when the Estimator is opened from a project (e.g. a
+  // project-detail Estimate tile) so it's project-aware immediately — this is
+  // what surfaces the "Build by voice" hero and scopes "save to project".
+  const { projectId: navProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  useEffect(() => {
+    if (navProjectId && !selectedProjectId) setSelectedProjectId(navProjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navProjectId]);
   const [showConfirmLink, setShowConfirmLink] = useState(false);
   const [estimateName, setEstimateName] = useState('');
   const [pendingLinkProject, setPendingLinkProject] = useState<Project | null>(null);
