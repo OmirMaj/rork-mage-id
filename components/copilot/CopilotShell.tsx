@@ -200,7 +200,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
             <Text style={styles.askEyebrow}>READY TO BUILD</Text>
             <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
             <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
-            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId } as never }); } }}>
+            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, ...(a.params ?? {}) } as never }); } }}>
               <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
               <Text style={styles.buildBtnText}>Build it</Text>
             </TouchableOpacity>

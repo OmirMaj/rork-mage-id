@@ -16,7 +16,7 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
-  Clock, Lock,
+  Clock, Lock, Mic,
 } from 'lucide-react-native';
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
@@ -2816,6 +2816,17 @@ export default function ProjectDetailScreen() {
                   </View>
                 ));
               })()}
+              {/* Log by voice — MAGE Copilot: dictate the day, it confirms
+                  today's critical-path progress + writes the full report. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'daily_report', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-daily-report-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.coAddBtnText}>Log by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id } })}
