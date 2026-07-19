@@ -1083,6 +1083,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="dev-flagship-seeder"
+        options={{
+          title: "Flagship Seeder",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="report-inbox"
         options={{
           title: "Report Inbox",
