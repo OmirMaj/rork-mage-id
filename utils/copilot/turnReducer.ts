@@ -29,9 +29,16 @@ export function copilotReducer<Draft = any>(s: CopilotState<Draft>, a: CopilotAc
       return { ...s, phase: 'confirming', draft: a.draft, resolved, currentGap: null };
     }
     case 'ANSWER':
+      // Write the answer straight into the draft — it is authoritative. Relying
+      // on the AI to re-extract it from a transcript line only works for fields
+      // the capability's prompt happens to extract; a gap-only field (e.g. the
+      // DFR critical-task %, which the prompt never asks the model for) would be
+      // lost and the same question would re-fire forever. Not appending a raw
+      // "field: value" line also keeps the "YOU SAID" chip showing the actual
+      // utterance instead of machine text.
       return {
         ...s, phase: 'thinking',
-        transcript: [...s.transcript, { id: 'a-' + a.field, text: `${a.field}: ${String(a.value)}` }],
+        draft: { ...s.draft, [a.field]: a.value },
         askedFields: s.currentGap ? [...s.askedFields, s.currentGap.field] : s.askedFields,
         questionCount: s.questionCount + 1,
         currentGap: null,

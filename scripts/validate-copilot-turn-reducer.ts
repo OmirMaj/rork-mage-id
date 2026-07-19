@@ -27,6 +27,9 @@ s = copilotReducer(s, { type: 'ANSWER', field: 'start', value: '2026-03-21' });
 eq('ANSWER → thinking (loops back for next turn)', s.phase, 'thinking');
 eq('asked field recorded', s.askedFields, ['start']);
 eq('question count incremented', s.questionCount, 1);
+// The answer must land in the draft authoritatively — a gap-only field the
+// capability prompt never re-extracts would otherwise be lost and re-asked.
+eq('ANSWER writes value into draft', (s.draft as any).start, '2026-03-21');
 
 s = copilotReducer(s, { type: 'AI_DRAFT', draft: { a: 1 }, resolved: [], nextGap: null, ready: true });
 eq('AI_DRAFT ready → review', s.phase, 'review');
