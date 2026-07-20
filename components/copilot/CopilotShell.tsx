@@ -117,9 +117,9 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
 
         {(state.phase === 'listening' || state.phase === 'idle') && (
           <View style={styles.ask}>
-            <Text style={styles.askEyebrow}>TELL ME ABOUT THE JOB</Text>
-            <Text style={styles.question}>What are we building?</Text>
-            <Text style={styles.grounding}>Speak it or type it — scope, rooms, start date, what’s ordered.</Text>
+            <Text style={styles.askEyebrow}>{cap.copy.composeEyebrow ?? 'TELL ME ABOUT THE JOB'}</Text>
+            <Text style={styles.question}>{cap.copy.composeQuestion ?? 'What are we building?'}</Text>
+            <Text style={styles.grounding}>{cap.copy.composeHint ?? 'Speak it or type it — scope, rooms, start date, what’s ordered.'}</Text>
             <TextInput
               style={styles.composeInput}
               value={compose}

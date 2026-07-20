@@ -35,6 +35,9 @@ export const dailyReportCapability: CopilotCapability<DFRDraft, DFRApplied> = {
   ],
   copy: {
     voiceTitle: 'Log a daily report',
+    composeEyebrow: 'TELL ME ABOUT THE DAY',
+    composeQuestion: 'How’d the day go?',
+    composeHint: 'Crew, work done, materials, any issues.',
     reviewHeadline: 'Here’s today’s report, ready to log.',
     reviewSub: 'Saving it moves the schedule and updates the owner’s portal. Fine-tune anything on the report screen.',
     buildingLabel: 'Writing up your report…',

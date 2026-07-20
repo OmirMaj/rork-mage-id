@@ -38,6 +38,9 @@ export const safetyCapability: CopilotCapability<SafetyDraft, SafetyApplied> = {
   ],
   copy: {
     voiceTitle: 'Report a safety incident',
+    composeEyebrow: 'WHAT HAPPENED',
+    composeQuestion: 'What’s the incident?',
+    composeHint: 'What happened + how it was treated.',
     reviewHeadline: 'Here’s the incident, ready to log.',
     reviewSub: 'Open the incident form to add who was involved + corrective actions, then save to the OSHA log.',
     buildingLabel: 'Writing up the incident…',

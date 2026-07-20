@@ -68,6 +68,12 @@ export interface CopilotCapability<Draft = any, Applied = any> {
 export interface CopilotCopy {
   /** VoiceCaptureModal title, e.g. "Build a schedule" / "Price an estimate". */
   voiceTitle: string;
+  /** Compose-phase eyebrow (default "TELL ME ABOUT THE JOB"). */
+  composeEyebrow?: string;
+  /** Compose-phase question (default "What are we building?"). */
+  composeQuestion?: string;
+  /** Compose-phase hint under the question. */
+  composeHint?: string;
   /** Review-phase headline, e.g. "Here's your schedule, grounded in your jobs." */
   reviewHeadline: string;
   /** Review-phase sub-line (cite the web surface for fine-tuning). */

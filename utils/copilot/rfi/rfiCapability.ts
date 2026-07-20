@@ -23,6 +23,9 @@ export const rfiCapability: CopilotCapability<RFIDraft, RFIApplied> = {
   ],
   copy: {
     voiceTitle: 'Raise an RFI',
+    composeEyebrow: 'WHAT DO YOU NEED ANSWERED',
+    composeQuestion: 'What’s the question?',
+    composeHint: 'The question + who should answer it.',
     reviewHeadline: 'Here’s your RFI, ready to send.',
     reviewSub: 'Review who it goes to, then open it to send and track the response.',
     buildingLabel: 'Writing up the RFI…',

@@ -28,6 +28,9 @@ export const punchCapability: CopilotCapability<PunchDraft, PunchApplied> = {
   ],
   copy: {
     voiceTitle: 'Add a punch item',
+    composeEyebrow: 'WHAT NEEDS FIXING',
+    composeQuestion: 'What’s the punch item?',
+    composeHint: 'The defect + where on site.',
     reviewHeadline: 'Here’s the punch item, ready to log.',
     reviewSub: 'Review the trade and location, then open the punch list to assign and track.',
     buildingLabel: 'Logging the punch item…',

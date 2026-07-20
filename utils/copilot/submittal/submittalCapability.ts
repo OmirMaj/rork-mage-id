@@ -24,6 +24,9 @@ export const submittalCapability: CopilotCapability<SubmittalDraft, SubmittalApp
   ],
   copy: {
     voiceTitle: 'Log a submittal',
+    composeEyebrow: 'WHAT ARE YOU SUBMITTING',
+    composeQuestion: 'What’s the submittal?',
+    composeHint: 'The item + spec section — I’ll number it and log it.',
     reviewHeadline: 'Here’s your submittal, ready to track.',
     reviewSub: 'Review the item + spec section, then open it to send for review.',
     buildingLabel: 'Logging the submittal…',

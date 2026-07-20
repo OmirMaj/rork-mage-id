@@ -41,6 +41,9 @@ export const estimateCapability: CopilotCapability<EstimateDraft, EstimateApplie
   ],
   copy: {
     voiceTitle: 'Build an estimate',
+    composeEyebrow: 'TELL ME ABOUT THE SCOPE',
+    composeQuestion: 'What are we pricing?',
+    composeHint: 'Rooms, trades, finishes — I’ll price it from your jobs.',
     reviewHeadline: 'Here’s your estimate, priced from your jobs.',
     reviewSub: 'Review the total, then build. You can fine-tune every line on the estimate grid.',
     buildingLabel: 'Pricing your estimate…',

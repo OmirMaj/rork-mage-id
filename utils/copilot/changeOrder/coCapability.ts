@@ -31,6 +31,9 @@ export const changeOrderCapability: CopilotCapability<CODraft, COApplied> = {
   ],
   copy: {
     voiceTitle: 'Draft a change order',
+    composeEyebrow: 'TELL ME ABOUT THE CHANGE',
+    composeQuestion: 'What’s the change?',
+    composeHint: 'What the owner wants + the added cost, if you have it.',
     reviewHeadline: 'Here’s the change order, ready to finalize.',
     reviewSub: 'Review the amount + schedule impact, then open it to route for approval.',
     buildingLabel: 'Drafting the change order…',

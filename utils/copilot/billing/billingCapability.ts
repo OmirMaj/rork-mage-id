@@ -27,6 +27,9 @@ export const billingCapability: CopilotCapability<BillingDraft, BillingApplied> 
   ],
   copy: {
     voiceTitle: 'Bill the client',
+    composeEyebrow: 'WHAT ARE YOU BILLING',
+    composeQuestion: 'What’s the draw?',
+    composeHint: 'Progress to date, or the full contract.',
     reviewHeadline: 'Here’s your draw, ready to itemize.',
     reviewSub: 'Open the billing screen to set each line’s %, retention, and terms, then send.',
     buildingLabel: 'Preparing your draw…',
