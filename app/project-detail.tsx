@@ -3139,6 +3139,16 @@ export default function ProjectDetailScreen() {
                   </View>
                 </TouchableOpacity>
               ))}
+              {/* Log by voice — MAGE Copilot: speak the item, confirm spec + timing. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'submittal', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-submittal-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id } })}
