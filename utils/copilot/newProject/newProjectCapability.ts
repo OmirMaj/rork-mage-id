@@ -87,10 +87,11 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
 
   mergeDraft: (draft, aiJson, meta): NewProjectDraft => ({
     name: (typeof aiJson?.name === 'string' && aiJson.name.trim() ? aiJson.name : draft.name) ?? meta?.transcript?.slice(0, 80) ?? null,
-    type: typeof aiJson?.type === 'string' ? aiJson.type : draft.type ?? null,
+    // Validate the enum here so a junk value can't suppress the type/finish gap.
+    type: asType(aiJson?.type) ?? draft.type ?? null,
     location: typeof aiJson?.location === 'string' ? aiJson.location : draft.location ?? null,
     squareFootage: typeof aiJson?.squareFootage === 'number' ? aiJson.squareFootage : draft.squareFootage ?? null,
-    quality: typeof aiJson?.quality === 'string' ? aiJson.quality : draft.quality ?? null,
+    quality: asQuality(aiJson?.quality) ?? draft.quality ?? null,
     description: (typeof aiJson?.description === 'string' && aiJson.description.trim() ? aiJson.description : draft.description) ?? meta?.transcript ?? null,
   }),
 

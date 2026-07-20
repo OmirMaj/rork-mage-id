@@ -74,10 +74,11 @@ export const permitCapability: CopilotCapability<PermitDraft, PermitApplied> = {
   }),
 
   mergeDraft: (draft, aiJson): PermitDraft => ({
-    type: typeof aiJson?.type === 'string' ? aiJson.type : draft.type ?? null,
+    // Validate here so a junk type can't suppress the type gap.
+    type: asType(aiJson?.type) ?? draft.type ?? null,
     jurisdiction: typeof aiJson?.jurisdiction === 'string' ? aiJson.jurisdiction : draft.jurisdiction ?? null,
     permitNumber: typeof aiJson?.permitNumber === 'string' ? aiJson.permitNumber : draft.permitNumber ?? null,
-    status: typeof aiJson?.status === 'string' ? aiJson.status : draft.status ?? null,
+    status: asStatus(aiJson?.status) ?? draft.status ?? null,
     fee: num(aiJson?.fee) ?? draft.fee ?? null,
     expiresInMonths: num(aiJson?.expiresInMonths) ?? draft.expiresInMonths ?? null,
     expiresDate: typeof aiJson?.expiresDate === 'string' ? aiJson.expiresDate : draft.expiresDate ?? null,

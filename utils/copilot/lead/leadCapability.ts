@@ -83,7 +83,9 @@ export const leadCapability: CopilotCapability<LeadDraft, LeadApplied> = {
     budgetMin: num(aiJson?.budgetMin) ?? draft.budgetMin ?? null,
     budgetMax: num(aiJson?.budgetMax) ?? draft.budgetMax ?? null,
     timeline: typeof aiJson?.timeline === 'string' ? aiJson.timeline : draft.timeline ?? null,
-    source: typeof aiJson?.source === 'string' ? aiJson.source : draft.source ?? null,
+    // Only accept a VALID source — an out-of-enum string would otherwise be
+    // non-null, suppress the source gap, and silently become 'other' at apply.
+    source: (typeof aiJson?.source === 'string' && (SOURCES as string[]).includes(aiJson.source)) ? aiJson.source : draft.source ?? null,
   }),
 
   apply: async (draft: LeadDraft, ctx: CopilotContext): Promise<LeadApplied> => {
