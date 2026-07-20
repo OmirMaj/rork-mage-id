@@ -41,6 +41,7 @@ export function hazardGaps(draft: HazardDraft, _grounding: Grounding): Gap[] {
       field: 'location', impact: 0.45, kind: 'text',
       question: 'Where on site is it?',
       groundedDefault: { value: '', basis: 'so the crew can find it' },
+      placeholder: 'e.g. east stairwell, level 2',
     });
   }
 

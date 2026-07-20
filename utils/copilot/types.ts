@@ -24,6 +24,8 @@ export interface Gap {
   groundedDefault: { value: unknown; basis: string };
   kind: 'number' | 'text' | 'enum' | 'date' | 'choice';
   choices?: { label: string; value: unknown; basis?: string; recommended?: boolean }[];
+  /** Input hint for `text`/`number` gaps (rendered as the field placeholder). */
+  placeholder?: string;
 }
 
 /** Compact, serializable snapshot of the contractor's own history that the

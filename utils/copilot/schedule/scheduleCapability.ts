@@ -81,7 +81,13 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
     return {
       startDate: acceptStart ? aiJson.startDate : draft.startDate ?? null,
       phased: typeof aiJson?.phased === 'boolean' ? aiJson.phased : draft.phased ?? null,
-      longLeadMilestones: Array.isArray(aiJson?.longLeadMilestones) ? aiJson.longLeadMilestones : draft.longLeadMilestones,
+      // Only a NON-EMPTY array counts as "stated". The model routinely echoes
+      // the empty array from the schema hint; letting `[]` overwrite null would
+      // make longLeadMilestones non-null and permanently suppress the long-lead
+      // procurement gap (which fires only while the field is null).
+      longLeadMilestones: (Array.isArray(aiJson?.longLeadMilestones) && aiJson.longLeadMilestones.length > 0)
+        ? aiJson.longLeadMilestones
+        : draft.longLeadMilestones,
       crewCap: typeof aiJson?.crewCap === 'number' ? aiJson.crewCap : draft.crewCap ?? null,
       weatherBuffer: typeof aiJson?.weatherBuffer === 'boolean' ? aiJson.weatherBuffer : draft.weatherBuffer ?? null,
     };

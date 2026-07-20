@@ -40,12 +40,18 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
   const [micOpen, setMicOpen] = useState(false);
   const [compose, setCompose] = useState(seed ?? '');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  // Free-text answer for a `text`/`number` gap. Reset whenever the gap changes
+  // so a new question starts blank.
+  const [entry, setEntry] = useState('');
 
   // On mount: build grounding → listening (the compose view; voice is optional).
   useEffect(() => {
     void start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const gapField = state.currentGap?.field;
+  useEffect(() => { setEntry(''); }, [gapField]);
 
   const onTranscript = useCallback((t: string) => { setMicOpen(false); utterance(t); }, [utterance]);
   const submitCompose = useCallback(() => {
@@ -54,6 +60,23 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
     setCompose('');
     utterance(t);
   }, [compose, utterance]);
+  // Answer a `text`/`number` gap from the typed field. Empty → skip (the gap's
+  // grounded default applies downstream). A `number` gap parses the digits so
+  // "$4,200" → 4200; a `text` gap keeps the string — NEVER the boolean a Yes/No
+  // option would have written into a string field.
+  const submitEntry = useCallback(() => {
+    const g = state.currentGap;
+    if (!g) return;
+    const raw = entry.trim();
+    setEntry('');
+    if (!raw) { skip(); return; }
+    if (g.kind === 'number') {
+      const n = Number(raw.replace(/[^0-9.]/g, ''));
+      answer(g.field, isFinite(n) ? n : g.groundedDefault.value);
+    } else {
+      answer(g.field, raw);
+    }
+  }, [state.currentGap, entry, answer, skip]);
   const openWeb = useCallback(() => { onDone(); router.push({ pathname: cap.copy.webRoute as never, params: { id: ctx.projectId } as never }); }, [onDone, router, ctx.projectId, cap.copy.webRoute]);
   const close = useCallback(() => { cancel(); onDone(); }, [cancel, onDone]);
 
@@ -166,6 +189,31 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
                   <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
                 </TouchableOpacity>
               </View>
+            ) : (state.currentGap.kind === 'text' || state.currentGap.kind === 'number') ? (
+              /* A free-text / numeric answer needs a real input — never a Yes/No
+                 that would write a boolean into a string/number field. */
+              <View style={styles.options}>
+                <TextInput
+                  style={styles.gapInput}
+                  value={entry}
+                  onChangeText={setEntry}
+                  placeholder={state.currentGap.placeholder ?? (state.currentGap.kind === 'number' ? 'Type a number…' : 'Type your answer…')}
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType={state.currentGap.kind === 'number' ? 'numeric' : 'default'}
+                  returnKeyType="done"
+                  onSubmitEditing={submitEntry}
+                  autoFocus
+                  testID="copilot-gap-input"
+                />
+                <TouchableOpacity style={[styles.opt, styles.optRec]} activeOpacity={0.85} onPress={submitEntry} testID="copilot-gap-submit">
+                  <View style={[styles.radio, styles.radioRec]} />
+                  <View style={styles.optLab}>
+                    <Text style={styles.optText}>{entry.trim() ? 'Use this answer' : 'Skip — use the default'}</Text>
+                    <Text style={styles.optSub}>{state.currentGap.groundedDefault.basis}</Text>
+                  </View>
+                  <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
             ) : (
               <View style={styles.options}>
                 {optionsForGap(state.currentGap).map((c, i) => (
@@ -203,7 +251,7 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
             <Text style={styles.askEyebrow}>READY TO BUILD</Text>
             <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
             <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
-            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, ...(a.params ?? {}) } as never }); } }}>
+            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } }}>
               <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
               <Text style={styles.buildBtnText}>Build it</Text>
             </TouchableOpacity>
@@ -274,6 +322,7 @@ function makeStyles(colors: ThemeColors) {
     question: { ...Type.serifHeadline, color: colors.text },
     grounding: { ...Type.monoLabel, color: colors.textMuted, borderLeftWidth: 2, borderLeftColor: Colors.accentLight, paddingLeft: Tokens.spacing.sm },
     composeInput: { ...Type.body, color: colors.text, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, minHeight: 96, textAlignVertical: 'top', marginTop: Tokens.spacing.xxs },
+    gapInput: { ...Type.body, color: colors.text, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, marginBottom: Tokens.spacing.xs },
 
     options: { gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
     opt: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, padding: Tokens.spacing.md, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },

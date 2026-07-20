@@ -49,6 +49,7 @@ export function scheduleGaps(draft: ScheduleDraft, grounding: Grounding): Gap[] 
       field: 'crewCap', impact: 0.4, kind: 'number',
       question: 'How many on the heaviest crew?',
       groundedDefault: { value: 3, basis: 'no crew-size history yet — assuming 3' },
+      placeholder: 'e.g. 4',
     });
   }
 

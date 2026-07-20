@@ -46,6 +46,7 @@ export function permitGaps(draft: PermitDraft, _grounding: Grounding): Gap[] {
       field: 'jurisdiction', impact: 0.45, kind: 'text',
       question: 'Who issued it — which city or county?',
       groundedDefault: { value: '', basis: 'the authority having jurisdiction' },
+      placeholder: 'e.g. Clark County',
     });
   }
 

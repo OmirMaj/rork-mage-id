@@ -39,6 +39,7 @@ export function leadGaps(draft: LeadDraft, _grounding: Grounding): Gap[] {
       field: 'name', impact: 0.58, kind: 'text',
       question: 'Whose lead is it — the homeowner’s name?',
       groundedDefault: { value: '', basis: 'so you can call them back' },
+      placeholder: 'e.g. Sarah Miller',
     });
   }
 

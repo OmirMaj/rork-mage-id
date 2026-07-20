@@ -10,6 +10,7 @@ import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types
 import type { WarrantyCategory } from '@/types';
 import { warrantyGaps, defaultDurationForCategory, type WarrantyDraft } from './warrantyGaps';
 import { buildWarrantyGrounding } from './warrantyGrounding';
+import { addMonths } from '../dateMath';
 
 export interface WarrantyApplied { route: '/warranties'; projectId: string; params: { projectId: string } }
 
@@ -19,13 +20,6 @@ const CATEGORIES: WarrantyCategory[] = [
 ];
 const isCategory = (v: unknown): v is WarrantyCategory =>
   typeof v === 'string' && (CATEGORIES as string[]).includes(v);
-
-/** Add whole months to an ISO date (YYYY-MM-DD), staying on calendar months. */
-function addMonths(iso: string, months: number): string {
-  const d = new Date(iso + 'T00:00:00Z');
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return d.toISOString().slice(0, 10);
-}
 
 export const warrantyCapability: CopilotCapability<WarrantyDraft, WarrantyApplied> = {
   id: 'warranty',

@@ -52,6 +52,7 @@ export function estimateGaps(draft: EstimateDraft, grounding: Grounding): Gap[] 
       field: 'sizeSqft', impact: 0.5, kind: 'number',
       question: 'About how many square feet is the work area?',
       groundedDefault: { value: 200, basis: 'no size on file — rough it in, refine on the grid' },
+      placeholder: 'e.g. 250',
     });
   }
 

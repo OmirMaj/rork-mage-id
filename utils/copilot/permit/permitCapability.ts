@@ -9,6 +9,7 @@ import type { CopilotCapability, CopilotContext, Gap, Grounding } from '../types
 import type { PermitType, PermitStatus } from '@/types';
 import { permitGaps, type PermitDraft } from './permitGaps';
 import { buildPermitGrounding } from './permitGrounding';
+import { addMonths } from '../dateMath';
 
 export interface PermitApplied { route: '/permits'; projectId: string; params: { projectId: string } }
 
@@ -19,12 +20,6 @@ const STATUSES: PermitStatus[] = ['applied', 'under_review', 'approved', 'denied
 const asStatus = (v: unknown): PermitStatus | null => (typeof v === 'string' && (STATUSES as string[]).includes(v) ? (v as PermitStatus) : null);
 
 const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) && v >= 0 ? v : null);
-
-function addMonths(iso: string, months: number): string {
-  const d = new Date(iso + 'T00:00:00Z');
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return d.toISOString().slice(0, 10);
-}
 
 export const permitCapability: CopilotCapability<PermitDraft, PermitApplied> = {
   id: 'permit',
