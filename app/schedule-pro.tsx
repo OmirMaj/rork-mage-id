@@ -56,6 +56,7 @@ import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskM
 import { ScheduleOnRamp } from '@/components/schedule/ScheduleOnRamp';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
 import VoiceCommandModal from '@/components/VoiceCommandModal';
+import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
 import { ExportSheet } from '@/components/schedule/ExportSheet';
 import { computeScheduleHealthScore } from '@/utils/scheduleHealthScore';
@@ -182,6 +183,10 @@ function ScheduleProScreenInner() {
 
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
+  // Conversational schedule editor (MAGE Copilot) — the deeper "say the change,
+  // see the ripple, apply" flow. The headline AI button opens this; the older
+  // one-shot VoiceCommandModal (showAI) stays reachable via secondary triggers.
+  const [editOpen, setEditOpen] = useState(false);
   const [showClosures, setShowClosures] = useState(false);
   const [showWeather, setShowWeather] = useState(false);
   const [weatherResult, setWeatherResult] = useState<WeatherRescheduleResult | null>(null);
@@ -1528,7 +1533,7 @@ function ScheduleProScreenInner() {
               The "+ Add Task" affordance now lives inline in the SchedulerHeader
               between VIEW and Export (Phase 27 audit feedback), so it's removed
               from this toolbar to avoid two Add-Task buttons on the same row. */}
-          <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setShowAI(true)} highlighted />
+          <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setEditOpen(true)} highlighted />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
           <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} />
           <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} />
@@ -1758,6 +1763,26 @@ function ScheduleProScreenInner() {
         projectId={project?.id ?? ''}
         updateFunctions={voiceUpdateFunctions}
       />
+
+      {/* Conversational schedule editor — say the change, preview the CPM
+          ripple, apply through this screen's own commit() (so it lands on the
+          same undo/audit stack as a manual edit). */}
+      {project && (
+        <ScheduleEditPanel
+          visible={editOpen}
+          onClose={() => setEditOpen(false)}
+          projectId={project.id}
+          tasks={workingTasks}
+          commit={commit}
+          cpmOptions={{
+            scheduleStartDate: scheduleStartIso,
+            criticalFloatThresholdDays,
+            workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+            nonWorkingDates: project?.schedule?.nonWorkingDates,
+            taskCalendars,
+          }}
+        />
+      )}
 
       {/* Schedule health score detail. Tap a flagged task → opens it
           in the inspector. (Inspector wiring uses an existing dispatch
