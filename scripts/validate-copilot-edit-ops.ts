@@ -26,7 +26,8 @@ ok('bad dep type → FS', (() => {
   const o = normalizeEditOps([{ op: 'addDependency', from: 'a', to: 'b', type: 'ZZ' }])[0] as any;
   return o.type === 'FS';
 })());
-ok('keeps level + setStartDate', normalizeEditOps([{ op: 'level' }, { op: 'setStartDate', iso: '2026-08-01' }]).length === 2);
+ok('keeps level', normalizeEditOps([{ op: 'level' }]).length === 1);
+ok('drops the removed setStartDate op', normalizeEditOps([{ op: 'setStartDate', iso: '2026-08-01' }]).length === 0);
 ok('addTask needs a title', normalizeEditOps([{ op: 'addTask', durationDays: 3 }]).length === 0);
 
 // --- interpretScheduleOps ---

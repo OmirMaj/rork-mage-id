@@ -97,11 +97,6 @@ export function interpretScheduleOps(
           working = [...working.slice(0, idx), t, ...working.slice(idx)];
           results.push({ op, ok: true }); break;
         }
-        case 'setStartDate': {
-          // Handled by the capability's apply against the schedule object, not
-          // the task array — record as applied so the diff can note it.
-          results.push({ op, ok: true }); break;
-        }
         case 'level': {
           // Applied via applyEditEffects (which has the CPM options); the
           // interpreter just marks it applied.

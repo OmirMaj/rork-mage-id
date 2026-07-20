@@ -15,8 +15,11 @@ export type EditOp =
   | { op: 'removeTask'; task: TaskRef }
   | { op: 'setCrew'; task: TaskRef; crewSize: number }
   | { op: 'setProgress'; task: TaskRef; pct: number }
-  | { op: 'level' }
-  | { op: 'setStartDate'; iso: string };
+  | { op: 'level' };
+// NOTE: a `setStartDate` op is intentionally NOT in v1 — re-anchoring the whole
+// schedule interacts with the start-date-jump behavior and belongs to a
+// dedicated flow, not a task-array edit. Shipping it here would be a silent
+// no-op (the commit path only touches tasks). Add it deliberately later.
 
 const DEP_TYPES: DependencyType[] = ['FS', 'SS', 'FF', 'SF'];
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -82,10 +85,6 @@ export function normalizeEditOps(raw: unknown): EditOp[] {
         break;
       }
       case 'level': out.push({ op: 'level' }); break;
-      case 'setStartDate': {
-        const iso = str(a.iso); if (/^\d{4}-\d{2}-\d{2}/.test(iso)) out.push({ op: 'setStartDate', iso: iso.slice(0, 10) });
-        break;
-      }
       default: break;
     }
   }

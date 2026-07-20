@@ -33,7 +33,7 @@ import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Undo2, Redo2, Download } from 'lucide-react-native';
+import { ChevronLeft, Undo2, Redo2, Download, Mic } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import type { ThemeColors } from '@/constants/colors';
@@ -183,9 +183,9 @@ function ScheduleProScreenInner() {
 
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
-  // Conversational schedule editor (MAGE Copilot) — the deeper "say the change,
-  // see the ripple, apply" flow. The headline AI button opens this; the older
-  // one-shot VoiceCommandModal (showAI) stays reachable via secondary triggers.
+  // Conversational schedule editor (MAGE Copilot) — the "say the change, see
+  // the CPM ripple, apply through this screen's commit()" flow. Opened by the
+  // toolbar "Voice" button; distinct from the AIAssistantPanel drawer ("AI").
   const [editOpen, setEditOpen] = useState(false);
   const [showClosures, setShowClosures] = useState(false);
   const [showWeather, setShowWeather] = useState(false);
@@ -1533,7 +1533,8 @@ function ScheduleProScreenInner() {
               The "+ Add Task" affordance now lives inline in the SchedulerHeader
               between VIEW and Export (Phase 27 audit feedback), so it's removed
               from this toolbar to avoid two Add-Task buttons on the same row. */}
-          <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setEditOpen(true)} highlighted />
+          <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setShowAI(true)} highlighted />
+          <HeaderBtn icon={Mic} label="Voice" onPress={() => setEditOpen(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
           <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} />
           <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} />

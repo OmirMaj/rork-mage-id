@@ -8,7 +8,7 @@ import { interpretScheduleOps, applyEditEffects } from './interpretOps';
 import { buildScheduleEditGrounding } from './scheduleEditGrounding';
 import ScheduleDiffView from '@/components/copilot/ScheduleDiffView';
 
-export interface ScheduleEditDraft { ops: EditOp[]; startDateIso?: string | null }
+export interface ScheduleEditDraft { ops: EditOp[] }
 export interface ScheduleEditApplied { done: true }
 
 export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, ScheduleEditApplied> = {
@@ -44,7 +44,7 @@ export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, Schedu
       '• {op:"setProgress", task, pct}',
       '• {op:"addDependency", from, to, type:"FS|SS|FF|SF", lag}  • {op:"removeDependency", from, to}',
       '• {op:"addTask", title, durationDays, after, isMilestone}  • {op:"removeTask", task}',
-      '• {op:"level"}  (re-level / fix crew overloads)  • {op:"setStartDate", iso}',
+      '• {op:"level"}  (re-level / fix crew overloads)',
       '',
       'CURRENT TASKS:', ...((grounding.data.taskList as string[]) ?? []),
       '',
@@ -54,11 +54,9 @@ export const scheduleEditCapability: CopilotCapability<ScheduleEditDraft, Schedu
     ].join('\n'),
     schemaHint: { ops: [{ op: 'move', task: 't1', deltaDays: 7 }] },
   }),
-  mergeDraft: (draft, aiJson): ScheduleEditDraft => {
-    const fresh = normalizeEditOps(aiJson?.ops);
-    const startOp = fresh.find(o => o.op === 'setStartDate') as { iso: string } | undefined;
-    return { ops: [...(draft.ops ?? []), ...fresh], startDateIso: startOp?.iso ?? draft.startDateIso ?? null };
-  },
+  mergeDraft: (draft, aiJson): ScheduleEditDraft => ({
+    ops: [...(draft.ops ?? []), ...normalizeEditOps(aiJson?.ops)],
+  }),
   apply: async (draft: ScheduleEditDraft, ctx: CopilotContext): Promise<ScheduleEditApplied> => {
     const ops = draft.ops ?? [];
     if (!ctx.commitTasks) return { done: true };
