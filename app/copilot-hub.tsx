@@ -20,7 +20,7 @@ import { Colors, type ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { INTENTS } from '@/utils/copilot/intentTable';
-import { classifyIntent } from '@/utils/copilot/classifyIntent';
+import { splitIntents, type SplitAction } from '@/utils/copilot/splitIntents';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
 
 const ICONS: Record<CopilotCapabilityId, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
@@ -45,9 +45,10 @@ export default function CopilotHubScreen() {
   const [text, setText] = useState('');
   const [thinking, setThinking] = useState(false);
   const [noMatch, setNoMatch] = useState(false);
+  const [queue, setQueue] = useState<SplitAction[]>([]);
 
   const open = useCallback((capabilityId: CopilotCapabilityId, seed?: string) => {
-    router.replace({
+    router.push({
       pathname: '/copilot',
       params: { capabilityId, projectId: projectId ?? '', ...(seed ? { seed } : {}) },
     } as never);
@@ -58,11 +59,13 @@ export default function CopilotHubScreen() {
     if (!utterance || thinking) return;
     setThinking(true);
     setNoMatch(false);
-    const { capabilityId } = await classifyIntent(utterance);
+    setQueue([]);
+    const found = await splitIntents(utterance);
     setThinking(false);
-    if (capabilityId) open(capabilityId, utterance);
+    if (found.length === 1) router.replace({ pathname: '/copilot', params: { capabilityId: found[0].capabilityId, projectId: projectId ?? '', seed: found[0].text } } as never);
+    else if (found.length > 1) setQueue(found);
     else setNoMatch(true);
-  }, [text, thinking, open]);
+  }, [text, thinking, projectId, router]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -101,6 +104,31 @@ export default function CopilotHubScreen() {
         </TouchableOpacity>
         {noMatch && (
           <Text style={styles.noMatch}>Not sure which one that is — pick below.</Text>
+        )}
+
+        {queue.length > 1 && (
+          <View style={styles.queueWrap}>
+            <Text style={styles.queueLabel}>I HEARD {queue.length} THINGS — TAP TO HANDLE EACH</Text>
+            {queue.map((a, i) => {
+              const Icon = ICONS[a.capabilityId] ?? ClipboardList;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.card}
+                  onPress={() => open(a.capabilityId, a.text)}
+                  activeOpacity={0.85}
+                  testID={`copilot-hub-queue-${i}`}
+                >
+                  <View style={styles.cardIcon}><Icon size={18} color={colors.accent} strokeWidth={2} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardLabel}>{INTENTS.find((x) => x.id === a.capabilityId)?.label ?? a.capabilityId}</Text>
+                    <Text style={styles.queueSub} numberOfLines={1}>{a.label}</Text>
+                  </View>
+                  <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         )}
 
         <Text style={styles.orLabel}>OR PICK ONE</Text>
@@ -149,6 +177,9 @@ function makeStyles(colors: ThemeColors) {
     goBtnDisabled: { opacity: 0.4 },
     goBtnText: { ...Type.subheadEmphasized, color: Colors.textOnAccent },
     noMatch: { ...Type.footnote, color: colors.textMuted, textAlign: 'center', marginTop: Tokens.spacing.xs },
+    queueWrap: { gap: Tokens.spacing.xs, marginTop: Tokens.spacing.md },
+    queueLabel: { ...Type.monoLabel, color: colors.accent, marginBottom: Tokens.spacing.xxs },
+    queueSub: { ...Type.footnote, color: colors.textMuted, marginTop: 1 },
     orLabel: { ...Type.monoLabel, color: colors.textMuted, marginTop: Tokens.spacing.lg, marginBottom: Tokens.spacing.xxs },
     grid: { gap: Tokens.spacing.xs },
     card: {

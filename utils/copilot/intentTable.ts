@@ -22,3 +22,29 @@ export const INTENTS: { id: CopilotCapabilityId; label: string; hint: string }[]
 export function coerceCapabilityId(raw: unknown): CopilotCapabilityId | null {
   return INTENTS.some((i) => i.id === raw) ? (raw as CopilotCapabilityId) : null;
 }
+
+export interface SplitAction {
+  capabilityId: CopilotCapabilityId;
+  /** The exact words for THIS action, seeded into that capability's interview. */
+  text: string;
+  /** Short human label for the queue card. */
+  label: string;
+}
+
+/** Validate + clean a raw AI actions array down to usable SplitActions. Pure. */
+export function normalizeSplitActions(raw: unknown): SplitAction[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SplitAction[] = [];
+  const seen = new Set<string>();
+  for (const a of raw) {
+    const capabilityId = coerceCapabilityId((a as { capabilityId?: unknown })?.capabilityId);
+    const text = typeof (a as { text?: unknown })?.text === 'string' ? (a as { text: string }).text.trim() : '';
+    const label = typeof (a as { label?: unknown })?.label === 'string' ? (a as { label: string }).label.trim() : '';
+    if (!capabilityId || !text) continue;
+    const key = capabilityId + '|' + text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ capabilityId, text, label: label || text.slice(0, 40) });
+  }
+  return out;
+}
