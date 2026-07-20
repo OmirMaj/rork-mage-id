@@ -18,6 +18,7 @@ export const INTENTS: { id: CopilotCapabilityId; label: string; hint: string }[]
   { id: 'safety_incident', label: 'Safety incident', hint: 'a safety incident, injury, or near-miss' },
   { id: 'warranty', label: 'Warranty', hint: 'log a warranty on installed work — roof, HVAC, appliance, etc.' },
   { id: 'toolbox_talk', label: 'Toolbox talk', hint: 'run a jobsite safety meeting / toolbox talk / tailgate talk' },
+  { id: 'new_project', label: 'New project', hint: 'start / set up a brand-new project or job from scratch' },
 ];
 
 /** Validate a raw classifier result down to a known capability id (or null). */
