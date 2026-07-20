@@ -26,16 +26,19 @@ interface Props {
   capabilityId: CopilotCapabilityId;
   ctx: CopilotContext;
   onDone: () => void;
+  /** Pre-fill the compose box (e.g. the utterance the universal router classified),
+   *  so the user just reviews + taps Continue instead of re-typing. */
+  seed?: string;
 }
 
-export default function CopilotShell({ capabilityId, ctx, onDone }: Props) {
+export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const convo = useCopilotConversation(capabilityId, ctx);
   const { state, cap, start, utterance, answer, skip, confirm, cancel } = convo;
   const [micOpen, setMicOpen] = useState(false);
-  const [compose, setCompose] = useState('');
+  const [compose, setCompose] = useState(seed ?? '');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // On mount: build grounding → listening (the compose view; voice is optional).

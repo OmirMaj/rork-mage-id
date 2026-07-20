@@ -9,7 +9,7 @@ import CopilotShell from '@/components/copilot/CopilotShell';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
 
 export default function CopilotScreen() {
-  const { capabilityId, projectId } = useLocalSearchParams<{ capabilityId: CopilotCapabilityId; projectId: string }>();
+  const { capabilityId, projectId, seed } = useLocalSearchParams<{ capabilityId: CopilotCapabilityId; projectId: string; seed?: string }>();
   const router = useRouter();
   const projectsCtx = useProjects() as any;
   const { tier } = useSubscription();
@@ -20,6 +20,7 @@ export default function CopilotScreen() {
       capabilityId={(capabilityId ?? 'schedule') as CopilotCapabilityId}
       ctx={{ project, projectId: projectId ?? '', ctx: projectsCtx, tier }}
       onDone={() => router.back()}
+      seed={typeof seed === 'string' ? seed : undefined}
     />
   );
 }

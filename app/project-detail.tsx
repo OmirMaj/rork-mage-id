@@ -1473,6 +1473,24 @@ export default function ProjectDetailScreen() {
           </View>
         </View>
 
+        {/* Universal MAGE Copilot — say what you need, it routes to the right
+            interview. The one entry a contractor never has to hunt for. */}
+        <TouchableOpacity
+          style={styles.copilotHubBtn}
+          onPress={() => router.push({ pathname: '/copilot-hub', params: { projectId: id ?? '' } } as any)}
+          activeOpacity={0.85}
+          testID="project-copilot-hub-btn"
+        >
+          <View style={styles.copilotHubIcon}>
+            <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.copilotHubTitle}>Ask MAGE to do anything</Text>
+            <Text style={styles.copilotHubSub}>Say it — daily report, RFI, change order, estimate…</Text>
+          </View>
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+        </TouchableOpacity>
+
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionBtn}
@@ -4734,6 +4752,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.info, marginTop: 8 },
   commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.info },
   quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
+  copilotHubBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.accentSoft },
+  copilotHubIcon: { width: 36, height: 36, borderRadius: Tokens.radius.full, backgroundColor: themeColors.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
+  copilotHubTitle: { ...Type.subheadEmphasized, color: themeColors.accent },
+  copilotHubSub: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 1 },
   stageStrip: {
     marginHorizontal: 20,
     marginTop: 14,
