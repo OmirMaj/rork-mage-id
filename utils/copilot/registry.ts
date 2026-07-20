@@ -13,6 +13,7 @@ import { billingCapability } from './billing/billingCapability';
 import { safetyCapability } from './safety/safetyCapability';
 import { submittalCapability } from './submittal/submittalCapability';
 import { warrantyCapability } from './warranty/warrantyCapability';
+import { toolboxCapability } from './toolbox/toolboxCapability';
 
 const REGISTRY: Partial<Record<CopilotCapabilityId, CopilotCapability>> = {
   schedule: scheduleCapability as CopilotCapability,
@@ -25,6 +26,7 @@ const REGISTRY: Partial<Record<CopilotCapabilityId, CopilotCapability>> = {
   safety_incident: safetyCapability as CopilotCapability,
   submittal: submittalCapability as CopilotCapability,
   warranty: warrantyCapability as CopilotCapability,
+  toolbox_talk: toolboxCapability as CopilotCapability,
 };
 
 export function getCapability(id: CopilotCapabilityId): CopilotCapability | null {

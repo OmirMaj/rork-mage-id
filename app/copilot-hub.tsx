@@ -13,7 +13,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   X, ClipboardList, CalendarDays, Receipt, Repeat, MessageSquare,
-  FileText, CheckSquare, Wallet, ShieldAlert, ShieldCheck, ChevronRight,
+  FileText, CheckSquare, Wallet, ShieldAlert, ShieldCheck, HardHat, ChevronRight,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -35,6 +35,7 @@ const ICONS: Record<CopilotCapabilityId, React.ComponentType<{ size?: number; co
   invoice: Wallet,
   safety_incident: ShieldAlert,
   warranty: ShieldCheck,
+  toolbox_talk: HardHat,
 };
 
 export default function CopilotHubScreen() {

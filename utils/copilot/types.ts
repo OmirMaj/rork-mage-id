@@ -12,7 +12,7 @@ import type { AIFeature } from '@/utils/aiRateLimiterCore';
 export type CopilotCapabilityId =
   | 'schedule' | 'estimate' | 'daily_report' | 'change_order'
   | 'rfi' | 'punch' | 'safety_incident' | 'invoice' | 'submittal'
-  | 'warranty';
+  | 'warranty' | 'toolbox_talk';
 
 /** A field the interview may need. `impact` 0..1 ranks urgency; a gap below the
  *  ask threshold is NEVER asked — the engine states `groundedDefault` instead. */
@@ -38,6 +38,10 @@ export interface CopilotContext {
   project: Project | null;
   projectId: string;
   ctx: any;
+  /** SafetyContext value (adders + readers for JHAs, toolbox talks, incidents,
+   *  hazards). Injected by the copilot host so safety-family capabilities can
+   *  persist without routing. Undefined outside the provider. */
+  safety?: any;
   tier: string;
 }
 
