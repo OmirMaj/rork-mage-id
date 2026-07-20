@@ -1,8 +1,9 @@
 // app/copilot-hub.tsx — the universal MAGE Copilot entry.
 //
-// One place to just SAY what you need. Type/speak a request → classifyIntent
+// One place to just SAY what you need. Type/speak a request → splitIntents
 // routes it to the right capability's interview (seeding the utterance so you
-// don't re-type). Or pick a capability from the grid. Every registered
+// don't re-type) — and if you said several things, to each of them. Or pick a
+// capability from the grid. Every registered
 // capability is reachable here — the contractor never has to hunt for the right
 // button. Built on the §3.7 design tokens (ink/cream ground, MAGE-orange accent,
 // amber = the "your data" signal, Fraunces for the ask, JetBrains-Mono labels).
