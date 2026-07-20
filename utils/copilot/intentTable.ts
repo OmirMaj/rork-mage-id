@@ -19,6 +19,10 @@ export const INTENTS: { id: CopilotCapabilityId; label: string; hint: string }[]
   { id: 'warranty', label: 'Warranty', hint: 'log a warranty on installed work — roof, HVAC, appliance, etc.' },
   { id: 'toolbox_talk', label: 'Toolbox talk', hint: 'run a jobsite safety meeting / toolbox talk / tailgate talk' },
   { id: 'new_project', label: 'New project', hint: 'start / set up a brand-new project or job from scratch' },
+  { id: 'jha', label: 'JHA', hint: 'a job hazard analysis / JSA — hazards + controls for a task' },
+  { id: 'lead', label: 'Lead', hint: 'a new sales lead / homeowner inquiry / potential client' },
+  { id: 'permit', label: 'Permit', hint: 'log a building/trade permit — pulled, approved, or expiring' },
+  { id: 'hazard', label: 'Hazard', hint: 'flag an unsafe condition / hazard observation on site' },
 ];
 
 /** Validate a raw classifier result down to a known capability id (or null). */

@@ -12,7 +12,8 @@ import type { AIFeature } from '@/utils/aiRateLimiterCore';
 export type CopilotCapabilityId =
   | 'schedule' | 'estimate' | 'daily_report' | 'change_order'
   | 'rfi' | 'punch' | 'safety_incident' | 'invoice' | 'submittal'
-  | 'warranty' | 'toolbox_talk' | 'new_project';
+  | 'warranty' | 'toolbox_talk' | 'new_project'
+  | 'jha' | 'lead' | 'permit' | 'hazard';
 
 /** A field the interview may need. `impact` 0..1 ranks urgency; a gap below the
  *  ask threshold is NEVER asked — the engine states `groundedDefault` instead. */

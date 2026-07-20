@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  HardHat, Plus, X, Sparkles, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive,
+  HardHat, Plus, X, Sparkles, Trash2, ChevronLeft, CheckCircle, PenLine, Lock, Archive, Mic,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -320,6 +320,16 @@ function SafetyJhaInner() {
             />
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.addItemBtn}
+          onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'jha', projectId: projectId ?? '' } })}
+          activeOpacity={0.7}
+          testID="add-jha-voice"
+        >
+          <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+          <Text style={styles.addItemBtnText}>Write one by voice</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-jha">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />
