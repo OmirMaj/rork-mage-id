@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, FileDown,
-  RotateCcw, Users, FolderPlus, Plus, X,
+  RotateCcw, Users, FolderPlus, Plus, X, Mic,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
@@ -856,6 +856,21 @@ function EstimateWizardScreenInner() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {step === 0 && !!projectId && (
+            <TouchableOpacity
+              style={styles.voiceBanner}
+              onPress={() => router.replace({ pathname: '/copilot', params: { capabilityId: 'estimate', projectId } } as never)}
+              activeOpacity={0.85}
+              testID="estimate-voice-entry"
+            >
+              <Mic size={18} color={themeColors.accent} strokeWidth={2} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.voiceBannerTitle}>Build by voice instead</Text>
+                <Text style={styles.voiceBannerDesc}>Say the scope — MAGE prices it from your past jobs</Text>
+              </View>
+              <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+            </TouchableOpacity>
+          )}
           <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
         </ScrollView>
 
@@ -1049,6 +1064,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: themeColors.textMuted,
     marginTop: 2, letterSpacing: 0.2,
   },
+  voiceBanner: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
+    padding: 14, marginBottom: 16, borderRadius: Tokens.radius.lg,
+    backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.accentSoft,
+  },
+  voiceBannerTitle: { ...Type.subheadEmphasized, color: themeColors.accent },
+  voiceBannerDesc: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 1 },
   // "Client preview" banner at top of result screen
   previewBanner: {
     backgroundColor: themeColors.accent + '12',

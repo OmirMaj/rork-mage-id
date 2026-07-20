@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Megaphone, Plus, X, Trash2, PenLine, CheckCircle, Users, ChevronLeft, Lock,
+  Megaphone, Plus, X, Trash2, PenLine, CheckCircle, Users, ChevronLeft, Lock, Mic,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -219,6 +219,16 @@ function SafetyToolboxInner() {
             />
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.addItemBtn}
+          onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'toolbox_talk', projectId: projectId ?? '' } })}
+          activeOpacity={0.7}
+          testID="add-toolbox-voice"
+        >
+          <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+          <Text style={styles.addItemBtnText}>Write one by voice</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.addItemBtn} onPress={() => { resetForm(); setShowForm(true); }} activeOpacity={0.7} testID="add-toolbox">
           <Plus size={16} color={themeColors.accent} strokeWidth={1.75} />

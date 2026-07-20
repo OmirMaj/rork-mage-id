@@ -28,7 +28,7 @@ import {
   Search, X, ChevronRight, ChevronLeft, FolderPlus, Calculator, CalendarDays, FileText,
   Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
   ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
-  Wallet, MessageSquare, Ruler, Lock, FileCheck, Zap, type LucideIcon,
+  Wallet, MessageSquare, Ruler, Lock, FileCheck, Zap, Mic, type LucideIcon,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -69,10 +69,12 @@ interface CreateOption {
 
 const OPTIONS: CreateOption[] = [
   // Project-level
+  { label: 'Start by voice', subtitle: 'Just say the job — MAGE sets it up and drops you inside', Icon: Mic, href: '/copilot?capabilityId=new_project', category: 'project', keywords: ['voice', 'dictate', 'speak', 'talk', 'ai', 'copilot', 'new', 'job'] },
   { label: 'Project', subtitle: 'Start a new job from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
   { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: Calculator, href: '/estimate-wizard', category: 'project', scoped: true },
   { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: CalendarDays, href: '/schedule-wizard', category: 'project', scoped: true },
   { label: 'Lead', subtitle: 'Capture a homeowner inquiry — voice or form', Icon: UserPlus, href: '/leads', category: 'project', keywords: ['pipeline', 'sales'] },
+  { label: 'Lead by voice', subtitle: 'Say what the homeowner told you — MAGE files the lead', Icon: Mic, href: '/copilot?capabilityId=lead', category: 'project', keywords: ['voice', 'dictate', 'sales', 'inquiry', 'homeowner', 'copilot'] },
 
   // Money
   { label: 'Quick Quote', subtitle: 'Fast bid for a small job', Icon: Zap, href: '/quick-quote', category: 'money', keywords: ['quote', 'fast', 'bid', 'proposal', 'small job'] },

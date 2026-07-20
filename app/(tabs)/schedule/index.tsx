@@ -47,6 +47,7 @@ import {
   FileText,
   Save,
   Lock,
+  Mic,
 } from 'lucide-react-native';
 import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -2222,6 +2223,23 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
+            {/* Voice-build generates from the linked estimate — only offer it
+                when there is one, else it dead-ends at "Build it". */}
+            {!!selectedProject.linkedEstimate && (
+              <TouchableOpacity
+                style={styles.emptyAction}
+                onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
+                testID="open-copilot-schedule"
+              >
+                <Mic size={20} color={themeColors.accent} strokeWidth={1.75} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.emptyActionTitle}>Build by voice</Text>
+                  <Text style={styles.emptyActionDesc}>Speak the job — AI asks the smart questions, then builds it</Text>
+                </View>
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={styles.emptyAction}
               onPress={() => router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId } } as any)}
@@ -2309,6 +2327,21 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <View style={[styles.overallProgressFill, { width: `${totalProgress}%` as any }]} />
               </View>
             </View>
+
+            {/* Voice rebuild regenerates from the linked estimate — hide it when
+                there's none (it would dead-end at "Build it"). */}
+            {!!selectedProject?.linkedEstimate && (
+              <TouchableOpacity
+                style={styles.copilotEntry}
+                onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'schedule', projectId: selectedProjectId } } as any)}
+                testID="schedule-copilot-entry"
+                activeOpacity={0.85}
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.copilotEntryText}>Rebuild by voice</Text>
+                <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            )}
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.viewTabScroll}>
               <View style={styles.viewTabBar}>
@@ -3203,6 +3236,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
 
   topBar: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: themeColors.line },
+  copilotEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
+  copilotEntryText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
   topBarStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   topBarStat: { alignItems: 'center' },
   topBarStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text },

@@ -16,7 +16,7 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
-  Clock, Lock,
+  Clock, Lock, Mic,
 } from 'lucide-react-native';
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
@@ -508,17 +508,24 @@ export default function ProjectDetailScreen() {
 
   const toggleGroup = useCallback((key: TileGroupKey) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    // Animate the collapse/expand. Using scaleXY (not opacity) so the
-    // body view's HEIGHT actually shrinks during collapse — fixes the
-    // "huge gap that only disappears after clicking another collapsible"
-    // bug, which was caused by opacity-only animation leaving the
-    // collapsed body's phantom layout space behind for one frame.
+    // Animate the collapse/expand. The smooth height-collapse (no "huge gap
+    // that only disappears after clicking another collapsible") comes from the
+    // body being CONDITIONALLY RENDERED (mount/unmount) plus the `update`
+    // easeInEaseOut collapsing sibling layout — NOT from the create/delete
+    // property. Create/delete MUST use `opacity`, never `scaleXY`: on the New
+    // Architecture (Fabric), a `scaleXY` create/delete makes the layout-anim
+    // driver interpolate the view's `transform` array, and when a
+    // created/deleted subtree contains any view with its own `transform`, the
+    // interpolator indexes past the shorter TransformOperation vector →
+    // out-of-bounds → SIGABRT (hard native crash to springboard). This fired
+    // reliably navigating out of a tile section. `opacity` sidesteps transform
+    // interpolation entirely (same crash-safe config as HomeFabStack).
     if (Platform.OS !== 'web') {
       LayoutAnimation.configureNext({
         duration: 220,
-        create: { type: 'easeInEaseOut', property: 'scaleXY' },
+        create: { type: 'easeInEaseOut', property: 'opacity' },
         update: { type: 'easeInEaseOut' },
-        delete: { type: 'easeInEaseOut', property: 'scaleXY' },
+        delete: { type: 'easeInEaseOut', property: 'opacity' },
       });
     }
     setCollapsedGroups(prev => {
@@ -1466,6 +1473,24 @@ export default function ProjectDetailScreen() {
           </View>
         </View>
 
+        {/* Universal MAGE Copilot — say what you need, it routes to the right
+            interview. The one entry a contractor never has to hunt for. */}
+        <TouchableOpacity
+          style={styles.copilotHubBtn}
+          onPress={() => router.push({ pathname: '/copilot-hub', params: { projectId: id ?? '' } } as any)}
+          activeOpacity={0.85}
+          testID="project-copilot-hub-btn"
+        >
+          <View style={styles.copilotHubIcon}>
+            <Mic size={18} color={Colors.textOnAccent} strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.copilotHubTitle}>Ask MAGE to do anything</Text>
+            <Text style={styles.copilotHubSub}>Say it — daily report, RFI, change order, estimate…</Text>
+          </View>
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+        </TouchableOpacity>
+
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionBtn}
@@ -1531,7 +1556,7 @@ export default function ProjectDetailScreen() {
           {hasAnyEstimate && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.replace('/(tabs)/estimate' as any)}
+              onPress={() => router.replace({ pathname: '/(tabs)/estimate', params: { projectId: id ?? '' } } as any)}
               activeOpacity={0.7}
               testID="project-view-estimate-btn"
             >
@@ -2567,6 +2592,17 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 </View>
               ))}
+              {/* Draft by voice — MAGE Copilot: speak the change, confirm the
+                  amount + schedule impact, hand off to the CO screen pre-filled. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'change_order', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-change-order-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.coAddBtnText}>Draft by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id } })}
@@ -2683,6 +2719,17 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {/* Bill by voice — MAGE Copilot: say the draw, it opens billing
+                  pre-set to progress or full. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'invoice', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-invoice-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Bill by voice</Text>
+              </TouchableOpacity>
               <View style={styles.invBtnRow}>
                 {/* Quick Invoice — skips bill-from-estimate entirely.
                     Goes straight to /invoice with no prefill so the GC
@@ -2809,6 +2856,17 @@ export default function ProjectDetailScreen() {
                   </View>
                 ));
               })()}
+              {/* Log by voice — MAGE Copilot: dictate the day, it confirms
+                  today's critical-path progress + writes the full report. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'daily_report', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-daily-report-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={styles.coAddBtnText}>Log by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id } })}
@@ -2881,6 +2939,16 @@ export default function ProjectDetailScreen() {
               {punchItems.length > 5 && (
                 <Text style={styles.punchMoreText}>+{punchItems.length - 5} more items</Text>
               )}
+              {/* Add by voice — MAGE Copilot: speak the defect, confirm the trade. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'punch', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-punch-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Add by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/punch-list' as any, params: { projectId: id } })}
@@ -2892,6 +2960,15 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.coAddBtn, { marginTop: 8 }]}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'warranty', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-warranty-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log a warranty by voice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/warranties' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="open-warranties-btn"
@@ -3006,6 +3083,16 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 );
               })}
+              {/* Raise by voice — MAGE Copilot: speak the question, confirm recipient. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'rfi', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-rfi-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Raise by voice</Text>
+              </TouchableOpacity>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
@@ -3079,6 +3166,16 @@ export default function ProjectDetailScreen() {
                   </View>
                 </TouchableOpacity>
               ))}
+              {/* Log by voice — MAGE Copilot: speak the item, confirm spec + timing. */}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'submittal', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-submittal-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log by voice</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id } })}
@@ -4664,6 +4761,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.info, marginTop: 8 },
   commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.info },
   quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
+  copilotHubBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: themeColors.accentSoft, borderWidth: 1, borderColor: themeColors.accentSoft },
+  copilotHubIcon: { width: 36, height: 36, borderRadius: Tokens.radius.full, backgroundColor: themeColors.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
+  copilotHubTitle: { ...Type.subheadEmphasized, color: themeColors.accent },
+  copilotHubSub: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 1 },
   stageStrip: {
     marginHorizontal: 20,
     marginTop: 14,

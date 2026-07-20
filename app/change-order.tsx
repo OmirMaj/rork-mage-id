@@ -82,12 +82,13 @@ function ChangeOrderInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { projectId, coId, prefillReason, prefillDescription, prefillAmount } = useLocalSearchParams<{
+  const { projectId, coId, prefillReason, prefillDescription, prefillAmount, prefillScheduleDays } = useLocalSearchParams<{
     projectId: string;
     coId?: string;
     prefillReason?: string;
     prefillDescription?: string;
     prefillAmount?: string;
+    prefillScheduleDays?: string;
   }>();
   const {
     getProject, getChangeOrdersForProject, addChangeOrder, updateChangeOrder, contacts,
@@ -130,7 +131,8 @@ function ChangeOrderInner() {
     )
   );
   const [scheduleImpactDays, setScheduleImpactDays] = useState<string>(
-    existingCO?.scheduleImpactDays ? String(existingCO.scheduleImpactDays) : ''
+    existingCO?.scheduleImpactDays ? String(existingCO.scheduleImpactDays)
+      : (prefillScheduleDays && Number(prefillScheduleDays) > 0 ? prefillScheduleDays : '')
   );
   // Pre-seed line items: single overage line so the dollar amount
   // shows on the change order without manual entry.

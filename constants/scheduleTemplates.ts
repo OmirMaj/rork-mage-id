@@ -1,3 +1,9 @@
+// The flagship "Overlook Estate" spine is authored in flagshipProject.ts and
+// re-exported here as a reusable template. flagshipProject.ts imports ONLY the
+// `ScheduleTemplate` type from this file (type-only, erased at runtime), so
+// there is no runtime import cycle — the value edge runs one way only.
+import { FLAGSHIP_SCHEDULE_TEMPLATE } from '@/constants/flagshipProject';
+
 export interface TemplateTask {
   id: string;
   name: string;
@@ -219,4 +225,9 @@ export const SCHEDULE_TEMPLATES: ScheduleTemplate[] = [
       { id: 'pl-12', name: 'Project Complete', phase: 'General', duration: 0, predecessorIds: ['pl-11'], isMilestone: true, isCriticalPath: true, crewSize: 0 },
     ],
   },
+  // The Overlook Estate — flagship luxury-estate spine (42 tasks). The full
+  // authored definition (rationale, weather flags, crews) lives in
+  // constants/flagshipProject.ts; this reusable ScheduleTemplate is derived
+  // from it so a user can start a brand-new project from the flagship spine.
+  FLAGSHIP_SCHEDULE_TEMPLATE,
 ];

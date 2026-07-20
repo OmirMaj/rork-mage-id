@@ -15,10 +15,10 @@ import {
   Mail, MessageSquare, FolderOpen, FileText, Send,
   HardHat, Boxes, ClipboardList, Ruler, Calculator, Gauge, GitCompare,
   ChevronRight,
- Wifi, PlusCircle, History, Star, FileUp, ScanSearch } from 'lucide-react-native';
+ Wifi, PlusCircle, History, Star, FileUp, ScanSearch, Mic } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Linking from 'expo-linking';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
@@ -198,6 +198,14 @@ export default function EstimateScreen() {
   type PendingCartModal = 'addToProject' | 'comparison' | 'ai' | 'pdf';
   const [pendingCartModal, setPendingCartModal] = useState<PendingCartModal | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  // Inherit the project when the Estimator is opened from a project (e.g. a
+  // project-detail Estimate tile) so it's project-aware immediately — this is
+  // what surfaces the "Build by voice" hero and scopes "save to project".
+  const { projectId: navProjectId } = useLocalSearchParams<{ projectId?: string }>();
+  useEffect(() => {
+    if (navProjectId && !selectedProjectId) setSelectedProjectId(navProjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navProjectId]);
   const [showConfirmLink, setShowConfirmLink] = useState(false);
   const [estimateName, setEstimateName] = useState('');
   const [pendingLinkProject, setPendingLinkProject] = useState<Project | null>(null);
@@ -1283,9 +1291,29 @@ export default function EstimateScreen() {
 
   const listHeaderComponent = useMemo(() => (
     <View>
+      {/* Build-by-voice — the flagship phone-create path, shown when a project is
+          selected (voice-build prices from that project's cost history). Leads
+          the hero stack so it reads as the fastest way to make an estimate. */}
+      {!!selectedProjectId && (
+        <TouchableOpacity
+          style={styles.wizardCta}
+          onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'estimate', projectId: selectedProjectId } } as never)}
+          activeOpacity={0.85}
+          testID="estimate-voice-cta"
+        >
+          <View style={styles.wizardCtaIcon}>
+            <Mic size={18} color={Colors.surface} strokeWidth={2} />
+          </View>
+          <View style={styles.wizardCtaText}>
+            <Text style={styles.wizardCtaTitle}>Build by voice</Text>
+            <Text style={styles.wizardCtaSubtitle}>Say the scope — MAGE prices it from your past jobs</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
+        </TouchableOpacity>
+      )}
       <TouchableOpacity
         style={styles.wizardCta}
-        onPress={() => router.push('/estimate-wizard' as any)}
+        onPress={() => router.push({ pathname: '/estimate-wizard', params: selectedProjectId ? { projectId: selectedProjectId } : {} } as any)}
         activeOpacity={0.85}
         testID="wizard-cta"
       >
@@ -1694,7 +1722,7 @@ export default function EstimateScreen() {
         </View>
       )}
     </View>
-  ), [materials.length, totalMaterialCount, pulseAnim, refreshPrices, cart.length, totalItemCount, cartAnim, isSearchFocused, query, globalMarkup, globalMarkupInput, applyGlobalMarkup, activeCategory, activeTab, filteredMaterials.length, regionalVisibleCount, opportunities, laborCart.length, assemblyCart.length, recentMaterials, popularMaterials, showAiResults, isAiSearching, aiSearchError, aiSearchResults, handleAiSearch, handleAddAiMaterial, handleAddRecentToCart, router, ctxSetGlobalMarkup, materials, openItemPopup]);
+  ), [materials.length, totalMaterialCount, pulseAnim, refreshPrices, cart.length, totalItemCount, cartAnim, isSearchFocused, query, globalMarkup, globalMarkupInput, applyGlobalMarkup, activeCategory, activeTab, filteredMaterials.length, regionalVisibleCount, opportunities, laborCart.length, assemblyCart.length, recentMaterials, popularMaterials, showAiResults, isAiSearching, aiSearchError, aiSearchResults, handleAiSearch, handleAddAiMaterial, handleAddRecentToCart, router, ctxSetGlobalMarkup, materials, openItemPopup, selectedProjectId]);
 
   const renderLaborCard = useCallback(({ item }: { item: LaborRate }) => {
     const inCart = laborCart.find(i => i.labor.id === item.id);
@@ -2032,9 +2060,20 @@ export default function EstimateScreen() {
                 primary entry points on desktop. Both use the same shape
                 so they read as a pair, distinct from the secondary
                 icon-only buttons (Calculator / Gauge / Refresh / Cart). */}
+            {!!selectedProjectId && (
+              <TouchableOpacity
+                style={dStyles.desktopWizardBtn}
+                onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'estimate', projectId: selectedProjectId } } as never)}
+                activeOpacity={0.85}
+                testID="desktop-estimate-voice-cta"
+              >
+                <Mic size={14} color={Colors.surface} strokeWidth={2} />
+                <Text style={dStyles.desktopHeroBtnText}>Voice</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={dStyles.desktopWizardBtn}
-              onPress={() => router.push('/estimate-wizard' as any)}
+              onPress={() => router.push({ pathname: '/estimate-wizard', params: selectedProjectId ? { projectId: selectedProjectId } : {} } as any)}
               activeOpacity={0.85}
               testID="desktop-wizard-cta"
             >

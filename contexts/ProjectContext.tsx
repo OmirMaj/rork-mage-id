@@ -403,8 +403,16 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               warrantyWalkCompletedAt: r.warranty_walk_completed_at as string | undefined,
               photoCount: Number(r.photo_count) || 0,
             })) as Project[];
-            await saveLocal(PROJECTS_KEY, mapped);
-            return mapped;
+            // Merge in any local-only projects the server doesn't have yet — a
+            // just-created project whose async Supabase upsert hasn't committed,
+            // or an offline-created one. A server-first load must NEVER silently
+            // drop them (that's what made the demo seeder's project — and any
+            // offline-created project — vanish on the next reload).
+            const localForMerge = await loadLocal<Project[]>(PROJECTS_KEY, []);
+            const remoteIds = new Set(mapped.map((p) => p.id));
+            const merged = [...mapped, ...localForMerge.filter((p) => !remoteIds.has(p.id))];
+            await saveLocal(PROJECTS_KEY, merged);
+            return merged;
           }
         } catch (err) {
           console.log('[ProjectContext] Supabase fetch failed, falling back to local:', err);
@@ -1255,11 +1263,11 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     onSuccess: (data) => { queryClient.setQueryData(['subPortalLinks', userId], data); },
   });
 
-  const syncProjectToSupabase = useCallback((project: Project, action: 'upsert' | 'delete') => {
+  const syncProjectToSupabase = useCallback((project: Project, action: 'upsert' | 'delete', opts?: { immediate?: boolean }) => {
     if (!canSync) return;
     const existing = syncDebounceMap.current.get(project.id);
     if (existing) clearTimeout(existing);
-    syncDebounceMap.current.set(project.id, setTimeout(async () => {
+    const run = async () => {
       syncDebounceMap.current.delete(project.id);
       if (action === 'delete') {
         await supabaseWrite('projects', 'delete', { id: project.id });
@@ -1294,7 +1302,18 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         });
       }
       console.log('[ProjectContext] Synced project to Supabase:', project.name);
-    }, 800));
+    };
+    if (opts?.immediate) {
+      // New project: enqueue the upsert NOW (synchronously) so the project row
+      // reaches Supabase BEFORE its sub-collections (permits/submittals/etc.)
+      // insert — otherwise their project_id FKs violate, those writes fail
+      // terminally, and the un-synced project vanishes on the next server-first
+      // load (which overwrites local with Supabase). The offline queue is FIFO,
+      // so enqueuing first = inserted first.
+      void run();
+    } else {
+      syncDebounceMap.current.set(project.id, setTimeout(run, 800));
+    }
   }, [canSync, userId]);
 
   const saveProjectsMutation = useMutation({
@@ -1437,7 +1456,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     const updated = [project, ...projects];
     setProjects(updated);
     saveProjectsMutation.mutate(updated);
-    syncProjectToSupabase(project, 'upsert');
+    // Immediate (non-debounced) so the project row exists in Supabase before any
+    // sub-collections a caller adds next (fixes the demo-seeder FK failures +
+    // the "new project vanishes on reload" bug).
+    syncProjectToSupabase(project, 'upsert', { immediate: true });
     geocodeIfNeeded(project);
     if (canSync && userId) {
       void import('@/utils/qboSync').then(m => m.triggerQboSync('project', 'upsert', project.id));

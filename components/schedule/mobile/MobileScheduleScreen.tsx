@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Bell, ChevronDown, FolderOpen, CalendarDays, Download, FileInput } from 'lucide-react-native';
+import { Bell, ChevronDown, FolderOpen, CalendarDays, Download, FileInput, Mic } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -59,6 +59,10 @@ export function MobileScheduleScreen() {
     [projects, selectedProjectId],
   );
   const activeSchedule = selectedProject?.schedule ?? null;
+  // Voice-build generates the schedule FROM the linked estimate — without one the
+  // Copilot interview would run and then dead-end at "Build it". Gate the voice
+  // entries on it so estimate-less projects only see the manual path.
+  const hasEstimate = !!selectedProject?.linkedEstimate;
   const tasks = useMemo(() => activeSchedule?.tasks ?? [], [activeSchedule]);
   const startDate = activeSchedule?.startDate ?? new Date().toISOString().slice(0, 10);
 
@@ -164,6 +168,15 @@ export function MobileScheduleScreen() {
           </View>
           {!!selectedProject.location && <Text style={styles.loc} numberOfLines={1}>{selectedProject.location}</Text>}
         </TouchableOpacity>
+        {/* MAGE Copilot — the flagship phone-create path: speak the scope, the
+            AI asks grounded clarifying questions, then builds the schedule.
+            Accent-tinted so it reads as the primary "make one" action. Only shown
+            when there's a linked estimate to build from (voice-build needs it). */}
+        {hasEstimate && (
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)} accessibilityLabel="Build schedule by voice" testID="open-copilot-schedule">
+            <Mic size={19} color={colors.accent} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.iconBtn} onPress={() => setShowCalendar(true)} accessibilityLabel="Jump to date" testID="open-calendar">
           <CalendarDays size={19} color={colors.text} strokeWidth={1.75} />
         </TouchableOpacity>
@@ -195,13 +208,25 @@ export function MobileScheduleScreen() {
 
       {tab === 'schedule' ? (
         tasks.length === 0 ? (
-          <EmptyState
-            icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
-            title="No schedule yet"
-            message="Add work packages to start building the schedule."
-            actionLabel="New Work Package"
-            onAction={() => setShowAdd(true)}
-          />
+          hasEstimate ? (
+            <EmptyState
+              icon={<Mic size={36} color={colors.accent} strokeWidth={1.75} />}
+              title="No schedule yet"
+              message="Say the scope out loud — MAGE asks a few grounded questions, then builds the schedule for you. Or add work packages by hand."
+              actionLabel="Build by voice"
+              onAction={() => router.push(`/copilot?capabilityId=schedule&projectId=${selectedProject.id}`)}
+              secondaryLabel="Add manually"
+              onSecondaryAction={() => setShowAdd(true)}
+            />
+          ) : (
+            <EmptyState
+              icon={<FolderOpen size={36} color={colors.accent} strokeWidth={1.75} />}
+              title="No schedule yet"
+              message="Add work packages to start building the schedule. Add an estimate first to build it by voice."
+              actionLabel="New Work Package"
+              onAction={() => setShowAdd(true)}
+            />
+          )
         ) : (
           <>
             <View style={styles.viewToggle}>

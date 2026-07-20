@@ -4,7 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
 import React, { useEffect, useRef } from "react";
-import { AppState, Platform, View } from "react-native";
+import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -41,6 +41,16 @@ import * as Sentry from '@sentry/react-native';
 // alerts, which silently breaks every Cancel/Confirm flow (sign out,
 // delete, etc.). Routing through window.confirm restores the behavior.
 patchAlertForWeb();
+
+// Silence LogBox's on-screen notification toasts in dev (e.g. the RevenueCat
+// "Error fetching offerings" sim-only network warning, and the "Open debugger
+// to view warnings" summary). They're dev-only — never present in a release
+// build — but they overlay the bottom of the UI and ruin marketing/App-Store
+// screenshots taken from the simulator. Errors still surface in the debugger;
+// this only hides the overlay. No effect in production.
+if (__DEV__) {
+  LogBox.ignoreAllLogs();
+}
 
 /**
  * Audit-2026-05-21 W1: map pathname → human-readable page title for the
@@ -504,6 +514,8 @@ function RootLayoutNav() {
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
       <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="copilot" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="copilot-hub" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="schedule-import" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
@@ -1078,6 +1090,13 @@ function RootLayoutNav() {
         name="dev-seeder"
         options={{
           title: "Demo Seeder",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="dev-flagship-seeder"
+        options={{
+          title: "Flagship Seeder",
           headerShown: false,
         }}
       />
