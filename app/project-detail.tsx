@@ -2960,6 +2960,15 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.coAddBtn, { marginTop: 8 }]}
+                onPress={() => navigateFromTile({ pathname: '/copilot', params: { capabilityId: 'warranty', projectId: id ?? '' } })}
+                activeOpacity={0.7}
+                testID="add-warranty-voice-btn"
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={2} />
+                <Text style={[styles.coAddBtnText, { color: themeColors.accent }]}>Log a warranty by voice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/warranties' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="open-warranties-btn"

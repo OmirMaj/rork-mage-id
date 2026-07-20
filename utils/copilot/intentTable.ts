@@ -16,6 +16,7 @@ export const INTENTS: { id: CopilotCapabilityId; label: string; hint: string }[]
   { id: 'punch', label: 'Punch item', hint: 'a punch-list defect that needs fixing' },
   { id: 'invoice', label: 'Billing', hint: 'bill the client / a progress draw / an invoice' },
   { id: 'safety_incident', label: 'Safety incident', hint: 'a safety incident, injury, or near-miss' },
+  { id: 'warranty', label: 'Warranty', hint: 'log a warranty on installed work — roof, HVAC, appliance, etc.' },
 ];
 
 /** Validate a raw classifier result down to a known capability id (or null). */

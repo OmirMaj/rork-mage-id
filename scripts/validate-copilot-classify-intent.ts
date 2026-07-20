@@ -13,7 +13,7 @@ ok('undefined → null', coerceCapabilityId(undefined) === null);
 ok('number → null', coerceCapabilityId(7) === null);
 ok('object → null', coerceCapabilityId({ id: 'rfi' }) === null);
 ok('intent ids are unique', new Set(INTENTS.map((i) => i.id)).size === INTENTS.length);
-ok('router covers 9 field capabilities', INTENTS.length === 9);
+ok('router covers 10 field capabilities', INTENTS.length === 10);
 ok('every intent has a label + hint', INTENTS.every((i) => !!i.label && !!i.hint));
 ok('every intent id is coercible', INTENTS.every((i) => coerceCapabilityId(i.id) === i.id));
 
