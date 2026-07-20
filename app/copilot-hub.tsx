@@ -25,7 +25,9 @@ import { INTENTS } from '@/utils/copilot/intentTable';
 import { splitIntents, type SplitAction } from '@/utils/copilot/splitIntents';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
 
-const ICONS: Record<CopilotCapabilityId, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
+// Partial: only the create-capabilities the hub grid surfaces need an icon;
+// non-hub ids (e.g. scheduleEdit, which lives in the schedule editor) are absent.
+const ICONS: Partial<Record<CopilotCapabilityId, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>>> = {
   daily_report: ClipboardList,
   schedule: CalendarDays,
   estimate: Receipt,
