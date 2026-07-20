@@ -23,6 +23,15 @@ const QUALITIES: QualityTier[] = ['economy', 'standard', 'premium', 'luxury'];
 const asQuality = (v: unknown): QualityTier | null =>
   typeof v === 'string' && (QUALITIES as string[]).includes(v) ? (v as QualityTier) : null;
 
+// A model that can't fill a free-text field sometimes echoes the literal string
+// "null"/"none" instead of a JSON null — never let that become a project's name
+// or location.
+const JUNK = new Set(['', 'null', 'none', 'n/a', 'na', 'undefined', 'unknown']);
+const clean = (v: unknown): string => {
+  const t = (typeof v === 'string' ? v : '').trim();
+  return JUNK.has(t.toLowerCase()) ? '' : t;
+};
+
 export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProjectApplied> = {
   id: 'new_project',
   label: 'Start a project',
@@ -89,10 +98,10 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
     const grounding = await buildNewProjectGrounding(ctx);
     const g = grounding.data as { usualType?: string | null; usualQuality?: string | null; usualLocation?: string | null };
 
-    const name = (draft.name ?? '').trim() || 'New Project';
+    const name = clean(draft.name) || 'New Project';
     const type: ProjectType = asType(draft.type) ?? asType(g.usualType) ?? 'renovation';
     const quality: QualityTier = asQuality(draft.quality) ?? asQuality(g.usualQuality) ?? 'standard';
-    const location = (draft.location ?? '').trim() || (g.usualLocation ?? '') || 'United States';
+    const location = clean(draft.location) || (g.usualLocation ?? '') || 'United States';
     const squareFootage = typeof draft.squareFootage === 'number' && draft.squareFootage > 0 ? draft.squareFootage : 0;
 
     const now = new Date().toISOString();
@@ -107,7 +116,7 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
       location,
       squareFootage,
       quality,
-      description: (draft.description ?? '').trim(),
+      description: clean(draft.description),
       createdAt: now,
       updatedAt: now,
       estimate: null,

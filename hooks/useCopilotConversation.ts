@@ -22,11 +22,45 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
   stateRef.current = state;
 
   // One AI turn: prompt → mageAI → merge → recompute gaps → ask or ready.
-  const runTurn = useCallback(async () => {
+  //
+  // CRITICAL: dispatch() + runTurn() fire in the SAME tick, so stateRef is still
+  // the PRE-dispatch snapshot when runTurn reads it (React hasn't re-rendered
+  // yet). Reading stale state here ran the very first turn on an EMPTY transcript
+  // — the AI got no "WHAT THEY SAID", extracted nothing, and every field fell to
+  // its default (a project named "New Project" with location "null"). So the
+  // caller hands us the action it just dispatched and we fold its effect (new
+  // transcript line / edited line / answered field / consumed question) in by
+  // hand rather than racing the render.
+  const runTurn = useCallback(async (
+    input:
+      | { kind: 'utterance'; text: string }
+      | { kind: 'edit'; turnId: string; text: string }
+      | { kind: 'answer'; field: string; value: unknown }
+      | { kind: 'skip' },
+  ) => {
     const s = stateRef.current;
-    const asking = s.currentGap;
-    const transcriptText = s.transcript.map(t => t.text).join(' | ');
-    const { prompt, schemaHint } = cap.buildTurnPrompt({ transcript: transcriptText, draft: s.draft, grounding: s.grounding, asking });
+    const gap = s.currentGap; // the gap being answered/skipped, if any
+
+    const turns = s.transcript.map(t =>
+      input.kind === 'edit' && t.id === input.turnId ? input.text : t.text);
+    if (input.kind === 'utterance') turns.push(input.text);
+    const transcriptText = turns.join(' | ');
+
+    // The answer is authoritative — write it into the draft up front so a
+    // gap-only field (never re-extracted from the transcript) can't be lost and
+    // re-fire the same question forever.
+    const baseDraft = input.kind === 'answer'
+      ? { ...s.draft, [input.field]: input.value }
+      : s.draft;
+
+    const consumed = input.kind === 'answer' || input.kind === 'skip';
+    const askedFields = consumed && gap ? [...s.askedFields, gap.field] : s.askedFields;
+    const questionCount = consumed ? s.questionCount + 1 : s.questionCount;
+    // On answer/skip the model should see which gap was just handled; a fresh
+    // utterance or transcript edit isn't answering a specific gap.
+    const asking = consumed ? gap : null;
+
+    const { prompt, schemaHint } = cap.buildTurnPrompt({ transcript: transcriptText, draft: baseDraft, grounding: s.grounding, asking });
 
     const limit = await checkAILimit(ctx.tier as SubscriptionTierKey, 'smart', cap.aiFeature);
     if (!limit.allowed) {
@@ -44,10 +78,10 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
     // a field the model *presumed* but the contractor never actually stated
     // (e.g. a guessed start date) — which is what keeps the clarifying question
     // from ever appearing.
-    const draft = cap.mergeDraft(s.draft, res.data, { transcript: transcriptText, asking });
+    const draft = cap.mergeDraft(baseDraft, res.data, { transcript: transcriptText, asking });
     const gaps = cap.gaps(draft, s.grounding);
     const threshold = cap.askThreshold ?? 0.35;
-    const decision = decideAsk(gaps, { asked: s.askedFields, count: s.questionCount, cap: cap.maxQuestions ?? 4, threshold });
+    const decision = decideAsk(gaps, { asked: askedFields, count: questionCount, cap: cap.maxQuestions ?? 4, threshold });
     // Gaps below the ask threshold become stated (shown-not-asked) defaults.
     const resolved: CopilotState['resolved'] = gaps
       .filter(g => g.impact < threshold)
@@ -68,22 +102,22 @@ export function useCopilotConversation(capabilityId: CopilotCapabilityId, ctx: C
 
   const utterance = useCallback((text: string) => {
     dispatch({ type: 'UTTERANCE', turnId: 't' + Date.now(), text });
-    void runTurn();
+    void runTurn({ kind: 'utterance', text });
   }, [runTurn]);
 
   const answer = useCallback((field: string, value: unknown) => {
     dispatch({ type: 'ANSWER', field, value });
-    void runTurn();
+    void runTurn({ kind: 'answer', field, value });
   }, [runTurn]);
 
   const skip = useCallback(() => {
     dispatch({ type: 'SKIP_QUESTION' });
-    void runTurn();
+    void runTurn({ kind: 'skip' });
   }, [runTurn]);
 
   const editTranscript = useCallback((turnId: string, text: string) => {
     dispatch({ type: 'EDIT_TRANSCRIPT', turnId, text });
-    void runTurn();
+    void runTurn({ kind: 'edit', turnId, text });
   }, [runTurn]);
 
   const confirm = useCallback(async () => {
