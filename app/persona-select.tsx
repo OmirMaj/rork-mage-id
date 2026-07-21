@@ -226,9 +226,10 @@ export default function PersonaSelectScreen() {
                 key={role}
                 onPress={() => handlePick(role)}
                 disabled={!!submitting}
-                style={({ pressed }) => [
+                style={({ pressed, hovered }) => [
                   styles.roleCard,
                   isDesktop && styles.cardHalf,
+                  hovered && styles.roleCardHover,
                   pressed && styles.roleCardPressed,
                   isSubmitting && styles.roleCardActive,
                 ]}
@@ -346,6 +347,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(244,239,230,0.12)',
     minHeight: 84,
+  },
+  roleCardHover: {
+    backgroundColor: 'rgba(255,106,26,0.10)',
+    borderColor: BRAND.orange,
   },
   roleCardPressed: {
     backgroundColor: 'rgba(255,106,26,0.18)',
