@@ -98,6 +98,8 @@ import AICopilot from '@/components/AICopilot';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
+import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 
 interface TaskDraft {
   title: string;
@@ -252,6 +254,20 @@ function ScheduleScreen() {
   }, [activeSchedule, activeScenarioTasks]);
 
   const [showScenariosModal, setShowScenariosModal] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const cpmOptions = useMemo(() => ({
+    scheduleStartDate: activeSchedule?.startDate,
+    workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+    nonWorkingDates: activeSchedule?.nonWorkingDates,
+  }), [activeSchedule?.startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
+
+  const mobileCommit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
+    if (!selectedProject || !activeSchedule) return;
+    const next = producer(sortedTasks);
+    const schedule = applyToProjectSchedule(activeSchedule, next, cpmOptions);
+    updateProject(selectedProject.id, { schedule: { ...schedule, updatedAt: new Date().toISOString() } });
+  }, [selectedProject, activeSchedule, sortedTasks, cpmOptions, updateProject]);
 
   const handleScheduleScenariosChange = useCallback(
     (patch: Partial<ProjectSchedule>) => {
@@ -1656,6 +1672,20 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         feature="Schedule Pro (Gantt + CPM)"
         requiredTier="pro"
       />
+
+      {/* Conversational schedule edit — reuses the surface-agnostic ScheduleEditPanel.
+          mobileCommit reflowed the edited tasks via applyToProjectSchedule so
+          dependents visibly shift, then persists via updateProject. */}
+      {selectedProject && (
+        <ScheduleEditPanel
+          visible={editOpen}
+          onClose={() => setEditOpen(false)}
+          projectId={selectedProject.id}
+          tasks={sortedTasks}
+          commit={mobileCommit}
+          cpmOptions={cpmOptions}
+        />
+      )}
     </>
   );
 
@@ -2356,6 +2386,20 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
                 <Text style={styles.copilotEntryText}>Rebuild by voice</Text>
                 <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            )}
+
+            {sortedTasks.length > 0 && (
+              <TouchableOpacity
+                style={styles.copilotBar}
+                onPress={() => setEditOpen(true)}
+                testID="schedule-copilot-bar"
+                accessibilityRole="button"
+                accessibilityLabel="Tell the copilot what to change"
+                activeOpacity={0.85}
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.copilotBarText}>Tell me what to change</Text>
               </TouchableOpacity>
             )}
 
@@ -3257,6 +3301,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   topBar: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: themeColors.line },
   copilotEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
   copilotEntryText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
+  copilotBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.full, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: themeColors.accent },
+  copilotBarText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
   topBarStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   topBarStat: { alignItems: 'center' },
   topBarStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text },
