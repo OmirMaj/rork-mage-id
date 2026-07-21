@@ -286,13 +286,6 @@ function ScheduleScreen() {
     nonWorkingDates: activeSchedule?.nonWorkingDates,
   }), [activeSchedule?.startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
 
-  const mobileCommit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
-    if (!selectedProject || !activeSchedule) return;
-    const next = producer(sortedTasks);
-    const schedule = applyToProjectSchedule(activeSchedule, next, cpmOptions);
-    updateProject(selectedProject.id, { schedule: { ...schedule, updatedAt: new Date().toISOString() } });
-  }, [selectedProject, activeSchedule, sortedTasks, cpmOptions, updateProject]);
-
   const handleScheduleScenariosChange = useCallback(
     (patch: Partial<ProjectSchedule>) => {
       if (!selectedProject || !activeSchedule) return;
@@ -435,6 +428,55 @@ function ScheduleScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [activeSchedule, saveSchedule, selectedProject]);
 
+  /**
+   * Centralized persist helper for all mobile task edits (tap-edit + copilot
+   * mobileCommit). Two-step:
+   * 1) applyToProjectSchedule — reflows dependent startDay values via CPM
+   *    (mobile reads startDay directly; this is required for dependents to
+   *    visibly move).
+   * 2) buildScheduleFromTasks with cpm.projectFinish threaded in — recomputes
+   *    the derived scalar fields (totalDurationDays, criticalPathDays,
+   *    healthScore, laborAlignmentScore, riskItems) that applyToProjectSchedule
+   *    intentionally leaves stale (it is pure, schedule-field-free by design).
+   *
+   * We MERGE only the freshly-derived scalars onto a spread of activeSchedule
+   * so that sidecar fields (startDate, workingDaysPerWeek, nonWorkingDates,
+   * scenarios, baseline, …) are preserved. saveSchedule further guards
+   * startDate so the known finish-jump bug cannot reintroduce itself.
+   */
+  const persistEditedTasks = useCallback((nextTasks: ScheduleTask[]) => {
+    if (!selectedProject || !activeSchedule) return;
+    // Step 1: reflow dependent startDay values via CPM.
+    const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions).tasks;
+    // Step 2: derive accurate scalar fields via the canonical builder.
+    const cpmResult = runCpm(reflowed, cpmOptions);
+    const built = buildScheduleFromTasks(
+      activeSchedule.name ?? selectedProject.name ?? 'Schedule',
+      selectedProject.id,
+      reflowed,
+      activeSchedule.baseline ?? null,
+      { criticalPathDays: cpmResult.projectFinish },
+    );
+    // Step 3: merge — keep ALL of activeSchedule's sidecar fields; only
+    // take built's freshly-derived scalars. saveSchedule preserves startDate.
+    const merged: typeof activeSchedule = {
+      ...activeSchedule,
+      tasks: reflowed,
+      totalDurationDays: built.totalDurationDays,
+      criticalPathDays: built.criticalPathDays,
+      healthScore: built.healthScore,
+      laborAlignmentScore: built.laborAlignmentScore,
+      riskItems: built.riskItems,
+      updatedAt: new Date().toISOString(),
+    };
+    saveSchedule(merged, selectedProject);
+  }, [selectedProject, activeSchedule, cpmOptions, saveSchedule]);
+
+  const mobileCommit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
+    if (!selectedProject || !activeSchedule) return;
+    persistEditedTasks(producer(sortedTasks));
+  }, [selectedProject, activeSchedule, sortedTasks, persistEditedTasks]);
+
   const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null) => {
     const title = draft.title.trim();
     if (!title) { Alert.alert('Missing task name'); return; }
@@ -500,9 +542,7 @@ function ScheduleScreen() {
         const d = diffSchedule(before, nextTasks, runCpm(before, cpmOptions), runCpm(nextTasks, cpmOptions));
         const cascades = d.moved.length > 1 || d.finishDeltaDays !== 0 || d.criticalEntered.length > 0;
         const doPersist = () => {
-          updateProject(selectedProject.id, {
-            schedule: { ...applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions), updatedAt: new Date().toISOString() },
-          });
+          persistEditedTasks(nextTasks);
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         };
         if (cascades) {
@@ -559,7 +599,7 @@ function ScheduleScreen() {
       saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, updateProject]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);
