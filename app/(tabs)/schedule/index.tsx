@@ -2223,6 +2223,22 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
+            {/* PRIMARY: AI Schedule Builder — ask a few questions, build a schedule */}
+            <TouchableOpacity
+              style={styles.emptyAIOnramp}
+              onPress={() => router.push({ pathname: '/schedule-builder', params: { projectId: selectedProject.id } } as never)}
+              testID="mobile-onramp-interview"
+              accessibilityRole="button"
+              accessibilityLabel="Build schedule by answering a few questions with AI"
+            >
+              <MageAIMark size={20} color={Colors.textOnAccent} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emptyAIOnrampTitle}>Answer a few questions</Text>
+                <Text style={styles.emptyAIOnrampDesc}>AI builds your schedule from your answers</Text>
+              </View>
+              <ChevronRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+            </TouchableOpacity>
+
             {/* Voice-build generates from the linked estimate — only offer it
                 when there is one, else it dead-ends at "Build it". */}
             {!!selectedProject.linkedEstimate && (
@@ -3231,6 +3247,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyActionDesc: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 },
   emptyManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4 },
   emptyManualBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
+  emptyAIOnramp: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.accent },
+  emptyAIOnrampTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
+  emptyAIOnrampDesc: { fontSize: Type.caption1.fontSize, color: Colors.textOnAccent, marginTop: 2, opacity: 0.85 },
 
   weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
