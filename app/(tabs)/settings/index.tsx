@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Switch, Modal, Dimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, TextInput, Alert, Platform, Switch, Modal, Dimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -91,6 +92,7 @@ export default function SettingsScreen() {
   const { tier } = useSubscription();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const [aiUsed, setAiUsed] = useState(0);
   const [aiLimit, setAiLimit] = useState(10);
   const [aiSmartUsed, setAiSmartUsed] = useState(0);
@@ -454,7 +456,7 @@ export default function SettingsScreen() {
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: themeColors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={[{ paddingTop: insets.top, paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -557,11 +559,11 @@ export default function SettingsScreen() {
             the same picker as first-time onboarding. */}
         <Text style={styles.sectionHeader}>ACCOUNT TYPE</Text>
         <View style={styles.group}>
-          <TouchableOpacity
-            style={styles.row}
+          <Pressable
+            style={({ hovered }) => [styles.row, hovered && styles.rowHover]}
             onPress={() => router.push('/persona-select' as never)}
-            activeOpacity={0.7}
             testID="settings-persona-row"
+            accessibilityRole="button"
           >
             <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
               <Repeat size={14} color="#fff" strokeWidth={1.75} />
@@ -589,7 +591,7 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <ChevronRight size={18} color={themeColors.textMuted} strokeWidth={1.75} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
 
         <Text style={styles.sectionHeader}>AI USAGE</Text>
@@ -1900,6 +1902,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: themeColors.bg,
   },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' },
+  rowHover: { backgroundColor: themeColors.surface },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
