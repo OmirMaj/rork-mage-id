@@ -1588,6 +1588,20 @@ function ScheduleProScreenInner() {
         onPushTasks={handleWeatherPush}
       />
 
+      {/* Copilot edit bar — desktop parity with the mobile "Tell me what to
+          change" bar. Tapping opens the ScheduleEditPanel (already mounted
+          below). Presentation-only; no new wiring needed. */}
+      <TouchableOpacity
+        onPress={() => setEditOpen(true)}
+        style={styles.copilotDesktopBar}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Tell me what to change"
+      >
+        <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
+        <Text style={styles.copilotDesktopBarText}>Tell me what to change</Text>
+      </TouchableOpacity>
+
       {/* Body — Phase 27: the SchedulerTabShell (tab nav + SchedulerHeader +
           active tab content) is the single body. The Timeline tab owns all
           five layouts (Grid · Split · Gantt · Lanes · Living Plan); Lanes and
@@ -2074,5 +2088,24 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // from extra room for the timeline, so we bias a little wider to the right.
   paneHalf: { flex: 1, minWidth: 440 },
   paneHalfRight: { flex: 1.4, minWidth: 0 },
+
+  copilotDesktopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: t.accentSoft,
+    borderRadius: Tokens.radius.full,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: t.accent,
+  },
+  copilotDesktopBarText: {
+    flex: 1,
+    ...Type.subheadEmphasized,
+    color: t.accent,
+  },
 
 });
