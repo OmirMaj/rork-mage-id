@@ -54,8 +54,43 @@ returned any rows to an anonymous caller.
   write policy**, so anon INSERT/UPDATE/DELETE was already blocked by RLS despite the
   Supabase-default `GRANT ALL`. Not exploitable.
 
+## Anon RPC-execute audit (SECURITY DEFINER functions)
+
+Also enumerated every SECURITY DEFINER function in `public` that `anon` can EXECUTE
+(43 of them), and live-probed the non-portal/non-trigger ones. Most are legitimate:
+token-gated public flows (`portal_*`, `*_by_token`, `submit_pro_response`,
+`fetch_shared_schedule` via an unguessable snapshot uuid), inert trigger bodies, and
+low-sensitivity id resolvers (`gc_for_portal` → uuid). Two real issues — both the same
+class as an over-privileged grant — were found and fixed:
+
+- 🔴 **AI-usage RPCs** (`ai_usage_get/increment/summary`, `ai_daily_usage_get/increment`,
+  `ai_usage_daily_get/increment`). Pinned `v_uid := COALESCE(auth.uid(), p_user_id)`,
+  so an anon caller (null `auth.uid()`) has `p_user_id` honored. **Verified live:** anon
+  `POST /rpc/ai_daily_usage_get` with an arbitrary `p_user_id` returned HTTP 200 → an
+  unauthenticated attacker could exhaust any user's AI quota (`ai_usage_increment`, DoS)
+  or read their usage. The 2026-07-14 `revoke_anon_ai_usage_rpcs` had run
+  `REVOKE … FROM anon` while EXECUTE was still granted to **PUBLIC**, so anon kept
+  access. Fixed by `20260721150148_revoke_public_execute_on_ai_usage_rpcs`
+  (`REVOKE … FROM public`). Post-fix anon → HTTP 401. `authenticated` (pin-scoped) +
+  `service_role` (the edge `ai` fn) retained.
+
+- 🟠 **`rate_limit_increment`** — server-only counter bump (called only by edge
+  functions via service_role) was anon-executable. An attacker could inflate
+  `magiclink:email:<victim>` / `passcode:portal:<id>` counters to lock a user out of
+  login or their portal. It had **explicit** `anon` + `authenticated` grants (so the
+  first `REVOKE … FROM public`, `20260721150432`, was a no-op — a good reminder to check
+  the ACL shape, not just `has_function_privilege`). Fixed by
+  `20260721150543_revoke_anon_auth_execute_on_rate_limit_increment`. Post-fix anon → HTTP 401.
+
+The two most critical SECURITY DEFINER functions from the 07-13 audit — `award_rfp`
+(RFP-hijack) and `match_project_memory` — were re-verified: ACL is
+`postgres | service_role` only (no anon/authenticated/PUBLIC). Correctly locked.
+
 ## Takeaway
 
 Reading `pg_policies` over-claimed the portal Part-A severity (a policy that *looks*
-like `using(portal enabled)` is gated by the referenced table's own RLS). Always
-confirm with a real anon probe.
+like `using(portal enabled)` is gated by the referenced table's own RLS). And a
+`REVOKE … FROM anon` is a silent no-op when the privilege is held via **PUBLIC** (or
+was left when an explicit grant exists). Both traps produce a "fixed on paper, open in
+prod" state. Always confirm with a real anon probe against production, and inspect the
+actual `proacl` / `pg_policies`, not just the migration that claims the fix.
