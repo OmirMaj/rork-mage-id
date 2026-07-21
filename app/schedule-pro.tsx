@@ -1489,6 +1489,7 @@ function ScheduleProScreenInner() {
           </View>
         </View>
         <ScheduleOnRamp
+          onAnswerQuestions={() => router.push({ pathname: '/schedule-builder', params: { projectId: project.id } } as never)}
           onBuildWithAI={() => router.push({ pathname: '/generative-setup', params: { projectId: project.id } } as never)}
           onStartFromTemplate={() => router.push({ pathname: '/schedule-wizard', params: { projectId: project.id } } as never)}
           onAddManually={() => { setDismissedOnRamp(true); handleAddTask(); }}
