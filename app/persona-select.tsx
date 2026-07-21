@@ -34,6 +34,7 @@ import {
 import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
@@ -79,6 +80,8 @@ export default function PersonaSelectScreen() {
   const router = useRouter();
   const { hasSeenOnboarding } = useCoreData();
   const { setUserRole, completeOnboarding } = useProjectActions();
+
+  const { isDesktop } = useResponsiveLayout();
 
   const [submitting, setSubmitting] = useState<UserRole | null>(null);
 
@@ -192,6 +195,7 @@ export default function PersonaSelectScreen() {
       <Animated.View
         style={[
           styles.body,
+          isDesktop && styles.centerWrap,
           { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
         ]}
       >
@@ -280,6 +284,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+
+  centerWrap: { width: '100%', alignSelf: 'center', maxWidth: 680 },
 
   eyebrow: {
     fontSize: Type.caption1.fontSize,
