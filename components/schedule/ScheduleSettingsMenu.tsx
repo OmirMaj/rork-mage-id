@@ -13,13 +13,13 @@ import React, { useEffect, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, TextInput, Platform,
 } from 'react-native';
-import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Settings, X } from 'lucide-react-native';
+import { Settings, X, CalendarDays } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import DatePickerModal from '@/components/DatePickerModal';
 
 export interface ScheduleSettingsMenuProps {
   visible: boolean;
@@ -35,7 +35,6 @@ export interface ScheduleSettingsMenuProps {
   onApply: (patch: { criticalFloatThresholdDays: number; workingDaysPerWeek: number; startDate?: string }) => void;
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function ScheduleSettingsMenu({
   visible, criticalFloatThresholdDays, workingDaysPerWeek, startDate, onClose, onApply,
@@ -45,6 +44,7 @@ export default function ScheduleSettingsMenu({
   const [threshold, setThreshold] = useState(String(criticalFloatThresholdDays));
   const [wdpw, setWdpw] = useState<number>(workingDaysPerWeek);
   const [startText, setStartText] = useState(startDate ?? '');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -55,11 +55,8 @@ export default function ScheduleSettingsMenu({
   }, [visible, criticalFloatThresholdDays, workingDaysPerWeek, startDate]);
 
   const trimmedStart = startText.trim();
-  const dateOk = trimmedStart === ''
-    || (ISO_DATE_RE.test(trimmedStart) && Number.isFinite(Date.parse(trimmedStart + 'T00:00:00Z')));
 
   const apply = () => {
-    if (!dateOk) return; // inline hint is showing — don't half-apply
     const parsed = Math.max(0, Math.min(30, Math.round(Number(threshold) || 0)));
     onApply({
       criticalFloatThresholdDays: parsed,
@@ -138,24 +135,37 @@ export default function ScheduleSettingsMenu({
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Schedule start date</Text>
               <Text style={styles.help}>
-                {startDate
+                {startText
                   ? 'Day 1 of the schedule. Task days are dated from here.'
                   : 'No calendar anchor yet — days count 1, 2, 3… with no weekends. Setting a date re-anchors tasks onto real working days (undoable).'}
               </Text>
-              {!dateOk && <Text style={styles.helpError}>Use YYYY-MM-DD</Text>}
             </View>
-            <TextInput
-              value={startText}
-              onChangeText={setStartText}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={themeColors.textSecondary}
-              style={styles.dateInput}
-              maxLength={10}
-              autoCapitalize="none"
-              autoCorrect={false}
+            <TouchableOpacity
+              onPress={() => setDatePickerOpen(true)}
+              style={styles.dateTapRow}
+              activeOpacity={0.7}
               testID="settings-start-date"
-            />
+              accessibilityRole="button"
+              accessibilityLabel={startText ? `Start date: ${startText}` : 'Set start date'}
+            >
+              <CalendarDays size={14} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={[styles.dateTapText, !startText && { color: themeColors.textSecondary }]}>
+                {startText || 'Not set'}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          <DatePickerModal
+            visible={datePickerOpen}
+            value={startText || new Date().toISOString()}
+            onClose={() => setDatePickerOpen(false)}
+            onChange={(iso) => {
+              setStartText(iso.slice(0, 10));
+              setDatePickerOpen(false);
+            }}
+            title="Schedule start date"
+            allowFuture
+          />
 
           <View style={styles.footer}>
             <TouchableOpacity style={styles.btnGhost} onPress={onClose} activeOpacity={0.7}>
@@ -222,18 +232,22 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   unit: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
-  helpError: { fontSize: Type.caption2.fontSize, color: t.danger, marginTop: 4, fontWeight: '600' },
-  dateInput: {
-    fontSize: Type.bodyCompact.fontSize,
-    color: t.text,
-    width: 112,
-    textAlign: 'center',
+
+  dateTapRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderWidth: 1,
-    borderColor: t.line,
+    borderColor: t.accent,
     borderRadius: Tokens.radius.xs,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
+    backgroundColor: t.accentSoft,
+  },
+  dateTapText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600',
+    color: t.accent,
   },
   quickRow: {
     flexDirection: 'row',

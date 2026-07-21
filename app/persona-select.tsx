@@ -34,6 +34,7 @@ import {
 import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
@@ -79,6 +80,8 @@ export default function PersonaSelectScreen() {
   const router = useRouter();
   const { hasSeenOnboarding } = useCoreData();
   const { setUserRole, completeOnboarding } = useProjectActions();
+
+  const { isDesktop } = useResponsiveLayout();
 
   const [submitting, setSubmitting] = useState<UserRole | null>(null);
 
@@ -192,6 +195,7 @@ export default function PersonaSelectScreen() {
       <Animated.View
         style={[
           styles.body,
+          isDesktop && styles.centerWrap,
           { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
         ]}
       >
@@ -213,7 +217,7 @@ export default function PersonaSelectScreen() {
           You can switch later in Settings.
         </Animated.Text>
 
-        <Animated.View style={[styles.cardList, { opacity: cardsOpacity }]}>
+        <Animated.View style={[styles.cardList, isDesktop && styles.cardGrid, { opacity: cardsOpacity }]}>
           {ROLES.map(role => {
             const Icon = ROLE_ICONS[role];
             const isSubmitting = submitting === role;
@@ -222,8 +226,10 @@ export default function PersonaSelectScreen() {
                 key={role}
                 onPress={() => handlePick(role)}
                 disabled={!!submitting}
-                style={({ pressed }) => [
+                style={({ pressed, hovered }) => [
                   styles.roleCard,
+                  isDesktop && styles.cardHalf,
+                  hovered && styles.roleCardHover,
                   pressed && styles.roleCardPressed,
                   isSubmitting && styles.roleCardActive,
                 ]}
@@ -281,6 +287,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
+  centerWrap: { width: '100%', alignSelf: 'center', maxWidth: 680 },
+
   eyebrow: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '700',
@@ -325,6 +333,8 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 4,
   },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cardHalf: { flexBasis: '48%', flexGrow: 1, minWidth: 200 },
   roleCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -337,6 +347,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(244,239,230,0.12)',
     minHeight: 84,
+  },
+  roleCardHover: {
+    backgroundColor: 'rgba(255,106,26,0.10)',
+    borderColor: BRAND.orange,
   },
   roleCardPressed: {
     backgroundColor: 'rgba(255,106,26,0.18)',

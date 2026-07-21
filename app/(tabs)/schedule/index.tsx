@@ -98,6 +98,11 @@ import AICopilot from '@/components/AICopilot';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
+import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
+import DatePickerModal from '@/components/DatePickerModal';
+import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
+import { runCpm } from '@/utils/cpm';
 
 interface TaskDraft {
   title: string;
@@ -193,6 +198,11 @@ function ScheduleScreen() {
   const [showAdvancedTaskFields, setShowAdvancedTaskFields] = useState(false);
   const [isProjectStartDatePickerOpen, setIsProjectStartDatePickerOpen] = useState(false);
   const [projectStartDateInput, setProjectStartDateInput] = useState<string>('');
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [rippleConfirm, setRippleConfirm] = useState<{
+    summary: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const selectedProject = useMemo<Project | null>(() => {
     return projects.find(p => p.id === selectedProjectId) ?? null;
@@ -231,6 +241,22 @@ function ScheduleScreen() {
   }, [activeSchedule?.startDate]);
 
   /**
+   * Convert an ISO datetime string (noon UTC, from DatePickerModal) to a
+   * 1-indexed startDay offset from projectStartDate. Returns null for invalid
+   * input. Clears dependencies when an explicit date is set, matching the
+   * existing startDateOverride behaviour in handleSaveTask.
+   */
+  const isoToStartDay = useCallback((iso: string): number | null => {
+    if (!iso) return null;
+    const picked = new Date(iso);
+    if (Number.isNaN(picked.getTime())) return null;
+    const ms = picked.getTime() - projectStartDate.getTime();
+    const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
+    if (dayOffset < 1) return null;
+    return dayOffset;
+  }, [projectStartDate]);
+
+  /**
    * When a What-If scenario is selected, the Gantt reads from that scenario's
    * task snapshot instead of the baseline. This is a DISPLAY-only swap for
    * v1 — task edit handlers still mutate the baseline `schedule.tasks`. The
@@ -252,6 +278,13 @@ function ScheduleScreen() {
   }, [activeSchedule, activeScenarioTasks]);
 
   const [showScenariosModal, setShowScenariosModal] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const cpmOptions = useMemo(() => ({
+    scheduleStartDate: activeSchedule?.startDate,
+    workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+    nonWorkingDates: activeSchedule?.nonWorkingDates,
+  }), [activeSchedule?.startDate, activeSchedule?.workingDaysPerWeek, activeSchedule?.nonWorkingDates]);
 
   const handleScheduleScenariosChange = useCallback(
     (patch: Partial<ProjectSchedule>) => {
@@ -395,6 +428,55 @@ function ScheduleScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [activeSchedule, saveSchedule, selectedProject]);
 
+  /**
+   * Centralized persist helper for all mobile task edits (tap-edit + copilot
+   * mobileCommit). Two-step:
+   * 1) applyToProjectSchedule — reflows dependent startDay values via CPM
+   *    (mobile reads startDay directly; this is required for dependents to
+   *    visibly move).
+   * 2) buildScheduleFromTasks with cpm.projectFinish threaded in — recomputes
+   *    the derived scalar fields (totalDurationDays, criticalPathDays,
+   *    healthScore, laborAlignmentScore, riskItems) that applyToProjectSchedule
+   *    intentionally leaves stale (it is pure, schedule-field-free by design).
+   *
+   * We MERGE only the freshly-derived scalars onto a spread of activeSchedule
+   * so that sidecar fields (startDate, workingDaysPerWeek, nonWorkingDates,
+   * scenarios, baseline, …) are preserved. saveSchedule further guards
+   * startDate so the known finish-jump bug cannot reintroduce itself.
+   */
+  const persistEditedTasks = useCallback((nextTasks: ScheduleTask[]) => {
+    if (!selectedProject || !activeSchedule) return;
+    // Step 1: reflow dependent startDay values via CPM.
+    const reflowed = applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions).tasks;
+    // Step 2: derive accurate scalar fields via the canonical builder.
+    const cpmResult = runCpm(reflowed, cpmOptions);
+    const built = buildScheduleFromTasks(
+      activeSchedule.name ?? selectedProject.name ?? 'Schedule',
+      selectedProject.id,
+      reflowed,
+      activeSchedule.baseline ?? null,
+      { criticalPathDays: cpmResult.projectFinish },
+    );
+    // Step 3: merge — keep ALL of activeSchedule's sidecar fields; only
+    // take built's freshly-derived scalars. saveSchedule preserves startDate.
+    const merged: typeof activeSchedule = {
+      ...activeSchedule,
+      tasks: reflowed,
+      totalDurationDays: built.totalDurationDays,
+      criticalPathDays: built.criticalPathDays,
+      healthScore: built.healthScore,
+      laborAlignmentScore: built.laborAlignmentScore,
+      riskItems: built.riskItems,
+      updatedAt: new Date().toISOString(),
+    };
+    saveSchedule(merged, selectedProject);
+  }, [selectedProject, activeSchedule, cpmOptions, saveSchedule]);
+
+  const mobileCommit = useCallback((producer: (prev: ScheduleTask[]) => ScheduleTask[]) => {
+    if (!selectedProject || !activeSchedule) return;
+    persistEditedTasks(producer(sortedTasks));
+  }, [selectedProject, activeSchedule, sortedTasks, persistEditedTasks]);
+
   const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null) => {
     const title = draft.title.trim();
     if (!title) { Alert.alert('Missing task name'); return; }
@@ -452,9 +534,34 @@ function ScheduleScreen() {
         }
         return updated;
       });
-      const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-      const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
-      saveSchedule(nextSchedule, selectedProject);
+      // Persist through applyToProjectSchedule so dependents reflow via CPM.
+      // If the edit cascades (multiple tasks move, finish shifts, or critical
+      // path changes), surface a compact ripple confirm before committing.
+      if (activeSchedule && selectedProject) {
+        const before = sortedTasks;
+        const d = diffSchedule(before, nextTasks, runCpm(before, cpmOptions), runCpm(nextTasks, cpmOptions));
+        const cascades = d.moved.length > 1 || d.finishDeltaDays !== 0 || d.criticalEntered.length > 0;
+        const doPersist = () => {
+          persistEditedTasks(nextTasks);
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        };
+        if (cascades) {
+          const deltaStr = d.finishDeltaDays > 0 ? `+${d.finishDeltaDays}d` : `${d.finishDeltaDays}d`;
+          setRippleConfirm({
+            summary: `Finish shifts ${deltaStr} · ${d.moved.length} task${d.moved.length === 1 ? '' : 's'} move`,
+            onConfirm: doPersist,
+          });
+          setIsEditModalOpen(false);
+          setEditingTask(null);
+          setTaskDraft({ ...EMPTY_DRAFT });
+          return;
+        }
+        doPersist();
+      } else {
+        const scheduleName = activeSchedule?.name ?? 'Project Schedule';
+        const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
+        saveSchedule(nextSchedule, selectedProject);
+      }
     } else {
       const lastTask = sortedTasks[sortedTasks.length - 1];
       // Calendar-picked start date wins: skip auto-dependency chaining so the
@@ -492,7 +599,7 @@ function ScheduleScreen() {
       saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, persistEditedTasks]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);
@@ -1373,6 +1480,55 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   </>
                 )}
 
+                {/* Starts — date picker row (first-class field; no longer buried in Advanced) */}
+                {(() => {
+                  // Compute the current draft start as a displayable date.
+                  const startDayNum = parseInt(taskDraft.startDayOverride, 10);
+                  const hasStartDay = !Number.isNaN(startDayNum) && startDayNum > 0;
+                  const wdpw = activeSchedule?.workingDaysPerWeek ?? 7;
+                  const startDate = hasStartDay ? addWorkingDays(projectStartDate, startDayNum - 1, wdpw, activeSchedule?.nonWorkingDates) : null;
+                  const startLabel = startDate
+                    ? startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Not set';
+                  const startIso = startDate ? startDate.toISOString() : '';
+                  return (
+                    <>
+                      <Text style={styles.fieldLabel}>Starts</Text>
+                      <TouchableOpacity
+                        style={styles.startsFieldRow}
+                        onPress={() => setStartPickerOpen(true)}
+                        testID="task-edit-starts"
+                        accessibilityRole="button"
+                        accessibilityLabel="Pick task start date"
+                      >
+                        <CalendarDays size={16} color={themeColors.accent} strokeWidth={1.75} />
+                        <Text style={styles.startsFieldValue}>{startLabel}</Text>
+                        <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                      <DatePickerModal
+                        visible={startPickerOpen}
+                        value={startIso}
+                        allowFuture
+                        title="When does this task start?"
+                        onClose={() => setStartPickerOpen(false)}
+                        onChange={(iso) => {
+                          setStartPickerOpen(false);
+                          const day = isoToStartDay(iso);
+                          if (day !== null) {
+                            setTaskDraft(d => ({
+                              ...d,
+                              startDayOverride: String(day),
+                              startDateOverride: '',
+                              // Clear deps: an explicit date takes control of start day
+                              dependencyLinks: [],
+                            }));
+                          }
+                        }}
+                      />
+                    </>
+                  );
+                })()}
+
                 <View style={styles.dualRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Duration (days)</Text>
@@ -1529,6 +1685,30 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Ripple Confirm — shown when an edit cascades to multiple tasks or shifts the finish */}
+      <Modal visible={!!rippleConfirm} transparent animationType="fade" onRequestClose={() => setRippleConfirm(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setRippleConfirm(null)}>
+          <Pressable style={styles.modalCard} onPress={() => undefined}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Schedule will shift</Text>
+              <TouchableOpacity onPress={() => setRippleConfirm(null)} accessibilityRole="button" accessibilityLabel="Dismiss"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
+            </View>
+            <Text style={styles.rippleSummary}>{rippleConfirm?.summary}</Text>
+            <View style={styles.editActionRow}>
+              <TouchableOpacity style={styles.editCancelBtn} onPress={() => setRippleConfirm(null)}>
+                <Text style={styles.editCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.editSaveBtn}
+                onPress={() => { rippleConfirm?.onConfirm(); setRippleConfirm(null); }}
+              >
+                <Text style={styles.editSaveBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Dependency Picker */}
       <Modal visible={showDepPicker} transparent animationType="fade" onRequestClose={() => setShowDepPicker(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowDepPicker(false)}>
@@ -1656,6 +1836,20 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         feature="Schedule Pro (Gantt + CPM)"
         requiredTier="pro"
       />
+
+      {/* Conversational schedule edit — reuses the surface-agnostic ScheduleEditPanel.
+          mobileCommit reflowed the edited tasks via applyToProjectSchedule so
+          dependents visibly shift, then persists via updateProject. */}
+      {selectedProject && (
+        <ScheduleEditPanel
+          visible={editOpen}
+          onClose={() => setEditOpen(false)}
+          projectId={selectedProject.id}
+          tasks={sortedTasks}
+          commit={mobileCommit}
+          cpmOptions={cpmOptions}
+        />
+      )}
     </>
   );
 
@@ -2223,6 +2417,22 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
+            {/* PRIMARY: AI Schedule Builder — ask a few questions, build a schedule */}
+            <TouchableOpacity
+              style={styles.emptyAIOnramp}
+              onPress={() => router.push({ pathname: '/schedule-builder', params: { projectId: selectedProject.id } } as never)}
+              testID="mobile-onramp-interview"
+              accessibilityRole="button"
+              accessibilityLabel="Build schedule by answering a few questions with AI"
+            >
+              <MageAIMark size={20} color={Colors.textOnAccent} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emptyAIOnrampTitle}>Answer a few questions</Text>
+                <Text style={styles.emptyAIOnrampDesc}>AI builds your schedule from your answers</Text>
+              </View>
+              <ChevronRight size={16} color={Colors.textOnAccent} strokeWidth={1.75} />
+            </TouchableOpacity>
+
             {/* Voice-build generates from the linked estimate — only offer it
                 when there is one, else it dead-ends at "Build it". */}
             {!!selectedProject.linkedEstimate && (
@@ -2340,6 +2550,20 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <Mic size={16} color={themeColors.accent} strokeWidth={2} />
                 <Text style={styles.copilotEntryText}>Rebuild by voice</Text>
                 <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            )}
+
+            {sortedTasks.length > 0 && (
+              <TouchableOpacity
+                style={styles.copilotBar}
+                onPress={() => setEditOpen(true)}
+                testID="schedule-copilot-bar"
+                accessibilityRole="button"
+                accessibilityLabel="Tell the copilot what to change"
+                activeOpacity={0.85}
+              >
+                <Mic size={16} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.copilotBarText}>Tell me what to change</Text>
               </TouchableOpacity>
             )}
 
@@ -3231,6 +3455,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   emptyActionDesc: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 2 },
   emptyManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4 },
   emptyManualBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
+  emptyAIOnramp: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.accent },
+  emptyAIOnrampTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
+  emptyAIOnrampDesc: { fontSize: Type.caption1.fontSize, color: Colors.textOnAccent, marginTop: 2, opacity: 0.85 },
 
   weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.accent },
@@ -3238,6 +3465,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   topBar: { marginHorizontal: 16, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: themeColors.line },
   copilotEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: themeColors.accentSoft },
   copilotEntryText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
+  copilotBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 12, backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.full, paddingVertical: 10, paddingHorizontal: 16, borderWidth: 1, borderColor: themeColors.accent },
+  copilotBarText: { flex: 1, ...Type.subheadEmphasized, color: themeColors.accent },
   topBarStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   topBarStat: { alignItems: 'center' },
   topBarStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.text },
@@ -3537,6 +3766,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // Cascade note
   cascadeNote: { backgroundColor: '#007AFF10', borderRadius: Tokens.radius.sm, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
   cascadeNoteText: { fontSize: Type.caption2.fontSize, color: themeColors.info, fontStyle: 'italic' as const },
+
+  // Starts field row (task edit modal — first-class date picker)
+  startsFieldRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, marginTop: 2 },
+  startsFieldValue: { flex: 1, ...Type.bodyCompact, color: themeColors.text },
+
+  // Ripple confirm modal
+  rippleSummary: { ...Type.bodyCompact, color: themeColors.text, paddingHorizontal: 4, paddingVertical: 12 },
 
   detailBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
