@@ -100,6 +100,9 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
+import DatePickerModal from '@/components/DatePickerModal';
+import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
+import { runCpm } from '@/utils/cpm';
 
 interface TaskDraft {
   title: string;
@@ -195,6 +198,11 @@ function ScheduleScreen() {
   const [showAdvancedTaskFields, setShowAdvancedTaskFields] = useState(false);
   const [isProjectStartDatePickerOpen, setIsProjectStartDatePickerOpen] = useState(false);
   const [projectStartDateInput, setProjectStartDateInput] = useState<string>('');
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [rippleConfirm, setRippleConfirm] = useState<{
+    summary: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const selectedProject = useMemo<Project | null>(() => {
     return projects.find(p => p.id === selectedProjectId) ?? null;
@@ -231,6 +239,22 @@ function ScheduleScreen() {
     today.setHours(12, 0, 0, 0);
     return today;
   }, [activeSchedule?.startDate]);
+
+  /**
+   * Convert an ISO datetime string (noon UTC, from DatePickerModal) to a
+   * 1-indexed startDay offset from projectStartDate. Returns null for invalid
+   * input. Clears dependencies when an explicit date is set, matching the
+   * existing startDateOverride behaviour in handleSaveTask.
+   */
+  const isoToStartDay = useCallback((iso: string): number | null => {
+    if (!iso) return null;
+    const picked = new Date(iso);
+    if (Number.isNaN(picked.getTime())) return null;
+    const ms = picked.getTime() - projectStartDate.getTime();
+    const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
+    if (dayOffset < 1) return null;
+    return dayOffset;
+  }, [projectStartDate]);
 
   /**
    * When a What-If scenario is selected, the Gantt reads from that scenario's
@@ -468,9 +492,36 @@ function ScheduleScreen() {
         }
         return updated;
       });
-      const scheduleName = activeSchedule?.name ?? 'Project Schedule';
-      const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
-      saveSchedule(nextSchedule, selectedProject);
+      // Persist through applyToProjectSchedule so dependents reflow via CPM.
+      // If the edit cascades (multiple tasks move, finish shifts, or critical
+      // path changes), surface a compact ripple confirm before committing.
+      if (activeSchedule && selectedProject) {
+        const before = sortedTasks;
+        const d = diffSchedule(before, nextTasks, runCpm(before, cpmOptions), runCpm(nextTasks, cpmOptions));
+        const cascades = d.moved.length > 1 || d.finishDeltaDays !== 0 || d.criticalEntered.length > 0;
+        const doPersist = () => {
+          updateProject(selectedProject.id, {
+            schedule: { ...applyToProjectSchedule(activeSchedule, nextTasks, cpmOptions), updatedAt: new Date().toISOString() },
+          });
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        };
+        if (cascades) {
+          const deltaStr = d.finishDeltaDays > 0 ? `+${d.finishDeltaDays}d` : `${d.finishDeltaDays}d`;
+          setRippleConfirm({
+            summary: `Finish shifts ${deltaStr} · ${d.moved.length} task${d.moved.length === 1 ? '' : 's'} move`,
+            onConfirm: doPersist,
+          });
+          setIsEditModalOpen(false);
+          setEditingTask(null);
+          setTaskDraft({ ...EMPTY_DRAFT });
+          return;
+        }
+        doPersist();
+      } else {
+        const scheduleName = activeSchedule?.name ?? 'Project Schedule';
+        const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
+        saveSchedule(nextSchedule, selectedProject);
+      }
     } else {
       const lastTask = sortedTasks[sortedTasks.length - 1];
       // Calendar-picked start date wins: skip auto-dependency chaining so the
@@ -508,7 +559,7 @@ function ScheduleScreen() {
       saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate, cpmOptions, updateProject]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);
@@ -1389,6 +1440,55 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   </>
                 )}
 
+                {/* Starts — date picker row (first-class field; no longer buried in Advanced) */}
+                {(() => {
+                  // Compute the current draft start as a displayable date.
+                  const startDayNum = parseInt(taskDraft.startDayOverride, 10);
+                  const hasStartDay = !Number.isNaN(startDayNum) && startDayNum > 0;
+                  const wdpw = activeSchedule?.workingDaysPerWeek ?? 7;
+                  const startDate = hasStartDay ? addWorkingDays(projectStartDate, startDayNum - 1, wdpw, activeSchedule?.nonWorkingDates) : null;
+                  const startLabel = startDate
+                    ? startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                    : 'Not set';
+                  const startIso = startDate ? startDate.toISOString() : '';
+                  return (
+                    <>
+                      <Text style={styles.fieldLabel}>Starts</Text>
+                      <TouchableOpacity
+                        style={styles.startsFieldRow}
+                        onPress={() => setStartPickerOpen(true)}
+                        testID="task-edit-starts"
+                        accessibilityRole="button"
+                        accessibilityLabel="Pick task start date"
+                      >
+                        <CalendarDays size={16} color={themeColors.accent} strokeWidth={1.75} />
+                        <Text style={styles.startsFieldValue}>{startLabel}</Text>
+                        <ChevronRight size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                      </TouchableOpacity>
+                      <DatePickerModal
+                        visible={startPickerOpen}
+                        value={startIso}
+                        allowFuture
+                        title="When does this task start?"
+                        onClose={() => setStartPickerOpen(false)}
+                        onChange={(iso) => {
+                          setStartPickerOpen(false);
+                          const day = isoToStartDay(iso);
+                          if (day !== null) {
+                            setTaskDraft(d => ({
+                              ...d,
+                              startDayOverride: String(day),
+                              startDateOverride: '',
+                              // Clear deps: an explicit date takes control of start day
+                              dependencyLinks: [],
+                            }));
+                          }
+                        }}
+                      />
+                    </>
+                  );
+                })()}
+
                 <View style={styles.dualRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Duration (days)</Text>
@@ -1543,6 +1643,30 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Ripple Confirm — shown when an edit cascades to multiple tasks or shifts the finish */}
+      <Modal visible={!!rippleConfirm} transparent animationType="fade" onRequestClose={() => setRippleConfirm(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setRippleConfirm(null)}>
+          <Pressable style={styles.modalCard} onPress={() => undefined}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Schedule will shift</Text>
+              <TouchableOpacity onPress={() => setRippleConfirm(null)} accessibilityRole="button" accessibilityLabel="Dismiss"><X size={20} color={themeColors.textMuted} strokeWidth={1.75} /></TouchableOpacity>
+            </View>
+            <Text style={styles.rippleSummary}>{rippleConfirm?.summary}</Text>
+            <View style={styles.editActionRow}>
+              <TouchableOpacity style={styles.editCancelBtn} onPress={() => setRippleConfirm(null)}>
+                <Text style={styles.editCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.editSaveBtn}
+                onPress={() => { rippleConfirm?.onConfirm(); setRippleConfirm(null); }}
+              >
+                <Text style={styles.editSaveBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Dependency Picker */}
@@ -3602,6 +3726,13 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // Cascade note
   cascadeNote: { backgroundColor: '#007AFF10', borderRadius: Tokens.radius.sm, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
   cascadeNoteText: { fontSize: Type.caption2.fontSize, color: themeColors.info, fontStyle: 'italic' as const },
+
+  // Starts field row (task edit modal — first-class date picker)
+  startsFieldRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, marginTop: 2 },
+  startsFieldValue: { flex: 1, ...Type.bodyCompact, color: themeColors.text },
+
+  // Ripple confirm modal
+  rippleSummary: { ...Type.bodyCompact, color: themeColors.text, paddingHorizontal: 4, paddingVertical: 12 },
 
   detailBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
