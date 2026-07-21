@@ -13,7 +13,8 @@ export type CopilotCapabilityId =
   | 'schedule' | 'estimate' | 'daily_report' | 'change_order'
   | 'rfi' | 'punch' | 'safety_incident' | 'invoice' | 'submittal'
   | 'warranty' | 'toolbox_talk' | 'new_project'
-  | 'jha' | 'lead' | 'permit' | 'hazard';
+  | 'jha' | 'lead' | 'permit' | 'hazard'
+  | 'scheduleEdit' | 'estimateEdit';
 
 /** A field the interview may need. `impact` 0..1 ranks urgency; a gap below the
  *  ask threshold is NEVER asked — the engine states `groundedDefault` instead. */
@@ -45,6 +46,12 @@ export interface CopilotContext {
    *  hazards). Injected by the copilot host so safety-family capabilities can
    *  persist without routing. Undefined outside the provider. */
   safety?: any;
+  /** Injected by the schedule-edit panel: the desktop editor's undo-safe
+   *  commit + the live task array + the CPM options it renders with, so an
+   *  edit capability can preview + apply against exactly what's on screen. */
+  commitTasks?: (producer: (prev: import('@/types').ScheduleTask[]) => import('@/types').ScheduleTask[]) => void;
+  currentTasks?: import('@/types').ScheduleTask[];
+  cpmOptions?: import('@/utils/cpm').RunCpmOptions;
   tier: string;
 }
 
@@ -71,6 +78,10 @@ export interface CopilotCapability<Draft = any, Applied = any> {
   /** Per-capability presentation copy so ONE shell serves every capability
    *  (schedule/estimate/…). Keeps domain nouns out of CopilotShell. */
   copy: CopilotCopy;
+  /** When present, the shell's review phase renders THIS (e.g. an edit diff)
+   *  instead of the generic reviewHeadline + Build button, wiring the passed
+   *  confirm/cancel to the diff's Apply/Discard. */
+  renderReview?(a: { draft: Draft; ctx: CopilotContext; confirm: () => void; cancel: () => void }): import('react').ReactNode;
 }
 
 export interface CopilotCopy {

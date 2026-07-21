@@ -146,6 +146,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/schedule-pro': 'Schedule',
     '/schedule-review': 'Review schedule',
     '/schedule-wizard': 'Schedule wizard',
+    '/schedule-builder': 'AI Schedule Builder',
     '/shared-schedule': 'Schedule',
     '/estimate-wizard': 'Estimate',
     '/bid-detail': 'Bid',
@@ -514,6 +515,7 @@ function RootLayoutNav() {
       <Stack.Screen name="last-planner" options={{ title: 'Last Planner' }} />
       <Stack.Screen name="plan-intelligence" options={{ title: 'Plan Intelligence' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="schedule-builder" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="copilot" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="copilot-hub" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="schedule-import" options={{ headerShown: false, presentation: 'modal' }} />

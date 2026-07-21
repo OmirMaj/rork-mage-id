@@ -1311,6 +1311,26 @@ export default function EstimateScreen() {
           <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
         </TouchableOpacity>
       )}
+      {/* Edit-by-voice — only once the selected project HAS an estimate. Say a
+          change ("drop the tile to $10/sf, bump markup to 20%") → see the new
+          total → apply undo-safely. */}
+      {!!selectedProjectId && !!projects.find(p => p.id === selectedProjectId)?.linkedEstimate && (
+        <TouchableOpacity
+          style={styles.wizardCta}
+          onPress={() => router.push({ pathname: '/copilot', params: { capabilityId: 'estimateEdit', projectId: selectedProjectId } } as never)}
+          activeOpacity={0.85}
+          testID="estimate-edit-voice-cta"
+        >
+          <View style={styles.wizardCtaIcon}>
+            <Mic size={18} color={Colors.surface} strokeWidth={2} />
+          </View>
+          <View style={styles.wizardCtaText}>
+            <Text style={styles.wizardCtaTitle}>Edit by voice</Text>
+            <Text style={styles.wizardCtaSubtitle}>Say a change — MAGE shows the new total before it sticks</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.surface} strokeWidth={1.75} />
+        </TouchableOpacity>
+      )}
       <TouchableOpacity
         style={styles.wizardCta}
         onPress={() => router.push({ pathname: '/estimate-wizard', params: selectedProjectId ? { projectId: selectedProjectId } : {} } as any)}

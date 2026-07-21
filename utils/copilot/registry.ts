@@ -19,6 +19,8 @@ import { jhaCapability } from './jha/jhaCapability';
 import { leadCapability } from './lead/leadCapability';
 import { permitCapability } from './permit/permitCapability';
 import { hazardCapability } from './hazard/hazardCapability';
+import { scheduleEditCapability } from './scheduleEdit/scheduleEditCapability';
+import { estimateEditCapability } from './estimateEdit/estimateEditCapability';
 
 const REGISTRY: Partial<Record<CopilotCapabilityId, CopilotCapability>> = {
   schedule: scheduleCapability as CopilotCapability,
@@ -37,6 +39,8 @@ const REGISTRY: Partial<Record<CopilotCapabilityId, CopilotCapability>> = {
   lead: leadCapability as CopilotCapability,
   permit: permitCapability as CopilotCapability,
   hazard: hazardCapability as CopilotCapability,
+  scheduleEdit: scheduleEditCapability as CopilotCapability,
+  estimateEdit: estimateEditCapability as CopilotCapability,
 };
 
 export function getCapability(id: CopilotCapabilityId): CopilotCapability | null {

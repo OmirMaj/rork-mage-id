@@ -11,6 +11,9 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 
 export interface ScheduleOnRampProps {
+  /** The flagship AI path: answer a few grounded questions → generate. Works
+   *  with or without an estimate, so it's the primary (no template lock-in). */
+  onAnswerQuestions: () => void;
   onBuildWithAI: () => void;
   onStartFromTemplate: () => void;
   onAddManually: () => void;
@@ -18,7 +21,7 @@ export interface ScheduleOnRampProps {
 }
 
 export function ScheduleOnRamp({
-  onBuildWithAI, onStartFromTemplate, onAddManually, onLoadExample,
+  onAnswerQuestions, onBuildWithAI, onStartFromTemplate, onAddManually, onLoadExample,
 }: ScheduleOnRampProps) {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -28,22 +31,26 @@ export function ScheduleOnRamp({
         <Text style={styles.title}>Let’s build your schedule</Text>
         <Text style={styles.sub}>Start any way you like — you can change everything later.</Text>
 
-        <TouchableOpacity style={styles.primary} onPress={onBuildWithAI} activeOpacity={0.85} testID="onramp-ai" accessibilityRole="button" accessibilityLabel="Build schedule from my estimate with AI">
+        <TouchableOpacity style={styles.primary} onPress={onAnswerQuestions} activeOpacity={0.85} testID="onramp-interview" accessibilityRole="button" accessibilityLabel="Build schedule by answering a few questions with AI">
           <Sparkles size={18} color={Colors.textOnAccent} />
-          <Text style={styles.primaryText}>Build it from my estimate</Text>
+          <Text style={styles.primaryText}>Answer a few questions</Text>
           <Text style={styles.primaryBadge}>AI</Text>
         </TouchableOpacity>
 
         <View style={styles.secondaryRow}>
+          <TouchableOpacity style={styles.secondary} onPress={onBuildWithAI} activeOpacity={0.85} testID="onramp-ai" accessibilityRole="button" accessibilityLabel="Build schedule from my estimate with AI">
+            <Sparkles size={16} color={t.accent} />
+            <Text style={styles.secondaryText}>From my estimate</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.secondary} onPress={onStartFromTemplate} activeOpacity={0.85} testID="onramp-template" accessibilityRole="button">
             <LayoutTemplate size={16} color={t.accent} />
-            <Text style={styles.secondaryText}>Start from a template</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondary} onPress={onAddManually} activeOpacity={0.85} testID="onramp-manual" accessibilityRole="button">
-            <Plus size={16} color={t.accent} />
-            <Text style={styles.secondaryText}>Add tasks manually</Text>
+            <Text style={styles.secondaryText}>From a template</Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity style={[styles.secondary, styles.manualFull]} onPress={onAddManually} activeOpacity={0.85} testID="onramp-manual" accessibilityRole="button">
+          <Plus size={16} color={t.accent} />
+          <Text style={styles.secondaryText}>Add tasks manually</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity onPress={onLoadExample} hitSlop={8} testID="onramp-example" accessibilityRole="button" accessibilityLabel="Load an example schedule">
           <Text style={styles.exampleLink}>Load an example schedule</Text>
@@ -80,6 +87,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: t.accent,
     paddingVertical: 12, paddingHorizontal: 12,
   },
+  manualFull: { width: '100%' },
   secondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
   exampleLink: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginTop: 4, textDecorationLine: 'underline' },
 });

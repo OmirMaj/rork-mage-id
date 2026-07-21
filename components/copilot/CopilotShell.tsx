@@ -245,17 +245,29 @@ export default function CopilotShell({ capabilityId, ctx, onDone, seed }: Props)
           </View>
         )}
 
-        {/* review / confirm-back */}
+        {/* review / confirm-back — a capability may render its own review
+            (e.g. an edit diff) via renderReview; else the generic build screen. */}
         {state.phase === 'review' && (
-          <View style={styles.ask}>
-            <Text style={styles.askEyebrow}>READY TO BUILD</Text>
-            <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
-            <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
-            <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } }}>
-              <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
-              <Text style={styles.buildBtnText}>Build it</Text>
-            </TouchableOpacity>
-          </View>
+          cap.renderReview ? (
+            <View style={styles.ask}>
+              {cap.renderReview({
+                draft: state.draft,
+                ctx,
+                confirm: async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } else { onDone(); } },
+                cancel: () => { cancel(); onDone(); },
+              })}
+            </View>
+          ) : (
+            <View style={styles.ask}>
+              <Text style={styles.askEyebrow}>READY TO BUILD</Text>
+              <Text style={styles.question}>{cap.copy.reviewHeadline}</Text>
+              <Text style={styles.grounding}>{cap.copy.reviewSub}</Text>
+              <TouchableOpacity style={styles.buildBtn} activeOpacity={0.9} onPress={async () => { const a = await confirm(); if (a?.route) { onDone(); router.replace({ pathname: a.route as never, params: { id: a.projectId, projectId: a.projectId, ...(a.params ?? {}) } as never }); } }}>
+                <Hammer size={18} color={Colors.textOnAccent} strokeWidth={2} />
+                <Text style={styles.buildBtnText}>Build it</Text>
+              </TouchableOpacity>
+            </View>
+          )
         )}
 
         {state.phase === 'applying' && (
