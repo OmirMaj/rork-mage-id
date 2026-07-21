@@ -217,7 +217,7 @@ export default function PersonaSelectScreen() {
           You can switch later in Settings.
         </Animated.Text>
 
-        <Animated.View style={[styles.cardList, { opacity: cardsOpacity }]}>
+        <Animated.View style={[styles.cardList, isDesktop && styles.cardGrid, { opacity: cardsOpacity }]}>
           {ROLES.map(role => {
             const Icon = ROLE_ICONS[role];
             const isSubmitting = submitting === role;
@@ -228,6 +228,7 @@ export default function PersonaSelectScreen() {
                 disabled={!!submitting}
                 style={({ pressed }) => [
                   styles.roleCard,
+                  isDesktop && styles.cardHalf,
                   pressed && styles.roleCardPressed,
                   isSubmitting && styles.roleCardActive,
                 ]}
@@ -331,6 +332,8 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 4,
   },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cardHalf: { flexBasis: '48%', flexGrow: 1, minWidth: 200 },
   roleCard: {
     flexDirection: 'row',
     alignItems: 'center',
