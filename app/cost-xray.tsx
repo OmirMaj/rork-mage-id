@@ -82,6 +82,8 @@ const CAT_LABEL: Record<XrayCategory, string> = {
 };
 
 const MAX_PHOTOS = 8;
+// Must match the server-side MAX_INLINE_BYTES_TOTAL in analyze-photos edge fn.
+const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
 
 /** The GC-edited allowance band. Scales the original priced band's spread to the
  *  new expected (qty × $/unit) so low/high stay meaningful after an override. */
@@ -208,6 +210,18 @@ export default function CostXrayScreen() {
         return;
       }
 
+      // Client-side payload guard — mirrors the server's MAX_INLINE_BYTES_TOTAL.
+      // Catches oversized batches before the round-trip so the user doesn't wait
+      // 15-30 s only to get a 413 back.
+      const payloadBytes = inline.reduce((s, p) => s + p.base64.length, 0);
+      if (payloadBytes > MAX_PAYLOAD_BYTES) {
+        Alert.alert(
+          'Photos too large',
+          `Your photos are too large to analyze (${(payloadBytes / 1024 / 1024).toFixed(1)} MB). Try fewer photos or use the camera option — it captures at a smaller file size. Max batch size is 8 MB.`,
+        );
+        return;
+      }
+
       const { data: res, error: fnErr } = await supabase.functions.invoke<{
         success: boolean; data?: { items?: unknown[] }; error?: string;
       }>('analyze-photos', { body: { task: 'conditionRisk', photos: inline, projectName: project?.name } });
@@ -239,7 +253,7 @@ export default function CostXrayScreen() {
       }
       setReviews(built);
       if (built.length === 0) {
-        setError('No hidden-condition tells detected. Try clearer, closer shots of the panel, supply lines, or foundation.');
+        setError('No hidden conditions detected in these shots. For better results, try a closer shot of the panel edges, look for water staining on the basement wall, or shoot in brighter light — then scan again.');
       } else if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -341,8 +355,18 @@ export default function CostXrayScreen() {
     }
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Back to the estimate (or the entry point the modal was opened from).
-    router.back();
+    // Confirm what landed before dismissing — mirrors the pattern in takeoff-estimate.tsx.
+    const pricedCount = pricedAccepted.length;
+    const totalAdded = pricedAccepted.reduce((s, r) => s + effectiveBand(r).expected, 0);
+    const verifyOnlyCount = accepted.filter(r => r.route === 'verify-only').length;
+    const parts: string[] = [];
+    if (pricedCount > 0) parts.push(`${pricedCount} hidden-condition line${pricedCount === 1 ? '' : 's'} (+${formatMoney(totalAdded)}) added to your estimate.`);
+    if (verifyOnlyCount > 0) parts.push(`${verifyOnlyCount} field-verify task${verifyOnlyCount === 1 ? '' : 's'} created.`);
+    Alert.alert(
+      `${accepted.length} condition${accepted.length === 1 ? '' : 's'} applied`,
+      parts.join(' '),
+      [{ text: 'Done', onPress: () => router.back() }],
+    );
   }, [accepted, project, updateProject, addPunchItem, router]);
 
   // Locked tiers see nothing while the redirect runs.
@@ -393,9 +417,25 @@ export default function CostXrayScreen() {
         {photos.length === 0 && (
           <View style={styles.introCard}>
             <ScanSearch size={20} color={t.accent} strokeWidth={1.75} />
-            <Text style={styles.introText}>
-              Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> learned costs — before you commit a number.
-            </Text>
+            <View style={{ flex: 1, gap: 10 }}>
+              <Text style={styles.introText}>
+                Photograph the panel, supply lines, waste stack, foundation, or any water staining. MAGE flags the costly hidden conditions and prices each as a contingency on <Text style={styles.introEmph}>your</Text> learned costs — before you commit a number.
+              </Text>
+              <View style={styles.tipsBox}>
+                <Text style={styles.tipsLabel}>For best results</Text>
+                {([
+                  'Get the whole panel or area in frame',
+                  'Capture water stains clearly — fill the shot',
+                  'Zoom in on wire type or pipe material',
+                  'Shoot in good light (avoid harsh shadows)',
+                ] as const).map((tip) => (
+                  <View key={tip} style={styles.tipRow}>
+                    <View style={styles.tipDot} />
+                    <Text style={styles.tipText}>{tip}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           </View>
         )}
 
@@ -415,17 +455,37 @@ export default function CostXrayScreen() {
           </View>
         )}
 
-        {/* Capture buttons */}
-        {!hasReviews && photos.length < MAX_PHOTOS && (
-          <View style={styles.captureRow}>
-            <TouchableOpacity style={styles.captureBtn} onPress={() => capture('camera')} activeOpacity={0.85}>
-              <Camera size={22} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.captureText}>Take photo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.captureBtn} onPress={() => capture('library')} activeOpacity={0.85}>
-              <ImagePlus size={22} color={t.accent} strokeWidth={1.75} />
-              <Text style={styles.captureText}>From library</Text>
-            </TouchableOpacity>
+        {/* Capture buttons + count badge */}
+        {!hasReviews && (
+          <View style={{ gap: 8 }}>
+            <View style={styles.captureHeaderRow}>
+              <Text style={styles.photoCountBadge}>{photos.length}/{MAX_PHOTOS} photos</Text>
+              {photos.length >= MAX_PHOTOS && (
+                <Text style={styles.photoCountMax}>Maximum reached</Text>
+              )}
+            </View>
+            <View style={[styles.captureRow, photos.length >= MAX_PHOTOS && { opacity: 0.38 }]}>
+              <TouchableOpacity
+                style={styles.captureBtn}
+                onPress={() => capture('camera')}
+                activeOpacity={0.85}
+                disabled={photos.length >= MAX_PHOTOS}
+                accessibilityState={{ disabled: photos.length >= MAX_PHOTOS }}
+              >
+                <Camera size={22} color={photos.length >= MAX_PHOTOS ? t.textMuted : t.accent} strokeWidth={1.75} />
+                <Text style={[styles.captureText, photos.length >= MAX_PHOTOS && { color: t.textMuted }]}>Take photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.captureBtn}
+                onPress={() => capture('library')}
+                activeOpacity={0.85}
+                disabled={photos.length >= MAX_PHOTOS}
+                accessibilityState={{ disabled: photos.length >= MAX_PHOTOS }}
+              >
+                <ImagePlus size={22} color={photos.length >= MAX_PHOTOS ? t.textMuted : t.accent} strokeWidth={1.75} />
+                <Text style={[styles.captureText, photos.length >= MAX_PHOTOS && { color: t.textMuted }]}>From library</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -433,7 +493,7 @@ export default function CostXrayScreen() {
         {photos.length > 0 && !hasReviews && (
           <TouchableOpacity style={[styles.aiBtn, busy && { opacity: 0.7 }]} onPress={detect} disabled={busy} activeOpacity={0.85} testID="xray-scan">
             {busy ? <ActivityIndicator size="small" color={Colors.textOnAccent} /> : <ScanSearch size={16} color={Colors.textOnAccent} strokeWidth={2} />}
-            <Text style={styles.aiBtnText}>{busy ? 'Scanning for hidden costs…' : pending ? 'Retry scan' : 'Scan for hidden costs'}</Text>
+            <Text style={styles.aiBtnText}>{busy ? 'Analyzing — this can take ~20 seconds…' : pending ? 'Retry scan' : 'Scan for hidden costs'}</Text>
           </TouchableOpacity>
         )}
 
@@ -625,6 +685,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   introText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
   introEmph: { fontWeight: '800' as const, color: t.text },
+  tipsBox: { gap: 5, paddingTop: 2 },
+  tipsLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, letterSpacing: 0.3, marginBottom: 2 },
+  tipRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 7 },
+  tipDot: { width: 4, height: 4, borderRadius: Tokens.radius.full, backgroundColor: t.accent + 'AA', marginTop: 5 },
+  tipText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
+
+  captureHeaderRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 4 },
+  photoCountBadge: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' as const },
+  photoCountMax: { fontSize: Type.caption2.fontSize, color: t.accentHot, fontWeight: '600' as const },
 
   thumbsRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginBottom: 12 },
   thumbWrap: { position: 'relative' as const },
