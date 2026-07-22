@@ -1495,31 +1495,68 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const x2 = linkDrag.pointerLocalX;
                 const y2 = linkDrag.pointerLocalY;
                 const color = linkDrag.invalid ? themeColors.danger : (linkDrag.hoverTargetId ? themeColors.success : themeColors.accent);
+                // Determine the invalid-reason label shown near the drag endpoint.
+                const invalidReason = linkDrag.invalid
+                  ? (linkDrag.hoverTargetId === linkDrag.sourceTaskId ? 'Same task' : 'Cycle')
+                  : null;
                 return (
-                  <Svg
-                    width={timelineWidth}
-                    height={gridHeight}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                  >
-                    <Path
-                      d={`M ${x1} ${y1} C ${x1 + 40} ${y1}, ${x2 - 40} ${y2}, ${x2} ${y2}`}
-                      stroke={color}
-                      strokeWidth={2.5}
-                      fill="none"
-                      strokeDasharray="5,4"
-                    />
-                    <SvgRect
-                      x={x2 - 5}
-                      y={y2 - 5}
-                      width={10}
-                      height={10}
-                      fill={color}
-                      stroke="#fff"
-                      strokeWidth={2}
-                      rx={5}
-                    />
-                  </Svg>
+                  <>
+                    <Svg
+                      width={timelineWidth}
+                      height={gridHeight}
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="none"
+                    >
+                      <Path
+                        d={`M ${x1} ${y1} C ${x1 + 40} ${y1}, ${x2 - 40} ${y2}, ${x2} ${y2}`}
+                        stroke={color}
+                        strokeWidth={2.5}
+                        fill="none"
+                        strokeDasharray="5,4"
+                      />
+                      <SvgRect
+                        x={x2 - 5}
+                        y={y2 - 5}
+                        width={10}
+                        height={10}
+                        fill={color}
+                        stroke="#fff"
+                        strokeWidth={2}
+                        rx={5}
+                      />
+                    </Svg>
+                    {/* --- Invalid-link label: glyph + short reason near drag tip.
+                        Only shown when hovering an invalid target (cycle / self).
+                        Uses existing validity detection — no logic change.
+                        Clamped so it never clips off the right edge. --- */}
+                    {invalidReason && (
+                      <View
+                        pointerEvents="none"
+                        style={{
+                          position: 'absolute',
+                          left: Math.min(timelineWidth - 110, x2 + 14),
+                          top: Math.max(HEADER_HEIGHT + 4, y2 - 14),
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                          paddingHorizontal: Tokens.spacing.xs,
+                          paddingVertical: 3,
+                          borderRadius: Tokens.radius.xs,
+                          backgroundColor: themeColors.danger + 'EE',
+                          zIndex: 1010,
+                        }}
+                      >
+                        <Text style={{
+                          color: '#fff',
+                          fontSize: Type.caption1.fontSize,
+                          fontWeight: '700',
+                          letterSpacing: 0.2,
+                        }}>
+                          {'⊘'} {invalidReason}
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 );
               })()}
 
