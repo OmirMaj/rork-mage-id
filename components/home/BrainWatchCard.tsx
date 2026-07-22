@@ -228,7 +228,7 @@ const makeStyles = (t: ThemeColors) =>
     severityDot: {
       width: 4,
       height: 4,
-      borderRadius: 2,
+      borderRadius: Tokens.radius.full,
       flexShrink: 0,
     },
     iconWrap: {
