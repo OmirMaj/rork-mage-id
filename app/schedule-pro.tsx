@@ -1537,8 +1537,8 @@ function ScheduleProScreenInner() {
           <HeaderBtn icon={MageAIMark} label="AI" onPress={() => setShowAI(true)} highlighted />
           <HeaderBtn icon={Mic} label="Voice" onPress={() => setEditOpen(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
-          <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} />
-          <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} />
+          <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={!canUndo(hist)} shortcutHint="⌘Z" />
+          <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={!canRedo(hist)} shortcutHint="⇧⌘Z" />
           <HeaderBtn icon={Download} label="Export" onPress={() => setExportSheetOpen(true)} />
         </View>
       </View>
@@ -1976,7 +1976,7 @@ function ScheduleProScreenInner() {
 // ---------------------------------------------------------------------------
 
 function HeaderBtn({
-  icon: Icon, label, onPress, onLongPress, disabled, highlighted,
+  icon: Icon, label, onPress, onLongPress, disabled, highlighted, shortcutHint,
 }: {
   icon: any;
   label: string;
@@ -1984,6 +1984,8 @@ function HeaderBtn({
   onLongPress?: () => void;
   disabled?: boolean;
   highlighted?: boolean;
+  /** Optional keyboard shortcut string shown next to the label on web (e.g. "⌘Z"). */
+  shortcutHint?: string;
 }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -2002,6 +2004,11 @@ function HeaderBtn({
     >
       <Icon size={14} color={tint} />
       <Text style={[styles.headerBtnText, { color: tint }]}>{label}</Text>
+      {shortcutHint && Platform.OS === 'web' && (
+        <Text style={[styles.headerBtnHint, { color: disabled ? themeColors.textMuted : themeColors.textSecondary }]}>
+          {shortcutHint}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -2066,9 +2073,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     backgroundColor: t.accent + '12',
   },
-  headerBtnDisabled: { backgroundColor: t.surfaceAlt, opacity: 0.6 },
+  // Disabled state: stronger contrast reduction (opacity 0.35) so the button
+  // reads clearly as unavailable rather than just slightly faded.
+  headerBtnDisabled: { backgroundColor: t.surfaceAlt, opacity: 0.35 },
   headerBtnHighlighted: { backgroundColor: t.accent },
   headerBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
+  // Keyboard shortcut hint shown next to label on web only.
+  headerBtnHint: { fontSize: Type.caption2.fontSize, fontWeight: '500', color: t.textSecondary },
 
   body: {
     flex: 1,
