@@ -1617,6 +1617,44 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 );
               })()}
 
+              {/* --- Snap-to-day destination ghost: accent-tinted dashed outline
+                  drawn at the SNAPPED DROP SLOT while the user is dragging.
+                  Complements the grey origin ghost above — the origin ghost
+                  shows "where it was", this shows "exactly where it will land".
+                  Reuses dragState.currentStart / currentDuration which are
+                  already snapped (Math.round(dx / pxPerDay)) — no new date math. --- */}
+              {dragState && (() => {
+                const bar = barById.get(dragState.taskId);
+                if (!bar) return null;
+                const moved = dragState.currentStart !== dragState.originalStart
+                  || dragState.currentDuration !== dragState.originalDuration;
+                if (!moved) return null;
+                // Destination position — snapped values already stored in dragState.
+                const destX = (dragState.currentStart - 1) * pxPerDay;
+                const destW = Math.max(
+                  MIN_BAR_PX_WIDTH,
+                  Math.max(0, dragState.currentDuration) * pxPerDay,
+                );
+                return (
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: destX,
+                      top: bar.y,
+                      width: destW,
+                      height: BAR_HEIGHT,
+                      borderRadius: BAR_RADIUS,
+                      borderWidth: 2,
+                      borderStyle: 'dashed',
+                      borderColor: themeColors.accent + 'BB',
+                      backgroundColor: themeColors.accent + '18',
+                      zIndex: 6,
+                    }}
+                  />
+                );
+              })()}
+
               {/* --- Rich hover preview card --- */}
               {/* Apple-app-style hover affordance: when the cursor sits on a
                   bar (and we're not actively dragging or wiring a link), a
