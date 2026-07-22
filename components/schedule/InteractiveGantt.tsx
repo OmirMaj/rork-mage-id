@@ -728,6 +728,42 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // arrows fade back so the active chain reads clearly.
   const hasActiveTask = (focusedTaskId ?? hoverTaskId) != null;
 
+  // --- Drag successor highlighting (Item 2) ---------------------------------
+  // While a bar is being dragged, compute the full set of tasks that depend on
+  // it (direct and transitive successors). Cheap forward-walk of the existing
+  // dependency data — no CPM, no date math. The set is used to subtly glow
+  // downstream bars so the user sees the ripple scope before release.
+  // Only re-computed when the dragged task changes (not every pointer frame).
+  const dragSuccessorIds = useMemo<Set<string>>(() => {
+    if (!dragState) return new Set();
+    const sourceId = dragState.taskId;
+    // Build a forward adjacency map: predecessorId → [successorId, ...]
+    const fwd = new Map<string, string[]>();
+    for (const t of tasks) {
+      const preds = t.dependencyLinks && t.dependencyLinks.length > 0
+        ? t.dependencyLinks.map(l => l.taskId)
+        : t.dependencies;
+      for (const pid of preds) {
+        if (!fwd.has(pid)) fwd.set(pid, []);
+        fwd.get(pid)!.push(t.id);
+      }
+    }
+    // BFS from sourceId.
+    const visited = new Set<string>();
+    const queue: string[] = [sourceId];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const nexts = fwd.get(cur) ?? [];
+      for (const nid of nexts) {
+        if (!visited.has(nid)) {
+          visited.add(nid);
+          queue.push(nid);
+        }
+      }
+    }
+    return visited; // does NOT include sourceId itself
+  }, [dragState?.taskId, tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Crew avatars (the small initial chip at each bar's right edge) only earn
   // their visual cost when crews actually differ across the schedule. When every
   // task shares one crew (or none is set), the chips are pure noise — hide them
@@ -1431,6 +1467,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     todayDayNumber={todayDayNumber}
                     dimmed={!inPath}
                     isFocusTarget={isFocusedBar}
+                    isDownstream={dragSuccessorIds.has(bar.task.id)}
                     isLastMilestone={bar.isMilestone && bar.task.id === lastMilestoneId}
                     showCrewAvatar={showCrewAvatars}
                     onHoverIn={() => setHoverTaskId(bar.task.id)}
@@ -1791,6 +1828,12 @@ interface BarViewProps {
   isFocusTarget?: boolean;
   /** When true, this milestone is the latest-dated one (project completion = red). */
   isLastMilestone?: boolean;
+  /**
+   * When true, this task is a downstream successor of the bar currently being
+   * dragged. Renders a subtle warning-tinted glow so the user can see the
+   * ripple scope before releasing. Set only while a drag is live.
+   */
+  isDownstream?: boolean;
   /** When true, render the crew initial chip (only when crews differ across the schedule). */
   showCrewAvatar?: boolean;
   onHoverIn: () => void;
@@ -1810,7 +1853,7 @@ interface BarViewProps {
 
 function BarView({
   bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
-  dimmed, isFocusTarget, isLastMilestone, showCrewAvatar,
+  dimmed, isFocusTarget, isLastMilestone, isDownstream, showCrewAvatar,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
@@ -2052,6 +2095,29 @@ function BarView({
             borderWidth: 2,
             borderColor: targetRingColor,
             backgroundColor: targetRingColor + '22',
+            zIndex: 1,
+          }}
+        />
+      )}
+      {/* Downstream-ripple glow — shown while the PREDECESSOR of this task is
+          being dragged. A subtle warning-tinted outline signals "this task will
+          shift if you commit the drop", without running CPM per-frame.
+          Drawn BEHIND the bar (zIndex 1) so it acts as a soft halo, not an
+          overlay that obscures the bar content. */}
+      {isDownstream && !isLinkTarget && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: bar.x - 3,
+            top: bar.y - 3,
+            width: bar.w + 6,
+            height: BAR_HEIGHT + 6,
+            borderRadius: Tokens.radius.md,
+            borderWidth: 1.5,
+            borderStyle: 'dashed',
+            borderColor: Colors.warning + 'CC',
+            backgroundColor: Colors.warning + '12',
             zIndex: 1,
           }}
         />
