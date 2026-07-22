@@ -52,7 +52,7 @@ import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { parsePastedRows } from '@/utils/pasteRows';
 import { ScheduleRowMenu, useScheduleRowMenu, type RowMenuAction } from '@/components/schedule/ScheduleRowMenu';
-import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor } from 'lucide-react-native';
+import { AlertTriangle, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, X, Anchor, Pencil } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -1020,6 +1020,26 @@ export default function GridPane({
             </View>
           );
         }
+        // Mobile: show the date with a pencil icon so the user knows it's
+        // tappable. Wires to the same beginEdit path (opens a TextInput
+        // seeded with the ISO date; full native-picker is a future upgrade).
+        if (Platform.OS !== 'web' && cpmRow) {
+          return (
+            <TouchableOpacity
+              key={col.key}
+              style={[...cellStyle]}
+              onPress={() => beginEdit(rowIndex, 'start')}
+              activeOpacity={0.6}
+              testID={`grid-cell-${rowIndex}-${col.key}`}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                {hasAnchor && <Anchor size={10} color={themeColors.accent} strokeWidth={1.75} />}
+                <Text style={[styles.cellText, styles.cellDateText]}>{label}</Text>
+                <Pencil size={10} color={themeColors.textMuted} strokeWidth={1.5} />
+              </View>
+            </TouchableOpacity>
+          );
+        }
         display = (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {hasAnchor && <Anchor size={10} color={themeColors.accent} strokeWidth={1.75} />}
@@ -1040,6 +1060,23 @@ export default function GridPane({
               testID={`grid-cell-${rowIndex}-${col.key}`}
             >
               <Text style={[styles.cellText, styles.cellDateText]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        }
+        // Mobile: finish date also gets pencil affordance when CPM data available.
+        if (Platform.OS !== 'web' && cpmRow) {
+          return (
+            <TouchableOpacity
+              key={col.key}
+              style={[...cellStyle]}
+              onPress={() => beginEdit(rowIndex, 'finish')}
+              activeOpacity={0.6}
+              testID={`grid-cell-${rowIndex}-${col.key}`}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={[styles.cellText, styles.cellDateText]}>{label}</Text>
+                <Pencil size={10} color={themeColors.textMuted} strokeWidth={1.5} />
+              </View>
             </TouchableOpacity>
           );
         }
@@ -1158,7 +1195,7 @@ export default function GridPane({
       return (
         <TouchableOpacity
           key={col.key}
-          style={cellStyle}
+          style={[...cellStyle, styles.cellEditable]}
           onPress={() => beginEdit(rowIndex, col.key)}
           activeOpacity={0.6}
           testID={`grid-cell-${rowIndex}-${col.key}`}
@@ -1167,7 +1204,17 @@ export default function GridPane({
         </TouchableOpacity>
       );
     }
-    return <View key={col.key} style={cellStyle}>{display}</View>;
+    // Truly readonly cells (rowNum, wbs, float) get a dimmed container so
+    // they read as non-interactive at a glance.
+    const isDisplayOnly = col.kind === 'readonly' && col.key !== 'start' && col.key !== 'finish';
+    return (
+      <View
+        key={col.key}
+        style={isDisplayOnly ? [...cellStyle, styles.cellReadonly] : cellStyle}
+      >
+        {display}
+      </View>
+    );
   };
 
   // -------------------------------------------------------------------------
@@ -1940,6 +1987,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     // (RN-web's flex children can ignore numberOfLines if no parent
     // constrains them). Clipping at the cell level is the safety net.
     overflow: 'hidden',
+  },
+  // Editable cells (text / number columns) get a pointer cursor and a very
+  // faint accent wash on web so contractors can tell at a glance which cells
+  // accept input. On native this is a no-op (TouchableOpacity handles it).
+  cellEditable: {
+    ...(Platform.OS === 'web' ? ({ cursor: 'text' } as any) : {}),
+  },
+  // Truly readonly cells (rowNum, wbs, float) get a dimmed background so
+  // they feel "display only" rather than accidentally tappable.
+  cellReadonly: {
+    backgroundColor: t.surfaceAlt,
   },
   cellEditing: {
     backgroundColor: t.accent + '10',
