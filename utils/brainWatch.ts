@@ -183,8 +183,6 @@ export function certAttention(
   const items: AttentionItem[] = [];
 
   for (const cert of expiring) {
-    if (cert.status === 'valid') continue; // shouldn't appear, but guard it
-
     let severity: AttnSeverity;
     let dayStr: string;
 

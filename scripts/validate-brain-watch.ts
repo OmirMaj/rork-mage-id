@@ -61,7 +61,7 @@ function mkSchedule(healthScore?: number, taskCount = 3, riskCount = 0): NonNull
       affectedTaskIds: [],
     })),
     healthScore,
-  } as NonNullable<Project['schedule']>;
+  } as unknown as NonNullable<Project['schedule']>;
 }
 
 function mkInvoice(over: Partial<Invoice> = {}): Invoice {
