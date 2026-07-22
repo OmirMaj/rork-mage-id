@@ -3,24 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>MAGE ID — Win the bid, keep the profit | Margin software for contractors</title>
+  <title>MAGE ID — A brain for your business | Construction intelligence for contractors</title>
   <link rel="canonical" href="https://mageid.app/" />
-  <meta name="description" content="MAGE ID is the contractor app that learns your real costs from finished jobs, prices your next bid off your own numbers, and warns you before a live job loses margin. Estimating, job costing, scheduling, invoicing — one flat price, subs free." />
-  <meta name="theme-color" content="#0B0D10" />
+  <meta name="description" content="MAGE is the construction app that gets smarter every job — it learns your real costs, prices hidden conditions from a photo, and builds schedules that explain themselves. Estimating, job costing, scheduling, invoicing — one flat price, subs free." />
+  <meta name="theme-color" content="#0c0b09" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="MAGE ID — Win the bid, keep the profit" />
-  <meta property="og:description" content="Learns your real costs, prices your next bid off your own numbers, and warns you before a job loses margin. Estimating, job costing, scheduling, invoicing — one flat price, subs free." />
+  <meta property="og:title" content="MAGE ID — A brain for your business" />
+  <meta property="og:description" content="MAGE is the construction app that gets smarter every job — it learns your real costs, prices hidden conditions from a photo, and builds schedules that explain themselves." />
   <meta property="og:url" content="https://mageid.app" />
   <meta property="og:site_name" content="MAGE ID" />
   <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="MAGE ID — win the bid, keep the profit." />
+  <meta property="og:image:alt" content="MAGE ID — construction intelligence for contractors." />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="MAGE ID — Win the bid, keep the profit" />
-  <meta name="twitter:description" content="Learns your real costs, prices your next bid off your own numbers, and warns you before a job loses margin. Estimating, job costing, scheduling, invoicing — one flat price, subs free." />
+  <meta name="twitter:title" content="MAGE ID — A brain for your business" />
+  <meta name="twitter:description" content="MAGE is the construction app that gets smarter every job — it learns your real costs, prices hidden conditions from a photo, and builds schedules that explain themselves." />
   <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
 
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
@@ -28,12 +28,10 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
 
-  <!-- Fonts -->
+  <!-- Fonts: Bricolage Grotesque for headings, JetBrains Mono for code/mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
-
-  <link rel="stylesheet" href="/landing.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
 
   <!-- ──────────────────────────────────────────────────────────────
        PostHog — funnel analytics for the marketing site. Same project
@@ -53,9 +51,8 @@
     });
   </script>
 
-  <!-- Structured data (launch-audit §5.2 / §5.3). SoftwareApplication +
-       Organization on the homepage — Google reads these once for the site;
-       no need to repeat on every page. -->
+  <!-- Structured data (SoftwareApplication + Organization).
+       Updated to brain-forward / construction-intelligence positioning. -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -63,7 +60,7 @@
     "name": "MAGE ID",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "iOS, Android, Web",
-    "description": "Margin-protection operating system for residential and light-commercial general contractors. Learns your real costs from finished jobs, prices your next bid off your own numbers, and warns you before a live job loses margin.",
+    "description": "Construction intelligence for residential and light-commercial general contractors. Learns your real costs from finished jobs, prices hidden conditions from a photo, and builds schedules that explain themselves.",
     "url": "https://mageid.app",
     "offers": [
       { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
@@ -82,695 +79,464 @@
     "logo": "https://mageid.app/assets/favicon-512.png"
   }
   </script>
+
+  <style>
+  :root{
+    --ink:#0c0b09; --ink-2:#131110; --panel:#17140f; --panel-2:#1e1a13;
+    --bone:#f1ece1; --paper:#efe9dc; --cream:#f6f2e9;
+    --muted:#a89f8d; --faint:#6f6858; --dim:#847b69;
+    --amber:#e5811f; --amber-lift:#f59a3b; --amber-deep:#b95d0c; --amber-glow:rgba(229,129,31,.16);
+    --steel:#7fa0b2; --steel-deep:#3a4d59; --steel-soft:#d8e2e7;
+    --good:#6fb87e; --no:#b6604e;
+    --line-d:#241f18; --line-l:#ddd3bf;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --display:'Bricolage Grotesque',var(--sans);
+    --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body,.site{margin:0;background:var(--ink);color:var(--bone);font-family:var(--sans);line-height:1.55;font-size:16.5px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  section{width:100%;position:relative}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 clamp(20px,5vw,48px)}
+  h1,h2,h3{margin:0;font-family:var(--display);font-weight:800;letter-spacing:-.025em;text-wrap:balance}
+  p{margin:0}
+  .mono{font-family:var(--mono)}
+  a{color:inherit;text-decoration:none}
+  .amb{color:var(--amber-lift)}
+
+  .rv{opacity:0;transform:translateY(20px)}
+  .rv.in{opacity:1;transform:none;transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+  @media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
+
+  /* nav */
+  .nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rgba(12,11,9,.72);border-bottom:1px solid var(--line-d)}
+  .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:700;letter-spacing:.22em;font-size:15px}
+  .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--amber);box-shadow:0 0 14px var(--amber)}
+  .navlinks{display:none;gap:30px;font-size:14px;color:var(--muted)}
+  .navlinks a:hover{color:var(--bone)}
+  .navcta{font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;padding:9px 16px;border:1px solid var(--amber);color:var(--amber-lift);border-radius:7px;transition:.2s}
+  .navcta:hover{background:var(--amber);color:#140d05}
+  @media(min-width:820px){.navlinks{display:flex}}
+
+  /* hero */
+  .hero{padding:clamp(56px,9vw,108px) 0 clamp(40px,6vw,72px);overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:0;background:
+     radial-gradient(60% 55% at 80% 6%,var(--amber-glow),transparent 60%),
+     radial-gradient(45% 40% at 6% 92%,rgba(127,160,178,.09),transparent 60%);pointer-events:none}
+  .hero .wrap{position:relative;display:grid;grid-template-columns:1fr;gap:clamp(36px,5vw,58px);align-items:center}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);font-weight:600;display:inline-flex;align-items:center;gap:9px}
+  .eyebrow::before{content:"";width:22px;height:1px;background:var(--amber)}
+  .hero h1{font-size:clamp(40px,6.5vw,74px);line-height:.98;margin:22px 0 0}
+  .hero .sub{margin-top:22px;font-size:clamp(16.5px,1.8vw,19px);color:var(--muted);max-width:47ch;line-height:1.5}
+  .hero .sub b{color:var(--bone);font-weight:650}
+  .hero .sub .em{color:var(--amber-lift);font-weight:650}
+  .cta-row{margin-top:30px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .btn{font-weight:650;font-size:15px;padding:13px 22px;border-radius:9px;transition:.2s;cursor:pointer;border:1px solid transparent;display:inline-flex;align-items:center;gap:9px}
+  .btn.primary{background:var(--amber);color:#160d04;box-shadow:0 6px 26px -8px var(--amber)}
+  .btn.primary:hover{background:var(--amber-lift);transform:translateY(-1px)}
+  .btn.ghost{border-color:var(--line-d);color:var(--bone);background:rgba(255,255,255,.02)}
+  .btn.ghost:hover{border-color:var(--dim)}
+  .microcta{margin-top:14px;font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.03em}
+
+  .chartcard{position:relative;border:1px solid var(--line-d);background:linear-gradient(180deg,var(--panel),var(--ink-2));border-radius:16px;padding:20px 20px 16px;box-shadow:0 30px 80px -40px #000}
+  .chartcard .ch-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .chartcard .ch-t{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  .chartcard .ch-v{font-family:var(--mono);font-size:12px;color:var(--good);font-weight:700}
+  .chartcard canvas{display:block;width:100%;height:200px}
+  .ch-x{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:6px;letter-spacing:.06em}
+  .ch-note{margin-top:12px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line-d);padding-top:11px;line-height:1.45}
+  .ch-note b{color:var(--amber-lift)}
+  @media(min-width:900px){.hero .wrap{grid-template-columns:1.05fr .95fr}}
+
+  /* section base */
+  .light{background:var(--cream);color:var(--ink)}
+  .sec{padding:clamp(56px,8vw,108px) 0}
+  .kick{font-family:var(--mono);font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;font-weight:600}
+  .light .kick{color:var(--amber-deep)} .dark .kick{color:var(--amber)}
+  h2.h{font-size:clamp(27px,4vw,44px);line-height:1.04;margin-top:14px}
+  .seclede{margin-top:16px;font-size:clamp(16px,1.7vw,18.5px);max-width:58ch;line-height:1.5}
+  .light .seclede{color:#5a5346} .dark .seclede{color:var(--muted)}
+  .center{text-align:center;margin-left:auto;margin-right:auto}
+  .center .seclede{margin-left:auto;margin-right:auto}
+
+  /* brain faculties */
+  .brainhdr{max-width:760px}
+  .pillars{display:grid;grid-template-columns:1fr;gap:18px;margin-top:42px}
+  @media(min-width:760px){.pillars{grid-template-columns:repeat(3,1fr)}}
+  .pill{border:1px solid var(--line-l);background:#fff;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px;transition:.25s}
+  .pill:hover{transform:translateY(-5px);box-shadow:0 24px 54px -30px rgba(60,45,20,.5);border-color:var(--amber)}
+  .pill .no{font-family:var(--mono);font-size:11.5px;font-weight:800;color:var(--amber-deep);letter-spacing:.08em}
+  .pill h3{font-size:21px;letter-spacing:-.012em}
+  .pill p{font-size:14.5px;color:#5f5749;line-height:1.5}
+  .pill p b{color:var(--ink);font-weight:700}
+  .mock{border:1px solid var(--line-l);border-radius:10px;background:var(--paper);padding:12px;height:122px;overflow:hidden;position:relative}
+  .mock img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:8px}
+  .mock .mrow{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;color:#6f6656;padding:4px 0}
+  .mock .tag{margin-left:auto;font-weight:700;color:var(--amber-deep)}
+  .mock .bar{height:9px;border-radius:3px;background:var(--steel-soft)}
+  .mock .bar.a{background:#e7d6bb}
+  .xray{position:absolute;inset:12px;border-radius:8px;background:linear-gradient(135deg,#2a2620,#3d382e);overflow:hidden}
+  .xray .ping{position:absolute;font-family:var(--mono);font-size:9.5px;font-weight:700;color:#160d04;background:var(--amber);padding:2px 6px;border-radius:5px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+  .spark{display:flex;align-items:flex-end;gap:5px;height:80px;margin-top:2px}
+  .spark i{flex:1;background:var(--steel-soft);border-radius:2px 2px 0 0;display:block}
+  .spark i.up{background:linear-gradient(180deg,var(--amber),var(--amber-deep))}
+
+  /* ---------- interactive compare ---------- */
+  .compare{margin-top:38px;max-width:860px}
+  .cmp-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+  .cmp-ctl label{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  .selwrap{position:relative}
+  .selwrap::after{content:"▾";position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--amber);pointer-events:none;font-size:12px}
+  select#cmpSel{appearance:none;-webkit-appearance:none;font-family:var(--sans);font-weight:650;font-size:15.5px;color:var(--bone);background:var(--panel);border:1px solid var(--amber-deep);border-radius:10px;padding:11px 40px 11px 16px;cursor:pointer;min-width:240px}
+  select#cmpSel:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+  .cmp-panel{margin-top:20px;border:1px solid var(--line-d);border-radius:16px;overflow:hidden;background:var(--ink-2)}
+  .cmp-head{display:grid;grid-template-columns:1.3fr 1fr 1fr;align-items:stretch}
+  .cmp-head > div{padding:16px 18px}
+  .cmp-head .spacer{border-bottom:1px solid var(--line-d)}
+  .cmp-head .them,.cmp-head .us{border-left:1px solid var(--line-d);border-bottom:1px solid var(--line-d)}
+  .cmp-head .us{background:rgba(229,129,31,.08)}
+  .cmp-name{font-weight:800;font-size:17px;letter-spacing:-.01em;display:block}
+  .cmp-head .them .cmp-name{color:var(--steel)}
+  .cmp-head .us .cmp-name{color:var(--amber-lift)}
+  .cmp-good{display:block;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .cmp-head .us .cmp-good{color:var(--dim)}
+  .cmp-good b{color:var(--faint);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:3px}
+
+  .cmp-row{display:grid;grid-template-columns:1.3fr 1fr 1fr;align-items:center;border-bottom:1px solid var(--line-d)}
+  .cmp-row:last-child{border-bottom:0}
+  .cmp-row.moat{background:rgba(229,129,31,.045)}
+  .cmp-row .cap{padding:13px 18px;font-size:14px;color:var(--muted)}
+  .cmp-row.moat .cap{color:var(--bone);font-weight:600}
+  .cmp-row .m{padding:13px 18px;border-left:1px solid var(--line-d);font-family:var(--mono);font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .cmp-row .m.us{background:rgba(229,129,31,.06)}
+  .ic{width:19px;height:19px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex:0 0 auto}
+  .ic.yes{background:rgba(111,184,126,.16);color:var(--good)}
+  .ic.no{background:rgba(182,96,78,.14);color:var(--no)}
+  .ic.part{background:rgba(127,160,178,.16);color:var(--steel)}
+  .ic.usY{background:var(--amber);color:#160d04}
+  .m .lab{font-weight:600;letter-spacing:.01em}
+  .m.them .lab{color:var(--dim)} .m.us .lab{color:var(--amber-lift)}
+  .m.price .lab{font-family:var(--mono)}
+  .cmp-verdict{padding:18px 20px;font-size:15.5px;line-height:1.5;color:var(--bone);background:linear-gradient(180deg,var(--panel),var(--ink-2));border-top:1px solid var(--line-d)}
+  .cmp-verdict b{color:var(--amber-lift);font-weight:750}
+  @media(max-width:640px){
+    .cmp-head,.cmp-row{grid-template-columns:1fr .7fr .7fr}
+    .cmp-good{display:none}
+    .cmp-row .cap{font-size:12.5px;padding:11px 12px}
+    .cmp-row .m,.cmp-head > div{padding:11px 10px}
+  }
+
+  /* beachhead */
+  .who .card{margin-top:30px;border:1px solid var(--line-l);border-left:4px solid var(--amber);background:#fff;border-radius:12px;padding:24px 26px}
+  .who .l{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber-deep);font-weight:700}
+  .who h3{font-size:clamp(20px,2.4vw,26px);margin-top:10px;letter-spacing:-.015em}
+  .who p{margin-top:12px;font-size:15.5px;color:#5a5346;line-height:1.55;max-width:62ch}
+
+  /* pricing */
+  .dark{background:var(--ink);color:var(--bone)}
+  .prices{display:grid;grid-template-columns:1fr;gap:16px;margin-top:38px}
+  @media(min-width:720px){.prices{grid-template-columns:repeat(4,1fr)}}
+  .tier{border:1px solid var(--line-d);background:var(--panel);border-radius:14px;padding:22px 20px;display:flex;flex-direction:column;gap:6px}
+  .tier.feat{border-color:var(--amber);background:linear-gradient(180deg,var(--panel-2),var(--panel));box-shadow:0 24px 60px -34px var(--amber)}
+  .tier .tn{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .tier.feat .tn{color:var(--amber-lift)}
+  .tier .tp{font-size:32px;font-weight:850;letter-spacing:-.02em;margin-top:4px}
+  .tier .tp span{font-size:14px;color:var(--faint);font-weight:500}
+  .tier .td{font-size:13px;color:var(--muted);line-height:1.45;margin-top:4px}
+  .tier .tag{align-self:flex-start;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#160d04;background:var(--amber);padding:2px 8px;border-radius:4px;margin-bottom:2px}
+
+  /* payoff */
+  .payoff .card{margin-top:36px;border:1px solid var(--line-d);background:linear-gradient(180deg,var(--panel),var(--ink-2));border-radius:16px;padding:clamp(20px,3vw,32px);box-shadow:0 30px 80px -44px #000;max-width:720px}
+  .payoff .prow{display:flex;justify-content:space-between;gap:14px;font-family:var(--mono);font-size:13.5px;padding:4px 0 14px;color:var(--muted)}
+  .payoff .prow .amt{color:var(--dim);font-variant-numeric:tabular-nums}
+  .payoff .flag{border:1px solid var(--amber-deep);background:rgba(229,129,31,.08);border-radius:12px;padding:15px 17px}
+  .payoff .flag .ft{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber-lift);font-weight:700;margin-bottom:6px}
+  .payoff .flag .frow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:13.5px;padding:7px 0;color:var(--bone);border-top:1px solid rgba(229,129,31,.16)}
+  .payoff .flag .frow .amt{color:var(--amber-lift);font-weight:700;font-variant-numeric:tabular-nums}
+  .payoff .total{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-top:16px;padding-top:15px;border-top:1px solid var(--line-d)}
+  .payoff .total .l{font-size:14.5px;color:var(--muted);max-width:32ch}
+  .payoff .total .v{font-size:clamp(24px,3.4vw,33px);font-weight:850;color:var(--good);letter-spacing:-.02em;font-variant-numeric:tabular-nums;text-align:right}
+  .payoff .total .v small{font-family:var(--mono);font-size:10px;color:var(--dim);font-weight:600;letter-spacing:.1em;display:block;text-transform:uppercase}
+
+  /* faq */
+  .faq .list{margin-top:32px;max-width:820px;border-top:1px solid var(--line-l)}
+  .faq details{border-bottom:1px solid var(--line-l)}
+  .faq summary{list-style:none;cursor:pointer;padding:18px 0;font-size:17px;font-weight:650;color:var(--ink);display:flex;justify-content:space-between;gap:16px;align-items:center}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";font-family:var(--mono);color:var(--amber-deep);font-weight:700;font-size:20px;transition:.2s}
+  .faq details[open] summary::after{content:"\2013"}
+  .faq details > p{padding:0 0 20px;color:#5a5346;font-size:15px;line-height:1.55;max-width:66ch}
+  .faq details > p b{color:var(--ink);font-weight:700}
+
+  /* finale */
+  .finale{text-align:center;padding:clamp(64px,10vw,124px) 0;position:relative;overflow:hidden}
+  .finale::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 80% at 50% 0%,var(--amber-glow),transparent 65%);pointer-events:none}
+  .finale h2{font-size:clamp(30px,5vw,54px);line-height:1.03}
+  .finale p{margin:18px auto 0;max-width:46ch;color:var(--muted);font-size:17px}
+  .finale .cta-row{justify-content:center}
+
+  footer{border-top:1px solid var(--line-d);background:var(--ink-2)}
+  footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;padding:26px 0;font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.04em}
+  </style>
 </head>
 <body>
-  <div class="scroll-progress" aria-hidden="true"></div>
-  <!-- Grain overlay (pointer-events: none; global) -->
-  <div class="grain" aria-hidden="true"></div>
 
-  <!-- Cursor blob (desktop only) -->
-  <div class="cursor-blob" aria-hidden="true"></div>
+<div class="site">
 
-  <header class="nav">
-    <div class="nav-inner">
-      <a href="/" class="brand" aria-label="MAGE ID home">
-        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" />
-        <span class="brand-word">MAGE&nbsp;ID</span>
-      </a>
-      <nav class="nav-links" aria-label="Primary">
-        <a href="/playbook.html">How it works</a>
-        <a href="/compare/">Compare</a>
-        <a href="#pricing">Pricing</a>
-        <a href="/demo.html">Demo</a>
-        <a href="https://app.mageid.app">Start free</a>
-      </nav>
-      <a class="nav-cta" href="https://app.mageid.app">
-        <span>Start free</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </a>
+  <nav class="nav"><div class="wrap">
+    <span class="brand"><span class="dot"></span>MAGE&nbsp;ID</span>
+    <span class="navlinks"><a href="#brain">The brain</a><a href="#compare">Compare</a><a href="#pricing">Pricing</a></span>
+    <a class="navcta" href="https://app.mageid.app">Start free</a>
+  </div></nav>
+
+  <!-- HERO — brain-forward -->
+  <section class="hero"><div class="wrap">
+    <div class="rv in">
+      <span class="eyebrow">Construction intelligence</span>
+      <h1>A <span class="amb">brain</span> for your business. It gets smarter every job.</h1>
+      <p class="sub">MAGE <b>sees</b> what your tape measure can't, <b>remembers</b> the true cost of every job you finish, and <b>plans</b> the work like your best PM — then tells you why. <span class="em">Software stores your business. A brain runs it with you.</span></p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://app.mageid.app">Start free — subs are free too</a>
+        <a class="btn ghost" href="#brain">Meet the brain</a>
+      </div>
+      <p class="microcta">No card to start · Pro $29/mo · First bid priced in minutes</p>
     </div>
-  </header>
-
-  <main>
-    <!-- =========================================================
-         HERO
-         ========================================================= -->
-    <section class="hero" id="top">
-      <div class="hero-grid" aria-hidden="true"></div>
-      <div class="hero-spotlight" aria-hidden="true"></div>
-
-      <div class="hero-content">
-        <div class="hero-copy">
-        <p class="eyebrow reveal"><span>●</span> Built for residential GCs &amp; remodelers · iOS · Android · Web</p>
-
-        <!-- A/B hero — 3 variants, all profit-first (launch-audit §1).
-             "control" is the default shown to non-JS visitors + SEO crawlers,
-             and is the ONLY <h1> on the page (§5.6 single-H1 fix); the A/B
-             alternates are <h2> so we keep exactly one H1 while the swapper
-             still toggles them by data-ab-variant. The script at the bottom
-             fires `hero_variant_viewed` to PostHog for per-arm conversion. -->
-        <h1 class="hero-title" data-ab-variant="control">
-          <span class="reveal-word">Win&nbsp;the&nbsp;bid.</span>
-          <span class="reveal-word"><em>Keep the profit.</em></span>
-        </h1>
-        <h2 class="hero-title" data-ab-variant="A" style="display:none">
-          <span class="reveal-word">You don&rsquo;t have a sales problem.</span>
-          <span class="reveal-word"><em>You have a margin problem.</em></span>
-        </h2>
-        <h2 class="hero-title" data-ab-variant="B" style="display:none">
-          <span class="reveal-word">Stop finding out a job lost money</span>
-          <span class="reveal-word"><em>after it&rsquo;s over.</em></span>
-        </h2>
-
-      <p class="lede reveal">
-        MAGE ID learns your real costs from finished jobs and gives every bid a <strong>Bid Confidence</strong>
-        score &mdash; priced off your own numbers, not a catalog &mdash; then warns you the moment a live job
-        starts losing margin. Voice capture in the field, Bid Confidence on the estimate, a live portal for
-        your client. Everything else organizes the chaos; we defend your profit.
-      </p>
-
-        <div class="cta-row reveal">
-          <a class="btn btn-primary magnetic" href="https://app.mageid.app">
-            <span>Start free</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </a>
-        <!-- App Store badge removed until the listing URL is confirmed live.
-             To re-add: <a class="btn btn-ghost magnetic" href="https://apps.apple.com/app/id6762229238">Download on the App Store</a> -->
-          <a class="btn btn-ghost" href="/demo.html">
-            <span>See how it works</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </a>
-        </div>
-
-        <p class="reveal" style="margin-top:16px;font-size:14px;line-height:1.5;color:rgba(244,239,230,0.62);">
-          One flat price. Your subs are free. No per-seat fees. No back office you have to pay by the head.
-        </p>
-        </div><!-- /hero-copy -->
-        <div class="hero-visual reveal" data-tilt>
-          <div class="phone"><img src="/screenshots/screens/02-henderson.png" alt="MAGE ID — a live job in the app" loading="lazy" /></div>
-        </div>
-      </div>
-
-      <div class="hero-meta reveal">
-        <div class="meta-tick"><span>01</span><p>No per-seat sub fees</p></div>
-        <div class="meta-tick"><span>02</span><p>Works offline on site</p></div>
-        <div class="meta-tick"><span>03</span><p>Live portal for clients</p></div>
-      </div>
-
-      <a class="scroll-hint" href="#problem" aria-label="Scroll">
-        <span></span>
-      </a>
-    </section>
-
-    <!-- =========================================================
-         KINETIC MARQUEE — editorial ticker (recent.design vibe)
-         ========================================================= -->
-    <section class="marquee" aria-hidden="true">
-      <div class="marquee-track">
-        <span class="marquee-item">Win the bid<span class="dot">✦</span></span>
-        <span class="marquee-item">Keep the profit<span class="dot">✦</span></span>
-        <span class="marquee-item">Priced off your own numbers<span class="dot">✦</span></span>
-        <span class="marquee-item">Margin alerts, live<span class="dot">✦</span></span>
-        <span class="marquee-item">Subs are free<span class="dot">✦</span></span>
-        <span class="marquee-item">Built for the field<span class="dot">✦</span></span>
-        <span class="marquee-item">Win the bid<span class="dot">✦</span></span>
-        <span class="marquee-item">Keep the profit<span class="dot">✦</span></span>
-        <span class="marquee-item">Priced off your own numbers<span class="dot">✦</span></span>
-        <span class="marquee-item">Margin alerts, live<span class="dot">✦</span></span>
-        <span class="marquee-item">Subs are free<span class="dot">✦</span></span>
-        <span class="marquee-item">Built for the field<span class="dot">✦</span></span>
-      </div>
-    </section>
-
-    <!-- =========================================================
-         PROBLEM INTERLUDE
-         ========================================================= -->
-    <section class="problem" id="problem">
-      <div class="problem-grid">
-        <h2 class="problem-headline reveal">
-          Most contractors find out a job lost money <br />
-          <em>when it&rsquo;s too late.</em>
-        </h2>
-        <p class="reveal" style="max-width:640px;margin:18px auto 4px;font-size:16px;line-height:1.6;color:rgba(244,239,230,0.7);">
-          The bid was a guess. The overrun stayed invisible until the final invoice. MAGE watches every
-          dollar against the plan in real time &mdash; and tells you while you can still fix it.
-        </p>
-        <div class="problem-chips" aria-hidden="true">
-          <span class="chip chip-blueprint">Plans.pdf</span>
-          <span class="chip chip-excel">Estimate v7.xlsx</span>
-          <span class="chip chip-email">RFI thread #42</span>
-          <span class="chip chip-photo">IMG_4821.HEIC</span>
-          <span class="chip chip-excel">Pay-App-Mar.xlsx</span>
-          <span class="chip chip-note">Punch list.docx</span>
-          <span class="chip chip-email">Change order?</span>
-          <span class="chip chip-blueprint">Floor-3-rev-C.pdf</span>
-          <span class="chip chip-photo">Site_043.JPG</span>
-          <span class="chip chip-excel">Schedule.gantt</span>
-          <span class="chip chip-note">Daily log.txt</span>
-          <span class="chip chip-email">Invoice chase</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- =========================================================
-         THE MOAT — three things no other contractor app does.
-         Profit-first positioning, placed above the feature pillars
-         so the differentiator lands before the feature tour. (§1)
-         ========================================================= -->
-    <style>
-      .moat { padding: 88px 0; background: #0E1116; border-top: 1px solid rgba(244,239,230,0.06); }
-      .moat .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-      .moat .eyebrow { color: #FF6A1A; }
-      .moat-h { font-family: var(--ff-serif); font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.08; letter-spacing: -0.02em; color: #F4EFE6; margin: 10px 0 8px; }
-      .moat-sub { font-size: 16px; color: rgba(244,239,230,0.62); max-width: 600px; margin: 0 0 40px; line-height: 1.55; }
-      .moat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-      .moat-card { background: #14181D; border: 1px solid rgba(244,239,230,0.08); border-radius: 18px; padding: 28px 24px; }
-      .moat-num { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 1px; color: #FF6A1A; }
-      .moat-card h3 { font-family: var(--ff-serif); font-size: 1.4rem; line-height: 1.15; color: #F4EFE6; margin: 12px 0 10px; }
-      .moat-card p { font-size: 14.5px; line-height: 1.6; color: rgba(244,239,230,0.66); margin: 0; }
-      .moat-card p b { color: #F4EFE6; font-weight: 600; }
-      @media (max-width: 820px) { .moat-grid { grid-template-columns: 1fr; } .moat { padding: 64px 0; } }
-    </style>
-    <section class="moat" id="moat">
-      <div class="wrap">
-        <p class="eyebrow reveal">The difference · Bid Confidence</p>
-        <h2 class="moat-h" data-inkbleed>See the number before you send the bid.</h2>
-        <p class="moat-sub reveal">Not "all-in-one." Everyone says that. Bid Confidence is the part that actually keeps you in business.</p>
-        <div class="moat-grid" style="grid-template-columns: 1fr 1fr; align-items:center;">
-          <div class="moat-card reveal" style="padding:0;overflow:hidden;">
-            <img src="/screenshots/screens/18-budget-evm.png" alt="MAGE ID Budget Dashboard — live CPI and cost variance, the margin-risk math behind Bid Confidence" loading="lazy" style="width:100%;display:block;" />
-            <p style="font-size:12px;color:rgba(244,239,230,0.5);margin:8px 12px;">The live Budget Dashboard: CPI, cost variance, and estimate-at-completion &mdash; the same margin math that scores every bid and fires the margin-risk alert.</p>
-          </div>
-          <div class="moat-card reveal">
-            <span class="moat-num" data-scramble>Bid Confidence</span>
-            <h3>Every bid, scored against <em>your</em> real costs.</h3>
-            <p>Each finished job teaches MAGE your true prices &mdash; your subs, your supply house, your market. Your next estimate gets a <b>Bid Confidence</b> score calibrated to your actual numbers, not a generic catalog. Then a live <b>margin-risk alert</b> flags erosion <b>during</b> the job &mdash; not after the final invoice tells you the profit is gone. Nobody else does this.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- =========================================================
-         PRODUCT PILLARS
-         ========================================================= -->
-    <section class="product" id="product">
-      <div class="product-intro wrap">
-        <div style="margin-bottom:16px"><span class="pill-shine"><span class="dot"></span>Now shipping</span></div>
-        <p class="eyebrow">The product</p>
-        <h2 class="product-intro-h">Three that matter most: voice field capture, Bid Confidence, the live client portal.</h2>
-        <p class="product-intro-sub">Voice capture on site, Bid Confidence on every estimate, and a portal your client actually opens &mdash; wrapped in a full production system of record. Every pillar below is shipping, not a roadmap. Scroll to tour the whole lifecycle.</p>
-      </div>
-
-      <!-- Pillar 01 · Plans -->
-      <article class="pillar pillar-dark">
-        <div class="pillar-inner wrap">
-          <div class="pillar-text">
-            <p class="eyebrow"><span class="num">01</span> Plans &amp; Markup</p>
-            <h3 class="pillar-h">Every markup, pin, and dimension. Everywhere.</h3>
-            <p class="pillar-sub">
-              Drop the roll. Upload PDFs or photos of drawings, calibrate the scale once,
-              and pin RFIs, photos, and punch items straight onto the sheet — synced across
-              every device in real time.
-            </p>
-            <ul class="pillar-bullets">
-              <li><b>Scale calibration.</b> Two taps, real feet and inches.</li>
-              <li><b>Linked pins.</b> Tap a pin → jump to the RFI, photo, or punch.</li>
-              <li><b>Offline-first.</b> Markups sync when you hit service again.</li>
-            </ul>
-          </div>
-          <div class="pillar-mockup" data-mock="plans">
-            <div class="phone">
-              <div class="phone-notch"></div>
-              <div class="phone-screen phone-screen-plans">
-                <div class="plan-sheet">
-                  <div class="plan-grid"></div>
-                  <div class="plan-pin" style="top:22%;left:28%" data-kind="rfi">42</div>
-                  <div class="plan-pin" style="top:58%;left:62%" data-kind="photo"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.14em;display:inline-block"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
-                  <div class="plan-pin" style="top:74%;left:34%" data-kind="punch">✓</div>
-                  <div class="plan-scale"><span>12'-6"</span></div>
-                </div>
-                <div class="phone-chrome">
-                  <span>Sheet A-301 · Level 3 RCP</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <!-- Pillar 02 · Estimates -->
-      <article class="pillar pillar-light pillar-reverse">
-        <div class="pillar-inner wrap">
-          <div class="pillar-text">
-            <p class="eyebrow"><span class="num">02</span> Estimates &amp; AI</p>
-            <h3 class="pillar-h">From PDF plans to signed estimate in minutes.</h3>
-            <p class="pillar-sub">
-              Drop a PDF of architect's drawings — the Gemini Vision-powered analyzer reads
-              every page, identifies scope, measures quantities, and prices it in 30–60 seconds.
-              Every line editable, every margin transparent, every correction trains the model
-              on the next job.
-            </p>
-            <ul class="pillar-bullets">
-              <li><b>AI Drawing Analyzer.</b> PDF in, priced estimate out. Standard or Pro Estimator depth.</li>
-              <li><b>AI Quantity Takeoff.</b> LF / SF / EA / CY measured from the sheet, ready to route into a buyout package.</li>
-              <li><b>Spec-Match.</b> One tap to match callout codes against the spec book.</li>
-              <li><b>Field verification.</b> Walk the site, verify or correct each AI row — corrections feed back into accuracy.</li>
-            </ul>
-          </div>
-          <div class="pillar-mockup" data-mock="estimate">
-            <div class="phone">
-              <div class="phone-notch"></div>
-              <div class="phone-screen phone-screen-light">
-                <div class="doc-header">
-                  <span class="doc-eyebrow">ESTIMATE · v7</span>
-                  <h4>Jefferson Ave Renovation</h4>
-                </div>
-                <div class="line-rows">
-                  <div class="line-row"><span>Framing, 2×6</span><span class="unit">1,240 lf</span><span class="amt">$8,420</span></div>
-                  <div class="line-row"><span>Drywall + tape</span><span class="unit">4,100 sf</span><span class="amt">$11,070</span></div>
-                  <div class="line-row"><span>Electrical rough-in</span><span class="unit">1 lot</span><span class="amt">$14,500</span></div>
-                  <div class="line-row highlight"><span>Plumbing fixtures</span><span class="unit">8 ea</span><span class="amt">$6,800</span></div>
-                  <div class="line-row"><span>Cabinetry</span><span class="unit">1 lot</span><span class="amt">$22,100</span></div>
-                </div>
-                <div class="doc-footer">
-                  <span>Subtotal</span>
-                  <span class="total">$62,890</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <!-- Pillar 03 · Field Ops -->
-      <article class="pillar pillar-dark">
-        <div class="pillar-inner wrap">
-          <div class="pillar-text">
-            <p class="eyebrow"><span class="num">03</span> Field Ops</p>
-            <h3 class="pillar-h">Daily reports, photos, RFIs, punch — from the hood of the truck.</h3>
-            <p class="pillar-sub">
-              Field data capture designed for gloves, sunlight, and spotty service.
-              Dictate daily logs, snap time-stamped photos, issue RFIs, and burn down
-              the punch — all offline-first.
-            </p>
-            <ul class="pillar-bullets">
-              <li><b>Voice-to-log.</b> Dictate the day in 30 seconds.</li>
-              <li><b>Geo-stamped photos.</b> Timestamp, location, sheet pin — automatic.</li>
-              <li><b>RFI + punch pipelines.</b> Issue, assign, close, archive.</li>
-            </ul>
-          </div>
-          <div class="pillar-mockup" data-mock="field">
-            <div class="phone">
-              <div class="phone-notch"></div>
-              <div class="phone-screen phone-screen-dark">
-                <div class="log-card">
-                  <div class="log-head">
-                    <span class="log-date">Mon · Apr 22</span>
-                    <span class="log-weather">72° · clear</span>
-                  </div>
-                  <p class="log-body">Poured slab on grade — NW corner. Framing crew arrives Wed. Inspector cleared rebar this AM.</p>
-                  <div class="log-meta">
-                    <span class="log-chip">4 photos</span>
-                    <span class="log-chip">2 RFIs</span>
-                    <span class="log-chip">1 delay</span>
-                  </div>
-                </div>
-                <div class="log-card log-card-punch">
-                  <div class="log-head">
-                    <span class="log-date">PUNCH · 3 open</span>
-                  </div>
-                  <div class="punch-row"><span class="dot"></span>Caulk window head — unit 4B</div>
-                  <div class="punch-row"><span class="dot"></span>Replace cracked tile — foyer</div>
-                  <div class="punch-row"><span class="dot"></span>Touch up paint — stair nosings</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <!-- Pillar 04 · Financials -->
-      <article class="pillar pillar-light pillar-reverse">
-        <div class="pillar-inner wrap">
-          <div class="pillar-text">
-            <p class="eyebrow"><span class="num">04</span> Financials</p>
-            <h3 class="pillar-h">Change orders, pay apps, invoices. Signed, sealed, billable.</h3>
-            <p class="pillar-sub">
-              AIA-style pay applications with retention math built in, change orders
-              your owner actually signs, and job-cost tracking that tells you which
-              projects are making money in real time.
-            </p>
-            <ul class="pillar-bullets">
-              <li><b>AIA G702 / G703.</b> Auto-generated. Export or e-sign.</li>
-              <li><b>Change orders.</b> Pricing, markup, approval trail — one screen.</li>
-              <li><b>Job costing.</b> Budget vs. actual, by cost code, live.</li>
-            </ul>
-          </div>
-          <div class="pillar-mockup" data-mock="financials">
-            <div class="phone">
-              <div class="phone-notch"></div>
-              <div class="phone-screen phone-screen-light">
-                <div class="doc-header">
-                  <span class="doc-eyebrow">PAY APP #04 · APRIL</span>
-                  <h4>Jefferson Ave Renovation</h4>
-                </div>
-                <div class="finance-bar">
-                  <div class="finance-track"><div class="finance-fill" style="width:68%"></div></div>
-                  <div class="finance-legend">
-                    <span>Billed to date</span>
-                    <span class="amt">$342,400 / $502,000</span>
-                  </div>
-                </div>
-                <div class="finance-grid">
-                  <div class="fg-cell"><span class="fg-label">This period</span><span class="fg-val">$48,200</span></div>
-                  <div class="fg-cell"><span class="fg-label">Retention</span><span class="fg-val">$17,120</span></div>
-                  <div class="fg-cell"><span class="fg-label">Change orders</span><span class="fg-val">+$12,400</span></div>
-                  <div class="fg-cell"><span class="fg-label">Net due</span><span class="fg-val hl">$31,080</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <!-- Pillar 05 · Client Experience -->
-      <article class="pillar pillar-dark">
-        <div class="pillar-inner wrap">
-          <div class="pillar-text">
-            <p class="eyebrow"><span class="num">05</span> Client Experience</p>
-            <h3 class="pillar-h">The portal homeowners actually open. Every day.</h3>
-            <p class="pillar-sub">
-              An AI-written daily update at the top, in their language. E-sign the contract.
-              Pick from three AI-curated options for every allowance. Closeout binder that lives
-              forever. Six languages. Zero apps to install. No login. <a href="/features/client-experience.html" style="color:#FF6A1A;text-decoration:underline">Tour the full experience →</a>
-            </p>
-            <ul class="pillar-bullets">
-              <li><b>AI Daily Digest.</b> The technical field report rewritten in plain English.</li>
-              <li><b>Six languages.</b> EN, ES, PT, ZH, VI, FR — picked for actual US construction demographics.</li>
-              <li><b>E-sign + selections.</b> Contract signed in-portal. Tile picked in-portal. Both ping you instantly.</li>
-              <li><b>Closeout binder forever.</b> Year three, the link still works.</li>
-            </ul>
-          </div>
-          <div class="pillar-mockup" data-mock="portal">
-            <div class="phone">
-              <div class="phone-notch"></div>
-              <div class="phone-screen phone-screen-portal">
-                <div class="portal-hero">
-                  <span class="portal-tag">PROJECT · LIVE</span>
-                  <h4>Jefferson Ave</h4>
-                  <p class="portal-progress"><span>Week 14 of 22</span><b>68% complete</b></p>
-                </div>
-                <div class="portal-tile">
-                  <span class="dot dot-amber"></span>
-                  <div>
-                    <p>Framing complete · Level 3</p>
-                    <span>2 hours ago</span>
-                  </div>
-                </div>
-                <div class="portal-tile">
-                  <span class="dot"></span>
-                  <div>
-                    <p>Pay App #04 ready for review</p>
-                    <span>Yesterday</span>
-                  </div>
-                </div>
-                <div class="portal-tile">
-                  <span class="dot"></span>
-                  <div>
-                    <p>8 new site photos</p>
-                    <span>Yesterday</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </article>
-    </section>
-
-    <!-- =========================================================
-         PROOF
-         ========================================================= -->
-  <section class="proof">
-    <div class="wrap">
-      <p class="eyebrow reveal">Why we built it</p>
-      <h2 class="proof-h reveal">Built by someone who's spent the last decade on the job.</h2>
-      <p class="reveal" style="max-width:660px;margin:18px auto 0;font-size:17px;line-height:1.65;color:rgba(244,239,230,0.82);">
-        I spent 10+ years in construction, and I got tired of software built for the back office and priced for the
-        enterprise. So I built MAGE ID to be the opposite: powerful enough to run the whole job, simple enough that anyone
-        on the crew can actually use it. One tool, for everyone on the project &mdash; not just the people behind a desk.
-      </p>
-      <p class="reveal" style="margin-top:16px;font-size:14px;color:rgba(244,239,230,0.55);">&mdash; Omir, Founder</p>
-      <!-- GC_QUOTES + USAGE_STATS: intentionally omitted until the owner has real quotes/numbers.
-           Do NOT add invented testimonials or stats here. -->
+    <div class="chartcard rv in" aria-hidden="true">
+      <div class="ch-top"><span class="ch-t">It learns · estimate accuracy on your jobs</span><span class="ch-v" id="accV">+0%</span></div>
+      <canvas id="accChart" width="520" height="200"></canvas>
+      <div class="ch-x"><span>JOB 1</span><span>JOB 15</span><span>JOB 30</span><span>JOB 50</span></div>
+      <p class="ch-note">Every finished job trains your numbers. By job 50, MAGE prices like <b>your best estimator on their best day</b> — automatically.</p>
     </div>
-  </section>
+  </div></section>
 
-    <!-- =========================================================
-         PRICING
-         ========================================================= -->
-    <section class="pricing" id="pricing">
-      <div class="wrap">
-        <p class="eyebrow reveal">Pricing</p>
-        <h2 class="pricing-h reveal">One flat price per GC. Your subs are free.</h2>
-        <p class="pricing-sub reveal">
-          Unlike the legacy players, we don't charge per-seat. Invite every sub, every foreman,
-          every estimator. One price covers the company.
-        </p>
-        <p class="pricing-sub reveal" style="margin-top:8px;">
-          The legacy platforms typically run several hundred dollars a month, billed per seat. MAGE is
-          <strong style="color:#FF6A1A;">from $29/mo &mdash; flat</strong> &mdash; for your whole company, subs free.
-        </p>
-
-        <div class="tier-grid">
-          <div class="tier tier-free reveal">
-            <p class="tier-name">Free</p>
-            <div class="tier-price"><span>$</span>0<small>/mo</small></div>
-            <p class="tier-cap">1 active project · solo operators</p>
-          <ul class="tier-list">
-            <li>1 active project</li>
-            <li>Daily reports + voice-to-log</li>
-            <li>Basic schedule (manual Gantt)</li>
-            <li>Geo-tagged photo capture</li>
-            <li>A few free AI trials (estimate, takeoff, voice)</li>
-            <li>Community bids · 2/mo</li>
-          </ul>
-            <a class="btn btn-ghost tier-cta" href="https://app.mageid.app">Start free</a>
-          </div>
-
-          <div class="tier tier-pro reveal">
-            <span class="tier-flag">Most teams</span>
-            <p class="tier-name">Pro</p>
-            <div class="tier-price"><span>$</span>29<small>/mo</small></div>
-            <p class="tier-cap">Unlimited projects · unlimited subs</p>
-          <ul class="tier-list">
-            <li>Everything in Free, plus &mdash;</li>
-            <li>Unlimited projects · subs always free</li>
-            <li>AI estimates + AI takeoff (drawings analyzer)</li>
-            <li>AIA G702/G703 pay apps</li>
-            <li>Change orders + job costing</li>
-            <li>Live client portals (custom-branded, 6 languages)</li>
-            <li>Cash-flow forecaster + EVM</li>
-            <li>Schedule Pro (CPM, baselines, weather-sensitive task flags)</li>
-            <li>Plans + markup &amp; pinning</li>
-            <li>Lien waivers + closeout binder</li>
-          </ul>
-            <a class="btn btn-primary tier-cta magnetic" href="https://app.mageid.app">Go Pro</a>
-          </div>
-
-          <div class="tier tier-business reveal">
-            <p class="tier-name">Business</p>
-            <div class="tier-price"><span>$</span>79<small>/mo</small></div>
-            <p class="tier-cap">Multi-project teams · field-heavy GCs</p>
-          <ul class="tier-list">
-            <li>Everything in Pro, plus &mdash;</li>
-            <li>Subcontractor management + sub portals</li>
-            <li>Safety management (JHAs, toolbox talks, incident/hazard, inspections, certs, OSHA-300)</li>
-            <li>WIP financial reporting</li>
-            <li>Crew / worker profiles — ID scan + verified certs</li>
-            <li>Punch list &amp; closeout binder</li>
-            <li>RFIs &amp; submittals workflow</li>
-            <li>Plan viewer (full sheet pinning)</li>
-            <li>Full budget dashboard</li>
-            <li>CSV export → QuickBooks / Sage / Foundation</li>
-            <li>Priority support + named CSM</li>
-          </ul>
-            <a class="btn btn-ghost tier-cta" href="https://app.mageid.app">Choose Business</a>
-          </div>
-
-          <div class="tier tier-enterprise reveal">
-            <p class="tier-name">Enterprise</p>
-            <div class="tier-price"><span>$</span>150<small>/mo</small></div>
-            <p class="tier-cap">For AI-heavy shops · takeoffs daily</p>
-          <ul class="tier-list">
-            <li>Everything in Business, plus &mdash;</li>
-            <li>150 daily AI requests <small>(vs 80)</small></li>
-            <li>40 advanced AI calls / day <small>(vs 18)</small></li>
-            <li>100 drawing analyses / mo <small>(vs 50)</small></li>
-            <li>200 photo analyses / mo <small>(vs 150)</small></li>
-            <li>300 PDF takeoff pages / mo <small>(vs 100)</small></li>
-            <li>Named CSM + priority support</li>
-          </ul>
-            <a class="btn btn-ghost tier-cta" href="https://app.mageid.app">Choose Enterprise</a>
-          </div>
+  <!-- THE BRAIN — anatomy -->
+  <section class="light sec" id="brain"><div class="wrap">
+    <div class="rv brainhdr"><p class="kick">The anatomy of the brain</p>
+    <h2 class="h">A brain does three things a filing cabinet never will.</h2>
+    <p class="seclede">Sight. Memory. Judgment. The others give you screens to type into. MAGE gives you the three faculties your best project manager runs on — working every job, and getting sharper each time.</p></div>
+    <div class="pillars">
+      <div class="pill rv">
+        <span class="no">01 · IT SEES</span>
+        <h3>Prices what you can't see.</h3>
+        <div class="mock" aria-hidden="true">
+          <img src="/screenshots/screens/19-walkthrough.png" alt="Cost X-Ray — MAGE prices hidden conditions from a job-site photo" loading="lazy" style="object-fit:cover;width:100%;height:100%;border-radius:8px" />
         </div>
+        <p><b>Cost X-Ray.</b> Point the camera; MAGE prices the hidden conditions on <b>your</b> learned costs — before they eat the job.</p>
       </div>
-    </section>
-
-    <!-- =========================================================
-         FINAL CTA
-         ========================================================= -->
-    <section class="cta-final" id="cta">
-      <div class="cta-grid" aria-hidden="true"></div>
-      <div class="wrap cta-inner">
-        <p class="eyebrow reveal">Let's get you building</p>
-        <h2 class="cta-h reveal">
-          Your first project is <em>free</em>. <br />
-          We&rsquo;ll set up your <em>cost database</em> with you.
-        </h2>
-      <p class="cta-sub reveal">
-        Your first project is free &mdash; $0 forever, no credit card. Start right now on the web, no download.
-      </p>
-      <div class="cta-row reveal" style="justify-content:center;">
-        <a class="btn btn-primary magnetic" href="https://app.mageid.app">
-          <span>Start free</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </a>
+      <div class="pill rv">
+        <span class="no">02 · IT REMEMBERS</span>
+        <h3>Gets smarter every job.</h3>
+        <div class="mock" aria-hidden="true">
+          <img src="/screenshots/screens/15-estimator.png" alt="MAGE ID estimator — cost catalog that learns from every finished job" loading="lazy" style="object-fit:cover;width:100%;height:100%;border-radius:8px" />
+        </div>
+        <p><b>The cost-learning engine.</b> Every estimate sharpens the next. A rival can copy a button; they can't copy <b>500 of your jobs.</b> The memory compounds — and it's yours alone.</p>
       </div>
-      <p class="cta-foot reveal" style="margin-top: 10px; font-size: 13px;">
-        Want us to set up your cost database with you? <a href="/access.html">Book concierge onboarding →</a>
-      </p>
+      <div class="pill rv">
+        <span class="no">03 · IT PLANS</span>
+        <h3>Thinks the job through.</h3>
+        <div class="mock" aria-hidden="true">
+          <img src="/screenshots/screens/05-schedule-gantt.png" alt="MAGE Copilot schedule — Gantt chart with explained reasoning and critical path" loading="lazy" style="object-fit:cover;width:100%;height:100%;border-radius:8px" />
+        </div>
+        <p><b>MAGE Copilot.</b> Talk; it builds the schedule and <b>shows its reasoning</b> — the assumptions, the risks, the critical path. Not a blank Gantt and a manual.</p>
       </div>
-    </section>
-  </main>
-
-  <!-- Reverse kinetic marquee — closing rhythm before the footer -->
-  <section class="marquee marquee-rev" aria-hidden="true">
-    <div class="marquee-track">
-      <span class="marquee-item">Estimating<span class="dot">✦</span></span>
-      <span class="marquee-item">Job costing<span class="dot">✦</span></span>
-      <span class="marquee-item">Scheduling<span class="dot">✦</span></span>
-      <span class="marquee-item">Daily reports<span class="dot">✦</span></span>
-      <span class="marquee-item">Change orders<span class="dot">✦</span></span>
-      <span class="marquee-item">Client portal<span class="dot">✦</span></span>
-      <span class="marquee-item">Estimating<span class="dot">✦</span></span>
-      <span class="marquee-item">Job costing<span class="dot">✦</span></span>
-      <span class="marquee-item">Scheduling<span class="dot">✦</span></span>
-      <span class="marquee-item">Daily reports<span class="dot">✦</span></span>
-      <span class="marquee-item">Change orders<span class="dot">✦</span></span>
-      <span class="marquee-item">Client portal<span class="dot">✦</span></span>
     </div>
-  </section>
+  </div></section>
 
-  <footer class="foot">
-    <div class="wrap foot-inner">
-      <div class="foot-brand">
-        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="28" height="28" />
-        <span>MAGE&nbsp;ID</span>
+  <!-- PAYOFF — the moment it pays for itself -->
+  <section class="dark sec payoff"><div class="wrap">
+    <div class="rv"><p class="kick">Sight, in dollars</p>
+    <h2 class="h">The moment it pays for itself.</h2>
+    <p class="seclede">A walk-through misses what's behind the wall. The brain doesn't — and it prices it <em>before</em> you sign away the margin.</p></div>
+    <div class="card rv" aria-hidden="true">
+      <div class="prow"><span>Master bath remodel — base estimate</span><span class="amt">$21,450</span></div>
+      <div class="flag">
+        <p class="ft">◎ Cost X-Ray caught what the walk-through didn't</p>
+        <div class="frow"><span>Subfloor rot under the tub</span><span class="amt">+ $1,400</span></div>
+        <div class="frow"><span>Pre-1990 wiring at the vanity</span><span class="amt">+ $820</span></div>
+        <div class="frow"><span>Failing main shutoff</span><span class="amt">+ $610</span></div>
       </div>
-      <nav class="foot-links">
-        <a href="/features/post-a-project.html">Post a Project</a>
-        <a href="/features/field.html">Field Ops</a>
-        <a href="/features/financials.html">Financials</a>
-        <a href="/features/scheduling.html">Scheduling</a>
-        <a href="/features/bids.html">Bid Discovery</a>
-        <a href="/features/marketplace.html">Marketplace</a>
-        <a href="/compare/procore.html">vs. Procore</a>
-        <a href="/buildertrend-alternative.html">vs. Buildertrend</a>
-        <a href="/jobtread-alternative.html">vs. JobTread</a>
-        <a href="/houzz-pro-alternative.html">vs. Houzz Pro</a>
-        <a href="/calculator.html">Margin Calculator</a>
-        <a href="/support.html">Support</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/terms.html">Terms</a>
-        <a href="/do-not-sell.html">Do Not Sell</a>
-      </nav>
-      <p class="foot-copy">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
+      <div class="total"><span class="l">Margin you'd have eaten — now priced into the bid</span><span class="v">$2,830<small>protected</small></span></div>
     </div>
-  </footer>
+  </div></section>
 
-  <!-- Motion -->
-  <!-- ──────────────────────────────────────────────────────────────
-       A/B hero test — sticky variant assignment via localStorage.
-       Three arms: control (Build it. Bill it.), A (Run your business
-       from your truck), B (Stop juggling 12 apps).
-       Runs BEFORE motion.js so the picked variant is what GSAP
-       reveals. Fires hero_variant_viewed to PostHog on each render
-       so we can compute conversion per arm (lead form submit + CTA
-       click are tracked separately).
-       To kill the test: localStorage.setItem('mage_ab_kill','1') — control
-       always renders. To force a variant for QA:
-       localStorage.setItem('mage_ab_hero','A').
-       ────────────────────────────────────────────────────────────── -->
-  <script id="ab-hero">
-    (function() {
-      try {
-        var ARMS = ['control', 'A', 'B'];
-        var KEY = 'mage_ab_hero';
-        var KILL = 'mage_ab_kill';
-        if (localStorage.getItem(KILL) === '1') return;
-        var picked = localStorage.getItem(KEY);
-        if (!picked || ARMS.indexOf(picked) === -1) {
-          picked = ARMS[Math.floor(Math.random() * ARMS.length)];
-          localStorage.setItem(KEY, picked);
+  <!-- INTERACTIVE COMPARE -->
+  <section class="dark sec" id="compare"><div class="wrap">
+    <div class="rv"><p class="kick">The honest comparison</p>
+    <h2 class="h">How's it different from what you use today?</h2>
+    <p class="seclede">Pick your current app. We'll be fair about what it does well — then show you the four things it structurally can't do, no matter how many features it ships.</p></div>
+
+    <div class="compare rv">
+      <div class="cmp-ctl">
+        <label for="cmpSel">Compare MAGE to</label>
+        <span class="selwrap"><select id="cmpSel" aria-label="Choose an app to compare"></select></span>
+      </div>
+      <div class="cmp-panel" id="cmpPanel"></div>
+    </div>
+  </div></section>
+
+  <!-- WHO -->
+  <section class="light sec who"><div class="wrap">
+    <div class="rv"><p class="kick">Built for</p>
+    <h2 class="h">The contractor who bids constantly and hates surprises.</h2></div>
+    <div class="card rv">
+      <p class="l">Your people</p>
+      <h3>Residential remodelers &amp; small-to-mid GCs · $500K–$5M a year.</h3>
+      <p>You live and die on the bid, and you've been burned by what you couldn't see behind the drywall. You're too small for Procore's enterprise machine and overcharged by Buildertrend for storage you don't need. MAGE is the first tool built to price your unknowns and get sharper with every job you finish.</p>
+    </div>
+  </div></section>
+
+  <!-- FAQ -->
+  <section class="light sec faq"><div class="wrap">
+    <div class="rv"><p class="kick">Straight answers</p>
+    <h2 class="h">The questions every contractor asks.</h2></div>
+    <div class="list rv">
+      <details open><summary>Do I have to throw out the tools I use now?</summary><p>No. Start with estimating and the learning engine — the part nobody else has. Keep what works, and let MAGE quietly take over pricing, job costing, and scheduling as it earns its place.</p></details>
+      <details><summary>How does it actually "learn my costs"?</summary><p>Every job you finish feeds your <b>real</b> numbers back into your catalog — automatically. No spreadsheets to maintain. Job #50 prices off 49 jobs of truth, not a generic price book.</p></details>
+      <details><summary>Is my cost data private?</summary><p>Yes. Your numbers are yours. The brain learns <b>your</b> business — it never hands your hard-won costs to the contractor down the street.</p></details>
+      <details><summary>Do my subs really use it for free?</summary><p>Yes. Subs join your projects free — you pay one flat price. No per-seat games.</p></details>
+      <details><summary>Does it work on my phone, on the jobsite?</summary><p>It's built for the field first: price hidden conditions from a photo, build a schedule by voice, and update the job from the truck.</p></details>
+      <details><summary>What does it cost to start?</summary><p>Free to try, no card. Pro is <b>$29/mo</b> — less than one mispriced bathroom, forever.</p></details>
+    </div>
+  </div></section>
+
+  <!-- PRICING -->
+  <section class="dark sec" id="pricing"><div class="wrap">
+    <div class="rv"><p class="kick">Pricing</p>
+    <h2 class="h">One flat price. Your subs join free.</h2>
+    <p class="seclede">Start on the house. Upgrade when MAGE is already saving you the difference.</p></div>
+    <div class="prices">
+      <div class="tier rv"><span class="tn">Free</span><div class="tp">$0</div><p class="td">Your first estimates, one project, and a real feel for the engine.</p></div>
+      <div class="tier feat rv"><span class="tag">Most contractors</span><span class="tn">Pro</span><div class="tp">$29<span>/mo</span></div><p class="td">Unlimited estimating, job costing, scheduling, invoicing — and the learning engine.</p></div>
+      <div class="tier rv"><span class="tn">Business</span><div class="tp">$79<span>/mo</span></div><p class="td">Cost X-Ray vision, crew &amp; resource tools, and higher AI limits for busy shops.</p></div>
+      <div class="tier rv"><span class="tn">Enterprise</span><div class="tp">$150<span>/mo</span></div><p class="td">Multi-crew scale, priority everything, and the deepest limits.</p></div>
+    </div>
+  </div></section>
+
+  <!-- FINALE -->
+  <section class="dark finale"><div class="wrap rv in">
+    <h2>Stop feeding software.<br>Start using a tool that <span class="amb">feeds you.</span></h2>
+    <p>Win the bid. Keep the margin. Let every job make the next one sharper.</p>
+    <div class="cta-row"><a class="btn primary" href="https://app.mageid.app">Start free</a><a class="btn ghost" href="#brain">Meet the brain</a></div>
+  </div></section>
+
+  <footer><div class="wrap">
+    <span>MAGE&nbsp;ID · Construction intelligence</span>
+    <span>© 2026 MAGE ID · <a href="https://mageid.app/" style="color:inherit">mageid.app</a></span>
+  </div></footer>
+
+</div>
+
+<script>
+(function(){
+  var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, {threshold:.15});
+  document.querySelectorAll('.rv:not(.in)').forEach(function(el){ io.observe(el); });
+
+  /* ---- hero accuracy chart ---- */
+  var cv = document.getElementById('accChart'), accV = document.getElementById('accV');
+  if(cv && cv.getContext){
+    var ctx = cv.getContext('2d');
+    function pts(){ var w=cv.width,h=cv.height,n=50,arr=[];
+      for(var i=0;i<n;i++){ var t=i/(n-1);
+        var base=1-Math.pow(1-t,1.9), noise=Math.sin(i*1.7)*0.02+Math.sin(i*0.5)*0.015;
+        var y=0.16+base*0.72+noise; arr.push({x:8+t*(w-16),y:h-12-Math.max(0,Math.min(1,y))*(h-30)}); }
+      return arr; }
+    var P=pts();
+    function grad(){ var g=ctx.createLinearGradient(0,0,cv.width,0); g.addColorStop(0,'#7fa0b2'); g.addColorStop(.55,'#e5811f'); g.addColorStop(1,'#f59a3b'); return g; }
+    function draw(k){ var w=cv.width,h=cv.height; ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=1;
+      for(var gy=0;gy<4;gy++){ var yy=12+gy*((h-24)/3); ctx.beginPath();ctx.moveTo(6,yy);ctx.lineTo(w-6,yy);ctx.stroke(); }
+      var last=Math.floor(k*(P.length-1)); if(last<1)last=1;
+      ctx.beginPath(); ctx.moveTo(P[0].x,h-12);
+      for(var i=0;i<=last;i++){ ctx.lineTo(P[i].x,P[i].y); } ctx.lineTo(P[last].x,h-12); ctx.closePath();
+      var ag=ctx.createLinearGradient(0,0,0,h); ag.addColorStop(0,'rgba(229,129,31,.22)'); ag.addColorStop(1,'rgba(229,129,31,0)'); ctx.fillStyle=ag; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(P[0].x,P[0].y);
+      for(var j=1;j<=last;j++){ ctx.lineTo(P[j].x,P[j].y); }
+      ctx.strokeStyle=grad(); ctx.lineWidth=2.5; ctx.lineJoin='round'; ctx.stroke();
+      var e=P[last]; ctx.beginPath(); ctx.arc(e.x,e.y,4.5,0,7); ctx.fillStyle='#f59a3b'; ctx.fill();
+      ctx.beginPath(); ctx.arc(e.x,e.y,8,0,7); ctx.strokeStyle='rgba(245,154,59,.35)'; ctx.lineWidth=2; ctx.stroke();
+      if(accV) accV.textContent='+'+Math.round(k*38)+'%'; }
+    if(rm){ draw(1); }
+    else{ var start=null; function step(ts){ if(!start)start=ts; var prog=Math.min(1,(ts-start)/1600);
+        draw(1-Math.pow(1-prog,3)); if(prog<1) requestAnimationFrame(step); }
+      setTimeout(function(){ requestAnimationFrame(step); },250); }
+  }
+
+  /* ---- interactive competitor comparison ---- */
+  var ROWS = [
+    {label:'Estimating & quotes'},
+    {label:'Scheduling'},
+    {label:'Learns your real costs — from finished jobs', moat:true},
+    {label:'Prices hidden conditions from a photo', moat:true},
+    {label:'A schedule that explains itself', moat:true},
+    {label:'Gets smarter every job', moat:true},
+    {label:'Starting price', price:true},
+  ];
+  // caps: 6 icon values (yes/part/no) then price string
+  var APPS = {
+    buildertrend:{name:'Buildertrend', good:'Client portal, scheduling, and doc storage for established builders.',
+      caps:['yes','yes','no','no','no','no'], price:'$$$',
+      verdict:'A deep — and pricey — filing cabinet. It organizes your business. It never learns it.'},
+    jobtread:{name:'JobTread', good:'Modern estimating with cost catalogs and a clean sales pipeline.',
+      caps:['yes','yes','no','no','no','no'], price:'$$',
+      verdict:'A sharp <em>static</em> catalog someone has to maintain. Your costs, in MAGE, are alive and self-updating.'},
+    procore:{name:'Procore', good:'Enterprise commercial projects, compliance, and deep integrations.',
+      caps:['part','yes','no','no','no','no'], price:'$$$$',
+      verdict:'Built for skyscrapers and priced like it. Overkill and overpriced for a $1–5M remodel.'},
+    jack:{name:'JACK', good:'Simple, mobile-first job management for small crews.',
+      caps:['yes','yes','no','no','no','no'], price:'$$',
+      verdict:'Same species as the rest — a system of record. The entire point of MAGE is that it\'s a brain.'},
+    houzz:{name:'Houzz Pro', good:'Lead generation and a polished client-facing project view.',
+      caps:['part','part','no','no','no','no'], price:'$$',
+      verdict:'Great for <em>finding</em> the job. Not built to price it, or run it, intelligently.'},
+    sheets:{name:'Spreadsheets & gut feel', good:'Free, flexible, and honestly what most contractors still run on.',
+      caps:['part','part','no','no','no','no'], price:'Free',
+      verdict:'You already do this math in your head. MAGE does it sharper — and, unlike you at 9pm, it remembers every job.'},
+  };
+  var ORDER = ['buildertrend','jobtread','procore','jack','houzz','sheets'];
+  var MAGE = {caps:['yes','yes','yes','yes','yes','yes'], price:'$29/mo'};
+
+  var sel = document.getElementById('cmpSel'), panel = document.getElementById('cmpPanel');
+  if(sel && panel){
+    ORDER.forEach(function(k){ var o=document.createElement('option'); o.value=k; o.textContent=APPS[k].name; sel.appendChild(o); });
+    function icon(v, us){
+      if(us) return '<span class="ic usY">✓</span>';
+      if(v==='yes') return '<span class="ic yes">✓</span>';
+      if(v==='part') return '<span class="ic part">~</span>';
+      return '<span class="ic no">✕</span>';
+    }
+    function lab(v, us){ if(us) return 'Yes'; return v==='yes'?'Yes':v==='part'?'Partial':'No'; }
+    function render(k){
+      var a=APPS[k];
+      var h='<div class="cmp-head">'
+        + '<div class="spacer"></div>'
+        + '<div class="them"><span class="cmp-name">'+a.name+'</span><span class="cmp-good"><b>Good at</b>'+a.good+'</span></div>'
+        + '<div class="us"><span class="cmp-name">MAGE</span><span class="cmp-good"><b>What it is</b>The brain — it prices, plans, and learns.</span></div>'
+        + '</div>';
+      ROWS.forEach(function(r, i){
+        if(r.price){
+          h+='<div class="cmp-row"><span class="cap">'+r.label+'</span>'
+            +'<span class="m them price"><span class="lab">'+a.price+'</span></span>'
+            +'<span class="m us price"><span class="lab">'+MAGE.price+'</span></span></div>';
+        } else {
+          var tv=a.caps[i];
+          h+='<div class="cmp-row'+(r.moat?' moat':'')+'"><span class="cap">'+r.label+'</span>'
+            +'<span class="m them">'+icon(tv,false)+'<span class="lab">'+lab(tv,false)+'</span></span>'
+            +'<span class="m us">'+icon('yes',true)+'<span class="lab">Yes</span></span></div>';
         }
-        // Reveal the picked variant, hide the others.
-        var heroes = document.querySelectorAll('[data-ab-variant]');
-        for (var i = 0; i < heroes.length; i++) {
-          heroes[i].style.display = heroes[i].dataset.abVariant === picked ? '' : 'none';
-        }
-        // Tell PostHog which arm this visitor sees + register as a
-        // super-property so every subsequent event is tagged with the
-        // arm. Enables full-funnel cohorting in PostHog Funnels query.
-        if (window.posthog) {
-          posthog.register({ hero_variant: picked });
-          posthog.capture('hero_variant_viewed', { variant: picked });
-        }
-      } catch (e) { /* swallow — control stays visible */ }
-    })();
-  </script>
-
-  <!-- Track CTA clicks per A/B arm. Captures every primary + ghost
-       button in the hero (Start free, See how it works, nav
-       Start free) so we can measure click-through per variant. -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      var ctas = document.querySelectorAll('.hero .btn, .nav-cta, .tier-cta, a[href="https://app.mageid.app"]');
-      for (var i = 0; i < ctas.length; i++) {
-        ctas[i].addEventListener('click', function(e) {
-          if (!window.posthog) return;
-          var label = (e.currentTarget.textContent || '').trim().slice(0, 40);
-          var href = e.currentTarget.getAttribute('href') || '';
-          posthog.capture('hero_cta_clicked', { label: label, href: href });
-        });
-      }
-    });
-  </script>
-
-  <!-- Keep the footer copyright year current so it never freezes at 2026. -->
-  <script>
-    (function () {
-      var y = document.getElementById('year');
-      if (y) y.textContent = new Date().getFullYear();
-    })();
-  </script>
-
-  <!-- Ink-bleed SVG filter (originkit-inspired, in-brand): the serif headline
-       settles like ink into paper. Crisp at rest (stdDeviation 0.4); motion.js
-       triggers the bleed on scroll-in. Reduced-motion shows it crisp. -->
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-    <filter id="mage-inkbleed" x="-15%" y="-15%" width="130%" height="130%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="0.4" result="b">
-        <animate id="mage-ink-anim" attributeName="stdDeviation" values="4;1.6;0.4" keyTimes="0;0.55;1" dur="1100ms" begin="indefinite" fill="freeze" />
-      </feGaussianBlur>
-      <feColorMatrix in="b" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 15 -6" result="goo" />
-      <feComposite in="SourceGraphic" in2="goo" operator="atop" />
-    </filter>
-  </svg>
-
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-  <script src="/motion.js" defer></script>
-  <script src="/nav-mobile.js" defer></script>
+      });
+      h+='<div class="cmp-verdict">'+a.verdict.replace(/<em>/g,'<b>').replace(/<\/em>/g,'</b>')+'</div>';
+      panel.innerHTML=h;
+    }
+    sel.addEventListener('change', function(){ render(sel.value); });
+    render(ORDER[0]);
+  }
+})();
+</script>
 </body>
 </html>
