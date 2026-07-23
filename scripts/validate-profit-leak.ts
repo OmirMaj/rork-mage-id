@@ -95,5 +95,38 @@ expect('drops items without a description', coerceLeakResult({ items: [{ trade: 
 expect('returns [] for junk input', coerceLeakResult('nope').length, 0);
 expect('caps the item count', coerceLeakResult({ items: Array.from({ length: 25 }, (_, i) => ({ description: `x${i}` })) }).length, MAX_LEAK_ITEMS);
 
+import { priceLeakItems } from '../utils/profitLeak/priceLeakItems';
+import type { CostBookEntry, CostDatabase } from '../utils/costDatabase';
+
+function entry(trade: string, unit: string, suggestedRate: number, confidence: CostBookEntry['confidence']): CostBookEntry {
+  return {
+    key: `${trade.toLowerCase()}|${unit.toLowerCase()}`, trade, unit,
+    sampleCount: 5, jobCount: 5, personalRate: suggestedRate, variability: 0.1,
+    bidBias: 0, baseline: suggestedRate, suggestedRate, confidence,
+    totalActual: 1000, lastSeen: '2026-01-01', samples: [],
+  };
+}
+function db(entries: CostBookEntry[]): CostDatabase {
+  return { entries, jobsAnalyzed: 5, tradesTracked: entries.length, overallBidAccuracy: 0.9, asOf: '2026-01-01' };
+}
+
+console.log('\nprofitLeak priceLeakItems:');
+
+const elecDb = db([entry('Electrical', 'ea', 400, 'high')]);
+const priced = priceLeakItems([{ description: 'Extra cans', trade: 'Electrical', unit: 'ea', quantity: 3, confidence: 'medium', reportQuote: 'added 3 cans' }], elecDb);
+expect('prices from history: rate × qty, rounded', priced[0].estimatedPrice, 1200);
+expect('carries the rate used', priced[0].rateUsed, 400);
+expect('carries the cost-book confidence', priced[0].rateConfidence, 'high');
+expect('marks fromHistory', priced[0].fromHistory, true);
+
+const noHist = priceLeakItems([{ description: 'Gas trench', trade: 'Plumbing', unit: 'lf', quantity: 40, confidence: 'high', reportQuote: 'trenched' }], elecDb);
+expect('no history → null price (never invents a number)', noHist[0].estimatedPrice, null);
+expect('no history → null rate confidence', noHist[0].rateConfidence, null);
+expect('no history → fromHistory false', noHist[0].fromHistory, false);
+
+const badQty = priceLeakItems([{ description: 'Panel work', trade: 'Electrical', unit: 'ea', quantity: NaN, confidence: 'low', reportQuote: '' }], elecDb);
+expect('bad quantity clamps to 1', badQty[0].estimatedPrice, 400);
+expect('empty input → empty output', priceLeakItems([], elecDb).length, 0);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
