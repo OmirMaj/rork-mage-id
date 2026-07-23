@@ -60,5 +60,40 @@ const bigItems = Array.from({ length: 400 }, (_, i) => li(`b${i}`, 'Finishes', `
 expect('caps output length', buildScopeSummary(proj(bigItems), []).length <= MAX_SCOPE_CHARS, true);
 expect('never throws on a bare project', typeof buildScopeSummary({} as Project, []) === 'string', true);
 
+import { buildLeakPrompt, coerceLeakResult, hashLeakText, LEAK_SCHEMA_HINT, MAX_LEAK_ITEMS } from '../utils/profitLeak/leakPrompt';
+
+console.log('\nprofitLeak buildLeakPrompt:');
+
+const report = {
+  workPerformed: 'Framed pantry wall. Also trenched 40 lf for the new gas line the owner asked for.',
+  issuesAndDelays: 'Inspector wants a second GFCI at the island.',
+  materialsDelivered: ['40 lf gas pipe'],
+};
+const prompt = buildLeakPrompt(summary, report);
+
+expect('prompt embeds the scope summary', prompt.includes('Henderson Kitchen'), true);
+expect('prompt embeds work performed', prompt.includes('trenched 40 lf'), true);
+expect('prompt embeds issues and delays', prompt.includes('second GFCI'), true);
+expect('prompt embeds materials delivered', prompt.includes('40 lf gas pipe'), true);
+expect('rule: compare only against provided scope', /ONLY against the scope provided/i.test(prompt), true);
+expect('rule: approved additions are in scope', /already approved additions/i.test(prompt), true);
+expect('rule: quote the exact report phrase', /exact phrase/i.test(prompt), true);
+expect('rule: prefer empty over speculation', /empty items list over speculation/i.test(prompt), true);
+expect('schema hint carries the item shape', Object.keys(LEAK_SCHEMA_HINT.items[0]).sort(), ['confidence', 'description', 'quantity', 'reportQuote', 'trade', 'unit']);
+
+console.log('\nprofitLeak hashLeakText:');
+expect('stable for identical input', hashLeakText('framed walls', 'none') === hashLeakText('framed walls', 'none'), true);
+expect('changes when text changes', hashLeakText('framed walls', 'none') === hashLeakText('framed walls today', 'none'), false);
+expect('ignores case and outer whitespace', hashLeakText('  Framed Walls ', 'None') === hashLeakText('framed walls', 'none'), true);
+
+console.log('\nprofitLeak coerceLeakResult:');
+const goodItem = { description: 'Gas line trench', trade: 'Plumbing', unit: 'lf', quantity: 40, confidence: 'high', reportQuote: 'trenched 40 lf' };
+expect('accepts the {items:[...]} envelope', coerceLeakResult({ items: [goodItem] }).length, 1);
+expect('accepts a bare array', coerceLeakResult([goodItem])[0].description, 'Gas line trench');
+expect('fills defaults for missing fields', coerceLeakResult({ items: [{ description: 'Extra paint' }] })[0], { description: 'Extra paint', trade: 'General', unit: 'ls', quantity: 1, confidence: 'low', reportQuote: '' });
+expect('drops items without a description', coerceLeakResult({ items: [{ trade: 'Electrical' }] }).length, 0);
+expect('returns [] for junk input', coerceLeakResult('nope').length, 0);
+expect('caps the item count', coerceLeakResult({ items: Array.from({ length: 25 }, (_, i) => ({ description: `x${i}` })) }).length, MAX_LEAK_ITEMS);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
