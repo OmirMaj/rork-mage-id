@@ -65,6 +65,7 @@ import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { buildPortalSnapshot } from '@/utils/portalSnapshot';
+import { loadBakedPassport } from '@/utils/passport/passportStore';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
@@ -313,10 +314,11 @@ export default function ProjectDetailScreen() {
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const [contract, selections, closeoutBinder] = await Promise.all([
+        const [contract, selections, closeoutBinder, homePassport] = await Promise.all([
           fetchActiveContract(project.id).catch(() => undefined),
           fetchSelectionsForProject(project.id).catch(() => undefined),
           fetchCloseoutBinder(project.id).catch(() => undefined),
+          loadBakedPassport(project.id).catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -335,6 +337,7 @@ export default function ProjectDetailScreen() {
           contract: contract ?? undefined,
           selections: selections ?? undefined,
           closeoutBinder: closeoutBinder ?? undefined,
+          homePassport: homePassport ?? undefined,
           // Not in scope on project-detail. Filled by client-portal-setup.
           aiaPayApps: [],
           commitments: [],

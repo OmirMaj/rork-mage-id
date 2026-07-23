@@ -18,7 +18,7 @@ import { mageAI } from '@/utils/mageAI';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import type { RFI, DailyFieldReport, ChangeOrder, Submittal, PunchItem } from '@/types';
 
-export type MemorySource = 'RFI' | 'Daily Report' | 'Change Order' | 'Submittal' | 'Punch Item';
+export type MemorySource = 'RFI' | 'Daily Report' | 'Change Order' | 'Submittal' | 'Punch Item' | 'Home Passport';
 
 export interface MemoryDoc {
   id: string;
