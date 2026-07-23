@@ -28,6 +28,8 @@ export interface PricedLine {
   lineTrueCost: number;
   confidence: ConfidenceLevel;
   fromHistory: boolean;
+  /** The cost-book entry key this line matched (after unit-alias normalization), or null. */
+  bookKey: string | null;
 }
 
 export type DriverKind =

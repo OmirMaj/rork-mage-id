@@ -13,7 +13,9 @@ export function realizedMarginPct(project: Project, commitments: Commitment[]): 
   if (revenue <= 0) return null;
   const report = computeEstimateActuals(project, commitments);
   if (!report.hasEstimate) return null;
-  const cost = report.totalActual > 0 ? report.totalActual : report.totalCommitted;
+  // A signed commitment is the FLOOR of what that scope cost — partial
+  // paid-to-date on a closed job must not read as a fat margin.
+  const cost = Math.max(report.totalActual, report.totalCommitted);
   if (cost <= 0) return null;
   const margin = (revenue - cost) / revenue;
   // Clamp to a sane band so one bad record can't dominate an average.

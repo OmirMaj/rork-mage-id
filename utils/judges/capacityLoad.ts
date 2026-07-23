@@ -1,7 +1,11 @@
 // utils/judges/capacityLoad.ts — cross-project crew load in a date window.
 // "Am I already booked solid when this job would run?" No cross-project leveling
-// exists today; this sums scheduled task-days that intersect the window against
-// the window's calendar-day capacity. Pure over Project[].
+// exists today; per project we take the UNION of its task spans (parallel tasks
+// within one job don't multiply how booked you are), then sum that coverage
+// across projects against the window's day capacity. Pure over Project[].
+// Approximation note: schedule startDay/durationDays are working-day indices;
+// mapping them to raw calendar days overstates density slightly — acceptable
+// for a coarse "how booked am I" signal, not for date math.
 import type { Project, ScheduleTask } from '@/types';
 import type { CapacitySummary } from './types';
 
@@ -38,18 +42,29 @@ export function computeCapacityLoad(projects: Project[], windowStartISO: string,
     if (p.status === 'completed' || p.status === 'closed' || p.status === 'draft') continue;
     const sched = p.schedule;
     if (!sched?.startDate || !Array.isArray(sched.tasks) || sched.tasks.length === 0) continue;
-    let projectOverlaps = false;
+    // Union of this project's task spans inside the window — parallel tasks in
+    // one job count once, not N times.
+    const intervals: { s: number; e: number }[] = [];
     for (const t of sched.tasks) {
       const w = taskWindow(sched.startDate, t);
       if (!w) continue;
-      const overlapStart = Math.max(w.start, winStart);
-      const overlapEnd = Math.min(w.end, winEnd);
-      if (overlapEnd > overlapStart) {
-        busyDays += (overlapEnd - overlapStart) / MS_PER_DAY;
-        projectOverlaps = true;
-      }
+      const s = Math.max(w.start, winStart);
+      const e = Math.min(w.end, winEnd);
+      if (e > s) intervals.push({ s, e });
     }
-    if (projectOverlaps) overlapping += 1;
+    if (intervals.length > 0) {
+      intervals.sort((a, b) => a.s - b.s);
+      let covered = 0;
+      let curS = intervals[0].s, curE = intervals[0].e;
+      for (let i = 1; i < intervals.length; i++) {
+        const iv = intervals[i];
+        if (iv.s <= curE) curE = Math.max(curE, iv.e);
+        else { covered += curE - curS; curS = iv.s; curE = iv.e; }
+      }
+      covered += curE - curS;
+      busyDays += covered / MS_PER_DAY;
+      overlapping += 1;
+    }
   }
 
   // Capacity = the window's days per concurrent project already running. With one

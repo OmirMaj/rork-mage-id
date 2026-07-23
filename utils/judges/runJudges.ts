@@ -29,8 +29,12 @@ export interface JudgesResult {
 export async function draftLinesFromScope(answers: WizardAnswers): Promise<{ lines: JudgesLine[]; summary: string } | null> {
   const res = await mageAISmart(buildEstimatePrompt(answers), estimateSchema, scopeCacheKey(answers));
   if (!res.success || !res.data || !Array.isArray(res.data.lineItems)) return null;
-  const lines: JudgesLine[] = res.data.lineItems.map((li: { category: string; unit: string; quantity: number; unitCost: number }) => ({
-    category: li.category, unit: li.unit, quantity: li.quantity, bidUnit: li.unitCost,
+  const lines: JudgesLine[] = res.data.lineItems.map((li: { category: string; unit: string; quantity: number; unitCost: number; total: number }) => ({
+    category: li.category,
+    unit: li.unit,
+    quantity: li.quantity,
+    // Lump-sum lines sometimes arrive as unitCost 0 with the money in `total`.
+    bidUnit: li.unitCost > 0 ? li.unitCost : (li.total > 0 && li.quantity > 0 ? li.total / li.quantity : 0),
   }));
   return { lines, summary: typeof res.data.summary === 'string' ? res.data.summary : '' };
 }

@@ -38,5 +38,38 @@ const noSched = { id: 'C', name: 'C', status: 'in_progress' } as unknown as Proj
 const none = computeCapacityLoad([noSched], '2026-01-01', '2026-01-31');
 expect('no-schedule project → 0 load', none.loadPct, 0);
 
+// Parallel tasks in ONE project count once (interval union), not N times.
+// Two identical 15-day tasks over a 30-day window → covered 15 → loadPct 0.5.
+const parallel = proj('D', 'in_progress', '2026-01-01', [
+  { startDay: 1, durationDays: 15 },
+  { startDay: 1, durationDays: 15 },
+]);
+const par = computeCapacityLoad([parallel], '2026-01-01', '2026-01-31');
+expect('parallel tasks union, loadPct 0.5', Math.round(par.loadPct * 1000), 500);
+expect('parallel tasks: not booked solid', par.bookedSolid, false);
+expect('parallel tasks: one project', par.overlappingProjects, 1);
+
+// Adjacent sequential tasks merge into continuous coverage.
+// Days 1–10 + 11–20 over a 30-day window → covered 20 → loadPct 2/3.
+const sequential = proj('E', 'in_progress', '2026-01-01', [
+  { startDay: 1, durationDays: 10 },
+  { startDay: 11, durationDays: 10 },
+]);
+const seq = computeCapacityLoad([sequential], '2026-01-01', '2026-01-31');
+expect('sequential tasks merge, loadPct 2/3', Math.round(seq.loadPct * 1000), 667);
+
+// Half-open boundary: a task ENDING exactly at window start does not overlap.
+const before = proj('F', 'in_progress', '2025-12-27', [{ startDay: 1, durationDays: 5 }]);
+const b = computeCapacityLoad([before], '2026-01-01', '2026-01-31');
+expect('task ending at window start → no overlap', b.loadPct, 0);
+expect('boundary task → no overlapping project', b.overlappingProjects, 0);
+
+// bookedSolid threshold: exactly 0.85 is booked solid.
+// 17 busy days over a 20-day window (Jan 1 → Jan 21) → 0.85.
+const tight = proj('G', 'in_progress', '2026-01-01', [{ startDay: 1, durationDays: 17 }]);
+const t85 = computeCapacityLoad([tight], '2026-01-01', '2026-01-21');
+expect('loadPct pinned at 0.85', Math.round(t85.loadPct * 1000), 850);
+expect('bookedSolid at exactly 0.85', t85.bookedSolid, true);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
