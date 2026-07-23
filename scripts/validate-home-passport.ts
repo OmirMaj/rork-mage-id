@@ -9,6 +9,9 @@ import type {
   SelectionCategory, SelectionOption, Warranty, Commitment, Subcontractor, ProjectPhoto,
 } from '../types';
 import type { MaintenanceItem } from '../utils/closeoutBinderEngine';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let pass = 0, fail = 0;
 function expect<T>(name: string, got: T, want: T) {
@@ -251,6 +254,25 @@ const p2 = buildAskHomePrompt('anything', []);
 expectTrue('empty docs → still instructs not-found', p2.includes(ASK_HOME_NOT_FOUND));
 expectTrue('empty docs → explicit no-records marker', p2.includes('(no records found for this question)'));
 expectTrue('question is trimmed', buildAskHomePrompt('  hi  ', []).endsWith('HOMEOWNER QUESTION: hi'));
+
+// ── portal-ask-home ↔ askHomePrompt sync ────────────────────────────
+// Edge functions can't import app code, so portal-ask-home carries a copy of
+// the grounding prompt. These checks pin the copy to the canonical version.
+
+console.log('\nportal-ask-home sync validation:');
+
+// fileURLToPath + join, matching validate-app-slop.ts — import.meta.dir is
+// Bun-only (tsc rejects it) and the repo path contains a space.
+const edgeSrc = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../supabase/functions/portal-ask-home/index.ts'),
+  'utf8',
+);
+expectTrue('edge fn embeds the exact not-found line', edgeSrc.includes(ASK_HOME_NOT_FOUND));
+expectTrue('edge fn keeps the ONLY-grounding rule', edgeSrc.includes('ONLY the home records'));
+expectTrue('edge fn never logs the access token', !/console\.(log|warn|error)\([^)]*accessToken/i.test(edgeSrc));
+expectTrue('edge fn uses constant-time token compare', edgeSrc.includes('constantTimeEqual'));
+expectTrue('edge fn enforces the 20/day portal cap', edgeSrc.includes('PORTAL_DAILY_LIMIT = 20'));
+expectTrue('edge fn filters to homeowner-safe sources', edgeSrc.includes('ALLOWED_SOURCES'));
 
 // ── summary ─────────────────────────────────────────────────────────
 console.log(`\n${pass} passed, ${fail} failed`);
