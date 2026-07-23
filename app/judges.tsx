@@ -151,7 +151,8 @@ function JudgesInner() {
         category: item.category,
         unit: item.unit,
         quantity: item.quantity,
-        bidUnit: item.unitPrice,
+        // Bulk-priced items are actually costed at bulkPrice, not unitPrice.
+        bidUnit: item.usesBulk && item.bulkPrice > 0 ? item.bulkPrice : item.unitPrice,
       }));
       // Derive targetMargin from globalMarkup: m/(1+m) with m = globalMarkup/100
       const m = (est.globalMarkup ?? 0) / 100;
@@ -240,7 +241,7 @@ function JudgesInner() {
       <View style={styles.modeRow}>
         <TouchableOpacity
           style={[styles.modeBtn, mode === 'describe' && styles.modeBtnActive]}
-          onPress={() => setMode('describe')}
+          onPress={() => { setMode('describe'); setError(null); }}
           activeOpacity={0.8}
         >
           <Scale size={14} color={mode === 'describe' ? Colors.textOnAccent : t.textSecondary} strokeWidth={1.75} />
@@ -248,7 +249,7 @@ function JudgesInner() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.modeBtn, mode === 'pick' && styles.modeBtnActive]}
-          onPress={() => setMode('pick')}
+          onPress={() => { setMode('pick'); setError(null); }}
           activeOpacity={0.8}
         >
           <List size={14} color={mode === 'pick' ? Colors.textOnAccent : t.textSecondary} strokeWidth={1.75} />
@@ -392,7 +393,7 @@ function JudgesInner() {
                     <View style={styles.projectRowContent}>
                       <Text style={styles.projectRowName} numberOfLines={1}>{p.name}</Text>
                       <Text style={styles.projectRowSub}>
-                        {est.items.length} line{est.items.length === 1 ? '' : 's'} · ${Math.round(est.grandTotal).toLocaleString()}
+                        {est.items.length} line{est.items.length === 1 ? '' : 's'} · ${Number.isFinite(est.grandTotal) ? Math.round(est.grandTotal).toLocaleString() : '0'}
                       </Text>
                     </View>
                     {loading
