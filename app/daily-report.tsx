@@ -12,6 +12,7 @@ import {
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
   Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
+  ScanSearch,
 } from 'lucide-react-native';
 import { MageAIMark, MageDailyReport } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -32,7 +33,7 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
-import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress } from '@/types';
+import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, LeakScanRecord } from '@/types';
 import { PHASE_COLORS } from '@/utils/scheduleEngine';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
@@ -45,6 +46,11 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import { buildScopeSummary } from '@/utils/profitLeak/scopeSummary';
+import { buildLeakPrompt, coerceLeakResult, hashLeakText, LEAK_SCHEMA_HINT } from '@/utils/profitLeak/leakPrompt';
+import { priceLeakItems } from '@/utils/profitLeak/priceLeakItems';
+import { mageAI } from '@/utils/mageAI';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -57,10 +63,11 @@ export default function DailyReportScreen() {
   const styles = useThemedStyles(makeStyles);
   const hsStyles = useThemedStyles(makeHsStyles);
   const voiceStyles = useThemedStyles(makeVoiceStyles);
+  const leakStyles = useThemedStyles(makeLeakStyles);
   const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
-    getPhotosForProject,
+    getPhotosForProject, projects, commitments, getChangeOrdersForProject,
   } = useProjects();
   const { tier } = useSubscription();
   const { isFree } = useTierAccess();
@@ -125,6 +132,8 @@ export default function DailyReportScreen() {
   const [hsPublished, setHsPublished] = useState<boolean>(existingReport?.homeownerSummaryPublished ?? false);
   const [hsGenerating, setHsGenerating] = useState<boolean>(false);
   const [hsGeneratedAt, setHsGeneratedAt] = useState<string | undefined>(existingReport?.homeownerSummaryGeneratedAt);
+  const [leakScan, setLeakScan] = useState<LeakScanRecord | null>(existingReport?.leakScan ?? null);
+  const [leakScanning, setLeakScanning] = useState<boolean>(false);
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
   const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? {
     hasIncident: false,
@@ -524,6 +533,73 @@ export default function DailyReportScreen() {
     }
   }, [project, workPerformed, manpower, materialsDelivered, issuesAndDelays, photos, weather, existingReport, settings]);
 
+  // ─── Profit Leak scan ───
+  const currentLeakHash = useMemo(() => hashLeakText(workPerformed, issuesAndDelays), [workPerformed, issuesAndDelays]);
+  const leakIsStale = !!leakScan && leakScan.textHash !== currentLeakHash;
+
+  const handleLeakScan = useCallback(async () => {
+    if (!project) return;
+    if (!project.linkedEstimate?.items?.length) {
+      Alert.alert('No estimate to compare against', 'The scan flags work outside your estimate scope. Link an estimate to this project first.');
+      return;
+    }
+    if (!workPerformed.trim() && !issuesAndDelays.trim()) {
+      Alert.alert('Nothing to scan yet', "Fill in the work performed (or issues) first — that's the text the scan reads.");
+      return;
+    }
+    const limit = await checkAILimit(tier, 'fast', 'profitLeak');
+    if (!limit.allowed) { setUpgradeLimit(limit); return; }
+
+    setLeakScanning(true);
+    try {
+      const scope = buildScopeSummary(project, getChangeOrdersForProject(project.id));
+      const hash = hashLeakText(workPerformed, issuesAndDelays);
+      const res = await mageAI({
+        prompt: buildLeakPrompt(scope, { workPerformed, issuesAndDelays, materialsDelivered }),
+        tier: 'fast',
+        maxTokens: 1200,
+        feature: 'profitLeak',
+        schemaHint: LEAK_SCHEMA_HINT,
+        cacheKey: `leak_${stableReportId}_${hash}`,
+        cacheHours: 720,
+      });
+      if (!res.success) {
+        Alert.alert('Scan failed', res.error ?? 'Try again in a moment.');
+        return;
+      }
+      const items = coerceLeakResult(res.data);
+      const costDb = buildCostDatabase(projects, commitments);
+      const record: LeakScanRecord = {
+        items: priceLeakItems(items, costDb),
+        scannedAt: new Date().toISOString(),
+        textHash: hash,
+      };
+      setLeakScan(record);
+      if (existingReport) updateDailyReport(existingReport.id, { leakScan: record });
+      if (!res.fromCache) void recordAIUsage('fast', 'profitLeak');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } finally {
+      setLeakScanning(false);
+    }
+  }, [project, workPerformed, issuesAndDelays, materialsDelivered, tier, projects, commitments, getChangeOrdersForProject, existingReport, updateDailyReport, stableReportId]);
+
+  const handleDraftLeakCO = useCallback(() => {
+    if (!projectId || !leakScan || leakScan.items.length === 0) return;
+    const totalPriced = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
+    const when = new Date(reportDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const description = `Out-of-scope work from daily report ${when}: ` +
+      leakScan.items.map(it => `${it.description}${it.reportQuote ? ` ("${it.reportQuote}")` : ''}`).join('; ');
+    router.push({
+      pathname: '/change-order' as any,
+      params: {
+        projectId,
+        prefillReason: 'out_of_scope',
+        prefillDescription: description,
+        prefillAmount: String(totalPriced),
+      },
+    });
+  }, [projectId, leakScan, reportDate, router]);
+
   const totalManpower = useMemo(() => {
     return manpower.reduce((sum, m) => sum + m.headcount, 0);
   }, [manpower]);
@@ -588,6 +664,7 @@ export default function DailyReportScreen() {
         homeownerSummary: homeownerSummary.trim() || undefined,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublished,
+        leakScan: leakScan ?? undefined,
       });
       // Mirror NEW photos into the project gallery on edit too — previously
       // this only happened in the create branch, so photos added while
@@ -630,6 +707,7 @@ export default function DailyReportScreen() {
         homeownerSummary: homeownerSummary.trim() || undefined,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublished,
+        leakScan: leakScan ?? undefined,
         createdAt: now,
         updatedAt: now,
       };
@@ -650,7 +728,7 @@ export default function DailyReportScreen() {
       nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, leakScan, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -1341,6 +1419,80 @@ export default function DailyReportScreen() {
             )}
           </View>
 
+          {/* Profit Leak — scan today's notes against the estimate scope for
+              unbilled out-of-scope work. AI identifies; the cost book prices. */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <ScanSearch size={18} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.sectionTitle}>Profit Leak</Text>
+              {leakScan && !leakIsStale && (
+                <View style={[leakStyles.badge, leakScan.items.length > 0 ? leakStyles.badgeFlags : leakStyles.badgeClean]}>
+                  <Text style={[leakStyles.badgeText, leakScan.items.length > 0 ? leakStyles.badgeTextFlags : leakStyles.badgeTextClean]}>
+                    {leakScan.items.length > 0 ? `${leakScan.items.length} ${leakScan.items.length === 1 ? 'FLAG' : 'FLAGS'}` : 'SCANNED'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={leakStyles.helperText}>
+              Scans today&apos;s notes against the estimate scope and prior change orders. Flags work you haven&apos;t billed — priced from your own cost history.
+            </Text>
+
+            <TouchableOpacity
+              style={[leakStyles.scanBtn, leakScanning && leakStyles.scanBtnDisabled]}
+              onPress={handleLeakScan}
+              disabled={leakScanning}
+              testID="leak-scan"
+            >
+              {leakScanning ? (
+                <>
+                  <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={leakStyles.scanBtnText}>Reading today&apos;s report…</Text>
+                </>
+              ) : (
+                <>
+                  <MageAIMark size={14} color={themeColors.accent} />
+                  <Text style={leakStyles.scanBtnText}>
+                    {leakScan ? (leakIsStale ? 'Notes changed — re-scan' : 'Re-scan for unbilled work') : 'Scan for unbilled work'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {leakScan && leakScan.items.length === 0 && (
+              <View style={leakStyles.cleanRow}>
+                <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
+                <Text style={leakStyles.cleanText}>Nothing out of scope detected in this report.</Text>
+              </View>
+            )}
+
+            {leakScan && leakScan.items.length > 0 && (
+              <View style={leakStyles.resultBlock}>
+                {leakScan.items.map((item, i) => (
+                  <View key={i} style={leakStyles.itemRow}>
+                    <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} style={{ marginTop: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={leakStyles.itemDesc}>{item.description}</Text>
+                      {!!item.reportQuote && <Text style={leakStyles.itemQuote}>&ldquo;{item.reportQuote}&rdquo;</Text>}
+                      <Text style={leakStyles.itemMeta}>
+                        {item.trade} · {item.estimatedPrice !== null
+                          ? `~$${item.estimatedPrice.toLocaleString('en-US')} from your cost history`
+                          : 'No price history — price it yourself'} · {item.confidence} confidence
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+                <TouchableOpacity style={leakStyles.draftCoBtn} onPress={handleDraftLeakCO} testID="leak-draft-co">
+                  <Text style={leakStyles.draftCoBtnText}>
+                    {(() => {
+                      const t = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
+                      return t > 0 ? `Draft change order · ~$${t.toLocaleString('en-US')}` : 'Draft change order';
+                    })()}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
           {/* Homeowner-friendly summary — AI generates from technical fields,
               GC reviews + edits, then publishes to the portal as the daily
               "Latest update" panel. The toggle for what shows in portal is
@@ -1967,6 +2119,32 @@ const makeVoiceStyles = (themeColors: ThemeColors) => StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   rowLabel: { width: 90, fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
   rowValue: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
+});
+
+const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  helperText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full, marginLeft: 'auto' },
+  badgeClean: { backgroundColor: 'rgba(30,142,74,0.12)' },
+  badgeFlags: { backgroundColor: 'rgba(233,168,38,0.16)' },
+  badgeText: { fontSize: 9, fontWeight: '800' as const, letterSpacing: 0.6 },
+  badgeTextClean: { color: themeColors.success },
+  badgeTextFlags: { color: Colors.warning },
+  scanBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    paddingHorizontal: 12, paddingVertical: 11, borderRadius: 11,
+    backgroundColor: themeColors.accent + '0F', borderWidth: 1, borderColor: themeColors.accent + '40',
+  },
+  scanBtnDisabled: { opacity: 0.7 },
+  scanBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  cleanRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 12 },
+  cleanText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
+  resultBlock: { marginTop: 12, gap: 10 },
+  itemRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8 },
+  itemDesc: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  itemQuote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, fontStyle: 'italic' as const, marginTop: 2 },
+  itemMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
+  draftCoBtn: { marginTop: 4, paddingVertical: 11, borderRadius: 11, alignItems: 'center' as const, backgroundColor: themeColors.accent },
+  draftCoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
 });
 
 const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({

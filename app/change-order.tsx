@@ -127,6 +127,7 @@ function ChangeOrderInner() {
     existingCO?.reason ?? (
       prefillReason === 'allowance_overage' ? 'Allowance overage'
       : prefillReason === 'client_request' ? 'Client request'
+      : prefillReason === 'out_of_scope' ? 'Out-of-scope work (from daily report)'
       : ''
     )
   );
@@ -139,7 +140,7 @@ function ChangeOrderInner() {
   const seedFromOverage: ChangeOrderLineItem[] | null = !existingCO && prefillAmount && Number(prefillAmount) > 0
     ? [{
         id: 'overage-prefill',
-        name: 'Allowance overage',
+        name: prefillReason === 'out_of_scope' ? 'Out-of-scope work' : 'Allowance overage',
         description: prefillDescription ?? 'Allowance overage',
         quantity: 1,
         unit: 'ls',
