@@ -1440,6 +1440,13 @@ export interface DailyFieldReport {
   homeownerSummary?: string;
   homeownerSummaryGeneratedAt?: string;
   homeownerSummaryPublished?: boolean;
+  /**
+   * Profit Leak scan result — AI-flagged out-of-scope work, priced from the
+   * learned cost book. Additive/LOCAL-ONLY: the daily_reports table has no
+   * leak_scan column, so this persists via the local report store only and
+   * must NOT be added to the supabaseWrite payloads in ProjectContext.
+   */
+  leakScan?: LeakScanRecord;
   createdAt: string;
   updatedAt: string;
   // Client portal send/recall lifecycle — Phase 1.
