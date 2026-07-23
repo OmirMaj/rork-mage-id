@@ -57,10 +57,14 @@ export function checkSubBid(commitment: Commitment, project: Project, costDb: Co
     if (links.length > 0) {
       const byId = new Map(items.map(it => [it.materialId, it]));
       const linked = links.map(id => byId.get(id)).filter((it): it is LinkedEstimateItem => !!it);
-      if (linked.length > 0) {
+      // Only use linked-items basis when ALL linked ids resolved — a partial
+      // resolution means some estimate lines were deleted/regenerated, so the
+      // survivors' sum does NOT represent the full expected cost.
+      if (linked.length === links.length && linked.length > 0) {
         basis = 'linked_items';
         expected = linked.reduce((sum, it) => sum + (it.lineTotal || 0), 0);
       }
+      // If some links failed to resolve, fall through to trade_match (basis B).
     }
 
     if (!basis) {

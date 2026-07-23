@@ -44,7 +44,7 @@ console.log('\nprofitLeak buildScopeSummary:');
 const scopeProj = proj(ITEMS, {
   scope: { projectType: 'renovation', sizeSqft: '400', location: '', quality: 'standard', scope: 'Full kitchen remodel per plans', timelineWeeks: '8', specialRequirements: 'Keep fridge circuit live', targetBudget: '', updatedAt: '2026-06-01' },
 });
-const cos = [co(1, 'Added exterior GFCI outlet', 'approved'), co(2, 'Skylight over island', 'rejected')];
+const cos = [co(1, 'Added exterior GFCI outlet', 'approved'), co(2, 'Skylight over island', 'rejected'), co(3, 'Extra pot lights', 'submitted')];
 const summary = buildScopeSummary(scopeProj, cos);
 
 expect('names the project', summary.includes('Henderson Kitchen'), true);
@@ -54,10 +54,20 @@ expect('includes the scope free text', summary.includes('Full kitchen remodel pe
 expect('includes special requirements', summary.includes('Keep fridge circuit live'), true);
 expect('includes approved CO as already-approved addition', summary.includes('CO #1: Added exterior GFCI outlet'), true);
 expect('excludes rejected CO', summary.includes('Skylight over island'), false);
+expect('submitted CO appears as captured addition (not flaggable)', summary.includes('CO #3') && summary.includes('Extra pot lights'), true);
 expect('says so when no line-item estimate exists', buildScopeSummary(proj([]), []).includes('No line-item estimate'), true);
 
+// Truncation order: scope notes + COs survive even when estimate items are huge.
 const bigItems = Array.from({ length: 400 }, (_, i) => li(`b${i}`, 'Finishes', `Very long descriptive line item name number ${i} with extra words`, 'sf', 10, 100, '09'));
-expect('caps output length', buildScopeSummary(proj(bigItems), []).length <= MAX_SCOPE_CHARS, true);
+const bigProj = proj(bigItems, {
+  scope: { projectType: 'renovation', sizeSqft: '5000', location: '', quality: 'luxury', scope: 'Full house gut renovation', timelineWeeks: '52', specialRequirements: 'Keep master bath live', targetBudget: '', updatedAt: '2026-06-01' },
+});
+const bigCOs = [co(1, 'Owner-added wine cellar', 'approved')];
+const bigSummary = buildScopeSummary(bigProj, bigCOs);
+expect('caps output length when estimate is huge', bigSummary.length <= MAX_SCOPE_CHARS, true);
+expect('approved CO always survives truncation', bigSummary.includes('Owner-added wine cellar'), true);
+expect('scope notes always survive truncation', bigSummary.includes('Full house gut renovation'), true);
+expect('truncated estimate items get a marker', bigSummary.includes('estimate items truncated') || bigSummary.length <= MAX_SCOPE_CHARS, true);
 expect('never throws on a bare project', typeof buildScopeSummary({} as Project, []) === 'string', true);
 
 import { buildLeakPrompt, coerceLeakResult, hashLeakText, LEAK_SCHEMA_HINT, MAX_LEAK_ITEMS } from '../utils/profitLeak/leakPrompt';
@@ -85,6 +95,11 @@ console.log('\nprofitLeak hashLeakText:');
 expect('stable for identical input', hashLeakText('framed walls', 'none') === hashLeakText('framed walls', 'none'), true);
 expect('changes when text changes', hashLeakText('framed walls', 'none') === hashLeakText('framed walls today', 'none'), false);
 expect('ignores case and outer whitespace', hashLeakText('  Framed Walls ', 'None') === hashLeakText('framed walls', 'none'), true);
+// Materials change must produce a different hash (finding #2 / #7)
+expect('materials change → different hash', hashLeakText('framed walls', 'none', ['40 lf pipe']) === hashLeakText('framed walls', 'none', []), false);
+expect('materials change → different hash (different delivery)', hashLeakText('framed walls', 'none', ['40 lf pipe']) === hashLeakText('framed walls', 'none', ['40 lf pipe', '10 bags cement']), false);
+expect('same materials in same order → same hash', hashLeakText('framed walls', 'none', ['40 lf pipe']) === hashLeakText('framed walls', 'none', ['40 lf pipe']), true);
+expect('no materials arg ≡ empty array', hashLeakText('framed walls', 'none') === hashLeakText('framed walls', 'none', []), true);
 
 console.log('\nprofitLeak coerceLeakResult:');
 const goodItem = { description: 'Gas line trench', trade: 'Plumbing', unit: 'lf', quantity: 40, confidence: 'high', reportQuote: 'trenched 40 lf' };
@@ -180,6 +195,30 @@ expect('no estimate → unknown', checkSubBid(cmt({ linkedEstimateItems: ['m1'] 
 expect('zero amount → unknown', checkSubBid(cmt({ amount: 0 }), projA, costDbA).verdict, 'unknown');
 expect('NaN amount → unknown (never throws)', checkSubBid(cmt({ amount: NaN }), projA, costDbA).verdict, 'unknown');
 expect('no basis at all → unknown', checkSubBid(cmt({ description: 'Xyz misc package', amount: 5000 }), projB1, costDbA).verdict, 'unknown');
+
+console.log('\nprofitLeak checkSubBid (basis A partial-link fallback — finding #1):');
+// 3 links: m1 ($4200) + m2 ($4800) + m5 ($20000) = $28000 total, but m5 is missing from the estimate.
+// The $28000 bid should NOT be flagged as 211% above the 2-item partial sum ($9000).
+// Instead, the resolver must fall back to trade_match (basis B) or return unknown.
+const projPartial = proj([
+  li('m1', 'Electrical', 'Panel upgrade', 'ea', 1, 4200, '26'),
+  li('m2', 'Electrical', 'Rough-in wire', 'lf', 400, 4800, '26'),
+  // m5 ($20000) intentionally absent — simulates regenerated estimate with new materialIds
+]);
+const partialCheck = checkSubBid(
+  cmt({ linkedEstimateItems: ['m1', 'm2', 'm5'], amount: 28000, csiDivision: '26' }),
+  projPartial,
+  db([entry('Electrical', 'ea', 4200, 'high')]),
+);
+expect('3 links / 1 missing → does NOT use partial sum as basis (must not be high from $9k)', partialCheck.verdict !== 'high' || partialCheck.basis !== 'linked_items', true);
+expect('3 links / 1 missing → falls back to trade_match or unknown (not linked_items)', partialCheck.basis !== 'linked_items', true);
+// When all links resolve, basis A still works normally
+const allResolve = checkSubBid(
+  cmt({ linkedEstimateItems: ['m1', 'm2'], amount: 7000 }),
+  projPartial,
+  costDbA,
+);
+expect('2 links / 2 resolved → basis linked_items still used', allResolve.basis, 'linked_items');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

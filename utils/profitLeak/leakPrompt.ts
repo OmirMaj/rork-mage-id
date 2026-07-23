@@ -84,9 +84,12 @@ export function coerceLeakResult(data: unknown): LeakItem[] {
 }
 
 /** djb2 over normalized text — stable across sessions, cheap, collision-fine
- *  for a per-report staleness check. */
-export function hashLeakText(workPerformed: string, issuesAndDelays: string): string {
-  const text = `${(workPerformed ?? '').trim()}\n${(issuesAndDelays ?? '').trim()}`.toLowerCase();
+ *  for a per-report staleness check. Includes all three inputs the prompt
+ *  scans (workPerformed, issuesAndDelays, materialsDelivered) so a
+ *  materials-only edit correctly invalidates cached results. */
+export function hashLeakText(workPerformed: string, issuesAndDelays: string, materialsDelivered?: string[]): string {
+  const mats = (materialsDelivered ?? []).filter(Boolean).join(';');
+  const text = `${(workPerformed ?? '').trim()}\n${(issuesAndDelays ?? '').trim()}\n${mats}`.toLowerCase();
   let h = 5381;
   for (let i = 0; i < text.length; i++) h = (((h << 5) + h) + text.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
