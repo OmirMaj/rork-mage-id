@@ -167,9 +167,13 @@ export default function DailyReportScreen() {
   // When loading an existing draft, hydrate reportDate from the persisted
   // record. We use a layout-effect pattern via useEffect on the existing
   // report so re-opening yesterday's draft surfaces yesterday's date.
+  // Key on existingReport?.id (not the full object) so this only runs once per
+  // loaded report, not on every field update (e.g. a mid-edit leakScan write
+  // creates a new object identity, which would silently revert an unsaved date).
   useEffect(() => {
     if (existingReport?.date) setReportDate(existingReport.date);
-  }, [existingReport]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingReport?.id]);
   // Stable report id — used both for saving the DFR record and for
   // naming the PDF in the `project-documents` bucket. We derive it
   // once per existingReport identity so the same report always lands
@@ -534,7 +538,12 @@ export default function DailyReportScreen() {
   }, [project, workPerformed, manpower, materialsDelivered, issuesAndDelays, photos, weather, existingReport, settings]);
 
   // ─── Profit Leak scan ───
-  const currentLeakHash = useMemo(() => hashLeakText(workPerformed, issuesAndDelays), [workPerformed, issuesAndDelays]);
+  // Hash all three inputs the prompt scans so a materials-only change correctly
+  // invalidates cached results and shows the 'Notes changed — re-scan' badge.
+  const currentLeakHash = useMemo(
+    () => hashLeakText(workPerformed, issuesAndDelays, materialsDelivered),
+    [workPerformed, issuesAndDelays, materialsDelivered],
+  );
   const leakIsStale = !!leakScan && leakScan.textHash !== currentLeakHash;
 
   const handleLeakScan = useCallback(async () => {
@@ -547,20 +556,25 @@ export default function DailyReportScreen() {
       Alert.alert('Nothing to scan yet', "Fill in the work performed (or issues) first — that's the text the scan reads.");
       return;
     }
-    const limit = await checkAILimit(tier, 'fast', 'profitLeak');
-    if (!limit.allowed) { setUpgradeLimit(limit); return; }
-
+    // Set scanning state synchronously before any await so a double-tap finds
+    // the button already disabled and cannot fire a second paid AI call.
     setLeakScanning(true);
+    const limit = await checkAILimit(tier, 'fast', 'profitLeak');
+    if (!limit.allowed) { setLeakScanning(false); setUpgradeLimit(limit); return; }
+
     try {
       const scope = buildScopeSummary(project, getChangeOrdersForProject(project.id));
-      const hash = hashLeakText(workPerformed, issuesAndDelays);
+      const hash = hashLeakText(workPerformed, issuesAndDelays, materialsDelivered);
+      // Include a hash of the scope summary in the cacheKey so estimate / CO
+      // changes also invalidate the 720h relay cache (not just text changes).
+      const scopeHash = hashLeakText(scope, '', []);
       const res = await mageAI({
         prompt: buildLeakPrompt(scope, { workPerformed, issuesAndDelays, materialsDelivered }),
         tier: 'fast',
         maxTokens: 1200,
         feature: 'profitLeak',
         schemaHint: LEAK_SCHEMA_HINT,
-        cacheKey: `leak_${stableReportId}_${hash}`,
+        cacheKey: `leak_${stableReportId}_${hash}_${scopeHash}`,
         cacheHours: 720,
       });
       if (!res.success) {
@@ -585,11 +599,24 @@ export default function DailyReportScreen() {
 
   const handleDraftLeakCO = useCallback(() => {
     if (!projectId || !leakScan || leakScan.items.length === 0) return;
-    const totalPriced = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
+
+    const pricedItems = leakScan.items.filter(it => it.estimatedPrice !== null && it.estimatedPrice !== undefined);
+    const unpricedItems = leakScan.items.filter(it => it.estimatedPrice === null || it.estimatedPrice === undefined);
+    const totalPriced = pricedItems.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
+
     const when = new Date(reportDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const pricedLines = pricedItems.map(it =>
+      `${it.description} (~$${(it.estimatedPrice ?? 0).toLocaleString('en-US')}${it.reportQuote ? ` — "${it.reportQuote}"` : ''})`
+    );
+    const unpricedLines = unpricedItems.map(it =>
+      `NEEDS PRICE: ${it.description}${it.reportQuote ? ` ("${it.reportQuote}")` : ''}`
+    );
     const description = `Out-of-scope work from daily report ${when}: ` +
-      leakScan.items.map(it => `${it.description}${it.reportQuote ? ` ("${it.reportQuote}")` : ''}`).join('; ');
-    router.push({
+      [...pricedLines, ...unpricedLines].join('; ');
+
+    // Warn the GC when any flagged item has no learned price so they know to
+    // fill in those line items before sending the CO.
+    const doNavigate = () => router.push({
       pathname: '/change-order' as any,
       params: {
         projectId,
@@ -598,6 +625,19 @@ export default function DailyReportScreen() {
         prefillAmount: String(totalPriced),
       },
     });
+
+    if (unpricedItems.length > 0) {
+      Alert.alert(
+        `${unpricedItems.length} flagged item${unpricedItems.length === 1 ? '' : 's'} have no learned price`,
+        'Add their prices in the change order before sending. They are marked "NEEDS PRICE" in the description.',
+        [
+          { text: 'Review anyway', onPress: doNavigate },
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+    } else {
+      doNavigate();
+    }
   }, [projectId, leakScan, reportDate, router]);
 
   const totalManpower = useMemo(() => {
@@ -1442,6 +1482,9 @@ export default function DailyReportScreen() {
               onPress={handleLeakScan}
               disabled={leakScanning}
               testID="leak-scan"
+              accessibilityRole="button"
+              accessibilityLabel={leakScan ? (leakIsStale ? 'Notes changed — re-scan for unbilled work' : 'Re-scan for unbilled work') : 'Scan for unbilled work'}
+              accessibilityState={{ disabled: leakScanning, busy: leakScanning }}
             >
               {leakScanning ? (
                 <>
@@ -1467,11 +1510,14 @@ export default function DailyReportScreen() {
 
             {leakScan && leakScan.items.length > 0 && (
               <View style={leakStyles.resultBlock}>
+                {leakIsStale && (
+                  <Text style={leakStyles.staleHint}>Notes changed since this scan — re-scan for fresh results.</Text>
+                )}
                 {leakScan.items.map((item, i) => (
-                  <View key={i} style={leakStyles.itemRow}>
-                    <AlertTriangle size={14} color={Colors.warning} strokeWidth={1.75} style={{ marginTop: 2 }} />
+                  <View key={i} style={[leakStyles.itemRow, leakIsStale && leakStyles.itemRowStale]}>
+                    <AlertTriangle size={14} color={leakIsStale ? themeColors.textMuted : Colors.warning} strokeWidth={1.75} style={{ marginTop: 2 }} />
                     <View style={{ flex: 1 }}>
-                      <Text style={leakStyles.itemDesc}>{item.description}</Text>
+                      <Text style={[leakStyles.itemDesc, leakIsStale && leakStyles.itemDescStale]}>{item.description}</Text>
                       {!!item.reportQuote && <Text style={leakStyles.itemQuote}>&ldquo;{item.reportQuote}&rdquo;</Text>}
                       <Text style={leakStyles.itemMeta}>
                         {item.trade} · {item.estimatedPrice !== null
@@ -1481,9 +1527,22 @@ export default function DailyReportScreen() {
                     </View>
                   </View>
                 ))}
-                <TouchableOpacity style={leakStyles.draftCoBtn} onPress={handleDraftLeakCO} testID="leak-draft-co">
-                  <Text style={leakStyles.draftCoBtnText}>
-                    {(() => {
+                {/* Disable Draft-CO when scan is stale — text has changed since scan. */}
+                <TouchableOpacity
+                  style={[leakStyles.draftCoBtn, leakIsStale && leakStyles.draftCoBtnDisabled]}
+                  onPress={leakIsStale ? undefined : handleDraftLeakCO}
+                  disabled={leakIsStale}
+                  testID="leak-draft-co"
+                  accessibilityRole="button"
+                  accessibilityLabel={(() => {
+                    if (leakIsStale) return 'Re-scan first — notes changed';
+                    const t = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
+                    return t > 0 ? `Draft change order for approximately $${t.toLocaleString('en-US')}` : 'Draft change order';
+                  })()}
+                  accessibilityState={{ disabled: leakIsStale }}
+                >
+                  <Text style={[leakStyles.draftCoBtnText, leakIsStale && leakStyles.draftCoBtnTextDisabled]}>
+                    {leakIsStale ? 'Re-scan first — notes changed' : (() => {
                       const t = leakScan.items.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
                       return t > 0 ? `Draft change order · ~$${t.toLocaleString('en-US')}` : 'Draft change order';
                     })()}
@@ -2144,7 +2203,12 @@ const makeLeakStyles = (themeColors: ThemeColors) => StyleSheet.create({
   itemQuote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, fontStyle: 'italic' as const, marginTop: 2 },
   itemMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: 2 },
   draftCoBtn: { marginTop: 4, paddingVertical: 11, borderRadius: 11, alignItems: 'center' as const, backgroundColor: themeColors.accent },
+  draftCoBtnDisabled: { backgroundColor: themeColors.textMuted, opacity: 0.6 },
   draftCoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+  draftCoBtnTextDisabled: { color: '#FFFFFF' },
+  staleHint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, marginBottom: 4 },
+  itemRowStale: { opacity: 0.5 },
+  itemDescStale: { color: themeColors.textMuted },
 });
 
 const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({

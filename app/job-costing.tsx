@@ -201,12 +201,21 @@ function JobCostingInner() {
           </Text>
         </View>
 
-        {/* Sub-bid reality check — non-blocking, dismissible. 'fair'/'unknown' stay silent. */}
+        {/* Sub-bid reality check — non-blocking, dismissible. 'fair'/'unknown' stay silent.
+            'low' (scope-gap risk) = danger red; 'high' (bid looks expensive) = amber warning.
+            Container + icon + title all use the same severity colour for visual consistency. */}
         {bidCheck && (
-          <View style={[styles.section, styles.warningSection]} testID="sub-bid-check-banner">
+          <View
+            style={[styles.section, bidCheck.verdict === 'low' ? styles.warningSection : styles.warningSectionAmber]}
+            testID="sub-bid-check-banner"
+          >
             <View style={styles.warningHeader}>
-              <AlertTriangle size={14} color={bidCheck.verdict === 'low' ? themeColors.danger : Colors.warning} strokeWidth={1.75} />
-              <Text style={styles.warningTitle}>
+              <AlertTriangle
+                size={14}
+                color={bidCheck.verdict === 'low' ? themeColors.danger : Colors.warning}
+                strokeWidth={1.75}
+              />
+              <Text style={bidCheck.verdict === 'low' ? styles.warningTitle : styles.warningTitleAmber}>
                 {bidCheck.verdict === 'low' ? 'Bid looks low — check the scope' : 'Bid looks high'}
               </Text>
               <TouchableOpacity onPress={() => setBidCheck(null)} hitSlop={8} style={{ marginLeft: 'auto' }} accessibilityRole="button" accessibilityLabel="Dismiss">
@@ -773,8 +782,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   addLinkText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '600' },
 
   warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${t.danger}40` },
+  warningSectionAmber: { backgroundColor: Colors.warningLight, borderWidth: 1, borderColor: `${Colors.warning}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.danger },
+  warningTitleAmber: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.warning },
   warningItem: { fontSize: Type.caption1.fontSize, color: t.text, marginLeft: 6, marginTop: 2 },
 
   // Variance rows
