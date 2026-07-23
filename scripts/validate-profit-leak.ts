@@ -128,5 +128,58 @@ const badQty = priceLeakItems([{ description: 'Panel work', trade: 'Electrical',
 expect('bad quantity clamps to 1', badQty[0].estimatedPrice, 400);
 expect('empty input → empty output', priceLeakItems([], elecDb).length, 0);
 
+import { checkSubBid, LOW_BAND, HIGH_BAND } from '../utils/profitLeak/subBidCheck';
+import type { Commitment } from '../types';
+
+function cmt(over: Partial<Commitment>): Commitment {
+  return {
+    id: 'c1', projectId: 'P1', number: 'C-1001', type: 'subcontract',
+    description: 'Electrical rough-in', amount: 10000, signedDate: '2026-07-01',
+    status: 'active', createdAt: '2026-07-01', updatedAt: '2026-07-01', ...over,
+  };
+}
+
+console.log('\nprofitLeak checkSubBid (basis A — linked items):');
+
+const projA = proj(ITEMS);                        // m1 4200 + m2 4800 = 9000 expected
+const costDbA = db([entry('Electrical', 'ea', 4000, 'high')]);
+const low = checkSubBid(cmt({ linkedEstimateItems: ['m1', 'm2'], amount: 7000 }), projA, costDbA);
+expect('linked items → basis linked_items', low.basis, 'linked_items');
+expect('expected = sum of linked lineTotals', low.expected, 9000);
+expect('under 0.85× → low', low.verdict, 'low');
+expect('gap = amount − expected', low.gap, -2000);
+expect('exactly 0.85× → fair (band is strict)', checkSubBid(cmt({ linkedEstimateItems: ['m1', 'm2'], amount: 9000 * LOW_BAND }), projA, costDbA).verdict, 'fair');
+expect('in-band → fair', checkSubBid(cmt({ linkedEstimateItems: ['m1', 'm2'], amount: 9000 }), projA, costDbA).verdict, 'fair');
+expect('exactly 1.30× → fair (band is strict)', checkSubBid(cmt({ linkedEstimateItems: ['m1', 'm2'], amount: 9000 * HIGH_BAND }), projA, costDbA).verdict, 'fair');
+expect('above 1.30× → high', checkSubBid(cmt({ linkedEstimateItems: ['m1', 'm2'], amount: 11701 }), projA, costDbA).verdict, 'high');
+expect('low verdict carries a dollar sentence', low.detail.includes('$7,000') && low.detail.includes('$9,000'), true);
+
+console.log('\nprofitLeak checkSubBid (basis B — trade match):');
+
+const projB1 = proj([li('m1', 'Electrical', 'Panel upgrade', 'ea', 1, 4200, '26')]);
+const b1 = checkSubBid(cmt({ csiDivision: '26', amount: 3000 }), projB1, costDbA);
+expect('csiDivision match → basis trade_match', b1.basis, 'trade_match');
+expect('expected uses the learned rate (4000), not lineTotal', b1.expected, 4000);
+expect('3000 vs 4000 → low', b1.verdict, 'low');
+
+const projB2 = proj([
+  li('m1', 'Electrical', 'Panel upgrade', 'ea', 1, 4200, '26'),
+  li('m3', 'Electrical', 'Trenching for service', 'lf', 100, 1500, '26'),
+]);
+const b2 = checkSubBid(cmt({ csiDivision: '26', amount: 5500 }), projB2, costDbA);
+expect('no learned rate for a matched item → falls back to its lineTotal', b2.expected, 5500);
+expect('mixed-basis in-band → fair', b2.verdict, 'fair');
+
+const projB3 = proj([li('m4', 'Pool', 'Gunite pool', 'ls', 1, 30000)]);
+const b3 = checkSubBid(cmt({ description: 'Pool package for backyard', amount: 20000 }), projB3, db([]));
+expect('description keyword match when nothing classifies', b3.basis, 'trade_match');
+expect('keyword-matched low bid flags', b3.verdict, 'low');
+
+console.log('\nprofitLeak checkSubBid (unknown / never throws):');
+expect('no estimate → unknown', checkSubBid(cmt({ linkedEstimateItems: ['m1'] }), proj([]), costDbA).verdict, 'unknown');
+expect('zero amount → unknown', checkSubBid(cmt({ amount: 0 }), projA, costDbA).verdict, 'unknown');
+expect('NaN amount → unknown (never throws)', checkSubBid(cmt({ amount: NaN }), projA, costDbA).verdict, 'unknown');
+expect('no basis at all → unknown', checkSubBid(cmt({ description: 'Xyz misc package', amount: 5000 }), projB1, costDbA).verdict, 'unknown');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
