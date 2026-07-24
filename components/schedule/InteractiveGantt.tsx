@@ -728,6 +728,42 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // arrows fade back so the active chain reads clearly.
   const hasActiveTask = (focusedTaskId ?? hoverTaskId) != null;
 
+  // --- Drag successor highlighting (Item 2) ---------------------------------
+  // While a bar is being dragged, compute the full set of tasks that depend on
+  // it (direct and transitive successors). Cheap forward-walk of the existing
+  // dependency data — no CPM, no date math. The set is used to subtly glow
+  // downstream bars so the user sees the ripple scope before release.
+  // Only re-computed when the dragged task changes (not every pointer frame).
+  const dragSuccessorIds = useMemo<Set<string>>(() => {
+    if (!dragState) return new Set();
+    const sourceId = dragState.taskId;
+    // Build a forward adjacency map: predecessorId → [successorId, ...]
+    const fwd = new Map<string, string[]>();
+    for (const t of tasks) {
+      const preds = t.dependencyLinks && t.dependencyLinks.length > 0
+        ? t.dependencyLinks.map(l => l.taskId)
+        : t.dependencies;
+      for (const pid of preds) {
+        if (!fwd.has(pid)) fwd.set(pid, []);
+        fwd.get(pid)!.push(t.id);
+      }
+    }
+    // BFS from sourceId.
+    const visited = new Set<string>();
+    const queue: string[] = [sourceId];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const nexts = fwd.get(cur) ?? [];
+      for (const nid of nexts) {
+        if (!visited.has(nid)) {
+          visited.add(nid);
+          queue.push(nid);
+        }
+      }
+    }
+    return visited; // does NOT include sourceId itself
+  }, [dragState?.taskId, tasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Crew avatars (the small initial chip at each bar's right edge) only earn
   // their visual cost when crews actually differ across the schedule. When every
   // task shares one crew (or none is set), the chips are pure noise — hide them
@@ -1431,6 +1467,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     todayDayNumber={todayDayNumber}
                     dimmed={!inPath}
                     isFocusTarget={isFocusedBar}
+                    isDownstream={dragSuccessorIds.has(bar.task.id)}
                     isLastMilestone={bar.isMilestone && bar.task.id === lastMilestoneId}
                     showCrewAvatar={showCrewAvatars}
                     onHoverIn={() => setHoverTaskId(bar.task.id)}
@@ -1458,31 +1495,68 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 const x2 = linkDrag.pointerLocalX;
                 const y2 = linkDrag.pointerLocalY;
                 const color = linkDrag.invalid ? themeColors.danger : (linkDrag.hoverTargetId ? themeColors.success : themeColors.accent);
+                // Determine the invalid-reason label shown near the drag endpoint.
+                const invalidReason = linkDrag.invalid
+                  ? (linkDrag.hoverTargetId === linkDrag.sourceTaskId ? 'Same task' : 'Cycle')
+                  : null;
                 return (
-                  <Svg
-                    width={timelineWidth}
-                    height={gridHeight}
-                    style={StyleSheet.absoluteFill}
-                    pointerEvents="none"
-                  >
-                    <Path
-                      d={`M ${x1} ${y1} C ${x1 + 40} ${y1}, ${x2 - 40} ${y2}, ${x2} ${y2}`}
-                      stroke={color}
-                      strokeWidth={2.5}
-                      fill="none"
-                      strokeDasharray="5,4"
-                    />
-                    <SvgRect
-                      x={x2 - 5}
-                      y={y2 - 5}
-                      width={10}
-                      height={10}
-                      fill={color}
-                      stroke="#fff"
-                      strokeWidth={2}
-                      rx={5}
-                    />
-                  </Svg>
+                  <>
+                    <Svg
+                      width={timelineWidth}
+                      height={gridHeight}
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="none"
+                    >
+                      <Path
+                        d={`M ${x1} ${y1} C ${x1 + 40} ${y1}, ${x2 - 40} ${y2}, ${x2} ${y2}`}
+                        stroke={color}
+                        strokeWidth={2.5}
+                        fill="none"
+                        strokeDasharray="5,4"
+                      />
+                      <SvgRect
+                        x={x2 - 5}
+                        y={y2 - 5}
+                        width={10}
+                        height={10}
+                        fill={color}
+                        stroke="#fff"
+                        strokeWidth={2}
+                        rx={5}
+                      />
+                    </Svg>
+                    {/* --- Invalid-link label: glyph + short reason near drag tip.
+                        Only shown when hovering an invalid target (cycle / self).
+                        Uses existing validity detection — no logic change.
+                        Clamped so it never clips off the right edge. --- */}
+                    {invalidReason && (
+                      <View
+                        pointerEvents="none"
+                        style={{
+                          position: 'absolute',
+                          left: Math.min(timelineWidth - 110, x2 + 14),
+                          top: Math.max(HEADER_HEIGHT + 4, y2 - 14),
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                          paddingHorizontal: Tokens.spacing.xs,
+                          paddingVertical: 3,
+                          borderRadius: Tokens.radius.xs,
+                          backgroundColor: themeColors.danger + 'EE',
+                          zIndex: 1010,
+                        }}
+                      >
+                        <Text style={{
+                          color: '#fff',
+                          fontSize: Type.caption1.fontSize,
+                          fontWeight: '700',
+                          letterSpacing: 0.2,
+                        }}>
+                          {'⊘'} {invalidReason}
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 );
               })()}
 
@@ -1575,6 +1649,44 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       borderColor: 'rgba(60,60,67,0.32)',
                       backgroundColor: 'rgba(60,60,67,0.035)',
                       zIndex: 5,
+                    }}
+                  />
+                );
+              })()}
+
+              {/* --- Snap-to-day destination ghost: accent-tinted dashed outline
+                  drawn at the SNAPPED DROP SLOT while the user is dragging.
+                  Complements the grey origin ghost above — the origin ghost
+                  shows "where it was", this shows "exactly where it will land".
+                  Reuses dragState.currentStart / currentDuration which are
+                  already snapped (Math.round(dx / pxPerDay)) — no new date math. --- */}
+              {dragState && (() => {
+                const bar = barById.get(dragState.taskId);
+                if (!bar) return null;
+                const moved = dragState.currentStart !== dragState.originalStart
+                  || dragState.currentDuration !== dragState.originalDuration;
+                if (!moved) return null;
+                // Destination position — snapped values already stored in dragState.
+                const destX = (dragState.currentStart - 1) * pxPerDay;
+                const destW = Math.max(
+                  MIN_BAR_PX_WIDTH,
+                  Math.max(0, dragState.currentDuration) * pxPerDay,
+                );
+                return (
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: destX,
+                      top: bar.y,
+                      width: destW,
+                      height: BAR_HEIGHT,
+                      borderRadius: BAR_RADIUS,
+                      borderWidth: 2,
+                      borderStyle: 'dashed',
+                      borderColor: themeColors.accent + 'BB',
+                      backgroundColor: themeColors.accent + '18',
+                      zIndex: 6,
                     }}
                   />
                 );
@@ -1791,6 +1903,12 @@ interface BarViewProps {
   isFocusTarget?: boolean;
   /** When true, this milestone is the latest-dated one (project completion = red). */
   isLastMilestone?: boolean;
+  /**
+   * When true, this task is a downstream successor of the bar currently being
+   * dragged. Renders a subtle warning-tinted glow so the user can see the
+   * ripple scope before releasing. Set only while a drag is live.
+   */
+  isDownstream?: boolean;
   /** When true, render the crew initial chip (only when crews differ across the schedule). */
   showCrewAvatar?: boolean;
   onHoverIn: () => void;
@@ -1810,7 +1928,7 @@ interface BarViewProps {
 
 function BarView({
   bar, colorMode, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
-  dimmed, isFocusTarget, isLastMilestone, showCrewAvatar,
+  dimmed, isFocusTarget, isLastMilestone, isDownstream, showCrewAvatar,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
@@ -2052,6 +2170,29 @@ function BarView({
             borderWidth: 2,
             borderColor: targetRingColor,
             backgroundColor: targetRingColor + '22',
+            zIndex: 1,
+          }}
+        />
+      )}
+      {/* Downstream-ripple glow — shown while the PREDECESSOR of this task is
+          being dragged. A subtle warning-tinted outline signals "this task will
+          shift if you commit the drop", without running CPM per-frame.
+          Drawn BEHIND the bar (zIndex 1) so it acts as a soft halo, not an
+          overlay that obscures the bar content. */}
+      {isDownstream && !isLinkTarget && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: bar.x - 3,
+            top: bar.y - 3,
+            width: bar.w + 6,
+            height: BAR_HEIGHT + 6,
+            borderRadius: Tokens.radius.md,
+            borderWidth: 1.5,
+            borderStyle: 'dashed',
+            borderColor: Colors.warning + 'CC',
+            backgroundColor: Colors.warning + '12',
             zIndex: 1,
           }}
         />
