@@ -40,6 +40,8 @@ import {
   type JobCostLine, type JobCostSummary,
 } from '@/utils/jobCostEngine';
 import type { Commitment, CommitmentType } from '@/types';
+import { checkSubBid, type SubBidVerdict } from '@/utils/profitLeak/subBidCheck';
+import { buildCostDatabase } from '@/utils/costDatabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -73,7 +75,7 @@ function JobCostingInner() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const {
     getProject, commitments, invoices, changeOrders,
-    addCommitment, updateCommitment, deleteCommitment, subcontractors,
+    addCommitment, updateCommitment, deleteCommitment, subcontractors, projects,
   } = useProjects();
 
   const { receipts } = useMaterialReceipts();
@@ -88,6 +90,9 @@ function JobCostingInner() {
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
     [commitments, projectId],
   );
+
+  const costDb = useMemo(() => buildCostDatabase(projects, commitments), [projects, commitments]);
+  const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
 
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);
   const [showAdd, setShowAdd] = useState<boolean>(false);
@@ -195,6 +200,31 @@ function JobCostingInner() {
             Method: paid + remaining committed + uncommitted budget floor
           </Text>
         </View>
+
+        {/* Sub-bid reality check — non-blocking, dismissible. 'fair'/'unknown' stay silent.
+            'low' (scope-gap risk) = danger red; 'high' (bid looks expensive) = amber warning.
+            Container + icon + title all use the same severity colour for visual consistency. */}
+        {bidCheck && (
+          <View
+            style={[styles.section, bidCheck.verdict === 'low' ? styles.warningSection : styles.warningSectionAmber]}
+            testID="sub-bid-check-banner"
+          >
+            <View style={styles.warningHeader}>
+              <AlertTriangle
+                size={14}
+                color={bidCheck.verdict === 'low' ? themeColors.danger : Colors.warning}
+                strokeWidth={1.75}
+              />
+              <Text style={bidCheck.verdict === 'low' ? styles.warningTitle : styles.warningTitleAmber}>
+                {bidCheck.verdict === 'low' ? 'Bid looks low — check the scope' : 'Bid looks high'}
+              </Text>
+              <TouchableOpacity onPress={() => setBidCheck(null)} hitSlop={8} style={{ marginLeft: 'auto' }} accessibilityRole="button" accessibilityLabel="Dismiss">
+                <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.warningItem}>{bidCheck.detail}</Text>
+          </View>
+        )}
 
         {/* Cross-link to the margin view of this same data */}
         <TouchableOpacity
@@ -338,9 +368,20 @@ function JobCostingInner() {
         onClose={() => { setShowAdd(false); setEditingCommitment(null); }}
         onSave={(c, isNew) => {
           if (isNew) addCommitment(c); else updateCommitment(c.id, c);
+          // Sub-bid reality check — pure math, never blocks the save (it already
+          // happened). Merge over the pre-edit record: the editor modal doesn't
+          // carry csiDivision/linkedEstimateItems, but the store keeps them.
+          const merged: Commitment = editingCommitment ? { ...editingCommitment, ...c } : c;
+          const verdict = checkSubBid(merged, project, costDb);
+          const flagged = verdict.verdict === 'low' || verdict.verdict === 'high';
+          setBidCheck(flagged ? verdict : null);
           setShowAdd(false);
           setEditingCommitment(null);
-          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          if (Platform.OS !== 'web') {
+            void Haptics.notificationAsync(
+              flagged ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success,
+            );
+          }
         }}
       />
 
@@ -741,8 +782,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   addLinkText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '600' },
 
   warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${t.danger}40` },
+  warningSectionAmber: { backgroundColor: Colors.warningLight, borderWidth: 1, borderColor: `${Colors.warning}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.danger },
+  warningTitleAmber: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.warning },
   warningItem: { fontSize: Type.caption1.fontSize, color: t.text, marginLeft: 6, marginTop: 2 },
 
   // Variance rows

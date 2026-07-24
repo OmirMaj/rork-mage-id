@@ -1371,6 +1371,46 @@ export interface DFRWorkProgress {
   pct: number;
 }
 
+// ─────────────────────────────────────────────
+// Profit Leak — CO leak detector
+// ─────────────────────────────────────────────
+
+export type LeakConfidence = 'low' | 'medium' | 'high';
+
+/** One suspected out-of-scope work item the AI flagged in a daily report.
+ *  The AI only IDENTIFIES — every dollar figure comes from priceLeakItems. */
+export interface LeakItem {
+  description: string;
+  /** Best-guess trade/category label — keyed against the learned cost book. */
+  trade: string;
+  /** Best-guess unit ('ls' allowed). */
+  unit: string;
+  /** Best-guess quantity (1 for lump sum). */
+  quantity: number;
+  confidence: LeakConfidence;
+  /** The exact report phrase that triggered the flag. */
+  reportQuote: string;
+}
+
+/** LeakItem + deterministic pricing from the learned cost book. */
+export interface PricedLeakItem extends LeakItem {
+  /** suggestedRate × quantity, rounded. null = no price history — GC prices it. */
+  estimatedPrice: number | null;
+  rateUsed: number | null;
+  rateConfidence: LeakConfidence | null;
+  fromHistory: boolean;
+}
+
+/** Persisted result of a Profit Leak scan on a daily report.
+ *  LOCAL-ONLY: daily_reports has no leak_scan column — never add this to
+ *  a supabaseWrite payload. */
+export interface LeakScanRecord {
+  items: PricedLeakItem[];
+  scannedAt: string;
+  /** hashLeakText(workPerformed, issuesAndDelays) at scan time — staleness check. */
+  textHash: string;
+}
+
 export interface DailyFieldReport {
   id: string;
   projectId: string;
@@ -1400,6 +1440,13 @@ export interface DailyFieldReport {
   homeownerSummary?: string;
   homeownerSummaryGeneratedAt?: string;
   homeownerSummaryPublished?: boolean;
+  /**
+   * Profit Leak scan result — AI-flagged out-of-scope work, priced from the
+   * learned cost book. Additive/LOCAL-ONLY: the daily_reports table has no
+   * leak_scan column, so this persists via the local report store only and
+   * must NOT be added to the supabaseWrite payloads in ProjectContext.
+   */
+  leakScan?: LeakScanRecord;
   createdAt: string;
   updatedAt: string;
   // Client portal send/recall lifecycle — Phase 1.

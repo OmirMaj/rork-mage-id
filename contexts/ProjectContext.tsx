@@ -633,8 +633,19 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
               homeownerSummaryPublished: !!r.homeowner_summary_published,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
             })) as DailyFieldReport[];
-            await saveLocal(DAILY_REPORTS_KEY, mapped);
-            return mapped;
+            // leakScan is a local-only field (no supabase column). Merge it
+            // forward from AsyncStorage so rehydration never wipes a scan the
+            // user performed while online. Without this merge, every sync call
+            // overwrites the local copy — the one that held leakScan — with
+            // the Supabase rows (which lack the field), silently clearing it.
+            const prior = await loadLocal<DailyFieldReport[]>(DAILY_REPORTS_KEY, []);
+            const priorById = new Map(prior.map(dr => [dr.id, dr]));
+            const withLeakScan = mapped.map(dr => {
+              const localLeakScan = priorById.get(dr.id)?.leakScan;
+              return localLeakScan !== undefined ? { ...dr, leakScan: localLeakScan } : dr;
+            });
+            await saveLocal(DAILY_REPORTS_KEY, withLeakScan);
+            return withLeakScan;
           }
         } catch { /* fallback */ }
       }

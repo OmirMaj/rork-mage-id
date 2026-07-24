@@ -23,6 +23,7 @@ export type AIFeature =
   | 'changeOrderImpact'
   | 'dailyReport'
   | 'projectReport'
+  | 'profitLeak'
   // Smart / expensive
   | 'quickEstimate'      // free: 3 lifetime trials
   | 'scheduleBuilder'    // free: 3 lifetime trials
@@ -63,6 +64,7 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   changeOrderImpact:  { tier: 'fast', displayName: 'Change order impact' },
   dailyReport:        { tier: 'fast', displayName: 'Daily report' },
   projectReport:      { tier: 'fast', displayName: 'Project report' },
+  profitLeak:         { tier: 'fast', displayName: 'Profit Leak scan' },
 
   // Smart features — free gets a few trials, then paywall
   quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick Estimate' },
