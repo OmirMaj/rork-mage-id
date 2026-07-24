@@ -7,50 +7,119 @@
 // retro-start rule: finishing an unstarted task back-fills actualStartDay
 // from the PLANNED startDay) so that ANY status change captures the same
 // data. Rules:
-//   → in_progress, start unset:  stamp actualStartDay/-Date
-//   → done, end unset:           stamp actualEndDay/-Date
-//                                (+ retro-stamp start from task.startDay if unset)
-//   anything else, or already stamped: {} — NEVER overwrite, NEVER clear.
+//   → in_progress, start uncaptured: stamp actualStartDay/-Date
+//   → in_progress FROM done:         also CLEAR actualEndDay/-Date — the task
+//                                    is demonstrably not finished, so the old
+//                                    end stamp is wrong; a later re-completion
+//                                    re-stamps a fresh end.
+//   → done, end uncaptured:          stamp actualEndDay/-Date
+//                                    (+ retro-stamp start from the PLANNED
+//                                    startDay if uncaptured, capped at today
+//                                    so the pair can never invert)
+//   → not_started FROM done:         clear ALL four actuals — a full reopen
+//                                    means the whole record was a mistake.
+//   anything else, or already captured: {} — NEVER overwrite real history.
 // The manual Gantt buttons stay authoritative: sinks merge explicit patch
-// values OVER this stamp, and stampActuals no-ops on already-stamped tasks.
+// values OVER this stamp, and stampActuals no-ops on already-captured tasks.
+//
+// Day-number basis: `todayDayNumber` MUST come from todayScheduleDay(
+// schedule.startDate) — the single shared basis (see below). When it is null
+// (schedule has no parseable startDate) there IS no day-number basis: we
+// stamp ONLY the ISO date fields and never invent day numbers. A constant
+// fallback (1) or a createdAt-elapsed fallback would both be poison samples
+// for the pace book, on a basis no task.startDay shares.
 //
 // Pure — no storage, no Date.now() (callers pass todayDayNumber + nowISO).
 import type { ScheduleTask, TaskStatus } from '@/types';
 
 export function stampActuals(
-  task: Pick<ScheduleTask, 'status' | 'startDay' | 'actualStartDay' | 'actualEndDay'>,
+  task: Pick<ScheduleTask, 'status' | 'startDay' | 'actualStartDay' | 'actualEndDay' | 'actualStartDate' | 'actualEndDate'>,
   newStatus: TaskStatus,
-  todayDayNumber: number,
+  todayDayNumber: number | null,
   nowISO: string,
 ): Partial<ScheduleTask> {
   if (newStatus === task.status) return {};
+  const leavingDone = task.status === 'done';
+  // "Captured" = either representation exists. A date-only capture (from a
+  // null-basis stamp) must not get a day number invented for it later — the
+  // real start/finish was whenever the date says, not today.
+  const startCaptured = task.actualStartDay != null || task.actualStartDate != null;
+  const endCaptured = task.actualEndDay != null || task.actualEndDate != null;
+
   if (newStatus === 'in_progress') {
-    if (task.actualStartDay != null) return {};
-    return { actualStartDay: todayDayNumber, actualStartDate: nowISO };
-  }
-  if (newStatus === 'done') {
-    if (task.actualEndDay != null) return {};
-    const patch: Partial<ScheduleTask> = { actualEndDay: todayDayNumber, actualEndDate: nowISO };
-    if (task.actualStartDay == null) {
-      // Mirror the Gantt's logFinishToday: back-fill the start from the PLAN,
-      // not from today — finishing day is rarely the starting day.
-      patch.actualStartDay = task.startDay;
+    const patch: Partial<ScheduleTask> = {};
+    if (leavingDone) {
+      // Reopening a finished task: clearing the wrong end stamp is not
+      // "overwriting history" — it lets the eventual re-completion stamp
+      // the REAL finish instead of no-oping on the stale one.
+      patch.actualEndDay = undefined;
+      patch.actualEndDate = undefined;
+    }
+    if (!startCaptured) {
+      if (todayDayNumber != null) patch.actualStartDay = todayDayNumber;
       patch.actualStartDate = nowISO;
     }
     return patch;
   }
+
+  if (newStatus === 'done') {
+    if (endCaptured) return {};
+    const patch: Partial<ScheduleTask> = {};
+    if (todayDayNumber != null) patch.actualEndDay = todayDayNumber;
+    patch.actualEndDate = nowISO;
+    if (!startCaptured) {
+      // Mirror the Gantt's logFinishToday: back-fill the start from the PLAN,
+      // not from today — finishing day is rarely the starting day. Capped at
+      // today so a task finished AHEAD of its planned start can never stamp
+      // an inverted pair (actualStartDay > actualEndDay).
+      if (todayDayNumber != null) patch.actualStartDay = Math.min(task.startDay, todayDayNumber);
+      patch.actualStartDate = nowISO;
+    }
+    return patch;
+  }
+
+  if (newStatus === 'not_started' && leavingDone) {
+    return {
+      actualStartDay: undefined,
+      actualStartDate: undefined,
+      actualEndDay: undefined,
+      actualEndDate: undefined,
+    };
+  }
+
   return {};
 }
 
 /**
- * Today's 1-indexed schedule day number — the InteractiveGantt basis
- * (daysBetween(projectStartDate, now) + 1 with a midnight anchor), clamped
- * to >= 1 like schedule-pro's own todayDayNumber memo. Callers that already
- * hold that memo (schedule-pro) keep using it; everyone else uses this.
+ * Today's 1-indexed schedule day number — THE single stamping basis, shared
+ * by every status sink. Matches the day-index semantics of utils/cpm.ts
+ * (isoToDay: day 1 = schedule.startDate, calendar-day indexing) and the
+ * InteractiveGantt today line (daysBetween(projectStartDate, now) + 1),
+ * clamped to >= 1.
+ *
+ * Returns null when the schedule has no parseable startDate: there is no
+ * day-number basis then, and callers must stamp ISO dates only (stampActuals
+ * does this automatically when passed null).
+ *
+ * DST-safe: both endpoints are normalized to local midnight and the delta is
+ * ROUNDED (not floored), so the ±1h skew across a spring-forward transition
+ * cannot land the day number one short during the 00:00–01:00 window.
+ */
+export function todayScheduleDay(scheduleStartDate: string | undefined, now: Date = new Date()): number | null {
+  if (!scheduleStartDate) return null;
+  const start = new Date(scheduleStartDate + 'T00:00:00');
+  if (Number.isNaN(start.getTime())) return null;
+  start.setHours(0, 0, 0, 0);
+  const today = new Date(now.getTime());
+  today.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+/**
+ * @deprecated Transitional alias removed in the same change-set — use
+ * todayScheduleDay and handle its null (no-basis) return. Kept only so the
+ * engine commit compiles before the sink rewires land.
  */
 export function todayDayNumberFrom(scheduleStartDate: string | undefined, now: Date = new Date()): number {
-  if (!scheduleStartDate) return 1;
-  const parsed = Date.parse(scheduleStartDate + 'T00:00:00');
-  if (!Number.isFinite(parsed)) return 1;
-  return Math.max(1, Math.floor((now.getTime() - parsed) / 86400000) + 1);
+  return todayScheduleDay(scheduleStartDate, now) ?? 1;
 }
