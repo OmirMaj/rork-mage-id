@@ -29,6 +29,8 @@ import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
 } from '@/utils/portalSnapshot';
+import { loadBakedPassport } from '@/utils/passport/passportStore';
+import type { BakedHomePassport } from '@/utils/passport/types';
 import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
 import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
@@ -234,6 +236,16 @@ function ClientPortalSetupScreenInner() {
 
   const deepLink = `${DEEP_LINK_SCHEME}?portalId=${portal.portalId}`;
 
+  // Baked Home Passport (FAQ + counts) — generated from the closeout-binder
+  // screen, persisted in AsyncStorage, baked into snapshot v9 here.
+  const [homePassport, setHomePassport] = useState<BakedHomePassport | null>(null);
+  useEffect(() => {
+    if (!project?.id) return;
+    let cancelled = false;
+    void loadBakedPassport(project.id).then(hp => { if (!cancelled) setHomePassport(hp); });
+    return () => { cancelled = true; };
+  }, [project?.id]);
+
   // Build a fresh snapshot every render so toggle changes / new data flow through
   // immediately. Snapshot is built only from sections the GC has toggled on,
   // then base64url-encoded into the URL's hash fragment (never sent to server).
@@ -266,6 +278,7 @@ function ClientPortalSetupScreenInner() {
       closeoutBinder: closeoutQ.data ?? undefined,
       commitments: getCommitmentsForProject(project.id),
       warranties: getWarrantiesForProject(project.id),
+      homePassport,
     });
   }, [
     project, portal, settings,
@@ -274,7 +287,7 @@ function ClientPortalSetupScreenInner() {
     getPhotosForProject, getRFIsForProject,
     getAIAPayAppsForProject, threadQ.messages,
     contractQ.data, selectionsQ.data, closeoutQ.data,
-    getCommitmentsForProject, getWarrantiesForProject,
+    getCommitmentsForProject, getWarrantiesForProject, homePassport,
   ]);
 
   // Short, share-friendly URL — `mageid.app/portal/<id>`. The static

@@ -31,7 +31,7 @@ import {
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
   RefreshCw, PlusCircle, Flag, ChevronRight, FileText, ShieldCheck,
-  Clock,
+  Clock, Scale,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import * as Haptics from 'expo-haptics';
@@ -617,6 +617,28 @@ Be specific to the cited location if possible. If the location is not in the US,
                 Describe your project and Construction AI flags the likely codes, permits and common violations to watch for.
               </Text>
             </View>
+
+            {/* Bid Advisor shortcut — Business tool that lives on its own screen */}
+            <TouchableOpacity
+              style={styles.bidAdvisorCard}
+              onPress={() => router.push('/judges')}
+              activeOpacity={0.85}
+              testID="construction-ai-bid-advisor"
+            >
+              <View style={styles.bidAdvisorIconWrap}>
+                <Scale size={20} color={Colors.primary} strokeWidth={1.75} />
+              </View>
+              <View style={styles.bidAdvisorBody}>
+                <View style={styles.bidAdvisorTitleRow}>
+                  <Text style={styles.bidAdvisorTitle}>Bid Advisor</Text>
+                  <View style={styles.bidAdvisorTierChip}>
+                    <Text style={styles.bidAdvisorTierText}>Business</Text>
+                  </View>
+                </View>
+                <Text style={styles.bidAdvisorSubtitle}>Should I bid this — and at what price?</Text>
+              </View>
+              <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
+            </TouchableOpacity>
 
             <Text style={styles.label}>Location (city, state)</Text>
             <View style={styles.inputRow}>
@@ -2081,5 +2103,56 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
+  },
+
+  // Bid Advisor shortcut card
+  bidAdvisorCard: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    backgroundColor: themeColors.surface,
+    borderRadius: Tokens.radius.panel,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+    padding: 14,
+    marginBottom: 20,
+  },
+  bidAdvisorIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.primary + '14',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  bidAdvisorBody: { flex: 1 },
+  bidAdvisorTitleRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 3,
+  },
+  bidAdvisorTitle: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: themeColors.text,
+  },
+  bidAdvisorTierChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: Colors.primary + '1A',
+    borderWidth: 1,
+    borderColor: Colors.primary + '44',
+  },
+  bidAdvisorTierText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  bidAdvisorSubtitle: {
+    fontSize: Type.footnote.fontSize,
+    color: themeColors.textSecondary,
+    lineHeight: 17,
   },
 });

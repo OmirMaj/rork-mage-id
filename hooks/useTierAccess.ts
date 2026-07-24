@@ -37,6 +37,8 @@ export type FeatureKey =
   | 'crew_management'
   | 'scan_anything'
   | 'cost_xray'
+  | 'bid_scoring'
+  | 'ask_your_plans'
   // All tiers (with limits)
   | 'voice_commands'
   | 'post_homeowner_request'
@@ -101,6 +103,8 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   crew_management: 'business',
   scan_anything: 'business',
   cost_xray: 'business',
+  bid_scoring: 'business',
+  ask_your_plans: 'business',
   // Available to all
   voice_commands: 'free',
   post_homeowner_request: 'free',

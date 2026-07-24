@@ -1,0 +1,12 @@
+-- rate_limit_increment is a SECURITY DEFINER counter bump called ONLY by edge
+-- functions via service_role (notify, auth-magic-link, _shared/auth.ts). It was
+-- anon-executable, letting an unauthenticated attacker inflate an arbitrary scope's
+-- counter — e.g. 'magiclink:email:<victim>' or 'passcode:portal:<id>' — to lock a
+-- legitimate user out of magic-link login or their client portal (availability DoS).
+--
+-- NOTE: this migration revoked from PUBLIC, but the function turned out to carry an
+-- EXPLICIT anon=X grant (acl: postgres | anon | authenticated | service_role), so
+-- this was a no-op for anon. The effective fix is the follow-up migration
+-- 20260721150543_revoke_anon_auth_execute_on_rate_limit_increment. Kept here to
+-- mirror the prod ledger (applied 2026-07-21, version 20260721150432).
+revoke execute on function public.rate_limit_increment(text) from public;

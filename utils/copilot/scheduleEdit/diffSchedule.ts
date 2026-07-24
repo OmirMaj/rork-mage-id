@@ -27,7 +27,14 @@ export function diffSchedule(
   for (const a of after) {
     const b = beforeById.get(a.id);
     if (!b) continue;
-    const startDelta = a.startDay - b.startDay;
+    // Start deltas come from CPM early starts, NOT raw startDays. Every apply
+    // path persists startDay = ES for every task (applyToProjectSchedule), so a
+    // dependent that slides through the dependency graph must appear as a moved
+    // line even though its raw startDay is untouched until persistence. Raw
+    // startDay is only the fallback when a task is missing from a CPM result.
+    const esBefore = cpmBefore.perTask.get(a.id)?.es ?? b.startDay;
+    const esAfter = cpmAfter.perTask.get(a.id)?.es ?? a.startDay;
+    const startDelta = esAfter - esBefore;
     const durationDelta = a.durationDays - b.durationDays;
     if (startDelta !== 0 || durationDelta !== 0) moved.push({ id: a.id, name: a.title, startDelta, durationDelta });
   }

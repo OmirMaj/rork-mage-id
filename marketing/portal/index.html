@@ -1270,6 +1270,58 @@
     color: #1E8E4A; background: rgba(30, 142, 74, 0.12);
     padding: 6px 12px; border-radius: 999px; text-transform: uppercase;
   }
+  /* ───────── Home Passport / Ask your home ───────── */
+  .ah-passport {
+    background: #FFF7E6; border: 1px solid #F4D88E;
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;
+  }
+  .ah-eyebrow {
+    font-size: 10px; font-weight: 800; letter-spacing: 1px;
+    color: #C26A00; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .ah-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ah-chip {
+    font-size: 11px; color: #4A5159; background: #fff;
+    border: 1px solid #F4D88E; border-radius: 999px; padding: 4px 10px;
+  }
+  .ah-chip strong { color: #0B0D10; font-weight: 800; }
+  .ah-faq { margin-top: 18px; }
+  .ah-faq-item {
+    border: 1px solid rgba(11, 13, 16, 0.1); border-radius: 10px;
+    margin-bottom: 8px; background: #fff;
+  }
+  .ah-faq-item summary {
+    cursor: pointer; padding: 12px 14px; font-size: 13px;
+    font-weight: 700; color: #0B0D10; list-style: none;
+  }
+  .ah-faq-item summary::-webkit-details-marker { display: none; }
+  .ah-faq-item[open] summary { border-bottom: 1px solid rgba(11, 13, 16, 0.1); }
+  .ah-faq-a { padding: 12px 14px; font-size: 13px; color: #4A5159; line-height: 1.6; }
+  .ah-refs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .ah-ref {
+    font-size: 10px; font-weight: 700; color: #C26A00;
+    background: #FFF1E6; padding: 3px 8px; border-radius: 999px;
+  }
+  .ah-ref-photo { display: block; max-width: 160px; border-radius: 8px; margin-top: 8px; }
+  .ah-ask { margin-top: 18px; }
+  .ah-ask-sub { font-size: 12px; color: #8B9099; margin: 4px 0 10px; }
+  .ah-ask-row { display: flex; gap: 8px; }
+  .ah-ask-row input {
+    flex: 1; border: 1px solid rgba(11, 13, 16, 0.14); border-radius: 10px;
+    padding: 12px 14px; font-size: 14px; font-family: inherit; color: #0B0D10;
+  }
+  .ah-ask-row .btn-primary {
+    padding: 12px 18px; background: #FF6A1A; color: #fff; border: none;
+    border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer;
+  }
+  .ah-ask-row .btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .ah-status { margin-top: 10px; font-size: 12px; color: #8B9099; font-style: italic; }
+  .ah-answer-card {
+    margin-top: 12px; border: 1px solid rgba(11, 13, 16, 0.1);
+    border-radius: 12px; padding: 14px 16px; background: #fff;
+  }
+  .ah-q { font-size: 11px; font-weight: 700; color: #8B9099; margin-bottom: 6px; }
+  .ah-a { font-size: 13px; color: #0B0D10; line-height: 1.6; }
   .co-note {
     background: #FFF7E6; border: 1px solid #F4D88E;
     border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;
@@ -1340,6 +1392,8 @@
       display: block !important; padding: 0; margin: 0;
     }
     body.printing-binder #sec-closeout .section-head { display: none !important; }
+    body.printing-binder .ah-passport, body.printing-binder .ah-faq,
+    body.printing-binder .ah-ask, body.printing-binder .co-actions { display: none !important; }
     body.printing-binder .closeout-printable { padding: 0; }
     body.printing-binder .co-table { box-shadow: none; }
     body.printing-binder .co-h3 {
@@ -2488,6 +2542,21 @@
     closeoutContactsTitle: 'Trade contacts',
     closeoutEmergencyTitle: 'If something breaks during the warranty period',
     closeoutNoteEyebrow: 'A NOTE FROM YOUR CONTRACTOR',
+    passportEyebrow: 'YOUR HOME PASSPORT',
+    passportChipFinishes: 'finishes',
+    passportChipWarranties: 'warranties',
+    passportChipTrades: 'trade contacts',
+    passportChipMaintenance: 'maintenance tasks',
+    passportChipPhotos: 'photos',
+    askHomeFaqTitle: 'Answers ready for you',
+    askHomeTitle: 'Ask your home',
+    askHomeSubtitle: 'What paint is the kitchen? Who did the electrical? When does the roof warranty end?',
+    askHomePlaceholder: 'Ask anything about your home…',
+    askHomeButton: 'Ask',
+    askHomeThinking: 'Checking your home’s records…',
+    askHomeUnavailable: 'Questions aren’t available yet — your contractor’s records are still being prepared. The binder above has everything on file.',
+    askHomeLimit: 'You’ve reached today’s question limit. The answered questions above are always available — try again tomorrow.',
+    askHomeError: 'Couldn’t reach your home’s records right now. Try again in a moment.',
     empty: 'No data shared yet.',
     payNow: 'Pay Now'
   };
@@ -3519,6 +3588,7 @@
           '<button type="button" class="btn-primary" data-action="print-binder">' + esc(t('closeoutPrint')) + '</button>' +
           '<span class="co-status-pill">' + (c.status === 'sent' ? esc(t('closeoutDelivered')) : esc(t('closeoutFinalized'))) + '</span>' +
         '</div>' +
+        renderPassportSummary(c.passport) +
         '<div class="closeout-printable">' +
           completionLine +
           noteHtml +
@@ -3528,8 +3598,159 @@
           (contactRows ? '<h3 class="co-h3">' + esc(t('closeoutContactsTitle')) + '</h3><table class="co-table"><tbody>' + contactRows + '</tbody></table>' : '') +
           emergencyHtml +
         '</div>' +
+        renderPassportFaq(c.faq) +
+        renderAskHome(c) +
       '</div>';
   }
+
+  // ───── Home Passport / Ask your home ─────
+  // Passport chips + pre-baked FAQ come straight from snapshot v9
+  // (closeout.passport / closeout.faq) — instant, zero-cost. The ask box
+  // POSTs to the portal-ask-home edge fn with the same ?t= access token the
+  // sign/selection RPCs use (see portal-mark-viewed for the call pattern).
+  // If the fn isn't deployed yet (404), the box degrades to a calm
+  // "not available yet" message — never an error state.
+  function renderPassportSummary(p) {
+    if (!p) return '';
+    var chips = [
+      [p.finishes, t('passportChipFinishes')],
+      [p.warranties, t('passportChipWarranties')],
+      [p.trades, t('passportChipTrades')],
+      [p.maintenanceItems, t('passportChipMaintenance')],
+      [p.photos, t('passportChipPhotos')]
+    ].filter(function (c2) { return (c2[0] || 0) > 0; }).map(function (c2) {
+      return '<span class="ah-chip"><strong>' + c2[0] + '</strong> ' + esc(c2[1]) + '</span>';
+    }).join('');
+    if (!chips) return '';
+    return '<div class="ah-passport">' +
+      '<div class="ah-eyebrow">' + esc(t('passportEyebrow')) + '</div>' +
+      '<div class="ah-chips">' + chips + '</div>' +
+    '</div>';
+  }
+
+  function renderRefChips(refs) {
+    if (!refs || !refs.length) return '';
+    var chips = refs.map(function (r) {
+      var label = typeof r === 'string' ? r : ((r && r.ref) || '');
+      return label ? '<span class="ah-ref">' + esc(label) + '</span>' : '';
+    }).join('');
+    return chips ? '<div class="ah-refs">' + chips + '</div>' : '';
+  }
+
+  function renderPassportFaq(faq) {
+    if (!faq || !faq.length) return '';
+    var items = faq.map(function (f) {
+      if (!f || !f.q || !f.a) return '';
+      return '<details class="ah-faq-item">' +
+        '<summary>' + esc(f.q) + '</summary>' +
+        '<div class="ah-faq-a">' + esc(f.a).replace(/\n+/g, '<br/>') + renderRefChips(f.refs) + '</div>' +
+      '</details>';
+    }).join('');
+    if (!items) return '';
+    return '<div class="ah-faq"><h3 class="co-h3">' + esc(t('askHomeFaqTitle')) + '</h3>' + items + '</div>';
+  }
+
+  function renderAskHome(c) {
+    // The ask box needs the passport index server-side; only show it when a
+    // passport was generated (chips or FAQ present).
+    if (!c || (!c.passport && !(c.faq && c.faq.length))) return '';
+    return '<div class="ah-ask">' +
+      '<h3 class="co-h3">' + esc(t('askHomeTitle')) + '</h3>' +
+      '<div class="ah-ask-sub">' + esc(t('askHomeSubtitle')) + '</div>' +
+      '<div class="ah-ask-row">' +
+        '<input type="text" id="ah-input" maxlength="300" placeholder="' + esc(t('askHomePlaceholder')) + '" />' +
+        '<button type="button" class="btn-primary" id="ah-send">' + esc(t('askHomeButton')) + '</button>' +
+      '</div>' +
+      '<div id="ah-answer"></div>' +
+    '</div>';
+  }
+
+  function findPhotoUrlForRef(refLabel) {
+    try {
+      var photos = (window.__portalData && window.__portalData.sections && window.__portalData.sections.photos) || [];
+      for (var i = 0; i < photos.length; i++) {
+        var cap = photos[i] && photos[i].caption;
+        if (cap && refLabel.indexOf(cap) !== -1) return photos[i].url || '';
+      }
+    } catch (e) { /* best-effort only */ }
+    return '';
+  }
+
+  function renderAskRefs(refs) {
+    if (!refs || !refs.length) return '';
+    var chips = '';
+    var photoHtml = '';
+    for (var i = 0; i < refs.length; i++) {
+      var r = refs[i] || {};
+      var label = typeof r === 'string' ? r : (r.ref || '');
+      if (!label) continue;
+      chips += '<span class="ah-ref">' + esc(label) + '</span>';
+      if (r.kind === 'photo' && !photoHtml) {
+        var url = findPhotoUrlForRef(label);
+        if (url) photoHtml = '<img class="ah-ref-photo" src="' + esc(url) + '" alt="" loading="lazy"/>';
+      }
+    }
+    if (!chips) return '';
+    return '<div class="ah-refs">' + chips + '</div>' + photoHtml;
+  }
+
+  function submitAskHome() {
+    var input = document.getElementById('ah-input');
+    var out = document.getElementById('ah-answer');
+    var btn = document.getElementById('ah-send');
+    if (!input || !out) return;
+    var q = (input.value || '').trim();
+    if (!q) return;
+    var data = window.__portalData || {};
+    var api = data.portalApi || {};
+    var token = getPortalToken();
+    if (!api.portalId || !token) {
+      out.innerHTML = '<div class="ah-status">' + esc(t('askHomeUnavailable')) + '</div>';
+      return;
+    }
+    var base = api.supabaseUrl
+      ? api.supabaseUrl.replace(/\/+$/, '')
+      : 'https://nteoqhcswappxxjlpvap.supabase.co';
+    out.innerHTML = '<div class="ah-status">' + esc(t('askHomeThinking')) + '</div>';
+    if (btn) btn.disabled = true;
+    fetch(base + '/functions/v1/portal-ask-home', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ portalId: api.portalId, accessToken: token, question: q }),
+    }).then(function (r) {
+      if (r.status === 404) throw { kind: 'unavailable' };
+      if (r.status === 429) throw { kind: 'limit' };
+      if (!r.ok) throw { kind: 'error' };
+      return r.json();
+    }).then(function (j) {
+      if (btn) btn.disabled = false;
+      if (!j || !j.success || !j.answer) { out.innerHTML = '<div class="ah-status">' + esc(t('askHomeError')) + '</div>'; return; }
+      out.innerHTML = '<div class="ah-answer-card">' +
+        '<div class="ah-q">' + esc(q) + '</div>' +
+        '<div class="ah-a">' + esc(j.answer).replace(/\n+/g, '<br/>') + '</div>' +
+        renderAskRefs(j.refs) +
+      '</div>';
+      input.value = '';
+    }).catch(function (err) {
+      if (btn) btn.disabled = false;
+      var key = err && err.kind === 'unavailable' ? 'askHomeUnavailable'
+        : err && err.kind === 'limit' ? 'askHomeLimit' : 'askHomeError';
+      out.innerHTML = '<div class="ah-status">' + esc(t(key)) + '</div>';
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest && e.target.closest('#ah-send');
+    if (!btn) return;
+    e.preventDefault();
+    submitAskHome();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target && e.target.id === 'ah-input') {
+      e.preventDefault();
+      submitAskHome();
+    }
+  });
 
   // Print handler — toggles a body class so print CSS shows only the binder.
   document.addEventListener('click', function (e) {

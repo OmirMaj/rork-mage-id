@@ -51,6 +51,7 @@ import { formatMoney } from '@/utils/formatters';
 import type { LinkedEstimate, LinkedEstimateItem } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import AskPlansPanel from '@/components/plans/AskPlansPanel';
 
 export default function PlanIntelligenceScreen() {
   const router = useRouter();
@@ -255,6 +256,11 @@ function PlanIntelligenceInner() {
               {trainedLine ?? 'Untrained — corrections you make here teach the AI for next time'}
             </Text>
           </View>
+
+          {/* Ask Your Plans — shown whenever a project is loaded (all phases). */}
+          {project && (
+            <AskPlansPanel projectId={project.id} sheets={planSheets} />
+          )}
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
