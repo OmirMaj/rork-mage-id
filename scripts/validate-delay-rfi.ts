@@ -132,6 +132,30 @@ expect('empty due date → 0', overdueCalendarDays('', NOW), 0);
 expect('junk due date → 0', overdueCalendarDays('not-a-date', NOW), 0);
 expect('null due date → 0', overdueCalendarDays(null, NOW), 0);
 
+import {
+  DELAY_APPLIED_STORE_KEY, parseAppliedDelayMap, withAppliedDelay, isDelayApplied,
+} from '../utils/delayScan/appliedDelays';
+
+console.log('\ndelayScan appliedDelays (applied-ripple persistence guard):');
+
+expect('store key is mageid_* namespaced', DELAY_APPLIED_STORE_KEY, 'mageid_delay_applied');
+expect('null raw → empty map', parseAppliedDelayMap(null), {});
+expect('junk JSON → empty map', parseAppliedDelayMap('{nope'), {});
+expect('array JSON → empty map', parseAppliedDelayMap('[1,2]'), {});
+expect('non-string values dropped', parseAppliedDelayMap('{"r1":"h1","r2":7,"r3":""}'), { r1: 'h1' });
+expect('round-trips a valid map', parseAppliedDelayMap(JSON.stringify({ r1: 'h1', r2: 'h2' })), { r1: 'h1', r2: 'h2' });
+
+const applied = withAppliedDelay({}, 'r1', hashDelayText('framing pushed 3 days'));
+expect('apply marks the report+hash', isDelayApplied(applied, 'r1', hashDelayText('framing pushed 3 days')), true);
+expect('same report, edited text → not applied', isDelayApplied(applied, 'r1', hashDelayText('framing pushed 1 day')), false);
+expect('other report, same text → not applied (per-report isolation)', isDelayApplied(applied, 'r2', hashDelayText('framing pushed 3 days')), false);
+expect('re-apply overwrites the stored hash', isDelayApplied(withAppliedDelay(applied, 'r1', 'h9'), 'r1', 'h9'), true);
+expect('upsert keeps other reports', isDelayApplied(withAppliedDelay(applied, 'r2', 'hx'), 'r1', hashDelayText('framing pushed 3 days')), true);
+expect('empty reportId is a no-op', withAppliedDelay({}, '', 'h1'), {});
+expect('empty hash is a no-op', withAppliedDelay({}, 'r1', ''), {});
+expect('null args never applied', isDelayApplied(applied, null, null), false);
+expect('withAppliedDelay does not mutate its input', (() => { const m = { a: 'b' }; withAppliedDelay(m, 'c', 'd'); return m; })(), { a: 'b' });
+
 import { isExcludedMemoryRecord } from '../utils/projectMemoryCore';
 
 console.log('\nprojectMemory isExcludedMemoryRecord (self-retrieval exclusion):');

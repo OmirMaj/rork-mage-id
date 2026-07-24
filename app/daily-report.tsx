@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, KeyboardAvoidingView, Modal, Image, Pressable,
@@ -54,6 +54,8 @@ import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProj
 import { runCpm } from '@/utils/cpm';
 import { buildDelayPrompt, coerceDelayResult, hashDelayText, DELAY_SCHEMA_HINT, MAX_DELTA_DAYS } from '@/utils/delayScan/delayPrompt';
 import { matchTaskByTitle } from '@/utils/delayScan/matchTask';
+import { DELAY_APPLIED_STORE_KEY, parseAppliedDelayMap, withAppliedDelay } from '@/utils/delayScan/appliedDelays';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mageAI } from '@/utils/mageAI';
 
 function createId(_prefix: string): string {
@@ -146,6 +148,18 @@ export default function DailyReportScreen() {
   const [delayPreviewOps, setDelayPreviewOps] = useState<EditOp[] | null>(null);
   const [delayTaskPickerIdx, setDelayTaskPickerIdx] = useState<number | null>(null);
   const [delayApplied, setDelayApplied] = useState<boolean>(false);
+  // Hash of the issues text at scan time — the rows are only valid for THIS
+  // text; when the live text diverges the preview is disabled (stale guard).
+  const [delayScannedHash, setDelayScannedHash] = useState<string | null>(null);
+  // Persisted applied-marker for this report (mageid_delay_applied store):
+  // hash of the issues text the last APPLIED ripple was scanned from. Guards
+  // against re-applying the same relative move ops across sessions.
+  const [appliedDelayHash, setAppliedDelayHash] = useState<string | null>(null);
+  // Explicit user override: "yes, apply this same delay text again".
+  const [delayReArmed, setDelayReArmed] = useState<boolean>(false);
+  // Synchronous re-entry guard — state alone can't stop a double tap during
+  // the checkAILimit network round-trip (two paid scans for one action).
+  const delayScanBusyRef = useRef<boolean>(false);
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
   const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? {
     hasIncident: false,
@@ -566,18 +580,54 @@ export default function DailyReportScreen() {
     cpmOptions: delayCpmOptions,
   }), [project, tier, scheduleTasks, delayCpmOptions]);
 
+  // Hydrate the persisted applied-delay marker for this report. Cross-session
+  // guard: without it, reopening the report and re-running the (cached) scan
+  // would re-offer the already-applied delay with no memory of the apply.
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(DELAY_APPLIED_STORE_KEY)
+      .then(raw => {
+        if (cancelled) return;
+        setAppliedDelayHash(parseAppliedDelayMap(raw)[stableReportId] ?? null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [stableReportId]);
+
+  const liveDelayHash = useMemo(() => hashDelayText(issuesAndDelays), [issuesAndDelays]);
+  // Rows were scanned from different text than what's on screen now.
+  const delayRowsStale = delayScannedHash != null && delayScannedHash !== liveDelayHash;
+  // This scan's text is exactly what was already applied to the schedule.
+  const delayAlreadyApplied = delayScannedHash != null && appliedDelayHash != null
+    && delayScannedHash === appliedDelayHash && !delayReArmed;
+  // APPLIED pill: applied this session, or the persisted marker matches the
+  // live text (report reopened after an apply, nothing edited since).
+  const showAppliedPill = delayApplied || (appliedDelayHash != null && appliedDelayHash === liveDelayHash);
+
+  // Editing the issues text invalidates an open ripple preview — its ops were
+  // built from rows that no longer describe the text.
+  useEffect(() => {
+    if (delayScannedHash != null && hashDelayText(issuesAndDelays) !== delayScannedHash) {
+      setDelayPreviewOps(null);
+    }
+  }, [issuesAndDelays, delayScannedHash]);
+
   const handleDelayScan = useCallback(async () => {
     if (!project?.schedule || scheduleTasks.length === 0) return;
     if (!issuesAndDelays.trim()) {
       Alert.alert('Nothing to scan yet', "Note the delay under Issues & Delays first — that's the text the scan reads.");
       return;
     }
-    const limit = await checkAILimit(tier, 'fast', 'delayScan');
-    if (!limit.allowed) { setUpgradeLimit(limit); return; }
+    // Re-entry guard + busy state BEFORE the first await: checkAILimit is a
+    // network round-trip, and a double tap in that window used to fire two
+    // paid scans (and bump the daily counter twice) for one user action.
+    if (delayScanBusyRef.current) return;
+    delayScanBusyRef.current = true;
     setDelayScanning(true);
     setDelayPreviewOps(null);
-    setDelayApplied(false);
     try {
+      const limit = await checkAILimit(tier, 'fast', 'delayScan');
+      if (!limit.allowed) { setUpgradeLimit(limit); return; }
       const res = await mageAI({
         prompt: buildDelayPrompt(issuesAndDelays, scheduleTasks.map(t => t.title)),
         tier: 'fast',
@@ -587,21 +637,31 @@ export default function DailyReportScreen() {
         cacheKey: `delay_${stableReportId}_${hashDelayText(issuesAndDelays)}`,
       });
       if (!res.success) {
+        // Keep the previous rows AND the applied indication intact — a failed
+        // re-scan must not present an un-applied state for an applied ripple.
         Alert.alert('Scan failed', res.error ?? 'Try again in a moment.');
         return;
       }
+      const scannedHash = hashDelayText(issuesAndDelays);
       const { hits } = coerceDelayResult(res.data);
       setDelayRows(hits.map(h => ({
         quote: h.quote,
         deltaDays: h.deltaDays,
         taskId: matchTaskByTitle(h.taskTitleGuess, scheduleTasks)?.id ?? null,
       })));
+      setDelayScannedHash(scannedHash);
+      setDelayReArmed(false);
+      // Re-scanning unchanged, already-applied text keeps the applied flag;
+      // new/changed text clears it. (Lives in the SUCCESS path so a failed
+      // scan can't wipe the APPLIED pill.)
+      setDelayApplied(appliedDelayHash != null && scannedHash === appliedDelayHash);
       if (!res.fromCache) void recordAIUsage('fast', 'delayScan');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } finally {
+      delayScanBusyRef.current = false;
       setDelayScanning(false);
     }
-  }, [project, scheduleTasks, issuesAndDelays, tier, stableReportId]);
+  }, [project, scheduleTasks, issuesAndDelays, tier, stableReportId, appliedDelayHash]);
 
   const confirmableRows = useMemo(
     () => (delayRows ?? []).filter((r): r is DelayRow & { taskId: string } => !!r.taskId && r.deltaDays > 0),
@@ -609,9 +669,12 @@ export default function DailyReportScreen() {
   );
 
   const handlePreviewRipple = useCallback(() => {
-    if (confirmableRows.length === 0) return;
+    // Guarded in the handler too (not just the disabled prop): stale rows
+    // describe text that changed since the scan, and an already-applied scan
+    // must be explicitly re-armed before it can move the schedule again.
+    if (confirmableRows.length === 0 || delayRowsStale || delayAlreadyApplied) return;
     setDelayPreviewOps(confirmableRows.map(r => ({ op: 'move' as const, task: r.taskId, deltaDays: r.deltaDays })));
-  }, [confirmableRows]);
+  }, [confirmableRows, delayRowsStale, delayAlreadyApplied]);
 
   const handleApplyRipple = useCallback(() => {
     const schedule = project?.schedule;
@@ -646,9 +709,25 @@ export default function DailyReportScreen() {
       },
     });
     setDelayPreviewOps(null);
+    // Disarm the confirm rows — the ops are RELATIVE moves, so a re-tap
+    // through preview→apply would shift the same tasks again.
+    setDelayRows(null);
     setDelayApplied(true);
+    setDelayReArmed(false);
+    // Persist the applied marker (separate mageid_delay_applied store — NOT a
+    // report field, which sync rehydration would wipe) so reopening the report
+    // and re-scanning the same text renders "already applied" instead of
+    // re-offering the same ripple.
+    const appliedHash = delayScannedHash ?? hashDelayText(issuesAndDelays);
+    setAppliedDelayHash(appliedHash);
+    AsyncStorage.getItem(DELAY_APPLIED_STORE_KEY)
+      .then(raw => AsyncStorage.setItem(
+        DELAY_APPLIED_STORE_KEY,
+        JSON.stringify(withAppliedDelay(parseAppliedDelayMap(raw), stableReportId, appliedHash)),
+      ))
+      .catch(() => {});
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  }, [project, delayPreviewOps, delayCpmOptions, updateProject]);
+  }, [project, delayPreviewOps, delayCpmOptions, updateProject, delayScannedHash, issuesAndDelays, stableReportId]);
 
   const totalManpower = useMemo(() => {
     return manpower.reduce((sum, m) => sum + m.headcount, 0);
@@ -1475,7 +1554,7 @@ export default function DailyReportScreen() {
               <View style={styles.sectionHeader}>
                 <CalendarClock size={18} color={themeColors.accent} strokeWidth={1.75} />
                 <Text style={styles.sectionTitle}>Schedule impact</Text>
-                {delayApplied && (
+                {showAppliedPill && (
                   <View style={dcStyles.appliedPill}>
                     <Text style={dcStyles.appliedPillText}>APPLIED</Text>
                   </View>
@@ -1490,6 +1569,9 @@ export default function DailyReportScreen() {
                 onPress={handleDelayScan}
                 disabled={delayScanning}
                 testID="delay-scan"
+                accessibilityRole="button"
+                accessibilityLabel={delayRows ? 'Re-check schedule impact' : 'Check schedule impact'}
+                accessibilityState={{ disabled: delayScanning, busy: delayScanning }}
               >
                 {delayScanning ? (
                   <>
@@ -1516,10 +1598,33 @@ export default function DailyReportScreen() {
                   {delayRows.map((row, i) => {
                     const rowTask = scheduleTasks.find(t => t.id === row.taskId);
                     return (
-                      <View key={i} style={dcStyles.hitRow}>
-                        <Text style={dcStyles.hitQuote}>&ldquo;{row.quote}&rdquo;</Text>
+                      <View key={i} style={[dcStyles.hitRow, delayAlreadyApplied && dcStyles.hitRowApplied]}>
+                        <View style={dcStyles.hitQuoteRow}>
+                          <Text style={[dcStyles.hitQuote, { flex: 1 }]}>&ldquo;{row.quote}&rdquo;</Text>
+                          <TouchableOpacity
+                            style={dcStyles.hitDismissBtn}
+                            onPress={() => setDelayRows(rs => (rs ?? []).filter((_, j) => j !== i))}
+                            disabled={delayAlreadyApplied}
+                            hitSlop={8}
+                            testID={`delay-dismiss-${i}`}
+                            accessibilityRole="button"
+                            accessibilityLabel="Dismiss this delay"
+                            accessibilityState={{ disabled: delayAlreadyApplied }}
+                          >
+                            <X size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                          </TouchableOpacity>
+                        </View>
                         <View style={dcStyles.hitControls}>
-                          <TouchableOpacity style={dcStyles.taskPickBtn} onPress={() => setDelayTaskPickerIdx(i)} activeOpacity={0.7} testID={`delay-task-${i}`}>
+                          <TouchableOpacity
+                            style={dcStyles.taskPickBtn}
+                            onPress={() => setDelayTaskPickerIdx(i)}
+                            disabled={delayAlreadyApplied}
+                            activeOpacity={0.7}
+                            testID={`delay-task-${i}`}
+                            accessibilityRole="button"
+                            accessibilityLabel={rowTask ? `Delayed task: ${rowTask.title}` : 'Delayed task: none picked'}
+                            accessibilityState={{ disabled: delayAlreadyApplied }}
+                          >
                             <Link2 size={14} color={rowTask ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
                             <Text style={[dcStyles.taskPickText, !rowTask && { color: themeColors.textMuted }]} numberOfLines={1}>
                               {rowTask ? rowTask.title : 'Pick the delayed task'}
@@ -1530,7 +1635,9 @@ export default function DailyReportScreen() {
                             <TouchableOpacity
                               style={dcStyles.stepBtn}
                               onPress={() => setDelayRows(rs => (rs ?? []).map((r, j) => j === i ? { ...r, deltaDays: Math.max(1, r.deltaDays - 1) } : r))}
+                              disabled={delayAlreadyApplied}
                               accessibilityRole="button" accessibilityLabel="One day less"
+                              accessibilityState={{ disabled: delayAlreadyApplied }}
                             >
                               <Minus size={14} color={themeColors.text} strokeWidth={2} />
                             </TouchableOpacity>
@@ -1538,7 +1645,9 @@ export default function DailyReportScreen() {
                             <TouchableOpacity
                               style={dcStyles.stepBtn}
                               onPress={() => setDelayRows(rs => (rs ?? []).map((r, j) => j === i ? { ...r, deltaDays: Math.min(MAX_DELTA_DAYS, r.deltaDays + 1) } : r))}
+                              disabled={delayAlreadyApplied}
                               accessibilityRole="button" accessibilityLabel="One day more"
+                              accessibilityState={{ disabled: delayAlreadyApplied }}
                             >
                               <Plus size={14} color={themeColors.text} strokeWidth={2} />
                             </TouchableOpacity>
@@ -1547,19 +1656,49 @@ export default function DailyReportScreen() {
                       </View>
                     );
                   })}
-                  <TouchableOpacity
-                    style={[dcStyles.previewBtn, confirmableRows.length === 0 && dcStyles.previewBtnOff]}
-                    onPress={handlePreviewRipple}
-                    disabled={confirmableRows.length === 0}
-                    activeOpacity={0.85}
-                    testID="delay-preview"
-                  >
-                    <Text style={dcStyles.previewBtnText}>
-                      {confirmableRows.length === 0
-                        ? 'Pick a task to preview the ripple'
-                        : `Preview the ripple (${confirmableRows.length} ${confirmableRows.length === 1 ? 'delay' : 'delays'})`}
-                    </Text>
-                  </TouchableOpacity>
+                  {delayAlreadyApplied ? (
+                    // This exact delay text was already applied to the schedule —
+                    // re-applying would double-shift the same tasks. Explicit
+                    // re-arm required to run it again.
+                    <View style={dcStyles.appliedNotice}>
+                      <CheckCircle2 size={15} color={themeColors.success} strokeWidth={1.75} />
+                      <Text style={dcStyles.appliedNoticeText}>Already applied to the schedule.</Text>
+                      <TouchableOpacity
+                        style={dcStyles.reArmBtn}
+                        onPress={() => setDelayReArmed(true)}
+                        activeOpacity={0.7}
+                        testID="delay-rearm"
+                        accessibilityRole="button"
+                        accessibilityLabel="Re-arm to apply this delay again"
+                      >
+                        <Text style={dcStyles.reArmBtnText}>Re-arm</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
+                      {delayRowsStale && (
+                        <Text style={dcStyles.staleNoticeText}>Report text changed — re-check schedule impact.</Text>
+                      )}
+                      <TouchableOpacity
+                        style={[dcStyles.previewBtn, (confirmableRows.length === 0 || delayRowsStale) && dcStyles.previewBtnOff]}
+                        onPress={handlePreviewRipple}
+                        disabled={confirmableRows.length === 0 || delayRowsStale}
+                        activeOpacity={0.85}
+                        testID="delay-preview"
+                        accessibilityRole="button"
+                        accessibilityLabel="Preview the ripple"
+                        accessibilityState={{ disabled: confirmableRows.length === 0 || delayRowsStale }}
+                      >
+                        <Text style={dcStyles.previewBtnText}>
+                          {delayRowsStale
+                            ? 'Re-check schedule impact first'
+                            : confirmableRows.length === 0
+                              ? 'Pick a task to preview the ripple'
+                              : `Preview the ripple (${confirmableRows.length} ${confirmableRows.length === 1 ? 'delay' : 'delays'})`}
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               )}
 
@@ -2134,6 +2273,9 @@ export default function DailyReportScreen() {
                       setDelayRows(rs => (rs ?? []).map((r, j) => j === delayTaskPickerIdx ? { ...r, taskId: t.id } : r));
                       setDelayTaskPickerIdx(null);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.title}
+                    accessibilityState={{ selected: active }}
                   >
                     {active && <CheckCircle2 size={14} color={themeColors.accent} strokeWidth={1.75} />}
                     <View style={{ flex: 1 }}>
@@ -2253,8 +2395,19 @@ const makeDcStyles = (themeColors: ThemeColors) => StyleSheet.create({
   cleanText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
   rowsBlock: { marginTop: 12, gap: 12 },
   hitRow: { gap: 8 },
+  hitRowApplied: { opacity: 0.55 },
+  hitQuoteRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8 },
   hitQuote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, fontStyle: 'italic' as const },
+  hitDismissBtn: { padding: 2 },
   hitControls: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  appliedNotice: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 2 },
+  appliedNoticeText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
+  reArmBtn: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
+  },
+  reArmBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  staleNoticeText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const },
   taskPickBtn: {
     flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
     backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
