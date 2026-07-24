@@ -102,6 +102,7 @@ import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
+import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { runCpm } from '@/utils/cpm';
 
 interface TaskDraft {
@@ -532,6 +533,18 @@ function ScheduleScreen() {
           // Only apply startDay override when no deps are set (deps control start day automatically)
           updated.startDay = startDayOverride;
         }
+        // Pace flywheel: a status change in the edit modal stamps as-builts.
+        // Runs AFTER the start-day mutations above so a done-retro-fill reads
+        // the start the user just corrected in this same save, not the stale
+        // pre-edit plan day. `updated` spreads `...item`, so existing actuals
+        // are already carried; stampActuals only fills uncaptured ones (and
+        // clears stale ones when the task leaves `done`).
+        // Basis: todayScheduleDay(schedule.startDate) — the one shared sink
+        // basis. NOT the screen's projectStartDate memo (noon anchor). Null
+        // basis (no startDate) ⇒ ISO dates only, never invented day numbers.
+        if (draft.status !== item.status) {
+          Object.assign(updated, stampActuals({ ...item, startDay: updated.startDay }, draft.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString()));
+        }
         return updated;
       });
       // Persist through applyToProjectSchedule so dependents reflow via CPM.
@@ -639,7 +652,14 @@ function ScheduleScreen() {
     const clamped = Math.max(0, Math.min(100, nextProgress));
     const nextStatus = clamped >= 100 ? 'done' as const : clamped > 0 ? 'in_progress' as const : 'not_started' as const;
     const nextTasks = sortedTasks.map(item =>
-      item.id !== task.id ? item : { ...item, progress: clamped, status: nextStatus }
+      item.id !== task.id ? item : {
+        ...item, progress: clamped, status: nextStatus,
+        // Pace flywheel: quick-progress implies status moves — stamp the
+        // as-builts on the transition (no-op when already stamped).
+        ...(nextStatus !== item.status
+          ? stampActuals(item, nextStatus, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString())
+          : {}),
+      }
     );
     const scheduleName = activeSchedule?.name ?? 'Project Schedule';
     const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
