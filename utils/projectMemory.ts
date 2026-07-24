@@ -24,7 +24,7 @@ import type { RFI, DailyFieldReport, ChangeOrder, Submittal, PunchItem } from '@
 
 export { isExcludedMemoryRecord, type MemoryAskOptions };
 
-export type MemorySource = 'RFI' | 'Daily Report' | 'Change Order' | 'Submittal' | 'Punch Item';
+export type MemorySource = 'RFI' | 'Daily Report' | 'Change Order' | 'Submittal' | 'Punch Item' | 'Home Passport';
 
 export interface MemoryDoc {
   id: string;

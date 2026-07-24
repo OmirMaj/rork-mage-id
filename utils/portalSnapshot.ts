@@ -71,7 +71,12 @@ function renderSerialized<T>(item: T & { portalState?: PortalState }, serialize:
 // v3 added: clientCanSetBudget toggle, submitBudget config, project.targetBudget.
 // v2 added: invoice.lineItems summary, aiaPayApps section, hero photo +
 // schedule anchors.
-export const PORTAL_SNAPSHOT_VERSION = 8;
+// v9 adds (Home Passport):
+// - closeout.faq: pre-answered homeowner FAQ ({q, a, refs}) baked at
+//   passport generation time on the contractor's device.
+// - closeout.passport: summary counts + generatedAt driving the passport
+//   header card in the portal closeout section.
+export const PORTAL_SNAPSHOT_VERSION = 9;
 
 export interface PortalSnapshot {
   v: number;
@@ -165,6 +170,14 @@ export interface PortalSnapshot {
     tradeContacts: { company: string; scope?: string; phase?: string; phone?: string; email?: string }[];
     emergencyEmail?: string;
     emergencyPhone?: string;
+    /** v9: pre-answered Home Passport FAQ — instant, zero-cost answers in
+     *  the portal. Absent when the GC never generated a passport. */
+    faq?: { q: string; a: string; refs: string[] }[];
+    /** v9: Home Passport summary counts + generation stamp. */
+    passport?: {
+      finishes: number; warranties: number; trades: number;
+      maintenanceItems: number; photos: number; generatedAt: string;
+    };
   };
   // AI-curated selections / allowances the homeowner picks. Flat list
   // because the portal renders a category card for each. Only categories
@@ -409,6 +422,9 @@ interface BuildOpts {
   closeoutBinder?: import('./closeoutBinderEngine').CloseoutBinder;
   // Project warranties — used by the closeout block.
   warranties?: import('@/types').Warranty[];
+  // Baked Home Passport (pre-answered FAQ + summary counts), loaded from
+  // utils/passport/passportStore. Omitted when the GC never generated one.
+  homePassport?: import('./passport/types').BakedHomePassport | null;
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
@@ -850,6 +866,9 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
           phone: undefined,  // not on commitment yet
           email: undefined,
         }));
+      // v9 — Home Passport bake. Only present when the GC has generated a
+      // passport; the portal degrades to the plain binder when absent.
+      const hp = opts.homePassport;
       return {
         id: cb.id,
         status: cb.status,
@@ -861,6 +880,17 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         tradeContacts,
         emergencyEmail: settings?.branding?.email,
         emergencyPhone: settings?.branding?.phone,
+        faq: hp && hp.faq.length > 0 ? hp.faq.map(f => ({ q: f.q, a: f.a, refs: f.refs })) : undefined,
+        passport: hp
+          ? {
+              finishes: hp.summary.finishes,
+              warranties: hp.summary.warranties,
+              trades: hp.summary.trades,
+              maintenanceItems: hp.summary.maintenanceItems,
+              photos: hp.summary.photos,
+              generatedAt: hp.generatedAt,
+            }
+          : undefined,
       };
     })(),
     // Contract — only emit when GC has actually sent it to the homeowner.

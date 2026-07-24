@@ -24,7 +24,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileDown, Plus, Trash2, Wrench,
   CheckCircle2, Send, Lock, RefreshCw, Stamp, FileText, Shield, X,
-  ShieldCheck,
+  ShieldCheck, BookOpen,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -54,6 +54,11 @@ import type {
   CompanyBranding, SelectionCategory, LienWaiver,
 } from '@/types';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { buildHomePassport } from '@/utils/passport/buildHomePassport';
+import type { BakedFaqEntry, BakedHomePassport } from '@/utils/passport/types';
+import { loadBakedPassport, saveBakedPassport } from '@/utils/passport/passportStore';
+import { syncMemoryEmbeddings, answerFromMemory, type MemoryDoc } from '@/utils/projectMemory';
+import { useTierAccess } from '@/hooks/useTierAccess';
 
 type BinderStatus = CloseoutBinder['status'];
 
@@ -63,7 +68,7 @@ export default function CloseoutBinderScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject } = useProjects() as any;
+  const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject, subcontractors } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
 
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>(DEFAULT_MAINTENANCE);
@@ -83,6 +88,13 @@ export default function CloseoutBinderScreen() {
   // extras the user has to fill in (notary state, surety, etc.) so
   // we use a single modal that branches on `form`.
   const [aiaModal, setAiaModal] = useState<AiaFormId | null>(null);
+  // Home Passport — baked result (FAQ + counts) for this project, plus
+  // generation progress. Generation is ALWAYS non-blocking: the binder
+  // finalize/deliver flow never waits on it and never fails because of it.
+  const [passportBaked, setPassportBaked] = useState<BakedHomePassport | null>(null);
+  const [passportBusy, setPassportBusy] = useState(false);
+  const [passportStep, setPassportStep] = useState('');
+  const { canAccess } = useTierAccess();
 
   const branding = useMemo<CompanyBranding>(() => ({
     companyName:   settings?.branding?.companyName ?? 'MAGE ID',
@@ -99,12 +111,14 @@ export default function CloseoutBinderScreen() {
     let cancelled = false;
     void (async () => {
       if (!projectId) { setLoading(false); return; }
-      const [existing, sels, waivers] = await Promise.all([
+      const [existing, sels, waivers, baked] = await Promise.all([
         fetchCloseoutBinder(projectId),
         fetchSelectionsForProject(projectId),
         fetchLienWaiversForProject(projectId),
+        loadBakedPassport(projectId),
       ]);
       if (cancelled) return;
+      setPassportBaked(baked);
       if (existing) {
         setBinderId(existing.id);
         setMaintenance(existing.maintenanceSchedule.length ? existing.maintenanceSchedule : DEFAULT_MAINTENANCE);
@@ -152,6 +166,85 @@ export default function CloseoutBinderScreen() {
     }
   }, [persistBinder, projectId]);
 
+  // ── Home Passport generation ──────────────────────────────────────
+  // 1. buildHomePassport assembles pure docs from this project's data.
+  // 2. Docs are indexed into memory_embeddings via project-memory-embed
+  //    (contractor JWT, source 'Home Passport', idempotent by docId) so
+  //    the homeowner's portal-ask-home can retrieve them.
+  // 3. Each FaqInput is pre-answered via answerFromMemory over the
+  //    passport docs ONLY (never the full project index — change orders /
+  //    punch items stay contractor-internal) and baked to AsyncStorage;
+  //    the next snapshot push carries it to the portal (v9).
+  const runPassportGeneration = useCallback(async () => {
+    if (!project || passportBusy) return;
+    if (!canAccess('client_portal')) {
+      router.push('/paywall');
+      return;
+    }
+    setPassportBusy(true);
+    setPassportStep('Assembling home records…');
+    try {
+      const generatedAt = new Date().toISOString();
+      const projectCommitments = (commitments ?? []).filter((c: any) => c.projectId === project.id);
+      const projectWarranties = (warranties ?? []).filter((w: any) => w.projectId === project.id);
+      const projectPhotosArr = (projectPhotos ?? []).filter((p: any) => p.projectId === project.id);
+      const passport = buildHomePassport({
+        project: { id: project.id, name: project.name, location: project.location },
+        selections,
+        warranties: projectWarranties,
+        commitments: projectCommitments,
+        subcontractors: subcontractors ?? [],
+        photos: projectPhotosArr,
+        maintenance,
+        generatedAt,
+      });
+      if (passport.docs.length === 0) {
+        Alert.alert(
+          'Nothing to index yet',
+          'The passport is assembled from selections, warranties, commitments, photos, and the maintenance schedule. Add some of those to this project first.',
+        );
+        return;
+      }
+
+      setPassportStep('Indexing for the portal…');
+      const memoryDocs: MemoryDoc[] = passport.docs.map(d => ({
+        id: d.docId,
+        source: 'Home Passport',
+        ref: d.ref,
+        date: d.date,
+        text: d.text,
+      }));
+      await syncMemoryEmbeddings(project.id, memoryDocs);
+
+      const faq: BakedFaqEntry[] = [];
+      let consecutiveFailures = 0;
+      for (let i = 0; i < passport.faqInputs.length; i++) {
+        const item = passport.faqInputs[i];
+        setPassportStep(`Pre-answering ${i + 1} of ${passport.faqInputs.length}…`);
+        const res = await answerFromMemory(item.question, memoryDocs);
+        if (res.answer && !res.errorKind) {
+          faq.push({ q: item.question, a: res.answer, refs: res.usedRefs.slice(0, 4) });
+          consecutiveFailures = 0;
+        } else {
+          consecutiveFailures += 1;
+          if (consecutiveFailures >= 2) break; // offline / signed out / capped — keep what we have
+        }
+      }
+
+      const baked: BakedHomePassport = { faq, summary: passport.summary, generatedAt };
+      await saveBakedPassport(project.id, baked);
+      setPassportBaked(baked);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      // Non-blocking by design — the binder flow is untouched.
+      console.warn('[home-passport] generation failed:', e);
+      Alert.alert('Passport not generated', 'The binder is unaffected. Check your connection and tap Generate again.');
+    } finally {
+      setPassportBusy(false);
+      setPassportStep('');
+    }
+  }, [project, passportBusy, canAccess, router, commitments, warranties, projectPhotos, selections, subcontractors, maintenance]);
+
   const handleFinalize = useCallback(() => {
     Alert.alert(
       'Finalize binder?',
@@ -169,6 +262,9 @@ export default function CloseoutBinderScreen() {
                 setStatus('finalized');
                 setFinalizedAt(now);
                 if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                // Home Passport: index + pre-answer in the background.
+                // Never blocks or fails the finalize itself.
+                void runPassportGeneration();
               } else {
                 Alert.alert('Failed', 'Could not finalize. Try again.');
               }
@@ -179,7 +275,7 @@ export default function CloseoutBinderScreen() {
         },
       ],
     );
-  }, [persistBinder]);
+  }, [persistBinder, runPassportGeneration]);
 
   const handleDeliver = useCallback(() => {
     if (!project) return;
@@ -523,6 +619,51 @@ export default function CloseoutBinderScreen() {
               <Text style={styles.emptyHint}>Tip: even with no data yet, your maintenance schedule and personal note still go into the binder. You can deliver a partial binder now and re-deliver as the project closes out.</Text>
             )}
           </View>
+
+          {/* Home Passport — generation status + manual (re-)generate.
+              Shown once the binder is finalized; auto-runs at finalize. */}
+          {status !== 'draft' && (
+            <View style={styles.card}>
+              <View style={styles.cardHead}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardLabel}>Home Passport</Text>
+                  <Text style={styles.cardHelper}>
+                    Indexes this project&apos;s finishes, warranties, trades, and photos so the homeowner can ask their portal questions — &ldquo;what paint is the kitchen?&rdquo; — and get cited answers, plus a pre-answered FAQ.
+                  </Text>
+                </View>
+                <BookOpen size={18} color={themeColors.accent} strokeWidth={1.75} />
+              </View>
+              {passportBaked ? (
+                <Text style={styles.emptyHint}>
+                  Generated {formattedAt(passportBaked.generatedAt)} — {passportBaked.summary.docCount} records indexed, {passportBaked.faq.length} questions pre-answered. Re-generate after editing selections, warranties, or contacts.
+                </Text>
+              ) : (
+                <Text style={styles.emptyHint}>
+                  Not generated yet. The portal shows the binder either way; the passport adds the question box and pre-answered FAQ.
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.smallBtn, { alignSelf: 'flex-start', marginTop: 8 }]}
+                onPress={() => { void runPassportGeneration(); }}
+                disabled={passportBusy}
+                testID="passport-generate"
+                accessibilityRole="button"
+                accessibilityLabel={passportBaked ? 'Re-generate Home Passport' : 'Generate Home Passport'}
+              >
+                {passportBusy ? (
+                  <>
+                    <ActivityIndicator size="small" color={themeColors.accent} />
+                    <Text style={styles.smallBtnText}>{passportStep || 'Generating…'}</Text>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={13} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.smallBtnText}>{passportBaked ? 'Re-generate passport' : 'Generate Home Passport'}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Notes */}
           <View style={styles.card}>
