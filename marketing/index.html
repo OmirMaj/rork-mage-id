@@ -294,6 +294,25 @@
   .brain-caption p{margin-top:9px;font-size:15px;color:var(--muted);line-height:1.5}
   .brain-caption p em{color:var(--amber-lift);font-style:normal;font-weight:650}
   @media(max-width:560px){ .faculty{font-size:9.5px;padding:5px 9px 5px 13px} .brain-caption{min-height:132px} }
+  .brain-detail{max-width:860px;margin:26px auto 0;background:var(--panel);border:1px solid var(--line-d);border-radius:16px;padding:22px;display:grid;grid-template-columns:1.15fr .85fr;gap:22px;align-items:center;text-align:left;position:relative;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+  .brain-detail .cf{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-lift);font-weight:700}
+  .brain-detail h3{font-size:clamp(20px,2.6vw,26px);margin-top:8px;color:var(--bone);letter-spacing:-.015em}
+  .brain-detail .bd-lede{margin-top:9px;font-size:15px;color:var(--muted);line-height:1.55}
+  .brain-detail .bd-lede em{color:var(--amber-lift);font-style:normal;font-weight:650}
+  .bd-bullets{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .bd-bullets li{position:relative;padding-left:20px;font-size:13.5px;color:var(--muted);line-height:1.45}
+  .bd-bullets li::before{content:"";position:absolute;left:2px;top:7px;width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber-glow)}
+  .bd-bullets li b{color:var(--bone);font-weight:650}
+  .bd-meta{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .bd-tier{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--amber-lift);border:1px solid var(--line-d);background:rgba(229,129,31,.08);padding:4px 10px;border-radius:4px}
+  .bd-cta{font-size:13.5px;font-weight:700;color:#160d04;background:var(--amber);padding:9px 16px;border-radius:9px;text-decoration:none;transition:background .2s}
+  .bd-cta:hover{background:var(--amber-lift)}
+  .bd-shot{background:var(--panel-2);border:1px solid var(--line-d);border-radius:12px;padding:8px;line-height:0}
+  .bd-shot img{width:100%;height:auto;max-height:320px;object-fit:cover;object-position:top;border-radius:8px;display:block}
+  .bd-close{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:1px solid var(--line-d);background:rgba(18,15,11,.6);color:var(--muted);font-size:15px;line-height:1;cursor:pointer;transition:color .2s,border-color .2s}
+  .bd-close:hover{color:var(--bone);border-color:var(--amber)}
+  .bd-close:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  @media(max-width:720px){ .brain-detail{grid-template-columns:1fr;gap:16px;padding:18px} .bd-shot img{max-height:220px} }
   </style>
 </head>
 <body>
@@ -485,6 +504,36 @@
       reads:{x:.45,y:.48,cf:'It reads',h:'Knows your plans by heart.',p:'Upload the sheets and <em>ask in English</em> \u2014 cited answers, straight to the right page.'},
       judges:{x:.50,y:.85,cf:'It judges',h:'Tells you which jobs to take.',p:'The <em>bid advisor</em> \u2014 take it, hold firm, or walk away, at the price your real costs demand.'}
     };
+    var DETAIL = {
+      sees:{shot:'/screenshots/screens/19-walkthrough.png',alt:'Cost X-Ray pricing hidden conditions from a photo',tier:'Business',bullets:[
+        '<b>Point the camera</b> at the wall, the crawlspace, the panel \u2014 it flags the conditions a walk-through misses.',
+        '<b>Prices every flag from YOUR learned costs</b>, not a national average \u2014 straight into the estimate as contingency.',
+        '<b>GC-only.</b> The client sees a professional bid; you see the margin you just protected.']},
+      remembers:{shot:'/screenshots/screens/15-estimator.png',alt:'MAGE estimator with the learned cost catalog',tier:'Free to start',bullets:[
+        '<b>Every closed job feeds the book</b> \u2014 real costs per trade, blended toward truth as jobs accumulate.',
+        '<b>Knows your bidding bias.</b> If you habitually bid framing low, it says so \u2014 with the number.',
+        '<b>Nobody can copy it.</b> A rival can clone a feature; they can\u2019t clone 50 of your finished jobs.']},
+      plans:{shot:'/screenshots/screens/08-ai-copilot.png',alt:'MAGE Copilot building a schedule from a conversation',tier:'Pro',bullets:[
+        '<b>Answer a few questions</b> \u2014 or just talk \u2014 and it drafts the full schedule, tasks sequenced by real construction logic.',
+        '<b>Every duration shows its reasoning</b> \u2014 the assumption is flagged when it guessed, so you know what to check.',
+        '<b>Say a change, see the ripple.</b> \u201cPush drywall a week\u201d \u2014 it shows what slides before you commit.']},
+      foresees:{shot:'/screenshots/screens/10-cashflow.png',alt:'Cash-flow forecast with danger weeks',tier:'Pro',bullets:[
+        '<b>Cash-flow forecast</b> flags the week your balance goes negative \u2014 months before it happens.',
+        '<b>Margin-risk score</b> on every live job: thin bid, open allowances, unbought scope, drifting costs.',
+        '<b>Learns your crew\u2019s real pace</b> from finished tasks \u2014 the next schedule starts honest.']},
+      warns:{shot:'/screenshots/screens/04-daily-report.png',alt:'Daily report with unbilled-work and schedule-impact scans',tier:'Free to start',bullets:[
+        '<b>Reads your daily reports</b> and flags out-of-scope work you haven\u2019t billed \u2014 with a change order drafted in one tap.',
+        '<b>Checks every sub bid</b> against your history: \u201c$1,400 under the scope it covers \u2014 confirm what\u2019s included.\u201d',
+        '<b>\u201cInspector no-show, pushed 2 days\u201d</b> becomes the downstream ripple \u2014 preview it, then reflow the schedule.']},
+      reads:{shot:'/screenshots/screens/17-takeoff.png',alt:'Plan sheets with conversational search',tier:'Business',bullets:[
+        '<b>Index your plan sheets once</b>, then ask in plain English \u2014 \u201cwhere are the shear walls?\u201d',
+        '<b>Cited answers</b>, with a jump straight to the right sheet \u2014 no more flipping pages in the truck.',
+        '<b>Same brain answers your RFIs</b> \u2014 drafts responses from how similar questions were answered before.']},
+      judges:{shot:'/screenshots/screens/16-ai-estimator.png',alt:'Bid advisor verdict with recommended price range',tier:'Business',bullets:[
+        '<b>Take it / hold firm / walk away</b> \u2014 a verdict with the reasons ranked, not a gut feel.',
+        '<b>A recommended price range</b> built from your true costs \u2014 including the margin you actually keep.',
+        '<b>Honest when it\u2019s guessing.</b> No history yet? It says so \u2014 and sharpens as you close jobs.']}
+    };
     var keys = Object.keys(FACS);
     keys.forEach(function(k){ FACS[k].px = FACS[k].x*W; FACS[k].py = FACS[k].y*H; });
     var nodes = [];
@@ -508,16 +557,36 @@
       if(!opts.length) return; var ed=opts[(Math.random()*opts.length)|0];
       var to=(ed.a===fromIdx)?ed.b:ed.a; pulses.push({from:fromIdx,to:to,t:0}); }
     function hubIdx(k){ for(var i=0;i<nodes.length;i++){ if(nodes[i].hub===k) return i; } return 0; }
-    var active=keys[0], hovered=null, cyc=0, lastCyc=0;
-    function markBtns(){ document.querySelectorAll('.faculty').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-f')===active); }); }
+    var active=keys[0], hovered=null, pinned=null, cyc=0, lastCyc=0;
+    function markBtns(){ document.querySelectorAll('.faculty').forEach(function(x){
+      var k=x.getAttribute('data-f');
+      x.classList.toggle('on', k===active);
+      x.setAttribute('aria-expanded', k===pinned ? 'true' : 'false');
+    }); }
     function setActive(k){ active=k; var f=FACS[k];
-      cap.innerHTML='<span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p>'+f.p+'</p>';
+      if(!pinned){ cap.innerHTML='<span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p>'+f.p+'</p>'; }
       var hi=hubIdx(k); for(var i=0;i<6;i++) spawn(hi); markBtns(); }
+    function renderDetail(k){ var f=FACS[k], d=DETAIL[k]; if(!d){ setActive(k); return; }
+      cap.innerHTML='<div class="brain-detail" role="region" aria-label="'+f.cf+' \u2014 details">'
+        +'<button class="bd-close" type="button" aria-label="Close details">\u2715</button>'
+        +'<div><span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p class="bd-lede">'+f.p+'</p>'
+        +'<ul class="bd-bullets">'+d.bullets.map(function(b){return '<li>'+b+'</li>';}).join('')+'</ul>'
+        +'<div class="bd-meta"><span class="bd-tier">'+d.tier+'</span><a class="bd-cta" href="https://app.mageid.app">Try it free \u2192</a></div></div>'
+        +'<div class="bd-shot"><img src="'+d.shot+'" alt="'+d.alt+'" loading="lazy" /></div></div>';
+      var x=cap.querySelector('.bd-close'); if(x) x.addEventListener('click', unpin);
+    }
+    function pin(k){ pinned=k; active=k; renderDetail(k);
+      var hi=hubIdx(k); for(var i=0;i<8;i++) spawn(hi); markBtns(); }
+    function unpin(){ pinned=null; setActive(active); markBtns();
+      var b=document.querySelector('.faculty[data-f="'+active+'"]'); if(b) b.focus(); }
     document.querySelectorAll('.faculty').forEach(function(btn){ var k=btn.getAttribute('data-f');
-      function on(){ hovered=k; setActive(k); }
-      btn.addEventListener('mouseenter',on); btn.addEventListener('focus',on); btn.addEventListener('click',on);
+      btn.setAttribute('aria-expanded','false');
+      btn.addEventListener('mouseenter',function(){ hovered=k; if(!pinned) setActive(k); });
+      btn.addEventListener('focus',function(){ hovered=k; if(!pinned) setActive(k); });
+      btn.addEventListener('click',function(){ if(pinned===k){ unpin(); } else { pin(k); } });
       btn.addEventListener('mouseleave',function(){ hovered=null; });
     });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape' && pinned) unpin(); });
     setActive(active);
     function frame(ts){
       g2.clearRect(0,0,W,H);
@@ -537,7 +606,7 @@
       }
       if(!rm){
         if(Math.random()<0.045) spawn((Math.random()*nodes.length)|0);
-        if(ts-lastCyc>2800 && !hovered){ lastCyc=ts; cyc=(cyc+1)%keys.length; setActive(keys[cyc]); }
+        if(ts-lastCyc>2800 && !hovered && !pinned){ lastCyc=ts; cyc=(cyc+1)%keys.length; setActive(keys[cyc]); }
         requestAnimationFrame(frame);
       }
     }
