@@ -6,8 +6,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, ChevronDown, Link2, X, CheckCircle2, Send, CalendarDays } from 'lucide-react-native';
-import { MageRFI } from '@/components/icons';
+import { Save, ChevronDown, Link2, X, CheckCircle2, Send, CalendarDays, RefreshCw, AlertTriangle } from 'lucide-react-native';
+import { MageRFI, MageAIMark } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
@@ -27,6 +27,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
+import { extractMemoryDocs, answerFromMemorySemantic } from '@/utils/projectMemory';
+import { rfiBlockStatus } from '@/utils/delayScan/rfiBlocking';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -93,7 +95,10 @@ function RFIScreenInner() {
     prefillPhotoId?: string;
   }>();
   const ctx = useProjects();
-  const { getProject, getRFIsForProject, addRFI, updateRFI, settings } = ctx;
+  const {
+    getProject, getRFIsForProject, addRFI, updateRFI, settings,
+    getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject,
+  } = ctx;
   const projectPhotos = (ctx as any).projectPhotos as { id: string; uri: string }[] | undefined;
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -133,9 +138,32 @@ function RFIScreenInner() {
   const [sendEmail_Name, setSendEmailName] = useState('');
   const [sendEmail_Note, setSendEmailNote] = useState('');
   const [sending, setSending] = useState(false);
+  // ─── RFI brain ───
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestCitation, setSuggestCitation] = useState<string | null>(null);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
+
+  // Critical-path check for the linked task — pure rfiBlockStatus wrapped in a
+  // memo. cpmOptions mirror the schedule screens (Grounded reality #6).
+  const blocking = useMemo(() => rfiBlockStatus(
+    { linkedTaskId: linkedTaskId || undefined, status },
+    project?.schedule,
+    {
+      scheduleStartDate: project?.schedule?.startDate,
+      workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+      nonWorkingDates: project?.schedule?.nonWorkingDates,
+    },
+  ), [linkedTaskId, status, project?.schedule]);
+
+  const overdueDays = useMemo(() => {
+    if (!existingRFI || status !== 'open' || !dateRequired) return 0;
+    const due = new Date(dateRequired).getTime();
+    if (Number.isNaN(due)) return 0;
+    return Math.max(0, Math.floor((Date.now() - due) / 86400000));
+  }, [existingRFI, status, dateRequired]);
 
   const handleSave = useCallback(() => {
     if (!subject.trim()) {
@@ -221,7 +249,7 @@ function RFIScreenInner() {
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
-  }, [subject, question, assignedTo, submittedBy, dateRequired, priority, status, linkedDrawing, response, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
+  }, [subject, question, assignedTo, submittedBy, dateRequired, priority, status, linkedDrawing, response, linkedTaskId, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
 
   const priorityColor = priority === 'urgent' ? themeColors.danger : priority === 'normal' ? themeColors.accent : themeColors.textSecondary;
 
@@ -312,6 +340,43 @@ function RFIScreenInner() {
     }
   }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings, updateRFI]);
 
+  // ─── MAGE suggests an answer ───
+  // Same machinery as app/project-memory.tsx: extract this project's records,
+  // retrieve semantically (pgvector when deployed, TF-IDF fallback), draft an
+  // answer citing refs. answerFromMemorySemantic NEVER throws — but on failure
+  // it resolves with errorKind set (answer = error sentence) and with zero
+  // records it resolves with searched === 0. Gate on both so a failure leaves
+  // the response field untouched.
+  const handleSuggestAnswer = useCallback(async () => {
+    const q = question.trim();
+    if (!q || suggesting || !projectId) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      const docs = extractMemoryDocs({
+        rfis: getRFIsForProject(projectId).filter(r => r.id !== existingRFI?.id), // don't cite the question at itself
+        dailyReports: getDailyReportsForProject(projectId),
+        changeOrders: getChangeOrdersForProject(projectId),
+        submittals: getSubmittalsForProject(projectId),
+        punchItems: getPunchItemsForProject(projectId),
+      });
+      const res = await answerFromMemorySemantic(q, projectId, docs);
+      if (res.errorKind || res.searched === 0 || !res.answer.trim()) {
+        setSuggestError(res.searched === 0
+          ? 'No project records to draft from yet — answers, reports and change orders become source material as you log them.'
+          : res.answer || "MAGE couldn't draft an answer right now. Try again in a moment.");
+        return;
+      }
+      setResponse(res.answer.trim());
+      setSuggestCitation(res.usedRefs.length > 0
+        ? `Drafted from ${res.usedRefs.slice(0, 3).join(', ')} — review before sending.`
+        : "Drafted from this project's records — review before sending.");
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } finally {
+      setSuggesting(false);
+    }
+  }, [question, suggesting, projectId, existingRFI, getRFIsForProject, getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject]);
+
   if (!project && !existingRFI) {
     return (
       <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
@@ -358,6 +423,20 @@ function RFIScreenInner() {
         )}
         {project && (
           <Text style={styles.projectLabel}>{project.name}</Text>
+        )}
+
+        {/* Overdue / critical-path banner — the RFI's cost made visible. Danger
+            when the response is late; warning when the linked task has no float. */}
+        {existingRFI && status === 'open' && (overdueDays > 0 || blocking.critical) && (
+          <View style={[styles.alertBanner, overdueDays > 0 ? styles.alertBannerDanger : styles.alertBannerWarn]} testID="rfi-alert-banner">
+            <AlertTriangle size={15} color={overdueDays > 0 ? themeColors.danger : Colors.warning} strokeWidth={1.75} />
+            <Text style={styles.alertBannerText}>
+              {overdueDays > 0
+                ? `Response due ${overdueDays} ${overdueDays === 1 ? 'day' : 'days'} ago`
+                : 'Waiting on this answer'}
+              {blocking.critical && blocking.taskTitle ? ` — blocks "${blocking.taskTitle}" on the critical path.` : ''}
+            </Text>
+          </View>
         )}
 
         {existingRFI && (
@@ -586,7 +665,7 @@ function RFIScreenInner() {
           placeholderTextColor={themeColors.textMuted}
         />
 
-        {(existingRFI && (status === 'answered' || status === 'closed')) && (
+        {(existingRFI && (status === 'answered' || status === 'closed' || response.trim().length > 0)) && (
           <>
             <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Response</Text>
             <TextInput
@@ -598,6 +677,38 @@ function RFIScreenInner() {
               multiline
               textAlignVertical="top"
             />
+          </>
+        )}
+
+        {/* MAGE suggests — drafts a response from how this project answered
+            similar questions before. Cited; GC reviews before sending. */}
+        {existingRFI && (
+          <>
+            <TouchableOpacity
+              style={[styles.suggestBtn, (suggesting || !question.trim()) && styles.suggestBtnDisabled]}
+              onPress={handleSuggestAnswer}
+              disabled={suggesting || !question.trim()}
+              activeOpacity={0.85}
+              testID="rfi-suggest"
+            >
+              {suggesting ? (
+                <>
+                  <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+                  <Text style={styles.suggestBtnText}>Searching this project&rsquo;s history…</Text>
+                </>
+              ) : (
+                <>
+                  <MageAIMark size={14} color={themeColors.accent} />
+                  <Text style={styles.suggestBtnText}>MAGE suggests an answer</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            {!!suggestCitation && !suggesting && (
+              <Text style={styles.suggestCitation}>{suggestCitation}</Text>
+            )}
+            {!!suggestError && !suggesting && (
+              <Text style={styles.suggestError}>{suggestError}</Text>
+            )}
           </>
         )}
 
@@ -993,4 +1104,21 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   handoffRow: { gap: 1 },
   handoffArrow: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.text },
   handoffMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary },
+  // RFI brain — suggest button + banners
+  suggestBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    backgroundColor: themeColors.accent + '0F', borderWidth: 1, borderColor: themeColors.accent + '40',
+    borderRadius: Tokens.radius.md, paddingVertical: 11, marginTop: 12,
+  },
+  suggestBtnDisabled: { opacity: 0.6 },
+  suggestBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  suggestCitation: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const, marginTop: 6 },
+  suggestError: { fontSize: Type.caption1.fontSize, color: themeColors.danger, marginTop: 6 },
+  alertBanner: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: Tokens.radius.md, borderWidth: 1,
+  },
+  alertBannerDanger: { backgroundColor: themeColors.danger + '12', borderColor: themeColors.danger + '40' },
+  alertBannerWarn: { backgroundColor: Colors.warning + '14', borderColor: Colors.warning + '40' },
+  alertBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
 });
