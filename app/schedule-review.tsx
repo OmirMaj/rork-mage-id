@@ -27,6 +27,9 @@ import { SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScheduleTask } from '@/types';
+import { buildPaceBook, lookupPace, suggestDuration } from '@/utils/pace/paceBook';
+import { tradeKeyForTask } from '@/utils/scheduleColors';
+import PaceChip from '@/components/schedule/PaceChip';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -42,7 +45,7 @@ export default function ScheduleReviewScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { getProject, updateProject } = useProjects();
+  const { getProject, updateProject, projects } = useProjects();
   const { tier } = useSubscription();
   const { width } = useWindowDimensions();
   const { canAccess } = useTierAccess();
@@ -70,6 +73,30 @@ export default function ScheduleReviewScreen() {
   }, [tasks]);
 
   const assumptionCount = useMemo(() => tasks.filter(x => x.assumption).length, [tasks]);
+
+  // Your-pace suggestions — the pace book is derived live from ALL projects'
+  // captured as-builts (utils/pace/paceBook.ts). paceFor returns null when
+  // the book should stay silent: no/low-confidence history, milestone, or
+  // agreement with the AI within a day. Silence, not noise.
+  const paceBook = useMemo(() => buildPaceBook(projects), [projects]);
+
+  const paceFor = useCallback((task: ScheduleTask): { days: number; jobCount: number; confidence: 'medium' | 'high' } | null => {
+    if (task.isMilestone || task.durationDays <= 0) return null;
+    const entry = lookupPace(paceBook, tradeKeyForTask(task), project?.squareFootage);
+    if (!entry) return null;
+    const confidence = entry.confidence;
+    if (confidence === 'low') return null;
+    const days = suggestDuration(entry, task.durationDays);
+    if (Math.abs(days - task.durationDays) < 1) return null;
+    return { days, jobCount: entry.jobCount, confidence };
+  }, [paceBook, project?.squareFootage]);
+
+  const applyPace = useCallback((taskId: string, days: number) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // The screen's edit path: accept() rebuilds via buildScheduleFromTasks,
+    // whose forward pass reflows dependent startDays from the new duration.
+    setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, durationDays: days } : t)));
+  }, []);
 
   const accept = useCallback(() => {
     if (!project || !draft) return;
@@ -184,25 +211,36 @@ export default function ScheduleReviewScreen() {
               </View>
 
               <View style={styles.cardBody}>
-                {phaseTasks.map(task => (
-                  <View key={task.id} style={styles.taskRow}>
-                    <View style={styles.taskTitleRow}>
-                      <Text style={styles.taskTitle} numberOfLines={2}>{task.title}</Text>
-                      {task.assumption && (
-                        <View style={styles.assumptionChip}>
-                          <AlertTriangle size={11} color={ASSUMPTION_COLOR} strokeWidth={2} />
-                          <Text style={styles.assumptionText}>assumed</Text>
-                        </View>
+                {phaseTasks.map(task => {
+                  const pace = paceFor(task);
+                  return (
+                    <View key={task.id} style={styles.taskRow}>
+                      <View style={styles.taskTitleRow}>
+                        <Text style={styles.taskTitle} numberOfLines={2}>{task.title}</Text>
+                        {task.assumption && (
+                          <View style={styles.assumptionChip}>
+                            <AlertTriangle size={11} color={ASSUMPTION_COLOR} strokeWidth={2} />
+                            <Text style={styles.assumptionText}>assumed</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.taskMeta}>
+                        {task.durationDays}d · crew {task.crewSize ?? '—'}
+                      </Text>
+                      {pace && (
+                        <PaceChip
+                          suggestedDays={pace.days}
+                          jobCount={pace.jobCount}
+                          confidence={pace.confidence}
+                          onApply={() => applyPace(task.id, pace.days)}
+                        />
                       )}
+                      {task.rationale ? (
+                        <Text style={styles.taskRationale}>{task.rationale}</Text>
+                      ) : null}
                     </View>
-                    <Text style={styles.taskMeta}>
-                      {task.durationDays}d · crew {task.crewSize ?? '—'}
-                    </Text>
-                    {task.rationale ? (
-                      <Text style={styles.taskRationale}>{task.rationale}</Text>
-                    ) : null}
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           );
