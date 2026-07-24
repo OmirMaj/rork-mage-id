@@ -68,5 +68,45 @@ expect('exact wins over substring ambiguity', matchTaskByTitle('demo', TASKS)?.i
 expect('no match → null', matchTaskByTitle('landscaping', TASKS), null);
 expect('empty guess → null', matchTaskByTitle('', TASKS), null);
 
+import { rfiBlockStatus } from '../utils/delayScan/rfiBlocking';
+import type { ProjectSchedule } from '../types';
+
+function sched(tasks: ScheduleTask[]): ProjectSchedule {
+  return {
+    id: 's1', name: 'Test schedule', projectId: 'P1', workingDaysPerWeek: 7, bufferDays: 0,
+    tasks, totalDurationDays: 0, criticalPathDays: 0, laborAlignmentScore: 0, riskItems: [],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+console.log('\ndelayScan rfiBlockStatus:');
+
+// A(1-5) → B(6-10) → C(11-15) is the zero-float chain; D(1-2) has no
+// successors → LF = projectFinish 15 → totalFloat 13.
+const CHAIN = [
+  task('A', 'Foundation', 1, 5),
+  task('B', 'Framing', 6, 5, { dependencies: ['A'] }),
+  task('C', 'Roofing', 11, 5, { dependencies: ['B'] }),
+  task('D', 'Order fixtures', 1, 2),
+];
+const S = sched(CHAIN);
+
+const critical = rfiBlockStatus({ linkedTaskId: 'B', status: 'open' }, S);
+expect('open RFI on a zero-float task → critical', critical.critical, true);
+expect('carries the task title', critical.taskTitle, 'Framing');
+expect('carries totalFloat 0', critical.totalFloat, 0);
+
+const floaty = rfiBlockStatus({ linkedTaskId: 'D', status: 'open' }, S);
+expect('open RFI on a floaty task → not critical', floaty.critical, false);
+expect('still reports the float', floaty.totalFloat, 13);
+
+expect('no linkedTaskId → not blocking', rfiBlockStatus({ status: 'open' }, S).critical, false);
+expect('answered RFI → not blocking', rfiBlockStatus({ linkedTaskId: 'B', status: 'answered' }, S).critical, false);
+expect('missing schedule → not blocking', rfiBlockStatus({ linkedTaskId: 'B', status: 'open' }, null).critical, false);
+expect('unknown task id → not blocking', rfiBlockStatus({ linkedTaskId: 'ZZ', status: 'open' }, S).critical, false);
+
+const doneChain = sched(CHAIN.map(t => t.id === 'B' ? { ...t, status: 'done' as const, progress: 100 } : t));
+expect('done task never warns', rfiBlockStatus({ linkedTaskId: 'B', status: 'open' }, doneChain).critical, false);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
