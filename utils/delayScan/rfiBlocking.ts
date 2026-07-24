@@ -14,6 +14,23 @@ export interface RfiBlockStatus {
 
 const NOT_BLOCKING: RfiBlockStatus = { critical: false };
 
+/**
+ * How many LOCAL calendar days past due a date is. Compares local y/m/d
+ * components (not elapsed 24h blocks), so a due date stored as noon UTC —
+ * DatePickerModal's anchor — reads as overdue at local midnight after the due
+ * day, not at some arbitrary hour the next morning. Due today → 0 (not
+ * overdue all day). Invalid/empty input → 0. Pure; `now` injectable for tests.
+ */
+export function overdueCalendarDays(dueIso: string | null | undefined, now: Date = new Date()): number {
+  if (!dueIso) return 0;
+  const due = new Date(dueIso);
+  if (Number.isNaN(due.getTime())) return 0;
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  // Math.round absorbs DST-shifted 23h/25h "days" in the local-midnight diff.
+  return Math.max(0, Math.round((today - dueDay) / 86400000));
+}
+
 export function rfiBlockStatus(
   rfi: Pick<RFI, 'linkedTaskId' | 'status'>,
   schedule: ProjectSchedule | null | undefined,

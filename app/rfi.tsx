@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, KeyboardAvoidingView, Modal, Pressable,
@@ -28,7 +28,9 @@ import { Tokens } from '@/constants/designTokens';
 import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { extractMemoryDocs, answerFromMemorySemantic } from '@/utils/projectMemory';
-import { rfiBlockStatus } from '@/utils/delayScan/rfiBlocking';
+import { rfiBlockStatus, overdueCalendarDays } from '@/utils/delayScan/rfiBlocking';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -99,6 +101,7 @@ function RFIScreenInner() {
     getProject, getRFIsForProject, addRFI, updateRFI, settings,
     getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject,
   } = ctx;
+  const { tier } = useSubscription();
   const projectPhotos = (ctx as any).projectPhotos as { id: string; uri: string }[] | undefined;
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -142,6 +145,16 @@ function RFIScreenInner() {
   const [suggesting, setSuggesting] = useState(false);
   const [suggestCitation, setSuggestCitation] = useState<string | null>(null);
   const [suggestError, setSuggestError] = useState<string | null>(null);
+  // Response-field visibility is a LATCH, not a live derivation from the
+  // field's own text: once shown, it stays mounted so select-all-delete
+  // doesn't unmount the TextInput (and dismiss the keyboard) mid-edit.
+  const [responseShown, setResponseShown] = useState<boolean>(() =>
+    !!existingRFI && (
+      existingRFI.status === 'answered' || existingRFI.status === 'closed' || !!existingRFI.response?.trim()
+    ));
+  useEffect(() => {
+    if (status === 'answered' || status === 'closed' || response.trim().length > 0) setResponseShown(true);
+  }, [status, response]);
 
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
@@ -158,11 +171,12 @@ function RFIScreenInner() {
     },
   ), [linkedTaskId, status, project?.schedule]);
 
+  // Local CALENDAR days overdue, not elapsed 24h blocks — a due date stored as
+  // noon UTC reads overdue at local midnight after the due day, and "due today"
+  // stays 0 all day. Pure math lives in overdueCalendarDays (validator-covered).
   const overdueDays = useMemo(() => {
     if (!existingRFI || status !== 'open' || !dateRequired) return 0;
-    const due = new Date(dateRequired).getTime();
-    if (Number.isNaN(due)) return 0;
-    return Math.max(0, Math.floor((Date.now() - due) / 86400000));
+    return overdueCalendarDays(dateRequired);
   }, [existingRFI, status, dateRequired]);
 
   const handleSave = useCallback(() => {
@@ -351,8 +365,18 @@ function RFIScreenInner() {
     const q = question.trim();
     if (!q || suggesting || !projectId) return;
     setSuggesting(true);
+    // Reset BOTH result banners — a failed retry must not leave last
+    // attempt's "Drafted from …" citation sitting above the new error.
     setSuggestError(null);
+    setSuggestCitation(null);
     try {
+      // Smart-tier call — meter it like every other AI call site (client-side
+      // daily caps per CLAUDE.md; the relay only sees the feature id).
+      const limit = await checkAILimit(tier, 'smart', 'projectMemory');
+      if (!limit.allowed) {
+        setSuggestError(limit.message ?? "You've used today's advanced AI calls. Try again tomorrow.");
+        return;
+      }
       const docs = extractMemoryDocs({
         rfis: getRFIsForProject(projectId).filter(r => r.id !== existingRFI?.id), // don't cite the question at itself
         dailyReports: getDailyReportsForProject(projectId),
@@ -360,22 +384,36 @@ function RFIScreenInner() {
         submittals: getSubmittalsForProject(projectId),
         punchItems: getPunchItemsForProject(projectId),
       });
-      const res = await answerFromMemorySemantic(q, projectId, docs);
+      // Exclusions also cover the SEMANTIC path — the pgvector index was synced
+      // with every RFI (including this one), so without these the RFI's own
+      // question is its own nearest neighbor and gets cited at itself.
+      const res = await answerFromMemorySemantic(q, projectId, docs, {
+        excludeDocIds: existingRFI ? [`rfi-${existingRFI.id}`] : [],
+        excludeRefs: existingRFI ? [`RFI #${existingRFI.number}`] : [],
+        feature: 'projectMemory',
+      });
       if (res.errorKind || res.searched === 0 || !res.answer.trim()) {
         setSuggestError(res.searched === 0
           ? 'No project records to draft from yet — answers, reports and change orders become source material as you log them.'
           : res.answer || "MAGE couldn't draft an answer right now. Try again in a moment.");
         return;
       }
+      if (!res.fromCache) void recordAIUsage('smart', 'projectMemory');
       setResponse(res.answer.trim());
-      setSuggestCitation(res.usedRefs.length > 0
-        ? `Drafted from ${res.usedRefs.slice(0, 3).join(', ')} — review before sending.`
-        : "Drafted from this project's records — review before sending.");
+      setResponseShown(true);
+      // Citation honesty: name refs only when retrieval actually MATCHED
+      // records. matched=false means the recency fallback fed the model —
+      // naming those refs would be fabricated provenance, so show none.
+      setSuggestCitation(res.matched
+        ? (res.usedRefs.length > 0
+          ? `Drafted from ${res.usedRefs.slice(0, 3).join(', ')} — review before sending.`
+          : "Drafted from this project's records — review before sending.")
+        : null);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } finally {
       setSuggesting(false);
     }
-  }, [question, suggesting, projectId, existingRFI, getRFIsForProject, getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject]);
+  }, [question, suggesting, projectId, tier, existingRFI, getRFIsForProject, getDailyReportsForProject, getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject]);
 
   if (!project && !existingRFI) {
     return (
@@ -665,7 +703,7 @@ function RFIScreenInner() {
           placeholderTextColor={themeColors.textMuted}
         />
 
-        {(existingRFI && (status === 'answered' || status === 'closed' || response.trim().length > 0)) && (
+        {existingRFI && responseShown && (
           <>
             <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Response</Text>
             <TextInput
@@ -681,28 +719,35 @@ function RFIScreenInner() {
         )}
 
         {/* MAGE suggests — drafts a response from how this project answered
-            similar questions before. Cited; GC reviews before sending. */}
+            similar questions before. Cited; GC reviews before sending.
+            Hidden once an answered/closed/void RFI holds a recorded response —
+            one absent-minded tap must not overwrite the official answer. */}
         {existingRFI && (
           <>
-            <TouchableOpacity
-              style={[styles.suggestBtn, (suggesting || !question.trim()) && styles.suggestBtnDisabled]}
-              onPress={handleSuggestAnswer}
-              disabled={suggesting || !question.trim()}
-              activeOpacity={0.85}
-              testID="rfi-suggest"
-            >
-              {suggesting ? (
-                <>
-                  <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
-                  <Text style={styles.suggestBtnText}>Searching this project&rsquo;s history…</Text>
-                </>
-              ) : (
-                <>
-                  <MageAIMark size={14} color={themeColors.accent} />
-                  <Text style={styles.suggestBtnText}>MAGE suggests an answer</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {!((status === 'answered' || status === 'closed' || status === 'void') && response.trim().length > 0) && (
+              <TouchableOpacity
+                style={[styles.suggestBtn, (suggesting || !question.trim()) && styles.suggestBtnDisabled]}
+                onPress={handleSuggestAnswer}
+                disabled={suggesting || !question.trim()}
+                activeOpacity={0.85}
+                testID="rfi-suggest"
+                accessibilityRole="button"
+                accessibilityLabel="MAGE suggests an answer"
+                accessibilityState={{ disabled: suggesting || !question.trim(), busy: suggesting }}
+              >
+                {suggesting ? (
+                  <>
+                    <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={styles.suggestBtnText}>Searching this project&rsquo;s history…</Text>
+                  </>
+                ) : (
+                  <>
+                    <MageAIMark size={14} color={themeColors.accent} />
+                    <Text style={styles.suggestBtnText}>MAGE suggests an answer</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
             {!!suggestCitation && !suggesting && (
               <Text style={styles.suggestCitation}>{suggestCitation}</Text>
             )}

@@ -25,6 +25,8 @@ import Paywall from '@/components/Paywall';
 import {
   extractMemoryDocs, answerFromMemorySemantic, syncMemoryEmbeddings, PROJECT_MEMORY_SUGGESTIONS,
 } from '@/utils/projectMemory';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -56,6 +58,7 @@ function ProjectMemoryInner() {
     getProject, getRFIsForProject, getDailyReportsForProject,
     getChangeOrdersForProject, getSubmittalsForProject, getPunchItemsForProject,
   } = useProjects();
+  const { tier } = useSubscription();
 
   const project = useMemo(() => (projectId ? getProject(projectId) : null), [projectId, getProject]);
 
@@ -90,7 +93,23 @@ function ProjectMemoryInner() {
     setBusy(true);
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     try {
-      const res = await answerFromMemorySemantic(q, projectId ?? '', docs);
+      // Smart-tier call — meter it like every other call site (client-side
+      // daily caps per CLAUDE.md; the relay only sees the feature id).
+      const limit = await checkAILimit(tier, 'smart', 'projectMemory');
+      if (!limit.allowed) {
+        setTurns(prev => [...prev, {
+          role: 'assistant',
+          text: limit.message ?? "You've used today's advanced AI calls. Try again tomorrow.",
+          error: true,
+        }]);
+        return;
+      }
+      const res = await answerFromMemorySemantic(q, projectId ?? '', docs, { feature: 'projectMemory' });
+      // Count only successful, non-cached answers that actually hit the model
+      // (searched === 0 short-circuits before any AI call).
+      if (!res.errorKind && res.searched > 0 && res.answer.trim() && !res.fromCache) {
+        void recordAIUsage('smart', 'projectMemory');
+      }
       setTurns(prev => [...prev, {
         role: 'assistant', text: res.answer, error: !!res.errorKind,
         refs: res.matched ? res.usedRefs : undefined, searched: res.searched, semantic: res.semantic,
@@ -99,7 +118,7 @@ function ProjectMemoryInner() {
       setBusy(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
-  }, [busy, docs, projectId]);
+  }, [busy, docs, projectId, tier]);
 
   const empty = turns.length === 0;
 

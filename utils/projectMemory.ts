@@ -11,12 +11,18 @@
 // v1 retrieval is client-side TF-IDF over already-in-memory records (no
 // embeddings infra exists yet — pgvector is a documented future upgrade). It's
 // instant, offline, and free; the single AI call routes through the existing
-// mageAI relay, so we inherit auth + monthly caps + graceful failure. Pure
-// extraction/retrieval functions; only answerFromMemory does I/O (the AI call).
+// mageAI relay, which gives auth + graceful failure. Text daily caps are
+// CLIENT-SIDE per the app's convention: every call site must checkAILimit
+// (tier, 'smart', 'projectMemory') before calling and recordAIUsage after a
+// successful non-cached answer. Pure extraction/retrieval functions; only
+// answerFromMemory does I/O (the AI call).
 
 import { mageAI } from '@/utils/mageAI';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { isExcludedMemoryRecord, type MemoryAskOptions } from '@/utils/projectMemoryCore';
 import type { RFI, DailyFieldReport, ChangeOrder, Submittal, PunchItem } from '@/types';
+
+export { isExcludedMemoryRecord, type MemoryAskOptions };
 
 export type MemorySource = 'RFI' | 'Daily Report' | 'Change Order' | 'Submittal' | 'Punch Item';
 
@@ -165,8 +171,9 @@ export interface MemoryAnswer {
  * client-side, then asks the model to answer using only those — citing the
  * record refs. Never throws.
  */
-export async function answerFromMemory(question: string, docs: MemoryDoc[]): Promise<MemoryAnswer> {
+export async function answerFromMemory(question: string, allDocs: MemoryDoc[], opts: MemoryAskOptions = {}): Promise<MemoryAnswer> {
   const q = question.trim();
+  const docs = allDocs.filter(d => !isExcludedMemoryRecord(d, opts.excludeDocIds, opts.excludeRefs));
   const top = retrieveRelevant(q, docs, 8);
   const matched = top.some(d => d.score > 0);
 
@@ -183,7 +190,7 @@ export async function answerFromMemory(question: string, docs: MemoryDoc[]): Pro
     `PROJECT RECORDS:\n${context}\n\nQUESTION: ${q}`;
 
   try {
-    const res = await mageAI({ prompt, tier: 'smart', maxTokens: 700 });
+    const res = await mageAI({ prompt, tier: 'smart', maxTokens: 700, feature: opts.feature });
     const text = typeof res.data === 'string' && res.data.trim() ? res.data.trim() : (res.raw?.trim() || '');
     if (!res.success || !text) {
       return {
@@ -252,20 +259,28 @@ export async function answerFromMemorySemantic(
   question: string,
   projectId: string,
   docs: MemoryDoc[],
+  opts: MemoryAskOptions = {},
 ): Promise<MemoryAnswer> {
   const q = question.trim();
-  if (!projectId || docs.length === 0) return answerFromMemory(q, docs);
+  if (!projectId || docs.length === 0) return answerFromMemory(q, docs, opts);
 
   const res = (await authedPost(MEMORY_SEARCH_URL, { projectId, query: q, matchCount: 8 })) as
     | { success?: boolean; matches?: MemoryMatch[] }
     | null;
-  const matches = res && res.success && Array.isArray(res.matches) ? res.matches : null;
+  const rawMatches = res && res.success && Array.isArray(res.matches) ? res.matches : null;
+  // The pgvector index holds EVERY record ever synced — including the record
+  // being edited right now (an RFI's own question is its own nearest neighbor).
+  // Filter exclusions out BEFORE building context/citations, then re-check
+  // emptiness so a fully-excluded result falls through to TF-IDF.
+  const matches = rawMatches
+    ? rawMatches.filter(m => !isExcludedMemoryRecord(m, opts.excludeDocIds, opts.excludeRefs))
+    : null;
 
   if (matches && matches.length > 0) {
     const context = matches.map(m => `[${m.ref}] ${m.content}`).join('\n\n');
     const prompt = MEMORY_PROMPT_PREFIX + `PROJECT RECORDS:\n${context}\n\nQUESTION: ${q}`;
     try {
-      const ai = await mageAI({ prompt, tier: 'smart', maxTokens: 700 });
+      const ai = await mageAI({ prompt, tier: 'smart', maxTokens: 700, feature: opts.feature });
       const text = typeof ai.data === 'string' && ai.data.trim() ? ai.data.trim() : (ai.raw?.trim() || '');
       if (ai.success && text) {
         return {
@@ -284,5 +299,5 @@ export async function answerFromMemorySemantic(
   }
 
   // Not deployed / no match / AI hiccup → v1 keyword path.
-  return answerFromMemory(q, docs);
+  return answerFromMemory(q, docs, opts);
 }

@@ -25,6 +25,7 @@ export type AIFeature =
   | 'projectReport'
   | 'delayScan'
   // Smart / expensive
+  | 'projectMemory'      // Ask-this-project's-history + RFI suggested answers
   | 'quickEstimate'      // free: 3 lifetime trials
   | 'scheduleBuilder'    // free: 3 lifetime trials
   | 'scheduleCopilot'    // free: 3 lifetime trials (NL what-if / edit copilot)
@@ -67,6 +68,12 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   delayScan:          { tier: 'fast', displayName: 'Delay scan' },
 
   // Smart features — free gets a few trials, then paywall
+  // projectMemory covers BOTH surfaces that answer from a project's records:
+  // the Project Memory chat (Pro+, canAccess job_costing) and the RFI
+  // "MAGE suggests an answer" button (Business+, canAccess rfis_submittals).
+  // Both screens are tier-walled before this meter is reachable, so no
+  // freeLifetimeCap — it just counts against the daily smart quota.
+  projectMemory:      { tier: 'smart', displayName: 'Project Memory' },
   quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick Estimate' },
   scheduleBuilder:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'AI Schedule Builder' },
   scheduleCopilot:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'Schedule Copilot' },

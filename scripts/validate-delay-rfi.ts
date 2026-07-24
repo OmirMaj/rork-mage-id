@@ -108,5 +108,41 @@ expect('unknown task id → not blocking', rfiBlockStatus({ linkedTaskId: 'ZZ', 
 const doneChain = sched(CHAIN.map(t => t.id === 'B' ? { ...t, status: 'done' as const, progress: 100 } : t));
 expect('done task never warns', rfiBlockStatus({ linkedTaskId: 'B', status: 'open' }, doneChain).critical, false);
 
+import { overdueCalendarDays } from '../utils/delayScan/rfiBlocking';
+
+console.log('\nrfi overdueCalendarDays (local calendar days, due-today = 0):');
+
+// Fixed local "now": March 10 2026, 07:00 local — early morning, the exact
+// window where the old elapsed-24h math hid a full-calendar-day-overdue RFI.
+const NOW = new Date(2026, 2, 10, 7, 0, 0);
+const noonUtc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d, 12, 0, 0)).toISOString();
+
+// Due "yesterday" (local March 9) — overdue 1 the moment March 10 starts,
+// regardless of the hour. Anchor the due day in LOCAL components so the test
+// is timezone-independent (noon-UTC anchors shift a day only for |offset|>=12).
+const localIso = (y: number, m: number, d: number, h = 12) => new Date(y, m, d, h).toISOString();
+expect('due yesterday → 1 at 7am local', overdueCalendarDays(localIso(2026, 2, 9), NOW), 1);
+expect('due today → 0 all day (not overdue)', overdueCalendarDays(localIso(2026, 2, 10), NOW), 0);
+expect('due today late evening still 0', overdueCalendarDays(localIso(2026, 2, 10, 23), new Date(2026, 2, 10, 23, 30)), 0);
+expect('due tomorrow → 0', overdueCalendarDays(localIso(2026, 2, 11), NOW), 0);
+expect('due a week ago → 7', overdueCalendarDays(localIso(2026, 2, 3), NOW), 7);
+expect('DST-spanning span still counts whole days', overdueCalendarDays(localIso(2026, 2, 5), new Date(2026, 2, 12, 7)), 7);
+expect('noon-UTC anchor read in local components', overdueCalendarDays(noonUtc(2026, 2, 9), NOW) >= 1, true);
+expect('empty due date → 0', overdueCalendarDays('', NOW), 0);
+expect('junk due date → 0', overdueCalendarDays('not-a-date', NOW), 0);
+expect('null due date → 0', overdueCalendarDays(null, NOW), 0);
+
+import { isExcludedMemoryRecord } from '../utils/projectMemoryCore';
+
+console.log('\nprojectMemory isExcludedMemoryRecord (self-retrieval exclusion):');
+
+expect('client doc excluded by id', isExcludedMemoryRecord({ id: 'rfi-42', ref: 'RFI #12' }, ['rfi-42'], []), true);
+expect('server match excluded by doc_id', isExcludedMemoryRecord({ doc_id: 'rfi-42', ref: 'RFI #12' }, ['rfi-42'], []), true);
+expect('excluded by ref when id differs (stale index)', isExcludedMemoryRecord({ doc_id: 'rfi-old', ref: 'RFI #12' }, ['rfi-42'], ['RFI #12']), true);
+expect('other records pass through', isExcludedMemoryRecord({ doc_id: 'rfi-7', ref: 'RFI #7' }, ['rfi-42'], ['RFI #12']), false);
+expect('doc_id wins over id when both present', isExcludedMemoryRecord({ id: 'x', doc_id: 'rfi-42' }, ['rfi-42'], []), true);
+expect('no exclusions → nothing excluded', isExcludedMemoryRecord({ id: 'rfi-42', ref: 'RFI #12' }), false);
+expect('empty record never excluded', isExcludedMemoryRecord({}, ['rfi-42'], ['RFI #12']), false);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
