@@ -29,13 +29,14 @@ export default function PaceChip({ suggestedDays, jobCount, confidence, onApply 
       style={styles.chip}
       onPress={onApply}
       activeOpacity={0.8}
+      hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
       accessibilityRole="button"
-      accessibilityLabel={`Use your pace: ${suggestedDays} days, from ${jobCount} past ${jobCount === 1 ? 'job' : 'jobs'}`}
+      accessibilityLabel={`Use your pace: ${suggestedDays} days, from ${jobCount} past ${jobCount === 1 ? 'job' : 'jobs'}, ${confidence} confidence`}
       testID="pace-chip"
     >
       <History size={11} color={t.accent} strokeWidth={2} />
       <Text style={styles.text}>
-        Your pace: {suggestedDays}d ({jobCount} job{jobCount === 1 ? '' : 's'})
+        Your pace: {suggestedDays}d ({jobCount} job{jobCount === 1 ? '' : 's'} · {confidence})
       </Text>
       <View style={[styles.dot, { backgroundColor: confidence === 'high' ? t.success : t.accent }]} />
     </TouchableOpacity>
@@ -50,5 +51,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.accentSoft, marginTop: 3,
   },
   text: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent, letterSpacing: 0.2 },
-  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  dot: { width: 5, height: 5, borderRadius: Tokens.radius.full },
 });

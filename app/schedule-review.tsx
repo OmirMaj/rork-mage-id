@@ -79,23 +79,38 @@ export default function ScheduleReviewScreen() {
   // the book should stay silent: no/low-confidence history, milestone, or
   // agreement with the AI within a day. Silence, not noise.
   const paceBook = useMemo(() => buildPaceBook(projects), [projects]);
+  // Tasks whose duration was already set from a pace suggestion this session.
+  const [pacedIds, setPacedIds] = useState<Set<string>>(() => new Set());
 
   const paceFor = useCallback((task: ScheduleTask): { days: number; jobCount: number; confidence: 'medium' | 'high' } | null => {
     if (task.isMilestone || task.durationDays <= 0) return null;
-    const entry = lookupPace(paceBook, tradeKeyForTask(task), project?.squareFootage);
+    // Once a suggestion is applied to a task, never re-offer on it — the blend
+    // re-anchors to the just-applied value and would spawn an endless chain of
+    // fresh suggestions (9 → 10 → 10.6 → …).
+    if (pacedIds.has(task.id)) return null;
+    // The 'general' fallback trade aggregates unrelated miscellaneous tasks —
+    // a pace drawn from it is noise, not history.
+    const trade = tradeKeyForTask(task);
+    if (trade === 'general') return null;
+    const entry = lookupPace(paceBook, trade, project?.squareFootage);
     if (!entry) return null;
     const confidence = entry.confidence;
     if (confidence === 'low') return null;
     const days = suggestDuration(entry, task.durationDays);
     if (Math.abs(days - task.durationDays) < 1) return null;
     return { days, jobCount: entry.jobCount, confidence };
-  }, [paceBook, project?.squareFootage]);
+  }, [paceBook, project?.squareFootage, pacedIds]);
 
   const applyPace = useCallback((taskId: string, days: number) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // The screen's edit path: accept() rebuilds via buildScheduleFromTasks,
     // whose forward pass reflows dependent startDays from the new duration.
     setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, durationDays: days } : t)));
+    setPacedIds(prev => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
   }, []);
 
   const accept = useCallback(() => {
@@ -109,7 +124,11 @@ export default function ScheduleReviewScreen() {
       tasks,
       draft.schedule.baseline ?? null,
     );
-    updateProject(project.id, { schedule: { ...draft.schedule, ...rebuilt, tasks } });
+    // rebuilt.tasks are the REFLOWED tasks (recalculateStartDays ran inside
+    // buildScheduleFromTasks) — do NOT override them with this screen's
+    // un-reflowed `tasks` state, or an applied pace duration persists without
+    // its dependents' startDays moving.
+    updateProject(project.id, { schedule: { ...draft.schedule, ...rebuilt } });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // The schedule is committed above regardless; only the destination differs.
     // Schedule Pro needs both a wide viewport and Pro — otherwise land the GC in
