@@ -91,6 +91,7 @@ import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { indentTask, outdentTask, moveTask } from '@/utils/outlineOps';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary';
+import { stampActuals } from '@/utils/pace/stampActuals';
 import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
@@ -613,11 +614,20 @@ function ScheduleProScreenInner() {
   }, [schedulePersist]);
 
   const handleEdit = useCallback((taskId: string, patch: Partial<ScheduleTask>) => {
-    // Log to the audit before applying so we have the "before" snapshot.
     const before = workingTasks.find(t => t.id === taskId);
+    // Pace flywheel: status transitions auto-stamp as-built days. The stamp
+    // sits UNDER the incoming patch, so the Gantt's explicit Start/Finish-
+    // today values always win, and stampActuals never touches already-set
+    // actuals. todayDayNumber is this screen's clamped memo — the same basis
+    // the Gantt renders with.
+    const effective: Partial<ScheduleTask> =
+      before && patch.status !== undefined && patch.status !== before.status
+        ? { ...stampActuals(before, patch.status, todayDayNumber, new Date().toISOString()), ...patch }
+        : patch;
+    // Log to the audit before applying so we have the "before" snapshot.
     if (before && project?.id) {
-      const isLogicChange = 'dependencies' in patch || 'dependencyLinks' in patch;
-      const isProgressChange = 'progress' in patch && patch.progress !== before.progress;
+      const isLogicChange = 'dependencies' in effective || 'dependencyLinks' in effective;
+      const isProgressChange = 'progress' in effective && effective.progress !== before.progress;
       const entry = buildAuditEntry({
         user: user?.email ?? user?.name ?? 'anonymous',
         taskId,
@@ -625,14 +635,14 @@ function ScheduleProScreenInner() {
         kind: isLogicChange ? 'dependency_edit'
           : isProgressChange ? 'progress_update'
           : 'task_edit',
-        summary: summarizeTaskDiff(before as unknown as Record<string, unknown>, { ...before, ...patch } as unknown as Record<string, unknown>),
+        summary: summarizeTaskDiff(before as unknown as Record<string, unknown>, { ...before, ...effective } as unknown as Record<string, unknown>),
         before: before as unknown as Record<string, unknown>,
-        after: { ...before, ...patch } as unknown as Record<string, unknown>,
+        after: { ...before, ...effective } as unknown as Record<string, unknown>,
       });
       void appendAuditToAsyncStorage(project.id, entry);
     }
-    commit(prev => prev.map(t => (t.id === taskId ? { ...t, ...patch } : t)));
-  }, [commit, workingTasks, project?.id, user]);
+    commit(prev => prev.map(t => (t.id === taskId ? { ...t, ...effective } : t)));
+  }, [commit, workingTasks, project?.id, user, todayDayNumber]);
 
   // Small helper so task create/delete can drop audit entries the same way
   // handleEdit does — builds the entry and enqueues the AsyncStorage append.

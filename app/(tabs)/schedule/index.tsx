@@ -102,6 +102,7 @@ import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
+import { stampActuals, todayDayNumberFrom } from '@/utils/pace/stampActuals';
 import { runCpm } from '@/utils/cpm';
 
 interface TaskDraft {
@@ -523,6 +524,14 @@ function ScheduleScreen() {
           assignedSubId: draft.assignedSubId || undefined,
           assignedSubName: draft.assignedSubName || undefined,
         };
+        // Pace flywheel: a status change in the edit modal stamps as-builts.
+        // `updated` spreads `...item`, so existing actuals are already carried;
+        // stampActuals only fills the unset ones (never overwrites).
+        // NOT the screen's projectStartDate memo — that anchors to noon and
+        // would compute day 0 on the morning of day 1.
+        if (draft.status !== item.status) {
+          Object.assign(updated, stampActuals(item, draft.status, todayDayNumberFrom(activeSchedule?.startDate), new Date().toISOString()));
+        }
         // Calendar-picked start date wins over day-number override.
         if (startDayFromDate !== null) {
           updated.startDay = startDayFromDate;
@@ -639,7 +648,14 @@ function ScheduleScreen() {
     const clamped = Math.max(0, Math.min(100, nextProgress));
     const nextStatus = clamped >= 100 ? 'done' as const : clamped > 0 ? 'in_progress' as const : 'not_started' as const;
     const nextTasks = sortedTasks.map(item =>
-      item.id !== task.id ? item : { ...item, progress: clamped, status: nextStatus }
+      item.id !== task.id ? item : {
+        ...item, progress: clamped, status: nextStatus,
+        // Pace flywheel: quick-progress implies status moves — stamp the
+        // as-builts on the transition (no-op when already stamped).
+        ...(nextStatus !== item.status
+          ? stampActuals(item, nextStatus, todayDayNumberFrom(activeSchedule?.startDate), new Date().toISOString())
+          : {}),
+      }
     );
     const scheduleName = activeSchedule?.name ?? 'Project Schedule';
     const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
