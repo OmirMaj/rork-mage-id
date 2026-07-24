@@ -26,17 +26,16 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Platform,
   Pressable,
   Dimensions,
   AccessibilityInfo,
 } from 'react-native';
+import PersonaSwitchOverlay from '@/components/PersonaSwitchOverlay';
 import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
 import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
@@ -85,6 +84,22 @@ export default function PersonaSelectScreen() {
 
   const [submitting, setSubmitting] = useState<UserRole | null>(null);
 
+  // ── Persona-switch overlay ─────────────────────────────────────────────────
+  // showOverlay drives the full-screen circular reveal animation.
+  // pendingRole / pendingOrigin store the selection until onDone fires.
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [overlayRole, setOverlayRole] = useState<UserRole>('contractor');
+  const [overlayOrigin, setOverlayOrigin] = useState<{ x: number; y: number } | undefined>();
+  // One ref per role card for measureInWindow origin capture
+  const cardRefs = useRef<Record<UserRole, View | null>>({
+    contractor: null,
+    client: null,
+    both: null,
+    property_manager: null,
+  });
+  // Stores the actual commit logic until the animation's peak (onDone)
+  const pendingCommit = useRef<(() => Promise<void>) | null>(null);
+
   // Reduce-motion handling matches onboarding.tsx — Apple HIG requires
   // it and skipping the animation also means we don't gate the user on
   // a 600ms reveal when accessibility is on.
@@ -130,10 +145,10 @@ export default function PersonaSelectScreen() {
     ]).start();
   }, [reduceMotion, eyebrowOpacity, headlineOpacity, bodyOpacity, cardsOpacity, lift]);
 
-  const handlePick = useCallback(async (role: UserRole) => {
-    if (submitting) return;
-    setSubmitting(role);
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  // commitRole — the actual async logic that runs when the overlay's reveal
+  // peak fires (onDone). Separated so the animation can play uninterrupted
+  // while the role write + navigation are deferred to the overlay's callback.
+  const commitRole = useCallback(async (role: UserRole) => {
     try {
       await setUserRole(role);
 
@@ -164,7 +179,37 @@ export default function PersonaSelectScreen() {
       console.warn('[persona-select] failed to set role:', err);
       setSubmitting(null);
     }
-  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding, submitting]);
+  }, [hasSeenOnboarding, router, setUserRole, completeOnboarding]);
+
+  const handlePick = useCallback((role: UserRole) => {
+    if (submitting) return;
+    setSubmitting(role);
+
+    // Store the commit for when the overlay's onDone fires
+    pendingCommit.current = () => commitRole(role);
+
+    // Measure the tapped card for reveal origin; fall back to screen center
+    const ref = cardRefs.current[role];
+    if (ref && typeof ref.measureInWindow === 'function') {
+      ref.measureInWindow((cx, cy, cw, ch) => {
+        setOverlayOrigin({ x: cx + cw / 2, y: cy + ch / 2 });
+        setOverlayRole(role);
+        setShowOverlay(true);
+      });
+    } else {
+      setOverlayRole(role);
+      setShowOverlay(true);
+    }
+  }, [submitting, commitRole]);
+
+  // Called when the overlay animation completes — commit the role + navigate
+  const handleOverlayDone = useCallback(async () => {
+    setShowOverlay(false);
+    if (pendingCommit.current) {
+      await pendingCommit.current();
+      pendingCommit.current = null;
+    }
+  }, []);
 
   return (
     <View style={styles.root}>
@@ -222,34 +267,39 @@ export default function PersonaSelectScreen() {
             const Icon = ROLE_ICONS[role];
             const isSubmitting = submitting === role;
             return (
-              <Pressable
+              <View
                 key={role}
-                onPress={() => handlePick(role)}
-                disabled={!!submitting}
-                style={({ pressed, hovered }) => [
-                  styles.roleCard,
-                  isDesktop && styles.cardHalf,
-                  hovered && styles.roleCardHover,
-                  pressed && styles.roleCardPressed,
-                  isSubmitting && styles.roleCardActive,
-                ]}
-                accessibilityLabel={`${USER_ROLE_LABELS[role]}: ${USER_ROLE_BLURB[role]}`}
-                accessibilityRole="button"
-                testID={`persona-${role}`}
+                ref={r => { cardRefs.current[role] = r; }}
+                collapsable={false}
               >
-                <View style={styles.roleIconWrap}>
-                  <Icon size={22} color={BRAND.orange} strokeWidth={2.2} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.roleLabel}>{USER_ROLE_LABELS[role]}</Text>
-                  <Text style={styles.roleBlurb} numberOfLines={3}>
-                    {USER_ROLE_BLURB[role]}
-                  </Text>
-                </View>
-                <View style={styles.roleArrow}>
-                  <ArrowRight size={16} color={BRAND.cream} strokeWidth={2.2} />
-                </View>
-              </Pressable>
+                <Pressable
+                  onPress={() => handlePick(role)}
+                  disabled={!!submitting}
+                  style={({ pressed, hovered }) => [
+                    styles.roleCard,
+                    isDesktop && styles.cardHalf,
+                    hovered && styles.roleCardHover,
+                    pressed && styles.roleCardPressed,
+                    isSubmitting && styles.roleCardActive,
+                  ]}
+                  accessibilityLabel={`${USER_ROLE_LABELS[role]}: ${USER_ROLE_BLURB[role]}`}
+                  accessibilityRole="button"
+                  testID={`persona-${role}`}
+                >
+                  <View style={styles.roleIconWrap}>
+                    <Icon size={22} color={BRAND.orange} strokeWidth={2.2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.roleLabel}>{USER_ROLE_LABELS[role]}</Text>
+                    <Text style={styles.roleBlurb} numberOfLines={3}>
+                      {USER_ROLE_BLURB[role]}
+                    </Text>
+                  </View>
+                  <View style={styles.roleArrow}>
+                    <ArrowRight size={16} color={BRAND.cream} strokeWidth={2.2} />
+                  </View>
+                </Pressable>
+              </View>
             );
           })}
         </Animated.View>
@@ -258,6 +308,15 @@ export default function PersonaSelectScreen() {
           You can change this anytime in Settings
         </Animated.Text>
       </Animated.View>
+
+      {/* Circular reveal transition when the user picks a new persona */}
+      <PersonaSwitchOverlay
+        visible={showOverlay}
+        toRole={overlayRole}
+        originPoint={overlayOrigin}
+        reduceMotion={reduceMotion}
+        onDone={handleOverlayDone}
+      />
     </View>
   );
 }
