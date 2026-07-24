@@ -1,9 +1,40 @@
 # SECURITY ADVISORY — Client-portal cross-tenant data exposure (P0)
 
-**Found:** 2026-07-13, during the full-app audit. **Confirmed live** against production
-(`nteoqhcswappxxjlpvap`) by reading `pg_policies` directly.
-**Status:** NOT yet fixed in production. This needs owner review + a coordinated
-migration + portal deploy (see "Why not auto-applied").
+**Found:** 2026-07-13, during the full-app audit, by reading `pg_policies` directly.
+
+---
+
+## ✅ RESOLVED — status as of 2026-07-21 (corrected)
+
+Both parts are now closed, and one severity claim below was **corrected by live testing**:
+
+- **Part B (`portal_snapshots` / `sub_portal_snapshots`, `anon SELECT using(true)`) — the
+  genuinely dumpable leak — was fixed 2026-07-14** (migrations `portal_token_rpcs` +
+  `portal_lock_direct_access`): anon SELECT revoked, reads moved behind the
+  token-gated `portal_get_snapshot` SECURITY DEFINER RPC. Verified live.
+
+- **Part A (`project_contracts` / `selection_categories` / `selection_options` /
+  `closeout_binders`) was NOT actually anon-exploitable.** The section below claimed an
+  unfiltered anon GET "returns all rows for all tenants" — that is **wrong for these four
+  tables**. Their policy `USING (EXISTS (SELECT 1 FROM projects p WHERE … enabled))`
+  subquery runs under the **caller's** RLS on `projects`, and **anon cannot read
+  `projects`**, so the `EXISTS` is always false. Verified 2026-07-21 with a real
+  unauthenticated REST call: `GET /project_contracts?select=id` (and the other three)
+  returned `content-range */0` — **zero rows**. The real security boundary is `projects`
+  RLS, and it was holding. The lesson: reading `pg_policies` alone over-claimed; an
+  actual anon probe is the ground truth.
+
+- Part A's four `*_client_*` policies + anon table SELECT were nonetheless **dropped
+  2026-07-21** (migration `20260721043510_portal_rls_drop_defanged_client_read_policies`)
+  as **defense-in-depth** — they were a latent footgun (a future anon-readable `projects`
+  policy would silently turn them into real contract/signature/IP leaks). Post-fix, an
+  anon REST read of all four returns HTTP 401 "permission denied". GC owner access is
+  preserved via the untouched `*_gc_*` policies.
+
+The original advisory is retained below for the historical record; treat the
+"returns all rows" framing for Part A as corrected above.
+
+---
 
 ## What's exposed
 
