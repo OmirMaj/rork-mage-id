@@ -42,5 +42,31 @@ expect('missing guess defaults to empty string', coerceDelayResult({ hits: [{ qu
 expect('junk input → empty hits', coerceDelayResult('nope').hits.length, 0);
 expect('caps the hit count', coerceDelayResult({ hits: Array.from({ length: 9 }, (_, i) => ({ quote: `q${i}` })) }).hits.length, MAX_DELAY_HITS);
 
+import { matchTaskByTitle } from '../utils/delayScan/matchTask';
+import type { ScheduleTask } from '../types';
+
+function task(id: string, title: string, startDay: number, durationDays: number, over: Partial<ScheduleTask> = {}): ScheduleTask {
+  return { id, title, phase: 'General', durationDays, startDay, progress: 0, crew: 'Crew A', dependencies: [], notes: '', status: 'not_started', ...over };
+}
+
+console.log('\ndelayScan matchTaskByTitle:');
+
+const TASKS = [
+  task('A', 'Demo', 1, 3),
+  task('B', 'Electrical rough-in', 4, 5),
+  task('C', 'Drywall hang', 9, 4),
+  task('D', 'Paint interior', 13, 3),
+  task('E', 'Paint exterior', 13, 3),
+  task('F', 'Demo prep', 1, 1),
+];
+
+expect('exact match, case/whitespace-insensitive', matchTaskByTitle('  electrical ROUGH-IN ', TASKS)?.id, 'B');
+expect('guess-inside-title substring', matchTaskByTitle('rough-in', TASKS)?.id, 'B');
+expect('title-inside-guess substring', matchTaskByTitle('Drywall hang west wing', TASKS)?.id, 'C');
+expect('ambiguous substring → null', matchTaskByTitle('paint', TASKS), null);
+expect('exact wins over substring ambiguity', matchTaskByTitle('demo', TASKS)?.id, 'A');
+expect('no match → null', matchTaskByTitle('landscaping', TASKS), null);
+expect('empty guess → null', matchTaskByTitle('', TASKS), null);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
