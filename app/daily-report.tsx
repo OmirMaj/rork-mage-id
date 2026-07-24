@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal, Image,
+  Alert, Platform, KeyboardAvoidingView, Modal, Image, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -12,6 +12,7 @@ import {
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
   Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
+  CalendarClock, ChevronDown, Link2, Minus,
 } from 'lucide-react-native';
 import { MageAIMark, MageDailyReport } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
@@ -32,8 +33,8 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
-import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress } from '@/types';
-import { PHASE_COLORS } from '@/utils/scheduleEngine';
+import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress, ScheduleTask } from '@/types';
+import { PHASE_COLORS, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
@@ -45,10 +46,23 @@ import { PortalStatusPill } from '@/components/PortalStatusPill';
 import { SendToClientButton } from '@/components/SendToClientButton';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
 import UpgradeSheet from '@/components/UpgradeSheet';
+import ScheduleDiffView from '@/components/copilot/ScheduleDiffView';
+import type { CopilotContext } from '@/utils/copilot/types';
+import type { EditOp } from '@/utils/copilot/scheduleEdit/editOps';
+import { interpretScheduleOps, applyEditEffects } from '@/utils/copilot/scheduleEdit/interpretOps';
+import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
+import { runCpm } from '@/utils/cpm';
+import { buildDelayPrompt, coerceDelayResult, hashDelayText, DELAY_SCHEMA_HINT, MAX_DELTA_DAYS } from '@/utils/delayScan/delayPrompt';
+import { matchTaskByTitle } from '@/utils/delayScan/matchTask';
+import { mageAI } from '@/utils/mageAI';
 
 function createId(_prefix: string): string {
   return generateUUID();
 }
+
+/** One confirm row of the delay scan: the AI's quote + proposal, the user's
+ *  confirmed task + days. taskId null = unmatched, user must pick. */
+type DelayRow = { quote: string; deltaDays: number; taskId: string | null };
 
 export default function DailyReportScreen() {
   const insets = useSafeAreaInsets();
@@ -57,10 +71,11 @@ export default function DailyReportScreen() {
   const styles = useThemedStyles(makeStyles);
   const hsStyles = useThemedStyles(makeHsStyles);
   const voiceStyles = useThemedStyles(makeVoiceStyles);
+  const dcStyles = useThemedStyles(makeDcStyles);
   const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
-    getPhotosForProject,
+    getPhotosForProject, updateProject,
   } = useProjects();
   const { tier } = useSubscription();
   const { isFree } = useTierAccess();
@@ -125,6 +140,12 @@ export default function DailyReportScreen() {
   const [hsPublished, setHsPublished] = useState<boolean>(existingReport?.homeownerSummaryPublished ?? false);
   const [hsGenerating, setHsGenerating] = useState<boolean>(false);
   const [hsGeneratedAt, setHsGeneratedAt] = useState<string | undefined>(existingReport?.homeownerSummaryGeneratedAt);
+  // ─── Delay cascade (Schedule impact) ───
+  const [delayRows, setDelayRows] = useState<DelayRow[] | null>(null); // null = not scanned yet
+  const [delayScanning, setDelayScanning] = useState<boolean>(false);
+  const [delayPreviewOps, setDelayPreviewOps] = useState<EditOp[] | null>(null);
+  const [delayTaskPickerIdx, setDelayTaskPickerIdx] = useState<number | null>(null);
+  const [delayApplied, setDelayApplied] = useState<boolean>(false);
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
   const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? {
     hasIncident: false,
@@ -523,6 +544,111 @@ export default function DailyReportScreen() {
       setHsGenerating(false);
     }
   }, [project, workPerformed, manpower, materialsDelivered, issuesAndDelays, photos, weather, existingReport, settings]);
+
+  // ─── Delay cascade scan ───
+  const scheduleTasks = useMemo<ScheduleTask[]>(() => project?.schedule?.tasks ?? [], [project]);
+
+  // Mirrors app/(tabs)/schedule/index.tsx:283-287 — the schedule's own CPM options.
+  const delayCpmOptions = useMemo(() => ({
+    scheduleStartDate: project?.schedule?.startDate,
+    workingDaysPerWeek: project?.schedule?.workingDaysPerWeek,
+    nonWorkingDates: project?.schedule?.nonWorkingDates,
+  }), [project?.schedule?.startDate, project?.schedule?.workingDaysPerWeek, project?.schedule?.nonWorkingDates]);
+
+  // ScheduleDiffView reads exactly ctx.currentTasks + ctx.cpmOptions; the rest
+  // satisfies the CopilotContext required fields (ctx is `any` by design).
+  const diffCtx = useMemo<CopilotContext>(() => ({
+    project: project ?? null,
+    projectId: project?.id ?? '',
+    ctx: null,
+    tier,
+    currentTasks: scheduleTasks,
+    cpmOptions: delayCpmOptions,
+  }), [project, tier, scheduleTasks, delayCpmOptions]);
+
+  const handleDelayScan = useCallback(async () => {
+    if (!project?.schedule || scheduleTasks.length === 0) return;
+    if (!issuesAndDelays.trim()) {
+      Alert.alert('Nothing to scan yet', "Note the delay under Issues & Delays first — that's the text the scan reads.");
+      return;
+    }
+    const limit = await checkAILimit(tier, 'fast', 'delayScan');
+    if (!limit.allowed) { setUpgradeLimit(limit); return; }
+    setDelayScanning(true);
+    setDelayPreviewOps(null);
+    setDelayApplied(false);
+    try {
+      const res = await mageAI({
+        prompt: buildDelayPrompt(issuesAndDelays, scheduleTasks.map(t => t.title)),
+        tier: 'fast',
+        maxTokens: 800,
+        feature: 'delayScan',
+        schemaHint: DELAY_SCHEMA_HINT,
+        cacheKey: `delay_${stableReportId}_${hashDelayText(issuesAndDelays)}`,
+      });
+      if (!res.success) {
+        Alert.alert('Scan failed', res.error ?? 'Try again in a moment.');
+        return;
+      }
+      const { hits } = coerceDelayResult(res.data);
+      setDelayRows(hits.map(h => ({
+        quote: h.quote,
+        deltaDays: h.deltaDays,
+        taskId: matchTaskByTitle(h.taskTitleGuess, scheduleTasks)?.id ?? null,
+      })));
+      if (!res.fromCache) void recordAIUsage('fast', 'delayScan');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } finally {
+      setDelayScanning(false);
+    }
+  }, [project, scheduleTasks, issuesAndDelays, tier, stableReportId]);
+
+  const confirmableRows = useMemo(
+    () => (delayRows ?? []).filter((r): r is DelayRow & { taskId: string } => !!r.taskId && r.deltaDays > 0),
+    [delayRows],
+  );
+
+  const handlePreviewRipple = useCallback(() => {
+    if (confirmableRows.length === 0) return;
+    setDelayPreviewOps(confirmableRows.map(r => ({ op: 'move' as const, task: r.taskId, deltaDays: r.deltaDays })));
+  }, [confirmableRows]);
+
+  const handleApplyRipple = useCallback(() => {
+    const schedule = project?.schedule;
+    if (!project || !schedule || !delayPreviewOps) return;
+    // Recompute exactly what ScheduleDiffView previewed (it computes internally
+    // from ops + ctx; onApply hands us nothing).
+    const { nextTasks } = interpretScheduleOps(delayPreviewOps, schedule.tasks);
+    const edited = applyEditEffects(delayPreviewOps, nextTasks, delayCpmOptions);
+    // persistEditedTasks pattern (app/(tabs)/schedule/index.tsx:447-473):
+    // reflow startDays via CPM, re-derive the scalar fields, merge over a
+    // spread of the schedule so sidecar fields (startDate, calendars,
+    // scenarios, baseline, …) survive. NEVER touch schedule.startDate.
+    const reflowed = applyToProjectSchedule(schedule, edited, delayCpmOptions).tasks;
+    const cpmResult = runCpm(reflowed, delayCpmOptions);
+    const built = buildScheduleFromTasks(
+      schedule.name ?? project.name ?? 'Schedule',
+      project.id,
+      reflowed,
+      schedule.baseline ?? null,
+      { criticalPathDays: cpmResult.projectFinish },
+    );
+    updateProject(project.id, {
+      schedule: {
+        ...schedule,
+        tasks: reflowed,
+        totalDurationDays: built.totalDurationDays,
+        criticalPathDays: built.criticalPathDays,
+        healthScore: built.healthScore,
+        laborAlignmentScore: built.laborAlignmentScore,
+        riskItems: built.riskItems,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    setDelayPreviewOps(null);
+    setDelayApplied(true);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [project, delayPreviewOps, delayCpmOptions, updateProject]);
 
   const totalManpower = useMemo(() => {
     return manpower.reduce((sum, m) => sum + m.headcount, 0);
@@ -1341,6 +1467,115 @@ export default function DailyReportScreen() {
             )}
           </View>
 
+          {/* Delay cascade — one tap turns the delay noted above into the downstream
+              schedule ripple. AI reads the text; the user confirms task + days; the
+              CPM engine computes every number. */}
+          {scheduleTasks.length > 0 && issuesAndDelays.trim().length > 0 && (
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <CalendarClock size={18} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.sectionTitle}>Schedule impact</Text>
+                {delayApplied && (
+                  <View style={dcStyles.appliedPill}>
+                    <Text style={dcStyles.appliedPillText}>APPLIED</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={dcStyles.helperText}>
+                Reads the delays above, maps them to schedule tasks, and shows the downstream ripple — what slides, what turns critical, how the finish moves. Nothing changes until you apply it.
+              </Text>
+
+              <TouchableOpacity
+                style={[dcStyles.aiBtn, delayScanning && dcStyles.aiBtnDisabled]}
+                onPress={handleDelayScan}
+                disabled={delayScanning}
+                testID="delay-scan"
+              >
+                {delayScanning ? (
+                  <>
+                    <RefreshCw size={14} color={themeColors.accent} strokeWidth={1.75} />
+                    <Text style={dcStyles.aiBtnText}>Reading the delays…</Text>
+                  </>
+                ) : (
+                  <>
+                    <MageAIMark size={14} color={themeColors.accent} />
+                    <Text style={dcStyles.aiBtnText}>{delayRows ? 'Re-check schedule impact' : 'Check schedule impact'}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {delayRows && delayRows.length === 0 && (
+                <View style={dcStyles.cleanRow}>
+                  <CheckCircle2 size={16} color={themeColors.success} strokeWidth={1.75} />
+                  <Text style={dcStyles.cleanText}>No delay language detected in this report.</Text>
+                </View>
+              )}
+
+              {delayRows && delayRows.length > 0 && !delayPreviewOps && (
+                <View style={dcStyles.rowsBlock}>
+                  {delayRows.map((row, i) => {
+                    const rowTask = scheduleTasks.find(t => t.id === row.taskId);
+                    return (
+                      <View key={i} style={dcStyles.hitRow}>
+                        <Text style={dcStyles.hitQuote}>&ldquo;{row.quote}&rdquo;</Text>
+                        <View style={dcStyles.hitControls}>
+                          <TouchableOpacity style={dcStyles.taskPickBtn} onPress={() => setDelayTaskPickerIdx(i)} activeOpacity={0.7} testID={`delay-task-${i}`}>
+                            <Link2 size={14} color={rowTask ? themeColors.accent : themeColors.textMuted} strokeWidth={1.75} />
+                            <Text style={[dcStyles.taskPickText, !rowTask && { color: themeColors.textMuted }]} numberOfLines={1}>
+                              {rowTask ? rowTask.title : 'Pick the delayed task'}
+                            </Text>
+                            <ChevronDown size={14} color={themeColors.textMuted} strokeWidth={1.75} />
+                          </TouchableOpacity>
+                          <View style={dcStyles.stepperRow}>
+                            <TouchableOpacity
+                              style={dcStyles.stepBtn}
+                              onPress={() => setDelayRows(rs => (rs ?? []).map((r, j) => j === i ? { ...r, deltaDays: Math.max(1, r.deltaDays - 1) } : r))}
+                              accessibilityRole="button" accessibilityLabel="One day less"
+                            >
+                              <Minus size={14} color={themeColors.text} strokeWidth={2} />
+                            </TouchableOpacity>
+                            <Text style={dcStyles.stepValue}>{row.deltaDays}d</Text>
+                            <TouchableOpacity
+                              style={dcStyles.stepBtn}
+                              onPress={() => setDelayRows(rs => (rs ?? []).map((r, j) => j === i ? { ...r, deltaDays: Math.min(MAX_DELTA_DAYS, r.deltaDays + 1) } : r))}
+                              accessibilityRole="button" accessibilityLabel="One day more"
+                            >
+                              <Plus size={14} color={themeColors.text} strokeWidth={2} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  <TouchableOpacity
+                    style={[dcStyles.previewBtn, confirmableRows.length === 0 && dcStyles.previewBtnOff]}
+                    onPress={handlePreviewRipple}
+                    disabled={confirmableRows.length === 0}
+                    activeOpacity={0.85}
+                    testID="delay-preview"
+                  >
+                    <Text style={dcStyles.previewBtnText}>
+                      {confirmableRows.length === 0
+                        ? 'Pick a task to preview the ripple'
+                        : `Preview the ripple (${confirmableRows.length} ${confirmableRows.length === 1 ? 'delay' : 'delays'})`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {delayPreviewOps && (
+                <View style={dcStyles.diffWrap}>
+                  <ScheduleDiffView
+                    ops={delayPreviewOps}
+                    ctx={diffCtx}
+                    onApply={handleApplyRipple}
+                    onDiscard={() => setDelayPreviewOps(null)}
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Homeowner-friendly summary — AI generates from technical fields,
               GC reviews + edits, then publishes to the portal as the daily
               "Latest update" panel. The toggle for what shows in portal is
@@ -1878,6 +2113,40 @@ export default function DailyReportScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {/* Delay-row task picker */}
+      <Modal visible={delayTaskPickerIdx !== null} transparent animationType="fade" onRequestClose={() => setDelayTaskPickerIdx(null)}>
+        <Pressable style={dcStyles.modalOverlay} onPress={() => setDelayTaskPickerIdx(null)}>
+          <Pressable style={dcStyles.taskPickerCard} onPress={() => undefined}>
+            <View style={dcStyles.taskPickerHeader}>
+              <Text style={dcStyles.taskPickerTitle}>Which task slipped?</Text>
+              <TouchableOpacity onPress={() => setDelayTaskPickerIdx(null)} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {scheduleTasks.map(t => {
+                const active = delayTaskPickerIdx !== null && delayRows?.[delayTaskPickerIdx]?.taskId === t.id;
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[dcStyles.taskOption, active && dcStyles.taskOptionActive]}
+                    onPress={() => {
+                      setDelayRows(rs => (rs ?? []).map((r, j) => j === delayTaskPickerIdx ? { ...r, taskId: t.id } : r));
+                      setDelayTaskPickerIdx(null);
+                    }}
+                  >
+                    {active && <CheckCircle2 size={14} color={themeColors.accent} strokeWidth={1.75} />}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[dcStyles.taskOptionText, active && dcStyles.taskOptionTextActive]} numberOfLines={1}>{t.title}</Text>
+                      <Text style={dcStyles.taskOptionMeta}>{t.phase} · {t.durationDays}d · day {t.startDay}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <UpgradeSheet
         visible={!!upgradeLimit}
         limit={upgradeLimit}
@@ -1967,6 +2236,50 @@ const makeVoiceStyles = (themeColors: ThemeColors) => StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   rowLabel: { width: 90, fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
   rowValue: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 18 },
+});
+
+const makeDcStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  helperText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
+  appliedPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full, marginLeft: 'auto' as const, backgroundColor: 'rgba(30,142,74,0.12)' },
+  appliedPillText: { fontSize: 9, fontWeight: '800' as const, color: themeColors.success, letterSpacing: 0.6 },
+  aiBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    paddingHorizontal: 12, paddingVertical: 11, borderRadius: 11,
+    backgroundColor: themeColors.accent + '0F', borderWidth: 1, borderColor: themeColors.accent + '40',
+  },
+  aiBtnDisabled: { opacity: 0.7 },
+  aiBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  cleanRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 12 },
+  cleanText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
+  rowsBlock: { marginTop: 12, gap: 12 },
+  hitRow: { gap: 8 },
+  hitQuote: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, fontStyle: 'italic' as const },
+  hitControls: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  taskPickBtn: {
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
+    backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
+    borderRadius: Tokens.radius.md, paddingHorizontal: 10, paddingVertical: 9,
+  },
+  taskPickText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
+  stepperRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  stepBtn: {
+    width: 30, height: 30, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const,
+    backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line,
+  },
+  stepValue: { minWidth: 34, textAlign: 'center' as const, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  previewBtn: { marginTop: 2, paddingVertical: 12, borderRadius: 11, alignItems: 'center' as const, backgroundColor: themeColors.accent },
+  previewBtnOff: { opacity: 0.4 },
+  previewBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+  diffWrap: { marginTop: 12 },
+  modalOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'center' as const, alignItems: 'center' as const, padding: 24 },
+  taskPickerCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, width: '100%' as const, overflow: 'hidden' as const },
+  taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  taskPickerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: themeColors.line + '80' },
+  taskOptionActive: { backgroundColor: themeColors.accent + '10' },
+  taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  taskOptionTextActive: { fontWeight: '700' as const, color: themeColors.accent },
+  taskOptionMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, marginTop: 1 },
 });
 
 const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
