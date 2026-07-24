@@ -279,6 +279,21 @@
 
   footer{border-top:1px solid var(--line-d);background:var(--ink-2)}
   footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;padding:26px 0;font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.04em}
+
+  /* animated brain */
+  .brain .brainstage{position:relative;max-width:760px;margin:32px auto 0;aspect-ratio:76/50}
+  .brain canvas{position:absolute;inset:0;width:100%;height:100%}
+  .faculty{position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:11px;letter-spacing:.1em;font-weight:700;color:var(--muted);background:rgba(18,15,11,.72);border:1px solid var(--line-d);border-radius:999px;padding:7px 13px 7px 16px;cursor:pointer;backdrop-filter:blur(4px);transition:color .2s,background .2s,border-color .2s,box-shadow .2s;white-space:nowrap;z-index:3}
+  .faculty::before{content:"";position:absolute;left:9px;top:50%;width:6px;height:6px;border-radius:50%;background:var(--amber);transform:translateY(-50%);box-shadow:0 0 9px var(--amber)}
+  .faculty:hover,.faculty.on{color:#160d04;background:var(--amber);border-color:var(--amber);box-shadow:0 0 26px var(--amber-glow)}
+  .faculty:hover::before,.faculty.on::before{background:#160d04;box-shadow:none}
+  .faculty:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+  .brain-caption{max-width:620px;margin:26px auto 0;text-align:center;min-height:96px}
+  .brain-caption .cf{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-lift);font-weight:700}
+  .brain-caption h3{font-size:clamp(19px,2.6vw,25px);margin-top:8px;color:var(--bone);letter-spacing:-.015em}
+  .brain-caption p{margin-top:9px;font-size:15px;color:var(--muted);line-height:1.5}
+  .brain-caption p em{color:var(--amber-lift);font-style:normal;font-weight:650}
+  @media(max-width:560px){ .faculty{font-size:9.5px;padding:5px 9px 5px 13px} .brain-caption{min-height:132px} }
   </style>
 </head>
 <body>
@@ -312,7 +327,24 @@
   </div></section>
 
   <!-- THE BRAIN — anatomy -->
-  <section class="light sec" id="brain"><div class="wrap">
+  <section class="dark sec brain" id="brain"><div class="wrap">
+    <div class="rv center"><p class="kick">The anatomy of the brain</p>
+    <h2 class="h">Watch it think.</h2>
+    <p class="seclede">A filing cabinet stores your jobs. A brain <em>works</em> them &mdash; it sees, remembers, reasons, foresees, reacts, reads your plans, and judges the next bid. Hover a faculty to see what fires.</p></div>
+    <div class="brainstage rv">
+      <canvas id="brainCanvas" width="760" height="500" aria-hidden="true"></canvas>
+      <button class="faculty" data-f="sees" style="left:29%;top:31%">SEES</button>
+      <button class="faculty" data-f="remembers" style="left:20%;top:64%">REMEMBERS</button>
+      <button class="faculty" data-f="plans" style="left:50%;top:13%">REASONS</button>
+      <button class="faculty" data-f="foresees" style="left:77%;top:33%">FORESEES</button>
+      <button class="faculty" data-f="warns" style="left:74%;top:67%">REACTS</button>
+      <button class="faculty" data-f="reads" style="left:45%;top:48%">READS</button>
+      <button class="faculty" data-f="judges" style="left:50%;top:85%">JUDGES</button>
+    </div>
+    <div class="brain-caption rv" id="brainCap"></div>
+  </div></section>
+
+  <section class="light sec" id="faculties"><div class="wrap">
     <div class="rv brainhdr"><p class="kick">The anatomy of the brain</p>
     <h2 class="h">A brain does three things a filing cabinet never will.</h2>
     <p class="seclede">Sight. Memory. Judgment. The others give you screens to type into. MAGE gives you the three faculties your best project manager runs on — working every job, and getting sharper each time.</p></div>
@@ -436,6 +468,81 @@
     es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
   }, {threshold:.15});
   document.querySelectorAll('.rv:not(.in)').forEach(function(el){ io.observe(el); });
+
+  /* ---- animated neural brain ---- */
+  (function(){
+    var bc = document.getElementById('brainCanvas'), cap = document.getElementById('brainCap');
+    if(!bc || !bc.getContext) return;
+    var g2 = bc.getContext('2d'), W = bc.width, H = bc.height;
+    var cx = W/2, cy = H*0.5, rx = W*0.42, ry = H*0.44;
+    function inB(x,y){ var dx=(x-cx)/rx, dy=(y-cy)/ry; return dx*dx+dy*dy <= 1; }
+    var FACS = {
+      sees:{x:.29,y:.31,cf:'It sees',h:'Prices what you can\u2019t see.',p:'<em>Cost X-Ray</em> \u2014 point the camera and it prices the hidden conditions on your learned costs, before they eat the job.'},
+      remembers:{x:.20,y:.64,cf:'It remembers',h:'Gets smarter every job.',p:'The <em>cost-learning engine</em> feeds every finished job back into your numbers. Job #50 prices off 49 jobs of truth.'},
+      plans:{x:.50,y:.13,cf:'It reasons',h:'Thinks the job through.',p:'<em>MAGE Copilot</em> builds the schedule from a conversation \u2014 and shows the assumptions, risks, and critical path.'},
+      foresees:{x:.77,y:.33,cf:'It foresees',h:'Sees around corners.',p:'It forecasts <em>margin, cash, and schedule slips</em> before they hit \u2014 and learns your crew\u2019s real pace from every finished task.'},
+      warns:{x:.74,y:.67,cf:'It reacts',h:'Warns you in time.',p:'The reflexes \u2014 it flags <em>unbilled out-of-scope work</em>, a light sub bid, a delay about to cascade, before it costs you.'},
+      reads:{x:.45,y:.48,cf:'It reads',h:'Knows your plans by heart.',p:'Upload the sheets and <em>ask in English</em> \u2014 cited answers, straight to the right page.'},
+      judges:{x:.50,y:.85,cf:'It judges',h:'Tells you which jobs to take.',p:'The <em>bid advisor</em> \u2014 take it, hold firm, or walk away, at the price your real costs demand.'}
+    };
+    var keys = Object.keys(FACS);
+    keys.forEach(function(k){ FACS[k].px = FACS[k].x*W; FACS[k].py = FACS[k].y*H; });
+    var nodes = [];
+    keys.forEach(function(k){ nodes.push({x:FACS[k].px, y:FACS[k].py, hub:k}); });
+    var tries=0;
+    while(nodes.length < 78 && tries < 5000){ tries++;
+      var x = cx + (Math.random()*2-1)*rx, y = cy + (Math.random()*2-1)*ry;
+      if(!inB(x,y)) continue;
+      var ok=true; for(var i=0;i<nodes.length;i++){ if(Math.hypot(nodes[i].x-x,nodes[i].y-y)<33){ok=false;break;} }
+      if(ok) nodes.push({x:x,y:y,hub:null});
+    }
+    var edges=[];
+    for(var a=0;a<nodes.length;a++){ var near=[];
+      for(var b=0;b<nodes.length;b++){ if(a!==b) near.push({b:b,d:Math.hypot(nodes[a].x-nodes[b].x,nodes[a].y-nodes[b].y)}); }
+      near.sort(function(p,q){return p.d-q.d;});
+      var nn=2+(Math.random()<.5?1:0);
+      for(var e=0;e<nn&&e<near.length;e++){ if(near[e].d<155) edges.push({a:a,b:near[e].b}); }
+    }
+    var pulses=[];
+    function spawn(fromIdx){ var opts=[]; for(var i=0;i<edges.length;i++){ if(edges[i].a===fromIdx||edges[i].b===fromIdx) opts.push(edges[i]); }
+      if(!opts.length) return; var ed=opts[(Math.random()*opts.length)|0];
+      var to=(ed.a===fromIdx)?ed.b:ed.a; pulses.push({from:fromIdx,to:to,t:0}); }
+    function hubIdx(k){ for(var i=0;i<nodes.length;i++){ if(nodes[i].hub===k) return i; } return 0; }
+    var active=keys[0], hovered=null, cyc=0, lastCyc=0;
+    function markBtns(){ document.querySelectorAll('.faculty').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-f')===active); }); }
+    function setActive(k){ active=k; var f=FACS[k];
+      cap.innerHTML='<span class="cf">'+f.cf+'</span><h3>'+f.h+'</h3><p>'+f.p+'</p>';
+      var hi=hubIdx(k); for(var i=0;i<6;i++) spawn(hi); markBtns(); }
+    document.querySelectorAll('.faculty').forEach(function(btn){ var k=btn.getAttribute('data-f');
+      function on(){ hovered=k; setActive(k); }
+      btn.addEventListener('mouseenter',on); btn.addEventListener('focus',on); btn.addEventListener('click',on);
+      btn.addEventListener('mouseleave',function(){ hovered=null; });
+    });
+    setActive(active);
+    function frame(ts){
+      g2.clearRect(0,0,W,H);
+      var au=g2.createRadialGradient(cx,cy,10,cx,cy,rx*1.15); au.addColorStop(0,'rgba(229,129,31,.10)'); au.addColorStop(1,'rgba(229,129,31,0)');
+      g2.fillStyle=au; g2.beginPath(); g2.ellipse(cx,cy,rx*1.12,ry*1.12,0,0,7); g2.fill();
+      g2.strokeStyle='rgba(200,180,150,.06)'; g2.lineWidth=1; g2.beginPath(); g2.moveTo(cx,cy-ry*.85); g2.lineTo(cx,cy+ry*.85); g2.stroke();
+      g2.lineWidth=1; g2.strokeStyle='rgba(180,160,130,.09)';
+      for(var i=0;i<edges.length;i++){ var A=nodes[edges[i].a],B=nodes[edges[i].b]; g2.beginPath(); g2.moveTo(A.x,A.y); g2.lineTo(B.x,B.y); g2.stroke(); }
+      for(var i=0;i<nodes.length;i++){ var n=nodes[i]; g2.beginPath(); g2.arc(n.x,n.y,n.hub?3.1:1.6,0,7); g2.fillStyle=n.hub?'rgba(245,154,59,.9)':'rgba(210,195,165,.45)'; g2.fill(); }
+      keys.forEach(function(k){ var f=FACS[k],isA=(k===active),rr=isA?18:9;
+        var gg=g2.createRadialGradient(f.px,f.py,1,f.px,f.py,rr); gg.addColorStop(0,isA?'rgba(245,154,59,.55)':'rgba(229,129,31,.22)'); gg.addColorStop(1,'rgba(229,129,31,0)');
+        g2.fillStyle=gg; g2.beginPath(); g2.arc(f.px,f.py,rr,0,7); g2.fill(); });
+      for(var i=pulses.length-1;i>=0;i--){ var p=pulses[i]; p.t += rm?1:0.03; if(p.t>=1){ pulses.splice(i,1); continue; }
+        var A=nodes[p.from],B=nodes[p.to],x=A.x+(B.x-A.x)*p.t,y=A.y+(B.y-A.y)*p.t;
+        g2.beginPath(); g2.arc(x,y,2.4,0,7); g2.fillStyle='rgba(245,164,79,'+(1-p.t)+')'; g2.fill();
+        if(p.t>0.95 && Math.random()<0.55) spawn(p.to);
+      }
+      if(!rm){
+        if(Math.random()<0.045) spawn((Math.random()*nodes.length)|0);
+        if(ts-lastCyc>2800 && !hovered){ lastCyc=ts; cyc=(cyc+1)%keys.length; setActive(keys[cyc]); }
+        requestAnimationFrame(frame);
+      }
+    }
+    if(rm) frame(0); else requestAnimationFrame(frame);
+  })();
 
   /* ---- hero accuracy chart ---- */
   var cv = document.getElementById('accChart'), accV = document.getElementById('accV');
