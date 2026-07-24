@@ -114,12 +114,3 @@ export function todayScheduleDay(scheduleStartDate: string | undefined, now: Dat
   today.setHours(0, 0, 0, 0);
   return Math.max(1, Math.round((today.getTime() - start.getTime()) / 86400000) + 1);
 }
-
-/**
- * @deprecated Transitional alias removed in the same change-set — use
- * todayScheduleDay and handle its null (no-basis) return. Kept only so the
- * engine commit compiles before the sink rewires land.
- */
-export function todayDayNumberFrom(scheduleStartDate: string | undefined, now: Date = new Date()): number {
-  return todayScheduleDay(scheduleStartDate, now) ?? 1;
-}

@@ -91,7 +91,7 @@ import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { indentTask, outdentTask, moveTask } from '@/utils/outlineOps';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary';
-import { stampActuals } from '@/utils/pace/stampActuals';
+import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
@@ -618,11 +618,17 @@ function ScheduleProScreenInner() {
     // Pace flywheel: status transitions auto-stamp as-built days. The stamp
     // sits UNDER the incoming patch, so the Gantt's explicit Start/Finish-
     // today values always win, and stampActuals never touches already-set
-    // actuals. todayDayNumber is this screen's clamped memo — the same basis
-    // the Gantt renders with.
+    // actuals. Basis: todayScheduleDay(schedule.startDate) — the ONE shared
+    // basis every stamping sink uses. NOT this screen's todayDayNumber render
+    // memo: its createdAt fallback would stamp real-elapsed days on a
+    // startDate-less schedule, a basis no task.startDay shares (pace-book
+    // poison). Null basis (no startDate) ⇒ stampActuals records ISO dates
+    // only, never invented day numbers. startDateRef mirrors the schedule's
+    // startDate eagerly (the settings Apply handler writes it ahead of the
+    // debounced persist), so it is the freshest source at call time.
     const effective: Partial<ScheduleTask> =
       before && patch.status !== undefined && patch.status !== before.status
-        ? { ...stampActuals(before, patch.status, todayDayNumber, new Date().toISOString()), ...patch }
+        ? { ...stampActuals(before, patch.status, todayScheduleDay(startDateRef.current), new Date().toISOString()), ...patch }
         : patch;
     // Log to the audit before applying so we have the "before" snapshot.
     if (before && project?.id) {
@@ -642,7 +648,7 @@ function ScheduleProScreenInner() {
       void appendAuditToAsyncStorage(project.id, entry);
     }
     commit(prev => prev.map(t => (t.id === taskId ? { ...t, ...effective } : t)));
-  }, [commit, workingTasks, project?.id, user, todayDayNumber]);
+  }, [commit, workingTasks, project?.id, user]);
 
   // Small helper so task create/delete can drop audit entries the same way
   // handleEdit does — builds the entry and enqueues the AsyncStorage append.

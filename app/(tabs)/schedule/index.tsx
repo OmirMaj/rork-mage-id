@@ -102,7 +102,7 @@ import ScheduleEditPanel from '@/components/copilot/ScheduleEditPanel';
 import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProjectSchedule';
 import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
-import { stampActuals, todayDayNumberFrom } from '@/utils/pace/stampActuals';
+import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { runCpm } from '@/utils/cpm';
 
 interface TaskDraft {
@@ -524,14 +524,6 @@ function ScheduleScreen() {
           assignedSubId: draft.assignedSubId || undefined,
           assignedSubName: draft.assignedSubName || undefined,
         };
-        // Pace flywheel: a status change in the edit modal stamps as-builts.
-        // `updated` spreads `...item`, so existing actuals are already carried;
-        // stampActuals only fills the unset ones (never overwrites).
-        // NOT the screen's projectStartDate memo — that anchors to noon and
-        // would compute day 0 on the morning of day 1.
-        if (draft.status !== item.status) {
-          Object.assign(updated, stampActuals(item, draft.status, todayDayNumberFrom(activeSchedule?.startDate), new Date().toISOString()));
-        }
         // Calendar-picked start date wins over day-number override.
         if (startDayFromDate !== null) {
           updated.startDay = startDayFromDate;
@@ -540,6 +532,18 @@ function ScheduleScreen() {
         } else if (!Number.isNaN(startDayOverride) && startDayOverride > 0 && depLinks.length === 0) {
           // Only apply startDay override when no deps are set (deps control start day automatically)
           updated.startDay = startDayOverride;
+        }
+        // Pace flywheel: a status change in the edit modal stamps as-builts.
+        // Runs AFTER the start-day mutations above so a done-retro-fill reads
+        // the start the user just corrected in this same save, not the stale
+        // pre-edit plan day. `updated` spreads `...item`, so existing actuals
+        // are already carried; stampActuals only fills uncaptured ones (and
+        // clears stale ones when the task leaves `done`).
+        // Basis: todayScheduleDay(schedule.startDate) — the one shared sink
+        // basis. NOT the screen's projectStartDate memo (noon anchor). Null
+        // basis (no startDate) ⇒ ISO dates only, never invented day numbers.
+        if (draft.status !== item.status) {
+          Object.assign(updated, stampActuals({ ...item, startDay: updated.startDay }, draft.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString()));
         }
         return updated;
       });
@@ -653,7 +657,7 @@ function ScheduleScreen() {
         // Pace flywheel: quick-progress implies status moves — stamp the
         // as-builts on the transition (no-op when already stamped).
         ...(nextStatus !== item.status
-          ? stampActuals(item, nextStatus, todayDayNumberFrom(activeSchedule?.startDate), new Date().toISOString())
+          ? stampActuals(item, nextStatus, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString())
           : {}),
       }
     );

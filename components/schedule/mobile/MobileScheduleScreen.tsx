@@ -10,7 +10,7 @@ import { Type } from '@/constants/typography';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Project, ScheduleTask } from '@/types';
 import { buildScheduleFromTasks, createId } from '@/utils/scheduleEngine';
-import { stampActuals, todayDayNumberFrom } from '@/utils/pace/stampActuals';
+import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { runCpm } from '@/utils/cpm';
 import EmptyState from '@/components/EmptyState';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
@@ -101,7 +101,7 @@ export function MobileScheduleScreen() {
     // unset, so merging it over `next` never overwrites history.
     const prev = tasks.find((t) => t.id === next.id);
     const stamped: ScheduleTask = prev && next.status !== prev.status
-      ? { ...next, ...stampActuals(prev, next.status, todayDayNumberFrom(activeSchedule?.startDate), new Date().toISOString()) }
+      ? { ...next, ...stampActuals(prev, next.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString()) }
       : next;
     saveTasks(tasks.map((t) => (t.id === stamped.id ? stamped : t)));
     setDetailTask(stamped);
