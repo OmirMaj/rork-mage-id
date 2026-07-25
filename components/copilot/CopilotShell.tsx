@@ -330,9 +330,11 @@ function makeStyles(colors: ThemeColors) {
     thinkingText: { ...Type.footnote, color: colors.textMuted },
 
     ask: { gap: Tokens.spacing.sm },
-    askEyebrow: { ...Type.monoEyebrow, color: Colors.accentLight },
+    // accentLabel (#C44A0F light / #FF6A1A dark) — correct on cream/ink;
+    // accentLight (#FFCC00) was ~1.4:1 on cream = illegible in light mode.
+    askEyebrow: { ...Type.monoEyebrow, color: colors.accentLabel },
     question: { ...Type.serifHeadline, color: colors.text },
-    grounding: { ...Type.monoLabel, color: colors.textMuted, borderLeftWidth: 2, borderLeftColor: Colors.accentLight, paddingLeft: Tokens.spacing.sm },
+    grounding: { ...Type.monoLabel, color: colors.textMuted, borderLeftWidth: 2, borderLeftColor: colors.accent, paddingLeft: Tokens.spacing.sm },
     composeInput: { ...Type.body, color: colors.text, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, minHeight: 96, textAlignVertical: 'top', marginTop: Tokens.spacing.xxs },
     gapInput: { ...Type.body, color: colors.text, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, marginBottom: Tokens.spacing.xs },
 

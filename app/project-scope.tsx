@@ -22,7 +22,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import {
-  INITIAL_SCOPE, TOTAL_SCOPE_STEPS, SCOPE_STEPS, stepCanAdvance,
+  INITIAL_SCOPE, TOTAL_SCOPE_STEPS, SCOPE_STEPS, stepCanAdvance, stepBlockReason,
   type WizardAnswers,
 } from '@/utils/scopeQuestions';
 
@@ -38,6 +38,9 @@ export default function ProjectScopeScreen() {
 
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<WizardAnswers>(INITIAL_SCOPE);
+  // Hint shown when the user taps Next while !canAdvance — mirrors the
+  // estimate-wizard.tsx pattern (estimate-wizard.tsx:978).
+  const [stepHint, setStepHint] = useState<string | null>(null);
 
   useEffect(() => {
     if (project?.scope) {
@@ -46,8 +49,10 @@ export default function ProjectScopeScreen() {
     }
   }, [project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Clear the hint whenever the user changes an answer (mirrors estimate-wizard.tsx:215)
   const onChange = useCallback(<K extends keyof WizardAnswers>(key: K, value: WizardAnswers[K]) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
+    setStepHint(null);
   }, []);
 
   const persist = useCallback((a: WizardAnswers) => {
@@ -60,7 +65,13 @@ export default function ProjectScopeScreen() {
   const stepMeta = SCOPE_STEPS[step];
 
   const goNext = useCallback(() => {
-    if (!canAdvance) return;
+    if (!canAdvance) {
+      // Never a silent dead end — mirror estimate-wizard.tsx:977-979
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setStepHint(stepBlockReason(step, answers));
+      return;
+    }
+    setStepHint(null);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (isLast) {
       persist(answers);
@@ -68,7 +79,7 @@ export default function ProjectScopeScreen() {
       return;
     }
     setStep((s) => Math.min(TOTAL_SCOPE_STEPS - 1, s + 1));
-  }, [canAdvance, isLast, answers, persist, router]);
+  }, [canAdvance, isLast, answers, step, persist, router]);
 
   const goBack = useCallback(() => {
     if (step === 0) { router.back(); return; }
@@ -128,11 +139,14 @@ export default function ProjectScopeScreen() {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+          {stepHint ? (
+            <Text style={styles.stepHintText}>{stepHint}</Text>
+          ) : null}
           <TouchableOpacity
             style={[styles.nextBtn, !canAdvance && styles.nextBtnDisabled]}
             onPress={goNext}
-            disabled={!canAdvance}
             activeOpacity={0.85}
+            accessibilityState={{ disabled: !canAdvance }}
             testID="scope-next"
           >
             {isLast ? <Check size={18} color="#FFF" strokeWidth={1.75} /> : <ChevronRight size={18} color="#FFF" strokeWidth={1.75} />}
@@ -155,6 +169,7 @@ const makeStyles = (c: ThemeColors) => StyleSheet.create({
   progressFill: { height: 4, borderRadius: 2, backgroundColor: c.accent },
   progressLabel: { ...Type.caption1, color: c.textMuted },
   footer: { paddingHorizontal: 20, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, backgroundColor: c.bg },
+  stepHintText: { ...Type.footnote, color: c.danger, textAlign: 'center' as const, marginBottom: 8 },
   nextBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: c.accent, borderRadius: 14, paddingVertical: 16 },
   nextBtnDisabled: { opacity: 0.4 },
   nextBtnText: { ...Type.bodyEmphasized, color: '#FFF' },
