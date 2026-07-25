@@ -351,7 +351,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   // Pace-provenance chip — mirrors the estimate wizard's groundedChip
   // (app/estimate-wizard.tsx:1357) so grounded AI surfaces read the same.
   pacedChip: {
-    alignSelf: 'flex-start' as const, backgroundColor: t.successSoft, borderRadius: 999,
+    alignSelf: 'flex-start' as const, backgroundColor: t.successSoft, borderRadius: Tokens.radius.full,
     paddingHorizontal: 12, paddingVertical: 5, marginBottom: 16,
   },
   pacedChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.success },

@@ -1143,7 +1143,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   genPreviewRow: { fontSize: Type.caption2.fontSize, color: t.text, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: t.line },
   // Pace-provenance chip on the generator preview (mirrors the estimate
   // wizard's groundedChip, app/estimate-wizard.tsx).
-  pacedChip: { alignSelf: 'flex-start' as const, backgroundColor: t.successSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginTop: 6 },
+  pacedChip: { alignSelf: 'flex-start' as const, backgroundColor: t.successSoft, borderRadius: Tokens.radius.full, paddingHorizontal: 10, paddingVertical: 4, marginTop: 6 },
   pacedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.success },
   paceColdStart: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 6, lineHeight: 16 },
 
