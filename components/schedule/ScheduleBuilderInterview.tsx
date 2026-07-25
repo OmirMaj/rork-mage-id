@@ -28,7 +28,7 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { getProject } = useProjects();
+  const { getProject, projects } = useProjects();
   const project = useMemo(() => getProject(projectId) ?? null, [getProject, projectId]);
 
   const questions = useMemo(() => visibleQuestions(project), [project]);
@@ -55,14 +55,16 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
     if (!project) { setErrMsg('No project.'); setPhase('error'); return; }
     setPhase('generating');
     try {
-      const result = await generateScheduleFromAnswers(project, nextAnswers);
+      // Thread ALL projects so durations are paced from the contractor's own
+      // finished tasks (buildPaceFacts), not invented by the model.
+      const result = await generateScheduleFromAnswers(project, nextAnswers, projects);
       stashDraft(result);
       router.replace({ pathname: '/schedule-review', params: { projectId } } as never);
     } catch (e) {
       setErrMsg((e as Error).message ?? 'Could not build the schedule.');
       setPhase('error');
     }
-  }, [q, answers, idx, questions.length, project, projectId, router]);
+  }, [q, answers, idx, questions.length, project, projectId, router, projects]);
 
   const submitEntry = useCallback(() => {
     if (!q) return;

@@ -10,14 +10,26 @@ import type { AutoScheduleResult } from '@/utils/autoScheduleFromEstimate';
 import type { Project, ScheduleTask, ProjectSchedule, DependencyType } from '@/types';
 import type { ScheduleBuilderAnswers } from './questions';
 import { buildAnswersPrompt } from './buildAnswersPrompt';
+import { buildPaceFacts } from './paceGrounding';
 
 const WEATHER_PHASES = ['Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing', 'Landscaping'];
 
 export async function generateScheduleFromAnswers(
   project: Project,
   answers: ScheduleBuilderAnswers,
+  /** ALL projects — the pace book's evidence base. Optional (best-effort
+   *  grounding): without it durations fall back to AI judgment. */
+  allProjects?: Project[],
 ): Promise<AutoScheduleResult> {
-  const prompt = buildAnswersPrompt(answers, project, SCHEDULE_PHASES as unknown as string[]);
+  // Pace grounding is additive, never blocking — a book error must not stop
+  // the builder (same contract as buildEstimateGrounding).
+  let paceFacts: string[] = [];
+  try {
+    paceFacts = buildPaceFacts(allProjects ?? []).facts;
+  } catch {
+    // ignore — generate ungrounded
+  }
+  const prompt = buildAnswersPrompt(answers, project, SCHEDULE_PHASES as unknown as string[], paceFacts);
 
   const aiResult = await mageAI({
     prompt,
