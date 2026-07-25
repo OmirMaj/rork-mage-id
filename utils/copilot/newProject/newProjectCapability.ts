@@ -110,6 +110,16 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
     // synthetic id is silently rejected on upsert and the project vanishes on
     // the next refetch. (Same trap the home-screen create flow documents.)
     const id = generateUUID();
+
+    // Map type+quality back to wizard display strings so project.scope is
+    // consistent with what the wizard would have stamped. This seeds every
+    // downstream flow (wizard, schedule builder, permit roadmap, copilot)
+    // so they never re-ask what was already captured.
+    const qualityForScope: 'budget' | 'standard' | 'high_end' =
+      quality === 'premium' || quality === 'luxury' ? 'high_end'
+      : quality === 'economy' ? 'budget'
+      : 'standard';
+
     const project: Project = {
       id,
       name: name.slice(0, 120),
@@ -118,6 +128,17 @@ export const newProjectCapability: CopilotCapability<NewProjectDraft, NewProject
       squareFootage,
       quality,
       description: clean(draft.description),
+      scope: {
+        projectType: type.replace(/_/g, ' '),
+        sizeSqft: squareFootage > 0 ? String(squareFootage) : '',
+        location,
+        quality: qualityForScope,
+        scope: clean(draft.description),
+        timelineWeeks: '',
+        specialRequirements: '',
+        targetBudget: '',
+        updatedAt: now,
+      },
       createdAt: now,
       updatedAt: now,
       estimate: null,

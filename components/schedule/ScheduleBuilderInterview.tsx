@@ -28,7 +28,7 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { getProject, projects } = useProjects();
+  const { getProject, updateProject, projects } = useProjects();
   const project = useMemo(() => getProject(projectId) ?? null, [getProject, projectId]);
 
   const questions = useMemo(() => visibleQuestions(project), [project]);
@@ -59,12 +59,32 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
       // finished tasks (buildPaceFacts), not invented by the model.
       const result = await generateScheduleFromAnswers(project, nextAnswers, projects);
       stashDraft(result);
+
+      // Writeback: merge scope/sizeSqft/knownRisks captured in this interview
+      // back onto project.scope so the next flow (estimate wizard, permit
+      // roadmap, copilot) inherits them without re-asking. Don't clobber
+      // existing fields the wizard may have set (merge pattern).
+      try {
+        const now = new Date().toISOString();
+        const existingScope = project.scope ?? {};
+        const mergedScope = {
+          ...existingScope,
+          ...(nextAnswers.scope ? { scope: nextAnswers.scope } : {}),
+          ...(nextAnswers.sizeSqft != null ? { sizeSqft: String(nextAnswers.sizeSqft) } : {}),
+          ...(nextAnswers.knownRisks ? { specialRequirements: nextAnswers.knownRisks } : {}),
+          updatedAt: now,
+        };
+        updateProject(projectId, { scope: mergedScope as NonNullable<typeof project.scope> });
+      } catch {
+        // Writeback is best-effort — don't block navigation on failure
+      }
+
       router.replace({ pathname: '/schedule-review', params: { projectId } } as never);
     } catch (e) {
       setErrMsg((e as Error).message ?? 'Could not build the schedule.');
       setPhase('error');
     }
-  }, [q, answers, idx, questions.length, project, projectId, router, projects]);
+  }, [q, answers, idx, questions.length, project, projectId, router, projects, updateProject]);
 
   const submitEntry = useCallback(() => {
     if (!q) return;

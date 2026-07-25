@@ -199,8 +199,32 @@ function EstimateWizardScreenInner() {
 
   useEffect(() => {
     if (scopedProject?.scope) {
+      // Re-opening the wizard for a project that already has scope stamped:
+      // restore all wizard answers so nothing is re-asked.
       const { updatedAt: _updatedAt, ...rest } = scopedProject.scope;
       setAnswers({ ...INITIAL_SCOPE, ...rest });
+    } else if (scopedProject) {
+      // First time through the wizard for this project — seed from the Project
+      // record so the wizard never re-asks what the project already knows.
+      // mapProjectType is a local helper that folds ProjectType back to a
+      // wizard display string (e.g. 'renovation' → 'Full Remodel'); we just
+      // use the raw type value here since the wizard accepts free text.
+      const { type, squareFootage, quality, location, description } = scopedProject;
+      const seedType = type && type !== 'renovation' ? type.replace(/_/g, ' ') : '';
+      const seedQuality: WizardAnswers['quality'] =
+        quality === 'premium' || quality === 'luxury' ? 'high_end'
+        : quality === 'economy' ? 'budget'
+        : 'standard';
+      // Skip 'United States' placeholder — the wizard treats blank as unknown
+      const seedLocation = location && location !== 'United States' ? location : '';
+      setAnswers((prev) => ({
+        ...prev,
+        ...(seedType ? { projectType: seedType } : {}),
+        ...(squareFootage && squareFootage > 0 ? { sizeSqft: String(squareFootage) } : {}),
+        quality: seedQuality,
+        ...(seedLocation ? { location: seedLocation } : {}),
+        ...(description ? { scope: description } : {}),
+      }));
     }
   }, [scopedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -567,7 +591,11 @@ function EstimateWizardScreenInner() {
             <View style={styles.groundedChip}>
               <Text style={styles.groundedText}>Priced with your cost history · {groundingFacts.length} learned rate{groundingFacts.length === 1 ? '' : 's'}</Text>
             </View>
-          ) : null}
+          ) : (
+            <View style={styles.groundedChipEmpty}>
+              <Text style={styles.groundedTextEmpty}>Priced from market averages — close jobs to teach MAGE your real costs</Text>
+            </View>
+          )}
 
           {result.refineWith && result.refineWith.length > 0 && (
             <View style={styles.refineCard}>
@@ -1356,6 +1384,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   refineGoText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnPrimary },
   groundedChip: { alignSelf: 'flex-start', backgroundColor: themeColors.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
   groundedText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.success },
+  groundedChipEmpty: { alignSelf: 'flex-start', backgroundColor: themeColors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
+  groundedTextEmpty: { fontSize: Type.caption1.fontSize, fontWeight: '500', color: themeColors.textMuted },
   stepHintRow: { paddingHorizontal: 20, paddingTop: 8 },
   stepHintText: { fontSize: Type.footnote.fontSize, color: themeColors.danger, textAlign: 'center' },
   disclaimer: {
