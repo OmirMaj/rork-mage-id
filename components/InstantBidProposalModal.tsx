@@ -25,6 +25,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import type { Lead, TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
@@ -47,6 +48,7 @@ export default function InstantBidProposalModal({
   // Self-perform labor samples (D6) — folds crew hours × configured loaded
   // rates into the cost book that grounds the ROM.
   const laborSamples = useLaborCostSamples();
+  const { receipts } = useMaterialReceipts();
 
   const [proposal, setProposal] = useState<TieredProposal | null>(null);
   const [selectedTier, setSelectedTier] = useState<ProposalTierKey>('better');
@@ -95,7 +97,7 @@ export default function InstantBidProposalModal({
       };
       const groundingContext =
         Array.isArray(projects) && projects.length > 0
-          ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], laborSamples }
+          ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], receipts, laborSamples }
           : undefined;
       const p = await generateInstantBid(rfp, {
         companyName: company?.companyName,
