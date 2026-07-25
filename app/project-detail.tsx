@@ -1350,11 +1350,11 @@ export default function ProjectDetailScreen() {
               <View style={{ marginTop: 10, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <BidConfidenceBadge project={project} variant="light" />
                 {heroProgress.hasSchedule && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
-                    <View style={{ width: 44, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' }}>
-                      <View style={{ width: `${heroProgress.pct}%`, height: 6, backgroundColor: '#FFFFFF' }} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: themeColors.surfaceAlt, borderWidth: 1, borderColor: themeColors.line, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
+                    <View style={{ width: 44, height: 6, borderRadius: 3, backgroundColor: themeColors.line, overflow: 'hidden' }}>
+                      <View style={{ width: `${heroProgress.pct}%`, height: 6, backgroundColor: themeColors.accent }} />
                     </View>
-                    <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800' }}>{heroProgress.pct}% done</Text>
+                    <Text style={{ color: themeColors.text, fontSize: 12, fontWeight: '800' }}>{heroProgress.pct}% done</Text>
                   </View>
                 )}
               </View>
@@ -1379,7 +1379,7 @@ export default function ProjectDetailScreen() {
                       <Text style={[styles.smallStatValue, { color: themeColors.success }]}>
                         {formatMoney(estimate.bulkSavingsTotal)}
                       </Text>
-                      <ArrowDownRight size={10} color="rgba(255,255,255,0.5)" strokeWidth={1.75} />
+                      <ArrowDownRight size={10} color={themeColors.textMuted} strokeWidth={1.75} />
                     </TouchableOpacity>
                   </>
                 )}
