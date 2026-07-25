@@ -24,6 +24,8 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import {
   fetchLienWaiversForProject, saveLienWaiver, deleteLienWaiver,
@@ -36,6 +38,22 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function LienWaiversScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('lien_waiver_manager')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Lien Waiver Manager"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <LienWaiversScreenInner />;
+}
+
+function LienWaiversScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();

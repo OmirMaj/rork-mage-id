@@ -13,9 +13,7 @@ export type FeatureKey =
   | 'ai_code_check'
   | 'client_portal'
   | 'lien_waiver_manager'
-  | 'proposal_templates'
   | 'equipment_rental'
-  | 'custom_templates'
   | 'photo_documentation'
   | 'change_orders_invoicing'
   | 'aia_pay_app'
@@ -40,7 +38,6 @@ export type FeatureKey =
   | 'bid_scoring'
   | 'ask_your_plans'
   // All tiers (with limits)
-  | 'voice_commands'
   | 'post_homeowner_request'
   | 'post_community_bid';
 
@@ -59,6 +56,14 @@ export type FeatureKey =
 //                              persistence is built.
 //   - 'quickbooks_sync'      — no real OAuth flow. Removed from paywall as
 //                              part of audit cleanup #5.
+//
+// Removed in Jul 2026 audit (wave 1.1, A6 — dead key cleanup):
+//   - 'voice_commands'    — zero callsites outside useTierAccess.ts itself
+//                          (grep-verified 2026-07-24). No UI ever checked this
+//                          key; removing it keeps the FeatureKey union honest.
+//   - 'proposal_templates' — smart-proposal.tsx gates on 'job_costing' at line 44,
+//                            not proposal_templates. Dead since the screen was built.
+//   - 'custom_templates'   — zero callsites anywhere (grep-verified 2026-07-24).
 //
 // Removed in May 2026 re-audit (Tier 2):
 //   - 'pdf_export'           — every PDF export across the app uses
@@ -79,9 +84,7 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   ai_code_check: 'pro',
   client_portal: 'pro',
   lien_waiver_manager: 'pro',
-  proposal_templates: 'pro',
   equipment_rental: 'pro',
-  custom_templates: 'pro',
   photo_documentation: 'pro',
   change_orders_invoicing: 'pro',
   aia_pay_app: 'pro',
@@ -106,7 +109,6 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   bid_scoring: 'business',
   ask_your_plans: 'business',
   // Available to all
-  voice_commands: 'free',
   post_homeowner_request: 'free',
   post_community_bid: 'free',
 };
