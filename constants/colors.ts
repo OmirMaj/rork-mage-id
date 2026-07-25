@@ -232,6 +232,10 @@ export type ThemeColors = {
   accentLabel: string;
   success: string;
   successSoft: string;
+  warningSoft: string;
+  warningLabel: string;
+  dangerSoft: string;
+  dangerLabel: string;
   danger: string;
   info: string;
 };
@@ -251,6 +255,10 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accentLabel: '#C44A0F',
     success: '#2E7D44',
     successSoft: 'rgba(46,125,68,0.12)',
+    warningSoft: 'rgba(255,149,0,0.12)',
+    warningLabel: '#E65100',
+    dangerSoft: 'rgba(200,64,56,0.12)',
+    dangerLabel: '#C84038',
     danger: '#C84038',
     info: '#1565C0',
   },
@@ -268,6 +276,10 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accentLabel: '#FF6A1A',
     success: '#4ED37A',
     successSoft: 'rgba(78,211,122,0.12)',
+    warningSoft: 'rgba(255,149,0,0.16)',
+    warningLabel: '#FF9500',
+    dangerSoft: 'rgba(255,90,81,0.16)',
+    dangerLabel: '#FF5A51',
     danger: '#FF5A51',
     info: '#4EA7FF',
   },
