@@ -261,7 +261,7 @@ export default function OnboardingScreen() {
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await completeOnboarding();
-    router.replace('/(tabs)/(home)' as never);
+    router.replace('/onboarding-paywall' as never);
   }, [runDemoSeed, completeOnboarding, router]);
 
   const handleBandPick = useCallback(async (band: ProjectSizeBand) => {
