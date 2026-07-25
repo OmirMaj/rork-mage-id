@@ -20,6 +20,7 @@ import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { certStatus } from '@/utils/safety/certStatus';
 import type { Certification, CertificationStatus, CrewMember } from '@/types';
 
@@ -54,6 +55,7 @@ function SafetyCertificationsInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -183,7 +185,7 @@ function SafetyCertificationsInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'Certifications' }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {/* Expiring-soon summary banner */}
         <View style={[styles.banner, expiringCount > 0 ? { backgroundColor: themeColors.accent + '14', borderColor: themeColors.accent + '26' } : { backgroundColor: themeColors.success + '12', borderColor: themeColors.success + '22' }]}>
           <AlertTriangle size={18} color={expiringCount > 0 ? themeColors.accent : themeColors.success} strokeWidth={1.75} />
@@ -400,6 +402,7 @@ function SafetyCertificationsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   banner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginHorizontal: 20, marginTop: 16, padding: 14, borderRadius: Tokens.radius.lg, borderWidth: 1 },
   bannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   filterRow: { paddingHorizontal: 20, gap: 6, marginTop: 14, marginBottom: 4 },
