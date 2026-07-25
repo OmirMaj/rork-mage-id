@@ -9,6 +9,7 @@ import { generateUUID } from '@/utils/generateId';
 import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
+import { fireGradingEvent } from '@/utils/brain/gradingBus';
 
 const PROJECTS_KEY = 'mageid_projects';
 const SETTINGS_KEY = 'mageid_settings';
@@ -1621,6 +1622,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       const finalCOs = updated.map(co => co.id === id ? { ...co, scheduleImpactApplied: true } : co);
       setChangeOrders(finalCOs);
       saveChangeOrdersMutation.mutate(finalCOs);
+
+      // 3. Opportunistic leak grading: resolve leak_flag predictions for this project.
+      //    G4 fire-and-forget via gradingBus — never blocks the CO flow.
+      if (nextCO?.projectId) fireGradingEvent(nextCO.projectId);
     }
 
     if (canSync) {

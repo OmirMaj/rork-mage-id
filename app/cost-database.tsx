@@ -11,7 +11,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Brain } from 'lucide-react-native';
 import { MageCostDb } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -26,6 +26,7 @@ import EmptyState from '@/components/EmptyState';
 import { buildCostDatabase, type CostBookEntry } from '@/utils/costDatabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useBrainGrading } from '@/hooks/useBrainGrading';
 
 function formatRate(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
@@ -60,6 +61,8 @@ function CostDatabaseInner() {
   // Self-perform labor (D6): the book's own screen must show every source
   // that feeds it — crew hours appear as "Labor — <trade>" $/hour entries.
   const laborSamples = useLaborCostSamples();
+  const { canAccess } = useTierAccess();
+  const { accuracyReport } = useBrainGrading();
 
   const db = useMemo(
     () => buildCostDatabase(projects, commitments, receipts, laborSamples),
@@ -122,6 +125,36 @@ function CostDatabaseInner() {
               <Text style={styles.kpiSub}>est. vs actual, weighted</Text>
             </View>
           </View>
+
+          {/* Brain accuracy section — Business+ gated */}
+          {canAccess('brain_accuracy') && (
+            <View style={styles.accuracySection}>
+              <View style={styles.accuracySectionHeader}>
+                <Brain size={14} color={t.accent} strokeWidth={2} />
+                <Text style={styles.accuracySectionTitle}>Brain accuracy</Text>
+              </View>
+              {accuracyReport.hasEnoughData ? (
+                accuracyReport.rows.map(row => (
+                  <View key={row.kind} style={styles.accuracyCard}>
+                    <Text style={styles.accuracyLabel}>{row.label}</Text>
+                    <Text style={styles.accuracyHeadline}>{row.headline}</Text>
+                    <Text style={styles.accuracyDetail}>{row.detail}</Text>
+                    {row.rate != null && (
+                      <View style={styles.accuracyBarTrack}>
+                        <View style={[styles.accuracyBarFill, { width: `${Math.round(row.rate * 100)}%` as any }]} />
+                      </View>
+                    )}
+                  </View>
+                ))
+              ) : (
+                <View style={styles.accuracyEmpty}>
+                  <Text style={styles.accuracyEmptyText}>
+                    The brain is grading itself — first results after your predictions resolve.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
           <Text style={styles.sectionTitle}>By trade · unit</Text>
           {db.entries.map(e => {
@@ -257,4 +290,73 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   sampleBasis: { fontSize: Type.caption2.fontSize, fontWeight: '400' as const, color: t.textMuted },
 
   note: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 8 },
+
+  accuracySection: {
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.panel,
+    overflow: 'hidden' as const,
+  },
+  accuracySectionHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: Tokens.spacing.xs,
+    backgroundColor: t.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: t.line,
+  },
+  accuracySectionTitle: {
+    ...Type.subheadEmphasized,
+    color: t.text,
+  },
+  accuracyCard: {
+    backgroundColor: t.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: t.line,
+  },
+  accuracyLabel: {
+    ...Type.caption1,
+    color: t.textMuted,
+    fontWeight: '700' as const,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  accuracyHeadline: {
+    ...Type.subhead,
+    color: t.text,
+    fontWeight: '700' as const,
+  },
+  accuracyDetail: {
+    ...Type.footnote,
+    color: t.textSecondary,
+    lineHeight: 18,
+  },
+  accuracyBarTrack: {
+    height: 4,
+    backgroundColor: t.line,
+    borderRadius: Tokens.radius.full,
+    marginTop: 6,
+    overflow: 'hidden' as const,
+  },
+  accuracyBarFill: {
+    height: 4,
+    backgroundColor: t.accent,
+    borderRadius: Tokens.radius.full,
+  },
+  accuracyEmpty: {
+    backgroundColor: t.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+  },
+  accuracyEmptyText: {
+    ...Type.footnote,
+    color: t.textSecondary,
+    fontStyle: 'italic' as const,
+  },
 });
