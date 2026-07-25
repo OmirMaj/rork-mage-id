@@ -20,6 +20,7 @@ import type {
   TieredProposal,
   Project,
   Commitment,
+  MaterialReceipt,
 } from '@/types';
 
 /** Build the illustrative "as low as $X/mo" line for a tier amount, or null
@@ -57,6 +58,7 @@ export interface InstantBidOptions {
   groundingContext?: {
     projects: Project[];
     commitments: Commitment[];
+    receipts?: MaterialReceipt[];
   };
 }
 
@@ -151,9 +153,9 @@ function buildInstantBidGrounding(
   const facts: string[] = [];
   let rateCount = 0;
   if (!opts.groundingContext) return { facts, rateCount };
-  const { projects, commitments } = opts.groundingContext;
+  const { projects, commitments, receipts } = opts.groundingContext;
   try {
-    const db = buildCostDatabase(projects, commitments);
+    const db = buildCostDatabase(projects, commitments, receipts);
     // Pull the most-relevant entries (high-confidence first, up to 4 facts).
     const sorted = [...db.entries].sort((a, b) => {
       const rankConf = (e: typeof a) => e.confidence === 'high' ? 2 : e.confidence === 'medium' ? 1 : 0;

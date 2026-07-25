@@ -91,7 +91,7 @@ function JobCostingInner() {
     [commitments, projectId],
   );
 
-  const costDb = useMemo(() => buildCostDatabase(projects, commitments), [projects, commitments]);
+  const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts), [projects, commitments, receipts]);
   const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
 
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);

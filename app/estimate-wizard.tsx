@@ -43,6 +43,7 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
@@ -169,6 +170,7 @@ function EstimateWizardScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { settings, getProject, updateProject, addProject, projects, commitments } = useProjects();
+  const { receipts } = useMaterialReceipts();
   const { tier } = useSubscription();
 
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -220,7 +222,7 @@ function EstimateWizardScreenInner() {
   // national average. Best-effort — an empty book just means no grounding.
   const groundingFacts = useMemo<string[]>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments);
+      const db = buildCostDatabase(projects, commitments, receipts);
       const facts = db.entries.slice(0, 6).map((e) =>
         `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
       const cal = computeCalibration({ projects, commitments });
@@ -231,7 +233,7 @@ function EstimateWizardScreenInner() {
     } catch {
       return [];
     }
-  }, [projects, commitments]);
+  }, [projects, commitments, receipts]);
 
   const next = useCallback(() => {
     if (!canAdvance) return;

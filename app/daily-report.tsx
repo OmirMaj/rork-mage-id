@@ -24,6 +24,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
 import { FolderOpen } from 'lucide-react-native';
@@ -85,6 +86,7 @@ export default function DailyReportScreen() {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
     getPhotosForProject, projects, commitments, getChangeOrdersForProject, updateProject,
   } = useProjects();
+  const { receipts } = useMaterialReceipts();
   const { tier } = useSubscription();
   const { isFree } = useTierAccess();
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -616,7 +618,7 @@ export default function DailyReportScreen() {
         return;
       }
       const items = coerceLeakResult(res.data);
-      const costDb = buildCostDatabase(projects, commitments);
+      const costDb = buildCostDatabase(projects, commitments, receipts);
       const record: LeakScanRecord = {
         items: priceLeakItems(items, costDb),
         scannedAt: new Date().toISOString(),
@@ -629,7 +631,7 @@ export default function DailyReportScreen() {
     } finally {
       setLeakScanning(false);
     }
-  }, [project, workPerformed, issuesAndDelays, materialsDelivered, tier, projects, commitments, getChangeOrdersForProject, existingReport, updateDailyReport, stableReportId]);
+  }, [project, workPerformed, issuesAndDelays, materialsDelivered, tier, projects, commitments, receipts, getChangeOrdersForProject, existingReport, updateDailyReport, stableReportId]);
 
   const handleDraftLeakCO = useCallback(() => {
     if (!projectId || !leakScan || leakScan.items.length === 0) return;

@@ -30,6 +30,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { buildCostDatabase } from '@/utils/costDatabase';
@@ -102,6 +103,7 @@ export default function CostXrayScreen() {
   const params = useLocalSearchParams<{ projectId?: string }>();
   const { canAccess } = useTierAccess();
   const { projects, commitments, updateProject, addProjectPhoto, deleteProjectPhoto, addPunchItem } = useProjects();
+  const { receipts } = useMaterialReceipts();
 
   // Business gate — redirect locked tiers to the paywall (design decision 3).
   const locked = !canAccess('cost_xray');
@@ -126,7 +128,7 @@ export default function CostXrayScreen() {
   }, [projectId, projects]);
 
   // The cost-learning engine — same source estimate-confidence uses.
-  const db = useMemo(() => buildCostDatabase(projects, commitments), [projects, commitments]);
+  const db = useMemo(() => buildCostDatabase(projects, commitments, receipts), [projects, commitments, receipts]);
 
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [busy, setBusy] = useState(false);

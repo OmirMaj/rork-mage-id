@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { ShieldCheck } from 'lucide-react-native';
 import type { Project } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeEstimateConfidence } from '@/utils/estimateConfidence';
 
@@ -30,11 +31,12 @@ function tierColor(score: number): string {
 
 export default function BidConfidenceBadge({ project, variant = 'light' }: Props) {
   const { projects, commitments } = useProjects();
+  const { receipts } = useMaterialReceipts();
 
   const report = useMemo(() => {
-    const db = buildCostDatabase(projects, commitments);
+    const db = buildCostDatabase(projects, commitments, receipts);
     return computeEstimateConfidence(project, db);
-  }, [project, projects, commitments]);
+  }, [project, projects, commitments, receipts]);
 
   const router = useRouter();
 

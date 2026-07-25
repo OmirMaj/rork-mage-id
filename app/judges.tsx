@@ -28,6 +28,7 @@ import { Colors } from '@/constants/colors';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { VerdictCard } from '@/components/judges/VerdictCard';
 import { draftLinesFromScope, runJudges } from '@/utils/judges/runJudges';
 import type { JudgesResult } from '@/utils/judges/runJudges';
@@ -63,6 +64,7 @@ function JudgesInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, commitments, changeOrders, invoices } = useProjects();
+  const { receipts } = useMaterialReceipts();
 
   // ── Entry mode ────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>('describe');
@@ -81,8 +83,8 @@ function JudgesInner() {
 
   // ── Context object ────────────────────────────────────────────────────
   const ctx = useMemo(
-    () => ({ projects, commitments, changeOrders, invoices }),
-    [projects, commitments, changeOrders, invoices],
+    () => ({ projects, commitments, changeOrders, invoices, receipts }),
+    [projects, commitments, changeOrders, invoices, receipts],
   );
 
   // ── Timeline window builder ───────────────────────────────────────────
