@@ -96,18 +96,24 @@ async function loadEntriesMirror(): Promise<TimeEntry[]> {
 }
 
 /**
- * Self-perform labor cost samples for buildCostDatabase's 4th param.
- * Read-only over the time-entry local mirror (kept fresh by the Time
+ * Read-only view of the time-entry local mirror (kept fresh by the Time
  * Tracking screen / offline sync); re-read on each mounting screen. On a
  * brand-new device the mirror is empty until Time Tracking first syncs —
- * grounding just has no labor facts yet, which is honest.
+ * grounding just has no labor facts yet, which is honest. Deliberately NOT
+ * useTimeEntries: mounting that hook re-schedules shift-alert notifications.
  */
-export function useLaborCostSamples(): CostSample[] {
-  const { rates } = useLaborRates();
+export function useTimeEntriesMirror(): TimeEntry[] {
   const { data: entries = [] } = useQuery({
     queryKey: ENTRIES_MIRROR_QUERY,
     queryFn: loadEntriesMirror,
     refetchOnMount: 'always',
   });
+  return entries;
+}
+
+/** Self-perform labor cost samples for buildCostDatabase's 4th param. */
+export function useLaborCostSamples(): CostSample[] {
+  const { rates } = useLaborRates();
+  const entries = useTimeEntriesMirror();
   return useMemo(() => buildLaborSamples(entries, rates), [entries, rates]);
 }

@@ -33,6 +33,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useLaborCostSamples, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
@@ -81,19 +82,25 @@ function JobCostingInner() {
   } = useProjects();
 
   const { receipts } = useMaterialReceipts();
+  // Self-perform labor (D6): finished shifts × the GC's configured loaded
+  // rates land as an ACTUAL "Self-perform labor" line — the largest actual
+  // stream a self-perform crew generates was previously invisible here.
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates } = useLaborRates();
+  const laborSamples = useLaborCostSamples();
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
-    return computeJobCost({ project, commitments, invoices, changeOrders, receipts });
-  }, [project, commitments, invoices, changeOrders, receipts]);
+    return computeJobCost({ project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates });
+  }, [project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
     [commitments, projectId],
   );
 
-  const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts), [projects, commitments, receipts]);
+  const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts, laborSamples), [projects, commitments, receipts, laborSamples]);
   const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
 
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);
@@ -689,6 +696,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <DetailRow label="Invoices contributed" value={`${line.sources.invoices}`} />
             <DetailRow label="COs contributed" value={`${line.sources.changeOrders}`} />
             {line.sources.receipts > 0 && <DetailRow label="Material receipts" value={`${line.sources.receipts}`} />}
+            {line.sources.timeEntries > 0 && <DetailRow label="Crew shifts (self-perform)" value={`${line.sources.timeEntries}`} />}
 
             <Text style={styles.detailNote}>
               This phase is {((line.budget / Math.max(1, summary.budget)) * 100).toFixed(1)}% of

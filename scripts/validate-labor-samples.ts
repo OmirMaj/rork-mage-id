@@ -20,7 +20,8 @@ import {
   isEligibleLaborEntry, LABOR_UNIT,
 } from '../utils/laborSamples';
 import { buildCostDatabase, lookupRate } from '../utils/costDatabase';
-import type { TimeEntry } from '../types';
+import { computeJobCost } from '../utils/jobCostEngine';
+import type { Project, TimeEntry } from '../types';
 
 let pass = 0, fail = 0;
 function canon(x: unknown): unknown {
@@ -132,6 +133,31 @@ console.log('\ncost-book fold-in:');
 expect('4th param default [] — omitting labor is byte-identical',
   JSON.stringify({ ...buildCostDatabase([], [], []), asOf: 'x' }),
   JSON.stringify({ ...buildCostDatabase([], [], [], []), asOf: 'x' }));
+
+console.log('\njob-cost labor actuals:');
+{
+  const project = { id: 'p1', name: 'Henderson Remodel' } as unknown as Project;
+  const base = { project, commitments: [], invoices: [], changeOrders: [] };
+  const shifts = [
+    entry({ id: 'a', totalHours: 8 }),                                  // 8h framing @34 = 272
+    entry({ id: 'b', totalHours: 4, trade: 'Plumbing' }),               // no rate → no dollars
+    entry({ id: 'c', totalHours: 6, projectId: 'p2' }),                 // other project
+    entry({ id: 'd', totalHours: 3, status: 'clocked_in' }),            // live shift
+  ];
+  const jc = computeJobCost({ ...base, timeEntries: shifts, laborRates: { framing: 34 } });
+  const labor = jc.byPhase.find(l => l.phase === 'Self-perform labor');
+  expect('rated finished shifts land as an ACTUAL Self-perform labor line',
+    labor ? { actual: labor.actual, timeEntries: labor.sources.timeEntries } : null,
+    { actual: 272, timeEntries: 1 });
+  expect('labor actual rolls into the project total', jc.actual, 272);
+
+  const jcNoRates = computeJobCost({ ...base, timeEntries: shifts });
+  expect('no configured rates ⇒ no labor line (never fake dollars)',
+    jcNoRates.byPhase.some(l => l.phase === 'Self-perform labor'), false);
+  expect('omitting timeEntries is byte-identical to the pre-labor engine',
+    JSON.stringify({ ...computeJobCost(base), asOf: 'x' }),
+    JSON.stringify({ ...jcNoRates, asOf: 'x' }));
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
