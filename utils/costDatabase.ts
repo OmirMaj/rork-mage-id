@@ -84,6 +84,11 @@ export function buildCostDatabase(
    *  as live `actual` material samples — additive; pass [] (default) for the
    *  original closed-jobs-only behavior. */
   receipts: MaterialReceipt[] = [],
+  /** Self-perform labor samples (utils/laborSamples.ts buildLaborSamples):
+   *  crew clocked hours priced at the GC's configured loaded rates. Keyed
+   *  like everything else ("labor — framing|hour"). Additive; [] (default)
+   *  = zero behavior change for existing callers. */
+  laborSamples: CostSample[] = [],
 ): CostDatabase {
   const asOf = new Date().toISOString();
   const groups = new Map<string, CostSample[]>();
@@ -144,6 +149,16 @@ export function buildCostDatabase(
         jobs.add(receipt.projectId);
       }
     }
+  }
+
+  // Fold in self-perform labor — crew hours × the GC's own loaded rates,
+  // available the day the shift is clocked out (no wait for closeout). Same
+  // additive shape as receipts; the "Labor — <trade>" label keeps these
+  // entries legible as labor in the price book, never a subcontract scope.
+  for (const s of laborSamples) {
+    if (s.quantity <= 0 || s.actualUnit <= 0) continue;
+    pushSample(`${s.trade.toLowerCase()}|${s.unit.toLowerCase()}`, s);
+    jobs.add(s.projectId);
   }
 
   const entries: CostBookEntry[] = [];
