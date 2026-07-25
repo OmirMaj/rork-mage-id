@@ -11,6 +11,7 @@ import {
   ScrollText, UserPlus, Handshake, ListChecks,
   Presentation,
   PieChart, LineChart, Coins, BellRing,
+  Scale, ScanEye, ScanLine, Mic, FileSearch,
 } from 'lucide-react-native';
 import {
   MageAIMark, MageProject, MageSummary, MageEstimate, MageSchedule,
@@ -60,11 +61,16 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'margin-alerts',     label: 'Margin Alerts',    icon: BellRing,        route: '/margin-alerts',                    section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'cost-database',     label: 'Cost Database',    icon: MageCostDb,         route: '/cost-database',                    section: 'WORKSPACE', requires: 'job_costing' },
   { key: 'area-takeoff',      label: 'Visual Takeoff',   icon: MageTakeoff,     route: '/area-takeoff',                     section: 'WORKSPACE', requires: 'job_costing' },
+  { key: 'cost-xray',         label: 'Cost X-Ray',       icon: ScanEye,         route: '/cost-xray',                        section: 'WORKSPACE', requires: 'cost_xray' },
+  // MAGE Copilot hub — the universal voice→build engine's front door.
+  { key: 'copilot-hub',       label: 'MAGE Copilot',     icon: Mic,             route: '/copilot-hub',                      section: 'WORKSPACE' },
 
   // ── FIND WORK — marketplace / bids / suppliers
   { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Gavel,           route: '/(tabs)/mage-id-bids',             section: 'FIND WORK' },
   { key: 'bids',              label: 'Public Bids',      icon: ScrollText,      route: '/(tabs)/discover/bids',            section: 'FIND WORK' },
   { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'FIND WORK' },
+  // JUDGES bid scoring — screen self-titles "Bid Advisor" (app/judges.tsx).
+  { key: 'judges',            label: 'Bid Advisor',      icon: Scale,           route: '/judges',                           section: 'FIND WORK', requires: 'bid_scoring' },
 
   // ── NETWORK — people + AI
   { key: 'leads',             label: 'Leads',            icon: UserPlus,        route: '/leads',                            section: 'NETWORK' },
@@ -80,6 +86,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'schedule',          label: 'Schedule',         icon: MageSchedule,    route: '/(tabs)/discover/schedule',        section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
   { key: 'last-planner',      label: 'Last Planner',     icon: ListChecks,      route: '/last-planner',                     section: 'OVERVIEW', requires: 'schedule_gantt_pdf' },
   { key: 'plans',             label: 'Plans',            icon: MagePlans,       route: '/plans',                            section: 'OVERVIEW' },
+  // Ask-your-plans conversational plan search.
+  { key: 'plan-intelligence', label: 'Plan Intelligence', icon: FileSearch,     route: '/plan-intelligence',                section: 'OVERVIEW', requires: 'ask_your_plans' },
   // Weekly Snapshot intentionally omitted from the global rail: it's a
   // single-project screen (reads ?projectId, dead-ends on "No project to
   // snapshot yet" without one). It's reachable from inside each project
@@ -90,6 +98,8 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'daily-report',      label: 'Daily Report',     icon: MageDailyReport, route: '/daily-report',                     section: 'FIELD OPS' },
   { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS', requires: 'subcontractor_management' },
   { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
+  // Scan-Anything: classify → extract → auto-file any document/photo.
+  { key: 'scan',              label: 'Scan Anything',    icon: ScanLine,        route: '/scan',                             section: 'FIELD OPS', requires: 'scan_anything' },
   { key: 'punch-list',        label: 'Punch List',       icon: MagePunch,       route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
   { key: 'safety',            label: 'Safety',           icon: HardHat,         route: '/safety',                           section: 'FIELD OPS', requires: 'safety_management' },
   { key: 'rfi',               label: 'RFIs',             icon: MageRFI,    route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
