@@ -3043,6 +3043,10 @@ export interface PublicBid {
   deadline: string;
   description: string;
   postedBy: string;
+  /** Auth user id of the poster (public_bids.user_id) — the REAL attribution
+   *  signal for "my posts this month" quota counting. Absent on scraped /
+   *  legacy rows that predate attribution. */
+  userId?: string;
   postedDate: string;
   status: BidStatus;
   requiredCertifications: CertificationType[];

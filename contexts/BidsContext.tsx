@@ -33,6 +33,7 @@ export const [BidsProvider, useBids] = createContextHook(() => {
               bidType: (r.bid_type as BidType) ?? 'state', estimatedValue: Number(r.estimated_value) || 0,
               bondRequired: Number(r.bond_required) || 0, deadline: r.deadline as string,
               description: (r.description as string) ?? '', postedBy: (r.posted_by as string) ?? '',
+              userId: (r.user_id as string | null) ?? undefined,
               postedDate: r.posted_date as string, status: (r.status as PublicBid['status']) ?? 'open',
               requiredCertifications: (r.required_certifications as CertificationType[]) ?? [],
               contactEmail: (r.contact_email as string) ?? '', applyUrl: r.apply_url as string | undefined,
@@ -63,18 +64,23 @@ export const [BidsProvider, useBids] = createContextHook(() => {
   });
 
   const addBid = useCallback((bid: PublicBid) => {
-    const updated = [bid, ...bids];
+    // Stamp the poster's real auth id on the local object so quota counting
+    // ("my posts this month") attributes on user_id — never on a display
+    // string like the old 'You' literal, which every app-posted row in the
+    // SHARED feed carried.
+    const stamped: PublicBid = bid.userId ? bid : { ...bid, userId: userId ?? undefined };
+    const updated = [stamped, ...bids];
     setBids(updated);
     saveMutation.mutate(updated);
     if (canSync) {
       void supabaseWrite('public_bids', 'insert', {
-        id: bid.id, user_id: userId, title: bid.title, issuing_agency: bid.issuingAgency,
-        city: bid.city, state: bid.state, category: bid.category, bid_type: bid.bidType,
-        estimated_value: bid.estimatedValue, bond_required: bid.bondRequired, deadline: bid.deadline,
-        description: bid.description, posted_by: bid.postedBy, posted_date: bid.postedDate,
-        status: bid.status, required_certifications: bid.requiredCertifications,
-        contact_email: bid.contactEmail, apply_url: bid.applyUrl,
-        source_url: bid.sourceUrl, source_name: bid.sourceName,
+        id: stamped.id, user_id: stamped.userId ?? userId, title: stamped.title, issuing_agency: stamped.issuingAgency,
+        city: stamped.city, state: stamped.state, category: stamped.category, bid_type: stamped.bidType,
+        estimated_value: stamped.estimatedValue, bond_required: stamped.bondRequired, deadline: stamped.deadline,
+        description: stamped.description, posted_by: stamped.postedBy, posted_date: stamped.postedDate,
+        status: stamped.status, required_certifications: stamped.requiredCertifications,
+        contact_email: stamped.contactEmail, apply_url: stamped.applyUrl,
+        source_url: stamped.sourceUrl, source_name: stamped.sourceName,
       });
     }
   }, [bids, saveMutation, canSync, userId]);

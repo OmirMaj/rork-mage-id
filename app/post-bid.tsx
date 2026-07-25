@@ -10,6 +10,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBids } from '@/contexts/BidsContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { CERTIFICATIONS } from '@/constants/certifications';
@@ -33,13 +34,17 @@ const BID_CATEGORIES: { id: BidCategory; label: string }[] = [
   { id: 'education', label: 'Education' }, { id: 'residential', label: 'Residential' },
 ];
 
-/** Count bids the current user posted this calendar month.
- *  Identified by postedBy === 'You' (set in handleSubmit below) and
- *  postedDate within the current YYYY-MM window. */
-function countMyPostsThisMonth(bids: PublicBid[]): number {
+/** Count bids the CURRENT user posted this calendar month, attributed by the
+ *  real poster id (`userId`, mapped from public_bids.user_id in BidsContext).
+ *  The old check (`postedBy === 'You'`) matched a literal that EVERY
+ *  app-posted row in the shared community feed carried — so other members'
+ *  posts counted against this user's quota. No signed-in user → nothing is
+ *  attributable → count 0 (never falsely blocks). */
+function countMyPostsThisMonth(bids: PublicBid[], myUserId: string | null): number {
+  if (!myUserId) return 0;
   const now = new Date();
   const yyyyMM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return bids.filter(b => b.postedBy === 'You' && b.postedDate.startsWith(yyyyMM)).length;
+  return bids.filter(b => b.userId === myUserId && b.postedDate.startsWith(yyyyMM)).length;
 }
 
 export default function PostBidScreen() {
@@ -47,14 +52,21 @@ export default function PostBidScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { bids, addBid } = useBids();
+  const { user } = useAuth();
   const { tier } = useTierAccess();
   const [overLimit, setOverLimit] = useState(false);
 
   // Compute usage BEFORE render so we can show a limit badge on the form
   // even before submit, matching the construction-ai pattern.
   const monthlyLimit = FEATURE_LIMITS.post_community_bid[tier];
-  const usedThisMonth = useMemo(() => countMyPostsThisMonth(bids), [bids]);
+  const userId = user?.id ?? null;
+  const usedThisMonth = useMemo(() => countMyPostsThisMonth(bids, userId), [bids, userId]);
   const atLimit = isFinite(monthlyLimit) && usedThisMonth >= monthlyLimit;
+
+  // Show paywall (free→pro, pro→business) or a plain Alert (business→enterprise, enterprise at cap).
+  const canPaywallUpsell = tier === 'free' || tier === 'pro';
+  const upsellTier: 'pro' | 'business' | 'enterprise' =
+    tier === 'free' ? 'pro' : tier === 'pro' ? 'business' : 'enterprise';
 
   const [title, setTitle] = useState('');
   const [agency, setAgency] = useState('');
@@ -82,7 +94,16 @@ export default function PostBidScreen() {
     // ── Community post monthly limit ─────────────────────────────────────────
     // FEATURE_LIMITS.post_community_bid: free=2, pro=8, business=25, enterprise=50
     if (isFinite(monthlyLimit) && usedThisMonth >= monthlyLimit) {
-      setOverLimit(true);
+      if (canPaywallUpsell) {
+        setOverLimit(true); // renders the Paywall (free→pro, pro→business)
+      } else {
+        // Business/enterprise at cap — no higher tier to sell. Alert fired
+        // HERE, in the event handler (never as a side effect during render).
+        Alert.alert(
+          'Monthly limit reached',
+          `Your ${tier} plan includes ${monthlyLimit} community posts per month. Contact support to discuss higher limits.`,
+        );
+      }
       return;
     }
 
@@ -113,7 +134,10 @@ export default function PostBidScreen() {
       bondRequired: parseLenientNumber(bondRequired) ?? 0,
       deadline: deadlineDate.toISOString(),
       description: description.trim(),
-      postedBy: 'You',
+      // Real attribution: name for display (the old 'You' literal rendered as
+      // "You" in every OTHER member's feed), id for quota counting.
+      postedBy: user?.name?.trim() || 'Community member',
+      userId: userId ?? undefined,
       postedDate: new Date().toISOString(),
       status: 'open',
       requiredCertifications: selectedCerts,
@@ -133,31 +157,19 @@ export default function PostBidScreen() {
       'Your solicitation is saved. Contractors whose bond capacity and certifications match will see it in their matching opportunities.',
       [{ text: 'OK', onPress: () => router.back() }],
     );
-  }, [title, agency, city, state, category, bidType, estimatedValue, bondRequired, deadline, description, contactEmail, applyUrl, selectedCerts, addBid, router, monthlyLimit, usedThisMonth]);
+  }, [title, agency, city, state, category, bidType, estimatedValue, bondRequired, deadline, description, contactEmail, applyUrl, selectedCerts, addBid, router, monthlyLimit, usedThisMonth, tier, canPaywallUpsell, user, userId]);
 
-  // Show paywall (free→pro, pro→business) or a plain Alert (business→enterprise, enterprise at cap).
-  const canPaywallUpsell = tier === 'free' || tier === 'pro';
-  const upsellTier: 'pro' | 'business' | 'enterprise' =
-    tier === 'free' ? 'pro' : tier === 'pro' ? 'business' : 'enterprise';
-
-  if (overLimit) {
-    if (canPaywallUpsell) {
-      return (
-        <Paywall
-          visible={true}
-          feature={`Community Posts (${usedThisMonth}/${monthlyLimit} this month)`}
-          requiredTier={upsellTier}
-          onClose={() => setOverLimit(false)}
-        />
-      );
-    }
-    // business or enterprise hit their cap — no higher upsell tier to show; inform + dismiss.
-    Alert.alert(
-      'Monthly limit reached',
-      `Your ${tier} plan includes ${monthlyLimit} community post${''} per month. Contact support to discuss higher limits.`,
-      [{ text: 'OK', onPress: () => setOverLimit(false) }],
+  // overLimit is only ever set for the paywall tiers (handleSubmit shows the
+  // business/enterprise cap as an in-handler Alert instead) — render is pure.
+  if (overLimit && canPaywallUpsell) {
+    return (
+      <Paywall
+        visible={true}
+        feature={`Community Posts (${usedThisMonth}/${monthlyLimit} this month)`}
+        requiredTier={upsellTier}
+        onClose={() => setOverLimit(false)}
+      />
     );
-    setOverLimit(false);
   }
 
   return (
@@ -176,8 +188,8 @@ export default function PostBidScreen() {
               <Text style={[styles.usageBadgeText, atLimit && styles.usageBadgeTextAtLimit]}>
                 {atLimit
                   ? canPaywallUpsell
-                    ? `${tier === 'free' ? 'Free' : 'Pro'} plan includes ${monthlyLimit} community post${''} a month — upgrade for unlimited`
-                    : `${monthlyLimit} community post${''} per month on your plan`
+                    ? `${tier === 'free' ? 'Free' : 'Pro'} plan includes ${monthlyLimit} community posts a month — upgrade for more`
+                    : `${monthlyLimit} community posts per month on your plan`
                   : `${usedThisMonth} of ${monthlyLimit} community posts used this month`}
               </Text>
             </View>
@@ -291,7 +303,11 @@ export default function PostBidScreen() {
             testID="submit-bid"
             activeOpacity={0.85}
           >
-            <Text style={styles.submitBtnText}>{atLimit ? 'Monthly limit reached — upgrade to post' : 'Publish Bid'}</Text>
+            <Text style={styles.submitBtnText}>
+              {atLimit
+                ? canPaywallUpsell ? 'Monthly limit reached — upgrade to post' : 'Monthly limit reached'
+                : 'Publish Bid'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>

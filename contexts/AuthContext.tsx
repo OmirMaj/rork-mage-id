@@ -42,6 +42,11 @@ const LOCAL_USER_CACHE_KEYS = [
   'mageid_labor_rates',
   'mageid_material_receipts',
   'mageid_time_entries',
+  // Community-feed cache. Shared data, but rows carry per-user attribution
+  // (userId → public_bids.user_id) that drives the post-quota count — wipe
+  // on tenant switch so a signed-out user's posts never count against the
+  // next tenant. Re-fetches from public_bids under the incoming JWT.
+  'mageid_public_bids',
 ] as const;
 
 // The re-fetchable caches (mageid_*) are always safe to wipe —
