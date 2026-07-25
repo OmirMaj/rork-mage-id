@@ -9,7 +9,7 @@
 // 'proposal' stage — keeping MAGE ID the system of record for the
 // relationship (the anti-leakage moat).
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Share,
   ActivityIndicator, Platform, TextInput,
@@ -59,7 +59,16 @@ export default function InstantBidProposalModal({
   const [ballparkInput, setBallparkInput] = useState('');
   const [showBallparkPrompt, setShowBallparkPrompt] = useState(false);
 
+  // Generation token: closing the sheet does NOT abort the in-flight
+  // generateInstantBid promise, so without this a canceled run resurrected —
+  // reopening later showed a fully-formed proposal built from a budget hint
+  // the user closed the sheet to abandon, and overlapping runs could swap
+  // the tier amounts between 'Share' and 'Mark proposal sent'. Every reset
+  // bumps the token; a resolving run only commits if its token still matches.
+  const runIdRef = useRef(0);
+
   const reset = useCallback(() => {
+    runIdRef.current += 1; // invalidate any in-flight generation
     setProposal(null);
     setSelectedTier('better');
     setGenerating(false);
@@ -69,6 +78,13 @@ export default function InstantBidProposalModal({
   }, []);
 
   const handleClose = useCallback(() => { reset(); onClose(); }, [reset, onClose]);
+
+  // Fresh state on every open and on lead change — a stale proposal for a
+  // different lead (or an abandoned budget hint) must never greet the user.
+  const leadId = lead?.id ?? null;
+  useEffect(() => {
+    if (visible) reset();
+  }, [visible, leadId, reset]);
 
   // Collect all commitments across projects for cost-book grounding.
   const allCommitments = Array.isArray(projects)
@@ -82,7 +98,10 @@ export default function InstantBidProposalModal({
     : [];
 
   const doGenerate = useCallback(async (budgetHint?: number) => {
-    if (!lead) return;
+    // `generating` guard: the ballpark input's Enter key can race the
+    // Generate button — never start overlapping runs.
+    if (!lead || generating) return;
+    const runId = ++runIdRef.current;
     setShowBallparkPrompt(false);
     setGenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -104,15 +123,16 @@ export default function InstantBidProposalModal({
         financing: settings?.financing,
         groundingContext,
       });
+      if (runId !== runIdRef.current) return; // aborted: closed / reopened / lead changed
       setProposal(p);
       setSelectedTier(p.recommendedTier);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       // generateInstantBid never throws, but guard anyway.
     } finally {
-      setGenerating(false);
+      if (runId === runIdRef.current) setGenerating(false);
     }
-  }, [lead, company, settings, projects, allCommitments]);
+  }, [lead, generating, company, settings, projects, allCommitments, receipts, laborSamples]);
 
   const handleGenerate = useCallback(async () => {
     if (!lead) return;
