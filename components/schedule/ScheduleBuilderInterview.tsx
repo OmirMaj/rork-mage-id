@@ -29,7 +29,7 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { getProject, updateProject, projects } = useProjects();
+  const { getProject, updateProject, projects, getRFIsForProject, getDailyReportsForProject } = useProjects();
   const project = useMemo(() => getProject(projectId) ?? null, [getProject, projectId]);
 
   const staticQuestions = useMemo(() => visibleQuestions(project), [project]);
@@ -99,8 +99,13 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
     setPhase('generating');
     try {
       // Thread ALL projects so durations are paced from the contractor's own
-      // finished tasks (buildPaceFacts), not invented by the model.
-      const result = await generateScheduleFromAnswers(project, nextAnswers, projects);
+      // finished tasks (buildPaceFacts), not invented by the model. Also
+      // thread this project's RFIs + daily reports (E4) so the prompt can
+      // buffer for real RFI latency and historical weather-lost days.
+      const result = await generateScheduleFromAnswers(
+        project, nextAnswers, projects,
+        getRFIsForProject(project.id), getDailyReportsForProject(project.id),
+      );
       stashDraft(result);
 
       // Writeback: merge scope/sizeSqft/knownRisks captured in this interview
@@ -127,7 +132,7 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
       setErrMsg((e as Error).message ?? 'Could not build the schedule.');
       setPhase('error');
     }
-  }, [q, answers, idx, questions.length, staticQuestions.length, dynamicFollowups.length, project, projectId, router, projects, updateProject]);
+  }, [q, answers, idx, questions.length, staticQuestions.length, dynamicFollowups.length, project, projectId, router, projects, updateProject, getRFIsForProject, getDailyReportsForProject]);
 
   const submitEntry = useCallback(() => {
     if (!q) return;
