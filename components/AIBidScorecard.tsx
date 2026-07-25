@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import {
-  TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target, XCircle,
+  TrendingUp, AlertTriangle, CheckCircle2, Settings, RefreshCw, Target, XCircle, BookOpen,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
@@ -16,6 +16,8 @@ import {
   type CompanyAIProfile, type BidScoreResult,
 } from '@/utils/aiService';
 import { AIProfileSetup } from '@/components/AIBidScorer';
+import { bidHistoryFacts, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
+import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -60,12 +62,19 @@ const PROFILE_REQUIRED_THRESHOLD = 1;
 export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { subcontractors } = useProjects();
   const [profile, setProfile] = useState<CompanyAIProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [score, setScore] = useState<BidScoreResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Build win-history facts from all subs' decided bid records.
+  const histFacts: BidHistoryFacts = useMemo(() => {
+    const allRecords = (subcontractors ?? []).flatMap(s => s.bidHistory ?? []);
+    return bidHistoryFacts(allRecords);
+  }, [subcontractors]);
 
   const cacheKey = useMemo(() => `bidscore_${bid.id}`, [bid.id]);
 
@@ -108,7 +117,8 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
           return;
         }
       }
-      const result = await scoreBid(bid, profile);
+      // Pass bid history facts so the model grounds win probability on real outcomes.
+      const result = await scoreBid(bid, profile, histFacts);
       await setCachedResult(cacheKey, result);
       setScore(result);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -118,7 +128,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
     } finally {
       setLoading(false);
     }
-  }, [bid, profile, profileReady, cacheKey]);
+  }, [bid, profile, profileReady, cacheKey, histFacts]);
 
   const handleProfileSaved = useCallback((p: CompanyAIProfile) => {
     setProfile(p);
@@ -201,7 +211,8 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
   const color = scoreColor(score.matchScore);
   const decision = goNoGo(score.matchScore);
-  const winPct = Math.round((score.estimatedWinProbability ?? 0));
+  const winProb = score.estimatedWinProbability;
+  const winPct = winProb !== null && winProb !== undefined ? Math.round(winProb * 100) : null;
 
   return (
     <View style={styles.container} testID={testID}>
@@ -234,10 +245,22 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
           </View>
           <View style={styles.winRow}>
             <Target size={12} color={"#9AA3AD"} strokeWidth={1.75} />
-            <Text style={styles.winText}>
-              <Text style={styles.winPct}>{winPct}%</Text> est. win probability
-            </Text>
+            {winPct !== null ? (
+              <Text style={styles.winText}>
+                <Text style={styles.winPct}>{winPct}%</Text> est. win probability
+              </Text>
+            ) : (
+              <Text style={styles.winText}>
+                Not enough decided bids to estimate odds — tracked from your next wins/losses
+              </Text>
+            )}
           </View>
+          {histFacts.decidedCount > 0 && histFacts.decidedCount < 3 && (
+            <View style={styles.histRow}>
+              <BookOpen size={10} color={"#9AA3AD"} strokeWidth={1.75} />
+              <Text style={styles.histText}>{histFacts.decidedCount} decided bid{histFacts.decidedCount === 1 ? '' : 's'} tracked so far</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -339,9 +362,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   decisionLabel: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   barTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   barFill: { height: '100%' as const, borderRadius: 3 },
-  winRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 },
-  winText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '500' as const },
+  winRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 5, flexWrap: 'wrap' as const },
+  winText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '500' as const, flex: 1 },
   winPct: { fontWeight: '700' as const, color: t.text },
+  histRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, marginTop: 2 },
+  histText: { fontSize: 9, color: t.textMuted, fontStyle: 'italic' as const },
   decisionPill: { alignSelf: 'flex-start' as const, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm },
   decisionPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   section: { gap: 6 },

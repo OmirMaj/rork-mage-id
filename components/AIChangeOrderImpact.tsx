@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { CalendarDays, DollarSign, ArrowRight } from 'lucide-react-native';
+import { CalendarDays, DollarSign, ArrowRight, HelpCircle, BookOpen } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -14,7 +14,7 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useRouter } from 'expo-router';
-import type { ProjectSchedule } from '@/types';
+import type { Project, ProjectSchedule } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -22,13 +22,15 @@ interface Props {
   changeDescription: string;
   lineItems: { name: string; quantity: number; unitPrice: number; total: number }[];
   schedule: ProjectSchedule | null;
+  /** Pass all projects so the analysis can ground pace and cost-rate facts. */
+  projects?: Project[];
 }
 
 function formatCurrency(n: number): string {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule }: Props) {
+export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule, projects }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
@@ -36,9 +38,12 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
   const [result, setResult] = useState<ChangeOrderImpactResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
+  // Holds the user's answer to a clarifying question so they can re-analyze.
+  const [clarifyAnswer, setClarifyAnswer] = useState('');
 
-  const handleAnalyze = useCallback(async () => {
-    if (isLoading || !changeDescription.trim()) return;
+  const handleAnalyze = useCallback(async (descriptionOverride?: string) => {
+    const desc = (descriptionOverride ?? changeDescription).trim();
+    if (isLoading || !desc) return;
 
     const limit = await checkAILimit(tier, 'fast', 'changeOrderImpact');
     if (!limit.allowed) {
@@ -47,11 +52,11 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     }
 
     setIsLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const data = await analyzeChangeOrderImpact(changeDescription, lineItems, schedule);
+      const data = await analyzeChangeOrderImpact(desc, lineItems, schedule, projects);
       await recordAIUsage('fast', 'changeOrderImpact');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
       setIsExpanded(true);
     } catch (err) {
@@ -59,13 +64,13 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, changeDescription, lineItems, schedule, tier, router]);
+  }, [isLoading, changeDescription, lineItems, schedule, projects, tier, router]);
 
   if (!result) {
     return (
       <TouchableOpacity
         style={[styles.triggerBtn, !changeDescription.trim() && styles.triggerDisabled]}
-        onPress={handleAnalyze}
+        onPress={() => void handleAnalyze()}
         disabled={isLoading || !changeDescription.trim()}
       >
         {isLoading ? (
@@ -80,6 +85,47 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     );
   }
 
+  // Thin-description path: model returned a clarifying question instead of an analysis.
+  if (result.clarifyQuestion) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <HelpCircle size={16} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.headerTitle}>One question first</Text>
+          </View>
+        </View>
+        <Text style={styles.clarifyQ}>{result.clarifyQuestion}</Text>
+        <TextInput
+          style={styles.clarifyInput}
+          value={clarifyAnswer}
+          onChangeText={setClarifyAnswer}
+          placeholder="e.g. Electrical — add 4 recessed lights in the living room"
+          placeholderTextColor={themeColors.textMuted}
+          multiline
+          textAlignVertical="top"
+        />
+        <TouchableOpacity
+          style={[styles.triggerBtn, !clarifyAnswer.trim() && styles.triggerDisabled]}
+          onPress={() => {
+            if (!clarifyAnswer.trim()) return;
+            void handleAnalyze(`${changeDescription} — ${clarifyAnswer}`);
+          }}
+          disabled={isLoading || !clarifyAnswer.trim()}
+        >
+          {isLoading
+            ? <ActivityIndicator size="small" color={themeColors.accent} />
+            : <MageAIMark size={16} color={clarifyAnswer.trim() ? themeColors.accent : themeColors.textMuted} />}
+          <Text style={[styles.triggerText, !clarifyAnswer.trim() && { color: themeColors.textMuted }]}>
+            {isLoading ? 'Analyzing...' : 'Analyze Impact'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const groundedOn: string[] = result.groundedOn ?? [];
+
   return (
     <View style={styles.card}>
       <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
@@ -89,6 +135,14 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
         </View>
         <Text style={styles.aiTag}>AI</Text>
       </TouchableOpacity>
+      {groundedOn.length > 0 && (
+        <View style={styles.groundingRow}>
+          <BookOpen size={11} color={themeColors.textMuted} strokeWidth={1.75} />
+          <Text style={styles.groundingText}>
+            Checked against: {groundedOn.join(' · ')}
+          </Text>
+        </View>
+      )}
 
       {isExpanded && (
         <>
@@ -165,7 +219,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
             </View>
           )}
 
-          <TouchableOpacity style={styles.reanalyzeBtn} onPress={handleAnalyze} disabled={isLoading}>
+          <TouchableOpacity style={styles.reanalyzeBtn} onPress={() => void handleAnalyze()} disabled={isLoading}>
             <Text style={styles.reanalyzeText}>{isLoading ? 'Re-analyzing...' : 'Re-analyze'}</Text>
           </TouchableOpacity>
         </>
@@ -326,5 +380,31 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: t.accent,
     fontWeight: '600' as const,
+  },
+  groundingRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center',
+    gap: 4,
+    marginTop: -4,
+  },
+  groundingText: {
+    fontSize: Type.caption2.fontSize,
+    color: t.textMuted,
+    fontStyle: 'italic' as const,
+  },
+  clarifyQ: {
+    fontSize: Type.bodyCompact.fontSize,
+    color: t.text,
+    lineHeight: 20,
+  },
+  clarifyInput: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: t.line,
+    borderRadius: Tokens.radius.md,
+    padding: 12,
+    fontSize: Type.bodyCompact.fontSize,
+    color: t.text,
+    backgroundColor: t.surfaceAlt,
   },
 });
