@@ -38,6 +38,7 @@ import type { ProjectType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { WizardAnswers } from '@/utils/scopeQuestions';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -63,6 +64,7 @@ function JudgesInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isDesktop } = useResponsiveLayout();
   const { projects, commitments, changeOrders, invoices } = useProjects();
   const { receipts } = useMaterialReceipts();
 
@@ -211,7 +213,7 @@ function JudgesInner() {
           </TouchableOpacity>
         </View>
         <ScrollView
-          contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}
+          contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
         >
           <VerdictCard result={result} />
@@ -260,7 +262,7 @@ function JudgesInner() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}
+        contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -519,4 +521,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 12, alignItems: 'center' as const,
   },
   resetBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.accent },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
 });
