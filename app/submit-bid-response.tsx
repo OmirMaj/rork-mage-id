@@ -31,6 +31,7 @@ import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import type { TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
@@ -121,6 +122,7 @@ export default function SubmitBidResponseScreen() {
   // Self-perform labor samples (D6) — folds crew hours × configured loaded
   // rates into the cost book that grounds the instant-bid ROM.
   const laborSamples = useLaborCostSamples();
+  const { receipts } = useMaterialReceipts();
 
   const [estimateAmount, setEstimateAmount]   = useState('');
   const [estimateSummary, setEstimateSummary] = useState('');
@@ -177,7 +179,7 @@ export default function SubmitBidResponseScreen() {
           contractorNote: message.trim() || undefined,
           groundingContext:
             Array.isArray(projects) && projects.length > 0
-              ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], laborSamples }
+              ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], receipts, laborSamples }
               : undefined,
         },
       );
