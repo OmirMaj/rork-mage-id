@@ -1,23 +1,23 @@
-// PersonaSwitchOverlay — full-screen persona-switch animation.
+// PersonaSwitchOverlay — "the level finds center" persona-switch transition.
 //
-// Plays a circular reveal expanding from the tapped role card's position,
-// with a centered icon morph/crossfade and a label fade-in, then fades
-// out revealing the app in the new persona.
+// The old version scaled a brand-orange disc over the whole screen — a
+// full-bleed accent flood with unreadable text. This one stays inside the
+// app's own theme: the screen dims to the theme scrim, two hairline accent
+// rings ripple out from the tapped card, and a surface card springs in with
+// the destination icon, a readable label, and the signature move — a spirit
+// level whose bubble slides in and SETTLES DEAD CENTER. Construction for
+// "you've leveled into your new workspace."
 //
-// Timeline (~1.2s total):
-//   0ms      — haptic impact + circle starts expanding
-//   0–600ms  — circle expands from card position to cover screen
-//   250ms    — icon crossfade begins (from-icon fades out, to-icon fades in)
-//   400ms    — label fades in
-//   750ms    — role committed (setUserRole called), overlay begins fade-out
-//   900ms    — overlay fully transparent; onDone() fires
+// Timeline (~1.15s total):
+//   0ms       — haptic impact, scrim fades in, ring 1 starts
+//   140ms     — ring 2 echoes
+//   90–420ms  — card + icon spring in, eyebrow/label rise
+//   300–520ms — level track draws in
+//   420–850ms — bubble springs to center (the settle)
+//   930ms     — overlay fades out; onDone() at ~1150ms
 //
-// Props:
-//   visible     — mounts/drives the animation
-//   toRole      — destination persona
-//   originPoint — { x, y } pixel position of the tapped card's center
-//                 (measured via measureInWindow). Falls back to screen center.
-//   onDone      — called when animation completes; parent can navigate/commit
+// Reduced motion / web: a clean theme-dark crossfade, no theatrics.
+// Props are unchanged from the previous version — persona-select needs no edits.
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -31,38 +31,33 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import type { ThemeColors } from '@/constants/colors';
 import type { UserRole } from '@/utils/onboardingProfile';
 import { USER_ROLE_LABELS } from '@/utils/onboardingProfile';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-// The circle must cover the full screen diagonal from any corner.
 const SCREEN_DIAGONAL = Math.ceil(Math.sqrt(SCREEN_W * SCREEN_W + SCREEN_H * SCREEN_H));
-// Final circle diameter: large enough to cover from any origin point.
-const CIRCLE_MAX = SCREEN_DIAGONAL * 2 + 40;
 
-// Duration constants (ms)
-const DUR_CIRCLE    = 600;   // circle expand
-const DUR_ICON_FADE = 200;   // each icon crossfade leg
-const T_ICON_START  = 250;   // when icon crossfade begins
-const T_LABEL_START = 400;   // when label fades in
-const T_COMMIT      = 750;   // when role is committed + fade-out begins
-const DUR_FADEOUT   = 220;   // overlay opacity fade out
+// Rings render at a fixed base size and scale outward past the diagonal.
+const RING_SIZE = 140;
+const RING_COVER_SCALE = (SCREEN_DIAGONAL * 2.1) / RING_SIZE;
 
-// Per-role accent color token pair: [circleColor, iconColor]
-// Using only Colors tokens — no raw hex.
-// For accentLight (yellow) and warning (orange) circles, primaryDark gives
-// readable contrast without needing a separate ink token.
-const ROLE_COLORS: Record<UserRole, { circle: string; icon: string }> = {
-  contractor:      { circle: Colors.primary,      icon: Colors.textOnPrimary },
-  client:          { circle: Colors.accentLight,  icon: Colors.primaryDark   },
-  both:            { circle: Colors.primary,      icon: Colors.textOnPrimary },
-  property_manager:{ circle: Colors.warning,      icon: Colors.textOnPrimary },
-};
+// Spirit level geometry
+const LEVEL_TRACK_W = 172;
+const BUBBLE_W = 30;
+const BUBBLE_START_X = -54; // starts off-center, settles at 0
+
+// Timings (ms)
+const T_CARD = 90;
+const T_LEVEL = 300;
+const T_BUBBLE = 420;
+const T_FADE = 930;
+const DUR_FADEOUT = 220;
 
 // Icons mirroring ROLE_ICONS in persona-select.tsx
 const ROLE_ICONS: Record<UserRole, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
@@ -72,14 +67,14 @@ const ROLE_ICONS: Record<UserRole, React.ComponentType<{ size?: number; color?: 
   property_manager: Building2,
 };
 
-// ── Props ──────────────────────────────────────────────────────────────────────
+// ── Props (unchanged API) ─────────────────────────────────────────────────────
 
 export interface PersonaSwitchOverlayProps {
   /** Show and drive the animation. */
   visible: boolean;
   /** Destination persona. */
   toRole: UserRole;
-  /** Pixel position of tapped card center for reveal origin. */
+  /** Pixel position of tapped card center for the ring origin. */
   originPoint?: { x: number; y: number };
   /** Whether reduced motion is active (from AccessibilityInfo). */
   reduceMotion?: boolean;
@@ -87,7 +82,7 @@ export interface PersonaSwitchOverlayProps {
   onDone: () => void;
 }
 
-// ── Component ──────────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PersonaSwitchOverlay({
   visible,
@@ -96,31 +91,43 @@ export default function PersonaSwitchOverlay({
   reduceMotion = false,
   onDone,
 }: PersonaSwitchOverlayProps) {
+  const { colors: t } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   // Animated values
-  const circleScale    = useRef(new Animated.Value(0)).current;
+  const scrimOpacity   = useRef(new Animated.Value(0)).current;
   const overlayOpacity = useRef(new Animated.Value(1)).current;
-  const iconOldOpacity = useRef(new Animated.Value(1)).current;
-  const iconNewOpacity = useRef(new Animated.Value(0)).current;
-  const iconScale      = useRef(new Animated.Value(0.72)).current;
+  const ring1Scale     = useRef(new Animated.Value(0.2)).current;
+  const ring1Opacity   = useRef(new Animated.Value(0)).current;
+  const ring2Scale     = useRef(new Animated.Value(0.2)).current;
+  const ring2Opacity   = useRef(new Animated.Value(0)).current;
+  const cardOpacity    = useRef(new Animated.Value(0)).current;
+  const cardScale      = useRef(new Animated.Value(0.92)).current;
+  const iconScale      = useRef(new Animated.Value(0.7)).current;
+  const iconOpacity    = useRef(new Animated.Value(0)).current;
   const labelOpacity   = useRef(new Animated.Value(0)).current;
   const labelTranslate = useRef(new Animated.Value(8)).current;
+  const trackScaleX    = useRef(new Animated.Value(0)).current;
+  const bubbleX        = useRef(new Animated.Value(BUBBLE_START_X)).current;
+  const settleGlow     = useRef(new Animated.Value(0)).current;
 
-  // Track whether we've already fired the commit so we don't double-call
-  const committed = useRef(false);
-
-  // Reset all values
   const resetAnimations = useCallback(() => {
-    circleScale.setValue(0);
+    scrimOpacity.setValue(0);
     overlayOpacity.setValue(1);
-    iconOldOpacity.setValue(1);
-    iconNewOpacity.setValue(0);
-    iconScale.setValue(0.72);
+    ring1Scale.setValue(0.2);
+    ring1Opacity.setValue(0);
+    ring2Scale.setValue(0.2);
+    ring2Opacity.setValue(0);
+    cardOpacity.setValue(0);
+    cardScale.setValue(0.92);
+    iconScale.setValue(0.7);
+    iconOpacity.setValue(0);
     labelOpacity.setValue(0);
     labelTranslate.setValue(8);
-    committed.current = false;
-  }, [circleScale, overlayOpacity, iconOldOpacity, iconNewOpacity, iconScale, labelOpacity, labelTranslate]);
+    trackScaleX.setValue(0);
+    bubbleX.setValue(BUBBLE_START_X);
+    settleGlow.setValue(0);
+  }, [scrimOpacity, overlayOpacity, ring1Scale, ring1Opacity, ring2Scale, ring2Opacity, cardOpacity, cardScale, iconScale, iconOpacity, labelOpacity, labelTranslate, trackScaleX, bubbleX, settleGlow]);
 
   useEffect(() => {
     if (visible) {
@@ -132,89 +139,111 @@ export default function PersonaSwitchOverlay({
   useEffect(() => {
     if (!mounted) return;
 
-    // Fire haptic on native
     if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    if (reduceMotion || Platform.OS === 'web') {
-      // Reduced motion / web: simple crossfade, commit immediately
-      overlayOpacity.setValue(1);
-      Animated.timing(overlayOpacity, {
-        toValue: 0,
-        duration: 320,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }).start(() => {
+    if (reduceMotion) {
+      // Reduced motion: theme-dark crossfade only.
+      scrimOpacity.setValue(1);
+      cardOpacity.setValue(1);
+      cardScale.setValue(1);
+      iconOpacity.setValue(1);
+      iconScale.setValue(1);
+      labelOpacity.setValue(1);
+      labelTranslate.setValue(0);
+      trackScaleX.setValue(1);
+      bubbleX.setValue(0);
+      Animated.sequence([
+        Animated.delay(420),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 280, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      ]).start(() => {
         setMounted(false);
         onDone();
       });
       return;
     }
 
-    // Full animation sequence using Animated.sequence + parallel
+    const springy = Platform.OS !== 'web';
+
     Animated.parallel([
-      // Circle expands to cover screen
-      Animated.timing(circleScale, {
-        toValue: 1,
-        duration: DUR_CIRCLE,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      // Icon: old fades out, new fades + scales in
-      Animated.sequence([
-        Animated.delay(T_ICON_START),
-        Animated.parallel([
-          Animated.timing(iconOldOpacity, {
-            toValue: 0,
-            duration: DUR_ICON_FADE,
-            useNativeDriver: true,
-          }),
-          Animated.timing(iconNewOpacity, {
-            toValue: 1,
-            duration: DUR_ICON_FADE * 1.5,
-            easing: Easing.out(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.spring(iconScale, {
-            toValue: 1,
-            damping: 14,
-            stiffness: 220,
-            mass: 0.8,
-            useNativeDriver: true,
-          }),
+      // Scrim settles in fast — the app dims into its own theme, no color flood.
+      Animated.timing(scrimOpacity, { toValue: 1, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+
+      // Two hairline rings ripple out from the tapped card.
+      Animated.parallel([
+        Animated.timing(ring1Scale, { toValue: RING_COVER_SCALE, duration: 760, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(ring1Opacity, { toValue: 0.55, duration: 90, useNativeDriver: true }),
+          Animated.timing(ring1Opacity, { toValue: 0, duration: 640, easing: Easing.out(Easing.ease), useNativeDriver: true }),
         ]),
       ]),
-      // Label fades in from slightly below
       Animated.sequence([
-        Animated.delay(T_LABEL_START),
+        Animated.delay(140),
         Animated.parallel([
-          Animated.timing(labelOpacity, {
-            toValue: 1,
-            duration: 200,
-            easing: Easing.out(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(labelTranslate, {
-            toValue: 0,
-            duration: 220,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
+          Animated.timing(ring2Scale, { toValue: RING_COVER_SCALE, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(ring2Opacity, { toValue: 0.35, duration: 90, useNativeDriver: true }),
+            Animated.timing(ring2Opacity, { toValue: 0, duration: 680, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          ]),
         ]),
       ]),
-      // Commit + fade out after T_COMMIT
+
+      // Card pops in.
       Animated.sequence([
-        Animated.delay(T_COMMIT),
-        Animated.timing(overlayOpacity, {
-          toValue: 0,
-          duration: DUR_FADEOUT,
-          easing: Easing.in(Easing.ease),
-          useNativeDriver: true,
-        }),
+        Animated.delay(T_CARD),
+        Animated.parallel([
+          Animated.timing(cardOpacity, { toValue: 1, duration: 170, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          springy
+            ? Animated.spring(cardScale, { toValue: 1, damping: 16, stiffness: 240, mass: 0.7, useNativeDriver: true })
+            : Animated.timing(cardScale, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]),
+      ]),
+
+      // Icon springs in just behind the card.
+      Animated.sequence([
+        Animated.delay(T_CARD + 70),
+        Animated.parallel([
+          Animated.timing(iconOpacity, { toValue: 1, duration: 180, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          springy
+            ? Animated.spring(iconScale, { toValue: 1, damping: 13, stiffness: 220, mass: 0.8, useNativeDriver: true })
+            : Animated.timing(iconScale, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]),
+      ]),
+
+      // Eyebrow + label rise in.
+      Animated.sequence([
+        Animated.delay(T_CARD + 130),
+        Animated.parallel([
+          Animated.timing(labelOpacity, { toValue: 1, duration: 200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(labelTranslate, { toValue: 0, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        ]),
+      ]),
+
+      // The level draws, then the bubble settles dead center.
+      Animated.sequence([
+        Animated.delay(T_LEVEL),
+        Animated.timing(trackScaleX, { toValue: 1, duration: 210, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.delay(T_BUBBLE),
+        springy
+          ? Animated.spring(bubbleX, { toValue: 0, damping: 12, stiffness: 150, mass: 0.9, useNativeDriver: true })
+          : Animated.timing(bubbleX, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+      // A soft glow blooms as the bubble finds center.
+      Animated.sequence([
+        Animated.delay(T_BUBBLE + 260),
+        Animated.timing(settleGlow, { toValue: 1, duration: 160, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(settleGlow, { toValue: 0, duration: 260, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+      ]),
+
+      // Fade out and hand back to the app.
+      Animated.sequence([
+        Animated.delay(T_FADE),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: DUR_FADEOUT, easing: Easing.in(Easing.ease), useNativeDriver: true }),
       ]),
     ]).start(() => {
-      // Haptic success on native at end
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -225,17 +254,15 @@ export default function PersonaSwitchOverlay({
 
   if (!mounted) return null;
 
-  const { circle: circleColor, icon: iconColor } = ROLE_COLORS[toRole];
   const ToIcon = ROLE_ICONS[toRole];
   const label = USER_ROLE_LABELS[toRole];
+  const styles = makeStyles(t);
 
-  // Reveal origin — default to center if not provided
+  // Ring origin — the tapped card's center; falls back to screen center.
   const ox = originPoint?.x ?? SCREEN_W / 2;
   const oy = originPoint?.y ?? SCREEN_H / 2;
-
-  // Circle's top-left position so that its center aligns with the origin point
-  const circleTopLeft = ox - CIRCLE_MAX / 2;
-  const circleTop = oy - CIRCLE_MAX / 2;
+  const ringLeft = ox - RING_SIZE / 2;
+  const ringTop = oy - RING_SIZE / 2;
 
   return (
     <Modal
@@ -246,94 +273,133 @@ export default function PersonaSwitchOverlay({
       onRequestClose={() => { /* blocked during transition */ }}
     >
       <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]} pointerEvents="box-only">
-        {/* Expanding circle */}
+        {/* Theme scrim — the app dims into its own surface, never a color flood. */}
+        <Animated.View style={[styles.scrim, { opacity: scrimOpacity }]} />
+
+        {/* Hairline accent rings rippling from the tapped card */}
         <Animated.View
-          style={[
-            styles.circle,
-            {
-              backgroundColor: circleColor,
-              width: CIRCLE_MAX,
-              height: CIRCLE_MAX,
-              borderRadius: CIRCLE_MAX / 2,
-              left: circleTopLeft,
-              top: circleTop,
-              transform: [{ scale: circleScale }],
-            },
-          ]}
+          style={[styles.ring, { left: ringLeft, top: ringTop, opacity: ring1Opacity, transform: [{ scale: ring1Scale }] }]}
+        />
+        <Animated.View
+          style={[styles.ring, styles.ringThin, { left: ringLeft, top: ringTop, opacity: ring2Opacity, transform: [{ scale: ring2Scale }] }]}
         />
 
-        {/* Centered icon + label */}
-        <View style={styles.centerContent} pointerEvents="none">
-          {/* Icon container — crossfade between "generic" (from) and toRole icon */}
-          <View style={styles.iconWrap}>
-            {/* New-role icon: fades in and scales up */}
-            <Animated.View
-              style={[
-                StyleSheet.absoluteFillObject,
-                styles.iconInner,
-                {
-                  opacity: iconNewOpacity,
-                  transform: [{ scale: iconScale }],
-                },
-              ]}
-            >
-              <ToIcon size={48} color={iconColor} strokeWidth={1.8} />
-            </Animated.View>
-          </View>
+        {/* The workspace card */}
+        <Animated.View style={[styles.card, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]} pointerEvents="none">
+          <Animated.View style={[styles.iconChip, { opacity: iconOpacity, transform: [{ scale: iconScale }] }]}>
+            <ToIcon size={30} color={t.accent} strokeWidth={1.9} />
+          </Animated.View>
 
-          {/* Label */}
-          <Animated.Text
-            style={[
-              styles.label,
-              {
-                opacity: labelOpacity,
-                transform: [{ translateY: labelTranslate }],
-                color: iconColor,
-              },
-            ]}
-            numberOfLines={1}
-          >
-            Switching to {label}
-          </Animated.Text>
-        </View>
+          <Animated.View style={{ opacity: labelOpacity, transform: [{ translateY: labelTranslate }], alignItems: 'center' }}>
+            <Animated.Text style={styles.eyebrow}>SWITCHING WORKSPACE</Animated.Text>
+            <Animated.Text style={styles.label} numberOfLines={1}>{label}</Animated.Text>
+          </Animated.View>
+
+          {/* The spirit level — bubble settles dead center */}
+          <View style={styles.levelWrap}>
+            <Animated.View style={[styles.levelTrack, { transform: [{ scaleX: trackScaleX }] }]} />
+            <View style={styles.levelNotch} />
+            <Animated.View style={[styles.bubbleGlow, { opacity: settleGlow }]} />
+            <Animated.View style={[styles.bubble, { transform: [{ translateX: bubbleX }] }]} />
+          </View>
+        </Animated.View>
       </Animated.View>
     </Modal>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles (theme-derived — readable in light and dark, no accent floods) ─────
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    // Dark fallback behind the circle during the expand phase
-    backgroundColor: 'transparent',
   },
-  circle: {
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: t.bg,
+  },
+  ring: {
     position: 'absolute',
+    width: RING_SIZE,
+    height: RING_SIZE,
+    borderRadius: RING_SIZE / 2,
+    borderWidth: 1.5,
+    borderColor: t.accent,
   },
-  centerContent: {
+  ringThin: {
+    borderWidth: 1,
+  },
+  card: {
     alignItems: 'center',
-    justifyContent: 'center',
     gap: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing['2xl'],
+    paddingHorizontal: Tokens.spacing['3xl'],
+    borderRadius: Tokens.radius['2xl'],
+    backgroundColor: t.surface,
+    borderWidth: 1,
+    borderColor: t.line,
+    ...Tokens.shadow.medium,
     zIndex: 2,
   },
-  iconWrap: {
-    width: 80,
-    height: 80,
+  iconChip: {
+    width: 64,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: Tokens.radius.panel,
+    backgroundColor: t.accentSoft,
   },
-  iconInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  eyebrow: {
+    ...Type.caption2,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+    color: t.textMuted,
+    textAlign: 'center',
   },
   label: {
-    ...Type.headline,
+    ...Type.title2,
     fontWeight: '700',
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
+    color: t.text,
     textAlign: 'center',
+    marginTop: 4,
+  },
+  levelWrap: {
+    width: LEVEL_TRACK_W,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  levelTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 2,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.line,
+  },
+  levelNotch: {
+    position: 'absolute',
+    width: 2,
+    height: 10,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.textMuted,
+  },
+  bubble: {
+    position: 'absolute',
+    width: BUBBLE_W,
+    height: 10,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.accent,
+  },
+  bubbleGlow: {
+    position: 'absolute',
+    width: BUBBLE_W + 18,
+    height: 22,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.accentSoft,
   },
 });
