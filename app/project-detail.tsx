@@ -1416,6 +1416,7 @@ export default function ProjectDetailScreen() {
           projects={project ? [project] : []}
           invoices={projectInvoices}
           rfis={projectRFIs}
+          punchItems={punchItems}
           scopeToProjectId={project?.id}
           testID="project-next-step"
         />

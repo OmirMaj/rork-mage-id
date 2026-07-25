@@ -4,6 +4,7 @@ import {
   invoiceAttention,
   permitAttention,
   certAttention,
+  closeoutAttention,
   rankAttention,
   summarize,
 } from '../utils/brainWatch';
@@ -353,6 +354,51 @@ console.log('\ncertAttention:');
   ok('no holderName → uses workerId', items[0].message.includes('worker-abc'));
 }
 
+// ─── closeoutAttention ───────────────────────────────────────────────────────
+
+console.log('\ncloseoutAttention:');
+
+// in_progress + schedule 100% → fires
+{
+  const p = mkProject({ status: 'in_progress', schedule: mkSchedule(80, 3, 0) });
+  // Override tasks so all have progress 100
+  if (p.schedule) {
+    p.schedule.tasks = p.schedule.tasks.map((t) => ({ ...t, progress: 100 }));
+  }
+  const items = closeoutAttention(p);
+  ok('100% progress → 1 item', items.length === 1);
+  ok('100% progress → medium', items[0].severity === 'medium');
+  ok('100% progress → closeout kind', items[0].kind === 'closeout');
+  ok('100% progress → route /closeout-binder', items[0].route.pathname === '/closeout-binder');
+  ok('100% progress → route has projectId', items[0].route.params?.projectId === 'p1');
+}
+
+// in_progress + schedule 80% → no fire
+{
+  const p = mkProject({ status: 'in_progress', schedule: mkSchedule(80, 3, 0) });
+  ok('80% progress → empty', closeoutAttention(p).length === 0);
+}
+
+// no schedule → no fire
+{
+  const p = mkProject({ status: 'in_progress' });
+  ok('no schedule → empty', closeoutAttention(p).length === 0);
+}
+
+// completed → no fire (already past the gate)
+{
+  const p = mkProject({ status: 'completed', schedule: mkSchedule(80, 3, 0) });
+  if (p.schedule) p.schedule.tasks = p.schedule.tasks.map((t) => ({ ...t, progress: 100 }));
+  ok('completed → empty', closeoutAttention(p).length === 0);
+}
+
+// closed → no fire
+{
+  const p = mkProject({ status: 'closed', schedule: mkSchedule(80, 3, 0) });
+  if (p.schedule) p.schedule.tasks = p.schedule.tasks.map((t) => ({ ...t, progress: 100 }));
+  ok('closed → empty', closeoutAttention(p).length === 0);
+}
+
 // ─── rankAttention ───────────────────────────────────────────────────────────
 
 console.log('\nrankAttention:');
@@ -387,19 +433,22 @@ console.log('\nsummarize:');
     { id: '2', projectId: '', projectName: '', kind: 'schedule' as const, severity: 'high' as const, message: '', route: { pathname: '/schedule-pro' } },
     { id: '3', projectId: '', projectName: '', kind: 'invoice' as const, severity: 'medium' as const, message: '', route: { pathname: '/invoice' } },
     { id: '4', projectId: '', projectName: '', kind: 'cert' as const, severity: 'critical' as const, message: '', route: { pathname: '/crew' } },
+    { id: '5', projectId: 'p1', projectName: 'Test', kind: 'closeout' as const, severity: 'medium' as const, message: '', route: { pathname: '/closeout-binder', params: { projectId: 'p1' } } },
   ];
   const s = summarize(items);
-  ok('total = 4', s.total === 4);
+  ok('total = 5', s.total === 5);
   ok('schedule = 2', s.byKind.schedule === 2);
   ok('invoice = 1', s.byKind.invoice === 1);
   ok('permit = 0', s.byKind.permit === 0);
   ok('cert = 1', s.byKind.cert === 1);
+  ok('closeout = 1', s.byKind.closeout === 1);
 }
 
 {
   const s = summarize([]);
   ok('empty total = 0', s.total === 0);
   ok('empty schedule = 0', s.byKind.schedule === 0);
+  ok('empty closeout = 0', s.byKind.closeout === 0);
 }
 
 // ─── Footer ──────────────────────────────────────────────────────────────────

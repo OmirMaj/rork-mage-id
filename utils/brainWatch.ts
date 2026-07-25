@@ -5,10 +5,11 @@
 // No context calls, no side effects. Sorting + summarizing are separate.
 
 import type { Project, Invoice, Permit, Certification } from '@/types';
+import { computeProjectProgress } from './projectProgress';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
-export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert';
+export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout';
 export type AttnSeverity = 'critical' | 'high' | 'medium';
 
 export interface AttentionItem {
@@ -214,6 +215,34 @@ export function certAttention(
   return items;
 }
 
+// ─── closeoutAttention ────────────────────────────────────────────────────────
+
+/**
+ * Produces one AttentionItem when a project looks done (schedule >= 100%)
+ * but is still in_progress. Closing it feeds the cost book, pace book, and
+ * passport — every learning engine depends on this transition.
+ * Severity: always medium (it's a good thing, not a risk).
+ */
+export function closeoutAttention(project: Project): AttentionItem[] {
+  // Only nudge in_progress projects — completed/closed already crossed the line
+  if (project.status !== 'in_progress') return [];
+
+  const prog = computeProjectProgress(project);
+  if (!prog.hasSchedule || prog.pct < 100) return [];
+
+  return [
+    {
+      id: `closeout-${project.id}`,
+      projectId: project.id,
+      projectName: project.name,
+      kind: 'closeout',
+      severity: 'medium',
+      message: `${project.name}: work looks done — close it to feed your cost book`,
+      route: { pathname: '/closeout-binder', params: { projectId: project.id } },
+    },
+  ];
+}
+
 // ─── rankAttention ────────────────────────────────────────────────────────────
 
 const SEVERITY_RANK: Record<AttnSeverity, number> = {
@@ -241,6 +270,7 @@ export function summarize(items: AttentionItem[]): {
     invoice: 0,
     permit: 0,
     cert: 0,
+    closeout: 0,
   };
   for (const item of items) {
     byKind[item.kind]++;

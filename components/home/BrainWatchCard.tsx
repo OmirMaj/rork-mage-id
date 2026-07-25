@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Brain,
   CheckCircle2,
+  PartyPopper,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -40,6 +41,7 @@ import {
   invoiceAttention,
   permitAttention,
   certAttention,
+  closeoutAttention,
   rankAttention,
   summarize,
   type AttentionItem,
@@ -68,6 +70,7 @@ const KIND_ICONS: Record<AttnKind, typeof CalendarDays> = {
   invoice: FileText,
   permit: ClipboardCheck,
   cert: ShieldCheck,
+  closeout: PartyPopper,
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -90,7 +93,7 @@ export default function BrainWatchCard() {
 
     const all: AttentionItem[] = [];
 
-    // Schedule + Invoice + Permit signals — one pass over projects
+    // Schedule + Invoice + Permit + Closeout signals — one pass over projects
     for (const project of projects) {
       // Skip non-active projects — closed/completed jobs rarely need daily attention
       if (project.status === 'closed' || project.status === 'completed') continue;
@@ -100,6 +103,9 @@ export default function BrainWatchCard() {
 
       const permits = getPermitsForProject(project.id);
       all.push(...permitAttention(project, permits, nowMs));
+
+      // Closeout nudge — the flywheel's intake valve
+      all.push(...closeoutAttention(project));
     }
 
     // Cert signals — company-scoped, not project-scoped
