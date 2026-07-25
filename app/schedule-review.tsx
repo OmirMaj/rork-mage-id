@@ -146,6 +146,11 @@ export default function ScheduleReviewScreen() {
     // The schedule is committed above regardless; only the destination differs.
     // Schedule Pro needs both a wide viewport and Pro — otherwise land the GC in
     // the classic schedule instead of a paywall/empty grid.
+    // Window-width comparison is CORRECT here even though this screen renders
+    // inside the desktop sidebar shell: schedule-pro is in DESKTOP_SHELL_EXEMPT
+    // (app/_layout.tsx) and renders full-bleed, so the width its grid will
+    // actually get IS the window width — not window − 240. If schedule-pro is
+    // ever un-exempted, this gate must switch to effective content width.
     const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
     if (wideEnoughForPro) {
       router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);

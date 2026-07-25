@@ -198,6 +198,15 @@ function pathToDocumentTitle(pathname: string): string | null {
 //     declarations in RootLayoutNav below (keep in sync when adding modals).
 //     On web a "modal" is a full-page takeover with its own close affordance;
 //     wrapping it in the sidebar frame would break that presentation.
+//  4. Full-takeover editors — screens that render their own complete chrome
+//     (headerShown:false + custom Back header) AND size their layout off
+//     useWindowDimensions breakpoints tuned for a full-bleed viewport.
+//     schedule-pro's GRID_BREAKPOINT=900 / SPLIT_BREAKPOINT=1600 assume
+//     window width === content width; rendering it inside the 240px shell
+//     would pass the ≥900 gate while the grid actually gets window−240px —
+//     below its own usability floor. Keeping it exempt restores the pre-lift
+//     full-bleed behavior (and keeps schedule-review's window-width routing
+//     gate honest — see app/schedule-review.tsx wideEnoughForPro).
 const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   // 1 — auth + first-run
   'login', 'signup', 'reset-password',
@@ -209,6 +218,8 @@ const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   'schedule-import', 'scan', 'paywall', 'cost-xray', 'import-pipeline',
   'post-rfp', 'submit-bid-response', 'photo-annotator', 'estimate-wizard',
   'judges', 'quick-quote',
+  // 4 — full-takeover editors with window-width breakpoints
+  'schedule-pro',
 ]);
 
 Sentry.init({
@@ -522,8 +533,9 @@ function RootLayoutNav() {
   //    presentation:'modal' routes keep their full-screen takeover).
   // The wrapper Views below render unconditionally so the <Stack> keeps a
   // stable position in the element tree — only the sidebar sibling mounts /
-  // unmounts, which means navigation state survives shell toggles (e.g.
-  // entering and leaving a modal route).
+  // unmounts (auth/breakpoint) or toggles display (exempt routes), which
+  // means navigation state survives shell toggles (e.g. entering and
+  // leaving a modal route).
   const layout = useResponsiveLayout();
   const topSegment = (segments[0] ?? '') as string;
   const isShellExempt =
@@ -532,12 +544,23 @@ function RootLayoutNav() {
     // an in-app-browser context mid-flow — keep them full-bleed. The plain
     // /integrations settings screen keeps the shell.
     || pathname.startsWith('/integrations/');
-  const showDesktopShell =
+  // Split "the user is in the desktop app" (shellEligible — mounts the
+  // sidebar) from "this route shows the shell" (showDesktopShell — displays
+  // it). Six sidebar destinations are shell-exempt modals (Ask MAGE,
+  // Cost X-Ray, Copilot, Bid Advisor, Scan, Post a Project); if the sidebar
+  // UNMOUNTED on every trip through them, its local state (openSections
+  // expansion + rail scroll position) would reset on every round-trip. So
+  // exempt routes only toggle `display` on the sidebar's wrapper — the
+  // component stays mounted and keeps its state. Auth / breakpoint changes
+  // still unmount it entirely (those SHOULD reset the rail). The wrapper is
+  // a stable sibling before the Stack either way, so the Stack keeps its
+  // positional identity and navigation state survives shell toggles.
+  const shellEligible =
     layout.showSidebar
     && isAuthenticated
     && userRole !== null
-    && hasSeenOnboarding === true
-    && !isShellExempt;
+    && hasSeenOnboarding === true;
+  const showDesktopShell = shellEligible && !isShellExempt;
 
   // Cold-start gate: while the auth + project contexts are hydrating from
   // AsyncStorage/Supabase, render the branded construction loader instead
@@ -566,7 +589,14 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1, flexDirection: 'row' }}>
-      {showDesktopShell && <DesktopSidebar width={layout.sidebarWidth} />}
+      {shellEligible && (
+        // flexDirection:'row' so the sidebar (explicit width, no height)
+        // stretches to full height via the cross-axis, exactly as it did as
+        // a direct child of the outer row.
+        <View style={{ display: showDesktopShell ? 'flex' : 'none', flexDirection: 'row' }}>
+          <DesktopSidebar width={layout.sidebarWidth} />
+        </View>
+      )}
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

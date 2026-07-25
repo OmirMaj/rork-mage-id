@@ -116,6 +116,11 @@ import { Tokens } from '@/constants/designTokens';
 
 // Desktop/tablet-landscape breakpoint. Below this we send users to the
 // classic mobile experience — the grid is genuinely unusable under 900px.
+// These breakpoints compare useWindowDimensions().width, which is only honest
+// because this route is in DESKTOP_SHELL_EXEMPT (app/_layout.tsx) and renders
+// full-bleed — window width === content width. Keep it exempt (it's a
+// full-takeover editor with its own Back header), or convert these gates to
+// effective content width (window − sidebar) before un-exempting.
 const GRID_BREAKPOINT = 900;
 // Above this we auto-open the split view (grid + gantt side by side). Below,
 // we default to grid alone because 1200px of timeline next to a 1170px grid
