@@ -35,6 +35,8 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useProjects } from '@/contexts/ProjectContext';
+import { buildPaceFacts } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import type { ScheduleTask, LinkedEstimate } from '@/types';
@@ -104,6 +106,19 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const [mode, setMode] = useState<Mode>('home');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pace grounding for the generator: measured per-trade actuals from ALL
+  // projects' finished tasks (utils/copilot/scheduleBuilder/paceGrounding.ts).
+  // Facts feed both generator prompts; tradeCount drives the honesty chip on
+  // the in-panel preview. Best-effort — an empty/broken book means ungrounded.
+  const { projects } = useProjects();
+  const paceInfo = useMemo(() => {
+    try {
+      return buildPaceFacts(projects);
+    } catch {
+      return { facts: [], tradeCount: 0 };
+    }
+  }, [projects]);
 
   const [riskResult, setRiskResult] = useState<{ summary: string; findings: AIRiskFinding[] } | null>(null);
   const [optResult, setOptResult] = useState<{ summary: string; ideas: AIOptimizationIdea[] } | null>(null);
@@ -323,7 +338,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     if (!genDraft.trim()) return;
     run(async () => {
       if (!(await gateCopilot())) return;
-      const res = await aiGenerateSchedule(genDraft.trim());
+      const res = await aiGenerateSchedule(genDraft.trim(), paceInfo.facts);
       setGenSource('text');
       setGenPreview(materializeGeneratedTasks(res.tasks));
       // Fallback summary on failure (helper never throws) — don't meter it.
@@ -331,7 +346,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [genDraft, run, gateCopilot]);
+  }, [genDraft, run, gateCopilot, paceInfo.facts]);
 
   // One-tap, estimate-grounded generation. Tasks come back cost-linked, so the
   // earned-value and cash-flow panels populate the moment the plan is applied.
@@ -347,6 +362,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
           quantity: it.quantity,
           lineTotal: it.lineTotal,
         })),
+        paceFacts: paceInfo.facts,
       });
       setGenSource('estimate');
       setGenPreview(materializeGeneratedTasks(res.tasks));
@@ -355,7 +371,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         void recordAIUsage('smart', 'scheduleCopilot');
       }
     });
-  }, [linkedEstimate, run, gateCopilot]);
+  }, [linkedEstimate, run, gateCopilot, paceInfo.facts]);
 
   const handleGenerateApply = useCallback(() => {
     if (!genPreview) return;
@@ -643,6 +659,19 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     Runs approximately{' '}
                     {Math.max(...genPreview.map(t => t.startDay + Math.max(0, t.durationDays - 1)))} days.
                   </Text>
+                  {/* HONEST provenance: the generator prompt either carried the
+                      pace book (chip) or it didn't (cold-start line). */}
+                  {paceInfo.tradeCount > 0 ? (
+                    <View style={styles.pacedChip}>
+                      <Text style={styles.pacedChipText}>
+                        Paced from your history · {paceInfo.tradeCount} trade{paceInfo.tradeCount === 1 ? '' : 's'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.paceColdStart}>
+                      Durations are AI estimates — MAGE learns your real pace as you finish tasks.
+                    </Text>
+                  )}
                   {genPreview.some(t => (t.linkedEstimateItems?.length ?? 0) > 0) && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
                       <Check size={12} color={themeColors.accent} strokeWidth={2.5} />
@@ -1112,6 +1141,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   secondaryBtnText: { color: t.text, fontSize: Type.caption1.fontSize, fontWeight: '700' },
 
   genPreviewRow: { fontSize: Type.caption2.fontSize, color: t.text, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: t.line },
+  // Pace-provenance chip on the generator preview (mirrors the estimate
+  // wizard's groundedChip, app/estimate-wizard.tsx).
+  pacedChip: { alignSelf: 'flex-start' as const, backgroundColor: t.successSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginTop: 6 },
+  pacedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.success },
+  paceColdStart: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 6, lineHeight: 16 },
 
   inputBar: {
     flexDirection: 'row',
