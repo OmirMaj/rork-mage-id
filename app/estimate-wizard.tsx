@@ -57,6 +57,7 @@ import {
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const ESTIMATE_THINKING_STEPS = [
   'Reading your scope…',
@@ -169,6 +170,7 @@ function EstimateWizardScreenInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { settings, getProject, updateProject, addProject, projects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
   const { tier } = useSubscription();
@@ -507,7 +509,7 @@ function EstimateWizardScreenInner() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Estimate' }} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}>
+        <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}>
           {/* "Client preview" banner — reminds the GC that what they see
               IS what the homeowner sees. Soft contextual cue at the top. */}
           <View style={styles.previewBanner}>
@@ -1069,6 +1071,7 @@ function EstimateWizardScreenInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 680, alignSelf: 'center' as const },
   progressWrap: {
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4,
   },
