@@ -11,7 +11,10 @@
  * The supabase-js FunctionInvokeOptions interface declares `signal?: AbortSignal`
  * (verified in node_modules/@supabase/functions-js/dist/module/types.d.ts:115).
  * We create our own AbortController, set a timeout, pass the signal, and map
- * AbortError to a user-friendly "Took too long" message.
+ * the aborted result to a user-friendly "Took too long" message. Note the
+ * mapping happens on the RESOLVE path: functions-js catches the aborted
+ * fetch internally (FunctionsFetchError) and resolves { data, error } —
+ * it does not throw — so we check `controller.signal.aborted` on the result.
  *
  * Default timeout: 90s for vision calls. Non-vision callers may pass a lower
  * value. Set to 0 or Infinity to disable (not recommended in production).
@@ -60,11 +63,24 @@ export async function invokeWithTimeout<T = unknown>(
       headers,
       signal: controller.signal,
     });
+    // supabase.functions.invoke NEVER throws on an aborted fetch: the
+    // installed @supabase/functions-js wraps the fetch rejection in
+    // FunctionsFetchError ('Failed to send a request to the Edge Function')
+    // and its outer catch RESOLVES with { data: null, error } (verified in
+    // node_modules/@supabase/functions-js/dist/main/FunctionsClient.js). So
+    // the timeout must be detected HERE: an error while our signal is
+    // aborted means our timer fired — map it to the retry-friendly message
+    // instead of a wording that reads like a connectivity bug.
+    if (result.error && controller.signal.aborted) {
+      return { data: null, error: { message: 'Took too long — try again.' } };
+    }
     return result;
   } catch (e: unknown) {
-    // AbortError fires when our timer calls controller.abort() — map it to a
-    // retryable, user-facing message rather than a cryptic DOMException.
+    // Belt-and-suspenders: not reachable through the current functions-js
+    // resolve-with-error contract, but kept in case a future client version
+    // starts throwing (e.g. a raw AbortError from a changed wrapper).
     const isAbort =
+      controller.signal.aborted ||
       (e instanceof Error && e.name === 'AbortError') ||
       (typeof e === 'object' && e !== null && (e as Record<string, unknown>)['name'] === 'AbortError');
     if (isAbort) {

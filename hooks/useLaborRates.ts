@@ -72,16 +72,30 @@ export function useLaborRates() {
     [queryClient, rates],
   );
 
-  /** Set (rate > 0) or clear (rate null/0) the loaded $/hr for a normalized
-   *  trade key (utils/laborSamples.ts normalizeTradeKey). */
-  const setRate = useCallback((tradeKey: string, rate: number | null) => {
+  /** Apply a batch of rate edits in ONE read-merge-write. Set when rate > 0,
+   *  clear when null/0/NaN. This is the only safe way to persist multiple
+   *  edits at once: the query cache is updated in the mutation's onSuccess
+   *  (a microtask AFTER AsyncStorage persists), so a loop of per-key
+   *  setRate() calls reads the SAME stale snapshot every iteration — each
+   *  mutation carries only its own key's change and the last one to settle
+   *  overwrites the rest (the labor-rates-modal lost-update bug). */
+  const setRates = useCallback((batch: Record<string, number | null>) => {
     const next = { ...current() };
-    if (rate !== null && Number.isFinite(rate) && rate > 0) next[tradeKey] = rate;
-    else delete next[tradeKey];
+    for (const [tradeKey, rate] of Object.entries(batch)) {
+      if (rate !== null && Number.isFinite(rate) && rate > 0) next[tradeKey] = rate;
+      else delete next[tradeKey];
+    }
     save.mutate(next);
   }, [save, current]);
 
-  return { rates, isLoading, setRate };
+  /** Set (rate > 0) or clear (rate null/0) the loaded $/hr for a normalized
+   *  trade key (utils/laborSamples.ts normalizeTradeKey). For multiple
+   *  edits use setRates — never call this in a loop. */
+  const setRate = useCallback((tradeKey: string, rate: number | null) => {
+    setRates({ [tradeKey]: rate });
+  }, [setRates]);
+
+  return { rates, isLoading, setRate, setRates };
 }
 
 async function loadEntriesMirror(): Promise<TimeEntry[]> {

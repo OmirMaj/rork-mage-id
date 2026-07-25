@@ -214,7 +214,7 @@ function TimeTrackingScreenInner() {
   // hours are measured, but no pay rate exists anywhere in the data model,
   // so the GC states theirs once here. Local-only, per-user
   // (mageid_labor_rates in LOCAL_USER_CACHE_KEYS).
-  const { rates, setRate } = useLaborRates();
+  const { rates, setRates } = useLaborRates();
   const [showRatesModal, setShowRatesModal] = useState(false);
   const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
   const { projects } = useProjects();
@@ -325,12 +325,17 @@ function TimeTrackingScreenInner() {
     // Persist every draft on close (iOS modals don't reliably blur inputs).
     // Lenient parse ("$34", "34.50") via the shared money-input helper;
     // blank or unparseable clears the rate — no silent garbage.
+    // ONE batched setRates call, not a setRate-per-trade loop: per-key
+    // mutations all read the same stale cache snapshot and race — only one
+    // of a multi-trade edit would survive (lost-update bug).
+    const batch: Record<string, number | null> = {};
     for (const [key, raw] of Object.entries(rateDrafts)) {
       const n = raw.trim() === '' ? null : parseLenientNumber(raw);
-      setRate(key, n !== null && n > 0 ? n : null);
+      batch[key] = n !== null && n > 0 ? n : null;
     }
+    setRates(batch);
     setShowRatesModal(false);
-  }, [rateDrafts, setRate]);
+  }, [rateDrafts, setRates]);
 
   // The break-start timestamp is now persisted on the row (`breakStartedAt`
   // — see hooks/useTimeEntries.ts). Pre-fix this lived in a useRef on the
