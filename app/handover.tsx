@@ -357,7 +357,7 @@ export default function HandoverScreen() {
                 styles.progressFill,
                 {
                   width: `${Math.round((doneCount / Math.max(1, total)) * 100)}%`,
-                  backgroundColor: allDone ? '#1E8E4A' : themeColors.accent,
+                  backgroundColor: allDone ? themeColors.success : themeColors.accent,
                 },
               ]} />
             </View>

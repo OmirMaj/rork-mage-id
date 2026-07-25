@@ -537,7 +537,7 @@ function AiPunchScreenInner() {
                     )}
                     <View style={styles.reviewBody}>
                       <View style={styles.reviewMetaRow}>
-                        <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? "#2E7D44" : Colors.warning }]} />
+                        <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? themeColors.success : Colors.warning }]} />
                         <Text style={styles.reviewMeta}>AI confidence {item.confidence}%</Text>
                       </View>
                       <TextInput

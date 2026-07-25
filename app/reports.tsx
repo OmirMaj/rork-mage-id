@@ -235,8 +235,8 @@ function WIPView({ report }: { report: ReturnType<typeof computeWIPReport> }) {
         <View key={r.projectId} style={styles.row}>
           <View style={styles.rowHead}>
             <Text style={styles.rowTitle} numberOfLines={1}>{r.projectName}</Text>
-            <View style={[styles.marginPill, marginTone(r.projectedMargin)]}>
-              <Text style={[styles.marginPillText, marginTextTone(r.projectedMargin)]}>
+            <View style={[styles.marginPill, marginTone(r.projectedMargin, themeColors)]}>
+              <Text style={[styles.marginPillText, marginTextTone(r.projectedMargin, themeColors)]}>
                 {r.projectedMargin.toFixed(1)}%
               </Text>
             </View>
@@ -276,7 +276,7 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
         <Text style={styles.summaryEyebrow}>RUNNING PORTFOLIO MARGIN</Text>
         <View style={styles.profitHero}>
           <Text style={styles.profitHeroAmount}>{formatMoney(profit.totalProfit)}</Text>
-          <Text style={[styles.profitHeroPct, marginTextTone(profit.weightedMargin)]}>
+          <Text style={[styles.profitHeroPct, marginTextTone(profit.weightedMargin, themeColors)]}>
             {profit.weightedMargin.toFixed(1)}% margin
           </Text>
         </View>
@@ -294,10 +294,10 @@ function ProfitView({ profit }: { profit: ReturnType<typeof computeProfitReport>
       {profit.rows.map(r => (
         <View key={r.projectId} style={styles.row}>
           <View style={styles.rowHead}>
-            <View style={[styles.healthDot, healthTone(r.health)]} />
+            <View style={[styles.healthDot, healthTone(r.health, themeColors)]} />
             <Text style={styles.rowTitle} numberOfLines={1}>{r.projectName}</Text>
-            <View style={[styles.marginPill, marginTone(r.projectedMargin)]}>
-              <Text style={[styles.marginPillText, marginTextTone(r.projectedMargin)]}>
+            <View style={[styles.marginPill, marginTone(r.projectedMargin, themeColors)]}>
+              <Text style={[styles.marginPillText, marginTextTone(r.projectedMargin, themeColors)]}>
                 {r.projectedMargin.toFixed(1)}%
               </Text>
             </View>
@@ -439,22 +439,22 @@ function EmptyState({ icon: Icon, title, body, tone }: { icon: typeof TrendingUp
   );
 }
 
-// Tone helpers — colour rules for margin and health. Module-level, so
-// they hardcode hex (theme-agnostic) instead of using ThemeColors.
-function marginTone(pct: number) {
-  if (pct >= 12) return { backgroundColor: '#2E7D44' + '15' };
+// Tone helpers — colour rules for margin and health. Accept ThemeColors so
+// dark-mode gets the brighter token variants instead of hardcoded light-mode hex.
+function marginTone(pct: number, t: ThemeColors) {
+  if (pct >= 12) return { backgroundColor: t.success + '15' };
   if (pct >=  5) return { backgroundColor: Colors.warning + '15' };
-  return                 { backgroundColor: '#C84038' + '15' };
+  return                 { backgroundColor: t.danger + '15' };
 }
-function marginTextTone(pct: number) {
-  if (pct >= 12) return { color: '#2E7D44' };
+function marginTextTone(pct: number, t: ThemeColors) {
+  if (pct >= 12) return { color: t.success };
   if (pct >=  5) return { color: Colors.warning };
-  return                 { color: '#C84038' };
+  return                 { color: t.danger };
 }
-function healthTone(h: 'green' | 'yellow' | 'red') {
-  if (h === 'green')  return { backgroundColor: '#2E7D44' };
+function healthTone(h: 'green' | 'yellow' | 'red', t: ThemeColors) {
+  if (h === 'green')  return { backgroundColor: t.success };
   if (h === 'yellow') return { backgroundColor: Colors.warning };
-  return                       { backgroundColor: '#C84038' };
+  return                       { backgroundColor: t.danger };
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
