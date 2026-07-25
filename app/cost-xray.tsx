@@ -31,7 +31,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import { supabase } from '@/lib/supabase';
+import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { priceTell, routeByConfidence, normalizeTells } from '@/utils/costXray';
 import type { ConditionTell } from '@/utils/costXray';
@@ -222,7 +222,7 @@ export default function CostXrayScreen() {
         return;
       }
 
-      const { data: res, error: fnErr } = await supabase.functions.invoke<{
+      const { data: res, error: fnErr } = await invokeWithTimeout<{
         success: boolean; data?: { items?: unknown[] }; error?: string;
       }>('analyze-photos', { body: { task: 'conditionRisk', photos: inline, projectName: project?.name } });
       if (fnErr) throw new Error(fnErr.message);

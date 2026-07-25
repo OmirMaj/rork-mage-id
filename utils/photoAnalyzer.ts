@@ -14,7 +14,7 @@
 // down-sample inline base64 photos in payload size by sending only
 // what's necessary and keeping count moderate.
 
-import { supabase } from '@/lib/supabase';
+import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 import * as FileSystem from 'expo-file-system';
 import type { RawReceiptExtraction } from '@/utils/materialReceipt';
 
@@ -175,9 +175,9 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | '
     meta = { originalIndexes: remoteUris.map((_, i) => i), skippedIndexes: [] };
   }
 
-  const { data, error } = await supabase.functions.invoke<{ success: boolean; data?: T; error?: string }>(
+  const { data, error } = await invokeWithTimeout<{ success: boolean; data?: T; error?: string }>(
     'analyze-photos',
-    { body: payload },
+    { body: payload as Record<string, unknown> },
   );
 
   // Detect transient 5xx via the wrapper's error.message convention
