@@ -25,6 +25,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Alert,
   Easing,
   Pressable,
   Dimensions,
@@ -35,8 +36,8 @@ import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight, HardHat, Home, Repeat, Building2 } from 'lucide-react-native';
+import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { Type } from '@/constants/typography';
 import { useCoreData, useProjectActions } from '@/contexts/ProjectContext';
 import {
@@ -178,6 +179,12 @@ export default function PersonaSelectScreen() {
     } catch (err) {
       console.warn('[persona-select] failed to set role:', err);
       setSubmitting(null);
+      // Web-safe via patchAlertForWeb() in app/_layout.tsx — new-user
+      // flow must never silent-fail on first tap.
+      Alert.alert(
+        "Couldn't save your choice",
+        'Please tap your role again.',
+      );
     }
   }, [hasSeenOnboarding, router, setUserRole, completeOnboarding]);
 
@@ -213,24 +220,9 @@ export default function PersonaSelectScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Background — same layered gradient recipe as onboarding.tsx. */}
-      <LinearGradient
-        colors={[BRAND.greenDeep, BRAND.green, BRAND.green, BRAND.greenDeep]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <LinearGradient
-        colors={[BRAND.orangeHot + '38', 'transparent']}
-        start={{ x: 0.85, y: 0 }}
-        end={{ x: 0.2, y: 0.6 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <LinearGradient
-        colors={['transparent', BRAND.orange + '14']}
-        start={{ x: 0.1, y: 0.7 }}
-        end={{ x: 0.6, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      {/* Background — ink field with corner accent glows (shared with
+          onboarding.tsx via BrandBackdrop; accent is NOT the field). */}
+      <BrandBackdrop />
 
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.wordmark}>MAGE&nbsp;ID</Text>

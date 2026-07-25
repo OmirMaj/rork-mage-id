@@ -415,13 +415,13 @@ export default function OnboardingPaywallScreen() {
         <Text style={styles.priceFootnote}>{priceFootnote}</Text>
 
         <TouchableOpacity
-          style={[styles.cta, isPurchasing && styles.ctaDisabled]}
+          style={[styles.cta, (isPurchasing || isLoading) && styles.ctaDisabled]}
           onPress={handlePurchase}
           disabled={isPurchasing || isLoading}
           activeOpacity={0.88}
           testID="onboarding-paywall-cta"
         >
-          {isPurchasing ? (
+          {(isPurchasing || isLoading) ? (
             <ActivityIndicator color={'#FFFFFF'} size="small" />
           ) : (
             <Text style={styles.ctaLabel}>{ctaLabel}</Text>
