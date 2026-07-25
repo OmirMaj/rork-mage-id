@@ -12,19 +12,20 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Share,
-  ActivityIndicator, Platform,
+  ActivityIndicator, Platform, TextInput,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Check, CheckCircle2, X, Share2 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
 import type { Lead, TieredProposal, ProposalTierKey } from '@/types';
-import { formatMoney } from '@/utils/formatters';
+import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -39,7 +40,7 @@ export default function InstantBidProposalModal({
 }) {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { settings, addLeadTouch, updateLead } = useProjects();
+  const { settings, addLeadTouch, updateLead, projects, getCommitmentsForProject } = useProjects() as any;
   const { companies } = useCompanies();
   const company = companies[0];
 
@@ -47,32 +48,56 @@ export default function InstantBidProposalModal({
   const [selectedTier, setSelectedTier] = useState<ProposalTierKey>('better');
   const [generating, setGenerating] = useState(false);
   const [sent, setSent] = useState(false);
+  // "Ballpark you'd bid this at?" inline refine question — shown when the lead
+  // has no budget hint and no cost history can ground the estimate.
+  const [ballparkInput, setBallparkInput] = useState('');
+  const [showBallparkPrompt, setShowBallparkPrompt] = useState(false);
 
   const reset = useCallback(() => {
     setProposal(null);
     setSelectedTier('better');
     setGenerating(false);
     setSent(false);
+    setBallparkInput('');
+    setShowBallparkPrompt(false);
   }, []);
 
   const handleClose = useCallback(() => { reset(); onClose(); }, [reset, onClose]);
 
-  const handleGenerate = useCallback(async () => {
+  // Collect all commitments across projects for cost-book grounding.
+  const allCommitments = Array.isArray(projects)
+    ? (projects as Array<{ id: string }>).flatMap((p) => {
+        try {
+          return (getCommitmentsForProject(p.id) ?? []) as unknown[];
+        } catch {
+          return [];
+        }
+      })
+    : [];
+
+  const doGenerate = useCallback(async (budgetHint?: number) => {
     if (!lead) return;
+    setShowBallparkPrompt(false);
     setGenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const p = await generateInstantBid(
-        {
-          title: lead.projectType || `${lead.name} project`,
-          city: lead.address ?? undefined,
-          scopeDescription: lead.scope ?? undefined,
-          budgetMin: lead.budgetMin ?? undefined,
-          budgetMax: lead.budgetMax ?? undefined,
-          projectType: lead.projectType ?? undefined,
-        },
-        { companyName: company?.companyName, financing: settings?.financing },
-      );
+      const rfp = {
+        title: lead.projectType || `${lead.name} project`,
+        city: lead.address ?? undefined,
+        scopeDescription: lead.scope ?? undefined,
+        budgetMin: budgetHint ?? lead.budgetMin ?? undefined,
+        budgetMax: budgetHint ?? lead.budgetMax ?? undefined,
+        projectType: lead.projectType ?? undefined,
+      };
+      const groundingContext =
+        Array.isArray(projects) && projects.length > 0
+          ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[] }
+          : undefined;
+      const p = await generateInstantBid(rfp, {
+        companyName: company?.companyName,
+        financing: settings?.financing,
+        groundingContext,
+      });
       setProposal(p);
       setSelectedTier(p.recommendedTier);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -81,7 +106,24 @@ export default function InstantBidProposalModal({
     } finally {
       setGenerating(false);
     }
-  }, [lead, company, settings]);
+  }, [lead, company, settings, projects, allCommitments]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!lead) return;
+    // If no budget hint exists, ask the contractor one inline question before
+    // generating so we don't send a raw AI guess to a real homeowner.
+    const hasBudget = (lead.budgetMin != null && lead.budgetMin > 0) || (lead.budgetMax != null && lead.budgetMax > 0);
+    if (!hasBudget) {
+      setShowBallparkPrompt(true);
+      return;
+    }
+    await doGenerate();
+  }, [lead, doGenerate]);
+
+  const handleBallparkConfirm = useCallback(async () => {
+    const val = parseLenientNumber(ballparkInput);
+    await doGenerate(val != null && val > 0 ? val : undefined);
+  }, [ballparkInput, doGenerate]);
 
   const handleShare = useCallback(async () => {
     if (!proposal || !lead) return;
@@ -146,17 +188,59 @@ export default function InstantBidProposalModal({
                 Draft a professional Good / Better / Best proposal for {lead.name} in seconds —
                 {lead.budgetMin || lead.budgetMax ? ' tuned to their budget' : ' from the scope on file'}.
               </Text>
-              <TouchableOpacity
-                style={[styles.primaryBtn, generating && styles.btnDisabled]}
-                onPress={handleGenerate}
-                disabled={generating}
-                activeOpacity={0.85}
-                testID="lead-instant-bid-generate"
-              >
-                {generating
-                  ? <ActivityIndicator size="small" color="#FFF" />
-                  : <><MageAIMark size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft proposal</Text></>}
-              </TouchableOpacity>
+              {showBallparkPrompt ? (
+                <View style={styles.ballparkWrap}>
+                  <Text style={styles.ballparkQuestion}>
+                    Ballpark you&apos;d bid this at?
+                  </Text>
+                  <Text style={styles.ballparkHint}>
+                    No budget was posted — a rough number helps anchor the estimate so the prices you send are closer to what you&apos;d actually charge.
+                  </Text>
+                  <TextInput
+                    style={styles.ballparkInput}
+                    value={ballparkInput}
+                    onChangeText={setBallparkInput}
+                    placeholder="e.g. $12,000"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="numeric"
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={handleBallparkConfirm}
+                    testID="lead-instant-bid-ballpark"
+                  />
+                  <View style={styles.ballparkActions}>
+                    <TouchableOpacity
+                      style={styles.ballparkSkip}
+                      onPress={() => doGenerate()}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.ballparkSkipText}>Skip — use AI estimate</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.primaryBtn, { flex: 1 }]}
+                      onPress={handleBallparkConfirm}
+                      disabled={generating}
+                      activeOpacity={0.85}
+                    >
+                      {generating
+                        ? <ActivityIndicator size="small" color="#FFF" />
+                        : <Text style={styles.primaryBtnText}>Generate</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.primaryBtn, generating && styles.btnDisabled]}
+                  onPress={handleGenerate}
+                  disabled={generating}
+                  activeOpacity={0.85}
+                  testID="lead-instant-bid-generate"
+                >
+                  {generating
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <><MageAIMark size={15} color="#FFF" /><Text style={styles.primaryBtnText}>Draft proposal</Text></>}
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
@@ -208,8 +292,16 @@ export default function InstantBidProposalModal({
                   <Text style={styles.primaryBtnText}>Mark proposal sent</Text>
                 </TouchableOpacity>
               </View>
-              {proposal.source === 'heuristic' && (
-                <Text style={styles.note}>Drafted from the scope on file — review the numbers before sending.</Text>
+              {proposal.basis === 'history' && proposal.groundingRateCount ? (
+                <Text style={styles.noteGrounded}>
+                  Anchored on your last {proposal.groundingRateCount} learned rate{proposal.groundingRateCount === 1 ? '' : 's'} from similar jobs.
+                </Text>
+              ) : proposal.basis === 'budget' ? (
+                <Text style={styles.note}>Blended toward the budget range provided.</Text>
+              ) : (
+                <Text style={styles.noteWarning}>
+                  Rough AI guess — no budget or cost history to anchor this. Review the numbers before sending.
+                </Text>
               )}
             </ScrollView>
           )}
@@ -266,6 +358,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   shareBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.accent },
   note: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontStyle: 'italic', marginTop: 10, textAlign: 'center' },
+  noteGrounded: { fontSize: Type.caption2.fontSize, color: t.success, fontStyle: 'italic', marginTop: 10, textAlign: 'center' },
+  noteWarning: { fontSize: Type.caption2.fontSize, color: Colors.warning, fontStyle: 'italic', marginTop: 10, textAlign: 'center' },
+
+  // Ballpark refine question — shown before generating when no budget hint exists.
+  ballparkWrap: { gap: 10, paddingVertical: 4 },
+  ballparkQuestion: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  ballparkHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
+  ballparkInput: {
+    borderWidth: 1.5, borderColor: t.accent, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 14, paddingVertical: 11, fontSize: Type.subhead.fontSize,
+    color: t.text, backgroundColor: t.bg,
+  },
+  ballparkActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  ballparkSkip: { paddingVertical: 13, paddingHorizontal: 4 },
+  ballparkSkipText: { fontSize: Type.caption1.fontSize, color: t.textMuted, textDecorationLine: 'underline' },
 
   sentWrap: { alignItems: 'center', gap: 10, paddingVertical: 20 },
   sentIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: t.success + '15', alignItems: 'center', justifyContent: 'center' },

@@ -97,7 +97,7 @@ export default function SubmitBidResponseScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { companies } = useCompanies();
-  const { settings, addLead } = useProjects();
+  const { settings, addLead, projects, getCommitmentsForProject } = useProjects() as any;
   const { canAccess } = useTierAccess();
   const { bidId } = useLocalSearchParams<{ bidId: string }>();
 
@@ -151,6 +151,11 @@ export default function SubmitBidResponseScreen() {
     setGenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      const allCommitments = Array.isArray(projects)
+        ? (projects as Array<{ id: string }>).flatMap((p) => {
+            try { return (getCommitmentsForProject(p.id) ?? []) as unknown[]; } catch { return []; }
+          })
+        : [];
       const p = await generateInstantBid(
         {
           title: rfp.title,
@@ -161,7 +166,15 @@ export default function SubmitBidResponseScreen() {
           budgetMax: rfp.budget_max,
           projectType: rfp.category,
         },
-        { companyName: company?.companyName, financing: settings?.financing, contractorNote: message.trim() || undefined },
+        {
+          companyName: company?.companyName,
+          financing: settings?.financing,
+          contractorNote: message.trim() || undefined,
+          groundingContext:
+            Array.isArray(projects) && projects.length > 0
+              ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[] }
+              : undefined,
+        },
       );
       setProposal(p);
       setSelectedTier(p.recommendedTier);
@@ -436,7 +449,11 @@ export default function SubmitBidResponseScreen() {
               })}
             </View>
             <Text style={styles.tierNote}>
-              Drafted from the scope{(rfp.budget_min || rfp.budget_max) ? ' + your budget' : ''}. Review the numbers before sending — you can edit them below.
+              {proposal.basis === 'history' && proposal.groundingRateCount
+                ? `Anchored on your last ${proposal.groundingRateCount} learned rate${proposal.groundingRateCount === 1 ? '' : 's'}. Review before sending.`
+                : proposal.basis === 'budget'
+                  ? 'Blended toward the posted budget. Review before sending.'
+                  : 'Rough AI guess — no budget or cost history to anchor this. Review carefully before sending.'}
             </Text>
           </View>
         )}

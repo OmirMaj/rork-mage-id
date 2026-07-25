@@ -3132,6 +3132,21 @@ export interface TieredProposal {
   assumptions: string[];
   /** 'ai' when the LLM produced it, 'heuristic' on fallback. */
   source: 'ai' | 'heuristic';
+  /**
+   * What anchored the recommended midpoint — shown in the UI so the
+   * contractor knows whether to trust the number before sending.
+   *
+   * - 'budget'    — blended toward the homeowner's stated budget range.
+   * - 'history'   — anchored on learned rates from the GC's closed jobs.
+   * - 'ai_guess'  — no budget hint + no cost history; naked AI estimate
+   *                  (24-token ROM). Reviewer should validate before sending.
+   */
+  basis: 'budget' | 'history' | 'ai_guess';
+  /**
+   * How many cost-book entries were used to ground the estimate, if any.
+   * Displayed as "Anchored on your last N learned rates" in the UI.
+   */
+  groundingRateCount?: number;
   generatedAt: string;
 }
 
