@@ -89,7 +89,10 @@ for (const k of relayKeys) {
 //    draftWeeklyUpdate tagged + generateWeeklySummary untagged). When you add a
 //    new relay path for a gated feature, add its file here.
 const TAG_MANIFEST: Record<string, string[]> = {
-  bidLeveling: ['app/bid-leveling.tsx', 'utils/bidLevelingEngine.ts'],
+  // app/bid-leveling.tsx delegates all AI calls to bidLevelingEngine.ts — no
+  // direct mageAI call site in the screen. The engine file below is the sole
+  // relay path and is correctly tagged.
+  bidLeveling: ['utils/bidLevelingEngine.ts'],
   weeklyAnalysis: ['utils/weeklyClientUpdate.ts', 'utils/aiService.ts'],
   aiEstimateWizard: ['app/takeoff-estimate.tsx'],
   cashFlowForecaster: ['app/cash-flow.tsx'],
