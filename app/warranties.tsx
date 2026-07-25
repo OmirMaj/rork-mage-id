@@ -71,13 +71,17 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-const STATUS_META: Record<Warranty['status'], { label: string; color: string; bg: string; Icon: any }> = {
-  active: { label: 'Active', color: "#2E7D44", bg: Colors.successLight, Icon: CheckCircle2 },
-  expiring_soon: { label: 'Expiring Soon', color: Colors.warning, bg: Colors.warningLight, Icon: AlertTriangle },
-  expired: { label: 'Expired', color: "#C84038", bg: Colors.errorLight, Icon: Clock },
-  claimed: { label: 'Claimed', color: "#1565C0", bg: Colors.infoLight, Icon: Shield },
-  void: { label: 'Void', color: "#9AA3AD", bg: '#1A1F26', Icon: X },
-};
+// Themed per-status chip styling — a FUNCTION of the palette (not a module
+// static) so the chip fills flip with the theme instead of staying bright
+// light-theme pastels on dark cards. Also kills the old hardcoded 'void'
+// near-black chip (#1A1F26) that sat on a white card in light mode.
+const statusMeta = (t: ThemeColors): Record<Warranty['status'], { label: string; color: string; bg: string; Icon: any }> => ({
+  active: { label: 'Active', color: t.success, bg: t.successSoft, Icon: CheckCircle2 },
+  expiring_soon: { label: 'Expiring Soon', color: t.warningLabel, bg: t.warningSoft, Icon: AlertTriangle },
+  expired: { label: 'Expired', color: t.dangerLabel, bg: t.dangerSoft, Icon: Clock },
+  claimed: { label: 'Claimed', color: t.info, bg: t.info + '1F', Icon: Shield },
+  void: { label: 'Void', color: t.textSecondary, bg: t.surfaceAlt, Icon: X },
+});
 
 export default function WarrantiesScreen() {
   const { colors: themeColors } = useTheme();
@@ -235,7 +239,7 @@ export default function WarrantiesScreen() {
           </View>
         ) : (
           list.map(w => {
-            const meta = STATUS_META[w.status];
+            const meta = statusMeta(themeColors)[w.status];
             const StatusIcon = meta.Icon;
             const daysLeft = daysBetween(w.endDate, new Date().toISOString());
             return (

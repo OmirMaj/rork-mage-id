@@ -10,7 +10,6 @@ import {
   CreditCard, ArrowDownRight,
   Clock, Check, XCircle, Send, RefreshCw,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -139,19 +138,23 @@ function derivePayments(
   return rows;
 }
 
-const STATUS_CONFIG: Record<PaymentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
-  pending: { label: 'Pending', color: Colors.warningDark, bgColor: Colors.warningLight, icon: Clock },
-  processing: { label: 'Processing', color: Colors.infoDark, bgColor: Colors.infoLight, icon: RefreshCw },
-  completed: { label: 'Completed', color: Colors.successDark, bgColor: Colors.successLight, icon: Check },
-  failed: { label: 'Failed', color: Colors.errorDark, bgColor: Colors.errorLight, icon: XCircle },
-  refunded: { label: 'Refunded', color: '#546E7A', bgColor: '#ECEFF1', icon: RefreshCw },
-};
+// Themed per-status chip styling — a FUNCTION of the palette (not a module
+// static) so the chip fills flip with the theme instead of staying bright
+// light-theme pastels on dark cards. bgColor→soft tokens, color→label tokens
+// per the theme-sweep convention.
+const statusConfig = (t: ThemeColors): Record<PaymentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> => ({
+  pending: { label: 'Pending', color: t.warningLabel, bgColor: t.warningSoft, icon: Clock },
+  processing: { label: 'Processing', color: t.info, bgColor: t.info + '1F', icon: RefreshCw },
+  completed: { label: 'Completed', color: t.success, bgColor: t.successSoft, icon: Check },
+  failed: { label: 'Failed', color: t.dangerLabel, bgColor: t.dangerSoft, icon: XCircle },
+  refunded: { label: 'Refunded', color: t.textSecondary, bgColor: t.surfaceAlt, icon: RefreshCw },
+});
 
 function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const statusInfo = STATUS_CONFIG[payment.status];
+  const statusInfo = statusConfig(themeColors)[payment.status];
   const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
   const StatusIcon = statusInfo.icon;
 
@@ -175,7 +178,7 @@ function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => vo
             <Text style={styles.payCardProject} numberOfLines={1}>{payment.projectName}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.payCardAmount, payment.status === 'failed' && { color: Colors.errorDark }]}>
+            <Text style={[styles.payCardAmount, payment.status === 'failed' && { color: themeColors.dangerLabel }]}>
               {formatMoney(payment.amount)}
             </Text>
             {payment.fee > 0 && (
@@ -306,14 +309,14 @@ export default function PaymentsScreen() {
         <View style={styles.heroCards}>
           <View style={[styles.heroCard, { flex: 1.2 }]}>
             <View style={[styles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
-              <ArrowDownRight size={18} color={Colors.successDark} strokeWidth={1.75} />
+              <ArrowDownRight size={18} color={themeColors.success} strokeWidth={1.75} />
             </View>
             <Text style={[styles.heroValue, { color: themeColors.success }]}>{formatMoney(stats.received)}</Text>
             <Text style={styles.heroLabel}>Received</Text>
           </View>
           <View style={styles.heroCard}>
             <View style={[styles.heroIconWrap, { backgroundColor: themeColors.warningSoft }]}>
-              <Clock size={18} color={Colors.warningDark} strokeWidth={1.75} />
+              <Clock size={18} color={themeColors.warningLabel} strokeWidth={1.75} />
             </View>
             <Text style={[styles.heroValue, { color: themeColors.warningLabel }]}>{formatMoney(stats.pending)}</Text>
             <Text style={styles.heroLabel}>Pending</Text>

@@ -10,30 +10,34 @@ import {
   FileText, PenTool,
   AlertCircle, Check, X as XIcon,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DOCUMENT_TYPE_INFO } from '@/mocks/documents';
+import { documentTypeInfo } from '@/mocks/documents';
 import type { ProjectDocument, DocumentStatus } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-const STATUS_CONFIG: Record<DocumentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
-  draft: { label: 'Draft', color: '#546E7A', bgColor: '#ECEFF1', icon: FileText },
-  pending_signature: { label: 'Awaiting Signature', color: Colors.warningDark, bgColor: Colors.warningLight, icon: PenTool },
-  signed: { label: 'Signed', color: Colors.successDark, bgColor: Colors.successLight, icon: Check },
-  expired: { label: 'Expired', color: Colors.errorDark, bgColor: Colors.errorLight, icon: AlertCircle },
-  void: { label: 'Void', color: '#9E9E9E', bgColor: '#F5F5F5', icon: XIcon },
-};
+// Themed per-status chip styling — a FUNCTION of the palette (not a module
+// static) so the chip fills flip with the theme instead of staying bright
+// light-theme pastels on dark cards. bgColor→soft tokens, color→label tokens
+// per the theme-sweep convention.
+const statusConfig = (t: ThemeColors): Record<DocumentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> => ({
+  draft: { label: 'Draft', color: t.textSecondary, bgColor: t.surfaceAlt, icon: FileText },
+  pending_signature: { label: 'Awaiting Signature', color: t.warningLabel, bgColor: t.warningSoft, icon: PenTool },
+  signed: { label: 'Signed', color: t.success, bgColor: t.successSoft, icon: Check },
+  expired: { label: 'Expired', color: t.dangerLabel, bgColor: t.dangerSoft, icon: AlertCircle },
+  void: { label: 'Void', color: t.textMuted, bgColor: t.surfaceAlt, icon: XIcon },
+});
 
 function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => void }) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const typeInfo = DOCUMENT_TYPE_INFO[doc.type] ?? DOCUMENT_TYPE_INFO.other;
-  const statusInfo = STATUS_CONFIG[doc.status];
+  const typeInfoMap = documentTypeInfo(themeColors);
+  const typeInfo = typeInfoMap[doc.type] ?? typeInfoMap.other;
+  const statusInfo = statusConfig(themeColors)[doc.status];
   const StatusIcon = statusInfo.icon;
 
   const isExpiringSoon = doc.expiresAt && doc.status === 'signed' &&
