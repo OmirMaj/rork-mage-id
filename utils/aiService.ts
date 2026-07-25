@@ -681,7 +681,7 @@ export async function analyzeChangeOrderImpact(
     // Build a lightweight cost-book fact block from line-item trades.
     try {
       const { buildCostDatabase } = await import('@/utils/costDatabase');
-      const costDb = buildCostDatabase(projects, []);
+      const costDb = buildCostDatabase(projects, [], []);
       if (costDb.entries.length > 0) {
         // Find entries relevant to the CO's line items or description.
         const descWords = changeDescription.toLowerCase();
