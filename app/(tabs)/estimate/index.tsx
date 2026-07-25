@@ -59,6 +59,9 @@ import { CATEGORY_COST_FACTORS } from '@/constants/materials';
 import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import { computeCalibration } from '@/utils/estimateCalibration';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -137,7 +140,7 @@ export default function EstimateScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
-  const { projects, updateProject, settings, updateSettings, contacts } = useProjects();
+  const { projects, updateProject, settings, updateSettings, contacts, commitments } = useProjects();
   const { isFree, canAccess } = useTierAccess();
   // Shared materials cart (used by the Materials browser too). All cart
   // mutations now flow through the context — local setCart() calls were
@@ -162,6 +165,25 @@ export default function EstimateScreen() {
     const match = REGIONAL_FACTORS.find(r => Math.abs(r.multiplier - locationMultiplier) < 0.001);
     return match?.label ?? 'National Avg';
   }, [locationMultiplier]);
+
+  const { receipts } = useMaterialReceipts();
+
+  const quickEstimateGrounding = useMemo<{ facts: string[]; rateCount: number }>(() => {
+    try {
+      const db = buildCostDatabase(projects, commitments, receipts);
+      const facts = db.entries.slice(0, 6).map(
+        e => `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`,
+      );
+      const cal = computeCalibration({ projects, commitments });
+      if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
+        facts.push(cal.categories[0].detail);
+      }
+      return { facts, rateCount: db.entries.length };
+    } catch {
+      return { facts: [], rateCount: 0 };
+    }
+  }, [projects, commitments, receipts]);
+
   // Stable seed — previously Date.now()/10000 which caused prices to drift by a cent
   // on every refresh (app resume, 5min interval, location change). Pricing is now
   // deterministic per-location so estimates don't mysteriously change after you leave.
@@ -3620,6 +3642,8 @@ export default function EstimateScreen() {
         globalMarkup={globalMarkup}
         location={settings.location}
         calculateAssemblyCost={calculateAssemblyCost}
+        groundingFacts={quickEstimateGrounding.facts}
+        learnedRateCount={quickEstimateGrounding.rateCount}
       />
 
       {/* Cart-level AI suggestions modal — opens from the "Ask AI" button at

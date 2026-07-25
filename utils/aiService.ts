@@ -1055,12 +1055,17 @@ export async function generateQuickEstimate(
   squareFootage: number,
   qualityTier: string,
   location: string,
+  groundingFacts?: string[],
 ): Promise<AIQuickEstimateResult> {
   console.log('[AI Quick Estimate] Generating for:', description.substring(0, 60));
 
+  const groundingBlock = groundingFacts && groundingFacts.length > 0
+    ? `\nLEARNED RATES FROM YOUR JOBS:\n${groundingFacts.map(f => `- ${f}`).join('\n')}\nWhen a learned rate covers a line, use it as the unit price and note "from your history" in that line's notes field.\n`
+    : '';
+
   const aiResult = await mageAI({
     prompt: `You are an expert construction estimator with current 2025-2026 pricing knowledge. Generate a detailed, realistic construction estimate for this project.
-
+${groundingBlock}
 PROJECT: ${description}
 Type: ${projectType || 'General Construction'} | SqFt: ${squareFootage || 'unspecified'} | Quality: ${qualityTier || 'standard'} | Location: ${location || 'US'}
 
