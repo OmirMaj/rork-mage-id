@@ -40,6 +40,8 @@ const LOCAL_USER_CACHE_KEYS = [
   'mageid_plan_markups', 'mageid_permits', 'mageid_aia_pay_apps',
   'mageid_sub_portal_links', 'mageid_delay_applied', 'mageid_home_passport',
   'mageid_labor_rates',
+  'mageid_material_receipts',
+  'mageid_time_entries',
 ] as const;
 
 // The re-fetchable caches (mageid_*) are always safe to wipe —
