@@ -31,6 +31,7 @@ import { buildPaceBook, lookupPace, suggestDuration } from '@/utils/pace/paceBoo
 import { buildPaceFacts } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { tradeKeyForTask } from '@/utils/scheduleColors';
 import PaceChip from '@/components/schedule/PaceChip';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -50,6 +51,7 @@ export default function ScheduleReviewScreen() {
   const { tier } = useSubscription();
   const { width } = useWindowDimensions();
   const { canAccess } = useTierAccess();
+  const { isDesktop } = useResponsiveLayout();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
@@ -221,7 +223,7 @@ export default function ScheduleReviewScreen() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 120 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryRow}>
           <Sparkles size={16} color={t.accent} strokeWidth={1.75} />
           <Text style={styles.summaryText}>
@@ -401,4 +403,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.45 },
   ctaText: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
 });
