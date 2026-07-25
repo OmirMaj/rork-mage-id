@@ -32,6 +32,7 @@ import { buildPaceFacts } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { tradeKeyForTask } from '@/utils/scheduleColors';
 import PaceChip from '@/components/schedule/PaceChip';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { recordPrediction } from '@/utils/brain/predictionLedger';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -114,7 +115,16 @@ export default function ScheduleReviewScreen() {
     return { days, jobCount: entry.jobCount, confidence };
   }, [paceBook, project?.squareFootage, pacedIds]);
 
-  const applyPace = useCallback((taskId: string, days: number) => {
+  const applyPace = useCallback((
+    taskId: string,
+    days: number,
+    captureInfo?: {
+      trade: string;
+      aiOriginalDays: number;
+      jobCount: number;
+      confidence: 'medium' | 'high';
+    },
+  ) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     // The screen's edit path: accept() rebuilds via buildScheduleFromTasks,
     // whose forward pass reflows dependent startDays from the new duration.
@@ -124,7 +134,25 @@ export default function ScheduleReviewScreen() {
       next.add(taskId);
       return next;
     });
-  }, []);
+    // G4: fire-and-forget capture — ledger failure must never break host flow
+    if (captureInfo) {
+      try {
+        recordPrediction(
+          'pace_suggestion_applied',
+          taskId,
+          {
+            taskId,
+            trade: captureInfo.trade,
+            aiOriginalDays: captureInfo.aiOriginalDays,
+            paceDays: days,
+            jobCount: captureInfo.jobCount,
+            confidence: captureInfo.confidence,
+          },
+          project?.id ?? null,
+        );
+      } catch { /* G4 */ }
+    }
+  }, [project?.id]);
 
   const accept = useCallback(() => {
     if (!project || !draft) return;
@@ -281,7 +309,12 @@ export default function ScheduleReviewScreen() {
                           suggestedDays={pace.days}
                           jobCount={pace.jobCount}
                           confidence={pace.confidence}
-                          onApply={() => applyPace(task.id, pace.days)}
+                          onApply={() => applyPace(task.id, pace.days, {
+                            trade: tradeKeyForTask(task),
+                            aiOriginalDays: task.durationDays,
+                            jobCount: pace.jobCount,
+                            confidence: pace.confidence,
+                          })}
                         />
                       )}
                       {task.rationale ? (
