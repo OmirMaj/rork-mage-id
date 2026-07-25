@@ -103,6 +103,7 @@ export default function ScheduleWizardScreen() {
 
   const [step, setStep] = useState<StepIndex>(0);
   const [pickedProjectId, setPickedProjectId] = useState<string>(projectId ?? '');
+  const [blockHint, setBlockHint] = useState<string | null>(null);
   const project = useMemo(
     () => (pickedProjectId ? getProject(pickedProjectId) : null),
     [pickedProjectId, getProject],
@@ -185,8 +186,24 @@ export default function ScheduleWizardScreen() {
     return true;
   }, [step, pickedProjectId, tasks.length]);
 
+  function blockReason(s: StepIndex): string {
+    if (s === 0) return 'Pick a project to continue.';
+    if (s === 1) return 'Add at least one task first.';
+    return '';
+  }
+
+  // Clear the hint whenever the blocking condition resolves.
+  React.useEffect(() => {
+    if (canAdvance) setBlockHint(null);
+  }, [pickedProjectId, tasks.length, canAdvance]);
+
   const handleNext = useCallback(() => {
-    if (!canAdvance) return;
+    if (!canAdvance) {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setBlockHint(blockReason(step));
+      return;
+    }
+    setBlockHint(null);
     if (step < 3) {
       setStep((step + 1) as StepIndex);
       if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -369,16 +386,21 @@ export default function ScheduleWizardScreen() {
       {/* Bottom CTA. The mock uses a single big primary button; we mirror it. */}
       <View style={[styles.bottomCta, { paddingBottom: insets.bottom + 12 }]}>
         {step < 3 ? (
-          <TouchableOpacity
-            style={[styles.ctaBtn, !canAdvance && styles.ctaBtnDisabled]}
-            onPress={handleNext}
-            disabled={!canAdvance}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-          >
-            <Text style={styles.ctaBtnText}>Next: {STEPS[step + 1]}</Text>
-            <ChevronRight size={18} color="#fff" strokeWidth={2.5} />
-          </TouchableOpacity>
+          <>
+            {blockHint ? (
+              <Text style={styles.blockHintText}>{blockHint}</Text>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.ctaBtn, !canAdvance && styles.ctaBtnDisabled]}
+              onPress={handleNext}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canAdvance }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.ctaBtnText}>Next: {STEPS[step + 1]}</Text>
+              <ChevronRight size={18} color="#fff" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity
             style={styles.ctaBtn}
@@ -966,6 +988,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     backgroundColor: t.bg,
     borderTopWidth: 1,
     borderTopColor: t.line,
+  },
+  blockHintText: {
+    fontSize: Type.footnote.fontSize,
+    color: t.danger,
+    textAlign: 'center' as const,
+    marginBottom: 8,
+    fontWeight: '600' as const,
   },
   ctaBtn: {
     flexDirection: 'row' as const,
