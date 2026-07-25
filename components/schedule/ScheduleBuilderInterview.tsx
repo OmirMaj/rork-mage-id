@@ -20,6 +20,7 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { visibleQuestions, defaultAnswers, type ScheduleBuilderAnswers, type QuestionSpec } from '@/utils/copilot/scheduleBuilder/questions';
 import { generateScheduleFromAnswers } from '@/utils/copilot/scheduleBuilder/generateScheduleFromAnswers';
+import { generateFollowups } from '@/utils/copilot/scheduleBuilder/followups';
 
 const SKIP = Symbol('skip');
 
@@ -31,7 +32,18 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const { getProject, updateProject, projects } = useProjects();
   const project = useMemo(() => getProject(projectId) ?? null, [getProject, projectId]);
 
-  const questions = useMemo(() => visibleQuestions(project), [project]);
+  const staticQuestions = useMemo(() => visibleQuestions(project), [project]);
+  // Dynamic follow-ups: 0-2 QuestionSpecs generated after the scope answer.
+  const [dynamicFollowups, setDynamicFollowups] = useState<QuestionSpec[]>([]);
+  // While we're fetching follow-ups, show a loading indicator instead of the
+  // "generating schedule" spinner so the user knows the interview isn't done.
+  const [fetchingFollowups, setFetchingFollowups] = useState(false);
+  // stepBlockReason-style hint when scope is too thin to mine for follow-ups
+  const [thinScopeHint, setThinScopeHint] = useState('');
+  const questions = useMemo(
+    () => [...staticQuestions, ...dynamicFollowups],
+    [staticQuestions, dynamicFollowups],
+  );
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<ScheduleBuilderAnswers>(() => defaultAnswers(project));
   const [phase, setPhase] = useState<'ask' | 'generating' | 'error'>('ask');
@@ -51,6 +63,37 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
     if (!q) return;
     const nextAnswers = value === SKIP ? answers : { ...answers, [q.field]: value };
     if (value !== SKIP) setAnswers(nextAnswers);
+
+    // After the LAST static question, fire a fast follow-up generation call
+    // before proceeding to build. Degrade silently — never block on failure.
+    const isLastStatic = idx === staticQuestions.length - 1 && dynamicFollowups.length === 0;
+    if (isLastStatic) {
+      setThinScopeHint('');
+      const scopeText = (nextAnswers.scope ?? '').trim();
+      setFetchingFollowups(true);
+      try {
+        const { followups, thinReason } = await generateFollowups(
+          scopeText,
+          nextAnswers.knownRisks ?? null,
+        );
+        if (thinReason === 'scope_too_thin') {
+          setThinScopeHint("Tell me the rooms and trades — one word isn't enough to schedule from.");
+          // Don't block: keep follow-ups empty, proceed to generate after hint clears
+        }
+        if (followups.length > 0) {
+          setDynamicFollowups(followups);
+          setIdx(staticQuestions.length); // advance to first dynamic question
+          setFetchingFollowups(false);
+          return;
+        }
+      } catch {
+        // Degrade silently
+      } finally {
+        setFetchingFollowups(false);
+      }
+      // Zero follow-ups or degrade — fall through to generation
+    }
+
     if (idx < questions.length - 1) { setIdx(idx + 1); return; }
     if (!project) { setErrMsg('No project.'); setPhase('error'); return; }
     setPhase('generating');
@@ -84,15 +127,26 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
       setErrMsg((e as Error).message ?? 'Could not build the schedule.');
       setPhase('error');
     }
-  }, [q, answers, idx, questions.length, project, projectId, router, projects, updateProject]);
+  }, [q, answers, idx, questions.length, staticQuestions.length, dynamicFollowups.length, project, projectId, router, projects, updateProject]);
 
   const submitEntry = useCallback(() => {
     if (!q) return;
     const raw = entry.trim();
+    setThinScopeHint('');
     if (!raw) { advance(SKIP); return; }
     advance(q.kind === 'number' ? (Number(raw.replace(/[^0-9.]/g, '')) || SKIP) : raw);
   }, [q, entry, advance]);
 
+  if (fetchingFollowups) {
+    return (
+      <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator color={colors.accent} size="large" />
+        <Text style={styles.buildingTitle}>One moment…</Text>
+        <Text style={styles.buildingSub}>Mining your scope for a sharper schedule.</Text>
+      </View>
+    );
+  }
   if (phase === 'generating') {
     return (
       <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
@@ -141,12 +195,20 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${((idx + 1) / questions.length) * 100}%` }]} />
       </View>
-      <Text style={styles.progressLabel}>{idx + 1} OF {questions.length}</Text>
+      <Text style={styles.progressLabel}>
+        {idx + 1} OF {questions.length}
+        {dynamicFollowups.length > 0 ? ' (+ follow-ups)' : ''}
+      </Text>
 
       <Animated.View style={[styles.card, cardStyle]}>
         <Text style={styles.eyebrow}>{q.eyebrow}</Text>
         <Text style={styles.question}>{q.question}</Text>
         <Text style={styles.subtext}>{q.subtext}</Text>
+        {/* Thin-scope hint — shown when the scope answer is too short to
+            mine follow-ups from. Clears on the next answer change. */}
+        {thinScopeHint ? (
+          <Text style={styles.thinScopeHint}>{thinScopeHint}</Text>
+        ) : null}
 
         {q.kind === 'choice' ? (
           <View style={styles.choices}>
@@ -222,5 +284,11 @@ function makeStyles(colors: ThemeColors) {
     skipText: { ...Type.footnote, color: colors.textMuted },
     buildingTitle: { ...Type.serifTitle, color: colors.text, marginTop: Tokens.spacing.sm },
     buildingSub: { ...Type.body, color: colors.textSecondary, textAlign: 'center' },
+    thinScopeHint: {
+      ...Type.footnote,
+      color: Colors.warning,
+      marginTop: Tokens.spacing.xs,
+      marginBottom: Tokens.spacing.xs,
+    },
   });
 }
