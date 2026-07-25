@@ -34,8 +34,10 @@ import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
-import type { ThemeColors } from '@/constants/colors';
+import { Colors, type ThemeColors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import { computeCalibration } from '@/utils/estimateCalibration';
 import UpgradeSheet from '@/components/UpgradeSheet';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
@@ -49,7 +51,7 @@ import { generateUUID } from '@/utils/generateId';
 import type { CompanyBranding, LinkedEstimate, LinkedEstimateItem, Project, ProjectType, QualityTier } from '@/types';
 import {
   INITIAL_SCOPE, TOTAL_SCOPE_STEPS, stepCanAdvance, buildEstimatePrompt,
-  scopeCacheKey, estimateSchema, QUALITY_LABELS,
+  scopeCacheKey, estimateSchema, QUALITY_LABELS, stepBlockReason,
   type WizardAnswers, type EstimateResult,
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
@@ -166,7 +168,7 @@ function EstimateWizardScreenInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { settings, getProject, updateProject, addProject, projects } = useProjects();
+  const { settings, getProject, updateProject, addProject, projects, commitments } = useProjects();
   const { tier } = useSubscription();
 
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -174,6 +176,12 @@ function EstimateWizardScreenInner() {
 
   const [step, setStep] = useState<number>(0);
   const [answers, setAnswers] = useState<WizardAnswers>(INITIAL_SCOPE);
+  // Why Next is blocked on this step — set when a blocked Next is tapped,
+  // cleared on any input/step change. The button is never a silent dead end.
+  const [stepHint, setStepHint] = useState<string | null>(null);
+  // Answerable refine loop — which refineWith hint is open + its answer.
+  const [refineIdx, setRefineIdx] = useState<number | null>(null);
+  const [refineText, setRefineText] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
@@ -204,6 +212,27 @@ function EstimateWizardScreenInner() {
     return stepCanAdvance(step, answers);
   }, [step, answers]);
 
+  useEffect(() => { setStepHint(null); }, [step, answers]);
+
+  // THE BRAIN IN THE WIZARD: learned-cost facts from the contractor's own
+  // closed jobs (same grounding the estimate copilot uses). Injected into
+  // the prompt so a quick estimate prices from YOUR history, not a generic
+  // national average. Best-effort — an empty book just means no grounding.
+  const groundingFacts = useMemo<string[]>(() => {
+    try {
+      const db = buildCostDatabase(projects, commitments);
+      const facts = db.entries.slice(0, 6).map((e) =>
+        `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
+      const cal = computeCalibration({ projects, commitments });
+      if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
+        facts.push(cal.categories[0].detail);
+      }
+      return facts;
+    } catch {
+      return [];
+    }
+  }, [projects, commitments]);
+
   const next = useCallback(() => {
     if (!canAdvance) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -214,7 +243,7 @@ function EstimateWizardScreenInner() {
     setStep((s) => Math.max(0, s - 1));
   }, []);
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (answersOverride?: WizardAnswers) => {
     if (loading) return;
 
     // Pre-flight rate-limit check. Pre-fix the wizard had no checkAILimit
@@ -232,9 +261,11 @@ function EstimateWizardScreenInner() {
     setLoading(true);
     setResult(null);
 
-    const prompt = buildEstimatePrompt(answers);
+    const a = answersOverride ?? answers;
+    const prompt = buildEstimatePrompt(a, groundingFacts);
 
-    const cacheKey = scopeCacheKey(answers);
+    // Grounded prompts must not collide with ungrounded cache entries.
+    const cacheKey = scopeCacheKey(a) + (groundingFacts.length > 0 ? `_g${groundingFacts.length}` : '');
 
     try {
       const res = await mageAISmart(prompt, estimateSchema, cacheKey);
@@ -302,7 +333,7 @@ function EstimateWizardScreenInner() {
     } finally {
       setLoading(false);
     }
-  }, [answers, loading, tier, router, projectId, scopedProject, updateProject]);
+  }, [answers, groundingFacts, loading, tier, router, projectId, scopedProject, updateProject]);
 
   // Escape hatch for the loading screen. We don't actually abort the
   // in-flight fetch (the AbortController is internal to mageAI), but
@@ -530,11 +561,60 @@ function EstimateWizardScreenInner() {
             </View>
           ) : null}
 
+          {groundingFacts.length > 0 ? (
+            <View style={styles.groundedChip}>
+              <Text style={styles.groundedText}>Priced with your cost history · {groundingFacts.length} learned rate{groundingFacts.length === 1 ? '' : 's'}</Text>
+            </View>
+          ) : null}
+
           {result.refineWith && result.refineWith.length > 0 && (
             <View style={styles.refineCard}>
-              <Text style={styles.refineTitle}>Add these for a sharper number</Text>
+              <Text style={styles.refineTitle}>Answer these for a sharper number</Text>
               {result.refineWith.map((rfn, i) => (
-                <Text key={i} style={styles.refineItem}>• {rfn}</Text>
+                <View key={i}>
+                  <TouchableOpacity
+                    onPress={() => { setRefineIdx(refineIdx === i ? null : i); setRefineText(''); }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Answer: ${rfn}`}
+                  >
+                    <Text style={styles.refineItem}>{refineIdx === i ? '▾' : '▸'} {rfn}</Text>
+                  </TouchableOpacity>
+                  {refineIdx === i ? (
+                    <View style={styles.refineAnswerRow}>
+                      <TextInput
+                        style={styles.refineInput}
+                        value={refineText}
+                        onChangeText={setRefineText}
+                        placeholder="Your answer…"
+                        placeholderTextColor={themeColors.textMuted}
+                        autoFocus
+                        returnKeyType="done"
+                      />
+                      <TouchableOpacity
+                        onPress={() => {
+                          const detail = refineText.trim();
+                          if (!detail) return;
+                          const nextAnswers: WizardAnswers = {
+                            ...answers,
+                            specialRequirements: (answers.specialRequirements ? answers.specialRequirements + '\n' : '') + `${rfn}: ${detail}`,
+                          };
+                          setAnswers(nextAnswers);
+                          setRefineIdx(null);
+                          setRefineText('');
+                          void generate(nextAnswers);
+                        }}
+                        disabled={!refineText.trim() || loading}
+                        style={[styles.refineGoBtn, (!refineText.trim() || loading) && styles.primaryBtnDisabled]}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Add answer and refine estimate"
+                      >
+                        <Text style={styles.refineGoText}>Refine</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                </View>
               ))}
             </View>
           )}
@@ -874,6 +954,11 @@ function EstimateWizardScreenInner() {
           <ScopeQuestionStepper stepIndex={step} answers={answers} onChange={set} testIDPrefix="wizard" />
         </ScrollView>
 
+        {stepHint ? (
+          <View style={styles.stepHintRow}>
+            <Text style={styles.stepHintText}>{stepHint}</Text>
+          </View>
+        ) : null}
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             onPress={step === 0 ? () => router.back() : back}
@@ -886,10 +971,15 @@ function EstimateWizardScreenInner() {
           </TouchableOpacity>
           {step < TOTAL_STEPS - 1 ? (
             <TouchableOpacity
-              onPress={next}
-              disabled={!canAdvance}
+              onPress={() => {
+                if (canAdvance) { next(); return; }
+                // Never a silent dead end — say exactly what's missing.
+                if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                setStepHint(stepBlockReason(step, answers));
+              }}
               style={[styles.primaryBtn, styles.footerBtn, !canAdvance && styles.primaryBtnDisabled]}
               activeOpacity={0.85}
+              accessibilityState={{ disabled: !canAdvance }}
               testID="wizard-next"
             >
               <Text style={styles.primaryText}>Next</Text>
@@ -897,7 +987,7 @@ function EstimateWizardScreenInner() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              onPress={generate}
+              onPress={() => generate()}
               disabled={loading}
               style={[styles.primaryBtn, styles.footerBtn, loading && styles.primaryBtnDisabled]}
               activeOpacity={0.85}
@@ -1258,6 +1348,14 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   refineCard: { backgroundColor: themeColors.accent + '12', borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
   refineTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   refineItem: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },
+  refineAnswerRow: { flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 4 },
+  refineInput: { flex: 1, borderWidth: 1, borderColor: themeColors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: themeColors.text, backgroundColor: themeColors.surface },
+  refineGoBtn: { backgroundColor: themeColors.accent, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  refineGoText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnPrimary },
+  groundedChip: { alignSelf: 'flex-start', backgroundColor: themeColors.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
+  groundedText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.success },
+  stepHintRow: { paddingHorizontal: 20, paddingTop: 8 },
+  stepHintText: { fontSize: Type.footnote.fontSize, color: themeColors.danger, textAlign: 'center' },
   disclaimer: {
     fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'center' as const, marginTop: 16, paddingHorizontal: 12,
