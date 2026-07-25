@@ -3,6 +3,7 @@ import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage } from '@/types';
 import { getLanguageMeta } from '@/utils/portalLanguages';
+import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -510,14 +511,27 @@ export const aiScheduleSchema = z.object({
 
 export type AIScheduleResult = z.infer<typeof aiScheduleSchema>;
 
-export async function buildScheduleFromDescription(description: string): Promise<AIScheduleResult> {
+export async function buildScheduleFromDescription(
+  description: string,
+  /** ALL projects — pace-book evidence base. When present, durations are
+   *  grounded in the contractor's measured per-trade pace (best-effort). */
+  allProjects?: Project[],
+): Promise<AIScheduleResult> {
   console.log('[AI Schedule] Building from description...');
+  // aiScheduleSchema tasks carry no rationale/assumption fields — use the
+  // schema-safe instruction variant. Never let a pace-book error block.
+  let paceBlock = '';
+  try {
+    paceBlock = paceFactsBlock(buildPaceFacts(allProjects ?? []).facts, { citeInRationale: false });
+  } catch {
+    // ignore — generate ungrounded
+  }
   const aiResult = await mageAI({
     prompt: `You are a senior construction scheduler with 20 years of experience. Create a detailed, realistic construction schedule based on this project description.
 
 PROJECT DESCRIPTION:
 ${description}
-
+${paceBlock ? `\n${paceBlock}\n` : ''}
 Create a complete schedule with:
 1. All major construction phases in proper sequence
 2. Realistic durations
