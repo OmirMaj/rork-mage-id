@@ -14,6 +14,7 @@ import { CERTIFICATIONS } from '@/constants/certifications';
 import { US_STATES } from '@/constants/regions';
 import type { PublicBid, BidType, BidCategory, CertificationType } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -81,8 +82,8 @@ export default function PostBidScreen() {
       state,
       category,
       bidType,
-      estimatedValue: parseFloat(estimatedValue) || 0,
-      bondRequired: parseFloat(bondRequired) || 0,
+      estimatedValue: parseLenientNumber(estimatedValue) ?? 0,
+      bondRequired: parseLenientNumber(bondRequired) ?? 0,
       deadline: deadlineDate.toISOString(),
       description: description.trim(),
       postedBy: 'You',

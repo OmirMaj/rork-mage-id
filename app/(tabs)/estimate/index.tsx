@@ -56,7 +56,7 @@ import AIEstimateValidator from '@/components/AIEstimateValidator';
 import AICopilot from '@/components/AICopilot';
 import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
-import { formatMoney } from '@/utils/formatters';
+import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -333,8 +333,8 @@ export default function EstimateScreen() {
   }, [cartAnim, ctxAddToCart]);
 
   const handleAddCustomMaterial = useCallback(() => {
-    const price = parseFloat(customPrice);
-    if (!customName.trim() || isNaN(price) || price <= 0) {
+    const price = parseLenientNumber(customPrice);
+    if (!customName.trim() || price === null || price <= 0) {
       Alert.alert('Invalid Input', 'Please enter a valid name and price.');
       return;
     }
@@ -526,9 +526,9 @@ export default function EstimateScreen() {
 
   const handleAddLabor = useCallback(() => {
     if (!selectedLabor) return;
-    const hours = parseFloat(laborHoursInput);
-    const rate = parseFloat(laborRateInput);
-    if (isNaN(hours) || hours <= 0 || isNaN(rate) || rate <= 0) {
+    const hours = parseLenientNumber(laborHoursInput);
+    const rate = parseLenientNumber(laborRateInput);
+    if (hours === null || hours <= 0 || rate === null || rate <= 0) {
       Alert.alert('Invalid Input', 'Please enter valid hours and rate.');
       return;
     }
@@ -570,8 +570,8 @@ export default function EstimateScreen() {
 
   const handleAddAssembly = useCallback(() => {
     if (!selectedAssembly) return;
-    const qty = parseFloat(assemblyQtyInput);
-    if (isNaN(qty) || qty <= 0) {
+    const qty = parseLenientNumber(assemblyQtyInput);
+    if (qty === null || qty <= 0) {
       Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
@@ -726,8 +726,8 @@ export default function EstimateScreen() {
 
   const handleAddFromPopup = useCallback(() => {
     if (!selectedMaterial) return;
-    const qty = parseInt(itemQty, 10);
-    if (isNaN(qty) || qty <= 0) {
+    const qty = parseLenientNumber(itemQty);
+    if (qty === null || qty <= 0) {
       Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
