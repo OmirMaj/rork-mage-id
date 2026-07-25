@@ -14,6 +14,7 @@ import Paywall from '@/components/Paywall';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -69,6 +70,7 @@ function WipReportScreenInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
 
   const {
     projects,
@@ -248,7 +250,7 @@ function WipReportScreenInner() {
         <TrendingUp size={22} color={themeColors.accent} strokeWidth={1.75} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]}>
         {/* Portfolio totals */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Portfolio</Text>
@@ -402,6 +404,7 @@ function Row({ label, value, styles }: { label: string; value: string; styles: R
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingBottom: 12,
