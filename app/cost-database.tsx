@@ -19,6 +19,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -56,10 +57,13 @@ function CostDatabaseInner() {
   const router = useRouter();
   const { projects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
+  // Self-perform labor (D6): the book's own screen must show every source
+  // that feeds it — crew hours appear as "Labor — <trade>" $/hour entries.
+  const laborSamples = useLaborCostSamples();
 
   const db = useMemo(
-    () => buildCostDatabase(projects, commitments, receipts),
-    [projects, commitments, receipts],
+    () => buildCostDatabase(projects, commitments, receipts, laborSamples),
+    [projects, commitments, receipts, laborSamples],
   );
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());

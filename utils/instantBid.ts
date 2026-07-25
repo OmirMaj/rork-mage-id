@@ -11,7 +11,7 @@
 
 import { mageAI } from '@/utils/mageAI';
 import { illustrativeMonthly } from '@/utils/financing';
-import { buildCostDatabase } from '@/utils/costDatabase';
+import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import type {
   FinancingConfig,
@@ -59,6 +59,9 @@ export interface InstantBidOptions {
     projects: Project[];
     commitments: Commitment[];
     receipts?: MaterialReceipt[];
+    /** Self-perform labor samples (utils/laborSamples.ts) — crew hours at
+     *  the GC's configured loaded rates. Optional cost-book input. */
+    laborSamples?: CostSample[];
   };
 }
 
@@ -153,9 +156,9 @@ function buildInstantBidGrounding(
   const facts: string[] = [];
   let rateCount = 0;
   if (!opts.groundingContext) return { facts, rateCount };
-  const { projects, commitments, receipts } = opts.groundingContext;
+  const { projects, commitments, receipts, laborSamples } = opts.groundingContext;
   try {
-    const db = buildCostDatabase(projects, commitments, receipts);
+    const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
     // Pull the most-relevant entries (high-confidence first, up to 4 facts).
     const sorted = [...db.entries].sort((a, b) => {
       const rankConf = (e: typeof a) => e.confidence === 'high' ? 2 : e.confidence === 'medium' ? 1 : 0;

@@ -5,17 +5,20 @@
 // national averages; we price from your history.
 import type { CopilotContext, Grounding } from '../types';
 import type { Project, Commitment, MaterialReceipt } from '@/types';
-import { buildCostDatabase } from '@/utils/costDatabase';
+import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 export async function buildEstimateGrounding(c: CopilotContext): Promise<Grounding> {
   const project = c.project;
-  const ctx = (c.ctx ?? {}) as { projects?: Project[]; commitments?: Commitment[]; receipts?: MaterialReceipt[] };
+  const ctx = (c.ctx ?? {}) as { projects?: Project[]; commitments?: Commitment[]; receipts?: MaterialReceipt[]; laborSamples?: CostSample[] };
   const projects: Project[] = Array.isArray(ctx.projects) ? ctx.projects : [];
   const commitments: Commitment[] = Array.isArray(ctx.commitments) ? ctx.commitments : [];
   const receipts: MaterialReceipt[] | undefined = Array.isArray(ctx.receipts) ? ctx.receipts : undefined;
+  // Self-perform labor (D6): crew hours × the GC's configured loaded rates,
+  // prebuilt by useLaborCostSamples in the ctx producer (app/copilot.tsx).
+  const laborSamples: CostSample[] | undefined = Array.isArray(ctx.laborSamples) ? ctx.laborSamples : undefined;
 
   const projectQuality = project?.quality;
   const projectSqft = project?.squareFootage && project.squareFootage > 0 ? project.squareFootage : undefined;
@@ -31,7 +34,7 @@ export async function buildEstimateGrounding(c: CopilotContext): Promise<Groundi
   // never blocks the interview.
   let costBookEntries = 0;
   try {
-    const db = buildCostDatabase(projects, commitments, receipts);
+    const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
     costBookEntries = db.entries.length;
     for (const e of db.entries.slice(0, 4)) {
       facts.push(`${cap(e.trade)} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'}).`);

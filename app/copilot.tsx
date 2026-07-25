@@ -7,6 +7,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import CopilotShell from '@/components/copilot/CopilotShell';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
 
@@ -20,12 +21,15 @@ export default function CopilotScreen() {
   // them into the ctx bag so estimateGrounding's cost book sees live supplier
   // prices (B1: receipts into every cost-book build).
   const { receipts } = useMaterialReceipts();
+  // Self-perform labor samples (D6) — same ctx-bag route as receipts, so the
+  // estimate copilot's cost book prices labor from the GC's clocked hours.
+  const laborSamples = useLaborCostSamples();
   const project = projectsCtx.getProject?.(projectId ?? '') ?? null;
 
   return (
     <CopilotShell
       capabilityId={(capabilityId ?? 'schedule') as CopilotCapabilityId}
-      ctx={{ project, projectId: projectId ?? '', ctx: { ...projectsCtx, receipts }, safety: safetyCtx, tier }}
+      ctx={{ project, projectId: projectId ?? '', ctx: { ...projectsCtx, receipts, laborSamples }, safety: safetyCtx, tier }}
       onDone={() => router.back()}
       seed={typeof seed === 'string' ? seed : undefined}
     />

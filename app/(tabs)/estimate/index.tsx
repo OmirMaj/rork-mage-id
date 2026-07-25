@@ -60,6 +60,7 @@ import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 
@@ -167,10 +168,13 @@ export default function EstimateScreen() {
   }, [locationMultiplier]);
 
   const { receipts } = useMaterialReceipts();
+  // Self-perform labor (D6): crew hours × configured loaded rates ground
+  // the quick estimate alongside receipts and closed-job actuals.
+  const laborSamples = useLaborCostSamples();
 
   const quickEstimateGrounding = useMemo<{ facts: string[]; rateCount: number }>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments, receipts);
+      const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
       const facts = db.entries.slice(0, 6).map(
         e => `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`,
       );
@@ -182,7 +186,7 @@ export default function EstimateScreen() {
     } catch {
       return { facts: [], rateCount: 0 };
     }
-  }, [projects, commitments, receipts]);
+  }, [projects, commitments, receipts, laborSamples]);
 
   // Stable seed — previously Date.now()/10000 which caused prices to drift by a cent
   // on every refresh (app resume, 5min interval, location change). Pricing is now

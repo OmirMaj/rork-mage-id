@@ -30,6 +30,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import type { TieredProposal, ProposalTierKey } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
@@ -117,6 +118,10 @@ export default function SubmitBidResponseScreen() {
   // Only one company per user for now — first one wins (most apps have a single org).
   const company = useMemo(() => companies[0], [companies]);
 
+  // Self-perform labor samples (D6) — folds crew hours × configured loaded
+  // rates into the cost book that grounds the instant-bid ROM.
+  const laborSamples = useLaborCostSamples();
+
   const [estimateAmount, setEstimateAmount]   = useState('');
   const [estimateSummary, setEstimateSummary] = useState('');
   const [message, setMessage]                 = useState('');
@@ -172,7 +177,7 @@ export default function SubmitBidResponseScreen() {
           contractorNote: message.trim() || undefined,
           groundingContext:
             Array.isArray(projects) && projects.length > 0
-              ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[] }
+              ? { projects: projects as import('@/types').Project[], commitments: allCommitments as import('@/types').Commitment[], laborSamples }
               : undefined,
         },
       );

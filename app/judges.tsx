@@ -29,6 +29,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { VerdictCard } from '@/components/judges/VerdictCard';
 import { draftLinesFromScope, runJudges } from '@/utils/judges/runJudges';
 import type { JudgesResult } from '@/utils/judges/runJudges';
@@ -67,6 +68,9 @@ function JudgesInner() {
   const { isDesktop } = useResponsiveLayout();
   const { projects, commitments, changeOrders, invoices } = useProjects();
   const { receipts } = useMaterialReceipts();
+  // Self-perform labor samples (D6) — crew hours × configured loaded rates
+  // fold into the cost book the judges score against.
+  const laborSamples = useLaborCostSamples();
 
   // ── Entry mode ────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>('describe');
@@ -85,8 +89,8 @@ function JudgesInner() {
 
   // ── Context object ────────────────────────────────────────────────────
   const ctx = useMemo(
-    () => ({ projects, commitments, changeOrders, invoices, receipts }),
-    [projects, commitments, changeOrders, invoices, receipts],
+    () => ({ projects, commitments, changeOrders, invoices, receipts, laborSamples }),
+    [projects, commitments, changeOrders, invoices, receipts, laborSamples],
   );
 
   // ── Timeline window builder ───────────────────────────────────────────
