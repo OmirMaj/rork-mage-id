@@ -30,6 +30,7 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -70,6 +71,7 @@ export default function JobCostingScreen() {
 function JobCostingInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -152,7 +154,7 @@ function JobCostingInner() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 80 + insets.bottom }, isDesktop && styles.contentDesktop]}>
 
         {/* KPI cards */}
         <View style={styles.kpiGrid}>
@@ -728,6 +730,7 @@ function DetailRow({ label, value, bold, color }: {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
   errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorText: { fontSize: Type.subhead.fontSize, color: t.textSecondary },
 
