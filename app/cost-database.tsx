@@ -16,6 +16,7 @@ import { MageCostDb } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -50,6 +51,7 @@ export default function CostDatabaseScreen() {
 function CostDatabaseInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, commitments } = useProjects();
@@ -101,7 +103,7 @@ function CostDatabaseInner() {
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 40 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Trades</Text>
@@ -197,6 +199,7 @@ function CostDatabaseInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   header: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,
