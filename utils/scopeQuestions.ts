@@ -80,17 +80,42 @@ export const TOTAL_SCOPE_STEPS = SCOPE_STEPS.length;
 
 /** Per-step "can advance" validation. Mirrors the wizard's original
  *  canAdvance switch exactly (steps 0-7). Optional steps always pass. */
+/** First number in a free-text field — tolerant of commas, units, and ranges.
+ *  "2,500" → 2500 · "1500 sqft" → 1500 · "6-8 weeks" → 6 · "abc" → null.
+ *  The wizard's old strict Number() parse dead-ended the Next button on any
+ *  of those perfectly reasonable inputs, with zero feedback. */
+export function firstNumber(s: string): number | null {
+  const m = (s || '').replace(/,/g, '').match(/\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export function stepCanAdvance(stepIndex: number, a: WizardAnswers): boolean {
   switch (stepIndex) {
     case 0: return a.projectType.length > 0;
-    case 1: return a.sizeSqft.trim().length > 0 && !isNaN(Number(a.sizeSqft));
+    case 1: return firstNumber(a.sizeSqft) !== null;
     case 2: return a.location.trim().length > 0;
     case 3: return true;
-    case 4: return a.scope.trim().length > 10;
-    case 5: return a.timelineWeeks.trim().length > 0 && !isNaN(Number(a.timelineWeeks));
+    case 4: return a.scope.trim().length >= 4;
+    case 5: return firstNumber(a.timelineWeeks) !== null;
     case 6: return true;
     case 7: return true;
     default: return false;
+  }
+}
+
+/** Why the current step can't advance — shown when the user taps a blocked
+ *  Next, so the wizard never silently dead-ends. Null when advance is fine. */
+export function stepBlockReason(stepIndex: number, a: WizardAnswers): string | null {
+  if (stepCanAdvance(stepIndex, a)) return null;
+  switch (stepIndex) {
+    case 0: return 'Pick a project type to continue.';
+    case 1: return 'Enter the size with a number — e.g. 2500 or 2,500 sqft.';
+    case 2: return 'Enter a location — city and state is plenty.';
+    case 4: return 'Describe the scope in a few words — a short sentence is plenty.';
+    case 5: return 'Enter the timeline with a number of weeks — e.g. 6 or 6-8.';
+    default: return 'Fill in this step to continue.';
   }
 }
 
@@ -115,8 +140,11 @@ export const estimateSchema = z.object({
 });
 export type EstimateResult = z.infer<typeof estimateSchema>;
 
-export function buildEstimatePrompt(a: WizardAnswers): string {
-  return `You are a construction cost estimator producing a quick first-pass budget for a US contractor. Use the inputs and return a JSON object with an itemized line-by-line estimate.
+export function buildEstimatePrompt(a: WizardAnswers, groundingFacts?: string[]): string {
+  const grounding = groundingFacts && groundingFacts.length > 0
+    ? `\n\nTHIS CONTRACTOR'S OWN COST HISTORY (price with these rates wherever the trade matches — they beat any regional average):\n${groundingFacts.map((f) => `- ${f}`).join('\n')}\n`
+    : '';
+  return `You are a construction cost estimator producing a quick first-pass budget for a US contractor. Use the inputs and return a JSON object with an itemized line-by-line estimate.${grounding}
 
 Inputs:
 - Project type: ${a.projectType || '(not provided)'}
