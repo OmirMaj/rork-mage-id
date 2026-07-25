@@ -105,8 +105,12 @@ function mean(xs: number[]): number {
  * exactly matching cpm.ts's raw-day degradation (no anchor ⇒ every day
  * counts, calendar == working). Clamped ≥ 1 so a same-day task logged on a
  * non-working day still registers as one day of work.
+ *
+ * Exported: utils/subScorecard.ts reuses this exact conversion for the
+ * per-sub schedule_reliability factor, so both engines measure "actual
+ * days" in the same unit.
  */
-function actualWorkingDays(
+export function actualWorkingDays(
   startDay: number,
   endDay: number,
   workingDaysPerWeek: number,
