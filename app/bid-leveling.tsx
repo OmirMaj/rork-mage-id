@@ -7,27 +7,32 @@
 // the budget. "AI-level" asks the model to price each bid's exclusions so the
 // comparison is apples-to-apples.
 //
-// Pure ranking in utils/bidLeveling; the single AI call routes through mageAI.
+// Grounding: when the GC has a learned cost book, the leveling engine uses
+// those rates and marks each row 'your_history' vs 'market_guess' so the
+// GC knows which adjustments came from real data and which are model estimates.
+//
+// Pure ranking in utils/bidLeveling; AI call routes through bidLevelingEngine.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Scale, Trophy, BadgeDollarSign, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, Scale, Trophy, BadgeDollarSign, AlertTriangle, Star } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
 import {
-  computeBidLeveling, buildLevelingPrompt, BID_LEVELING_SCHEMA_HINT,
-  type LeveledBid, type AILevelSuggestion,
+  computeBidLeveling,
+  type LeveledBid,
 } from '@/utils/bidLeveling';
-import { mageAI } from '@/utils/mageAI';
+import { levelBids, type AdjustmentBasis } from '@/utils/bidLevelingEngine';
 import { formatMoney, formatMoneyFull } from '@/utils/jobCostEngine';
 import type { BidPackageBid } from '@/types';
 import { Type } from '@/constants/typography';
@@ -48,7 +53,8 @@ function BidLevelingInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { packageId } = useLocalSearchParams<{ packageId?: string }>();
-  const { getBidPackage, getBidsForPackage, getSubcontractor, updateBidPackageBid } = useProjects();
+  const { projects, commitments, getBidPackage, getBidsForPackage, getSubcontractor, updateBidPackageBid } = useProjects();
+  const { receipts } = useMaterialReceipts();
 
   const pkg = useMemo(() => (packageId ? getBidPackage(packageId) : null), [packageId, getBidPackage]);
   const bids = useMemo(() => (packageId ? getBidsForPackage(packageId) : []), [packageId, getBidsForPackage]);
@@ -66,6 +72,11 @@ function BidLevelingInner() {
 
   const [aiBusy, setAiBusy] = useState(false);
   const [aiMsg, setAiMsg] = useState<string | null>(null);
+  // Track adjustmentBasis per bidId from the latest AI level run so we can
+  // show grounding chips without persisting a new field on BidPackageBid.
+  const [basisMap, setBasisMap] = useState<Record<string, AdjustmentBasis>>({});
+  // Track needsAnswer questions from AI (ambiguous inclusions).
+  const [questionsMap, setQuestionsMap] = useState<Record<string, string>>({});
 
   const aiLevel = useCallback(async () => {
     if (!pkg || aiBusy) return;
@@ -73,28 +84,41 @@ function BidLevelingInner() {
     setAiBusy(true);
     setAiMsg(null);
     try {
-      const prompt = buildLevelingPrompt(pkg, bids, resolveVendor);
-      const res = await mageAI({ prompt, tier: 'smart', schemaHint: BID_LEVELING_SCHEMA_HINT, maxTokens: 1200, feature: 'bidLeveling' });
-      const data = (res.data && typeof res.data === 'object' ? res.data : safeParse(res.raw)) as { suggestions?: AILevelSuggestion[] } | null;
-      const suggestions = Array.isArray(data?.suggestions) ? data!.suggestions : [];
-      if (!res.success || suggestions.length === 0) {
-        setAiMsg(res.error ? `Couldn't level: ${res.error}` : 'No adjustments suggested. Add each bid’s exclusions and try again.');
+      const result = await levelBids({ pkg, bids, projects, commitments, receipts });
+      if (result.adjustments.length === 0) {
+        setAiMsg("No adjustments suggested. Add each bid's exclusions and try again.");
         return;
       }
+      const newBasis: Record<string, AdjustmentBasis> = {};
+      const newQuestions: Record<string, string> = {};
       let applied = 0;
-      for (const s of suggestions) {
-        if (!s.bidId) continue;
-        const adj = Math.max(0, Math.round(Number(s.adjustment) || 0));
-        updateBidPackageBid(s.bidId, { normalizedAdjustment: adj, normalizedAdjustmentReason: (s.reason ?? '').slice(0, 240) });
+      for (const adj of result.adjustments) {
+        if (!adj.bidId || adj.confidence === 0) continue;
+        const amount = Math.max(0, Math.round(Number(adj.adjustment) || 0));
+        updateBidPackageBid(adj.bidId, {
+          normalizedAdjustment: amount,
+          normalizedAdjustmentReason: (adj.reason ?? '').slice(0, 240),
+        });
+        newBasis[adj.bidId] = adj.adjustmentBasis ?? 'market_guess';
+        if (adj.needsAnswer) newQuestions[adj.bidId] = adj.needsAnswer;
         applied += 1;
       }
-      setAiMsg(`Leveled ${applied} bid${applied === 1 ? '' : 's'} for excluded scope. Ranking updated.`);
+      setBasisMap(prev => ({ ...prev, ...newBasis }));
+      setQuestionsMap(prev => ({ ...prev, ...newQuestions }));
+
+      // Check if all adjustments are market_guess (no learned data used)
+      const historyCount = Object.values(newBasis).filter(b => b === 'your_history').length;
+      const baseMsg = `Leveled ${applied} bid${applied === 1 ? '' : 's'} for excluded scope. Ranking updated.`;
+      const groundingNote = historyCount > 0
+        ? ` ${historyCount} adjustment${historyCount === 1 ? '' : 's'} priced from your cost history.`
+        : ' No learned rates matched — using market estimates. Close more jobs to improve accuracy.';
+      setAiMsg(baseMsg + groundingNote);
     } catch (e) {
       setAiMsg(`Leveling hit an error: ${String((e as Error).message ?? e)}`);
     } finally {
       setAiBusy(false);
     }
-  }, [pkg, bids, resolveVendor, aiBusy, updateBidPackageBid]);
+  }, [pkg, bids, projects, commitments, receipts, aiBusy, updateBidPackageBid]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -151,6 +175,16 @@ function BidLevelingInner() {
           </TouchableOpacity>
           {aiMsg && <Text style={styles.aiMsg}>{aiMsg}</Text>}
 
+          {/* Decision-moment CTA: Score with Bid Advisor */}
+          <TouchableOpacity
+            style={styles.decisionBtn}
+            onPress={() => router.push({ pathname: '/judges', params: { projectId: pkg.projectId } } as never)}
+            activeOpacity={0.85}
+          >
+            <Star size={14} color={t.accent} strokeWidth={1.75} />
+            <Text style={styles.decisionBtnText}>Score with Bid Advisor</Text>
+          </TouchableOpacity>
+
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Budget</Text><Text style={styles.kpiValue}>{formatMoney(report.budget)}</Text></View>
             <View style={styles.kpiCard}><Text style={styles.kpiLabel}>Field spread</Text><Text style={styles.kpiValue}>{formatMoney(report.spread)}</Text><Text style={styles.kpiSub}>{Math.round(report.spreadPct * 100)}% of median</Text></View>
@@ -166,7 +200,21 @@ function BidLevelingInner() {
           )}
 
           <Text style={styles.sectionTitle}>Ranked by leveled cost</Text>
-          {report.bids.map(b => <BidRow key={b.bid.id} b={b} t={t} styles={styles} />)}
+          {report.bids.map(b => (
+            <BidRow
+              key={b.bid.id}
+              b={b}
+              t={t}
+              styles={styles}
+              basis={basisMap[b.bid.id]}
+              needsAnswer={questionsMap[b.bid.id]}
+              onScorecard={
+                b.bid.subcontractorId
+                  ? () => router.push({ pathname: '/sub-scorecard', params: { subId: b.bid.subcontractorId } } as never)
+                  : undefined
+              }
+            />
+          ))}
 
           <Text style={styles.note}>
             Leveled cost = the bid plus an adjustment for the scope it excludes, so every bid is
@@ -179,8 +227,27 @@ function BidLevelingInner() {
   );
 }
 
-function BidRow({ b, t, styles }: { b: LeveledBid; t: ThemeColors; styles: ReturnType<typeof makeStyles> }) {
+// ── Basis chip labels ─────────────────────────────────────────────────────────
+
+const BASIS_LABEL: Record<AdjustmentBasis, string> = {
+  your_history: 'your history',
+  estimate:     'estimate',
+  market_guess: 'AI estimate',
+};
+
+function BidRow({
+  b, t, styles, basis, needsAnswer, onScorecard,
+}: {
+  b: LeveledBid;
+  t: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+  basis?: AdjustmentBasis;
+  needsAnswer?: string;
+  onScorecard?: () => void;
+}) {
   const overBudget = b.vsBudget > 0;
+  const showBasisChip = !!basis && b.adjustment > 0;
+  const isHistoryBased = basis === 'your_history';
   return (
     <View style={[styles.bidCard, b.isRecommended && { borderColor: t.success, borderWidth: 1.5 }]}>
       <View style={styles.bidTop}>
@@ -193,6 +260,13 @@ function BidRow({ b, t, styles }: { b: LeveledBid; t: ThemeColors; styles: Retur
             {b.isRecommended && <Badge label="Best value" color={t.success} styles={styles} />}
             {b.isCheapestRaw && <Badge label="Cheapest bid" color={t.accent} styles={styles} icon={<BadgeDollarSign size={10} color={t.accent} strokeWidth={1.75} />} />}
             {b.outlierLow && <Badge label="Suspiciously low" color={t.danger} styles={styles} />}
+            {showBasisChip && (
+              <Badge
+                label={BASIS_LABEL[basis!]}
+                color={isHistoryBased ? t.success : t.textMuted}
+                styles={styles}
+              />
+            )}
           </View>
         </View>
         <View style={styles.bidAmounts}>
@@ -206,7 +280,18 @@ function BidRow({ b, t, styles }: { b: LeveledBid; t: ThemeColors; styles: Retur
       {b.excludes.length > 0 && (
         <Text style={styles.bidExcludes}><Text style={{ fontWeight: '700', color: t.accentHot }}>Excludes:</Text> {b.excludes}{b.bid.normalizedAdjustmentReason ? ` — leveled: ${b.bid.normalizedAdjustmentReason}` : ''}</Text>
       )}
+      {needsAnswer && (
+        <View style={styles.needsAnswerRow}>
+          <AlertTriangle size={12} color={t.textMuted} strokeWidth={1.75} />
+          <Text style={styles.needsAnswerText}>{needsAnswer}</Text>
+        </View>
+      )}
       {b.terms.length > 0 && <Text style={styles.bidTerms}>Terms: {b.terms}</Text>}
+      {onScorecard && (
+        <TouchableOpacity onPress={onScorecard} style={styles.scorecardLink} activeOpacity={0.75}>
+          <Text style={styles.scorecardLinkText}>See this sub's scorecard →</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -218,11 +303,6 @@ function Badge({ label, color, styles, icon }: { label: string; color: string; s
       <Text style={[styles.badgeText, { color }]}>{label}</Text>
     </View>
   );
-}
-
-function safeParse(s: string | undefined): unknown {
-  if (!s) return null;
-  try { return JSON.parse(s); } catch { return null; }
 }
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
@@ -253,6 +333,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   aiBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.accent },
   aiMsg: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginBottom: 12, lineHeight: 17 },
 
+  decisionBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
+    paddingVertical: 9, marginBottom: 12,
+    borderWidth: 1, borderColor: t.accent + '33', borderRadius: Tokens.radius.card,
+    backgroundColor: t.accent + '0A',
+  },
+  decisionBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.accent },
+
   kpiRow: { flexDirection: 'row' as const, gap: 12, marginBottom: 12 },
   kpiCard: { flex: 1, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line, padding: 14, gap: 2 },
   kpiLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const },
@@ -278,6 +366,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bidVsBudget: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   bidExcludes: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
   bidTerms: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+
+  needsAnswerRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 5, backgroundColor: t.textMuted + '14', borderRadius: Tokens.radius.xs, paddingHorizontal: 8, paddingVertical: 5 },
+  needsAnswerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
+
+  scorecardLink: { alignItems: 'flex-end' as const, paddingTop: 2 },
+  scorecardLinkText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '600' as const },
 
   note: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 8 },
 });
