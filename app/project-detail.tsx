@@ -1348,7 +1348,7 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.heroTapHint}>{heroLabel}{estimate ? ' · Tap for breakdown' : ''}</Text>
               </TouchableOpacity>
               <View style={{ marginTop: 10, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <BidConfidenceBadge project={project} variant="hero" />
+                <BidConfidenceBadge project={project} variant="light" />
                 {heroProgress.hasSchedule && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 }}>
                     <View style={{ width: 44, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' }}>
@@ -4471,22 +4471,22 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
   backBtn: { backgroundColor: themeColors.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
   backBtnText: { color: "#FFFFFF", fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: themeColors.accent, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, shadowColor: themeColors.accentLabel, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  heroCard: { backgroundColor: themeColors.surface, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, borderTopWidth: 4, borderTopColor: themeColors.accent, borderWidth: 1, borderColor: themeColors.line, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 3 },
   heroHeader: { marginBottom: 16 },
   heroTitleBlock: {},
-  heroName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: "#FFFFFF", letterSpacing: -0.3 },
+  heroName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -0.3 },
   heroMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
-  heroMetaText: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.75)' },
-  heroDesc: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 18 },
+  heroMetaText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary },
+  heroDesc: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, marginTop: 6, lineHeight: 18 },
   heroStats: {},
-  heroStatMain: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Tokens.radius.lg, padding: 16, alignItems: 'center', marginBottom: 12 },
-  heroTapHint: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '500' as const, marginTop: 4, letterSpacing: 0.3 },
-  heroStatLabel: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.7)', fontWeight: '500' as const, marginBottom: 4 },
-  heroStatValue: { fontSize: 32, fontWeight: '800' as const, color: "#FFFFFF", letterSpacing: -1 },
+  heroStatMain: { backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 16, alignItems: 'center', marginBottom: 12 },
+  heroTapHint: { fontSize: 10, color: themeColors.textMuted, fontWeight: '500' as const, marginTop: 4, letterSpacing: 0.3 },
+  heroStatLabel: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const, marginBottom: 4 },
+  heroStatValue: { fontSize: 32, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -1 },
   heroStatsRow: { flexDirection: 'row', gap: 8 },
-  heroStatSmall: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: Tokens.radius.md, padding: 10, alignItems: 'center' },
-  smallStatLabel: { fontSize: Type.caption2.fontSize, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: 2 },
-  smallStatValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  heroStatSmall: { flex: 1, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10, alignItems: 'center' },
+  smallStatLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const, marginBottom: 2 },
+  smallStatValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   section: { marginHorizontal: 20, marginTop: 18 },
   // Section headers across project-detail. Bumped border weight 1 → 1.5px
   // and ink-tinted color so each section reads as its own card with a
@@ -4578,7 +4578,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   shareBrandingNote: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginTop: -6 },
   signatureNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
   signatureNoteText: { fontSize: Type.caption1.fontSize, color: themeColors.accent, fontWeight: '500' as const },
-  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 3 },
   shareBtnPrimaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
   editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: themeColors.accent + '20' },
   editButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: themeColors.accent },
