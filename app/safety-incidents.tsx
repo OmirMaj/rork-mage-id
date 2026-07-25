@@ -15,6 +15,7 @@ import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -102,6 +103,7 @@ function SafetyIncidentsInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { tier } = useTierAccess();
   const { user } = useAuth();
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
@@ -299,7 +301,7 @@ function SafetyIncidentsInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Incidents — ${project.name}` }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {items.map(item => {
           const sc = getStatusConfig(themeColors, item.status);
           const doneCount = item.correctiveActions.filter(a => a.done).length;
@@ -570,6 +572,7 @@ function SafetyIncidentsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   card: { marginHorizontal: 20, marginTop: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   cardTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },
