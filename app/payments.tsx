@@ -305,17 +305,17 @@ export default function PaymentsScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCards}>
           <View style={[styles.heroCard, { flex: 1.2 }]}>
-            <View style={[styles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
+            <View style={[styles.heroIconWrap, { backgroundColor: themeColors.successSoft }]}>
               <ArrowDownRight size={18} color={Colors.successDark} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.heroValue, { color: Colors.successDark }]}>{formatMoney(stats.received)}</Text>
+            <Text style={[styles.heroValue, { color: themeColors.success }]}>{formatMoney(stats.received)}</Text>
             <Text style={styles.heroLabel}>Received</Text>
           </View>
           <View style={styles.heroCard}>
-            <View style={[styles.heroIconWrap, { backgroundColor: Colors.warningLight }]}>
+            <View style={[styles.heroIconWrap, { backgroundColor: themeColors.warningSoft }]}>
               <Clock size={18} color={Colors.warningDark} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.heroValue, { color: Colors.warningDark }]}>{formatMoney(stats.pending)}</Text>
+            <Text style={[styles.heroValue, { color: themeColors.warningLabel }]}>{formatMoney(stats.pending)}</Text>
             <Text style={styles.heroLabel}>Pending</Text>
           </View>
         </View>
@@ -326,9 +326,9 @@ export default function PaymentsScreen() {
             <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
           </View>
           {stats.failedCount > 0 && (
-            <View style={[styles.feeItem, { backgroundColor: Colors.errorLight }]}>
-              <Text style={[styles.feeItemLabel, { color: Colors.errorDark }]}>Failed</Text>
-              <Text style={[styles.feeItemValue, { color: Colors.errorDark }]}>{stats.failedCount}</Text>
+            <View style={[styles.feeItem, { backgroundColor: themeColors.dangerSoft }]}>
+              <Text style={[styles.feeItemLabel, { color: themeColors.dangerLabel }]}>Failed</Text>
+              <Text style={[styles.feeItemValue, { color: themeColors.dangerLabel }]}>{stats.failedCount}</Text>
             </View>
           )}
         </View>

@@ -54,7 +54,7 @@ function LiveTimeCard({
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const statusColor = entry.status === 'clocked_in' ? '#2E7D32' : entry.status === 'break' ? '#E65100' : themeColors.textMuted;
-  const statusBg = entry.status === 'clocked_in' ? '#E8F5E9' : entry.status === 'break' ? '#FFF3E0' : '#F5F5F5';
+  const statusBg = entry.status === 'clocked_in' ? themeColors.successSoft : entry.status === 'break' ? themeColors.warningSoft : themeColors.surfaceAlt;
   const statusLabel = entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On Break' : 'Clocked Out';
   // Tick every 30s so the threshold pill flips at most ~30s after the
   // worker actually crosses the line. Faster ticks just burn battery
@@ -134,30 +134,30 @@ function LiveTimeCard({
             {entry.status === 'clocked_in' ? (
               <>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: Colors.warningLight }]}
+                  style={[styles.actionBtn, { backgroundColor: themeColors.warningSoft }]}
                   onPress={() => onAction(entry, 'break')}
                   activeOpacity={0.7}
                 >
                   <Coffee size={14} color={Colors.warningDark} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: Colors.warningDark }]}>Break</Text>
+                  <Text style={[styles.actionBtnText, { color: themeColors.warningLabel }]}>Break</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: Colors.errorLight }]}
+                  style={[styles.actionBtn, { backgroundColor: themeColors.dangerSoft }]}
                   onPress={() => onAction(entry, 'clock_out')}
                   activeOpacity={0.7}
                 >
                   <Square size={14} color={Colors.errorDark} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: Colors.errorDark }]}>Clock Out</Text>
+                  <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>Clock Out</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: Colors.successLight }]}
+                style={[styles.actionBtn, { backgroundColor: themeColors.successSoft }]}
                 onPress={() => onAction(entry, 'resume')}
                 activeOpacity={0.7}
               >
                 <Play size={14} color={Colors.successDark} strokeWidth={1.75} />
-                <Text style={[styles.actionBtnText, { color: Colors.successDark }]}>Resume</Text>
+                <Text style={[styles.actionBtnText, { color: themeColors.success }]}>Resume</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -422,7 +422,7 @@ function TimeTrackingScreenInner() {
             <Text style={styles.statLabel}>Hours Today</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? '#FFF3E0' : themeColors.success + '14' }]}>
+            <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? themeColors.warningSoft : themeColors.successSoft }]}>
               {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} strokeWidth={1.75} /> : <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} />}
             </View>
             <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: Colors.warningDark }]}>{todayStats.totalOT.toFixed(1)}</Text>
@@ -988,8 +988,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   historyProject: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
   historyFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   historyDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
-  otBadge: { backgroundColor: Colors.warningLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
-  otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warningDark },
+  otBadge: { backgroundColor: t.warningSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.warningLabel },
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32, gap: 8 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 320 },

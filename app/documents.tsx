@@ -266,19 +266,19 @@ export default function DocumentsScreen() {
         </View>
         <View style={styles.alertsRow}>
           {stats.pending > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: Colors.warningLight, borderColor: '#FFE0B2' }]}>
+            <View style={[styles.alertCard, { backgroundColor: themeColors.warningSoft, borderColor: '#FFE0B2' }]}>
               <PenTool size={16} color={Colors.warningDark} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: Colors.warningDark }]}>{stats.pending} Awaiting Signature</Text>
+                <Text style={[styles.alertTitle, { color: themeColors.warningLabel }]}>{stats.pending} Awaiting Signature</Text>
                 <Text style={styles.alertDesc}>Documents need attention</Text>
               </View>
             </View>
           )}
           {stats.expiringSoon > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: Colors.errorLight, borderColor: '#FFCDD2' }]}>
+            <View style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: '#FFCDD2' }]}>
               <AlertCircle size={16} color={Colors.errorDark} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: Colors.errorDark }]}>{stats.expiringSoon} Expiring Soon</Text>
+                <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>{stats.expiringSoon} Expiring Soon</Text>
                 <Text style={styles.alertDesc}>COIs expiring within 30 days</Text>
               </View>
             </View>
@@ -436,13 +436,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.warningLight,
+    backgroundColor: t.warningSoft,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
     alignSelf: 'flex-start',
   },
-  expiryWarningText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.warningDark },
+  expiryWarningText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: t.warningLabel },
   docFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   docStatusBadge: {
     flexDirection: 'row',
