@@ -154,7 +154,7 @@ export default function ScheduleReviewScreen() {
     setRegenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate);
+      const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate, projects);
       if (fresh.tasks.length === 0) {
         Alert.alert('Couldn\'t regenerate', 'The generator returned no tasks. Your current draft is unchanged.');
         return;
@@ -167,7 +167,7 @@ export default function ScheduleReviewScreen() {
     } finally {
       setRegenerating(false);
     }
-  }, [project, regenerating, tier, router]);
+  }, [project, regenerating, tier, router, projects]);
 
   // Empty state — nothing was stashed (deep link / reload).
   if (!draft) {

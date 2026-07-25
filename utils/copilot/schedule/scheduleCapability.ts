@@ -98,7 +98,10 @@ export const scheduleCapability: CopilotCapability<ScheduleDraft, ScheduleApplie
     if (!project?.linkedEstimate) {
       throw new Error('A linked estimate is required to build a schedule by voice.');
     }
-    const result = await generateScheduleFromEstimate(project, project.linkedEstimate);
+    // ctx.ctx.projects is the shell-injected all-projects array (same source
+    // estimateGrounding reads) — threads the pace book into generation.
+    const allProjects = Array.isArray(ctx.ctx?.projects) ? ctx.ctx.projects : [];
+    const result = await generateScheduleFromEstimate(project, project.linkedEstimate, allProjects);
     // Fold the interview's start date onto the generated draft. NEVER auto-stamp
     // today — only set when the user gave a date (guards the startDate jump bug).
     if (draft.startDate && result.schedule) result.schedule.startDate = draft.startDate;

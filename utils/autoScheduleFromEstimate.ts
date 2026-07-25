@@ -1,6 +1,7 @@
 import { mageAI } from '@/utils/mageAI';
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { autoScheduleSchema, normalizeGeneratedTask, SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
+import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import type { Project, ScheduleTask, ProjectSchedule, DependencyLink, DependencyType, LinkedEstimate } from '@/types';
 
 export interface AutoScheduleResult {
@@ -43,12 +44,24 @@ function buildEstimateSummary(estimate: LinkedEstimate): { summary: string; cate
 export async function generateScheduleFromEstimate(
   project: Project,
   estimate: LinkedEstimate,
+  /** ALL projects — the pace book's evidence base (utils/pace/paceBook.ts).
+   *  Optional so legacy call sites keep working; when present, durations are
+   *  grounded in the contractor's measured per-trade pace. */
+  allProjects?: Project[],
 ): Promise<AutoScheduleResult> {
   if (!estimate || !estimate.items || estimate.items.length === 0) {
     throw new Error('Estimate has no line items to generate a schedule from.');
   }
 
   const { summary, categoryMap } = buildEstimateSummary(estimate);
+
+  // Best-effort pace grounding — a book error must never block generation.
+  let paceBlock = '';
+  try {
+    paceBlock = paceFactsBlock(buildPaceFacts(allProjects ?? []).facts);
+  } catch {
+    // ignore — generate ungrounded
+  }
 
   const prompt = `You are a senior construction scheduler. Build a realistic construction schedule for this project based on its estimate line items. Group tasks into logical phases with dependencies.
 
@@ -62,7 +75,7 @@ Location: ${project.location}
 ESTIMATE LINE-ITEM SUMMARY (by material category):
 ${summary}
 Estimate grand total: $${Math.round(estimate.grandTotal).toLocaleString()}
-
+${paceBlock ? `\n${paceBlock}\n` : ''}
 INSTRUCTIONS:
 1. Return a JSON object with a "tasks" array.
 2. Each task must have: id (string like "t1","t2"), name, phase (one of: ${SCHEDULE_PHASES.join(', ')}), duration (working days, integer), predecessorIds (array of other task ids — FS dependencies), isMilestone (bool), isCriticalPath (bool), crewSize (integer 1-8), wbs (like "1.1","2.3"), rationale (ONE sentence explaining WHY this task is sequenced here and how its duration was derived, e.g. "Framing precedes drywall; 5 days scaled from 1,800 SF at a 4-person crew"), assumption (bool — true if you GUESSED the duration/sequence rather than deriving it from the estimate quantities), linkedCategories (array of estimate category names this task draws from).

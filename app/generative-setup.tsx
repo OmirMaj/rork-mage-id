@@ -68,7 +68,7 @@ function GenerativeSetupInner() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const {
     getProject, getBidPackagesForProject, getSubmittalsForProject,
-    addBidPackage, addSubmittal,
+    addBidPackage, addSubmittal, projects,
   } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -123,7 +123,7 @@ function GenerativeSetupInner() {
           scheduleError = 'AI limit reached';
         } else {
           try {
-            const r = await generateScheduleFromEstimate(project, project.linkedEstimate);
+            const r = await generateScheduleFromEstimate(project, project.linkedEstimate, projects);
             stashDraft(r);
             scheduleCreated = true;
             await recordAIUsage('smart', 'scheduleBuilder');
@@ -138,7 +138,7 @@ function GenerativeSetupInner() {
     } finally {
       setApplying(false);
     }
-  }, [project, plan, includePackages, includeSubmittals, includeSchedule, addBidPackage, addSubmittal, tier, router]);
+  }, [project, plan, includePackages, includeSubmittals, includeSchedule, addBidPackage, addSubmittal, tier, router, projects]);
 
   if (!project) {
     return (
