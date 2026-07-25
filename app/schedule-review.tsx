@@ -28,6 +28,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScheduleTask } from '@/types';
 import { buildPaceBook, lookupPace, suggestDuration } from '@/utils/pace/paceBook';
+import { buildPaceFacts } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { tradeKeyForTask } from '@/utils/scheduleColors';
 import PaceChip from '@/components/schedule/PaceChip';
 
@@ -79,6 +80,16 @@ export default function ScheduleReviewScreen() {
   // the book should stay silent: no/low-confidence history, milestone, or
   // agreement with the AI within a day. Silence, not noise.
   const paceBook = useMemo(() => buildPaceBook(projects), [projects]);
+  // HONEST provenance for the header: the same fact builder that grounded the
+  // generator prompts (paceGrounding). tradeCount > 0 = the draft's durations
+  // were paced from real history; 0 = cold start, say so instead of vanishing.
+  const paceProvenance = useMemo(() => {
+    try {
+      return buildPaceFacts(projects);
+    } catch {
+      return { facts: [], tradeCount: 0 };
+    }
+  }, [projects]);
   // Tasks whose duration was already set from a pace suggestion this session.
   const [pacedIds, setPacedIds] = useState<Set<string>>(() => new Set());
 
@@ -219,6 +230,18 @@ export default function ScheduleReviewScreen() {
           </Text>
         </View>
 
+        {paceProvenance.tradeCount > 0 ? (
+          <View style={styles.pacedChip}>
+            <Text style={styles.pacedChipText}>
+              Paced from your history · {paceProvenance.tradeCount} trade{paceProvenance.tradeCount === 1 ? '' : 's'}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.paceColdStart}>
+            Durations are AI estimates — MAGE learns your real pace as you finish tasks.
+          </Text>
+        )}
+
         {byPhase.map(([phase, phaseTasks]) => {
           return (
             <View key={phase} style={styles.card}>
@@ -321,9 +344,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
 
   summaryRow: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 16,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 8,
   },
   summaryText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
+
+  // Pace-provenance chip — mirrors the estimate wizard's groundedChip
+  // (app/estimate-wizard.tsx:1357) so grounded AI surfaces read the same.
+  pacedChip: {
+    alignSelf: 'flex-start' as const, backgroundColor: t.successSoft, borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 5, marginBottom: 16,
+  },
+  pacedChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.success },
+  paceColdStart: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginBottom: 16 },
 
   card: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.panel,
