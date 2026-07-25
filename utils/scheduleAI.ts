@@ -16,6 +16,7 @@ import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { createId } from '@/utils/scheduleEngine';
 import { paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
+import { stableHash } from '@/utils/stableHash';
 
 // ---------------------------------------------------------------------------
 // Serializer — turns the schedule into a string Gemini can read cheaply.
@@ -517,9 +518,12 @@ ${description}`;
     schemaHint,
     tier: 'smart',
     maxTokens: 3000,
-    // Grounded prompts must not collide with ungrounded cache entries
-    // (mirrors estimate-wizard's `_g${n}` cache-key discipline).
-    cacheKey: `gen-${description.slice(0, 80)}${paceFacts.length > 0 ? `-g${paceFacts.length}` : ''}`,
+    // Grounded prompts must not collide with ungrounded cache entries, and
+    // the salt must be the facts' CONTENT, not the count: buildPaceFacts caps
+    // at 8 facts, so a full pace book pins a count-salt constant while a
+    // trade's actualMean drifts — replaying a stale grounded schedule for
+    // 24h. (Same idiom as hashLeakText / hashDelayText.)
+    cacheKey: `gen-${description.slice(0, 80)}${paceFacts.length > 0 ? `-g${stableHash(paceFacts.join('|'))}` : ''}`,
     cacheHours: 24,
   });
 
@@ -615,14 +619,15 @@ weatherSensitive=true. Use T1, T2… aliases and FS-only dependencies.
 ${paceBlock ? `${paceBlock}\n\n` : ''}${params.projectType ? `Project type: ${params.projectType}.\n` : ''}${params.scopeDescription ? `Scope: ${params.scopeDescription}.\n` : ''}Estimate line items:
 ${itemLines}`;
 
-  const paceCount = params.paceFacts?.length ?? 0;
+  const paceFactsList = params.paceFacts ?? [];
   const res = await mageAI({
     prompt,
     schemaHint,
     tier: 'smart',
     maxTokens: 4000,
-    // Grounded prompts must not collide with ungrounded cache entries.
-    cacheKey: `gen-est-${items.length}-${items.map(i => i.materialId).join('').slice(0, 60)}${paceCount > 0 ? `-g${paceCount}` : ''}`,
+    // Grounded prompts must not collide with ungrounded cache entries; salt
+    // by fact CONTENT, not count (see aiGenerateSchedule above).
+    cacheKey: `gen-est-${items.length}-${items.map(i => i.materialId).join('').slice(0, 60)}${paceFactsList.length > 0 ? `-g${stableHash(paceFactsList.join('|'))}` : ''}`,
     cacheHours: 24,
   });
 

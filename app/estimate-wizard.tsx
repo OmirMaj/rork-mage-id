@@ -36,6 +36,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
+import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import UpgradeSheet from '@/components/UpgradeSheet';
@@ -296,8 +297,10 @@ function EstimateWizardScreenInner() {
     const a = answersOverride ?? answers;
     const prompt = buildEstimatePrompt(a, groundingFacts);
 
-    // Grounded prompts must not collide with ungrounded cache entries.
-    const cacheKey = scopeCacheKey(a) + (groundingFacts.length > 0 ? `_g${groundingFacts.length}` : '');
+    // Grounded prompts must not collide with ungrounded cache entries; salt
+    // by fact CONTENT, not count — the fact list is capped, so a stale count
+    // salt would replay an estimate grounded on an outdated cost book.
+    const cacheKey = scopeCacheKey(a) + (groundingFacts.length > 0 ? `_g${stableHash(groundingFacts.join('|'))}` : '');
 
     try {
       const res = await mageAISmart(prompt, estimateSchema, cacheKey);

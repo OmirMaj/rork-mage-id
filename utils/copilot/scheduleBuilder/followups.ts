@@ -20,6 +20,7 @@
 // downstream answer collection and writeback work without new plumbing.
 
 import { mageAI } from '@/utils/mageAI';
+import { stableHash } from '@/utils/stableHash';
 import type { QuestionSpec, ScheduleBuilderAnswers } from './questions';
 import { ALLOWED_FOLLOWUP_FIELDS } from './followupsValidator';
 
@@ -89,7 +90,10 @@ export async function generateFollowups(
     return { followups: [], thinReason: 'scope_too_thin' };
   }
 
-  const cacheKey = `sb_followups_${trimmedScope.slice(0, 80).replace(/\s+/g, '_')}`;
+  // Key on the FULL scope + knownRisks content (both are in the prompt): an
+  // 80-char prefix collides for long scopes sharing an opening, and omitting
+  // knownRisks replayed follow-ups generated without them for 24h.
+  const cacheKey = `sb_followups_${stableHash(`${trimmedScope}\n${knownRisks ?? ''}`)}`;
 
   try {
     const res = await mageAI({

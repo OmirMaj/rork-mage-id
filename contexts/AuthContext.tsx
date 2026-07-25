@@ -66,6 +66,22 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
   } catch (err) {
     console.log('[Auth] Failed to clear local data cache:', err);
   }
+  // AI result caches — grounded outputs derived from THIS user's bid
+  // history / cost book / pace facts / profile:
+  //   `mageid_ai_cache_*` (utils/aiService.ts AI_CACHE_PREFIX, e.g.
+  //   bidscore_<id>_…) and `mage_ai_cache_*` (utils/mageAI.ts CACHE_PREFIX,
+  //   e.g. gen-…, sb_followups_…). They're dynamic-suffix keys, so they
+  //   can't live in the static list above; sweep by prefix or a signed-out
+  //   user's grounded results replay for the next tenant on a shared device.
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const aiCacheKeys = allKeys.filter(
+      k => k.startsWith('mageid_ai_cache_') || k.startsWith('mage_ai_cache_'),
+    );
+    if (aiCacheKeys.length > 0) await AsyncStorage.multiRemove(aiCacheKeys);
+  } catch (err) {
+    console.log('[Auth] Failed to clear AI result cache:', err);
+  }
 }
 
 // Google OAuth web client ID — same one referenced in the native flow
