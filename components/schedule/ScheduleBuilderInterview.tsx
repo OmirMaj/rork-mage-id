@@ -21,6 +21,7 @@ import { stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { visibleQuestions, defaultAnswers, type ScheduleBuilderAnswers, type QuestionSpec } from '@/utils/copilot/scheduleBuilder/questions';
 import { generateScheduleFromAnswers } from '@/utils/copilot/scheduleBuilder/generateScheduleFromAnswers';
 import { generateFollowups } from '@/utils/copilot/scheduleBuilder/followups';
+import { coerceFollowupAnswer } from '@/utils/copilot/scheduleBuilder/followupsValidator';
 
 const SKIP = Symbol('skip');
 
@@ -51,18 +52,44 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const anim = useRef(new Animated.Value(1)).current;
+  // Thin-scope gate bookkeeping: the gate blocks the advance ONCE (jumping
+  // back to the scope question with the previous answer prefilled); a second
+  // "Build my schedule" with a still-thin scope proceeds — non-blocking by
+  // design, mirroring stepBlockReason's one-shot behavior.
+  const thinHintShownRef = useRef(false);
+  const resumeIdxRef = useRef<number | null>(null);
+  const prefillEntryRef = useRef<string | null>(null);
   const q: QuestionSpec | undefined = questions[idx];
 
   useEffect(() => {
-    setEntry('');
+    setEntry(prefillEntryRef.current ?? '');
+    prefillEntryRef.current = null;
     anim.setValue(0);
     Animated.timing(anim, { toValue: 1, duration: 320, useNativeDriver: true }).start();
   }, [idx, anim]);
 
   const advance = useCallback(async (value: unknown) => {
     if (!q) return;
-    const nextAnswers = value === SKIP ? answers : { ...answers, [q.field]: value };
-    if (value !== SKIP) setAnswers(nextAnswers);
+    // Dynamic follow-up answers arrive as raw strings (text) or AI-supplied
+    // choice values — coerce them to the field's canonical type before they
+    // enter `answers` (e.g. "6 days" → 6, "Yes, occupied" → 'occupied').
+    // Un-canonicalizable answers degrade to SKIP so garbage never corrupts a
+    // typed field. Static questions are already typed by their specs.
+    let v = value;
+    if (v !== SKIP && idx >= staticQuestions.length) {
+      const coerced = coerceFollowupAnswer(q.field, v);
+      v = coerced.ok ? coerced.value : SKIP;
+    }
+    const nextAnswers = v === SKIP ? answers : { ...answers, [q.field]: v };
+    if (v !== SKIP) setAnswers(nextAnswers);
+
+    // Returning from a thin-scope jump-back: go straight back to the card the
+    // gate interrupted instead of re-walking the whole interview.
+    if (resumeIdxRef.current != null) {
+      const resume = resumeIdxRef.current;
+      resumeIdxRef.current = null;
+      if (idx < resume) { setIdx(resume); return; }
+    }
 
     // After the LAST static question, fire a fast follow-up generation call
     // before proceeding to build. Degrade silently — never block on failure.
@@ -76,9 +103,21 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
           scopeText,
           nextAnswers.knownRisks ?? null,
         );
-        if (thinReason === 'scope_too_thin') {
-          setThinScopeHint("Tell me the rooms and trades — one word isn't enough to schedule from.");
-          // Don't block: keep follow-ups empty, proceed to generate after hint clears
+        if (thinReason === 'scope_too_thin' && !thinHintShownRef.current) {
+          const scopeIdx = staticQuestions.findIndex(sq => sq.field === 'scope');
+          if (scopeIdx >= 0) {
+            // BLOCK this advance (one-shot): stay in 'ask', jump back to the
+            // scope question with the thin answer prefilled so the user can
+            // enrich it, and remember where to resume afterwards.
+            thinHintShownRef.current = true;
+            setThinScopeHint("Tell me the rooms and trades — one word isn't enough to schedule from.");
+            resumeIdxRef.current = idx;
+            prefillEntryRef.current = scopeText;
+            setIdx(scopeIdx);
+            return;
+          }
+          // Scope question isn't part of this interview (seeded from the
+          // project) — nothing for the user to edit; fall through to generate.
         }
         if (followups.length > 0) {
           setDynamicFollowups(followups);
@@ -132,7 +171,7 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
       setErrMsg((e as Error).message ?? 'Could not build the schedule.');
       setPhase('error');
     }
-  }, [q, answers, idx, questions.length, staticQuestions.length, dynamicFollowups.length, project, projectId, router, projects, updateProject, getRFIsForProject, getDailyReportsForProject]);
+  }, [q, answers, idx, questions.length, staticQuestions, dynamicFollowups.length, project, projectId, router, projects, updateProject, getRFIsForProject, getDailyReportsForProject]);
 
   const submitEntry = useCallback(() => {
     if (!q) return;

@@ -22,7 +22,7 @@
 import { mageAI } from '@/utils/mageAI';
 import { stableHash } from '@/utils/stableHash';
 import type { QuestionSpec, ScheduleBuilderAnswers } from './questions';
-import { ALLOWED_FOLLOWUP_FIELDS } from './followupsValidator';
+import { ALLOWED_FOLLOWUP_FIELDS, coerceFollowupAnswer } from './followupsValidator';
 
 // Minimum scope length (chars) before we bother hitting the AI.
 const MIN_SCOPE_LENGTH = 15;
@@ -130,11 +130,16 @@ export async function generateFollowups(
         ...(kind === 'text' && item.placeholder ? { placeholder: item.placeholder } : {}),
         ...(kind === 'choice' && Array.isArray(item.choices) && item.choices.length >= 2
           ? {
-              choices: item.choices.slice(0, 3).map((c: any, i: number) => ({
-                label: typeof c.label === 'string' ? c.label : String(c),
-                value: c.value ?? c.label ?? c,
-                recommended: i === 0,
-              })),
+              choices: item.choices.slice(0, 3).map((c: any, i: number) => {
+                const label = typeof c.label === 'string' ? c.label : String(c);
+                const rawValue = c.value ?? c.label ?? c;
+                // Canonicalize enum/number values up front (label "Owners
+                // staying" on field occupancy → 'occupied') so a choice tap
+                // stores the TYPED value, not the AI's display string. The
+                // interview applies the same coercion as a backstop.
+                const coerced = coerceFollowupAnswer(field, rawValue);
+                return { label, value: coerced.ok ? coerced.value : rawValue, recommended: i === 0 };
+              }),
             }
           : kind === 'choice'
           ? undefined
