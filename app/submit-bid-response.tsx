@@ -30,6 +30,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
 import { generateInstantBid, recommendedTierOf } from '@/utils/instantBid';
+import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import type { TieredProposal, ProposalTierKey } from '@/types';
@@ -270,8 +271,9 @@ export default function SubmitBidResponseScreen() {
       // submitted on flaky jobsite connectivity is retried on reconnect
       // rather than silently lost — matching the rest of the app. An
       // explicit id keeps the queued write idempotent.
+      const responseId = generateUUID();
       const ok = await supabaseWrite('bid_responses', 'insert', {
-        id: generateUUID(),
+        id: responseId,
         bid_id: bidId,
         user_id: user.id,
         proposer_company_id: company?.id ?? null,
@@ -305,6 +307,22 @@ export default function SubmitBidResponseScreen() {
       }
       await bumpBidResponsesThisMonth(user.id);
       setUsedThisMonth(n => n + 1);
+
+      // G4: fire-and-forget capture — only when bid confirmed (ok=true)
+      if (proposal) {
+        try {
+          recordPrediction(
+            'instant_bid_sent',
+            responseId,
+            {
+              responseId,
+              basis: proposal.basis,
+              groundingRateCount: proposal.groundingRateCount ?? 0,
+              tierAmounts: proposal.tiers.map(t => ({ key: t.key, amount: t.amount })),
+            },
+          );
+        } catch { /* G4 */ }
+      }
 
       // Auto-create a CRM lead so the contractor's pipeline + speed-to-lead
       // metrics reflect marketplace activity. firstRespondedAt = now because

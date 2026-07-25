@@ -20,6 +20,7 @@ import {
   bidHistoryFacts, outboundBidRecordsFromResponses, type BidHistoryFacts,
 } from '@/utils/bidHistoryFacts';
 import { stableHash } from '@/utils/stableHash';
+import { recordPrediction } from '@/utils/brain/predictionLedger';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
@@ -161,6 +162,20 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
       const result = await scoreBid(bid, profile, histFacts);
       await setCachedResult(cacheKey, result);
       setScore(result);
+      // G4: fire-and-forget capture — only on fresh compute (cache-miss path)
+      // Cache-hit renders never re-record; grading dedupes by subject_id anyway.
+      try {
+        recordPrediction(
+          'bid_score',
+          bid.id,
+          {
+            bidId: bid.id,
+            matchScore: result.matchScore,
+            estimatedWinProbability: result.estimatedWinProbability,
+            decidedCount: histFacts.decidedCount,
+          },
+        );
+      } catch { /* G4 */ }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
       setError(err?.message || 'Failed to score bid');
