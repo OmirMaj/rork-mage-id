@@ -1,4 +1,5 @@
 import type { ProjectDocument } from '@/types';
+import { getColorTheme, type ThemeColors } from '@/constants/colors';
 
 export const MOCK_DOCUMENTS: ProjectDocument[] = [
   {
@@ -85,12 +86,21 @@ export const MOCK_DOCUMENTS: ProjectDocument[] = [
   },
 ];
 
-export const DOCUMENT_TYPE_INFO: Record<string, { label: string; color: string; bgColor: string }> = {
-  lien_waiver: { label: 'Lien Waiver', color: '#E65100', bgColor: '#FFF3E0' },
-  coi: { label: 'COI', color: '#1565C0', bgColor: '#E3F2FD' },
-  contract: { label: 'Contract', color: '#2E7D32', bgColor: '#E8F5E9' },
-  proposal: { label: 'Proposal', color: '#6A1B9A', bgColor: '#F3E5F5' },
-  aia_billing: { label: 'AIA Billing', color: '#AD1457', bgColor: '#FCE4EC' },
-  permit: { label: 'Permit', color: '#00695C', bgColor: '#E0F2F1' },
-  other: { label: 'Other', color: '#546E7A', bgColor: '#ECEFF1' },
+// Themed document-type chip styling — a FUNCTION of the palette (not a module
+// static) so the chip fills flip with the theme instead of staying bright
+// light-theme pastels on dark cards. Semantic hues map to palette tokens;
+// hues WITHOUT tokens (purple / pink / teal) branch on the resolved scheme
+// via getColorTheme() (light label + alpha tint in dark, dark label + pale
+// tint in light).
+export const documentTypeInfo = (t: ThemeColors): Record<string, { label: string; color: string; bgColor: string }> => {
+  const dark = getColorTheme() === 'dark';
+  return {
+    lien_waiver: { label: 'Lien Waiver', color: t.warningLabel, bgColor: t.warningSoft },
+    coi: { label: 'COI', color: t.info, bgColor: t.info + '1F' },
+    contract: { label: 'Contract', color: t.success, bgColor: t.successSoft },
+    proposal: { label: 'Proposal', color: dark ? '#CE93D8' : '#6A1B9A', bgColor: dark ? 'rgba(206,147,216,0.16)' : 'rgba(106,27,154,0.10)' },
+    aia_billing: { label: 'AIA Billing', color: dark ? '#F48FB1' : '#AD1457', bgColor: dark ? 'rgba(244,143,177,0.16)' : 'rgba(173,20,87,0.10)' },
+    permit: { label: 'Permit', color: dark ? '#4DB6AC' : '#00695C', bgColor: dark ? 'rgba(77,182,172,0.16)' : 'rgba(0,105,92,0.10)' },
+    other: { label: 'Other', color: t.textSecondary, bgColor: t.surfaceAlt },
+  };
 };

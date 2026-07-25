@@ -232,6 +232,10 @@ export type ThemeColors = {
   accentLabel: string;
   success: string;
   successSoft: string;
+  warningSoft: string;
+  warningLabel: string;
+  dangerSoft: string;
+  dangerLabel: string;
   danger: string;
   info: string;
 };
@@ -251,6 +255,16 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accentLabel: '#C44A0F',
     success: '#2E7D44',
     successSoft: 'rgba(46,125,68,0.12)',
+    warningSoft: 'rgba(255,149,0,0.12)',
+    // Label tokens are applied at caption sizes, so they must clear AA 4.5:1
+    // on both the page bg and their soft fill. The old #E65100 sat at ~3.4:1
+    // on warningSoft-over-white; #B84A00 is ~4.8:1 there (and ~5.2:1 on
+    // white) while staying recognizably amber.
+    warningLabel: '#B84A00',
+    dangerSoft: 'rgba(200,64,56,0.12)',
+    // Darker than `danger` (#C84038, ~4.3:1 — borderline at caption sizes):
+    // #B93A32 is ~4.8:1 on dangerSoft-over-white, ~5.7:1 on white.
+    dangerLabel: '#B93A32',
     danger: '#C84038',
     info: '#1565C0',
   },
@@ -268,6 +282,10 @@ export const Theme: { light: ThemeColors; dark: ThemeColors } = {
     accentLabel: '#FF6A1A',
     success: '#4ED37A',
     successSoft: 'rgba(78,211,122,0.12)',
+    warningSoft: 'rgba(255,149,0,0.16)',
+    warningLabel: '#FF9500',
+    dangerSoft: 'rgba(255,90,81,0.16)',
+    dangerLabel: '#FF5A51',
     danger: '#FF5A51',
     info: '#4EA7FF',
   },

@@ -12,10 +12,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import {
-  scoreBid, getCompanyProfile, saveCompanyProfile, getCachedResult, setCachedResult,
-  type CompanyAIProfile, type BidScoreResult,
-} from '@/utils/aiService';
+import { saveCompanyProfile, type CompanyAIProfile } from '@/utils/aiService';
 
 const SPECIALTIES = ['Residential', 'Commercial', 'Industrial', 'Government', 'Renovation', 'New Construction'];
 const TRADES = ['General', 'Electrical', 'Plumbing', 'HVAC', 'Roofing', 'Concrete', 'Framing', 'Painting', 'Drywall', 'Flooring', 'Landscaping'];
@@ -175,23 +172,8 @@ const setupStyles = StyleSheet.create({
   saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.surface },
 });
 
-export async function getBidScore(bidId: string, bid: {
-  title: string; department: string; estimated_value: number;
-  naics_code?: string; set_aside?: string | null; state?: string; description?: string;
-}): Promise<BidScoreResult | null> {
-  const cacheKey = `bidscore_${bidId}`;
-  const cached = await getCachedResult<BidScoreResult>(cacheKey, 24 * 60 * 60 * 1000);
-  if (cached) return cached;
-
-  const profile = await getCompanyProfile();
-  if (!profile || profile.specialties.length === 0) return null;
-
-  try {
-    const result = await scoreBid(bid, profile);
-    await setCachedResult(cacheKey, result);
-    return result;
-  } catch (err) {
-    console.error('[AI Bid] Score failed:', err);
-    return null;
-  }
-}
+// NOTE: an uncalled getBidScore(bidId, bid) helper used to live here. It
+// wrote the same `bidscore_` cache namespace as AIBidScorecard WITHOUT the
+// facts/profile salt (any future caller would silently poison the grounded
+// cache) and scored without bid-history facts. Deleted — score through
+// AIBidScorecard, which owns the salted cache key.

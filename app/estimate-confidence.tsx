@@ -19,6 +19,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useEstimateCalibration } from '@/hooks/useEstimateCalibration';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -69,15 +70,16 @@ function EstimateConfidenceInner() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, commitments, updateProject } = useProjects();
+  const { receipts } = useMaterialReceipts();
   const { corrections } = useEstimateCalibration();
 
   const project = useMemo(() => projects.find(p => p.id === projectId), [projects, projectId]);
 
   const report = useMemo(() => {
     if (!project) return null;
-    const db = buildCostDatabase(projects, commitments);
+    const db = buildCostDatabase(projects, commitments, receipts);
     return computeEstimateConfidence(project, db);
-  }, [project, projects, commitments]);
+  }, [project, projects, commitments, receipts]);
 
   // The payoff of the cost-learning moat: preview what applying the GC's saved
   // per-category corrections would do to THIS estimate. Only offered when a

@@ -29,7 +29,10 @@ import { generateUUID } from '@/utils/generateId';
 import { scheduleLocalNotificationAt, cancelScheduledNotification } from '@/utils/notifications';
 import type { TimeEntry, TimeEntryStatus } from '@/types';
 
-const STORAGE_KEY = 'mageid_time_entries';
+/** Exported for the read-only labor-samples bridge (hooks/useLaborRates.ts
+ *  useLaborCostSamples) so the mirror key never drifts between the two. */
+export const TIME_ENTRIES_STORAGE_KEY = 'mageid_time_entries';
+const STORAGE_KEY = TIME_ENTRIES_STORAGE_KEY;
 const SHIFT_ALERT_HOURS_KEY = 'mageid_shift_alert_hours';
 const DEFAULT_SHIFT_ALERT_HOURS = 8;
 const SHIFT_ALERT_NOTIF_PREFIX = 'shift-alert:';

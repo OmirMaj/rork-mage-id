@@ -58,6 +58,8 @@ interface Props {
   globalMarkup: number;
   location: string;
   calculateAssemblyCost: (assembly: AssemblyItem, qty: number) => { materialsCost: number; laborCost: number; totalCost: number };
+  groundingFacts?: string[];
+  learnedRateCount?: number;
 }
 
 const QUALITY_TIERS: { id: QualityTier; label: string; desc: string }[] = [
@@ -80,6 +82,7 @@ const QUICK_PROMPTS = [
 
 export default React.memo(function AIQuickEstimate({
   visible, onClose, onApplyEstimate, existingMaterials, globalMarkup, location, calculateAssemblyCost,
+  groundingFacts, learnedRateCount,
 }: Props) {
   const { tier } = useSubscription();
   const router = useRouter();
@@ -168,6 +171,7 @@ export default React.memo(function AIQuickEstimate({
         parseInt(sqft, 10) || 0,
         quality,
         location,
+        groundingFacts,
       );
       // Set the result FIRST so the UI transitions out of the loading
       // screen immediately. recordAIUsage is best-effort AsyncStorage
@@ -191,7 +195,7 @@ export default React.memo(function AIQuickEstimate({
       setStep('input');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [description, projectType, sqft, quality, location, tier]);
+  }, [description, projectType, sqft, quality, location, tier, groundingFacts]);
 
   const matchMaterial = useCallback((aiMat: { name: string; category: string; unit: string; unitPrice: number; supplier: string }) => {
     const nameLower = aiMat.name.toLowerCase();
@@ -496,6 +500,15 @@ export default React.memo(function AIQuickEstimate({
             <View style={[s.confidenceBadge, { backgroundColor: confidenceColor + '15' }]}>
               <Text style={[s.confidenceText, { color: confidenceColor }]}>{result.confidenceScore}% confidence</Text>
             </View>
+          </View>
+
+          {/* Honesty chip — tells user whether this estimate used their real cost history */}
+          <View style={s.groundingChip}>
+            <Text style={s.groundingChipText}>
+              {(learnedRateCount ?? 0) > 0
+                ? `Priced with your cost history · ${learnedRateCount} learned rate${learnedRateCount === 1 ? '' : 's'}`
+                : 'Priced from market averages — close jobs to teach MAGE your real costs'}
+            </Text>
           </View>
 
           <View style={s.totalCard}>
@@ -1328,5 +1341,20 @@ const s = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
+  },
+  groundingChip: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.successLight ?? '#E8FAF0',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  groundingChipText: {
+    fontSize: 12,
+    color: Colors.success,
+    fontWeight: '500' as const,
+    textAlign: 'center',
   },
 });

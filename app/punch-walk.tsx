@@ -231,12 +231,18 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   }, [project]);
 
   const handleCamera = useCallback(async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Camera access needed', 'Grant camera permission in Settings to attach punch photos.');
-      return;
+    let result: ImagePicker.ImagePickerResult;
+    if (Platform.OS === 'web') {
+      // Camera capture is not supported on web — use image library instead.
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: false });
+    } else {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Camera access needed', 'Grant camera permission in Settings to attach punch photos.');
+        return;
+      }
+      result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
     if (!result.canceled && result.assets[0]) {
       // Geo-stamp runs in parallel with the camera dismiss animation; its
       // own 3s timeout means a missing GPS fix never blocks the next punch.

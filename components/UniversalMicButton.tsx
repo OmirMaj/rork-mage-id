@@ -73,6 +73,8 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
   const [error, setError] = useState<string | null>(null);
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(projectId);
   const [upgradeLimit, setUpgradeLimit] = useState<LimitCheck | null>(null);
+  // Holds the original transcript so we can re-parse with a clarify answer appended.
+  const lastTranscriptRef = useRef<string>('');
 
   const projectsList = ctx?.projects ?? [];
 
@@ -143,6 +145,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
     void markFirstVoiceUsed();
     setStep('parsing');
     setError(null);
+    lastTranscriptRef.current = transcript;
     try {
       const result = await parseVoiceAction({ transcript, project });
       setParsed(result);
@@ -799,9 +802,39 @@ export default function UniversalMicButton({ projectId, variant = 'fab', hideFab
 
                   {parsed.kind === 'unsure' && (
                     <View style={styles.previewBody}>
-                      <Text style={styles.unsureText}>
-                        Not enough detail to know what you want. Tap &quot;Try again&quot; and start with words like &quot;submit an RFI to…&quot;, &quot;create a change order for…&quot;, or &quot;note:…&quot;.
-                      </Text>
+                      {parsed.clarifyQuestion ? (
+                        <>
+                          <Text style={styles.unsureText}>{parsed.clarifyQuestion}</Text>
+                          <View style={styles.clarifyChipRow}>
+                            {/* A few common one-word answers as quick-tap chips */}
+                            {['Invoice', 'Change order', 'Note', 'RFI'].map(answer => (
+                              <TouchableOpacity
+                                key={answer}
+                                style={styles.clarifyChip}
+                                onPress={async () => {
+                                  const combined = `${lastTranscriptRef.current} — ${answer}`;
+                                  setStep('parsing');
+                                  setError(null);
+                                  try {
+                                    const result = await parseVoiceAction({ transcript: combined, project });
+                                    setParsed(result);
+                                    setStep('reviewing');
+                                  } catch {
+                                    setError('Could not re-parse — try again.');
+                                    setStep('reviewing');
+                                  }
+                                }}
+                              >
+                                <Text style={styles.clarifyChipText}>{answer}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </>
+                      ) : (
+                        <Text style={styles.unsureText}>
+                          Not enough detail to know what you want. Tap &quot;Try again&quot; and start with words like &quot;submit an RFI to…&quot;, &quot;create a change order for…&quot;, or &quot;note:…&quot;.
+                        </Text>
+                      )}
                     </View>
                   )}
                 </View>
@@ -933,6 +966,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   previewMetaRow: { flexDirection: 'row', gap: 12 },
   previewNote: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontStyle: 'italic' },
   unsureText: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
+  clarifyChipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 8 },
+  clarifyChip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: `${t.accent}12`, borderWidth: 1, borderColor: `${t.accent}30`,
+  },
+  clarifyChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
 
   field: { marginBottom: 4 },
   fieldSmall: { flex: 1 },

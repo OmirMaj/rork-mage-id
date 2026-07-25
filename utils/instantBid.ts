@@ -11,11 +11,16 @@
 
 import { mageAI } from '@/utils/mageAI';
 import { illustrativeMonthly } from '@/utils/financing';
+import { buildCostDatabase, type CostSample } from '@/utils/costDatabase';
+import { computeCalibration } from '@/utils/estimateCalibration';
 import type {
   FinancingConfig,
   ProposalTier,
   ProposalTierKey,
   TieredProposal,
+  Project,
+  Commitment,
+  MaterialReceipt,
 } from '@/types';
 
 /** Build the illustrative "as low as $X/mo" line for a tier amount, or null
@@ -43,6 +48,21 @@ export interface InstantBidOptions {
   financing?: FinancingConfig;
   /** Free-text the contractor typed before generating, woven into the pitch. */
   contractorNote?: string;
+  /**
+   * Closed-jobs data used to ground the ROM on the contractor's own cost
+   * history. When present, aiMidpoint injects learned-rate facts into the
+   * prompt rather than letting the model guess from national averages.
+   * Omit on callers that don't have project context (the ROM degrades
+   * gracefully to budget-hint or ai_guess basis).
+   */
+  groundingContext?: {
+    projects: Project[];
+    commitments: Commitment[];
+    receipts?: MaterialReceipt[];
+    /** Self-perform labor samples (utils/laborSamples.ts) — crew hours at
+     *  the GC's configured loaded rates. Optional cost-book input. */
+    laborSamples?: CostSample[];
+  };
 }
 
 const TIER_META: Record<ProposalTierKey, { label: string; tagline: string; mult: number }> = {
@@ -124,25 +144,105 @@ function resultText(r: { success: boolean; data: unknown; raw?: string }): strin
   return null;
 }
 
+/**
+ * Build cost-book grounding facts for the ROM prompt, mirroring the
+ * try/catch-additive shape of utils/copilot/estimate/estimateGrounding.ts.
+ * Returns { facts, rateCount } — rateCount=0 means no data.
+ */
+function buildInstantBidGrounding(
+  opts: Pick<InstantBidOptions, 'groundingContext'>,
+  rfp: InstantBidRfp,
+): { facts: string[]; rateCount: number } {
+  const facts: string[] = [];
+  let rateCount = 0;
+  if (!opts.groundingContext) return { facts, rateCount };
+  const { projects, commitments, receipts, laborSamples } = opts.groundingContext;
+  try {
+    const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
+    // Pull the most-relevant entries (high-confidence first, up to 4 facts).
+    const sorted = [...db.entries].sort((a, b) => {
+      const rankConf = (e: typeof a) => e.confidence === 'high' ? 2 : e.confidence === 'medium' ? 1 : 0;
+      return rankConf(b) - rankConf(a) || b.totalActual - a.totalActual;
+    });
+    for (const e of sorted.slice(0, 4)) {
+      const biasNote = Math.abs(e.bidBias) > 0.05
+        ? ` (you run ${e.bidBias > 0 ? '+' : ''}${(e.bidBias * 100).toFixed(0)}% vs your bid)`
+        : '';
+        facts.push(
+          `${e.trade}: $${e.suggestedRate.toFixed(2)}/${e.unit} from your ${e.jobCount} job${e.jobCount === 1 ? '' : 's'}${biasNote}.`,
+        );
+      rateCount++;
+    }
+
+    // Add a per-sqft benchmark if we have closed jobs of the same projectType.
+    const sameType = projects.filter(
+      p =>
+        (p.status === 'completed' || p.status === 'closed') &&
+        rfp.projectType &&
+        p.type === rfp.projectType &&
+        p.squareFootage > 0 &&
+        (p.linkedEstimate?.items?.length ?? 0) > 0,
+    );
+    if (sameType.length >= 2) {
+      const perSqfts = sameType.map(p => {
+        const total = (p.linkedEstimate?.items ?? []).reduce(
+          (s: number, i) => s + ((i as { lineTotal?: number }).lineTotal ?? 0),
+          0,
+        );
+        return total / p.squareFootage;
+      }).filter((n: number) => n > 0);
+      if (perSqfts.length >= 2) {
+        const avg = perSqfts.reduce((a, b) => a + b, 0) / perSqfts.length;
+        facts.push(
+          `Your ${sameType.length} similar ${rfp.projectType} jobs averaged $${Math.round(avg)}/sqft.`,
+        );
+        rateCount++;
+      }
+    }
+
+    // Surface calibration bias if meaningful.
+    try {
+      const cal = computeCalibration({ projects, commitments });
+      if (cal.hasData && cal.categories[0]?.direction !== 'aligned') {
+        facts.push(cal.categories[0].detail);
+      }
+    } catch { /* ignore — calibration is additive */ }
+  } catch {
+    // ignore — grounding is additive, never blocks generation
+  }
+  return { facts, rateCount };
+}
+
 /** Ask the AI for a rough order-of-magnitude midpoint. Returns null on any
  *  failure so the caller falls back to budget/heuristic. */
-async function aiMidpoint(rfp: InstantBidRfp): Promise<number | null> {
+async function aiMidpoint(
+  rfp: InstantBidRfp,
+  opts: Pick<InstantBidOptions, 'groundingContext'>,
+): Promise<{ value: number | null; rateCount: number }> {
+  const { facts, rateCount } = buildInstantBidGrounding(opts, rfp);
+
+  const groundingSection =
+    facts.length > 0
+      ? `\n\nLEARNED RATES FROM THIS CONTRACTOR'S CLOSED JOBS:\n${facts.map(f => `• ${f}`).join('\n')}\nAnchor the ROM on these learned rates when the scope overlaps. When a rate covers a line item, use it.`
+      : '';
+
   const prompt =
     'You are a residential construction estimator. Reply with ONLY a single US-dollar ' +
     'rough order-of-magnitude total cost as a plain integer (no words, no currency symbol, ' +
-    'no range). If unsure, give your best single-number guess.\n\n' +
+    'no range).' +
+    groundingSection + '\n\n' +
     `Project: ${rfp.projectType || rfp.title}. ` +
     `Location: ${[rfp.city, rfp.state].filter(Boolean).join(', ') || 'US'}. ` +
     `Scope: ${rfp.scopeDescription || rfp.title}. ` +
-    `${rfp.budgetMin || rfp.budgetMax ? `Homeowner budget hint: ${rfp.budgetMin ?? '?'}-${rfp.budgetMax ?? '?'}. ` : ''}` +
+    `${rfp.budgetMin || rfp.budgetMax ? `Homeowner budget hint: $${rfp.budgetMin ?? '?'}–$${rfp.budgetMax ?? '?'}. ` : ''}` +
     'Give one integer dollar total.';
   try {
     const r = await mageAI({ prompt, tier: 'fast', maxTokens: 24 });
     const text = resultText(r);
-    return text ? firstNumber(text) : null;
+    return { value: text ? firstNumber(text) : null, rateCount };
   } catch (e) {
     console.warn('[instantBid] aiMidpoint failed', e);
-    return null;
+    return { value: null, rateCount };
   }
 }
 
@@ -180,22 +280,33 @@ export async function generateInstantBid(
       ? (rfp.budgetMin + rfp.budgetMax) / 2
       : rfp.budgetMax ?? rfp.budgetMin ?? 0;
 
-  // Establish the recommended midpoint. Prefer the AI ROM; blend toward the
-  // homeowner's stated budget when both exist so we never ignore their number.
-  const aiMid = await aiMidpoint(rfp);
+  // Establish the recommended midpoint. Prefer the grounded AI ROM; blend
+  // toward the homeowner's stated budget when both exist so we never ignore
+  // their number.
+  const { value: aiMid, rateCount } = await aiMidpoint(rfp, opts);
   let midUsd: number;
   let source: 'ai' | 'heuristic';
+  let basis: TieredProposal['basis'];
+
   if (aiMid && aiMid > 0) {
-    midUsd = budgetMid > 0 ? aiMid * 0.5 + budgetMid * 0.5 : aiMid;
+    if (budgetMid > 0) {
+      midUsd = aiMid * 0.5 + budgetMid * 0.5;
+      basis = 'budget'; // blended — budget was the anchor
+    } else {
+      midUsd = aiMid;
+      basis = rateCount > 0 ? 'history' : 'ai_guess';
+    }
     source = 'ai';
   } else {
     midUsd = budgetMid > 0 ? budgetMid : 15_000;
     source = 'heuristic';
+    basis = budgetMid > 0 ? 'budget' : 'ai_guess';
   }
 
   const assumptions = [
     'Rough order-of-magnitude based on the scope provided — final price set after a site visit.',
     budgetMid > 0 ? 'Blended toward the budget range you posted.' : 'No budget range posted; numbers are indicative.',
+    ...(rateCount > 0 ? [`Anchored on ${rateCount} learned rate${rateCount === 1 ? '' : 's'} from your closed jobs.`] : []),
   ];
 
   const scopeBullets = scopeToBullets(rfp.scopeDescription);
@@ -213,6 +324,8 @@ export async function generateInstantBid(
     message,
     assumptions,
     source: drafted ? source : 'heuristic',
+    basis,
+    groundingRateCount: rateCount > 0 ? rateCount : undefined,
     generatedAt: new Date().toISOString(),
   };
 }

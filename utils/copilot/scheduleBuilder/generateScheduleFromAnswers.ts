@@ -7,17 +7,53 @@ import { mageAI } from '@/utils/mageAI';
 import { createId, buildScheduleFromTasks } from '@/utils/scheduleEngine';
 import { autoScheduleSchema, normalizeGeneratedTask, SCHEDULE_PHASES } from '@/utils/scheduleGenSchema';
 import type { AutoScheduleResult } from '@/utils/autoScheduleFromEstimate';
-import type { Project, ScheduleTask, ProjectSchedule, DependencyType } from '@/types';
+import type { Project, ScheduleTask, ProjectSchedule, DependencyType, RFI, DailyFieldReport } from '@/types';
 import type { ScheduleBuilderAnswers } from './questions';
 import { buildAnswersPrompt } from './buildAnswersPrompt';
+import { buildPaceFacts } from './paceGrounding';
+import { computeRFILatency } from '@/utils/rfiLatency';
+import { computeWeatherHistory, weatherHistoryFactLine } from '@/utils/weatherHistory';
 
 const WEATHER_PHASES = ['Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing', 'Landscaping'];
 
 export async function generateScheduleFromAnswers(
   project: Project,
   answers: ScheduleBuilderAnswers,
+  /** ALL projects — the pace book's evidence base. Optional (best-effort
+   *  grounding): without it durations fall back to AI judgment. */
+  allProjects?: Project[],
+  /** THIS project's RFIs — grounds an "RFI LATENCY" fact so the model
+   *  buffers approval-dependent tasks for slow design-team responders. */
+  projectRFIs?: RFI[],
+  /** THIS project's daily reports — grounds the WEATHER line in the
+   *  contractor's real historical weather-lost days on this site. */
+  projectReports?: DailyFieldReport[],
 ): Promise<AutoScheduleResult> {
-  const prompt = buildAnswersPrompt(answers, project, SCHEDULE_PHASES as unknown as string[]);
+  // Pace grounding is additive, never blocking — a book error must not stop
+  // the builder (same contract as buildEstimateGrounding).
+  let paceFacts: string[] = [];
+  try {
+    paceFacts = buildPaceFacts(allProjects ?? []).facts;
+  } catch {
+    // ignore — generate ungrounded
+  }
+  // RFI-latency + weather-history facts (E4): same additive contract.
+  let rfiFactLine: string | null = null;
+  try {
+    if (projectRFIs?.length) rfiFactLine = computeRFILatency(projectRFIs).factLine;
+  } catch {
+    // ignore — generate ungrounded
+  }
+  let weatherFactLine: string | null = null;
+  try {
+    if (projectReports?.length) {
+      const startMonth = answers.startDate ? new Date(answers.startDate).getMonth() : undefined;
+      weatherFactLine = weatherHistoryFactLine(computeWeatherHistory(projectReports), startMonth);
+    }
+  } catch {
+    // ignore — generate ungrounded
+  }
+  const prompt = buildAnswersPrompt(answers, project, SCHEDULE_PHASES as unknown as string[], paceFacts, rfiFactLine, weatherFactLine);
 
   const aiResult = await mageAI({
     prompt,

@@ -40,7 +40,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: Colors.warningLight,
+    backgroundColor: t.warningSoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,

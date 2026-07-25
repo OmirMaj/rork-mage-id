@@ -2,8 +2,10 @@
 //
 // The sub list knows who exists; this knows who is GOOD. It rolls the signals
 // already sitting in memory — signed commitments, change-order growth baked
-// into commitment.changeAmount, and the compliance dates on the sub record —
-// into a 0–100 score + letter grade per sub, so the GC knows who to call for
+// into commitment.changeAmount, the compliance dates on the sub record,
+// punch-list rework (items bounced at review, D7), and schedule reliability
+// (as-built vs planned days on tasks assigned to the sub, D7) — into a
+// 0–100 score + letter grade per sub, so the GC knows who to call for
 // the next award (and who to quietly stop calling).
 //
 // Pure function, no network, no AI. Scoring shape mirrors utils/marginRiskScore:
@@ -12,13 +14,16 @@
 //   score = round( Σ(quality·weight) / Σ(weight) · 100 )
 // Track record (history depth) deliberately moves CONFIDENCE, never the score —
 // a brand-new sub with clean paper isn't punished, they're just unproven.
+// Factors without enough linked data render applicable:false ("Not enough
+// linked data yet") instead of a fake neutral score.
 
-import type { Subcontractor, Commitment, ChangeOrder } from '@/types';
+import type { Subcontractor, Commitment, ChangeOrder, PunchItem, Project } from '@/types';
+import { actualWorkingDays } from '@/utils/pace/paceBook';
 
 export type SubGrade = 'A' | 'B' | 'C' | 'D' | 'F';
 export type ScoreConfidence = 'low' | 'medium' | 'high';
 
-export type ScorecardFactorKey = 'cost_discipline' | 'co_impact' | 'compliance';
+export type ScorecardFactorKey = 'cost_discipline' | 'co_impact' | 'compliance' | 'rework_rate' | 'schedule_reliability';
 
 export interface ScorecardFactor {
   key: ScorecardFactorKey;
@@ -68,6 +73,22 @@ export interface SubScorecardInput {
    * the engine reads it from there and this list is not required.
    */
   changeOrders?: ChangeOrder[];
+  /**
+   * Punch items for the rework_rate factor (D7). Attribution: assignedSubId
+   * first; company-name match on assignedSub only when no id is set. An item
+   * counts as REVIEWED once it closed or carries a rejectionNote (the reject
+   * flow stamps one — see app/punch-list.tsx), and as REWORK when that note
+   * exists. Optional — omitted ⇒ the factor reports applicable:false.
+   */
+  punchItems?: PunchItem[];
+  /**
+   * Projects (for their schedules) for the schedule_reliability factor (D7).
+   * Tasks link to subs via task.assignedSubId; only done tasks with both
+   * as-built day stamps count (same eligibility as utils/pace/paceBook.ts),
+   * measured in working days through each schedule's own calendar. Optional —
+   * omitted ⇒ the factor reports applicable:false.
+   */
+  projects?: Project[];
 }
 
 export interface SubScorecardResult {
@@ -83,11 +104,26 @@ const clamp100 = (x: number): number => (Number.isFinite(x) ? Math.max(0, Math.m
 const DAY_MS = 86_400_000;
 const EXPIRING_WINDOW_DAYS = 30;
 
-// Weights when all three factors apply. Cost discipline is the headline —
-// it's the only factor measured on finished work.
+// Weights when all factors apply. Cost discipline is the headline — it's
+// measured on finished work. The blend divides by the sum of APPLIED
+// weights, so these are relative shares, not percentages; the original
+// three keep their proportions when the D7 factors lack data.
 const W_COST = 0.4;
 const W_CO = 0.3;
 const W_COMPLIANCE = 0.3;
+const W_REWORK = 0.2;
+const W_SCHED = 0.2;
+
+// Minimum linked data before a D7 factor scores — below these it stays
+// applicable:false so one bounced punch item can't tank an unproven sub.
+const MIN_REVIEWED_PUNCH = 3;
+const MIN_MEASURED_TASKS = 2;
+
+// A 40% bounce rate zeroes rework quality; a 50% schedule overrun zeroes
+// reliability. Finishing early earns full marks, no extra credit (mirrors
+// cost_discipline's treatment of underruns).
+const REWORK_ZERO_AT = 0.4;
+const SLIP_ZERO_AT = 0.5;
 
 function money(n: number): string {
   const abs = Math.abs(n);
@@ -134,7 +170,73 @@ function confidenceFor(commitmentCount: number): ScoreConfidence {
   return 'low';
 }
 
-function buildCard(sub: Subcontractor, subCommitments: Commitment[], now: Date): SubScorecard {
+/** One finished, both-stamps task assigned to a sub, in working days. */
+interface MeasuredTask {
+  plannedDays: number;
+  actualDays: number;
+}
+
+/** Per-sub linked schedule work: how many tasks name the sub at all, and
+ *  the subset with trustworthy as-built spans (paceBook eligibility). */
+interface SubTaskRecord {
+  linked: number;
+  measured: MeasuredTask[];
+}
+
+/**
+ * Walk every project schedule once and bucket tasks by assignedSubId.
+ * Eligibility mirrors utils/pace/paceBook.ts buildPaceBook exactly: done,
+ * both as-built day stamps, non-milestone, positive duration, non-inverted —
+ * and actual spans convert through each schedule's own calendar so
+ * actualDays is in durationDays' working-day unit.
+ */
+function collectSubTasks(projects: Project[]): Map<string, SubTaskRecord> {
+  const bySub = new Map<string, SubTaskRecord>();
+  const recordFor = (subId: string): SubTaskRecord => {
+    const existing = bySub.get(subId);
+    if (existing) return existing;
+    const fresh: SubTaskRecord = { linked: 0, measured: [] };
+    bySub.set(subId, fresh);
+    return fresh;
+  };
+  for (const project of projects ?? []) {
+    const schedule = project?.schedule;
+    if (!schedule?.tasks?.length) continue;
+    const startDate = schedule.startDate;
+    const workingDaysPerWeek = schedule.workingDaysPerWeek ?? 7;
+    const closures = new Set(schedule.nonWorkingDates ?? []);
+    for (const task of schedule.tasks) {
+      if (!task?.assignedSubId) continue;
+      const rec = recordFor(task.assignedSubId);
+      rec.linked++;
+      if (task.isMilestone || !(task.durationDays > 0)) continue;
+      if (task.status !== 'done') continue;
+      if (typeof task.actualStartDay !== 'number' || typeof task.actualEndDay !== 'number') continue;
+      if (task.actualEndDay < task.actualStartDay) continue;
+      rec.measured.push({
+        plannedDays: Math.max(1, Math.round(task.durationDays)),
+        actualDays: actualWorkingDays(task.actualStartDay, task.actualEndDay, workingDaysPerWeek, startDate, closures),
+      });
+    }
+  }
+  return bySub;
+}
+
+/** Punch-item attribution: id first, company-name fallback only when the
+ *  item has no assignedSubId (older items were routed by name alone). */
+function punchBelongsToSub(item: PunchItem, sub: Subcontractor): boolean {
+  if (item.assignedSubId) return item.assignedSubId === sub.id;
+  const name = (item.assignedSub || '').trim().toLowerCase();
+  return name.length > 0 && name === (sub.companyName || '').trim().toLowerCase();
+}
+
+function buildCard(
+  sub: Subcontractor,
+  subCommitments: Commitment[],
+  subPunch: PunchItem[],
+  subTasks: SubTaskRecord,
+  now: Date,
+): SubScorecard {
   // Draft commitments are unsigned intent — they say nothing about how the
   // sub actually performs, so they don't count as history.
   const signed = subCommitments.filter(c => c.status !== 'draft');
@@ -209,6 +311,79 @@ function buildCard(sub: Subcontractor, subCommitments: Commitment[], now: Date):
     });
   }
 
+  // ── Rework rate (D7) — punch items that bounced at review. An item is
+  // REVIEWED once it closed or carries a rejectionNote (the reject flow
+  // stamps one and reopens the item — the note persists after the eventual
+  // close, which is correct: the rework happened). Items still open/awaiting
+  // review say nothing yet and stay out of the denominator.
+  const reviewedPunch = subPunch.filter(p => p.status === 'closed' || !!(p.rejectionNote || '').trim());
+  const rejectedPunch = reviewedPunch.filter(p => !!(p.rejectionNote || '').trim());
+  const reworkApplicable = reviewedPunch.length >= MIN_REVIEWED_PUNCH;
+  if (reworkApplicable) {
+    const reworkRate = rejectedPunch.length / reviewedPunch.length;
+    factors.push({
+      key: 'rework_rate',
+      label: 'Punch rework',
+      score: clamp01(1 - reworkRate / REWORK_ZERO_AT),
+      weight: W_REWORK,
+      applicable: true,
+      detail:
+        rejectedPunch.length > 0
+          ? `${rejectedPunch.length} of ${reviewedPunch.length} reviewed punch items bounced at review (sent back for rework)`
+          : `All ${reviewedPunch.length} reviewed punch items closed without rework`,
+    });
+  } else {
+    factors.push({
+      key: 'rework_rate',
+      label: 'Punch rework',
+      score: 0,
+      weight: 0,
+      applicable: false,
+      detail:
+        subPunch.length === 0
+          ? 'Not enough linked data yet — no punch items assigned to this sub'
+          : `Not enough linked data yet — ${reviewedPunch.length} of ${MIN_REVIEWED_PUNCH} reviewed punch items needed`,
+    });
+  }
+
+  // ── Schedule reliability (D7) — as-built vs planned working days on
+  // tasks assigned to this sub (task.assignedSubId), same eligibility and
+  // calendar conversion as the pace book. Aggregated as Σactual/Σplanned so
+  // a big task counts more than a one-day punch task; finishing early earns
+  // full marks, no extra credit.
+  const measured = subTasks.measured;
+  const schedApplicable = measured.length >= MIN_MEASURED_TASKS;
+  if (schedApplicable) {
+    const plannedSum = measured.reduce((s, t) => s + t.plannedDays, 0);
+    const actualSum = measured.reduce((s, t) => s + t.actualDays, 0);
+    const slip = plannedSum > 0 ? Math.max(0, actualSum / plannedSum - 1) : 0;
+    factors.push({
+      key: 'schedule_reliability',
+      label: 'Schedule reliability',
+      score: clamp01(1 - slip / SLIP_ZERO_AT),
+      weight: W_SCHED,
+      applicable: true,
+      detail:
+        slip > 0.001
+          ? `Assigned tasks ran ${pct1(slip)} over plan (${actualSum} vs ${plannedSum} working days across ${measured.length} finished tasks)`
+          : `Assigned tasks finished on or ahead of plan (${actualSum} vs ${plannedSum} working days across ${measured.length} finished tasks)`,
+    });
+  } else {
+    factors.push({
+      key: 'schedule_reliability',
+      label: 'Schedule reliability',
+      score: 0,
+      weight: 0,
+      applicable: false,
+      detail:
+        subTasks.linked === 0
+          ? 'Not enough linked data yet — no schedule tasks assigned to this sub'
+          : measured.length === 0
+            ? `Not enough linked data yet — ${subTasks.linked} assigned task${subTasks.linked === 1 ? '' : 's'} without as-built dates`
+            : `Not enough linked data yet — ${measured.length} of ${MIN_MEASURED_TASKS} measured tasks needed`,
+    });
+  }
+
   // ── Compliance — paperwork standing today. Always applicable.
   const coi = docStatus('COI', sub.coiExpiry, now);
   const license = docStatus('License', sub.licenseExpiry, now);
@@ -220,11 +395,15 @@ function buildCard(sub: Subcontractor, subCommitments: Commitment[], now: Date):
     sub.w9OnFile ? 'W-9 on file' : 'No W-9 on file',
   ];
   const complianceScore = clamp01(coi.score * 0.4 + license.score * 0.4 + (sub.w9OnFile ? 1 : 0) * 0.2);
+  // Paperwork is the WHOLE grade only when no performance factor applies at
+  // all — a sub with zero commitments can still be graded on punch rework
+  // or schedule reliability when that linked data exists.
+  const paperworkOnly = !costApplicable && !coApplicable && !reworkApplicable && !schedApplicable;
   factors.push({
     key: 'compliance',
     label: 'Compliance',
     score: complianceScore,
-    weight: noHistory ? 1 : W_COMPLIANCE,
+    weight: paperworkOnly ? 1 : W_COMPLIANCE,
     applicable: true,
     detail: parts.join(' · '),
   });
@@ -247,7 +426,7 @@ function buildCard(sub: Subcontractor, subCommitments: Commitment[], now: Date):
     return b.weight - a.weight;
   });
 
-  const topDriver = noHistory
+  const topDriver = paperworkOnly
     ? `No job history yet — graded on paperwork only. ${ranked[0]?.detail ?? ''}`.trim()
     : ranked[0]?.detail ?? '';
 
@@ -269,8 +448,10 @@ function buildCard(sub: Subcontractor, subCommitments: Commitment[], now: Date):
 
 const CONFIDENCE_RANK: Record<ScoreConfidence, number> = { low: 0, medium: 1, high: 2 };
 
+const EMPTY_TASK_RECORD: SubTaskRecord = { linked: 0, measured: [] };
+
 export function computeSubScorecards(input: SubScorecardInput): SubScorecardResult {
-  const { subcontractors, commitments } = input;
+  const { subcontractors, commitments, punchItems, projects } = input;
   const now = new Date();
 
   const bySub = new Map<string, Commitment[]>();
@@ -281,8 +462,17 @@ export function computeSubScorecards(input: SubScorecardInput): SubScorecardResu
     else bySub.set(c.subcontractorId, [c]);
   }
 
+  const tasksBySub = collectSubTasks(projects ?? []);
+  const allPunch = punchItems ?? [];
+
   const cards = (subcontractors ?? [])
-    .map(sub => buildCard(sub, bySub.get(sub.id) ?? [], now))
+    .map(sub => buildCard(
+      sub,
+      bySub.get(sub.id) ?? [],
+      allPunch.filter(p => punchBelongsToSub(p, sub)),
+      tasksBySub.get(sub.id) ?? EMPTY_TASK_RECORD,
+      now,
+    ))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       const conf = CONFIDENCE_RANK[b.confidence] - CONFIDENCE_RANK[a.confidence];

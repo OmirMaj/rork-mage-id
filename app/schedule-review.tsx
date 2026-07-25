@@ -28,8 +28,10 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { ScheduleTask } from '@/types';
 import { buildPaceBook, lookupPace, suggestDuration } from '@/utils/pace/paceBook';
+import { buildPaceFacts } from '@/utils/copilot/scheduleBuilder/paceGrounding';
 import { tradeKeyForTask } from '@/utils/scheduleColors';
 import PaceChip from '@/components/schedule/PaceChip';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -49,6 +51,7 @@ export default function ScheduleReviewScreen() {
   const { tier } = useSubscription();
   const { width } = useWindowDimensions();
   const { canAccess } = useTierAccess();
+  const { isDesktop } = useResponsiveLayout();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
@@ -79,6 +82,16 @@ export default function ScheduleReviewScreen() {
   // the book should stay silent: no/low-confidence history, milestone, or
   // agreement with the AI within a day. Silence, not noise.
   const paceBook = useMemo(() => buildPaceBook(projects), [projects]);
+  // HONEST provenance for the header: the same fact builder that grounded the
+  // generator prompts (paceGrounding). tradeCount > 0 = the draft's durations
+  // were paced from real history; 0 = cold start, say so instead of vanishing.
+  const paceProvenance = useMemo(() => {
+    try {
+      return buildPaceFacts(projects);
+    } catch {
+      return { facts: [], tradeCount: 0 };
+    }
+  }, [projects]);
   // Tasks whose duration was already set from a pace suggestion this session.
   const [pacedIds, setPacedIds] = useState<Set<string>>(() => new Set());
 
@@ -133,6 +146,11 @@ export default function ScheduleReviewScreen() {
     // The schedule is committed above regardless; only the destination differs.
     // Schedule Pro needs both a wide viewport and Pro — otherwise land the GC in
     // the classic schedule instead of a paywall/empty grid.
+    // Window-width comparison is CORRECT here even though this screen renders
+    // inside the desktop sidebar shell: schedule-pro is in DESKTOP_SHELL_EXEMPT
+    // (app/_layout.tsx) and renders full-bleed, so the width its grid will
+    // actually get IS the window width — not window − 240. If schedule-pro is
+    // ever un-exempted, this gate must switch to effective content width.
     const wideEnoughForPro = width >= GRID_BREAKPOINT && canAccess('schedule_gantt_pdf');
     if (wideEnoughForPro) {
       router.replace({ pathname: '/schedule-pro', params: { projectId: project.id } } as any);
@@ -154,7 +172,7 @@ export default function ScheduleReviewScreen() {
     setRegenerating(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate);
+      const fresh = await generateScheduleFromEstimate(project, project.linkedEstimate, projects);
       if (fresh.tasks.length === 0) {
         Alert.alert('Couldn\'t regenerate', 'The generator returned no tasks. Your current draft is unchanged.');
         return;
@@ -167,7 +185,7 @@ export default function ScheduleReviewScreen() {
     } finally {
       setRegenerating(false);
     }
-  }, [project, regenerating, tier, router]);
+  }, [project, regenerating, tier, router, projects]);
 
   // Empty state — nothing was stashed (deep link / reload).
   if (!draft) {
@@ -210,7 +228,7 @@ export default function ScheduleReviewScreen() {
         <View style={styles.headerBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 + insets.bottom }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 120 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryRow}>
           <Sparkles size={16} color={t.accent} strokeWidth={1.75} />
           <Text style={styles.summaryText}>
@@ -218,6 +236,18 @@ export default function ScheduleReviewScreen() {
             {assumptionCount > 0 ? ` · ${assumptionCount} assumption${assumptionCount === 1 ? '' : 's'} to confirm` : ''}
           </Text>
         </View>
+
+        {paceProvenance.tradeCount > 0 ? (
+          <View style={styles.pacedChip}>
+            <Text style={styles.pacedChipText}>
+              Paced from your history · {paceProvenance.tradeCount} trade{paceProvenance.tradeCount === 1 ? '' : 's'}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.paceColdStart}>
+            Durations are AI estimates — MAGE learns your real pace as you finish tasks.
+          </Text>
+        )}
 
         {byPhase.map(([phase, phaseTasks]) => {
           return (
@@ -321,9 +351,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerTitle: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: t.text },
 
   summaryRow: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 16,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 8,
   },
   summaryText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 19 },
+
+  // Pace-provenance chip — mirrors the estimate wizard's groundedChip
+  // (app/estimate-wizard.tsx:1357) so grounded AI surfaces read the same.
+  pacedChip: {
+    alignSelf: 'flex-start' as const, backgroundColor: t.successSoft, borderRadius: Tokens.radius.full,
+    paddingHorizontal: 12, paddingVertical: 5, marginBottom: 16,
+  },
+  pacedChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.success },
+  paceColdStart: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginBottom: 16 },
 
   card: {
     backgroundColor: t.surface, borderRadius: Tokens.radius.panel,
@@ -369,4 +408,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.45 },
   ctaText: { fontSize: Type.headline.fontSize, fontWeight: '700' as const, color: Colors.textOnAccent },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
 });

@@ -7,6 +7,8 @@ import React, { useEffect, useRef } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ConstructionLoader from "@/components/ConstructionLoader";
+import DesktopSidebar from "@/components/DesktopSidebar";
+import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
 import { SafetyProvider } from "@/contexts/SafetyContext";
@@ -176,6 +178,49 @@ function pathToDocumentTitle(pathname: string): string | null {
   if (exact[topRoute]) return exact[topRoute];
   return null;
 }
+
+// ─── Desktop web shell — route denylist ────────────────────────────────────
+// Audit web#31: DesktopSidebar was mounted only inside app/(tabs)/_layout.tsx,
+// so navigating to ANY root-stack route on desktop web (invoice, change-order,
+// safety, job-costing, …) dropped the persistent sidebar and stranded the
+// user. The fix lifts the shell to RootLayoutNav so it wraps the whole Stack —
+// but that would also wrap login/onboarding/external viewers/modals, so the
+// shell is gated on auth + onboarding state (same conditions the redirect
+// effect enforces) AND the current top-level segment must not be listed here.
+//
+// Three exemption classes:
+//  1. Auth + first-run flows — the user isn't (fully) in the app yet; these
+//     screens are full-bleed brand moments.
+//  2. External / tokenized viewers — opened by homeowners & subs with no MAGE
+//     account (the URL token is the credential) or rendered mid-OAuth; they
+//     must never show the owner's workspace chrome.
+//  3. `presentation: 'modal'` routes — enumerated from the Stack.Screen
+//     declarations in RootLayoutNav below (keep in sync when adding modals).
+//     On web a "modal" is a full-page takeover with its own close affordance;
+//     wrapping it in the sidebar frame would break that presentation.
+//  4. Full-takeover editors — screens that render their own complete chrome
+//     (headerShown:false + custom Back header) AND size their layout off
+//     useWindowDimensions breakpoints tuned for a full-bleed viewport.
+//     schedule-pro's GRID_BREAKPOINT=900 / SPLIT_BREAKPOINT=1600 assume
+//     window width === content width; rendering it inside the 240px shell
+//     would pass the ≥900 gate while the grid actually gets window−240px —
+//     below its own usability floor. Keeping it exempt restores the pre-lift
+//     full-bleed behavior (and keeps schedule-review's window-width routing
+//     gate honest — see app/schedule-review.tsx wideEnoughForPro).
+const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
+  // 1 — auth + first-run
+  'login', 'signup', 'reset-password',
+  'onboarding', 'persona-select', 'onboarding-paywall',
+  // 2 — external / tokenized viewers
+  'client-view', 'prequal-form', 'claim-crew', 'shared-schedule', 'shared-photos',
+  // 3 — presentation:'modal' routes
+  'ask', 'schedule-wizard', 'schedule-builder', 'copilot', 'copilot-hub',
+  'schedule-import', 'scan', 'paywall', 'cost-xray', 'import-pipeline',
+  'post-rfp', 'submit-bid-response', 'photo-annotator', 'estimate-wizard',
+  'judges', 'quick-quote',
+  // 4 — full-takeover editors with window-width breakpoints
+  'schedule-pro',
+]);
 
 Sentry.init({
   dsn: 'https://f1ef45279647b4001040c1e2f9407faa@o4511315578388480.ingest.us.sentry.io/4511315581075456',
@@ -475,6 +520,48 @@ function RootLayoutNav() {
     document.title = title ? `${title} · MAGE ID` : 'MAGE ID';
   }, [pathname]);
 
+  // Desktop web shell (audit web#31): render the persistent sidebar around
+  // the WHOLE Stack — not just the tabs — so stack routes like /invoice or
+  // /safety keep primary nav on wide screens. Gated on:
+  //  - layout.showSidebar: the same desktop breakpoint DesktopSidebar has
+  //    always used (useResponsiveLayout — web ≥900px / any ≥1024px);
+  //  - the exact auth/onboarding conditions the redirect effect above
+  //    enforces (isAuthenticated, persona picked, onboarding seen) so the
+  //    login/persona/onboarding flows stay full-bleed;
+  //  - the current top-level route segment not being in
+  //    DESKTOP_SHELL_EXEMPT (auth flows, tokenized external viewers, and
+  //    presentation:'modal' routes keep their full-screen takeover).
+  // The wrapper Views below render unconditionally so the <Stack> keeps a
+  // stable position in the element tree — only the sidebar sibling mounts /
+  // unmounts (auth/breakpoint) or toggles display (exempt routes), which
+  // means navigation state survives shell toggles (e.g. entering and
+  // leaving a modal route).
+  const layout = useResponsiveLayout();
+  const topSegment = (segments[0] ?? '') as string;
+  const isShellExempt =
+    DESKTOP_SHELL_EXEMPT.has(topSegment)
+    // OAuth callback pages under /integrations/* (e.g. QuickBooks) render in
+    // an in-app-browser context mid-flow — keep them full-bleed. The plain
+    // /integrations settings screen keeps the shell.
+    || pathname.startsWith('/integrations/');
+  // Split "the user is in the desktop app" (shellEligible — mounts the
+  // sidebar) from "this route shows the shell" (showDesktopShell — displays
+  // it). Six sidebar destinations are shell-exempt modals (Ask MAGE,
+  // Cost X-Ray, Copilot, Bid Advisor, Scan, Post a Project); if the sidebar
+  // UNMOUNTED on every trip through them, its local state (openSections
+  // expansion + rail scroll position) would reset on every round-trip. So
+  // exempt routes only toggle `display` on the sidebar's wrapper — the
+  // component stays mounted and keeps its state. Auth / breakpoint changes
+  // still unmount it entirely (those SHOULD reset the rail). The wrapper is
+  // a stable sibling before the Stack either way, so the Stack keeps its
+  // positional identity and navigation state survives shell toggles.
+  const shellEligible =
+    layout.showSidebar
+    && isAuthenticated
+    && userRole !== null
+    && hasSeenOnboarding === true;
+  const showDesktopShell = shellEligible && !isShellExempt;
+
   // Cold-start gate: while the auth + project contexts are hydrating from
   // AsyncStorage/Supabase, render the branded construction loader instead
   // of a blank white screen. `hasSeenOnboarding === null` means the
@@ -501,7 +588,17 @@ function RootLayoutNav() {
   }
 
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
+    <View style={{ flex: 1, flexDirection: 'row' }}>
+      {shellEligible && (
+        // flexDirection:'row' so the sidebar (explicit width, no height)
+        // stretches to full height via the cross-axis, exactly as it did as
+        // a direct child of the outer row.
+        <View style={{ display: showDesktopShell ? 'flex' : 'none', flexDirection: 'row' }}>
+          <DesktopSidebar width={layout.sidebarWidth} />
+        </View>
+      )}
+      <View style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
@@ -1206,7 +1303,9 @@ function RootLayoutNav() {
       <Stack.Screen name="quick-quote" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="project-scope" options={{ headerShown: false }} />
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
-    </Stack>
+        </Stack>
+      </View>
+    </View>
   );
 }
 

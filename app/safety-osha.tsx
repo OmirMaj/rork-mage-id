@@ -16,6 +16,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { buildOsha300Log, OSHA_CLASS_LABEL } from '@/utils/safety/oshaLog';
 import { exportOsha300Pdf, shareOsha300Csv } from '@/utils/safety/oshaExport';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 export default function SafetyOshaScreen() {
   const router = useRouter();
@@ -37,6 +38,7 @@ function SafetyOshaInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { incidents } = useSafety();
   const { companies } = useCompanies();
@@ -99,7 +101,7 @@ function SafetyOshaInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'OSHA 300 Log' }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryCard}>
           <View style={styles.summaryTop}>
             <View style={{ flex: 1 }}>
@@ -198,6 +200,7 @@ function SafetyOshaInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   summaryCard: {
     marginHorizontal: 20, marginTop: 16, marginBottom: 16,
     backgroundColor: themeColors.surface,

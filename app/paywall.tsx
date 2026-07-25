@@ -176,7 +176,14 @@ export default function PaywallScreen() {
     }
   }, [purchaseEnterprise, router]);
 
+  // When RC offerings failed to load (isFallbackPricing), purchase CTAs
+  // can't process IAP — Alert the notice instead of silently dead-ending.
+  const FALLBACK_NOTICE_TEXT = 'In-app purchasing is currently unavailable. Check your connection and try again.';
+
   const handleRestore = useCallback(async () => {
+    // Restore must ALWAYS work — it only needs RC configured, not offerings
+    // loaded. A reinstalling subscriber with a transient offerings failure
+    // would lose access if we blocked Restore on isFallbackPricing.
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await restorePurchases();
@@ -291,9 +298,12 @@ export default function PaywallScreen() {
             ) : (
               <Button
                 label="Subscribe"
-                onPress={handlePurchasePro}
-                disabled={isPurchasing || isFallbackPricing}
-                loading={isPurchasing}
+                onPress={() => {
+                  if (isFallbackPricing) { Alert.alert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                  void handlePurchasePro();
+                }}
+                disabled={isPurchasing}
+                loading={isPurchasing || packagesStillLoading}
                 size="sm"
                 fullWidth
                 testID="buy-pro"
@@ -319,9 +329,12 @@ export default function PaywallScreen() {
             ) : (
               <Button
                 label="Subscribe"
-                onPress={handlePurchaseBusiness}
-                disabled={isPurchasing || isFallbackPricing}
-                loading={isPurchasing}
+                onPress={() => {
+                  if (isFallbackPricing) { Alert.alert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                  void handlePurchaseBusiness();
+                }}
+                disabled={isPurchasing}
+                loading={isPurchasing || packagesStillLoading}
                 size="sm"
                 fullWidth
                 testID="buy-business"
@@ -347,9 +360,12 @@ export default function PaywallScreen() {
             ) : (
               <Button
                 label="Subscribe"
-                onPress={handlePurchaseEnterprise}
-                disabled={isPurchasing || isFallbackPricing}
-                loading={isPurchasing}
+                onPress={() => {
+                  if (isFallbackPricing) { Alert.alert('Unavailable', FALLBACK_NOTICE_TEXT); return; }
+                  void handlePurchaseEnterprise();
+                }}
+                disabled={isPurchasing}
+                loading={isPurchasing || packagesStillLoading}
                 size="sm"
                 fullWidth
                 testID="buy-enterprise"
@@ -357,6 +373,14 @@ export default function PaywallScreen() {
             )}
           </View>
         </View>
+
+        {isFallbackPricing && (
+          <View style={styles.fallbackNotice}>
+            <Text style={styles.fallbackNoticeText}>
+              Prices shown are estimates. In-app purchasing is currently unavailable.
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.compareTitle}>Feature Comparison</Text>
         <View style={styles.compareTable}>
@@ -442,21 +466,13 @@ export default function PaywallScreen() {
           </View>
         </View>
 
-        {isFallbackPricing && (
-          <View style={styles.fallbackNotice}>
-            <Text style={styles.fallbackNoticeText}>
-              Prices shown are estimates. In-app purchasing is currently unavailable.
-            </Text>
-          </View>
-        )}
-
         <View style={styles.legalRow}>
           <TouchableOpacity onPress={() => openLegal('privacy')}>
             <Text style={styles.legalLink}>Privacy</Text>
           </TouchableOpacity>
           <Text style={styles.legalDot}>·</Text>
-          <TouchableOpacity onPress={handleRestore} disabled={isFallbackPricing} testID="restore-purchases">
-            <Text style={[styles.legalLink, isFallbackPricing && { color: themeColors.textMuted }]}>Restore</Text>
+          <TouchableOpacity onPress={handleRestore} testID="restore-purchases">
+            <Text style={styles.legalLink}>Restore</Text>
           </TouchableOpacity>
           <Text style={styles.legalDot}>·</Text>
           <TouchableOpacity onPress={() => openLegal('terms')}>

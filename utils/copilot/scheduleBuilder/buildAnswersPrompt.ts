@@ -3,11 +3,21 @@
 // can assert it carries the answers + the research-backed scheduling rules.
 import type { Project } from '@/types';
 import type { ScheduleBuilderAnswers } from './questions';
+import { paceFactsBlock } from './paceGrounding';
 
 /** The scheduling doctrine the generator must follow (from the deep-research
  *  reference): FS-dominant complete logic, real milestones, procurement +
- *  permits + weather + targeted contingency, durations scaled to size + crew. */
-export function buildAnswersPrompt(a: ScheduleBuilderAnswers, project: Project | null, phases: string[]): string {
+ *  permits + weather + targeted contingency, durations scaled to size + crew.
+ *  `paceFacts` (buildPaceFacts) grounds durations in the contractor's OWN
+ *  measured pace — when present, the model derives instead of guessing. */
+export function buildAnswersPrompt(
+  a: ScheduleBuilderAnswers,
+  project: Project | null,
+  phases: string[],
+  paceFacts: string[] = [],
+  rfiFactLine?: string | null,
+  weatherFactLine?: string | null,
+): string {
   const line = (label: string, v: unknown) => (v === null || v === undefined || v === '' ? null : `${label}: ${v}`);
   const facts = [
     line('PROJECT', project?.name),
@@ -15,22 +25,33 @@ export function buildAnswersPrompt(a: ScheduleBuilderAnswers, project: Project |
     line('LOCATION', project?.location),
     line('SCOPE', a.scope),
     line('SIZE (sq ft)', a.sizeSqft ?? project?.squareFootage),
+    // Wizard-captured project facts (finding #55): quality tier + special
+    // requirements materially change sequencing and durations. scope.quality
+    // (wizard) wins over the creation-time legacy field when both exist.
+    line('QUALITY TIER', project?.scope?.quality ?? project?.quality),
+    line('SPECIAL REQUIREMENTS', project?.scope?.specialRequirements),
     line('START DATE', a.startDate),
     line('HARD DEADLINE (Substantial Completion target)', a.deadline),
     line('SITE', a.occupancy === 'occupied' ? 'OCCUPIED — phase the work, expect off-hours + slower progress' : 'vacant'),
     line('CREW SIZE (parallelism)', a.crewSize),
     line('WORK WEEK (days)', a.workDaysPerWeek),
     line('LONG-LEAD ITEMS', a.longLead),
-    a.weather === 'handle' ? 'WEATHER: buffer exterior/earthwork/roofing for the season implied by the start date' : (a.weather === 'interior' ? 'WEATHER: mostly interior — minimal weather exposure' : null),
+    a.weather === 'handle'
+      ? `WEATHER: buffer exterior/earthwork/roofing${weatherFactLine ? ` — ${weatherFactLine}` : ' for the season implied by the start date'}`
+      : (a.weather === 'interior' ? 'WEATHER: mostly interior — minimal weather exposure' : null),
     line('KNOWN RISKS', a.knownRisks),
+    rfiFactLine ? `RFI LATENCY: ${rfiFactLine}` : null,
     line('BUFFER PREFERENCE', a.buffer),
   ].filter(Boolean);
+
+  const pace = paceFactsBlock(paceFacts);
 
   return [
     'You are the best construction scheduler alive. Build a realistic, accurate',
     'construction schedule for this project from the contractor’s answers below.',
     '',
     ...facts,
+    ...(pace ? ['', pace] : []),
     '',
     'RULES (construction scheduling best practice):',
     `1. Return JSON: { "tasks": [ ... ] }. Each task: id ("t1","t2"…), name, phase`,

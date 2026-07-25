@@ -58,12 +58,15 @@ function SubScorecardInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { subcontractors, commitments, changeOrders } = useProjects();
+  // punchItems + projects feed the D7 factors: punch rework (items bounced
+  // at review, attributed via assignedSubId) and schedule reliability
+  // (as-built vs planned days on tasks assigned to the sub).
+  const { subcontractors, commitments, changeOrders, punchItems, projects } = useProjects();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const result = useMemo(
-    () => computeSubScorecards({ subcontractors, commitments, changeOrders }),
-    [subcontractors, commitments, changeOrders],
+    () => computeSubScorecards({ subcontractors, commitments, changeOrders, punchItems, projects }),
+    [subcontractors, commitments, changeOrders, punchItems, projects],
   );
 
   if (subcontractors.length === 0) {
@@ -184,9 +187,11 @@ function SubScorecardInner() {
 
         <Text style={styles.note}>
           Grades blend cost discipline on closed commitments, change-order growth on
-          signed work, and today&apos;s COI / license / W-9 standing. History depth moves
-          confidence, not the grade — a new sub with clean paper isn&apos;t punished, just
-          unproven.
+          signed work, punch items bounced at review, schedule reliability on tasks
+          assigned to the sub, and today&apos;s COI / license / W-9 standing. Factors
+          without enough linked data are shown as &quot;—&quot; and sit out of the blend —
+          they never fake a neutral score. History depth moves confidence, not the
+          grade — a new sub with clean paper isn&apos;t punished, just unproven.
         </Text>
       </ScrollView>
     </View>

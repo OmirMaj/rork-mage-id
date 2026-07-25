@@ -178,6 +178,7 @@ export default function BillFromEstimateScreen() {
   const [selected, setSelected] = useState<Record<string, boolean>>(
     () => Object.fromEntries(rows.map(r => [r.key, r.remaining > 0])),
   );
+  const [billingHint, setBillingHint] = useState<string | null>(null);
 
   const amountsByKey = useMemo(() => {
     const map: Record<string, number> = {};
@@ -190,6 +191,14 @@ export default function BillFromEstimateScreen() {
   }, [rows, selected, billPercents]);
 
   const subtotal = useMemo(() => Object.values(amountsByKey).reduce((a, b) => a + b, 0), [amountsByKey]);
+
+  const allFullyBilled = rows.length > 0 && rows.every(r => r.remaining <= 0.009);
+
+  // Clear billing hint whenever subtotal changes (user selected/deselected rows or changed percents).
+  React.useEffect(() => {
+    if (subtotal > 0) setBillingHint(null);
+  }, [subtotal]);
+
   const taxRate = settings.taxRate ?? 7.5;
   const taxAmount = subtotal * (taxRate / 100);
   const totalDue = subtotal + taxAmount;
@@ -215,6 +224,12 @@ export default function BillFromEstimateScreen() {
 
   const handleCreateDraft = useCallback(() => {
     if (!project || !projectId) return;
+    if (subtotal <= 0) {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setBillingHint('Select at least one line with an amount to bill.');
+      return;
+    }
+    setBillingHint(null);
     const activeRows = rows.filter(r => selected[r.key] && (amountsByKey[r.key] ?? 0) > 0);
     if (activeRows.length === 0) {
       Alert.alert('Nothing to Bill', 'Select at least one line item and enter a billing percent greater than zero.');
@@ -522,6 +537,11 @@ export default function BillFromEstimateScreen() {
 
         {/* Sticky totals / create button */}
         <View style={[styles.footer, { paddingBottom: Math.max(12, insets.bottom) }]}>
+          {allFullyBilled ? (
+            <Text style={styles.allBilledText}>All lines on this estimate are fully billed.</Text>
+          ) : billingHint ? (
+            <Text style={styles.billingHintText}>{billingHint}</Text>
+          ) : null}
           <View style={styles.footerTotals}>
             <View style={styles.footerTotalRow}>
               <Text style={styles.footerTotalLabel}>Subtotal</Text>
@@ -539,7 +559,7 @@ export default function BillFromEstimateScreen() {
           <TouchableOpacity
             style={[styles.primaryBtn, subtotal <= 0 && styles.primaryBtnDisabled]}
             onPress={handleCreateDraft}
-            disabled={subtotal <= 0}
+            accessibilityState={{ disabled: subtotal <= 0 }}
             activeOpacity={0.85}
             testID="bill-from-estimate-create"
           >
@@ -704,6 +724,20 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   footerTotalLabelBold: { fontSize: Type.subhead.fontSize, color: t.text, fontWeight: '700' as const },
   footerTotalValueBold: { fontSize: Type.body.fontSize, color: t.text, fontWeight: '700' as const },
 
+  allBilledText: {
+    fontSize: Type.footnote.fontSize,
+    color: t.success,
+    fontWeight: '600' as const,
+    textAlign: 'center' as const,
+    marginBottom: 6,
+  },
+  billingHintText: {
+    fontSize: Type.footnote.fontSize,
+    color: t.danger,
+    fontWeight: '600' as const,
+    textAlign: 'center' as const,
+    marginBottom: 6,
+  },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',

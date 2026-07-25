@@ -24,7 +24,7 @@ import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
-import { DOCUMENT_TYPE_INFO } from '@/mocks/documents';
+import { documentTypeInfo } from '@/mocks/documents';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import type { ProjectDocument } from '@/types';
@@ -1175,7 +1175,7 @@ export default function ClientViewScreen() {
                   </View>
                 ) : (
                   documents.map(doc => {
-                    const typeInfo = DOCUMENT_TYPE_INFO[doc.type] ?? { label: doc.type, color: themeColors.textMuted, bgColor: Colors.surfaceAlt };
+                    const typeInfo = documentTypeInfo(themeColors)[doc.type] ?? { label: doc.type, color: themeColors.textMuted, bgColor: themeColors.surfaceAlt };
                     const statusColor = doc.status === 'signed' ? '#34C759' : doc.status === 'expired' ? themeColors.danger : doc.status === 'pending_signature' ? '#FF9500' : themeColors.textMuted;
                     const hasFile = !!doc.fileUrl;
                     const rowInner = (

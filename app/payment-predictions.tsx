@@ -78,6 +78,7 @@ function PaymentPredictionsScreenInner() {
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<PaymentPredictionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [forecastGate, setForecastGate] = useState<string | null>(null);
 
   const relevantInvoices = useMemo(() => {
     if (scopeProjectId) return getInvoicesForProject(scopeProjectId);
@@ -108,12 +109,18 @@ function PaymentPredictionsScreenInner() {
     }, 0);
   }, [relevantInvoices]);
 
+  // Clear forecastGate whenever unpaidCount changes (invoices were added/paid).
+  React.useEffect(() => {
+    if (unpaidCount > 0) setForecastGate(null);
+  }, [unpaidCount]);
+
   const runForecast = useCallback(async () => {
     if (loading) return;
     if (unpaidCount === 0) {
-      Alert.alert('All Caught Up', 'No unpaid invoices to forecast right now.');
+      setForecastGate('No unpaid invoices to forecast — add an invoice first.');
       return;
     }
+    setForecastGate(null);
     setLoading(true);
     setError(null);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -176,13 +183,16 @@ function PaymentPredictionsScreenInner() {
           <TouchableOpacity
             style={[styles.runBtn, unpaidCount === 0 && { opacity: 0.5 }]}
             onPress={runForecast}
-            disabled={unpaidCount === 0}
+            accessibilityState={{ disabled: unpaidCount === 0 }}
             activeOpacity={0.85}
             testID="run-payment-forecast-btn"
           >
             <MageAIMark size={16} color="#FFF" />
             <Text style={styles.runBtnText}>Run Forecast</Text>
           </TouchableOpacity>
+          {forecastGate ? (
+            <Text style={styles.forecastGateText}>{forecastGate}</Text>
+          ) : null}
         </View>
       )}
 
@@ -331,6 +341,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   featureText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent, marginTop: 4 },
   runBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
+  forecastGateText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 18, marginTop: 8 },
 
   loadingCard: { margin: 16, padding: 28, alignItems: 'center' as const, gap: 10, backgroundColor: t.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.line },
   loadingText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.text },

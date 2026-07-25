@@ -46,7 +46,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
-import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf } from '@/utils/permitRoadmap';
+import { generateRoadmap, bookByDate, roadmapFlags, scopeHashOf, scopeSummary } from '@/utils/permitRoadmap';
 import { reviewPlanCode, imageUriToBase64, PLAN_REVIEW_DISCLAIMER } from '@/utils/planCodeReviewer';
 import type { RoadmapPermit, RoadmapInspection, PermitType, CodeFinding, PlanReview } from '@/types';
 
@@ -276,6 +276,7 @@ function ConstructionAIScreenInner() {
   const [mode, setMode] = useState<'code' | 'roadmap' | 'plan'>('code');
 
   // ── Code-Check state ─────────────────────────────────────────────────
+  const [codeCheckProjectId, setCodeCheckProjectId] = useState<string | null>(null);
   const [location, setLocation] = useState<string>('');
   const [category, setCategory] = useState<CategoryKey>('residential');
   const [scenario, setScenario] = useState<string>('');
@@ -298,6 +299,14 @@ function ConstructionAIScreenInner() {
     savePlanReview,
     updatePlanReview,
   } = useProjects();
+
+  // When the user picks a code-check project, auto-fill location if blank.
+  const codeCheckProject = codeCheckProjectId ? projects.find((p) => p.id === codeCheckProjectId) ?? null : null;
+  useEffect(() => {
+    if (!codeCheckProject) return;
+    if (!location && codeCheckProject.location) setLocation(codeCheckProject.location);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codeCheckProjectId]);
 
   const [roadmapProjectId, setRoadmapProjectId] = useState<string | null>(projects[0]?.id ?? null);
   const [roadmapLoading, setRoadmapLoading] = useState(false);
@@ -457,9 +466,17 @@ function ConstructionAIScreenInner() {
     setResultOpen(false);
 
     const categoryLabel = CATEGORIES.find((c) => c.key === category)?.label ?? category;
+
+    // Build optional project-context prefix for a richer, grounded check.
+    const projectContextBlock = codeCheckProject
+      ? `PROJECT CONTEXT (auto-filled from "${codeCheckProject.name}"):\n` +
+        `- Type: ${codeCheckProject.type || 'unknown'}\n` +
+        `- Scope: ${scopeSummary(codeCheckProject) || codeCheckProject.description || '(none)'}\n`
+      : '';
+
     const prompt = `You are a licensed code-compliance advisor for US construction. A contractor is working on the following project and needs a building-code sanity check.
 
-Location: ${location.trim()}
+${projectContextBlock}Location: ${location.trim()}
 Category: ${categoryLabel}
 Scenario: ${scenario.trim()}
 
@@ -473,7 +490,7 @@ Return a JSON object with:
 
 Be specific to the cited location if possible. If the location is not in the US, note that and give the closest applicable model code guidance.`;
 
-    const cacheKey = `code_check::${location.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
+    const cacheKey = `code_check::${codeCheckProjectId ?? 'none'}::${location.trim().toLowerCase()}::${category}::${scenario.trim().toLowerCase().slice(0, 120)}`;
 
     try {
       const res = await mageAISmart(prompt, codeCheckSchema, cacheKey);
@@ -639,6 +656,44 @@ Be specific to the cited location if possible. If the location is not in the US,
               </View>
               <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
+
+            {/* Optional project link — auto-fills location + scope */}
+            {projects.length > 0 && (
+              <>
+                <Text style={styles.label}>Link a project (optional)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row' as const, gap: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.chip, codeCheckProjectId === null && styles.chipActive]}
+                      onPress={() => setCodeCheckProjectId(null)}
+                      activeOpacity={0.8}
+                      testID="code-check-project-none"
+                    >
+                      <Text style={[styles.chipText, codeCheckProjectId === null && styles.chipTextActive]}>No project</Text>
+                    </TouchableOpacity>
+                    {projects.map((p) => {
+                      const active = p.id === codeCheckProjectId;
+                      return (
+                        <TouchableOpacity
+                          key={p.id}
+                          onPress={() => setCodeCheckProjectId(p.id)}
+                          activeOpacity={0.8}
+                          style={[styles.chip, active && styles.chipActive]}
+                          testID={`code-check-project-${p.id}`}
+                        >
+                          <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{p.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+                {codeCheckProject && (
+                  <Text style={styles.projectPrefillNote} testID="code-check-project-prefill">
+                    Using {codeCheckProject.name}&apos;s location and scope — edit below to adjust
+                  </Text>
+                )}
+              </>
+            )}
 
             <Text style={styles.label}>Location (city, state)</Text>
             <View style={styles.inputRow}>
@@ -1615,6 +1670,12 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   quotaText: {
     fontSize: Type.caption1.fontSize, color: themeColors.textMuted, textAlign: 'center' as const,
     marginTop: 8,
+  },
+  projectPrefillNote: {
+    fontSize: Type.caption1.fontSize,
+    color: themeColors.accent,
+    marginBottom: 8,
+    fontStyle: 'italic' as const,
   },
   reopenBtn: {
     flexDirection: 'row' as const,

@@ -8,7 +8,6 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
-import DesktopSidebar from '@/components/DesktopSidebar';
 import DesktopActionRail from '@/components/DesktopActionRail';
 import { useSmartInbox } from '@/hooks/useSmartInbox';
 import { Type } from '@/constants/typography';
@@ -113,7 +112,10 @@ export default function TabLayout() {
   if (layout.showSidebar) {
     return (
       <View style={styles.desktopContainer}>
-        <DesktopSidebar width={layout.sidebarWidth} />
+        {/* DesktopSidebar mounts ONCE at the root layout (app/_layout.tsx
+            RootLayoutNav) so it persists across stack routes too — audit
+            web#31. This layout only hides the tab bar on desktop and adds
+            the Action-Required rail on wide viewports. */}
         <View style={styles.desktopContent}>
           <Tabs
             initialRouteName="(home)"

@@ -13,6 +13,12 @@
 //   - 'submittal'— Submittal ("door hardware schedule, spec 08 71 00").
 //   - 'unsure'   — AI couldn't tell; the UI asks the GC to retry.
 //
+// GROUNDING: line items in 'co' and 'invoice' kinds carry a `priceStated`
+// flag — true only when the contractor actually said the number. When
+// priceStated is false, callers look up the rate from the cost book rather
+// than trusting an AI-invented price. 'unsure' returns a clarifyQuestion
+// so the UI can offer a one-tap follow-up instead of forcing a full re-record.
+//
 // The parser also gets a tiny project context (name, type, recent
 // schedule items) so it can pick a sensible priority + assignee.
 
@@ -44,6 +50,9 @@ export const voiceActionSchema = z.object({
     quantity: z.number().default(1),
     unit: z.string().default('lump'),
     unitPrice: z.number().default(0),
+    // true only when the contractor explicitly stated the price in their voice
+    // recording. false = price not stated; callers should look up from cost book.
+    priceStated: z.boolean().default(false),
   })).default([]),
 
   // Note fields
@@ -71,6 +80,9 @@ export const voiceActionSchema = z.object({
     quantity: z.number().default(1),
     unit: z.string().default('lump'),
     unitPrice: z.number().default(0),
+    // true only when the contractor explicitly stated the price in their voice
+    // recording. false = price not stated; callers should look up from cost book.
+    priceStated: z.boolean().default(false),
   })).default([]),
 
   // Submittal fields
@@ -108,6 +120,11 @@ export const voiceActionSchema = z.object({
   leadSourceOther: z.string().default(''),
   leadScore: z.number().default(0),
   leadScoreReason: z.string().default(''),
+
+  // When kind === 'unsure': a short, specific question the GC can answer with
+  // one phrase (rather than re-recording the whole thing). The UI shows this
+  // as a one-tap follow-up chip. Empty string when not applicable.
+  clarifyQuestion: z.string().default(''),
 });
 
 export type VoiceActionResult = z.infer<typeof voiceActionSchema>;
@@ -155,15 +172,15 @@ KINDS
 
 OUTPUT RULES
 - For rfi: subject (≤80 chars), question, priority (urgent/normal/low), assignedTo, dateRequired (YYYY-MM-DD if a deadline given).
-- For co: description (≤80 chars), reason, scheduleImpactDays, changeAmount (single $ if stated), lineItems (array of {name, description, quantity, unit, unitPrice}).
+- For co: description (≤80 chars), reason, scheduleImpactDays, changeAmount (single $ if stated), lineItems (array of {name, description, quantity, unit, unitPrice, priceStated}). Set priceStated:true ONLY when the contractor explicitly said the dollar amount in their recording; priceStated:false when you inferred or invented the price.
 - For note: noteBody.
 - For project: projectName, projectType (one of: new_build, renovation, addition, remodel, commercial, landscape, roofing, flooring, painting, plumbing, electrical, concrete — pick the closest. "Kitchen remodel" -> remodel; "bathroom renovation" -> renovation; "ADU" -> new_build; "deck" -> addition), projectLocation, targetBudget.
 - For punch: description (the issue), punchLocation, punchTrade ("Electrical","Plumbing","HVAC","Drywall","Painting","Flooring","Roofing","Concrete","Framing","Landscaping","General","Other"), punchPriority (low/medium/high).
-- For invoice: invoiceNotes, invoiceLineItems (array of {name, description, quantity, unit, unitPrice}).
+- For invoice: invoiceNotes, invoiceLineItems (array of {name, description, quantity, unit, unitPrice, priceStated}). Set priceStated:true ONLY when the contractor explicitly said the dollar amount; priceStated:false otherwise — the app will look up the rate from their cost history.
 - For submittal: submittalTitle, submittalSpecSection, submittalSubmittedBy, submittalRequiredDate.
 - For lead: leadName (homeowner, title-case), leadPhone, leadEmail, leadAddress, leadProjectType (free-text like "Kitchen remodel"), leadScope (any extra detail), leadBudgetMin / leadBudgetMax (dollars), leadTimeline ("spring", "ASAP"), leadSource (referral/website/houzz/angi/yelp/thumbtack/google/facebook/instagram/walk_in/repeat/sign/truck/other), leadSourceOther (referrer name if applicable), leadScore (1-10 fit score — be honest), leadScoreReason (one short sentence).
 - For field_update: fieldWorkPerformed (a one-line summary of the day's work), fieldTimeEntries (array of {trade, hours, notes} — one per crew/trade whose hours were stated; "put me down for 6 hours" with no trade -> trade "General"), fieldScheduleUpdates (array of {taskName, progressPercent} — match taskName to the schedule items in CONTEXT when possible; "done"/"finished" = 100, "halfway" = 50, "almost done" = 90), fieldMaterials (array of short strings for materials delivered, e.g. "40 sheets 5/8 drywall"). Only include the sub-parts actually mentioned.
-- For unsure: leave fields blank, set reasoning to explain what was missing.
+- For unsure: DO NOT leave the contractor stuck. Set clarifyQuestion to ONE short, specific question that resolves the ambiguity — e.g. "Are you invoicing the client or recording a sub's bill?" or "Is this a change order or an internal note?". The app will show this as a one-tap follow-up instead of forcing a full re-record. Set reasoning to explain what was ambiguous.
 
 Always set 'reasoning' to a one-sentence explanation of why you picked this kind, in the contractor's voice ("Sounds like an RFI because…").
 
@@ -196,6 +213,7 @@ ${transcript}`,
       punchPriority: 'medium',
       invoiceNotes: '',
       invoiceLineItems: [],
+      clarifyQuestion: '',
       submittalTitle: '',
       submittalSpecSection: '',
       submittalSubmittedBy: '',

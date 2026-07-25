@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, FileDown,
-  RotateCcw, Users, FolderPlus, Plus, X, Mic,
+  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
@@ -36,6 +36,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
+import { stableHash } from '@/utils/stableHash';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeCalibration } from '@/utils/estimateCalibration';
 import UpgradeSheet from '@/components/UpgradeSheet';
@@ -43,6 +44,8 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { ScopeQuestionStepper } from '@/components/ScopeQuestionStepper';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
@@ -56,6 +59,7 @@ import {
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const ESTIMATE_THINKING_STEPS = [
   'Reading your scope…',
@@ -168,7 +172,12 @@ function EstimateWizardScreenInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { settings, getProject, updateProject, addProject, projects, commitments } = useProjects();
+  const { receipts } = useMaterialReceipts();
+  // Self-perform labor (D6): crew hours × configured loaded rates, folded
+  // into the same cost book the wizard grounds its prices on.
+  const laborSamples = useLaborCostSamples();
   const { tier } = useSubscription();
 
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -197,8 +206,32 @@ function EstimateWizardScreenInner() {
 
   useEffect(() => {
     if (scopedProject?.scope) {
+      // Re-opening the wizard for a project that already has scope stamped:
+      // restore all wizard answers so nothing is re-asked.
       const { updatedAt: _updatedAt, ...rest } = scopedProject.scope;
       setAnswers({ ...INITIAL_SCOPE, ...rest });
+    } else if (scopedProject) {
+      // First time through the wizard for this project — seed from the Project
+      // record so the wizard never re-asks what the project already knows.
+      // mapProjectType is a local helper that folds ProjectType back to a
+      // wizard display string (e.g. 'renovation' → 'Full Remodel'); we just
+      // use the raw type value here since the wizard accepts free text.
+      const { type, squareFootage, quality, location, description } = scopedProject;
+      const seedType = type && type !== 'renovation' ? type.replace(/_/g, ' ') : '';
+      const seedQuality: WizardAnswers['quality'] =
+        quality === 'premium' || quality === 'luxury' ? 'high_end'
+        : quality === 'economy' ? 'budget'
+        : 'standard';
+      // Skip 'United States' placeholder — the wizard treats blank as unknown
+      const seedLocation = location && location !== 'United States' ? location : '';
+      setAnswers((prev) => ({
+        ...prev,
+        ...(seedType ? { projectType: seedType } : {}),
+        ...(squareFootage && squareFootage > 0 ? { sizeSqft: String(squareFootage) } : {}),
+        quality: seedQuality,
+        ...(seedLocation ? { location: seedLocation } : {}),
+        ...(description ? { scope: description } : {}),
+      }));
     }
   }, [scopedProject?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -220,7 +253,7 @@ function EstimateWizardScreenInner() {
   // national average. Best-effort — an empty book just means no grounding.
   const groundingFacts = useMemo<string[]>(() => {
     try {
-      const db = buildCostDatabase(projects, commitments);
+      const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
       const facts = db.entries.slice(0, 6).map((e) =>
         `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`);
       const cal = computeCalibration({ projects, commitments });
@@ -231,7 +264,7 @@ function EstimateWizardScreenInner() {
     } catch {
       return [];
     }
-  }, [projects, commitments]);
+  }, [projects, commitments, receipts, laborSamples]);
 
   const next = useCallback(() => {
     if (!canAdvance) return;
@@ -264,8 +297,10 @@ function EstimateWizardScreenInner() {
     const a = answersOverride ?? answers;
     const prompt = buildEstimatePrompt(a, groundingFacts);
 
-    // Grounded prompts must not collide with ungrounded cache entries.
-    const cacheKey = scopeCacheKey(a) + (groundingFacts.length > 0 ? `_g${groundingFacts.length}` : '');
+    // Grounded prompts must not collide with ungrounded cache entries; salt
+    // by fact CONTENT, not count — the fact list is capped, so a stale count
+    // salt would replay an estimate grounded on an outdated cost book.
+    const cacheKey = scopeCacheKey(a) + (groundingFacts.length > 0 ? `_g${stableHash(groundingFacts.join('|'))}` : '');
 
     try {
       const res = await mageAISmart(prompt, estimateSchema, cacheKey);
@@ -481,7 +516,7 @@ function EstimateWizardScreenInner() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Estimate' }} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}>
+        <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}>
           {/* "Client preview" banner — reminds the GC that what they see
               IS what the homeowner sees. Soft contextual cue at the top. */}
           <View style={styles.previewBanner}>
@@ -565,7 +600,11 @@ function EstimateWizardScreenInner() {
             <View style={styles.groundedChip}>
               <Text style={styles.groundedText}>Priced with your cost history · {groundingFacts.length} learned rate{groundingFacts.length === 1 ? '' : 's'}</Text>
             </View>
-          ) : null}
+          ) : (
+            <View style={styles.groundedChipEmpty}>
+              <Text style={styles.groundedTextEmpty}>Priced from market averages — close jobs to teach MAGE your real costs</Text>
+            </View>
+          )}
 
           {result.refineWith && result.refineWith.length > 0 && (
             <View style={styles.refineCard}>
@@ -843,6 +882,20 @@ function EstimateWizardScreenInner() {
               <RotateCcw size={16} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.resultSecondaryText}>Start a new estimate</Text>
             </TouchableOpacity>
+            {/* Win Optimizer — contextual decision-moment link. After building
+                an estimate the GC is thinking about bid price; Win Optimizer
+                uses their win/loss history to recommend the price that
+                maximises expected profit. Cross-link here so it's
+                discoverable at the decision moment. */}
+            <TouchableOpacity
+              style={[styles.resultSecondaryBtn, { borderColor: themeColors.accent + '40' }]}
+              onPress={() => router.push('/win-optimizer' as never)}
+              activeOpacity={0.85}
+              testID="wizard-win-optimizer"
+            >
+              <TrendingUp size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={[styles.resultSecondaryText, { color: themeColors.accent }]}>Optimize your bid price</Text>
+            </TouchableOpacity>
           </View>
             );
           })()}
@@ -1025,6 +1078,7 @@ function EstimateWizardScreenInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 680, alignSelf: 'center' as const },
   progressWrap: {
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4,
   },
@@ -1354,6 +1408,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   refineGoText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnPrimary },
   groundedChip: { alignSelf: 'flex-start', backgroundColor: themeColors.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
   groundedText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.success },
+  groundedChipEmpty: { alignSelf: 'flex-start', backgroundColor: themeColors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
+  groundedTextEmpty: { fontSize: Type.caption1.fontSize, fontWeight: '500', color: themeColors.textMuted },
   stepHintRow: { paddingHorizontal: 20, paddingTop: 8 },
   stepHintText: { fontSize: Type.footnote.fontSize, color: themeColors.danger, textAlign: 'center' },
   disclaimer: {

@@ -29,6 +29,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { MageAIMark } from '@/components/icons';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -424,6 +425,19 @@ function PlanViewerScreenInner() {
         <View style={styles.modePill}>
           <Text style={styles.modePillText}>{pins.length} {pins.length === 1 ? 'pin' : 'pins'}</Text>
         </View>
+        {/* Ask Your Plans — cross-link to the plan intelligence Q&A surface.
+            Previously invisible from the plan viewer; tapping opens the chat
+            with this sheet's project pre-selected. */}
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/plan-intelligence' as never, params: { projectId: sheet?.projectId ?? '' } as never })}
+          style={styles.headerBtn}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Ask your plans"
+          testID="plan-viewer-ask-btn"
+        >
+          <MageAIMark size={20} color={themeColors.accent} />
+        </TouchableOpacity>
       </View>
 
       {/* Image + overlays */}
@@ -650,8 +664,20 @@ function PlanViewerScreenInner() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.toolBtn, mode === 'measure' && styles.toolBtnActive]}
-          onPress={() => switchMode('measure')}
-          disabled={!scaleFtPerPx}
+          onPress={() => {
+            if (!scaleFtPerPx) {
+              // Calibrate must happen first — switch to calibrate mode and
+              // hint the user (mirrors area-takeoff.tsx:472 pattern).
+              switchMode('calibrate');
+              Alert.alert(
+                'Set sheet scale first',
+                'Tap Calibrate, then tap two points a known distance apart (e.g. a door = 3 ft). Measure unlocks once the scale is set.',
+                [{ text: 'OK' }],
+              );
+              return;
+            }
+            switchMode('measure');
+          }}
         >
           <Ruler size={18} color={!scaleFtPerPx ? themeColors.textMuted : mode === 'measure' ? '#FFFFFF' : themeColors.text} strokeWidth={1.75} />
           <Text style={[

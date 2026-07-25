@@ -46,6 +46,7 @@ import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -63,6 +64,7 @@ export default function BuyoutPackageScreen() {
   const router = useRouter();
   const { packageId } = useLocalSearchParams<{ packageId: string }>();
   const {
+    projects, commitments,
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
     awardBidPackage, getProject, prequalPackets, getSubcontractor,
@@ -70,6 +72,7 @@ export default function BuyoutPackageScreen() {
     settings,
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
+  const { receipts } = useMaterialReceipts();
 
   const pkg = useMemo(() => packageId ? getBidPackage(packageId) : null, [packageId, getBidPackage]);
   const bids = useMemo(() => packageId ? getBidsForPackage(packageId) : [], [packageId, getBidsForPackage]);
@@ -150,7 +153,7 @@ export default function BuyoutPackageScreen() {
     }
     setLeveling(true);
     try {
-      const result = await levelBids({ pkg, bids });
+      const result = await levelBids({ pkg, bids, projects, commitments, receipts });
       await recordAIUsage('smart', 'bidLeveling');
       setLevelingResult(result);
       // Persist each adjustment back to the bid records — but only when
@@ -178,7 +181,7 @@ export default function BuyoutPackageScreen() {
     } finally {
       setLeveling(false);
     }
-  }, [pkg, bids, updateBidPackageBid, subscriptionTier]);
+  }, [pkg, bids, projects, commitments, receipts, updateBidPackageBid, subscriptionTier]);
 
   // ── Award a bid ─────────────────────────────────────────────
   // Prequal gate (industry must-have): when the bidder is a tracked
@@ -509,6 +512,15 @@ export default function BuyoutPackageScreen() {
                 <Text style={styles.levelLinkBtnText}>Open leveling board</Text>
                 <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.levelLinkBtn}
+                onPress={() => router.push({ pathname: '/judges', params: { projectId: pkg.projectId } } as never)}
+                activeOpacity={0.85}
+              >
+                <Briefcase size={15} color={themeColors.accent} strokeWidth={1.75} />
+                <Text style={styles.levelLinkBtnText}>Score with Bid Advisor</Text>
+                <ArrowRight size={14} color={themeColors.accent} strokeWidth={1.75} />
+              </TouchableOpacity>
               {!!levelingResult?.summary && (
                 <View style={styles.levelingSummary}>
                   <View style={styles.levelingSummaryHead}>
@@ -641,6 +653,15 @@ export default function BuyoutPackageScreen() {
                         <Trophy size={14} color="#FFF" strokeWidth={1.75} />
                         <Text style={styles.awardBtnText}>Award · {formatMoney(total)}</Text>
                         <ArrowRight size={14} color="#FFF" strokeWidth={1.75} />
+                      </TouchableOpacity>
+                    )}
+                    {!!bid.subcontractorId && (
+                      <TouchableOpacity
+                        style={styles.subScorecardBtn}
+                        onPress={() => router.push({ pathname: '/sub-scorecard', params: { subId: bid.subcontractorId } } as never)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.subScorecardBtnText}>See this sub's scorecard →</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -862,6 +883,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
 
   awardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.success, paddingVertical: 12, borderRadius: Tokens.radius.card },
   awardBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
+
+  subScorecardBtn: { alignItems: 'center', paddingTop: 6 },
+  subScorecardBtnText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' as const },
 
   openCommitmentBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent + '15', paddingVertical: 14, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.accent + '40' },
   openCommitmentText: { color: t.accent, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },

@@ -16,8 +16,10 @@ import { MageCostDb } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
@@ -50,14 +52,18 @@ export default function CostDatabaseScreen() {
 function CostDatabaseInner() {
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, commitments } = useProjects();
   const { receipts } = useMaterialReceipts();
+  // Self-perform labor (D6): the book's own screen must show every source
+  // that feeds it — crew hours appear as "Labor — <trade>" $/hour entries.
+  const laborSamples = useLaborCostSamples();
 
   const db = useMemo(
-    () => buildCostDatabase(projects, commitments, receipts),
-    [projects, commitments, receipts],
+    () => buildCostDatabase(projects, commitments, receipts, laborSamples),
+    [projects, commitments, receipts, laborSamples],
   );
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -101,7 +107,7 @@ function CostDatabaseInner() {
           onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 40 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
           <View style={styles.kpiRow}>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Trades</Text>
@@ -197,6 +203,7 @@ function CostDatabaseInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   header: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,

@@ -1,8 +1,11 @@
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage } from '@/types';
+import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage, Commitment, MaterialReceipt } from '@/types';
+import type { CostSample } from '@/utils/costDatabase';
 import { getLanguageMeta } from '@/utils/portalLanguages';
+import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
+import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -228,7 +231,9 @@ export const bidScoreSchema = z.object({
   matchReasons: z.array(z.string()).default([]),
   concerns: z.array(z.string()).default([]),
   bidStrategy: z.string().default(''),
-  estimatedWinProbability: z.number().default(0),
+  // null when fewer than 3 decided bids exist — the UI renders an honest
+  // "not enough history" message instead of a hallucinated percentage.
+  estimatedWinProbability: z.number().nullable().default(null),
 });
 
 export type BidScoreResult = z.infer<typeof bidScoreSchema>;
@@ -241,8 +246,17 @@ export async function scoreBid(bid: {
   set_aside?: string | null;
   state?: string;
   description?: string;
-}, profile: CompanyAIProfile): Promise<BidScoreResult> {
+}, profile: CompanyAIProfile, histFacts?: BidHistoryFacts): Promise<BidScoreResult> {
   console.log('[AI Bid] Scoring bid:', bid.title?.substring(0, 40));
+
+  // Name the EXACT schema field in the instructions: a model told to fill
+  // "winProbability" emits a field the Zod schema silently strips, and the
+  // UI would wrongly show the "not enough decided bids" fallback.
+  const histBlock = histFacts ? bidHistoryFactsBlock(histFacts) : '';
+  const winInstruction = histFacts && histFacts.decidedCount >= 3
+    ? 'Set estimatedWinProbability from YOUR BID WIN HISTORY rates above (prefer size-bucket rate if available). Return a number 0–1, NOT a percentage.'
+    : 'Fewer than 3 decided bids exist — return estimatedWinProbability as null. Do not invent a percentage.';
+
   const aiResult = await mageAI({
     prompt: `You are an AI bid analyst for construction contractors. Score how well this bid matches the contractor's profile. Consider: trade alignment, project size fit, location, set-aside eligibility, and certification requirements.
 
@@ -262,7 +276,9 @@ Preferred size: ${profile.preferredSize}
 Location: ${profile.location}
 Certifications: ${profile.certifications.join(', ') || 'None'}
 
-Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence of bid strategy advice. Estimate win probability.`,
+${histBlock ? histBlock + '\n\n' : ''}WIN PROBABILITY RULE: ${winInstruction}
+
+Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence of bid strategy advice.`,
     schema: bidScoreSchema,
     tier: 'fast',
     maxTokens: 2000,
@@ -270,6 +286,11 @@ Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Bid scoring unavailable');
   }
+  // Scale normalization: the facts show "44%", the prompt asks for 0–1, and
+  // the UI renders value*100 — a model echoing the percentage scale (44)
+  // would render "4400%". Coerce (1,100] → /100, anything else out of range
+  // → null (the honest fallback), and cache only the normalized value.
+  aiResult.data.estimatedWinProbability = normalizeWinProbability(aiResult.data.estimatedWinProbability);
   console.log('[AI Bid] Score:', aiResult.data.matchScore);
   return aiResult.data;
 }
@@ -510,14 +531,27 @@ export const aiScheduleSchema = z.object({
 
 export type AIScheduleResult = z.infer<typeof aiScheduleSchema>;
 
-export async function buildScheduleFromDescription(description: string): Promise<AIScheduleResult> {
+export async function buildScheduleFromDescription(
+  description: string,
+  /** ALL projects — pace-book evidence base. When present, durations are
+   *  grounded in the contractor's measured per-trade pace (best-effort). */
+  allProjects?: Project[],
+): Promise<AIScheduleResult> {
   console.log('[AI Schedule] Building from description...');
+  // aiScheduleSchema tasks carry no rationale/assumption fields — use the
+  // schema-safe instruction variant. Never let a pace-book error block.
+  let paceBlock = '';
+  try {
+    paceBlock = paceFactsBlock(buildPaceFacts(allProjects ?? []).facts, { citeInRationale: false });
+  } catch {
+    // ignore — generate ungrounded
+  }
   const aiResult = await mageAI({
     prompt: `You are a senior construction scheduler with 20 years of experience. Create a detailed, realistic construction schedule based on this project description.
 
 PROJECT DESCRIPTION:
 ${description}
-
+${paceBlock ? `\n${paceBlock}\n` : ''}
 Create a complete schedule with:
 1. All major construction phases in proper sequence
 2. Realistic durations
@@ -583,6 +617,9 @@ Be specific with task names. Include inspections and mobilization/demobilization
 }
 
 export const changeOrderImpactSchema = z.object({
+  // When the description is too thin (<8 words and no line items), the model
+  // returns only this field and the UI shows the question instead of an analysis.
+  clarifyQuestion: z.string().nullable().default(null),
   scheduleDays: z.number().default(0),
   costImpact: z.object({
     materials: z.number().default(0),
@@ -612,6 +649,8 @@ export const changeOrderImpactSchema = z.object({
     costPremium: z.number().default(0),
     daysSaved: z.number().default(0),
   })).default([]),
+  // Which learned data sources were consulted. Rendered as grounding chips.
+  groundedOn: z.array(z.string()).default([]),
 });
 
 export type ChangeOrderImpactResult = z.infer<typeof changeOrderImpactSchema>;
@@ -620,11 +659,62 @@ export async function analyzeChangeOrderImpact(
   changeDescription: string,
   lineItems: { name: string; quantity: number; unitPrice: number; total: number }[],
   schedule: ProjectSchedule | null,
+  projects?: Project[],
+  // Cost-book inputs. buildCostDatabase derives BOTH 'actual' and 'committed'
+  // line costs exclusively from commitments — with an empty array every
+  // closed-job line resolves to cost 0 and the cost book is ALWAYS empty
+  // (the "YOUR COST HISTORY" block could never appear). Callers must thread
+  // the real arrays (see components/AIChangeOrderImpact.tsx).
+  commitments: Commitment[] = [],
+  receipts: MaterialReceipt[] = [],
+  laborSamples: CostSample[] = [],
 ): Promise<ChangeOrderImpactResult> {
   console.log('[AI CO] Analyzing change order impact...');
+
+  // Thin-input gate: description under 8 words AND no line items → ask one question.
+  const wordCount = changeDescription.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount < 8 && lineItems.length === 0) {
+    return changeOrderImpactSchema.parse({
+      clarifyQuestion: 'What trade and work are involved in this change? (e.g. "electrical — add 4 recessed lights in the living room")',
+    });
+  }
+
   const taskSummary = schedule?.tasks?.slice(0, 20).map(t =>
     `${t.title} (${t.phase}): Day ${t.startDay}-${t.startDay + t.durationDays}, ${t.progress}%`
   ).join('\n') || 'No schedule';
+
+  // Build pace and cost-book grounding from real project history.
+  let paceBlock = '';
+  let costBlock = '';
+  const groundingSources: string[] = [];
+
+  if (projects && projects.length > 0) {
+    const { facts: paceFacts, tradeCount } = buildPaceFacts(projects);
+    if (paceFacts.length > 0) {
+      paceBlock = paceFactsBlock(paceFacts, { citeInRationale: false });
+      groundingSources.push(`pace on ${tradeCount} trade${tradeCount === 1 ? '' : 's'}`);
+    }
+
+    // Build a lightweight cost-book fact block from line-item trades.
+    try {
+      const { buildCostDatabase } = await import('@/utils/costDatabase');
+      const costDb = buildCostDatabase(projects, commitments, receipts, laborSamples);
+      if (costDb.entries.length > 0) {
+        // Find entries relevant to the CO's line items or description.
+        const descWords = changeDescription.toLowerCase();
+        const relatedEntries = costDb.entries
+          .filter(e => descWords.includes(e.trade.toLowerCase()) || lineItems.some(li => li.name.toLowerCase().includes(e.trade.toLowerCase())))
+          .slice(0, 4);
+        if (relatedEntries.length > 0) {
+          costBlock = 'YOUR COST HISTORY (flag line items more than 25% off these rates):\n'
+            + relatedEntries.map(e => `- ${e.trade} / ${e.unit}: $${e.personalRate.toFixed(2)}/unit (${e.sampleCount} samples, ${e.confidence} confidence)`).join('\n');
+          groundingSources.push('your cost history');
+        }
+      }
+    } catch {
+      // costDatabase import failure is non-fatal — proceed without cost grounding.
+    }
+  }
 
   const aiResult = await mageAI({
     prompt: `You are a construction change order analyst. Analyze the schedule and cost impact of this change order.
@@ -640,7 +730,7 @@ Total duration: ${schedule?.totalDurationDays ?? 0} days
 Tasks:
 ${taskSummary}
 
-Predict schedule delay, cost impact, affected downstream tasks, and give a recommendation. Include compression options to reduce delay.`,
+${paceBlock ? paceBlock + '\n\n' : ''}${costBlock ? costBlock + '\n\n' : ''}Predict schedule delay (use PACE HISTORY when a trade matches; bias delay by actual pace), cost impact (flag line items that deviate from COST HISTORY), affected downstream tasks, and give a recommendation. Include compression options to reduce delay. Set groundedOn to the history sources you actually used (e.g. ["your cost history", "pace on 2 trades"]). Leave clarifyQuestion null.`,
     schema: changeOrderImpactSchema,
     tier: 'smart',
     maxTokens: 3500,
@@ -648,8 +738,14 @@ Predict schedule delay, cost impact, affected downstream tasks, and give a recom
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Change order analysis unavailable');
   }
-  console.log('[AI CO] Impact analysis complete');
-  return aiResult.data;
+  // Stamp the grounding sources we computed so the UI always shows what was used,
+  // even if the model forgets to fill groundedOn.
+  const result = aiResult.data;
+  if (groundingSources.length > 0 && (result.groundedOn ?? []).length === 0) {
+    result.groundedOn = groundingSources;
+  }
+  console.log('[AI CO] Impact analysis complete, grounded on:', result.groundedOn);
+  return result;
 }
 
 export const weeklySummarySchema = z.object({
@@ -1055,12 +1151,17 @@ export async function generateQuickEstimate(
   squareFootage: number,
   qualityTier: string,
   location: string,
+  groundingFacts?: string[],
 ): Promise<AIQuickEstimateResult> {
   console.log('[AI Quick Estimate] Generating for:', description.substring(0, 60));
 
+  const groundingBlock = groundingFacts && groundingFacts.length > 0
+    ? `\nLEARNED RATES FROM YOUR JOBS:\n${groundingFacts.map(f => `- ${f}`).join('\n')}\nWhen a learned rate covers a line, use it as the unit price and note "from your history" in that line's notes field.\n`
+    : '';
+
   const aiResult = await mageAI({
     prompt: `You are an expert construction estimator with current 2025-2026 pricing knowledge. Generate a detailed, realistic construction estimate for this project.
-
+${groundingBlock}
 PROJECT: ${description}
 Type: ${projectType || 'General Construction'} | SqFt: ${squareFootage || 'unspecified'} | Quality: ${qualityTier || 'standard'} | Location: ${location || 'US'}
 

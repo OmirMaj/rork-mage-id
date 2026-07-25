@@ -18,6 +18,7 @@ import Svg, { Path, Line } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { legacyEvmMetrics, buildCashFlow } from '@/utils/scheduleEarnedValue';
 import { mageAI } from '@/utils/mageAI';
@@ -62,15 +63,28 @@ export default function BudgetDashboardScreen() {
 
 function BudgetDashboardScreenInner() {
   const insets = useSafeAreaInsets();
-  // Reactive chart width. Captured per-render from the live window size (not a
-  // module-level Dimensions snapshot) so the S-curve re-lays-out on web window
-  // resize / rotation. Clamped to CHART_MAX_WIDTH so it doesn't get absurdly
-  // wide on desktop; phones fall through to (width - inset), matching before.
+  // Reactive chart width, derived from the chart card's MEASURED width — not
+  // the window. This screen renders inside the 240px desktop sidebar shell
+  // (it is not in DESKTOP_SHELL_EXEMPT), so window-based math overflows the
+  // content pane in the 900–1023px window band: min(window−64, 720) yields
+  // 720 while the pane is only window−240−padding ≈ 596–720px. onLayout
+  // measures the real container (shell, page padding, resize, rotation all
+  // included); the window-based value is only the pre-first-layout fallback.
   const { width: windowWidth } = useWindowDimensions();
-  const chartWidth = Math.min(windowWidth - CHART_HORIZONTAL_INSET, CHART_MAX_WIDTH);
+  const [measuredCardWidth, setMeasuredCardWidth] = useState<number | null>(null);
+  const onChartCardLayout = useCallback((e: { nativeEvent: { layout: { width: number } } }) => {
+    const w = e.nativeEvent.layout.width;
+    setMeasuredCardWidth(prev => (prev === w ? prev : w));
+  }, []);
+  // Measured card width includes the card's own 16pt padding per side.
+  const chartWidth = Math.min(
+    measuredCardWidth !== null ? measuredCardWidth - 32 : windowWidth - CHART_HORIZONTAL_INSET,
+    CHART_MAX_WIDTH,
+  );
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { projects, getProject, invoices, getChangeOrdersForProject } = useProjects();
 
@@ -175,7 +189,7 @@ Be specific and actionable. Use construction industry terminology.`;
           headerTintColor: themeColors.accent,
           headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         }} />
-        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
           <FeatureHeader
             eyebrow="Earned Value"
             title="Pick a project to chart"
@@ -280,7 +294,7 @@ Be specific and actionable. Use construction industry terminology.`;
         headerTintColor: themeColors.accent,
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <FeatureHeader
           eyebrow="Earned Value"
           title="Are you making or losing money on this job?"
@@ -330,7 +344,7 @@ Be specific and actionable. Use construction industry terminology.`;
         </View>
 
         <Text style={styles.sectionTitle}>Cash Flow S-Curve</Text>
-        <View style={styles.chartCard}>
+        <View style={styles.chartCard} onLayout={onChartCardLayout}>
           <Svg width={chartWidth} height={CHART_HEIGHT}>
             <Line x1={CHART_PADDING} y1={CHART_HEIGHT - CHART_PADDING} x2={chartWidth - CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
             <Line x1={CHART_PADDING} y1={CHART_PADDING} x2={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
@@ -391,6 +405,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: t.bg,
   },
+  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
   center: {
     justifyContent: 'center' as const,
     alignItems: 'center' as const,

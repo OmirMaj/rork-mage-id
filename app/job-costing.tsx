@@ -30,8 +30,10 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborRates, useLaborCostSamples, useTimeEntriesMirror } from '@/hooks/useLaborRates';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
@@ -70,6 +72,7 @@ export default function JobCostingScreen() {
 function JobCostingInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -79,19 +82,25 @@ function JobCostingInner() {
   } = useProjects();
 
   const { receipts } = useMaterialReceipts();
+  // Self-perform labor (D6): finished shifts × the GC's configured loaded
+  // rates land as an ACTUAL "Self-perform labor" line — the largest actual
+  // stream a self-perform crew generates was previously invisible here.
+  const timeEntries = useTimeEntriesMirror();
+  const { rates: laborRates } = useLaborRates();
+  const laborSamples = useLaborCostSamples();
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
 
   const summary: JobCostSummary | null = useMemo(() => {
     if (!project) return null;
-    return computeJobCost({ project, commitments, invoices, changeOrders, receipts });
-  }, [project, commitments, invoices, changeOrders, receipts]);
+    return computeJobCost({ project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates });
+  }, [project, commitments, invoices, changeOrders, receipts, timeEntries, laborRates]);
 
   const projectCommitments = useMemo(
     () => commitments.filter(c => c.projectId === (projectId ?? '')),
     [commitments, projectId],
   );
 
-  const costDb = useMemo(() => buildCostDatabase(projects, commitments), [projects, commitments]);
+  const costDb = useMemo(() => buildCostDatabase(projects, commitments, receipts, laborSamples), [projects, commitments, receipts, laborSamples]);
   const [bidCheck, setBidCheck] = useState<SubBidVerdict | null>(null);
 
   const [editingCommitment, setEditingCommitment] = useState<Commitment | null>(null);
@@ -152,7 +161,7 @@ function JobCostingInner() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 80 + insets.bottom }, isDesktop && styles.contentDesktop]}>
 
         {/* KPI cards */}
         <View style={styles.kpiGrid}>
@@ -188,7 +197,7 @@ function JobCostingInner() {
 
         {/* Projection banner — the TL;DR */}
         <View style={[styles.banner, {
-          backgroundColor: variancePositive ? Colors.successLight : Colors.errorLight,
+          backgroundColor: variancePositive ? themeColors.successSoft : themeColors.dangerSoft,
           borderLeftColor: variancePositive ? themeColors.success : themeColors.danger,
         }]}>
           <Text style={styles.bannerTitle}>
@@ -687,6 +696,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <DetailRow label="Invoices contributed" value={`${line.sources.invoices}`} />
             <DetailRow label="COs contributed" value={`${line.sources.changeOrders}`} />
             {line.sources.receipts > 0 && <DetailRow label="Material receipts" value={`${line.sources.receipts}`} />}
+            {line.sources.timeEntries > 0 && <DetailRow label="Crew shifts (self-perform)" value={`${line.sources.timeEntries}`} />}
 
             <Text style={styles.detailNote}>
               This phase is {((line.budget / Math.max(1, summary.budget)) * 100).toFixed(1)}% of
@@ -728,6 +738,7 @@ function DetailRow({ label, value, bold, color }: {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: t.bg },
+  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
   errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorText: { fontSize: Type.subhead.fontSize, color: t.textSecondary },
 
@@ -781,8 +792,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   addLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   addLinkText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '600' },
 
-  warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${t.danger}40` },
-  warningSectionAmber: { backgroundColor: Colors.warningLight, borderWidth: 1, borderColor: `${Colors.warning}40` },
+  warningSection: { backgroundColor: t.dangerSoft, borderWidth: 1, borderColor: `${t.danger}40` },
+  warningSectionAmber: { backgroundColor: t.warningSoft, borderWidth: 1, borderColor: `${Colors.warning}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.danger },
   warningTitleAmber: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.warning },

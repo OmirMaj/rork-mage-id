@@ -509,7 +509,7 @@ export default function HomeScreen() {
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 10,
             backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg,
-            paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
+            paddingHorizontal: 16, paddingVertical: 14, marginBottom: 8,
           }}
         >
           <MageAIMark size={18} color="#FFF" />
@@ -519,6 +519,30 @@ export default function HomeScreen() {
               What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
             </Text>
           </View>
+        </TouchableOpacity>
+
+        {/* Copilot Hub — voice-driven workflow builder. Cross-link from home
+            so the flagship conversational surface is one tap away without
+            requiring the user to navigate to a specific project first. */}
+        <TouchableOpacity
+          onPress={() => router.push('/copilot-hub' as never)}
+          activeOpacity={0.85}
+          testID="home-copilot-hub"
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg,
+            paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12,
+            borderWidth: 1, borderColor: themeColors.line,
+          }}
+        >
+          <MageAIMark size={18} color={themeColors.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: Type.footnote.fontSize }}>MAGE Copilot</Text>
+            <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+              Say what you need — build schedules, write change orders, create reports by voice
+            </Text>
+          </View>
+          <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={2} />
         </TouchableOpacity>
         <View style={styles.aiBriefingWrap}>
           <TouchableOpacity
@@ -618,6 +642,7 @@ export default function HomeScreen() {
         }
         contentContainerStyle={[
           styles.listContent,
+          responsive.isDesktop && styles.listContentDesktop,
           // Bottom padding must clear the floating AICopilot FAB, which sits at
           // bottom: insets.bottom + 70 with a 56px button (see components/AICopilot.tsx).
           // 70 + 56 + 14px margin = 140, so the last project card never clips
@@ -675,7 +700,7 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="Add"
                   >
-                    <Plus size={18} color={themeColors.surface} strokeWidth={2.5} />
+                    <Plus size={18} color={Colors.textOnAccent} strokeWidth={2.5} />
                   </TouchableOpacity>
                 </>
               }
@@ -1115,6 +1140,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+  },
+  listContentDesktop: {
+    width: '100%',
+    maxWidth: 1100,
+    alignSelf: 'center' as const,
   },
   emptyList: {
     flex: 1,

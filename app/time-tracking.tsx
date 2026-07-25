@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert, Modal, Share,
+  Platform, Alert, Modal, Share, TextInput,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Clock, Play, Square, Users, ChevronDown,
   Coffee, X, TrendingUp, AlertTriangle, FileDown,
-  Briefcase, Check, Bell,
+  Briefcase, Check, Bell, DollarSign,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -20,6 +20,9 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { TimeEntry } from '@/types';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
+import { useLaborRates } from '@/hooks/useLaborRates';
+import { computeLaborStats, normalizeTradeKey } from '@/utils/laborSamples';
+import { parseLenientNumber } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useCrew } from '@/contexts/CrewContext';
 import { Type } from '@/constants/typography';
@@ -50,8 +53,10 @@ function LiveTimeCard({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const statusColor = entry.status === 'clocked_in' ? '#2E7D32' : entry.status === 'break' ? '#E65100' : themeColors.textMuted;
-  const statusBg = entry.status === 'clocked_in' ? '#E8F5E9' : entry.status === 'break' ? '#FFF3E0' : '#F5F5F5';
+  // Foregrounds theme WITH the soft fills below — the old static dark-green /
+  // dark-orange read at ~2.8:1 on the dark-theme soft chips.
+  const statusColor = entry.status === 'clocked_in' ? themeColors.success : entry.status === 'break' ? themeColors.warningLabel : themeColors.textMuted;
+  const statusBg = entry.status === 'clocked_in' ? themeColors.successSoft : entry.status === 'break' ? themeColors.warningSoft : themeColors.surfaceAlt;
   const statusLabel = entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On Break' : 'Clocked Out';
   // Tick every 30s so the threshold pill flips at most ~30s after the
   // worker actually crosses the line. Faster ticks just burn battery
@@ -95,11 +100,11 @@ function LiveTimeCard({
 
         {entry.status !== 'clocked_out' && (
           <View style={styles.liveCardTimer}>
-            <Clock size={14} color={overThreshold ? '#C62828' : approachingThreshold ? '#E65100' : themeColors.accent} strokeWidth={1.75} />
+            <Clock size={14} color={overThreshold ? themeColors.dangerLabel : approachingThreshold ? themeColors.warningLabel : themeColors.accent} strokeWidth={1.75} />
             <Text style={[
               styles.liveCardTimerText,
-              overThreshold && { color: '#C62828' },
-              approachingThreshold && { color: '#E65100' },
+              overThreshold && { color: themeColors.dangerLabel },
+              approachingThreshold && { color: themeColors.warningLabel },
             ]}>
               {getElapsedHours(entry.clockIn)}
             </Text>
@@ -115,10 +120,13 @@ function LiveTimeCard({
         {entry.status !== 'clocked_out' && (overThreshold || approachingThreshold) && (
           <View style={[
             styles.thresholdBanner,
-            { backgroundColor: overThreshold ? '#FDECEA' : '#FFF7EC', borderColor: overThreshold ? '#F5C2BE' : '#F5D4A8' },
+            {
+              backgroundColor: overThreshold ? themeColors.dangerSoft : themeColors.warningSoft,
+              borderColor: overThreshold ? themeColors.dangerLabel + '40' : themeColors.warningLabel + '40',
+            },
           ]}>
-            <AlertTriangle size={13} color={overThreshold ? '#C62828' : '#E65100'} strokeWidth={1.75} />
-            <Text style={[styles.thresholdBannerText, { color: overThreshold ? '#C62828' : '#7A3E00' }]}>
+            <AlertTriangle size={13} color={overThreshold ? themeColors.dangerLabel : themeColors.warningLabel} strokeWidth={1.75} />
+            <Text style={[styles.thresholdBannerText, { color: overThreshold ? themeColors.dangerLabel : themeColors.warningLabel }]}>
               {overThreshold
                 ? `Past ${alertThresholdHours}h shift — consider clocking out`
                 : `${(alertThresholdHours - elapsedHrs).toFixed(1)}h to ${alertThresholdHours}h shift`}
@@ -131,30 +139,30 @@ function LiveTimeCard({
             {entry.status === 'clocked_in' ? (
               <>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: Colors.warningLight }]}
+                  style={[styles.actionBtn, { backgroundColor: themeColors.warningSoft }]}
                   onPress={() => onAction(entry, 'break')}
                   activeOpacity={0.7}
                 >
-                  <Coffee size={14} color={Colors.warningDark} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: Colors.warningDark }]}>Break</Text>
+                  <Coffee size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
+                  <Text style={[styles.actionBtnText, { color: themeColors.warningLabel }]}>Break</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: Colors.errorLight }]}
+                  style={[styles.actionBtn, { backgroundColor: themeColors.dangerSoft }]}
                   onPress={() => onAction(entry, 'clock_out')}
                   activeOpacity={0.7}
                 >
-                  <Square size={14} color={Colors.errorDark} strokeWidth={1.75} />
-                  <Text style={[styles.actionBtnText, { color: Colors.errorDark }]}>Clock Out</Text>
+                  <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
+                  <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>Clock Out</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: Colors.successLight }]}
+                style={[styles.actionBtn, { backgroundColor: themeColors.successSoft }]}
                 onPress={() => onAction(entry, 'resume')}
                 activeOpacity={0.7}
               >
-                <Play size={14} color={Colors.successDark} strokeWidth={1.75} />
-                <Text style={[styles.actionBtnText, { color: Colors.successDark }]}>Resume</Text>
+                <Play size={14} color={themeColors.success} strokeWidth={1.75} />
+                <Text style={[styles.actionBtnText, { color: themeColors.success }]}>Resume</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -206,6 +214,14 @@ function TimeTrackingScreenInner() {
     shiftAlertHours, setShiftAlertHours,
   } = useTimeEntries();
   const [showAlertPicker, setShowAlertPicker] = useState(false);
+  // Labor rates — the GC's loaded $/hr per trade (wages + burden). The one
+  // input that turns clocked hours into cost-book samples (flywheel#56):
+  // hours are measured, but no pay rate exists anywhere in the data model,
+  // so the GC states theirs once here. Local-only, per-user
+  // (mageid_labor_rates in LOCAL_USER_CACHE_KEYS).
+  const { rates, setRates } = useLaborRates();
+  const [showRatesModal, setShowRatesModal] = useState(false);
+  const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
   const { projects } = useProjects();
   // Real crew roster (contexts/CrewContext → AsyncStorage + Supabase
   // `crew_members`, RLS-scoped to the GC). Replaces the old CREW_MEMBERS
@@ -275,6 +291,56 @@ function TimeTrackingScreenInner() {
     const totalOT = todayEntries.reduce((s, e) => s + e.overtimeHours, 0);
     return { totalWorkers, totalHours, totalOT, liveCount: liveEntries.length };
   }, [entries, liveEntries]);
+
+  // Honesty surface: how many finished shifts are actually feeding the cost
+  // book, and which trades are stuck waiting on a rate.
+  const laborStats = useMemo(() => computeLaborStats(entries, rates), [entries, rates]);
+
+  // Trades the rates modal offers: everything seen in entries or on the
+  // roster, plus anything already priced. Keyed by normalized trade; display
+  // label keeps the first real casing encountered.
+  const rateTrades = useMemo(() => {
+    const byKey = new Map<string, string>();
+    const offer = (raw: string | undefined) => {
+      const key = normalizeTradeKey(raw);
+      if (!byKey.has(key)) {
+        byKey.set(key, key === 'general' ? 'General labor' : (raw ?? '').trim());
+      }
+    };
+    entries.forEach(e => offer(e.trade));
+    roster.forEach(m => offer(m.trade));
+    Object.keys(rates).forEach(k => offer(k === 'general' ? undefined : k.charAt(0).toUpperCase() + k.slice(1)));
+    return [...byKey.entries()]
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => (a.key === 'general' ? 1 : b.key === 'general' ? -1 : a.label.localeCompare(b.label)));
+  }, [entries, roster, rates]);
+
+  const openRatesModal = useCallback(() => {
+    // Seed drafts from stored rates so the inputs show what's on file.
+    const drafts: Record<string, string> = {};
+    for (const t of rateTrades) {
+      const r = rates[t.key];
+      drafts[t.key] = Number.isFinite(r) && (r as number) > 0 ? String(r) : '';
+    }
+    setRateDrafts(drafts);
+    setShowRatesModal(true);
+  }, [rateTrades, rates]);
+
+  const commitRateDrafts = useCallback(() => {
+    // Persist every draft on close (iOS modals don't reliably blur inputs).
+    // Lenient parse ("$34", "34.50") via the shared money-input helper;
+    // blank or unparseable clears the rate — no silent garbage.
+    // ONE batched setRates call, not a setRate-per-trade loop: per-key
+    // mutations all read the same stale cache snapshot and race — only one
+    // of a multi-trade edit would survive (lost-update bug).
+    const batch: Record<string, number | null> = {};
+    for (const [key, raw] of Object.entries(rateDrafts)) {
+      const n = raw.trim() === '' ? null : parseLenientNumber(raw);
+      batch[key] = n !== null && n > 0 ? n : null;
+    }
+    setRates(batch);
+    setShowRatesModal(false);
+  }, [rateDrafts, setRates]);
 
   // The break-start timestamp is now persisted on the row (`breakStartedAt`
   // — see hooks/useTimeEntries.ts). Pre-fix this lived in a useRef on the
@@ -366,10 +432,10 @@ function TimeTrackingScreenInner() {
             <Text style={styles.statLabel}>Hours Today</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? '#FFF3E0' : themeColors.success + '14' }]}>
-              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} strokeWidth={1.75} /> : <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} />}
+            <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? themeColors.warningSoft : themeColors.successSoft }]}>
+              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={1.75} /> : <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} />}
             </View>
-            <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: Colors.warningDark }]}>{todayStats.totalOT.toFixed(1)}</Text>
+            <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: themeColors.warningLabel }]}>{todayStats.totalOT.toFixed(1)}</Text>
             <Text style={styles.statLabel}>OT Hours</Text>
           </View>
         </View>
@@ -407,20 +473,50 @@ function TimeTrackingScreenInner() {
             threshold. Default 8h; user-configurable. Active workers also
             get an inline yellow/red banner on their card as they approach
             and then pass it (see LiveTimeCard). */}
-        <TouchableOpacity
-          style={styles.alertSettingRow}
-          onPress={() => setShowAlertPicker(true)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Shift alert at ${shiftAlertHours} hours, tap to change`}
-          testID="time-tracking-alert-setting"
-        >
-          <Bell size={14} color={themeColors.accent} strokeWidth={1.75} />
-          <Text style={styles.alertSettingText}>
-            Alert at <Text style={styles.alertSettingHours}>{shiftAlertHours}h</Text>
+        <View style={styles.pillRow}>
+          <TouchableOpacity
+            style={styles.alertSettingRow}
+            onPress={() => setShowAlertPicker(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Shift alert at ${shiftAlertHours} hours, tap to change`}
+            testID="time-tracking-alert-setting"
+          >
+            <Bell size={14} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.alertSettingText}>
+              Alert at <Text style={styles.alertSettingHours}>{shiftAlertHours}h</Text>
+            </Text>
+          </TouchableOpacity>
+          {/* Loaded $/hr per trade — the input that turns these hours into
+              cost-book samples. Without it the book gets nothing (we never
+              substitute market averages for your payroll). */}
+          <TouchableOpacity
+            style={styles.alertSettingRow}
+            onPress={openRatesModal}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Set labor rates"
+            testID="time-tracking-labor-rates"
+          >
+            <DollarSign size={14} color={themeColors.accent} strokeWidth={1.75} />
+            <Text style={styles.alertSettingText}>Labor rates</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Honesty line — what this data actually feeds. Only rendered when
+            there is something true to say. */}
+        {laborStats.sampledEntries > 0 ? (
+          <Text style={styles.laborFeedLine} testID="labor-feed-line">
+            Feeding your labor rates: {laborStats.sampledEntries} entr{laborStats.sampledEntries === 1 ? 'y' : 'ies'} → your cost book
+            {laborStats.tradesMissingRates.length > 0
+              ? ` · ${laborStats.tradesMissingRates.length} trade${laborStats.tradesMissingRates.length === 1 ? '' : 's'} still unpriced`
+              : ''}
           </Text>
-          <Text style={styles.alertSettingMeta}>· tap to change</Text>
-        </TouchableOpacity>
+        ) : laborStats.eligibleEntries > 0 ? (
+          <Text style={styles.laborFeedLine} testID="labor-feed-line">
+            {laborStats.eligibleEntries} finished shift{laborStats.eligibleEntries === 1 ? '' : 's'} logged — set labor rates to feed your cost book
+          </Text>
+        ) : null}
 
         <View style={styles.tabRow}>
           <TouchableOpacity
@@ -651,6 +747,50 @@ function TimeTrackingScreenInner() {
           </View>
         </View>
       </Modal>
+
+      {/* Labor-rates editor. One loaded $/hr per trade — the GC's real
+          payroll number (wages + burden), entered once. Blank = that
+          trade's hours stay out of the cost book. */}
+      <Modal visible={showRatesModal} transparent animationType="slide" onRequestClose={commitRateDrafts}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Labor rates</Text>
+              <TouchableOpacity onPress={commitRateDrafts} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Save and close">
+                <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ paddingTop: 6, fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 }}>
+              Loaded cost per hour — wages plus burden — for each trade you self-perform.
+              Clocked hours × these rates feed your cost book, so estimates price labor
+              from your real numbers. Leave blank to keep a trade out.
+            </Text>
+            <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
+              {rateTrades.map(t => (
+                <View key={t.key} style={styles.rateRow}>
+                  <Text style={styles.rateTradeLabel} numberOfLines={1}>{t.label}</Text>
+                  <View style={styles.rateInputWrap}>
+                    <Text style={styles.rateInputPrefix}>$</Text>
+                    <TextInput
+                      style={styles.rateInput}
+                      value={rateDrafts[t.key] ?? ''}
+                      onChangeText={(v) => setRateDrafts(prev => ({ ...prev, [t.key]: v }))}
+                      keyboardType="decimal-pad"
+                      placeholder="—"
+                      placeholderTextColor={themeColors.textMuted}
+                      testID={`labor-rate-input-${t.key}`}
+                    />
+                    <Text style={styles.rateInputSuffix}>/hr</Text>
+                  </View>
+                </View>
+              ))}
+              {rateTrades.length === 0 ? (
+                <Text style={styles.allClockedIn}>Clock in crew (or add trades to your roster) and their trades appear here.</Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -755,14 +895,18 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
   },
-  // "Alert at Xh · tap to change" pill sitting between the Clock-In row
+  // Settings pills ("Alert at Xh", "Labor rates") between the Clock-In row
   // and the Live/History tabs.
+  pillRow: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
   alertSettingRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    marginHorizontal: 16,
-    marginBottom: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: t.accent + '0E',
@@ -771,6 +915,46 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     borderRadius: Tokens.radius.md,
     alignSelf: 'flex-start' as const,
   },
+  // Honesty line under the pills — what the logged hours actually feed.
+  laborFeedLine: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    fontSize: Type.caption1.fontSize,
+    color: t.textMuted,
+    lineHeight: 16,
+  },
+  // Labor-rates modal rows.
+  rateRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: t.line,
+    gap: 12,
+  },
+  rateTradeLabel: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  rateInputWrap: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 2,
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: t.line,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  rateInputPrefix: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, fontWeight: '600' as const },
+  rateInput: {
+    minWidth: 56,
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: t.text,
+    paddingVertical: 0,
+    textAlign: 'right' as const,
+  },
+  rateInputSuffix: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' as const },
   alertSettingText: { fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '500' as const },
   alertSettingHours: { color: t.accent, fontWeight: '800' as const, letterSpacing: 0.1 },
   alertSettingMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginLeft: 2 },
@@ -814,8 +998,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   historyProject: { fontSize: Type.footnote.fontSize, color: t.textSecondary, flex: 1 },
   historyFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   historyDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
-  otBadge: { backgroundColor: Colors.warningLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
-  otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warningDark },
+  otBadge: { backgroundColor: t.warningSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.warningLabel },
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32, gap: 8 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 320 },

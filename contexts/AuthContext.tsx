@@ -39,6 +39,14 @@ const LOCAL_USER_CACHE_KEYS = [
   'mageid_drawing_pins', 'mageid_plan_calibrations', 'mageid_plan_sheets',
   'mageid_plan_markups', 'mageid_permits', 'mageid_aia_pay_apps',
   'mageid_sub_portal_links', 'mageid_delay_applied', 'mageid_home_passport',
+  'mageid_labor_rates',
+  'mageid_material_receipts',
+  'mageid_time_entries',
+  // Community-feed cache. Shared data, but rows carry per-user attribution
+  // (userId → public_bids.user_id) that drives the post-quota count — wipe
+  // on tenant switch so a signed-out user's posts never count against the
+  // next tenant. Re-fetches from public_bids under the incoming JWT.
+  'mageid_public_bids',
 ] as const;
 
 // The re-fetchable caches (mageid_*) are always safe to wipe —
@@ -62,6 +70,22 @@ async function wipeLocalUserCache(opts?: { dropOfflineQueue?: boolean }): Promis
     await AsyncStorage.multiRemove(LOCAL_USER_CACHE_KEYS as unknown as string[]);
   } catch (err) {
     console.log('[Auth] Failed to clear local data cache:', err);
+  }
+  // AI result caches — grounded outputs derived from THIS user's bid
+  // history / cost book / pace facts / profile:
+  //   `mageid_ai_cache_*` (utils/aiService.ts AI_CACHE_PREFIX, e.g.
+  //   bidscore_<id>_…) and `mage_ai_cache_*` (utils/mageAI.ts CACHE_PREFIX,
+  //   e.g. gen-…, sb_followups_…). They're dynamic-suffix keys, so they
+  //   can't live in the static list above; sweep by prefix or a signed-out
+  //   user's grounded results replay for the next tenant on a shared device.
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const aiCacheKeys = allKeys.filter(
+      k => k.startsWith('mageid_ai_cache_') || k.startsWith('mage_ai_cache_'),
+    );
+    if (aiCacheKeys.length > 0) await AsyncStorage.multiRemove(aiCacheKeys);
+  } catch (err) {
+    console.log('[Auth] Failed to clear AI result cache:', err);
   }
 }
 

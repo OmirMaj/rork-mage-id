@@ -40,10 +40,10 @@ import {
 import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ArrowRight, Check, Ruler, Mic, TrendingUp } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
@@ -261,7 +261,7 @@ export default function OnboardingScreen() {
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await completeOnboarding();
-    router.replace('/(tabs)/(home)' as never);
+    router.replace('/onboarding-paywall' as never);
   }, [runDemoSeed, completeOnboarding, router]);
 
   const handleBandPick = useCallback(async (band: ProjectSizeBand) => {
@@ -321,27 +321,10 @@ export default function OnboardingScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
-      {/* Background — soft mesh gradient. Two stacked LinearGradients give
-          us a "light through glass" effect: deep green below, a warm
-          orange glow up top-right that shifts the mood without going
-          loud. Edge-to-edge, behind the safe area. */}
-      <LinearGradient
-        colors={[BRAND.greenDeep, BRAND.green, BRAND.green, BRAND.greenDeep]}
-        locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <LinearGradient
-        colors={[BRAND.orangeHot + '38', 'transparent']}
-        start={{ x: 0.85, y: 0 }}
-        end={{ x: 0.2, y: 0.6 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <LinearGradient
-        colors={['transparent', BRAND.orange + '14']}
-        start={{ x: 0.1, y: 0.7 }}
-        end={{ x: 0.6, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      {/* Background — ink field with corner accent glows.
+          The large field is ink; accent orange lives only in the
+          corner-glow layers (doctrine: accent is never the background). */}
+      <BrandBackdrop />
 
       {/* Subtle grain texture — a single transparent layer with a
           repeating-radial-gradient on web; on native, expressed as a

@@ -13,7 +13,7 @@
 //      schema asking: "What's the dollar-value adjustment to add to
 //      each bid to make them apples-to-apples? Why?"
 //   3. Returns one suggestion per bid: { bidId, adjustment, reason,
-//      confidence }.
+//      confidence, adjustmentBasis }.
 //   4. The screen applies the adjustments to each bid's
 //      `normalizedAdjustment` field (after GC review).
 //
@@ -23,10 +23,18 @@
 // reflect the missing fixtures"). Speculative differences ("Sub B
 // might be using cheaper material") get 0 — leveling is about
 // SCOPE, not opinions.
+//
+// Grounding: when the GC's learned cost book covers the package's
+// trade/CSI division, the prompt cites their real rates, and the
+// schema returns adjustmentBasis so the UI can signal provenance
+// ('your history' vs 'market guess').
 
 import { z } from 'zod';
 import { mageAI } from '@/utils/mageAI';
-import type { BidPackage, BidPackageBid } from '@/types';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import type { BidPackage, BidPackageBid, Project, Commitment, MaterialReceipt } from '@/types';
+
+// ── Schema ────────────────────────────────────────────────────────────────────
 
 const levelingResultSchema = z.object({
   adjustments: z.array(z.object({
@@ -41,6 +49,16 @@ const levelingResultSchema = z.object({
     /** 0-100 confidence. Below 50 the screen shows "AI low confidence —
      *  review manually." */
     confidence: z.number().default(50),
+    /** Where the adjustment dollar came from:
+     *  - 'your_history'  → looked up from the GC's own learned cost book
+     *  - 'estimate'      → anchored on the package's linked estimate lines
+     *  - 'market_guess'  → generic model estimate (no learned data available)
+     * Additive field — older data without this field defaults to 'market_guess'. */
+    adjustmentBasis: z.enum(['your_history', 'estimate', 'market_guess']).default('market_guess'),
+    /** When set, this adjustment is ambiguous (e.g. "Bid 2 says 'some permits'
+     *  but is not clear if the full permit fee is covered") — render as a
+     *  question chip the GC can answer before re-leveling. */
+    needsAnswer: z.string().optional(),
   })).default([]),
   /** Summary of the leveling — shown above the matrix. */
   summary: z.string().default(''),
@@ -50,18 +68,77 @@ const levelingResultSchema = z.object({
   recommendedWinnerReason: z.string().default(''),
 });
 export type LevelingResult = z.infer<typeof levelingResultSchema>;
+export type AdjustmentBasis = 'your_history' | 'estimate' | 'market_guess';
+
+// ── Options ───────────────────────────────────────────────────────────────────
 
 interface LevelOpts {
   pkg: BidPackage;
   bids: BidPackageBid[];
+  /** GC's full project list — used to build their learned cost book.
+   *  Passing undefined falls back to generic model estimates. */
+  projects?: Project[];
+  /** All commitments — required for cost-book accuracy. */
+  commitments?: Commitment[];
+  /** Snapped material receipts — additive learned rates. */
+  receipts?: MaterialReceipt[];
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Build a compact cost-book block for the prompt.  Returns an empty string
+ *  when there are no closed jobs yet (cold start — graceful). */
+function buildCostBookFacts(
+  pkg: BidPackage,
+  projects: Project[],
+  commitments: Commitment[],
+  receipts: MaterialReceipt[],
+): { facts: string; entryCount: number } {
+  const db = buildCostDatabase(projects, commitments, receipts);
+  if (db.entries.length === 0) return { facts: '', entryCount: 0 };
+
+  // Surface entries relevant to this package's trade / CSI.  We match
+  // loosely: the package's CSI division prefix or its name words against
+  // entry keys (trade|unit).  Fall back to top entries by totalActual.
+  const pkgTrade = (pkg.csiDivision ?? pkg.name ?? '').toLowerCase();
+  const words = pkgTrade.split(/\W+/).filter(w => w.length > 2);
+
+  const relevant = db.entries
+    .filter(e => words.some(w => e.key.includes(w)))
+    .sort((a, b) => b.totalActual - a.totalActual)
+    .slice(0, 6);
+
+  const topEntries = relevant.length > 0
+    ? relevant
+    : db.entries.sort((a, b) => b.totalActual - a.totalActual).slice(0, 4);
+
+  const lines = topEntries.map(e => {
+    const confLabel = e.confidence === 'high' ? 'high confidence' : e.confidence === 'medium' ? 'medium confidence' : 'low confidence';
+    const bias = e.bidBias > 0.05
+      ? `, you bid LOW by ${Math.round(e.bidBias * 100)}%`
+      : e.bidBias < -0.05
+        ? `, you bid HIGH by ${Math.round(Math.abs(e.bidBias) * 100)}%`
+        : '';
+    return `  • ${e.trade} / ${e.unit}: $${e.suggestedRate.toFixed(2)}/unit (${e.sampleCount} samples, ${confLabel}${bias})`;
+  });
+
+  const facts = `LEARNED COST BOOK (${db.jobsAnalyzed} closed job${db.jobsAnalyzed === 1 ? '' : 's'} analyzed):\n${lines.join('\n')}`;
+  return { facts, entryCount: topEntries.length };
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────────
+
 export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
-  const { pkg, bids } = opts;
+  const { pkg, bids, projects = [], commitments = [], receipts = [] } = opts;
   // Leveling requires at least 2 bids — otherwise there's nothing to
   // normalize against. The screen guards this too, but utilities exposed
   // module-wide should defend themselves (code-review #5).
   if (bids.length < 2) return { adjustments: [], summary: '', recommendedWinnerBidId: '', recommendedWinnerReason: '' };
+
+  // Build cost-book grounding block.
+  const { facts: costBookFacts, entryCount: costBookEntries } = buildCostBookFacts(
+    pkg, projects, commitments, receipts,
+  );
 
   // Build the prompt with each bid's raw text.
   const bidLines = bids.map((b, i) => {
@@ -73,6 +150,10 @@ export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
   Terms: ${b.terms || '(not specified)'}`;
   }).join('\n\n');
 
+  const costBookSection = costBookFacts
+    ? `\n${costBookFacts}\n\nWhen pricing an adjustment, use the LEARNED COST BOOK rates above whenever the missing scope matches a trade/unit in it. Set adjustmentBasis='your_history' for those rows. For scope the book doesn't cover, fall back to typical residential costs and set adjustmentBasis='market_guess', capping that confidence at 49.`
+    : `\nNo learned cost-book data available — use typical residential costs and set adjustmentBasis='market_guess', capping confidence at 49.`;
+
   const r = await mageAI({
     prompt: `You are a residential GC's buyout / bid leveling assistant. The GC has received multiple bids on the same scope of work and needs you to compute the ADJUSTMENT to add to each bid so they can be compared apples-to-apples.
 
@@ -82,39 +163,68 @@ PACKAGE
   CSI: ${pkg.csiDivision || '(unspecified)'}
   Estimate budget (carry): $${pkg.estimateBudget.toLocaleString()}
   Scope description: ${pkg.scopeDescription || '(see line items)'}
+${costBookSection}
 
 BIDS
 ${bidLines}
 
 YOUR JOB
 1. For each bid, decide what dollar adjustment to ADD to make it apples-to-apples with the others.
-   - If a bid EXCLUDES something another bid includes (fixtures, permits, dump fees, demolition), add the typical cost of that scope.
+   - If a bid EXCLUDES something another bid includes (fixtures, permits, dump fees, demolition), add the cost of that scope.
+   - Price exclusions from LEARNED COST BOOK when the trade matches; otherwise use typical residential costs.
    - If a bid is "all-in" / fully inclusive, adjustment = 0.
    - Be CONSERVATIVE: only adjust for clearly-stated scope differences. Don't adjust for "Sub B might be using cheaper material."
+   - If an exclusion is AMBIGUOUS (bid says "some permits" without clarifying amount), set needsAnswer to a one-sentence question for the GC.
 2. Return one entry per bid in the adjustments array, with bidId matching the input.
-3. Set 'confidence' 0-100. 80+ = strong call (clear exclusion of a known-cost item). 50-80 = reasonable but unverified. <50 = AI low confidence, GC should review.
-4. Set 'summary' to one paragraph explaining what you noticed across all bids.
-5. Set 'recommendedWinnerBidId' to the bid id that wins AFTER adjustment, or empty string if it's too close (within 5%) to call.
-6. Set 'recommendedWinnerReason' to one short sentence ("After leveling, Bid 2 is $1,200 less than the next-lowest and includes everything").`,
+3. Set adjustmentBasis: 'your_history' when using the LEARNED COST BOOK, 'estimate' when anchoring on estimate lines, or 'market_guess' for generic estimates.
+4. Set 'confidence' 0-100. For 'your_history' rows: match learned confidence level (high=80+, medium=60-79, low<60). For 'market_guess' rows: cap at 49.
+5. Set 'summary' to one paragraph explaining what you noticed across all bids.
+6. Set 'recommendedWinnerBidId' to the bid id that wins AFTER adjustment, or empty string if it's too close (within 5%) to call.
+7. Set 'recommendedWinnerReason' to one short sentence ("After leveling, Bid 2 is $1,200 less than the next-lowest and includes everything").`,
     schema: levelingResultSchema,
     schemaHint: {
-      adjustments: bids.map(b => ({ bidId: b.id, adjustment: 0, reason: 'No exclusions identified.', confidence: 70 })),
+      adjustments: bids.map(b => ({
+        bidId: b.id, adjustment: 0, reason: 'No exclusions identified.',
+        confidence: 70, adjustmentBasis: 'market_guess',
+      })),
       summary: 'All three bids are reasonably close. Bid 1 excludes fixtures (typical $1,200), Bid 2 is all-in, Bid 3 excludes permits (typical $400).',
       recommendedWinnerBidId: bids[0]?.id ?? '',
       recommendedWinnerReason: 'After leveling, Bid 2 is the lowest fully-inclusive number.',
     },
     tier: 'fast',
-    maxTokens: 1200,
+    maxTokens: 1400,
     feature: 'bidLeveling',
   });
 
   if (!r.success) {
     return {
-      adjustments: bids.map(b => ({ bidId: b.id, adjustment: 0, reason: 'AI unavailable — review manually.', confidence: 0 })),
+      adjustments: bids.map(b => ({
+        bidId: b.id, adjustment: 0, reason: 'AI unavailable — review manually.',
+        confidence: 0, adjustmentBasis: 'market_guess' as const,
+      })),
       summary: '',
       recommendedWinnerBidId: '',
       recommendedWinnerReason: '',
     };
   }
-  return r.data as LevelingResult;
+
+  const result = r.data as LevelingResult;
+
+  // Attach a grounding summary to the summary so the GC understands the basis.
+  if (costBookEntries > 0 && result.summary) {
+    result.summary = `(Adjustments priced from your cost history · ${costBookEntries} learned trade${costBookEntries === 1 ? '' : 's'}) ${result.summary}`;
+  }
+
+  return result;
+}
+
+// ── Validation cases (pure, no network) ──────────────────────────────────────
+// Pinned regression cases to keep engine shape honest.
+
+/** Validate that the adjustmentBasis field passes through schema parsing. */
+export function validateAdjustmentBasis(raw: unknown): AdjustmentBasis {
+  const parsed = levelingResultSchema.safeParse(raw);
+  if (!parsed.success) return 'market_guess';
+  const adj = parsed.data.adjustments[0];
+  return adj?.adjustmentBasis ?? 'market_guess';
 }

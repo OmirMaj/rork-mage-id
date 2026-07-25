@@ -25,6 +25,7 @@ import { generateUUID } from '@/utils/generateId';
 import { computeRiskScore, riskBand, type RiskBand } from '@/utils/safety/risk';
 import { supabase, SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const SCALE_OPTIONS: HazardScale[] = [1, 2, 3, 4, 5];
 
@@ -79,6 +80,7 @@ function SafetyHazardsInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { tier } = useTierAccess();
   const { user } = useAuth();
   const author = ((user?.name && user.name.trim()) || user?.email || '').trim();
@@ -266,7 +268,7 @@ function SafetyHazardsInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: `Hazard Log — ${project.name}` }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {suggestions.length > 0 && (
           <View style={styles.suggestionBox}>
             <Text style={styles.suggestionTitle}>AI-detected hazards — tap to review</Text>
@@ -527,6 +529,7 @@ function SafetyHazardsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   card: { marginHorizontal: 20, marginTop: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   cardTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },

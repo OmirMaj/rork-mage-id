@@ -133,7 +133,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
 
         {permit.status === 'inspection_failed' && permit.inspectionNotes && (
           <View style={styles.failedAlert}>
-            <AlertTriangle size={13} color={Colors.errorDark} strokeWidth={1.75} />
+            <AlertTriangle size={13} color={themeColors.dangerLabel} strokeWidth={1.75} />
             <Text style={styles.failedAlertText} numberOfLines={2}>{permit.inspectionNotes}</Text>
           </View>
         )}
@@ -445,9 +445,9 @@ function PermitsScreenInner() {
               testID="next-inspection-hero"
             >
               <View style={styles.nextInspectionTop}>
-                <View style={[styles.nextInspectionBadge, { backgroundColor: urgent ? '#FFEBEE' : '#F3E5F5' }]}>
-                  <Calendar size={14} color={urgent ? Colors.errorDark : Colors.purple} strokeWidth={1.75} />
-                  <Text style={[styles.nextInspectionBadgeText, { color: urgent ? Colors.errorDark : Colors.purple }]}>
+                <View style={[styles.nextInspectionBadge, { backgroundColor: urgent ? themeColors.dangerSoft : '#F3E5F5' }]}>
+                  <Calendar size={14} color={urgent ? themeColors.dangerLabel : Colors.purple} strokeWidth={1.75} />
+                  <Text style={[styles.nextInspectionBadgeText, { color: urgent ? themeColors.dangerLabel : Colors.purple }]}>
                     Next inspection · {dayLabel}
                   </Text>
                 </View>
@@ -472,7 +472,7 @@ function PermitsScreenInner() {
         {blockers.length > 0 && (
           <View style={styles.blockersCard}>
             <View style={styles.blockersHeader}>
-              <AlertTriangle size={14} color={Colors.errorDark} strokeWidth={1.75} />
+              <AlertTriangle size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
               <Text style={styles.blockersTitle}>
                 {blockers.length} permit{blockers.length === 1 ? '' : 's'} blocking work
               </Text>
@@ -506,17 +506,17 @@ function PermitsScreenInner() {
             <Text style={styles.statLabel}>Upcoming</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: Colors.warningLight }]}>
+            <View style={[styles.statIconWrap, { backgroundColor: themeColors.warningSoft }]}>
               <Clock size={16} color={Colors.warningDark} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.statValue, { color: Colors.warningDark }]}>{stats.pending}</Text>
+            <Text style={[styles.statValue, { color: themeColors.warningLabel }]}>{stats.pending}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: Colors.successLight }]}>
+            <View style={[styles.statIconWrap, { backgroundColor: themeColors.successSoft }]}>
               <Check size={16} color={Colors.successDark} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.statValue, { color: Colors.successDark }]}>{stats.passed}</Text>
+            <Text style={[styles.statValue, { color: themeColors.success }]}>{stats.passed}</Text>
             <Text style={styles.statLabel}>Passed</Text>
           </View>
         </View>
@@ -955,12 +955,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   blockersCard: {
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.dangerSoft,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#C62828' + '30',
+    borderColor: t.dangerLabel + '30',
     gap: 8,
   },
   blockersHeader: {
@@ -971,12 +971,14 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   blockersTitle: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '800' as const,
-    color: Colors.errorDark,
+    color: t.dangerLabel,
     letterSpacing: 0.3,
     textTransform: 'uppercase' as const,
   },
   blockerRow: {
-    backgroundColor: '#FFFFFF',
+    // t.surface, NOT white — in dark theme a white row under t.text (cream)
+    // rendered the blocked-permit names at ~1.08:1 (invisible).
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -994,7 +996,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   blockerStatus: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: Colors.errorDark,
+    color: t.dangerLabel,
   },
   statsRow: {
     flexDirection: 'row',
@@ -1110,13 +1112,13 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 6,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.dangerSoft,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
     marginTop: 4,
   },
-  failedAlertText: { fontSize: Type.caption1.fontSize, color: Colors.errorDark, flex: 1 },
+  failedAlertText: { fontSize: Type.caption1.fontSize, color: t.dangerLabel, flex: 1 },
   attachRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   attachText: { fontSize: Type.caption2.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   permitFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },

@@ -31,7 +31,9 @@ import type {
   ChangeOrder,
   LinkedEstimate,
   MaterialReceipt,
+  TimeEntry,
 } from '@/types';
+import { isEligibleLaborEntry, normalizeTradeKey, type LaborRateMap } from '@/utils/laborSamples';
 
 export interface JobCostLine {
   /** Grouping key — phase name or '(uncategorized)'. */
@@ -50,8 +52,9 @@ export interface JobCostLine {
   burnRatio: number;
   /** Status classification for dashboard chips. */
   status: 'on_track' | 'warning' | 'over';
-  /** How many commitments, invoices, change orders, material receipts contributed. */
-  sources: { commitments: number; invoices: number; changeOrders: number; receipts: number };
+  /** How many commitments, invoices, change orders, material receipts, and
+   *  crew time entries contributed. */
+  sources: { commitments: number; invoices: number; changeOrders: number; receipts: number; timeEntries: number };
 }
 
 export interface JobCostSummary {
@@ -129,6 +132,14 @@ export interface JobCostInput {
    *  unlinked, by each line's category). Additive — omit for the original
    *  commitments+invoices-only actuals. */
   receipts?: MaterialReceipt[];
+  /** Crew time entries (self-perform labor, D6). Finished shifts × the GC's
+   *  configured loaded rates (laborRates) count as ACTUAL labor spend in a
+   *  dedicated "Self-perform labor" phase line. Entries whose trade has no
+   *  configured rate contribute nothing — hours alone carry no dollars, and
+   *  we never substitute market averages. Additive — omit both for the
+   *  original behavior. */
+  timeEntries?: TimeEntry[];
+  laborRates?: LaborRateMap;
 }
 
 /**
@@ -138,7 +149,7 @@ export interface JobCostInput {
  * wire it up from ProjectContext and re-run on every mutation. Results are
  * cheap to recompute because the input arrays are already in memory.
  */
-export function computeJobCost({ project, commitments, invoices, changeOrders, receipts = [] }: JobCostInput): JobCostSummary {
+export function computeJobCost({ project, commitments, invoices, changeOrders, receipts = [], timeEntries = [], laborRates = {} }: JobCostInput): JobCostSummary {
   const projectCommitments = commitments.filter(c => c.projectId === project.id && c.status !== 'draft');
   const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
   const projectCOs = changeOrders.filter(co => co.projectId === project.id && co.status === 'approved');
@@ -228,6 +239,30 @@ export function computeJobCost({ project, commitments, invoices, changeOrders, r
     }
   }
 
+  // Self-perform labor — finished shifts × the GC's configured loaded rates
+  // count as ACTUAL labor spend, in a dedicated phase line. Estimates rarely
+  // carry a matching phase, so it reads as unbudgeted actuals — the honest
+  // story until self-perform labor is estimated as its own scope. Same
+  // no-budget behavior as an unbudgeted commitment phase.
+  {
+    let laborActual = 0;
+    let counted = 0;
+    for (const e of timeEntries) {
+      if (e.projectId !== project.id || !isEligibleLaborEntry(e)) continue;
+      const rate = laborRates[normalizeTradeKey(e.trade)];
+      if (!Number.isFinite(rate) || rate <= 0) continue;
+      laborActual += e.totalHours * rate;
+      counted++;
+    }
+    if (laborActual > 0) {
+      const phase = 'Self-perform labor';
+      const existing = phases.get(phase) ?? emptyLine(phase);
+      existing.actual += laborActual;
+      existing.sources.timeEntries += counted;
+      phases.set(phase, existing);
+    }
+  }
+
   // Overcommitted detection — any commitment whose sum exceeds the sum
   // of its linked estimate items. Useful for the dashboard call-out.
   const overcommitted: Commitment[] = [];
@@ -309,7 +344,7 @@ function emptyLine(phase: string): JobCostLine {
     variance: 0,
     burnRatio: 0,
     status: 'on_track',
-    sources: { commitments: 0, invoices: 0, changeOrders: 0, receipts: 0 },
+    sources: { commitments: 0, invoices: 0, changeOrders: 0, receipts: 0, timeEntries: 0 },
   };
 }
 

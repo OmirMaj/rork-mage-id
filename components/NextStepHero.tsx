@@ -35,7 +35,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Receipt, ShieldAlert, MessageSquareWarning,
-  ClipboardEdit, Calculator, Send, ChevronRight,
+  ClipboardEdit, Calculator, Send, ChevronRight, PartyPopper,
   type LucideIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -44,8 +44,9 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import type { Project, Invoice, RFI, PrequalPacket, Subcontractor } from '@/types';
+import type { Project, Invoice, RFI, PrequalPacket, Subcontractor, PunchItem } from '@/types';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
+import { computeProjectProgress } from '@/utils/projectProgress';
 
 export interface NextStepHeroProps {
   /** All projects the user owns. */
@@ -57,6 +58,12 @@ export interface NextStepHeroProps {
   /** All subs + their prequal packets (for COI expiry warnings). */
   subs?: Subcontractor[];
   prequalPackets?: PrequalPacket[];
+  /**
+   * Punch items for the scoped project — used to detect "all punch closed"
+   * as an additional signal for the close-project nudge. Optional: when
+   * absent, schedule progress alone drives the signal.
+   */
+  punchItems?: PunchItem[];
   /**
    * Optional override — when rendered inside a single project (project-
    * detail), scope the suggestion to just that one. Falls back to
@@ -86,7 +93,7 @@ interface NextStep {
 
 /** Compute the next step from current state. Returns null if all clear. */
 function chooseNextStep(input: NextStepHeroProps): NextStep | null {
-  const { projects, invoices, rfis = [], subs = [], prequalPackets = [], scopeToProjectId } = input;
+  const { projects, invoices, rfis = [], subs = [], prequalPackets = [], punchItems, scopeToProjectId } = input;
 
   // Exclude the auto-seeded "Sample — …" demo projects from portfolio-wide
   // guidance. Pre-fix the very first thing a new user saw was "Add scope to
@@ -226,6 +233,34 @@ function chooseNextStep(input: NextStepHeroProps): NextStep | null {
       // invoice.tsx with just projectId opens the new-invoice screen for
       // this project directly — the actual next action.
       href: { pathname: '/invoice', params: { projectId: projectNoInvoice.id } },
+    };
+  }
+
+  // 6.5  Close-project nudge — the flywheel's intake valve.
+  //      Every learning engine (cost book, pace book, passport) learns ONLY
+  //      from closed/completed projects. Without a nudge, jobs linger in
+  //      in_progress forever and starve the grounding data.
+  //      Fires when: status === 'in_progress' AND (schedule >= 100% OR all
+  //      punch items are closed when punchItems is provided).
+  const closeReadyProject = projScope.find((p) => {
+    if (p.status !== 'in_progress') return false;
+    const prog = computeProjectProgress(p);
+    if (prog.hasSchedule && prog.pct >= 100) return true;
+    // When punchItems prop is present and scoped to this project, check them too
+    if (punchItems && scopeToProjectId && p.id === scopeToProjectId) {
+      return punchItems.length > 0 && punchItems.every((pi) => pi.status === 'closed');
+    }
+    return false;
+  });
+  if (closeReadyProject) {
+    return {
+      kind: 'close_project',
+      icon: PartyPopper,
+      tone: 'success',
+      title: `${closeReadyProject.name} looks done`,
+      body: 'Close it out to feed your cost book and pace history — so every next bid gets sharper.',
+      cta: 'Close the project',
+      href: { pathname: '/closeout-binder', params: { projectId: closeReadyProject.id } },
     };
   }
 

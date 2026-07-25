@@ -56,9 +56,13 @@ import AIEstimateValidator from '@/components/AIEstimateValidator';
 import AICopilot from '@/components/AICopilot';
 import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
-import { formatMoney } from '@/utils/formatters';
+import { formatMoney, parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { buildCostDatabase } from '@/utils/costDatabase';
+import { computeCalibration } from '@/utils/estimateCalibration';
 
 // CartItem stays as a local-superset of MaterialCartItem so the AIQuickEstimate
 // component (which carries an optional priceSource) keeps compiling. The
@@ -137,7 +141,7 @@ export default function EstimateScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
-  const { projects, updateProject, settings, updateSettings, contacts } = useProjects();
+  const { projects, updateProject, settings, updateSettings, contacts, commitments } = useProjects();
   const { isFree, canAccess } = useTierAccess();
   // Shared materials cart (used by the Materials browser too). All cart
   // mutations now flow through the context — local setCart() calls were
@@ -162,6 +166,28 @@ export default function EstimateScreen() {
     const match = REGIONAL_FACTORS.find(r => Math.abs(r.multiplier - locationMultiplier) < 0.001);
     return match?.label ?? 'National Avg';
   }, [locationMultiplier]);
+
+  const { receipts } = useMaterialReceipts();
+  // Self-perform labor (D6): crew hours × configured loaded rates ground
+  // the quick estimate alongside receipts and closed-job actuals.
+  const laborSamples = useLaborCostSamples();
+
+  const quickEstimateGrounding = useMemo<{ facts: string[]; rateCount: number }>(() => {
+    try {
+      const db = buildCostDatabase(projects, commitments, receipts, laborSamples);
+      const facts = db.entries.slice(0, 6).map(
+        e => `${e.trade} runs $${e.suggestedRate.toFixed(2)}/${e.unit} on your jobs (${e.confidence} confidence, ${e.jobCount} job${e.jobCount === 1 ? '' : 's'})`,
+      );
+      const cal = computeCalibration({ projects, commitments });
+      if (cal.hasData && cal.categories[0] && cal.categories[0].direction !== 'aligned') {
+        facts.push(cal.categories[0].detail);
+      }
+      return { facts, rateCount: db.entries.length };
+    } catch {
+      return { facts: [], rateCount: 0 };
+    }
+  }, [projects, commitments, receipts, laborSamples]);
+
   // Stable seed — previously Date.now()/10000 which caused prices to drift by a cent
   // on every refresh (app resume, 5min interval, location change). Pricing is now
   // deterministic per-location so estimates don't mysteriously change after you leave.
@@ -333,8 +359,8 @@ export default function EstimateScreen() {
   }, [cartAnim, ctxAddToCart]);
 
   const handleAddCustomMaterial = useCallback(() => {
-    const price = parseFloat(customPrice);
-    if (!customName.trim() || isNaN(price) || price <= 0) {
+    const price = parseLenientNumber(customPrice);
+    if (!customName.trim() || price === null || price <= 0) {
       Alert.alert('Invalid Input', 'Please enter a valid name and price.');
       return;
     }
@@ -526,9 +552,9 @@ export default function EstimateScreen() {
 
   const handleAddLabor = useCallback(() => {
     if (!selectedLabor) return;
-    const hours = parseFloat(laborHoursInput);
-    const rate = parseFloat(laborRateInput);
-    if (isNaN(hours) || hours <= 0 || isNaN(rate) || rate <= 0) {
+    const hours = parseLenientNumber(laborHoursInput);
+    const rate = parseLenientNumber(laborRateInput);
+    if (hours === null || hours <= 0 || rate === null || rate <= 0) {
       Alert.alert('Invalid Input', 'Please enter valid hours and rate.');
       return;
     }
@@ -570,8 +596,8 @@ export default function EstimateScreen() {
 
   const handleAddAssembly = useCallback(() => {
     if (!selectedAssembly) return;
-    const qty = parseFloat(assemblyQtyInput);
-    if (isNaN(qty) || qty <= 0) {
+    const qty = parseLenientNumber(assemblyQtyInput);
+    if (qty === null || qty <= 0) {
       Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
@@ -726,8 +752,8 @@ export default function EstimateScreen() {
 
   const handleAddFromPopup = useCallback(() => {
     if (!selectedMaterial) return;
-    const qty = parseInt(itemQty, 10);
-    if (isNaN(qty) || qty <= 0) {
+    const qty = parseLenientNumber(itemQty);
+    if (qty === null || qty <= 0) {
       Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
       return;
     }
@@ -3620,6 +3646,8 @@ export default function EstimateScreen() {
         globalMarkup={globalMarkup}
         location={settings.location}
         calculateAssemblyCost={calculateAssemblyCost}
+        groundingFacts={quickEstimateGrounding.facts}
+        learnedRateCount={quickEstimateGrounding.rateCount}
       />
 
       {/* Cart-level AI suggestions modal — opens from the "Ask AI" button at

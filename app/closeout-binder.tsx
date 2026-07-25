@@ -59,6 +59,7 @@ import type { BakedFaqEntry, BakedHomePassport } from '@/utils/passport/types';
 import { loadBakedPassport, saveBakedPassport } from '@/utils/passport/passportStore';
 import { syncMemoryEmbeddings, answerFromMemory, type MemoryDoc } from '@/utils/projectMemory';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 type BinderStatus = CloseoutBinder['status'];
 
@@ -67,6 +68,7 @@ export default function CloseoutBinderScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject, subcontractors } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
@@ -580,7 +582,7 @@ export default function CloseoutBinderScreen() {
           <Text style={styles.loadingText}>Loading your binder…</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 130 }}>
+        <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: insets.bottom + 130 }, isDesktop && styles.contentDesktop]}>
           {/* Status timeline — small and informational so the GC always
               knows where this binder stands. */}
           {(finalizedAt || sentAt) && (
@@ -1069,6 +1071,7 @@ const makeModalStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   loading: { padding: 30, alignItems: 'center', gap: 10 },
   loadingText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },

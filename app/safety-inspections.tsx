@@ -18,6 +18,7 @@ import EmptyState from '@/components/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { scoreInspection, inspectionItemsFromTemplate, hazardFromFailedItem } from '@/utils/safety/inspectionScore';
 import type { SafetyInspection, InspectionItem, SafetyFormTemplate } from '@/types';
 
@@ -54,6 +55,7 @@ function SafetyInspectionsInner() {
   const insets = useSafeAreaInsets();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -177,7 +179,7 @@ function SafetyInspectionsInner() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{ title: 'Inspections' }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         {inspections.map((inspection) => {
           const s = scoreInspection(inspection.items);
           const pct = Math.round(s.score * 100);
@@ -353,6 +355,7 @@ function SafetyInspectionsInner() {
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   card: { marginHorizontal: 20, marginTop: 12, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: themeColors.line, gap: 10 },
   cardTop: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
   cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: themeColors.text, lineHeight: 21 },

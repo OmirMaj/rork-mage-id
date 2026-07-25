@@ -16,6 +16,7 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import CashFlowChart from '@/components/CashFlowChart';
@@ -146,6 +147,7 @@ function CashFlowScreenInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject } = useProjects();
 
@@ -468,7 +470,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
       }} />
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
       >
         <FeatureHeader
@@ -1066,6 +1068,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   heroCard: {
     marginHorizontal: 16,

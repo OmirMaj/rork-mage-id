@@ -29,6 +29,7 @@ import type { PriceAlert, AlertDirection } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { parseLenientNumber } from '@/utils/formatters';
 
 const PAGE_SIZE = 30;
 
@@ -118,8 +119,8 @@ export default function CategoryDetailScreen() {
 
   const handleCreateAlert = useCallback(() => {
     if (!alertModal) return;
-    const price = parseFloat(alertPrice);
-    if (isNaN(price) || price <= 0) {
+    const price = parseLenientNumber(alertPrice);
+    if (price === null || price <= 0) {
       Alert.alert('Invalid Price', 'Please enter a valid target price.');
       return;
     }

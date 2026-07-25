@@ -12,6 +12,8 @@ import {
 } from 'lucide-react-native';
 import { MageAIMark, MageSchedule } from '@/components/icons';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useProjects } from '@/contexts/ProjectContext';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate } from '@/constants/scheduleTemplates';
@@ -28,6 +30,7 @@ import {
 export default function DiscoverScheduleTool() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const s = useThemedStyles(makeStyles);
   const { projects, addProject, updateProject } = useProjects();
 
   const [aiPrompt, setAiPrompt] = useState('');
@@ -592,8 +595,12 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+// Theme-aware styles. Previously a module-scope StyleSheet.create() which
+// baked Colors.background/surface/text/etc. at module load time — breaking
+// dark mode on a main-tab front door. Converted to makeStyles(t) +
+// useThemedStyles() so styles re-resolve on every theme change.
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   heroSection: {
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -606,11 +613,11 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 6 },
-  heroDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 6 },
+  heroDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20 },
   aiSection: {
     marginHorizontal: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.xl,
     padding: 18,
     shadowColor: '#000',
@@ -620,17 +627,17 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  aiTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
-  aiDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12, lineHeight: 18 },
+  aiTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
+  aiDesc: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 12, lineHeight: 18 },
   aiInput: {
     minHeight: 100,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 14,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 14,
     textAlignVertical: 'top' as const,
   },
@@ -654,7 +661,7 @@ const s = StyleSheet.create({
   aiBtnSecondary: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
@@ -666,12 +673,12 @@ const s = StyleSheet.create({
     marginVertical: 24,
     gap: 12,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.cardBorder },
-  dividerText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: t.line },
+  dividerText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5 },
   sectionTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
     paddingHorizontal: 20,
@@ -682,7 +689,7 @@ const s = StyleSheet.create({
     alignItems: 'center' as const,
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
@@ -692,7 +699,7 @@ const s = StyleSheet.create({
   },
   // Action sheet that replaces the broken Alert.alert template picker.
   actionSheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     padding: 16,
@@ -705,12 +712,12 @@ const s = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
     alignSelf: 'center' as const,
     marginBottom: 12,
   },
-  actionSheetTitle: { fontSize: 19, fontWeight: '800' as const, color: Colors.text, marginBottom: 4, paddingHorizontal: 6, letterSpacing: -0.3 },
-  actionSheetSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 18, paddingHorizontal: 6 },
+  actionSheetTitle: { fontSize: 19, fontWeight: '800' as const, color: t.text, marginBottom: 4, paddingHorizontal: 6, letterSpacing: -0.3 },
+  actionSheetSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 18, paddingHorizontal: 6 },
   actionRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -726,28 +733,28 @@ const s = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  actionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  actionSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  actionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 2 },
+  actionSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
   actionCancel: {
     marginTop: 8,
     paddingVertical: 14,
     alignItems: 'center' as const,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  actionCancelText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
+  actionCancelText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.textSecondary },
   templateCard: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
-    // Black outline matches every other card across the app.
+    // outline matches every other card across the app
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   templateIconWrap: {
     width: 44, height: 44, borderRadius: Tokens.radius.card,
@@ -755,20 +762,20 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   templateInfo: { flex: 1, gap: 2 },
-  templateName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  templateMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  templateName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  templateMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
   existingCard: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
-    // Black outline matches every other card across the app.
+    // outline matches every other card across the app
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   existingIconWrap: {
     width: 44, height: 44, borderRadius: Tokens.radius.card,
@@ -789,7 +796,7 @@ const s = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 20,
     maxHeight: '80%' as any,
@@ -800,14 +807,14 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
   pickerOption: {
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.surfaceAlt,
+    backgroundColor: t.surfaceAlt,
     marginBottom: 8,
   },
-  pickerName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  pickerMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  pickerName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  pickerMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
 });

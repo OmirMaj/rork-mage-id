@@ -20,6 +20,8 @@ import DatePickerModal from '@/components/DatePickerModal';
 import { stashDraft } from '@/utils/autoScheduleFromEstimate';
 import { visibleQuestions, defaultAnswers, type ScheduleBuilderAnswers, type QuestionSpec } from '@/utils/copilot/scheduleBuilder/questions';
 import { generateScheduleFromAnswers } from '@/utils/copilot/scheduleBuilder/generateScheduleFromAnswers';
+import { generateFollowups } from '@/utils/copilot/scheduleBuilder/followups';
+import { coerceFollowupAnswer } from '@/utils/copilot/scheduleBuilder/followupsValidator';
 
 const SKIP = Symbol('skip');
 
@@ -28,10 +30,21 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { getProject } = useProjects();
+  const { getProject, updateProject, projects, getRFIsForProject, getDailyReportsForProject } = useProjects();
   const project = useMemo(() => getProject(projectId) ?? null, [getProject, projectId]);
 
-  const questions = useMemo(() => visibleQuestions(project), [project]);
+  const staticQuestions = useMemo(() => visibleQuestions(project), [project]);
+  // Dynamic follow-ups: 0-2 QuestionSpecs generated after the scope answer.
+  const [dynamicFollowups, setDynamicFollowups] = useState<QuestionSpec[]>([]);
+  // While we're fetching follow-ups, show a loading indicator instead of the
+  // "generating schedule" spinner so the user knows the interview isn't done.
+  const [fetchingFollowups, setFetchingFollowups] = useState(false);
+  // stepBlockReason-style hint when scope is too thin to mine for follow-ups
+  const [thinScopeHint, setThinScopeHint] = useState('');
+  const questions = useMemo(
+    () => [...staticQuestions, ...dynamicFollowups],
+    [staticQuestions, dynamicFollowups],
+  );
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<ScheduleBuilderAnswers>(() => defaultAnswers(project));
   const [phase, setPhase] = useState<'ask' | 'generating' | 'error'>('ask');
@@ -39,38 +52,145 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [errMsg, setErrMsg] = useState('');
   const anim = useRef(new Animated.Value(1)).current;
+  // Thin-scope gate bookkeeping: the gate blocks the advance ONCE (jumping
+  // back to the scope question with the previous answer prefilled); a second
+  // "Build my schedule" with a still-thin scope proceeds — non-blocking by
+  // design, mirroring stepBlockReason's one-shot behavior.
+  const thinHintShownRef = useRef(false);
+  const resumeIdxRef = useRef<number | null>(null);
+  const prefillEntryRef = useRef<string | null>(null);
   const q: QuestionSpec | undefined = questions[idx];
 
   useEffect(() => {
-    setEntry('');
+    setEntry(prefillEntryRef.current ?? '');
+    prefillEntryRef.current = null;
     anim.setValue(0);
     Animated.timing(anim, { toValue: 1, duration: 320, useNativeDriver: true }).start();
   }, [idx, anim]);
 
   const advance = useCallback(async (value: unknown) => {
     if (!q) return;
-    const nextAnswers = value === SKIP ? answers : { ...answers, [q.field]: value };
-    if (value !== SKIP) setAnswers(nextAnswers);
+    // Dynamic follow-up answers arrive as raw strings (text) or AI-supplied
+    // choice values — coerce them to the field's canonical type before they
+    // enter `answers` (e.g. "6 days" → 6, "Yes, occupied" → 'occupied').
+    // Un-canonicalizable answers degrade to SKIP so garbage never corrupts a
+    // typed field. Static questions are already typed by their specs.
+    let v = value;
+    if (v !== SKIP && idx >= staticQuestions.length) {
+      const coerced = coerceFollowupAnswer(q.field, v);
+      v = coerced.ok ? coerced.value : SKIP;
+    }
+    const nextAnswers = v === SKIP ? answers : { ...answers, [q.field]: v };
+    if (v !== SKIP) setAnswers(nextAnswers);
+
+    // Returning from a thin-scope jump-back: go straight back to the card the
+    // gate interrupted instead of re-walking the whole interview.
+    if (resumeIdxRef.current != null) {
+      const resume = resumeIdxRef.current;
+      resumeIdxRef.current = null;
+      if (idx < resume) { setIdx(resume); return; }
+    }
+
+    // After the LAST static question, fire a fast follow-up generation call
+    // before proceeding to build. Degrade silently — never block on failure.
+    const isLastStatic = idx === staticQuestions.length - 1 && dynamicFollowups.length === 0;
+    if (isLastStatic) {
+      setThinScopeHint('');
+      const scopeText = (nextAnswers.scope ?? '').trim();
+      setFetchingFollowups(true);
+      try {
+        const { followups, thinReason } = await generateFollowups(
+          scopeText,
+          nextAnswers.knownRisks ?? null,
+        );
+        if (thinReason === 'scope_too_thin' && !thinHintShownRef.current) {
+          const scopeIdx = staticQuestions.findIndex(sq => sq.field === 'scope');
+          if (scopeIdx >= 0) {
+            // BLOCK this advance (one-shot): stay in 'ask', jump back to the
+            // scope question with the thin answer prefilled so the user can
+            // enrich it, and remember where to resume afterwards.
+            thinHintShownRef.current = true;
+            setThinScopeHint("Tell me the rooms and trades — one word isn't enough to schedule from.");
+            resumeIdxRef.current = idx;
+            prefillEntryRef.current = scopeText;
+            setIdx(scopeIdx);
+            return;
+          }
+          // Scope question isn't part of this interview (seeded from the
+          // project) — nothing for the user to edit; fall through to generate.
+        }
+        if (followups.length > 0) {
+          setDynamicFollowups(followups);
+          setIdx(staticQuestions.length); // advance to first dynamic question
+          setFetchingFollowups(false);
+          return;
+        }
+      } catch {
+        // Degrade silently
+      } finally {
+        setFetchingFollowups(false);
+      }
+      // Zero follow-ups or degrade — fall through to generation
+    }
+
     if (idx < questions.length - 1) { setIdx(idx + 1); return; }
     if (!project) { setErrMsg('No project.'); setPhase('error'); return; }
     setPhase('generating');
     try {
-      const result = await generateScheduleFromAnswers(project, nextAnswers);
+      // Thread ALL projects so durations are paced from the contractor's own
+      // finished tasks (buildPaceFacts), not invented by the model. Also
+      // thread this project's RFIs + daily reports (E4) so the prompt can
+      // buffer for real RFI latency and historical weather-lost days.
+      const result = await generateScheduleFromAnswers(
+        project, nextAnswers, projects,
+        getRFIsForProject(project.id), getDailyReportsForProject(project.id),
+      );
       stashDraft(result);
+
+      // Writeback: merge scope/sizeSqft/knownRisks captured in this interview
+      // back onto project.scope so the next flow (estimate wizard, permit
+      // roadmap, copilot) inherits them without re-asking. Don't clobber
+      // existing fields the wizard may have set (merge pattern).
+      try {
+        const now = new Date().toISOString();
+        const existingScope = project.scope ?? {};
+        const mergedScope = {
+          ...existingScope,
+          ...(nextAnswers.scope ? { scope: nextAnswers.scope } : {}),
+          ...(nextAnswers.sizeSqft != null ? { sizeSqft: String(nextAnswers.sizeSqft) } : {}),
+          ...(nextAnswers.knownRisks ? { specialRequirements: nextAnswers.knownRisks } : {}),
+          updatedAt: now,
+        };
+        updateProject(projectId, { scope: mergedScope as NonNullable<typeof project.scope> });
+      } catch {
+        // Writeback is best-effort — don't block navigation on failure
+      }
+
       router.replace({ pathname: '/schedule-review', params: { projectId } } as never);
     } catch (e) {
       setErrMsg((e as Error).message ?? 'Could not build the schedule.');
       setPhase('error');
     }
-  }, [q, answers, idx, questions.length, project, projectId, router]);
+  }, [q, answers, idx, questions.length, staticQuestions, dynamicFollowups.length, project, projectId, router, projects, updateProject, getRFIsForProject, getDailyReportsForProject]);
 
   const submitEntry = useCallback(() => {
     if (!q) return;
     const raw = entry.trim();
+    setThinScopeHint('');
     if (!raw) { advance(SKIP); return; }
     advance(q.kind === 'number' ? (Number(raw.replace(/[^0-9.]/g, '')) || SKIP) : raw);
   }, [q, entry, advance]);
 
+  if (fetchingFollowups) {
+    return (
+      <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator color={colors.accent} size="large" />
+        <Text style={styles.buildingTitle}>One moment…</Text>
+        <Text style={styles.buildingSub}>Mining your scope for a sharper schedule.</Text>
+      </View>
+    );
+  }
   if (phase === 'generating') {
     return (
       <View style={[styles.root, styles.center, { paddingTop: insets.top }]}>
@@ -119,12 +239,20 @@ export default function ScheduleBuilderInterview({ projectId }: { projectId: str
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${((idx + 1) / questions.length) * 100}%` }]} />
       </View>
-      <Text style={styles.progressLabel}>{idx + 1} OF {questions.length}</Text>
+      <Text style={styles.progressLabel}>
+        {idx + 1} OF {questions.length}
+        {dynamicFollowups.length > 0 ? ' (+ follow-ups)' : ''}
+      </Text>
 
       <Animated.View style={[styles.card, cardStyle]}>
         <Text style={styles.eyebrow}>{q.eyebrow}</Text>
         <Text style={styles.question}>{q.question}</Text>
         <Text style={styles.subtext}>{q.subtext}</Text>
+        {/* Thin-scope hint — shown when the scope answer is too short to
+            mine follow-ups from. Clears on the next answer change. */}
+        {thinScopeHint ? (
+          <Text style={styles.thinScopeHint}>{thinScopeHint}</Text>
+        ) : null}
 
         {q.kind === 'choice' ? (
           <View style={styles.choices}>
@@ -200,5 +328,11 @@ function makeStyles(colors: ThemeColors) {
     skipText: { ...Type.footnote, color: colors.textMuted },
     buildingTitle: { ...Type.serifTitle, color: colors.text, marginTop: Tokens.spacing.sm },
     buildingSub: { ...Type.body, color: colors.textSecondary, textAlign: 'center' },
+    thinScopeHint: {
+      ...Type.footnote,
+      color: Colors.warning,
+      marginTop: Tokens.spacing.xs,
+      marginBottom: Tokens.spacing.xs,
+    },
   });
 }

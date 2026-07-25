@@ -22,8 +22,10 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
 import { FolderOpen } from 'lucide-react-native';
@@ -76,6 +78,7 @@ export default function DailyReportScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const hsStyles = useThemedStyles(makeHsStyles);
   const voiceStyles = useThemedStyles(makeVoiceStyles);
   const leakStyles = useThemedStyles(makeLeakStyles);
@@ -85,6 +88,7 @@ export default function DailyReportScreen() {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
     getPhotosForProject, projects, commitments, getChangeOrdersForProject, updateProject,
   } = useProjects();
+  const { receipts } = useMaterialReceipts();
   const { tier } = useSubscription();
   const { isFree } = useTierAccess();
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -491,14 +495,23 @@ export default function DailyReportScreen() {
       return;
     }
     try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission Required', 'Camera access is needed to take photos.');
-        return;
+      let result: ImagePicker.ImagePickerResult;
+      if (Platform.OS === 'web') {
+        // Camera capture is not supported on web — use image library instead.
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.7,
+        });
+      } else {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permission Required', 'Camera access is needed to take photos.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          quality: 0.7,
+        });
       }
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.7,
-      });
       if (!result.canceled && result.assets[0]) {
         // Fire the GPS stamp in parallel \u2014 it has its own 3s timeout, so it
         // never blocks the photo from showing up in the report.
@@ -616,7 +629,7 @@ export default function DailyReportScreen() {
         return;
       }
       const items = coerceLeakResult(res.data);
-      const costDb = buildCostDatabase(projects, commitments);
+      const costDb = buildCostDatabase(projects, commitments, receipts);
       const record: LeakScanRecord = {
         items: priceLeakItems(items, costDb),
         scannedAt: new Date().toISOString(),
@@ -629,7 +642,7 @@ export default function DailyReportScreen() {
     } finally {
       setLeakScanning(false);
     }
-  }, [project, workPerformed, issuesAndDelays, materialsDelivered, tier, projects, commitments, getChangeOrdersForProject, existingReport, updateDailyReport, stableReportId]);
+  }, [project, workPerformed, issuesAndDelays, materialsDelivered, tier, projects, commitments, receipts, getChangeOrdersForProject, existingReport, updateDailyReport, stableReportId]);
 
   const handleDraftLeakCO = useCallback(() => {
     if (!projectId || !leakScan || leakScan.items.length === 0) return;
@@ -1168,7 +1181,7 @@ export default function DailyReportScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+          contentContainerStyle={[{ paddingBottom: insets.bottom + 32 }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -2706,6 +2719,7 @@ const makeHsStyles = (themeColors: ThemeColors) => StyleSheet.create({
 
 const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: themeColors.bg },
+  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: themeColors.textSecondary, marginBottom: 16 },
 

@@ -15,6 +15,8 @@ import { mageAI } from '@/utils/mageAI';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import { createId } from '@/utils/scheduleEngine';
+import { paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
+import { stableHash } from '@/utils/stableHash';
 
 // ---------------------------------------------------------------------------
 // Serializer — turns the schedule into a string Gemini can read cheaply.
@@ -470,7 +472,13 @@ export interface AIGeneratedTask {
   linkedEstimateItemIds?: string[];
 }
 
-export async function aiGenerateSchedule(description: string): Promise<{
+export async function aiGenerateSchedule(
+  description: string,
+  /** Pace-book fact lines (buildPaceFacts(projects).facts) — when present the
+   *  model derives durations from the contractor's measured pace instead of
+   *  guessing. Optional so legacy call sites keep working. */
+  paceFacts: string[] = [],
+): Promise<{
   ok: boolean;
   tasks: AIGeneratedTask[];
   summary: string;
@@ -491,13 +499,17 @@ export async function aiGenerateSchedule(description: string): Promise<{
     ],
   };
 
+  // AIGeneratedTask has no rationale/assumption fields — use the schema-safe
+  // instruction variant.
+  const paceBlock = paceFactsBlock(paceFacts, { citeInRationale: false });
+
   const prompt = `Generate a realistic construction schedule from this description.
 Break the project into 20-40 specific tasks with appropriate durations,
 standard construction phases (Site, Foundation, Framing, MEP, Drywall,
 Finishes, Inspections, Landscaping, Closeout), real crews, and correct
 dependency ordering. Include inspection milestones at cover-up points.
 Use T1, T2, T3… aliases. FS-only dependencies for simplicity.
-
+${paceBlock ? `\n${paceBlock}\n` : ''}
 Project description:
 ${description}`;
 
@@ -506,7 +518,12 @@ ${description}`;
     schemaHint,
     tier: 'smart',
     maxTokens: 3000,
-    cacheKey: `gen-${description.slice(0, 80)}`,
+    // Grounded prompts must not collide with ungrounded cache entries, and
+    // the salt must be the facts' CONTENT, not the count: buildPaceFacts caps
+    // at 8 facts, so a full pace book pins a count-salt constant while a
+    // trade's actualMean drifts — replaying a stale grounded schedule for
+    // 24h. (Same idiom as hashLeakText / hashDelayText.)
+    cacheKey: `gen-${description.slice(0, 80)}${paceFacts.length > 0 ? `-g${stableHash(paceFacts.join('|'))}` : ''}`,
     cacheHours: 24,
   });
 
@@ -548,6 +565,9 @@ export interface GenerateFromEstimateParams {
   items: ScheduleEstimateItemInput[];
   projectType?: string | null;
   scopeDescription?: string | null;
+  /** Pace-book fact lines (buildPaceFacts(projects).facts) — grounds durations
+   *  in the contractor's measured per-trade pace. */
+  paceFacts?: string[];
 }
 
 export async function aiGenerateScheduleFromEstimate(params: GenerateFromEstimateParams): Promise<{
@@ -584,6 +604,9 @@ export async function aiGenerateScheduleFromEstimate(params: GenerateFromEstimat
     ],
   };
 
+  // AIGeneratedTask has no rationale/assumption fields — schema-safe variant.
+  const paceBlock = paceFactsBlock(params.paceFacts ?? [], { citeInRationale: false });
+
   const prompt = `Generate a realistic construction schedule grounded in this PRICED estimate.
 Break the work into specific tasks using standard phases (Site, Foundation, Framing, MEP,
 Drywall, Finishes, Inspections, Closeout). Derive each task's duration from the SCOPE and
@@ -593,15 +616,18 @@ schedule. Every item number should be referenced by at least one task. Add inspe
 milestones at cover-up points (durationDays 0). Flag exterior / weather-exposed tasks with
 weatherSensitive=true. Use T1, T2… aliases and FS-only dependencies.
 
-${params.projectType ? `Project type: ${params.projectType}.\n` : ''}${params.scopeDescription ? `Scope: ${params.scopeDescription}.\n` : ''}Estimate line items:
+${paceBlock ? `${paceBlock}\n\n` : ''}${params.projectType ? `Project type: ${params.projectType}.\n` : ''}${params.scopeDescription ? `Scope: ${params.scopeDescription}.\n` : ''}Estimate line items:
 ${itemLines}`;
 
+  const paceFactsList = params.paceFacts ?? [];
   const res = await mageAI({
     prompt,
     schemaHint,
     tier: 'smart',
     maxTokens: 4000,
-    cacheKey: `gen-est-${items.length}-${items.map(i => i.materialId).join('').slice(0, 60)}`,
+    // Grounded prompts must not collide with ungrounded cache entries; salt
+    // by fact CONTENT, not count (see aiGenerateSchedule above).
+    cacheKey: `gen-est-${items.length}-${items.map(i => i.materialId).join('').slice(0, 60)}${paceFactsList.length > 0 ? `-g${stableHash(paceFactsList.join('|'))}` : ''}`,
     cacheHours: 24,
   });
 

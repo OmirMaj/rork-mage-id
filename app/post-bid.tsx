@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -10,10 +10,14 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useBids } from '@/contexts/BidsContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { CERTIFICATIONS } from '@/constants/certifications';
 import { US_STATES } from '@/constants/regions';
 import type { PublicBid, BidType, BidCategory, CertificationType } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { parseLenientNumber } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -30,11 +34,40 @@ const BID_CATEGORIES: { id: BidCategory; label: string }[] = [
   { id: 'education', label: 'Education' }, { id: 'residential', label: 'Residential' },
 ];
 
+/** Count bids the CURRENT user posted this calendar month, attributed by the
+ *  real poster id (`userId`, mapped from public_bids.user_id in BidsContext).
+ *  The old check (`postedBy === 'You'`) matched a literal that EVERY
+ *  app-posted row in the shared community feed carried — so other members'
+ *  posts counted against this user's quota. No signed-in user → nothing is
+ *  attributable → count 0 (never falsely blocks). */
+function countMyPostsThisMonth(bids: PublicBid[], myUserId: string | null): number {
+  if (!myUserId) return 0;
+  const now = new Date();
+  const yyyyMM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return bids.filter(b => b.userId === myUserId && b.postedDate.startsWith(yyyyMM)).length;
+}
+
 export default function PostBidScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const { addBid } = useBids();
+  const { bids, addBid } = useBids();
+  const { user } = useAuth();
+  const { tier } = useTierAccess();
+  const [overLimit, setOverLimit] = useState(false);
+
+  // Compute usage BEFORE render so we can show a limit badge on the form
+  // even before submit, matching the construction-ai pattern.
+  const monthlyLimit = FEATURE_LIMITS.post_community_bid[tier];
+  const userId = user?.id ?? null;
+  const usedThisMonth = useMemo(() => countMyPostsThisMonth(bids, userId), [bids, userId]);
+  const atLimit = isFinite(monthlyLimit) && usedThisMonth >= monthlyLimit;
+
+  // Show paywall (free→pro, pro→business) or a plain Alert (business→enterprise, enterprise at cap).
+  const canPaywallUpsell = tier === 'free' || tier === 'pro';
+  const upsellTier: 'pro' | 'business' | 'enterprise' =
+    tier === 'free' ? 'pro' : tier === 'pro' ? 'business' : 'enterprise';
+
   const [title, setTitle] = useState('');
   const [agency, setAgency] = useState('');
   const [city, setCity] = useState('');
@@ -58,6 +91,22 @@ export default function PostBidScreen() {
   }, []);
 
   const handleSubmit = useCallback(() => {
+    // ── Community post monthly limit ─────────────────────────────────────────
+    // FEATURE_LIMITS.post_community_bid: free=2, pro=8, business=25, enterprise=50
+    if (isFinite(monthlyLimit) && usedThisMonth >= monthlyLimit) {
+      if (canPaywallUpsell) {
+        setOverLimit(true); // renders the Paywall (free→pro, pro→business)
+      } else {
+        // Business/enterprise at cap — no higher tier to sell. Alert fired
+        // HERE, in the event handler (never as a side effect during render).
+        Alert.alert(
+          'Monthly limit reached',
+          `Your ${tier} plan includes ${monthlyLimit} community posts per month. Contact support to discuss higher limits.`,
+        );
+      }
+      return;
+    }
+
     if (!title.trim() || !agency.trim() || !city.trim() || !estimatedValue || !bondRequired || !deadline || !contactEmail.trim()) {
       Alert.alert('Missing Fields', 'Please fill in all required fields.');
       return;
@@ -81,11 +130,14 @@ export default function PostBidScreen() {
       state,
       category,
       bidType,
-      estimatedValue: parseFloat(estimatedValue) || 0,
-      bondRequired: parseFloat(bondRequired) || 0,
+      estimatedValue: parseLenientNumber(estimatedValue) ?? 0,
+      bondRequired: parseLenientNumber(bondRequired) ?? 0,
       deadline: deadlineDate.toISOString(),
       description: description.trim(),
-      postedBy: 'You',
+      // Real attribution: name for display (the old 'You' literal rendered as
+      // "You" in every OTHER member's feed), id for quota counting.
+      postedBy: user?.name?.trim() || 'Community member',
+      userId: userId ?? undefined,
       postedDate: new Date().toISOString(),
       status: 'open',
       requiredCertifications: selectedCerts,
@@ -105,7 +157,20 @@ export default function PostBidScreen() {
       'Your solicitation is saved. Contractors whose bond capacity and certifications match will see it in their matching opportunities.',
       [{ text: 'OK', onPress: () => router.back() }],
     );
-  }, [title, agency, city, state, category, bidType, estimatedValue, bondRequired, deadline, description, contactEmail, applyUrl, selectedCerts, addBid, router]);
+  }, [title, agency, city, state, category, bidType, estimatedValue, bondRequired, deadline, description, contactEmail, applyUrl, selectedCerts, addBid, router, monthlyLimit, usedThisMonth, tier, canPaywallUpsell, user, userId]);
+
+  // overLimit is only ever set for the paywall tiers (handleSubmit shows the
+  // business/enterprise cap as an in-handler Alert instead) — render is pure.
+  if (overLimit && canPaywallUpsell) {
+    return (
+      <Paywall
+        visible={true}
+        feature={`Community Posts (${usedThisMonth}/${monthlyLimit} this month)`}
+        requiredTier={upsellTier}
+        onClose={() => setOverLimit(false)}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -117,6 +182,19 @@ export default function PostBidScreen() {
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Usage badge — honest gate: shows how many posts remain this month */}
+          {isFinite(monthlyLimit) && (
+            <View style={[styles.usageBadge, atLimit && styles.usageBadgeAtLimit]}>
+              <Text style={[styles.usageBadgeText, atLimit && styles.usageBadgeTextAtLimit]}>
+                {atLimit
+                  ? canPaywallUpsell
+                    ? `${tier === 'free' ? 'Free' : 'Pro'} plan includes ${monthlyLimit} community posts a month — upgrade for more`
+                    : `${monthlyLimit} community posts per month on your plan`
+                  : `${usedThisMonth} of ${monthlyLimit} community posts used this month`}
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.label}>Title *</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Bid title" placeholderTextColor={themeColors.textMuted} testID="bid-title" />
 
@@ -219,8 +297,17 @@ export default function PostBidScreen() {
             </View>
           )}
 
-          <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} testID="submit-bid">
-            <Text style={styles.submitBtnText}>Publish Bid</Text>
+          <TouchableOpacity
+            style={[styles.submitBtn, atLimit && styles.submitBtnDisabled]}
+            onPress={handleSubmit}
+            testID="submit-bid"
+            activeOpacity={0.85}
+          >
+            <Text style={styles.submitBtnText}>
+              {atLimit
+                ? canPaywallUpsell ? 'Monthly limit reached — upgrade to post' : 'Monthly limit reached'
+                : 'Publish Bid'}
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -232,6 +319,16 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 60 },
+
+  usageBadge: {
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 1, borderColor: t.line, marginBottom: 4,
+  },
+  usageBadgeAtLimit: { backgroundColor: t.danger + '12', borderColor: t.danger + '44' },
+  usageBadgeText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
+  usageBadgeTextAtLimit: { color: t.danger, fontWeight: '600' as const },
+
   label: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   input: { backgroundColor: t.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: t.text, borderWidth: 0.5, borderColor: t.line },
   textArea: { minHeight: 100, textAlignVertical: 'top' as const },
@@ -258,5 +355,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   selectedCertBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.accent + '15', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs },
   selectedCertText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' as const },
   submitBtn: { backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
+  submitBtnDisabled: { backgroundColor: t.textMuted },
   submitBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
 });

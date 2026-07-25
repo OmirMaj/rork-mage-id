@@ -28,6 +28,8 @@ import { Colors } from '@/constants/colors';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { VerdictCard } from '@/components/judges/VerdictCard';
 import { draftLinesFromScope, runJudges } from '@/utils/judges/runJudges';
 import type { JudgesResult } from '@/utils/judges/runJudges';
@@ -37,6 +39,7 @@ import type { ProjectType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { WizardAnswers } from '@/utils/scopeQuestions';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -62,7 +65,12 @@ function JudgesInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isDesktop } = useResponsiveLayout();
   const { projects, commitments, changeOrders, invoices } = useProjects();
+  const { receipts } = useMaterialReceipts();
+  // Self-perform labor samples (D6) — crew hours × configured loaded rates
+  // fold into the cost book the judges score against.
+  const laborSamples = useLaborCostSamples();
 
   // ── Entry mode ────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>('describe');
@@ -81,8 +89,8 @@ function JudgesInner() {
 
   // ── Context object ────────────────────────────────────────────────────
   const ctx = useMemo(
-    () => ({ projects, commitments, changeOrders, invoices }),
-    [projects, commitments, changeOrders, invoices],
+    () => ({ projects, commitments, changeOrders, invoices, receipts, laborSamples }),
+    [projects, commitments, changeOrders, invoices, receipts, laborSamples],
   );
 
   // ── Timeline window builder ───────────────────────────────────────────
@@ -209,7 +217,7 @@ function JudgesInner() {
           </TouchableOpacity>
         </View>
         <ScrollView
-          contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}
+          contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }, isDesktop && styles.contentDesktop]}
           showsVerticalScrollIndicator={false}
         >
           <VerdictCard result={result} />
@@ -258,7 +266,7 @@ function JudgesInner() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}
+        contentContainerStyle={[{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }, isDesktop && styles.contentDesktop]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -517,4 +525,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     paddingVertical: 12, alignItems: 'center' as const,
   },
   resetBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.accent },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
 });

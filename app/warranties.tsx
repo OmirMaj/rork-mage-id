@@ -71,13 +71,17 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-const STATUS_META: Record<Warranty['status'], { label: string; color: string; bg: string; Icon: any }> = {
-  active: { label: 'Active', color: "#2E7D44", bg: Colors.successLight, Icon: CheckCircle2 },
-  expiring_soon: { label: 'Expiring Soon', color: Colors.warning, bg: Colors.warningLight, Icon: AlertTriangle },
-  expired: { label: 'Expired', color: "#C84038", bg: Colors.errorLight, Icon: Clock },
-  claimed: { label: 'Claimed', color: "#1565C0", bg: Colors.infoLight, Icon: Shield },
-  void: { label: 'Void', color: "#9AA3AD", bg: '#1A1F26', Icon: X },
-};
+// Themed per-status chip styling — a FUNCTION of the palette (not a module
+// static) so the chip fills flip with the theme instead of staying bright
+// light-theme pastels on dark cards. Also kills the old hardcoded 'void'
+// near-black chip (#1A1F26) that sat on a white card in light mode.
+const statusMeta = (t: ThemeColors): Record<Warranty['status'], { label: string; color: string; bg: string; Icon: any }> => ({
+  active: { label: 'Active', color: t.success, bg: t.successSoft, Icon: CheckCircle2 },
+  expiring_soon: { label: 'Expiring Soon', color: t.warningLabel, bg: t.warningSoft, Icon: AlertTriangle },
+  expired: { label: 'Expired', color: t.dangerLabel, bg: t.dangerSoft, Icon: Clock },
+  claimed: { label: 'Claimed', color: t.info, bg: t.info + '1F', Icon: Shield },
+  void: { label: 'Void', color: t.textSecondary, bg: t.surfaceAlt, Icon: X },
+});
 
 export default function WarrantiesScreen() {
   const { colors: themeColors } = useTheme();
@@ -217,12 +221,12 @@ export default function WarrantiesScreen() {
             <Text style={styles.metricValue}>{list.filter(w => w.status === 'active').length}</Text>
             <Text style={styles.metricLabel}>Active</Text>
           </View>
-          <View style={[styles.metricCard, { backgroundColor: Colors.warningLight }]}>
-            <Text style={[styles.metricValue, { color: Colors.warning }]}>{list.filter(w => w.status === 'expiring_soon').length}</Text>
+          <View style={[styles.metricCard, { backgroundColor: themeColors.warningSoft }]}>
+            <Text style={[styles.metricValue, { color: themeColors.warningLabel }]}>{list.filter(w => w.status === 'expiring_soon').length}</Text>
             <Text style={styles.metricLabel}>Expiring</Text>
           </View>
-          <View style={[styles.metricCard, { backgroundColor: Colors.errorLight }]}>
-            <Text style={[styles.metricValue, { color: "#C84038" }]}>{list.filter(w => w.status === 'expired').length}</Text>
+          <View style={[styles.metricCard, { backgroundColor: themeColors.dangerSoft }]}>
+            <Text style={[styles.metricValue, { color: themeColors.dangerLabel }]}>{list.filter(w => w.status === 'expired').length}</Text>
             <Text style={styles.metricLabel}>Expired</Text>
           </View>
         </View>
@@ -235,7 +239,7 @@ export default function WarrantiesScreen() {
           </View>
         ) : (
           list.map(w => {
-            const meta = STATUS_META[w.status];
+            const meta = statusMeta(themeColors)[w.status];
             const StatusIcon = meta.Icon;
             const daysLeft = daysBetween(w.endDate, new Date().toISOString());
             return (
@@ -385,7 +389,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 4 },
   heroSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
   metricsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
-  metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center' as const, gap: 2 },
+  metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: t.successSoft, alignItems: 'center' as const, gap: 2 },
   metricValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.success },
   metricLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, gap: 10 },
@@ -402,7 +406,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: t.line },
   dateText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   daysText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  deleteBtn: { position: 'absolute' as const, top: 6, right: 6, width: 44, height: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
+  deleteBtn: { position: 'absolute' as const, top: 6, right: 6, width: 44, height: 44, borderRadius: Tokens.radius.md, backgroundColor: t.dangerSoft, alignItems: 'center' as const, justifyContent: 'center' as const },
   addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: t.accent + '12', borderWidth: 1, borderColor: t.accent + '25' },
   addBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.accent },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' as const },

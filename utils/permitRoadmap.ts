@@ -23,7 +23,9 @@ export const roadmapSchema = z.object({
 });
 
 // Uses linkedEstimate.items[].name — the real field on LinkedEstimateItem.
-function scopeSummary(project: Project): string {
+// Exported so Code Check and other callers can build a project-scope prefix
+// without duplicating this logic.
+export function scopeSummary(project: Project): string {
   const est = project.linkedEstimate;
   const items = (est && Array.isArray(est.items))
     ? est.items.map((li) => li.name).filter(Boolean)

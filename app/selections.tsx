@@ -77,7 +77,7 @@ export default function SelectionsScreen() {
     if (saved) {
       setCategories(prev => [...prev, saved]);
       setAddModal(false);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
       Alert.alert('Save failed', 'Could not save the category.');
     }
@@ -106,7 +106,7 @@ export default function SelectionsScreen() {
         Alert.alert('Save failed', 'Generated options but could not save them.');
         return;
       }
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refresh();
     } catch (e) {
       Alert.alert('Curation failed', e instanceof Error ? e.message : 'Try again in a moment.');
@@ -127,7 +127,7 @@ export default function SelectionsScreen() {
       const imageUrl = await resolveSelectionImage({ url: url.trim() });
       if (!imageUrl) { Alert.alert('No image found', "Couldn't find a photo at that link."); return; }
       await saveSelectionOption({ id: option.id, categoryId: option.categoryId, productName: option.productName, unitPrice: option.unitPrice, productUrl: url.trim(), imageUrl });
-      void Haptics.selectionAsync();
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
       await refresh();
     }, 'plain-text');
   }, [refresh]);
@@ -135,7 +135,7 @@ export default function SelectionsScreen() {
   const handleChoose = useCallback(async (categoryId: string, option: SelectionOption) => {
     const ok = await chooseSelectionOption(categoryId, option.id, 'gc');
     if (ok) {
-      void Haptics.selectionAsync();
+      if (Platform.OS !== 'web') void Haptics.selectionAsync();
       await refresh();
     }
   }, [refresh]);
@@ -153,7 +153,7 @@ export default function SelectionsScreen() {
             const ok = await deleteSelectionCategory(cat.id);
             if (ok) {
               setCategories(prev => prev.filter(c => c.id !== cat.id));
-              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
           },
         },

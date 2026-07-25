@@ -43,6 +43,8 @@ export const QUESTIONS: QuestionSpec[] = [
     field: 'scope', eyebrow: 'THE PROJECT', question: 'What are we building?',
     subtext: 'The scope is the seed for every task. Rooms, trades, the work — in your words.',
     kind: 'text', placeholder: 'e.g. Full kitchen gut + a bath remodel, move some plumbing', skipLabel: 'Skip',
+    // Skip (present as editable prefill) when the estimate wizard already captured scope
+    skipIf: (p) => !!(p?.scope?.scope ?? p?.description),
   },
   {
     field: 'startDate', eyebrow: 'THE START', question: 'When do you break ground?',
@@ -53,6 +55,13 @@ export const QUESTIONS: QuestionSpec[] = [
     field: 'deadline', eyebrow: 'THE DEADLINE', question: 'Any hard deadline?',
     subtext: 'A contract or must-finish date. I’ll flag anything that puts you behind it.',
     kind: 'date', skipLabel: 'No fixed deadline',
+    // Skip when we can derive the deadline from the wizard’s timelineWeeks capture.
+    // Subtext surfaces the why: "From your estimate: ~N weeks"
+    skipIf: (p) => {
+      if (!p?.scope?.timelineWeeks) return false;
+      const w = parseFloat(p.scope.timelineWeeks);
+      return !isNaN(w) && w > 0;
+    },
   },
   {
     field: 'sizeSqft', eyebrow: 'THE SIZE', question: 'Roughly how big is the work?',
@@ -109,17 +118,36 @@ export function visibleQuestions(project: Project | null): QuestionSpec[] {
 
 /** Grounded defaults — used when the contractor skips a question. */
 export function defaultAnswers(project: Project | null): ScheduleBuilderAnswers {
+  // Derive deadline from wizard-captured timeline when available.
+  // CAUTION: never write/stamp startDate here — compute only the DEADLINE
+  // value to avoid triggering the finish-day-jump bug (the CPM anchor
+  // startDate must only be set by an explicit user interaction).
+  let derivedDeadline: string | null = null;
+  const tweeksRaw = project?.scope?.timelineWeeks;
+  if (tweeksRaw) {
+    const weeks = parseFloat(tweeksRaw);
+    if (!isNaN(weeks) && weeks > 0) {
+      // Base deadline on project.startDate when already set; otherwise today.
+      // We deliberately do NOT set/write startDate — deadline value only.
+      const base = (project as any)?.startDate ? new Date((project as any).startDate) : new Date();
+      const deadline = new Date(base.getTime() + weeks * 7 * 24 * 60 * 60 * 1000);
+      derivedDeadline = deadline.toISOString().slice(0, 10);
+    }
+  }
+
   return {
-    scope: project?.description ?? '',
+    // Prefer wizard-captured scope text over raw description
+    scope: project?.scope?.scope || project?.description || '',
     startDate: null,             // never auto-stamp a start date (jump-bug guard)
-    deadline: null,
+    deadline: derivedDeadline,
     sizeSqft: project?.squareFootage && project.squareFootage > 0 ? project.squareFootage : null,
     occupancy: 'vacant',
     crewSize: 3,
     workDaysPerWeek: 5,
     longLead: null,
     weather: 'handle',
-    knownRisks: null,
+    // Seed known risks from wizard-captured special requirements
+    knownRisks: project?.scope?.specialRequirements || null,
     buffer: 'standard',
   };
 }

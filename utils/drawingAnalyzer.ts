@@ -5,7 +5,7 @@
 // the AI looked at, what it inferred, what it's not sure about, and
 // what to double-check before committing to numbers.
 
-import { supabase } from '@/lib/supabase';
+import { invokeWithTimeout } from '@/utils/invokeWithTimeout';
 
 export interface DrawingSeen {
   page: number;
@@ -92,13 +92,13 @@ export async function analyzeDrawings(opts: AnalyzeOpts): Promise<AnalyzeRespons
   if (!opts.pageUrls || opts.pageUrls.length === 0) {
     throw new Error('No drawing pages to analyze.');
   }
-  const { data, error } = await supabase.functions.invoke<{
+  const { data, error } = await invokeWithTimeout<{
     success: boolean;
     data?: DrawingAnalysisResult;
     modelUsed?: AnalyzerModel;
     error?: string;
   }>('analyze-drawings', {
-    body: opts,
+    body: opts as unknown as Record<string, unknown>,
   });
   if (error) throw new Error(`Analyzer call failed: ${error.message}`);
   if (!data?.success || !data.data) {

@@ -6,6 +6,7 @@ import { HardHat, Megaphone, ShieldAlert, TriangleAlert, ChevronRight, Clipboard
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -34,6 +35,7 @@ function SafetyHubInner() {
   const router = useRouter();
   const { colors: t } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject } = useProjects();
   const {
@@ -99,7 +101,7 @@ function SafetyHubInner() {
   return (
     <View style={[styles.container, { backgroundColor: t.bg }]}>
       <Stack.Screen options={{ title: project ? `Safety — ${project.name}` : 'Safety' }} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 12 }}>
+      <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: insets.bottom + 40, gap: 12 }, isDesktop && styles.contentDesktop]}>
         {project ? (
           <>
             <Text style={styles.sectionLabel}>Project</Text>
@@ -128,6 +130,7 @@ function SafetyHubInner() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  contentDesktop: { width: '100%', maxWidth: 760, alignSelf: 'center' as const },
   sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   projectPrompt: {

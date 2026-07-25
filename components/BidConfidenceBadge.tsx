@@ -5,15 +5,19 @@
 // costs, then renders a compact, tappable pill. Tapping opens the full
 // estimate-confidence breakdown. Renders nothing when there's no estimate.
 //
-// Two variants: 'hero' (white-on-accent, for the project-detail hero card) and
-// 'light' (for normal surfaces).
+// Two variants: 'hero' (white-on-accent — always sits on the accent flood, so
+// it stays hardcoded white-alpha) and 'light' (for normal THEMED surfaces —
+// colors come from the palette, or the pill goes black-on-near-black in dark
+// mode).
 
 import React, { useMemo } from 'react';
 import { Text, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ShieldCheck } from 'lucide-react-native';
 import type { Project } from '@/types';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { buildCostDatabase } from '@/utils/costDatabase';
 import { computeEstimateConfidence } from '@/utils/estimateConfidence';
 
@@ -29,12 +33,14 @@ function tierColor(score: number): string {
 }
 
 export default function BidConfidenceBadge({ project, variant = 'light' }: Props) {
+  const { colors: t } = useTheme();
   const { projects, commitments } = useProjects();
+  const { receipts } = useMaterialReceipts();
 
   const report = useMemo(() => {
-    const db = buildCostDatabase(projects, commitments);
+    const db = buildCostDatabase(projects, commitments, receipts);
     return computeEstimateConfidence(project, db);
-  }, [project, projects, commitments]);
+  }, [project, projects, commitments, receipts]);
 
   const router = useRouter();
 
@@ -42,13 +48,21 @@ export default function BidConfidenceBadge({ project, variant = 'light' }: Props
   if (!report.hasEstimate) return null;
 
   const onHero = variant === 'hero';
-  const dot = report.hasHistory ? tierColor(report.score) : (onHero ? 'rgba(255,255,255,0.6)' : '#8A8F98');
-  const textColor = onHero ? '#FFFFFF' : '#0B0D10';
-  const subColor = onHero ? 'rgba(255,255,255,0.7)' : '#6B6F76';
+  const dot = report.hasHistory ? tierColor(report.score) : (onHero ? 'rgba(255,255,255,0.6)' : t.textMuted);
+  const textColor = onHero ? '#FFFFFF' : t.text;
+  const subColor = onHero ? 'rgba(255,255,255,0.7)' : t.textSecondary;
 
   return (
     <TouchableOpacity
-      style={[styles.pill, onHero ? styles.pillHero : styles.pillLight]}
+      style={[
+        styles.pill,
+        onHero
+          ? styles.pillHero
+          // Themed: the pill sits on a themeColors.surface card, so fill and
+          // border come from the palette (surfaceAlt reads distinct against
+          // surface in both themes).
+          : { backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line },
+      ]}
       activeOpacity={0.75}
       onPress={() => router.push({ pathname: '/estimate-confidence' as never, params: { projectId: project.id } as never })}
       accessibilityRole="button"
@@ -86,11 +100,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.28)',
-  },
-  pillLight: {
-    backgroundColor: 'rgba(11,13,16,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(11,13,16,0.1)',
   },
   dot: { width: 7, height: 7, borderRadius: 4 },
   label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
