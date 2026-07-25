@@ -16,8 +16,13 @@ import {
   type CompanyAIProfile, type BidScoreResult,
 } from '@/utils/aiService';
 import { AIProfileSetup } from '@/components/AIBidScorer';
-import { bidHistoryFacts, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
-import { useProjects } from '@/contexts/ProjectContext';
+import {
+  bidHistoryFacts, outboundBidRecordsFromResponses, type BidHistoryFacts,
+} from '@/utils/bidHistoryFacts';
+import { stableHash } from '@/utils/stableHash';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useQuery } from '@tanstack/react-query';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -62,7 +67,7 @@ const PROFILE_REQUIRED_THRESHOLD = 1;
 export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { subcontractors } = useProjects();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<CompanyAIProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [showProfileSetup, setShowProfileSetup] = useState(false);
@@ -70,13 +75,48 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Build win-history facts from all subs' decided bid records.
-  const histFacts: BidHistoryFacts = useMemo(() => {
-    const allRecords = (subcontractors ?? []).flatMap(s => s.bidHistory ?? []);
-    return bidHistoryFacts(allRecords);
-  }, [subcontractors]);
+  // Win-history facts from the GC's OWN outbound bids: the marketplace
+  // bid_responses THEY submitted (awarded → won, declined → lost). This must
+  // NEVER be built from Subcontractor.bidHistory — those are subs' bids INTO
+  // the GC's packages, a population whose pooled "win rate" is ~1/(subs per
+  // package) no matter how good the GC is. See utils/bidHistoryFacts.ts
+  // POPULATION RULE. With no outbound history the facts stay empty and the
+  // UI honestly says odds can't be estimated yet.
+  const { data: myResponses } = useQuery({
+    queryKey: ['my-bid-responses', user?.id],
+    enabled: !!user?.id && isSupabaseConfigured,
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error: qErr } = await supabase
+        .from('bid_responses')
+        .select('bid_amount,status')
+        .eq('user_id', user.id);
+      if (qErr) {
+        console.warn('[AI Bid] outbound bid history fetch failed:', qErr.message);
+        return [];
+      }
+      return data ?? [];
+    },
+  });
 
-  const cacheKey = useMemo(() => `bidscore_${bid.id}`, [bid.id]);
+  const histFacts: BidHistoryFacts = useMemo(
+    () => bidHistoryFacts(outboundBidRecordsFromResponses(myResponses ?? [])),
+    [myResponses],
+  );
+
+  // Salt the cache key with the grounding CONTENT (facts + profile), not just
+  // the bid id: a score computed before decided bids / profile edits existed
+  // must not replay its stale null-probability result for the 24h TTL.
+  const cacheKey = useMemo(() => {
+    const factsHash = stableHash(`${histFacts.decidedCount}|${histFacts.facts.join('|')}`);
+    const profileHash = profile
+      ? stableHash([
+          profile.specialties.join(','), profile.trades.join(','),
+          profile.preferredSize, profile.location, profile.certifications.join(','),
+        ].join('|'))
+      : 'np';
+    return `bidscore_${bid.id}_f${factsHash}_p${profileHash}`;
+  }, [bid.id, histFacts, profile]);
 
   const loadProfile = useCallback(async () => {
     setProfileLoading(true);

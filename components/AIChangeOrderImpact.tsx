@@ -10,6 +10,9 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { analyzeChangeOrderImpact, type ChangeOrderImpactResult } from '@/utils/aiService';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -22,7 +25,8 @@ interface Props {
   changeDescription: string;
   lineItems: { name: string; quantity: number; unitPrice: number; total: number }[];
   schedule: ProjectSchedule | null;
-  /** Pass all projects so the analysis can ground pace and cost-rate facts. */
+  /** Optional override; when omitted the component reads projects (and the
+   *  commitments/receipts/labor samples the cost book needs) from context. */
   projects?: Project[];
 }
 
@@ -30,11 +34,20 @@ function formatCurrency(n: number): string {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule, projects }: Props) {
+export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule, projects: projectsProp }: Props) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { tier } = useSubscription();
   const router = useRouter();
+  // Ground the analysis in the SAME learned-cost inputs every other cost
+  // surface uses (mirrors app/job-costing.tsx): projects + commitments from
+  // ProjectContext, snapped supplier receipts, and self-perform labor
+  // samples. Without commitments, buildCostDatabase produces an empty cost
+  // book and the "YOUR COST HISTORY" grounding block can never appear.
+  const { projects: contextProjects, commitments } = useProjects();
+  const { receipts } = useMaterialReceipts();
+  const laborSamples = useLaborCostSamples();
+  const projects = projectsProp ?? contextProjects;
   const [result, setResult] = useState<ChangeOrderImpactResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -54,7 +67,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     setIsLoading(true);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const data = await analyzeChangeOrderImpact(desc, lineItems, schedule, projects);
+      const data = await analyzeChangeOrderImpact(desc, lineItems, schedule, projects, commitments, receipts, laborSamples);
       await recordAIUsage('fast', 'changeOrderImpact');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
@@ -64,7 +77,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, changeDescription, lineItems, schedule, projects, tier, router]);
+  }, [isLoading, changeDescription, lineItems, schedule, projects, commitments, receipts, laborSamples, tier, router]);
 
   if (!result) {
     return (

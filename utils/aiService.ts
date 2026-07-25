@@ -1,10 +1,11 @@
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage } from '@/types';
+import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage, Commitment, MaterialReceipt } from '@/types';
+import type { CostSample } from '@/utils/costDatabase';
 import { getLanguageMeta } from '@/utils/portalLanguages';
 import { buildPaceFacts, paceFactsBlock } from '@/utils/copilot/scheduleBuilder/paceGrounding';
-import { bidHistoryFactsBlock, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
+import { bidHistoryFactsBlock, normalizeWinProbability, type BidHistoryFacts } from '@/utils/bidHistoryFacts';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -248,10 +249,13 @@ export async function scoreBid(bid: {
 }, profile: CompanyAIProfile, histFacts?: BidHistoryFacts): Promise<BidScoreResult> {
   console.log('[AI Bid] Scoring bid:', bid.title?.substring(0, 40));
 
+  // Name the EXACT schema field in the instructions: a model told to fill
+  // "winProbability" emits a field the Zod schema silently strips, and the
+  // UI would wrongly show the "not enough decided bids" fallback.
   const histBlock = histFacts ? bidHistoryFactsBlock(histFacts) : '';
   const winInstruction = histFacts && histFacts.decidedCount >= 3
-    ? 'Derive winProbability from YOUR BID WIN HISTORY rates above (prefer size-bucket rate if available). Return a number 0–1.'
-    : 'Fewer than 3 decided bids exist — return winProbability as null. Do not invent a percentage.';
+    ? 'Set estimatedWinProbability from YOUR BID WIN HISTORY rates above (prefer size-bucket rate if available). Return a number 0–1, NOT a percentage.'
+    : 'Fewer than 3 decided bids exist — return estimatedWinProbability as null. Do not invent a percentage.';
 
   const aiResult = await mageAI({
     prompt: `You are an AI bid analyst for construction contractors. Score how well this bid matches the contractor's profile. Consider: trade alignment, project size fit, location, set-aside eligibility, and certification requirements.
@@ -282,6 +286,11 @@ Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Bid scoring unavailable');
   }
+  // Scale normalization: the facts show "44%", the prompt asks for 0–1, and
+  // the UI renders value*100 — a model echoing the percentage scale (44)
+  // would render "4400%". Coerce (1,100] → /100, anything else out of range
+  // → null (the honest fallback), and cache only the normalized value.
+  aiResult.data.estimatedWinProbability = normalizeWinProbability(aiResult.data.estimatedWinProbability);
   console.log('[AI Bid] Score:', aiResult.data.matchScore);
   return aiResult.data;
 }
@@ -651,6 +660,14 @@ export async function analyzeChangeOrderImpact(
   lineItems: { name: string; quantity: number; unitPrice: number; total: number }[],
   schedule: ProjectSchedule | null,
   projects?: Project[],
+  // Cost-book inputs. buildCostDatabase derives BOTH 'actual' and 'committed'
+  // line costs exclusively from commitments — with an empty array every
+  // closed-job line resolves to cost 0 and the cost book is ALWAYS empty
+  // (the "YOUR COST HISTORY" block could never appear). Callers must thread
+  // the real arrays (see components/AIChangeOrderImpact.tsx).
+  commitments: Commitment[] = [],
+  receipts: MaterialReceipt[] = [],
+  laborSamples: CostSample[] = [],
 ): Promise<ChangeOrderImpactResult> {
   console.log('[AI CO] Analyzing change order impact...');
 
@@ -681,7 +698,7 @@ export async function analyzeChangeOrderImpact(
     // Build a lightweight cost-book fact block from line-item trades.
     try {
       const { buildCostDatabase } = await import('@/utils/costDatabase');
-      const costDb = buildCostDatabase(projects, [], []);
+      const costDb = buildCostDatabase(projects, commitments, receipts, laborSamples);
       if (costDb.entries.length > 0) {
         // Find entries relevant to the CO's line items or description.
         const descWords = changeDescription.toLowerCase();
