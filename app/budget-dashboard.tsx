@@ -18,6 +18,7 @@ import Svg, { Path, Line } from 'react-native-svg';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useProjects } from '@/contexts/ProjectContext';
 import { legacyEvmMetrics, buildCashFlow } from '@/utils/scheduleEarnedValue';
 import { mageAI } from '@/utils/mageAI';
@@ -71,6 +72,7 @@ function BudgetDashboardScreenInner() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { projects, getProject, invoices, getChangeOrdersForProject } = useProjects();
 
@@ -175,7 +177,7 @@ Be specific and actionable. Use construction industry terminology.`;
           headerTintColor: themeColors.accent,
           headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         }} />
-        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
           <FeatureHeader
             eyebrow="Earned Value"
             title="Pick a project to chart"
@@ -280,7 +282,7 @@ Be specific and actionable. Use construction industry terminology.`;
         headerTintColor: themeColors.accent,
         headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <FeatureHeader
           eyebrow="Earned Value"
           title="Are you making or losing money on this job?"
@@ -391,6 +393,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flex: 1,
     backgroundColor: t.bg,
   },
+  contentDesktop: { width: '100%', maxWidth: 840, alignSelf: 'center' as const },
   center: {
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
