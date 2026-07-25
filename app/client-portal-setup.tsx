@@ -754,6 +754,20 @@ function ClientPortalSetupScreenInner() {
               <Send size={15} color={themeColors.accent} strokeWidth={1.75} />
               <Text style={styles.linkActionText}>Share</Text>
             </TouchableOpacity>
+            {/* Preview as your client — opens the client-view with this
+                portal's id so the GC can see exactly what the homeowner
+                sees before sharing the link. Previously only reachable
+                via the deep-link scheme, invisible in the app UI. */}
+            <TouchableOpacity
+              style={styles.linkActionBtn}
+              onPress={() => router.push({ pathname: '/client-view' as never, params: { portalId: portal.portalId } as never })}
+              accessibilityRole="button"
+              accessibilityLabel="Preview as your client"
+              testID="portal-preview-client-btn"
+            >
+              <Eye size={15} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={styles.linkActionText}>Preview</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, FileDown,
-  RotateCcw, Users, FolderPlus, Plus, X, Mic,
+  RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
@@ -872,6 +872,20 @@ function EstimateWizardScreenInner() {
             >
               <RotateCcw size={16} color={themeColors.text} strokeWidth={1.75} />
               <Text style={styles.resultSecondaryText}>Start a new estimate</Text>
+            </TouchableOpacity>
+            {/* Win Optimizer — contextual decision-moment link. After building
+                an estimate the GC is thinking about bid price; Win Optimizer
+                uses their win/loss history to recommend the price that
+                maximises expected profit. Cross-link here so it's
+                discoverable at the decision moment. */}
+            <TouchableOpacity
+              style={[styles.resultSecondaryBtn, { borderColor: themeColors.accent + '40' }]}
+              onPress={() => router.push('/win-optimizer' as never)}
+              activeOpacity={0.85}
+              testID="wizard-win-optimizer"
+            >
+              <TrendingUp size={16} color={themeColors.accent} strokeWidth={1.75} />
+              <Text style={[styles.resultSecondaryText, { color: themeColors.accent }]}>Optimize your bid price</Text>
             </TouchableOpacity>
           </View>
             );

@@ -345,6 +345,25 @@ export default function PlansScreen() {
             <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
           </TouchableOpacity>
         )}
+
+        {/* Ask Your Plans — cross-link to the plan intelligence Q&A surface.
+            Previously unreachable from any plans surface; this CTA makes it
+            discoverable in context (you have the sheets open, AI can answer
+            questions about them). Always shown so first-time users know it
+            exists even before uploading sheets. */}
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/plan-intelligence' as never, params: { projectId: projectId ?? '' } as never })}
+          activeOpacity={0.85}
+          style={[styles.compareBtn, { marginTop: 8 }]}
+          testID="plans-ask-cta"
+        >
+          <MageAIMark size={16} color={themeColors.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.compareBtnTitle}>Ask your plans</Text>
+            <Text style={styles.compareBtnSub}>Ask anything in plain English — MAGE finds it in the sheets</Text>
+          </View>
+          <ChevronRight size={16} color={themeColors.accent} strokeWidth={1.75} />
+        </TouchableOpacity>
       </ScrollView>
 
       {/* New-sheet naming modal */}

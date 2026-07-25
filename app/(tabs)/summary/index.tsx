@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -67,6 +68,7 @@ export default function SummaryScreen() {
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
+  const { isDesktop } = useResponsiveLayout();
   const [toolsOpen, setToolsOpen] = useState(false);
 
   const active = useMemo(
@@ -212,7 +214,10 @@ export default function SummaryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={[
+          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 },
+          isDesktop && styles.contentDesktop,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <BriefingHero
@@ -240,5 +245,6 @@ export default function SummaryScreen() {
 
 const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
+  contentDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' as const },
   heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
 });
