@@ -495,14 +495,23 @@ export default function DailyReportScreen() {
       return;
     }
     try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission Required', 'Camera access is needed to take photos.');
-        return;
+      let result: ImagePicker.ImagePickerResult;
+      if (Platform.OS === 'web') {
+        // Camera capture is not supported on web — use image library instead.
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.7,
+        });
+      } else {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permission Required', 'Camera access is needed to take photos.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          quality: 0.7,
+        });
       }
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.7,
-      });
       if (!result.canceled && result.assets[0]) {
         // Fire the GPS stamp in parallel \u2014 it has its own 3s timeout, so it
         // never blocks the photo from showing up in the report.
