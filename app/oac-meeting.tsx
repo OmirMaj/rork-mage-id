@@ -149,6 +149,7 @@ function OACMeetingInner() {
       const changeOrders = ctx.getChangeOrdersForProject?.(project.id) ?? [];
       const dailyReports = ctx.getDailyReportsForProject?.(project.id) ?? [];
       const tasks = project.schedule?.tasks ?? [];
+      // TODO E4: inject computeRFILatency(rfis).factLine into agenda RFI section
       const agenda = buildAgendaFromProjectState({
         project, rfis, submittals, changeOrders, dailyReports,
         schedule: project.schedule, tasks,

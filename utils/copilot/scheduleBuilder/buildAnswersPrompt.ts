@@ -10,7 +10,14 @@ import { paceFactsBlock } from './paceGrounding';
  *  permits + weather + targeted contingency, durations scaled to size + crew.
  *  `paceFacts` (buildPaceFacts) grounds durations in the contractor's OWN
  *  measured pace — when present, the model derives instead of guessing. */
-export function buildAnswersPrompt(a: ScheduleBuilderAnswers, project: Project | null, phases: string[], paceFacts: string[] = []): string {
+export function buildAnswersPrompt(
+  a: ScheduleBuilderAnswers,
+  project: Project | null,
+  phases: string[],
+  paceFacts: string[] = [],
+  rfiFactLine?: string | null,
+  weatherFactLine?: string | null,
+): string {
   const line = (label: string, v: unknown) => (v === null || v === undefined || v === '' ? null : `${label}: ${v}`);
   const facts = [
     line('PROJECT', project?.name),
@@ -29,8 +36,11 @@ export function buildAnswersPrompt(a: ScheduleBuilderAnswers, project: Project |
     line('CREW SIZE (parallelism)', a.crewSize),
     line('WORK WEEK (days)', a.workDaysPerWeek),
     line('LONG-LEAD ITEMS', a.longLead),
-    a.weather === 'handle' ? 'WEATHER: buffer exterior/earthwork/roofing for the season implied by the start date' : (a.weather === 'interior' ? 'WEATHER: mostly interior — minimal weather exposure' : null),
+    a.weather === 'handle'
+      ? `WEATHER: buffer exterior/earthwork/roofing${weatherFactLine ? ` — ${weatherFactLine}` : ' for the season implied by the start date'}`
+      : (a.weather === 'interior' ? 'WEATHER: mostly interior — minimal weather exposure' : null),
     line('KNOWN RISKS', a.knownRisks),
+    rfiFactLine ? `RFI LATENCY: ${rfiFactLine}` : null,
     line('BUFFER PREFERENCE', a.buffer),
   ].filter(Boolean);
 
