@@ -280,7 +280,7 @@ export default function WeeklySnapshotScreen() {
             <Text style={styles.cardSub}>opened · closed</Text>
             {rfiStats.overdue > 0 && (
               <View style={styles.warnPill}>
-                <AlertTriangle size={11} color={themeColors.danger} strokeWidth={1.75} />
+                <AlertTriangle size={11} color={themeColors.dangerLabel} strokeWidth={1.75} />
                 <Text style={styles.warnPillText}>{rfiStats.overdue} overdue</Text>
               </View>
             )}
@@ -392,9 +392,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cardSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '500' },
   cardEmpty: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontStyle: 'italic', marginTop: 4 },
   cardArrow: { color: t.textMuted, fontWeight: '500' },
-  warnPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: Colors.errorLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
-  warnPillText: { fontSize: 10, fontWeight: '700', color: t.danger },
-  successPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: Colors.successLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
+  // Soft-fill + label-token pairs — the old static pastel fills under
+  // theme-varying text washed out to ~1.7:1 green-on-green in dark mode.
+  warnPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: t.dangerSoft, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
+  warnPillText: { fontSize: 10, fontWeight: '700', color: t.dangerLabel },
+  successPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: t.successSoft, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
   successPillText: { fontSize: 10, fontWeight: '700', color: t.success },
   burnPct: { marginLeft: 'auto', fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
   actionsCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: t.line },

@@ -53,7 +53,9 @@ function LiveTimeCard({
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const statusColor = entry.status === 'clocked_in' ? '#2E7D32' : entry.status === 'break' ? '#E65100' : themeColors.textMuted;
+  // Foregrounds theme WITH the soft fills below — the old static dark-green /
+  // dark-orange read at ~2.8:1 on the dark-theme soft chips.
+  const statusColor = entry.status === 'clocked_in' ? themeColors.success : entry.status === 'break' ? themeColors.warningLabel : themeColors.textMuted;
   const statusBg = entry.status === 'clocked_in' ? themeColors.successSoft : entry.status === 'break' ? themeColors.warningSoft : themeColors.surfaceAlt;
   const statusLabel = entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On Break' : 'Clocked Out';
   // Tick every 30s so the threshold pill flips at most ~30s after the
@@ -98,11 +100,11 @@ function LiveTimeCard({
 
         {entry.status !== 'clocked_out' && (
           <View style={styles.liveCardTimer}>
-            <Clock size={14} color={overThreshold ? '#C62828' : approachingThreshold ? '#E65100' : themeColors.accent} strokeWidth={1.75} />
+            <Clock size={14} color={overThreshold ? themeColors.dangerLabel : approachingThreshold ? themeColors.warningLabel : themeColors.accent} strokeWidth={1.75} />
             <Text style={[
               styles.liveCardTimerText,
-              overThreshold && { color: '#C62828' },
-              approachingThreshold && { color: '#E65100' },
+              overThreshold && { color: themeColors.dangerLabel },
+              approachingThreshold && { color: themeColors.warningLabel },
             ]}>
               {getElapsedHours(entry.clockIn)}
             </Text>
@@ -118,10 +120,13 @@ function LiveTimeCard({
         {entry.status !== 'clocked_out' && (overThreshold || approachingThreshold) && (
           <View style={[
             styles.thresholdBanner,
-            { backgroundColor: overThreshold ? '#FDECEA' : '#FFF7EC', borderColor: overThreshold ? '#F5C2BE' : '#F5D4A8' },
+            {
+              backgroundColor: overThreshold ? themeColors.dangerSoft : themeColors.warningSoft,
+              borderColor: overThreshold ? themeColors.dangerLabel + '40' : themeColors.warningLabel + '40',
+            },
           ]}>
-            <AlertTriangle size={13} color={overThreshold ? '#C62828' : '#E65100'} strokeWidth={1.75} />
-            <Text style={[styles.thresholdBannerText, { color: overThreshold ? '#C62828' : '#7A3E00' }]}>
+            <AlertTriangle size={13} color={overThreshold ? themeColors.dangerLabel : themeColors.warningLabel} strokeWidth={1.75} />
+            <Text style={[styles.thresholdBannerText, { color: overThreshold ? themeColors.dangerLabel : themeColors.warningLabel }]}>
               {overThreshold
                 ? `Past ${alertThresholdHours}h shift — consider clocking out`
                 : `${(alertThresholdHours - elapsedHrs).toFixed(1)}h to ${alertThresholdHours}h shift`}
@@ -138,7 +143,7 @@ function LiveTimeCard({
                   onPress={() => onAction(entry, 'break')}
                   activeOpacity={0.7}
                 >
-                  <Coffee size={14} color={Colors.warningDark} strokeWidth={1.75} />
+                  <Coffee size={14} color={themeColors.warningLabel} strokeWidth={1.75} />
                   <Text style={[styles.actionBtnText, { color: themeColors.warningLabel }]}>Break</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -146,7 +151,7 @@ function LiveTimeCard({
                   onPress={() => onAction(entry, 'clock_out')}
                   activeOpacity={0.7}
                 >
-                  <Square size={14} color={Colors.errorDark} strokeWidth={1.75} />
+                  <Square size={14} color={themeColors.dangerLabel} strokeWidth={1.75} />
                   <Text style={[styles.actionBtnText, { color: themeColors.dangerLabel }]}>Clock Out</Text>
                 </TouchableOpacity>
               </>
@@ -156,7 +161,7 @@ function LiveTimeCard({
                 onPress={() => onAction(entry, 'resume')}
                 activeOpacity={0.7}
               >
-                <Play size={14} color={Colors.successDark} strokeWidth={1.75} />
+                <Play size={14} color={themeColors.success} strokeWidth={1.75} />
                 <Text style={[styles.actionBtnText, { color: themeColors.success }]}>Resume</Text>
               </TouchableOpacity>
             )}
@@ -428,9 +433,9 @@ function TimeTrackingScreenInner() {
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? themeColors.warningSoft : themeColors.successSoft }]}>
-              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} strokeWidth={1.75} /> : <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} />}
+              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={themeColors.warningLabel} strokeWidth={1.75} /> : <TrendingUp size={16} color={themeColors.success} strokeWidth={1.75} />}
             </View>
-            <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: Colors.warningDark }]}>{todayStats.totalOT.toFixed(1)}</Text>
+            <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: themeColors.warningLabel }]}>{todayStats.totalOT.toFixed(1)}</Text>
             <Text style={styles.statLabel}>OT Hours</Text>
           </View>
         </View>

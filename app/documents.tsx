@@ -58,7 +58,7 @@ function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => v
 
         {isExpiringSoon && (
           <View style={styles.expiryWarning}>
-            <AlertCircle size={12} color={Colors.warningDark} strokeWidth={1.75} />
+            <AlertCircle size={12} color={themeColors.warningLabel} strokeWidth={1.75} />
             <Text style={styles.expiryWarningText}>
               Expires {new Date(doc.expiresAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
@@ -266,8 +266,8 @@ export default function DocumentsScreen() {
         </View>
         <View style={styles.alertsRow}>
           {stats.pending > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: themeColors.warningSoft, borderColor: '#FFE0B2' }]}>
-              <PenTool size={16} color={Colors.warningDark} strokeWidth={1.75} />
+            <View style={[styles.alertCard, { backgroundColor: themeColors.warningSoft, borderColor: themeColors.warningLabel + '40' }]}>
+              <PenTool size={16} color={themeColors.warningLabel} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.alertTitle, { color: themeColors.warningLabel }]}>{stats.pending} Awaiting Signature</Text>
                 <Text style={styles.alertDesc}>Documents need attention</Text>
@@ -275,8 +275,8 @@ export default function DocumentsScreen() {
             </View>
           )}
           {stats.expiringSoon > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: '#FFCDD2' }]}>
-              <AlertCircle size={16} color={Colors.errorDark} strokeWidth={1.75} />
+            <View style={[styles.alertCard, { backgroundColor: themeColors.dangerSoft, borderColor: themeColors.dangerLabel + '40' }]}>
+              <AlertCircle size={16} color={themeColors.dangerLabel} strokeWidth={1.75} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.alertTitle, { color: themeColors.dangerLabel }]}>{stats.expiringSoon} Expiring Soon</Text>
                 <Text style={styles.alertDesc}>COIs expiring within 30 days</Text>
@@ -291,15 +291,15 @@ export default function DocumentsScreen() {
             <Text style={styles.statLabel}>Total</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: Colors.warningDark }]}>{stats.pending}</Text>
+            <Text style={[styles.statValue, { color: themeColors.warningLabel }]}>{stats.pending}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: Colors.successDark }]}>{stats.signed}</Text>
+            <Text style={[styles.statValue, { color: themeColors.success }]}>{stats.signed}</Text>
             <Text style={styles.statLabel}>Signed</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: Colors.errorDark }]}>{stats.expired}</Text>
+            <Text style={[styles.statValue, { color: themeColors.dangerLabel }]}>{stats.expired}</Text>
             <Text style={styles.statLabel}>Expired</Text>
           </View>
         </View>
