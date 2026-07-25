@@ -439,7 +439,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               {/* Summary */}
               {review && (
                 <View style={[styles.reviewSummary, {
-                  backgroundColor: review.overall === 'pass' ? Colors.successLight : review.overall === 'fail' ? Colors.errorLight : Colors.warningLight,
+                  backgroundColor: review.overall === 'pass' ? themeColors.successSoft : review.overall === 'fail' ? themeColors.dangerSoft : themeColors.warningSoft,
                   borderLeftColor: review.overall === 'pass' ? themeColors.success : review.overall === 'fail' ? themeColors.danger : Colors.warning,
                 }]}>
                   <Text style={styles.reviewSummaryText}>{review.summary}</Text>
@@ -573,7 +573,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bannerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textSecondary, lineHeight: 16 },
 
   renewCard: {
-    backgroundColor: Colors.warningLight, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 14,
+    backgroundColor: t.warningSoft, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 14,
     borderWidth: 1, borderColor: `${Colors.warning}30`,
   },
   renewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },

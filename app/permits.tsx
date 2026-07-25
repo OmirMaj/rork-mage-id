@@ -506,17 +506,17 @@ function PermitsScreenInner() {
             <Text style={styles.statLabel}>Upcoming</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: Colors.warningLight }]}>
+            <View style={[styles.statIconWrap, { backgroundColor: themeColors.warningSoft }]}>
               <Clock size={16} color={Colors.warningDark} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.statValue, { color: Colors.warningDark }]}>{stats.pending}</Text>
+            <Text style={[styles.statValue, { color: themeColors.warningLabel }]}>{stats.pending}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: Colors.successLight }]}>
+            <View style={[styles.statIconWrap, { backgroundColor: themeColors.successSoft }]}>
               <Check size={16} color={Colors.successDark} strokeWidth={1.75} />
             </View>
-            <Text style={[styles.statValue, { color: Colors.successDark }]}>{stats.passed}</Text>
+            <Text style={[styles.statValue, { color: themeColors.success }]}>{stats.passed}</Text>
             <Text style={styles.statLabel}>Passed</Text>
           </View>
         </View>
@@ -955,7 +955,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   blockersCard: {
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.dangerSoft,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -1110,7 +1110,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 6,
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.dangerSoft,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,

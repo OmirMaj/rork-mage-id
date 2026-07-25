@@ -197,7 +197,7 @@ function JobCostingInner() {
 
         {/* Projection banner — the TL;DR */}
         <View style={[styles.banner, {
-          backgroundColor: variancePositive ? Colors.successLight : Colors.errorLight,
+          backgroundColor: variancePositive ? themeColors.successSoft : themeColors.dangerSoft,
           borderLeftColor: variancePositive ? themeColors.success : themeColors.danger,
         }]}>
           <Text style={styles.bannerTitle}>
@@ -792,8 +792,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   addLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   addLinkText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '600' },
 
-  warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${t.danger}40` },
-  warningSectionAmber: { backgroundColor: Colors.warningLight, borderWidth: 1, borderColor: `${Colors.warning}40` },
+  warningSection: { backgroundColor: t.dangerSoft, borderWidth: 1, borderColor: `${t.danger}40` },
+  warningSectionAmber: { backgroundColor: t.warningSoft, borderWidth: 1, borderColor: `${Colors.warning}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.danger },
   warningTitleAmber: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.warning },

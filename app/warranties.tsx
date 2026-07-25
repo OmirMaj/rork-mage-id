@@ -217,12 +217,12 @@ export default function WarrantiesScreen() {
             <Text style={styles.metricValue}>{list.filter(w => w.status === 'active').length}</Text>
             <Text style={styles.metricLabel}>Active</Text>
           </View>
-          <View style={[styles.metricCard, { backgroundColor: Colors.warningLight }]}>
-            <Text style={[styles.metricValue, { color: Colors.warning }]}>{list.filter(w => w.status === 'expiring_soon').length}</Text>
+          <View style={[styles.metricCard, { backgroundColor: themeColors.warningSoft }]}>
+            <Text style={[styles.metricValue, { color: themeColors.warningLabel }]}>{list.filter(w => w.status === 'expiring_soon').length}</Text>
             <Text style={styles.metricLabel}>Expiring</Text>
           </View>
-          <View style={[styles.metricCard, { backgroundColor: Colors.errorLight }]}>
-            <Text style={[styles.metricValue, { color: "#C84038" }]}>{list.filter(w => w.status === 'expired').length}</Text>
+          <View style={[styles.metricCard, { backgroundColor: themeColors.dangerSoft }]}>
+            <Text style={[styles.metricValue, { color: themeColors.dangerLabel }]}>{list.filter(w => w.status === 'expired').length}</Text>
             <Text style={styles.metricLabel}>Expired</Text>
           </View>
         </View>
@@ -385,7 +385,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   heroTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 4 },
   heroSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
   metricsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
-  metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center' as const, gap: 2 },
+  metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: t.successSoft, alignItems: 'center' as const, gap: 2 },
   metricValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.success },
   metricLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, gap: 10 },
@@ -402,7 +402,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: t.line },
   dateText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   daysText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  deleteBtn: { position: 'absolute' as const, top: 6, right: 6, width: 44, height: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
+  deleteBtn: { position: 'absolute' as const, top: 6, right: 6, width: 44, height: 44, borderRadius: Tokens.radius.md, backgroundColor: t.dangerSoft, alignItems: 'center' as const, justifyContent: 'center' as const },
   addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: t.accent + '12', borderWidth: 1, borderColor: t.accent + '25' },
   addBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.accent },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' as const },
