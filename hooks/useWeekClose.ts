@@ -68,6 +68,14 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
         next.paymentPredictions = await predictInvoicePayments(invoices, projectsById);
       } catch { /* additive */ }
 
+      // QBO staged-cost count — leg 1's "N QBO costs need review" line (F6).
+      // fetchQboPendingCount fails soft to 0, so no try/catch dance needed,
+      // but keep the additive wrapper for symmetry with the other sources.
+      try {
+        const { fetchQboPendingCount } = await import('@/hooks/useQboCostLines');
+        next.qboPendingCount = await fetchQboPendingCount();
+      } catch { /* additive */ }
+
       // WWP commitments + lookahead count — for the close/commit legs.
       // Load raw from AsyncStorage (same key as useLastPlanner).
       try {

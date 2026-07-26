@@ -1186,6 +1186,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="qbo-review"
+        options={{
+          title: "QuickBooks Costs",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="integrations/qbo/callback"
         options={{
           title: "QuickBooks Connection",
