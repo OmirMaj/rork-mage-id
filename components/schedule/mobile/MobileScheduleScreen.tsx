@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Bell, ChevronDown, FolderOpen, CalendarDays, Download, FileInput, Mic } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Bell, Check, ChevronDown, FolderOpen, CalendarDays, Download, FileInput, Mic, X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Project, ScheduleTask } from '@/types';
 import { buildScheduleFromTasks, createId } from '@/utils/scheduleEngine';
@@ -189,11 +191,11 @@ export function MobileScheduleScreen() {
     setShowAdd(true);
   }, []);
 
-  const cycleProject = useCallback(() => {
-    if (projects.length < 2 || !selectedProject) return;
-    const idx = projects.findIndex((p) => p.id === selectedProject.id);
-    setSelectedProjectId(projects[(idx + 1) % projects.length].id);
-  }, [projects, selectedProject]);
+  // Explicit project picker (sim-audit #11): tapping the title used to
+  // silently CYCLE through projects — zero affordance, and with several
+  // projects it read as "my schedule changed by itself". The chevron now
+  // opens a bottom sheet listing every project, current one checked.
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
 
   if (!selectedProject) {
     return (
@@ -212,7 +214,15 @@ export function MobileScheduleScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={{ flex: 1, minWidth: 0 }} activeOpacity={0.7} onPress={cycleProject}>
+        <TouchableOpacity
+          style={{ flex: 1, minWidth: 0 }}
+          activeOpacity={0.7}
+          onPress={() => { if (projects.length > 1) setShowProjectPicker(true); }}
+          disabled={projects.length < 2}
+          accessibilityRole="button"
+          accessibilityLabel={`Schedule for ${selectedProject.name}. ${projects.length > 1 ? 'Tap to switch project.' : ''}`}
+          testID="schedule-project-switcher"
+        >
           <View style={styles.titleRow}>
             <Text style={styles.projName} numberOfLines={1}>{selectedProject.name}</Text>
             {projects.length > 1 && <ChevronDown size={18} color={colors.text} strokeWidth={1.75} />}
@@ -339,6 +349,14 @@ export function MobileScheduleScreen() {
       />
       <AddTaskModal visible={showAdd} onCancel={() => { setShowAdd(false); setAddPrefillDate(undefined); }} onCreate={onCreate} tasks={tasks} defaultStartDate={addPrefillDate} />
 
+      <ProjectPickerSheet
+        visible={showProjectPicker}
+        projects={projects}
+        selectedProjectId={selectedProject.id}
+        onSelect={(id) => { setSelectedProjectId(id); setShowProjectPicker(false); }}
+        onClose={() => setShowProjectPicker(false)}
+      />
+
       <MonthCalendarSheet
         visible={showCalendar}
         selectedDate={selectedDate}
@@ -379,6 +397,70 @@ export function MobileScheduleScreen() {
         })()}
       </Modal>
     </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ProjectPickerSheet — explicit "switch project" bottom sheet (the app's
+// sheet idiom: backdrop + grab handle + slide-up panel, same as
+// MonthCalendarSheet). Replaces the old tap-to-cycle title behavior.
+// ---------------------------------------------------------------------------
+
+function ProjectPickerSheet({ visible, projects, selectedProjectId, onSelect, onClose }: {
+  visible: boolean;
+  projects: Project[];
+  selectedProjectId: string;
+  onSelect: (projectId: string) => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
+  const pick = (id: string) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    onSelect(id);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.pickerBackdrop} activeOpacity={1} onPress={onClose} />
+      <View style={[styles.pickerSheet, { paddingBottom: insets.bottom + 16 }]} testID="schedule-project-picker">
+        <View style={styles.pickerGrab} />
+        <View style={styles.pickerHead}>
+          <Text style={styles.pickerTitle}>Switch project</Text>
+          <TouchableOpacity onPress={onClose} style={styles.pickerClose} accessibilityRole="button" accessibilityLabel="Close">
+            <X size={18} color={colors.textMuted} strokeWidth={1.75} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+          {projects.map((p, i) => {
+            const active = p.id === selectedProjectId;
+            const taskCount = p.schedule?.tasks?.length ?? 0;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                style={[styles.pickerRow, i > 0 ? styles.pickerRowDivider : null]}
+                activeOpacity={0.7}
+                onPress={() => pick(p.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                testID={`schedule-pick-project-${p.id}`}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.pickerRowName, active ? { color: colors.accent } : null]} numberOfLines={1}>{p.name}</Text>
+                  <Text style={styles.pickerRowMeta} numberOfLines={1}>
+                    {taskCount > 0 ? `${taskCount} task${taskCount === 1 ? '' : 's'}` : 'No schedule yet'}
+                    {displayText(p.location) ? ` · ${displayText(p.location)}` : ''}
+                  </Text>
+                </View>
+                {active && <Check size={18} color={colors.accent} strokeWidth={2.2} />}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -443,4 +525,15 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   viewSeg: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 7 },
   viewSegOn: { backgroundColor: t.surface },
   viewSegText: { fontSize: 13, fontWeight: '700' as const, color: t.textMuted },
+  // Project picker sheet (idiom shared with MonthCalendarSheet)
+  pickerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  pickerSheet: { position: 'absolute' as const, left: 0, right: 0, bottom: 0, backgroundColor: t.bg, borderTopLeftRadius: Tokens.radius.xl, borderTopRightRadius: Tokens.radius.xl, padding: 16 },
+  pickerGrab: { width: 40, height: 4, borderRadius: 2, backgroundColor: t.line, alignSelf: 'center' as const, marginBottom: 12 },
+  pickerHead: { flexDirection: 'row' as const, alignItems: 'center' as const, marginBottom: 4 },
+  pickerTitle: { flex: 1, fontSize: 17, fontWeight: '800' as const, color: t.text },
+  pickerClose: { width: 34, height: 34, alignItems: 'center' as const, justifyContent: 'center' as const, borderRadius: 17, backgroundColor: t.surfaceAlt },
+  pickerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 13 },
+  pickerRowDivider: { borderTopWidth: 1, borderTopColor: t.line },
+  pickerRowName: { fontSize: 15, fontWeight: '700' as const, color: t.text },
+  pickerRowMeta: { fontSize: 12, fontWeight: '600' as const, color: t.textMuted, marginTop: 1 },
 });
