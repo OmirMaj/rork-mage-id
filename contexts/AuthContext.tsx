@@ -57,6 +57,9 @@ const LOCAL_USER_CACHE_KEYS = [
   'mageid_week_close_last_seen',
   'mageid_leakco_drafted',
   'mageid_autonomy_gate_state',
+  // Universal Search: the last 5 search queries (components/UniversalSearch).
+  // Queries are per-user (project names, client names) — wipe on tenant switch.
+  'mageid_recent_searches',
 ] as const;
 
 // The re-fetchable caches (mageid_*) are always safe to wipe —
