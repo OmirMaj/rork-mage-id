@@ -121,6 +121,17 @@ function WeekCloseInner() {
     ))
   );
 
+  // Leg-specific quiet lines — "Nothing here this week." four times in a row
+  // read as filler (sim-audit slop #4). Each line states the HONEST quiet
+  // condition for its leg, so an empty leg still carries information.
+  const EMPTY_LEG_LINES: Record<WeekCloseLeg['id'], string> = {
+    bill: 'Nothing unbilled — invoicing is caught up.',
+    chase: 'No overdue invoices out there.',
+    close: 'No weekly plan was tracked this week.',
+    commit: 'No lookahead tasks queued for next week yet.',
+    clients: 'No client updates waiting.',
+  };
+
   const renderLeg = (leg: WeekCloseLeg) => (
     <View key={leg.id} style={styles.section}>
       <Text style={styles.sectionTitle}>{leg.title}</Text>
@@ -129,7 +140,7 @@ function WeekCloseInner() {
           ? renderRows(leg.items, true)
           : (
             <View style={styles.row}>
-              <Text style={[styles.rowText, { color: t.textMuted }]}>Nothing here this week.</Text>
+              <Text style={[styles.rowText, { color: t.textMuted }]}>{EMPTY_LEG_LINES[leg.id]}</Text>
             </View>
           )
         }
