@@ -15,8 +15,9 @@
 
 import {
   composeWeekClose, projectIsActive, QUIET_CLOSE_LINE,
-  type ComposeWeekCloseInput,
+  type ComposeWeekCloseInput, type WeekCloseWipRow,
 } from '../utils/weekClose/composeWeekClose';
+import { computeWipRow } from '../utils/wip';
 import type { Project, Invoice, ChangeOrder, DailyFieldReport } from '../types';
 import type { WIPRow } from '../utils/financialReports';
 import type { PaymentPredictionResult } from '../utils/paymentPrediction';
@@ -478,6 +479,48 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
   }
   const dupes = Array.from(idCounts.entries()).filter(([, count]) => count > 1);
   assert(dupes.length === 0, 'no duplicate item ids across all legs', dupes.map(([id]) => id).join(', '));
+}
+
+// ─── Bill leg wired to the REAL WIP engine (utils/wip) ────────────────────────
+
+{
+  console.log('\n── bill leg ← real WIP engine ──');
+
+  // A job 60% complete by cost with $18K earned-not-billed:
+  // contract 200K, est cost 150K, cost-to-date 90K (60%), billed 102K
+  // → earned 120K, underbilling 18K. This is the shape useWeekClose derives
+  // (computeWipRow → underbilling), pinned here so the bill leg can never
+  // again be silently starved by a dead WIP source (financialReports.
+  // computeWIPReport's unbilled is structurally 0 — earned ≡ billed).
+  const out = computeWipRow({
+    originalContract: 200_000, approvedChangeOrders: 0,
+    totalEstimatedCost: 150_000, costToDate: 90_000, billedToDate: 102_000,
+  });
+  assert(
+    Math.round(out.underbilling) === 18_000,
+    `real WIP engine yields $18K underbilling (got ${out.underbilling})`,
+  );
+  assert(
+    Math.round(out.percentComplete * 100) === 60,
+    `real WIP engine yields 60% complete (got ${out.percentComplete * 100})`,
+  );
+
+  const p = project({ id: 'p-wip', name: 'Engine Job' });
+  const rep = dailyReport({ id: 'r-wip', projectId: 'p-wip', date: dateOnlyDaysAgo(2) });
+  const engineRow: WeekCloseWipRow = {
+    projectId: 'p-wip',
+    projectName: 'Engine Job',
+    unbilled: out.underbilling,
+    percentComplete: out.percentComplete * 100,
+  };
+  const result = composeWeekClose(baseInput({
+    projects: [p], dailyReports: [rep], wipRows: [engineRow],
+  }));
+  const bill = result.legs.find(l => l.id === 'bill')!;
+  assert(
+    bill.items.some(i => i.id === 'unbilled-p-wip' && i.text.includes('$18K') && i.text.includes('60% complete')),
+    'engine-derived unbilled row flows into the bill leg',
+  );
 }
 
 // ─── dateISO format ───────────────────────────────────────────────────────────

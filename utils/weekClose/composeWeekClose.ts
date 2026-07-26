@@ -22,7 +22,6 @@ import type {
   Project, Invoice, ChangeOrder, DailyFieldReport,
 } from '@/types';
 import { localDateISO } from '@/utils/brief/composeBrief';
-import type { WIPRow } from '@/utils/financialReports';
 import type { PaymentPredictionResult } from '@/utils/paymentPrediction';
 import type { WeeklyCommitment } from '@/utils/lastPlanner';
 import { computePpc } from '@/utils/lastPlanner';
@@ -32,6 +31,25 @@ import type { BriefItem } from '@/utils/brief/composeBrief';
 // ─── Quiet line ───────────────────────────────────────────────────────────────
 
 export const QUIET_CLOSE_LINE = 'Clean close — nothing left on the table this week.';
+
+// ─── Bill-leg WIP row shape ───────────────────────────────────────────────────
+
+/**
+ * The per-project WIP figures the bill leg consumes. useWeekClose derives
+ * these from the REAL WIP engine (utils/wip computeWipRow — cost-basis earned
+ * value; `unbilled` = underbilling), the same math the WIP Report screen
+ * shows. financialReports.computeWIPReport is deliberately NOT the source:
+ * its percent basis is billed/revised, which makes earned ≡ billed and
+ * unbilled structurally 0.
+ */
+export interface WeekCloseWipRow {
+  projectId: string;
+  projectName: string;
+  /** Earned-not-billed dollars (utils/wip `underbilling`). */
+  unbilled: number;
+  /** Percent complete, 0–100. */
+  percentComplete: number;
+}
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -101,7 +119,7 @@ export function projectIsActive(
 const UNBILLED_FLOOR = 500;
 
 function buildBillLeg(
-  wipRows: WIPRow[],
+  wipRows: WeekCloseWipRow[],
   projects: Project[],
   invoices: Invoice[],
   dailyReports: DailyFieldReport[],
@@ -355,8 +373,8 @@ export interface ComposeWeekCloseInput {
   invoices: Invoice[];
   changeOrders: ChangeOrder[];
   dailyReports: DailyFieldReport[];
-  /** Caller runs computeWIPReport (financialReports.ts:55-145). */
-  wipRows: WIPRow[];
+  /** Caller derives these from the WIP engine (see WeekCloseWipRow doc). */
+  wipRows: WeekCloseWipRow[];
   /** utils/paymentPrediction.ts predictInvoicePayments output. */
   paymentPredictions?: PaymentPredictionResult | null;
   /** WWP commitments + pre-computed PPC for this week. */

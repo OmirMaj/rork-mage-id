@@ -16,10 +16,16 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import {
   composeWeekClose,
   type ComposeWeekCloseInput,
+  type WeekCloseWipRow,
 } from '@/utils/weekClose/composeWeekClose';
+import {
+  computeWipRow, deriveOriginalContract, deriveEstimatedCost,
+  suggestBilledToDate, suggestCostToDate, sumApprovedChangeOrders,
+} from '@/utils/wip';
 import type { WeekClose } from '@/utils/weekClose/types';
 
 interface AsyncInputs {
@@ -47,7 +53,10 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
   refresh: () => void;
 } {
   const enabled = opts.enabled !== false;
-  const { projects, invoices, changeOrders, dailyReports } = useProjects();
+  const {
+    projects, invoices, changeOrders, dailyReports, commitments, aiaPayApps,
+  } = useProjects();
+  const { receipts } = useMaterialReceipts();
 
   const [asyncInputs, setAsyncInputs] = useState<AsyncInputs>(EMPTY_ASYNC);
   const [loading, setLoading] = useState(true);
@@ -133,18 +142,48 @@ export function useWeekClose(opts: { enabled?: boolean } = {}): {
     [changeOrders],
   );
 
-  // WIP rows: computed synchronously from already-loaded data.
-  const wipRows = useMemo(() => {
+  // WIP rows for the bill leg — computed synchronously with the REAL WIP
+  // engine (utils/wip computeWipRow, cost-basis earned value), the same math
+  // the WIP Report screen shows, so the close's "$X unbilled" agrees with the
+  // screen the GC checks. Two deliberate departures from what was here before:
+  //  - static typed imports, not a require-with-cast (the old wiring called a
+  //    4-arg function with 2 args and the wrong return shape; the throw was
+  //    swallowed to [] on every render, leaving the flagship leg dead);
+  //  - financialReports.computeWIPReport is NOT usable here even correctly
+  //    wired: its percent basis is billed/revised, making earned ≡ billed and
+  //    unbilled structurally 0.
+  const wipRows = useMemo<WeekCloseWipRow[]>(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { computeWIPReport } = require('@/utils/financialReports') as {
-        computeWIPReport: (p: typeof projects, i: typeof invoices) => import('@/utils/financialReports').WIPRow[];
-      };
-      return computeWIPReport(projects, invoices);
+      return projects
+        .filter(p => p.status === 'in_progress')
+        .map(p => {
+          const projectCOs = changeOrders.filter(co => co.projectId === p.id);
+          const projectPayApps = aiaPayApps.filter(a => a.projectId === p.id);
+          const projectCommitments = commitments.filter(c => c.projectId === p.id);
+          const out = computeWipRow({
+            originalContract: deriveOriginalContract(p, projectCOs, projectPayApps),
+            approvedChangeOrders: sumApprovedChangeOrders(projectCOs),
+            totalEstimatedCost: deriveEstimatedCost(p, projectCommitments),
+            costToDate: suggestCostToDate(
+              projectCommitments,
+              receipts.filter(r => r.projectId === p.id),
+            ),
+            billedToDate: suggestBilledToDate(
+              invoices.filter(i => i.projectId === p.id),
+              projectPayApps,
+            ),
+          });
+          return {
+            projectId: p.id,
+            projectName: p.name,
+            unbilled: out.underbilling,
+            percentComplete: out.percentComplete * 100,
+          };
+        });
     } catch {
       return [];
     }
-  }, [projects, invoices]);
+  }, [projects, invoices, changeOrders, commitments, aiaPayApps, receipts]);
 
   const close = useMemo<WeekClose | null>(() => {
     if (!enabled) return null;
