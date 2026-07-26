@@ -195,6 +195,16 @@ function buildLeakItem(leaks: OpenLeakSummary): BriefItem | null {
   };
 }
 
+/** The aggregate rollup's own overdue population (summaryBriefing's exact
+ *  predicate): any non-paid, non-draft invoice past due — ALL projects, no
+ *  grace window. Wider than the per-invoice brainWatch lines, which only
+ *  cover ACTIVE projects and >7-day overdues. */
+function countAggregateOverdueInvoices(invoices: Invoice[], nowMs: number): number {
+  return invoices.filter(
+    i => i.status !== 'paid' && i.status !== 'draft' && i.dueDate && new Date(i.dueDate).getTime() < nowMs,
+  ).length;
+}
+
 function buildNeedsYou(input: ComposeBriefInput, now: Date): BriefItem[] {
   const watch = collectBrainWatch(input, now);
   const items: BriefItem[] = watch.map(i => ({
@@ -205,11 +215,17 @@ function buildNeedsYou(input: ComposeBriefInput, now: Date): BriefItem[] {
   }));
 
   // Aggregate rollups from the Summary dashboard, deduped against the
-  // per-invoice brainWatch lines (plan: dedupe by kind — the rollup and the
-  // per-invoice items describe the same overdue money).
-  const hasInvoiceWatch = watch.some(i => i.kind === 'invoice');
+  // per-invoice brainWatch lines — but only when those lines cover the
+  // rollup's ENTIRE population. The rollup's scope is wider (all projects,
+  // no 7-day grace), so kind-level suppression made receivables on
+  // completed/closed projects and 1–7-day overdues vanish from the brief
+  // whenever any single >7-day invoice was itemized (tribunal fix). The
+  // per-invoice population is a strict subset of the rollup's, so a plain
+  // count comparison decides coverage.
+  const watchInvoiceCount = watch.filter(i => i.kind === 'invoice').length;
+  const aggregateOverdueCount = countAggregateOverdueInvoices(input.invoices, now.getTime());
   for (const a of aggregateAttention(input.projects, input.invoices, input.punchItems, input.changeOrders, now)) {
-    if (a.id === 'overdue-invoices' && hasInvoiceWatch) continue;
+    if (a.id === 'overdue-invoices' && watchInvoiceCount >= aggregateOverdueCount) continue;
     items.push({
       id: `agg-${a.id}`,
       text: a.label,

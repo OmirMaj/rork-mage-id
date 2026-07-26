@@ -102,6 +102,32 @@ console.log('\ncomposeBrief — needsYou dedupe:');
   ok('grace-window invoice → rollup kept', ids(graceOnly.needsYou).includes('agg-overdue-invoices'));
   ok('grace-window invoice → no per-invoice line', !ids(graceOnly.needsYou).includes('invoice-inv2'));
 
+  // CORRECTED (tribunal): suppress only when the per-invoice lines cover the
+  // rollup's WHOLE population. A 20d overdue (itemized) + a 3d overdue
+  // (grace window — rollup only) must keep BOTH the line and the rollup.
+  const mixed = composeBrief(baseInput({
+    projects: [p],
+    invoices: [
+      invoice({ id: 'inv-far', projectId: 'p1' }), // 20d → per-invoice line
+      invoice({ id: 'inv-near', projectId: 'p1', dueDate: daysAgoISO(3) }), // grace → rollup only
+    ],
+  }));
+  ok('wider rollup kept alongside per-invoice line', ids(mixed.needsYou).includes('agg-overdue-invoices'));
+  ok('per-invoice line still present in mixed case', ids(mixed.needsYou).includes('invoice-inv-far'));
+
+  // Receivable on a COMPLETED project: brainWatch skips inactive projects,
+  // so only the rollup carries it — it must not be suppressed by an
+  // itemized invoice on an active project.
+  const done = project({ id: 'p2', name: 'Done Job', status: 'completed' as Project['status'] });
+  const closedMoney = composeBrief(baseInput({
+    projects: [p, done],
+    invoices: [
+      invoice({ id: 'inv-act', projectId: 'p1' }),  // active, 20d → itemized
+      invoice({ id: 'inv-done', projectId: 'p2' }), // completed project → rollup only
+    ],
+  }));
+  ok('completed-project receivable keeps the rollup', ids(closedMoney.needsYou).includes('agg-overdue-invoices'));
+
   // Punch + pending-CO rollups always pass through.
   const rollups = composeBrief(baseInput({
     projects: [p],
@@ -325,11 +351,21 @@ console.log('\nnudgeTime — nextMorningFireDate:');
   const yearEnd = nextMorningFireDate(6, 30, new Date(2026, 11, 31, 23, 59));
   ok('year rollover → Jan 1 next year', yearEnd.getFullYear() === 2027 && yearEnd.getMonth() === 0 && yearEnd.getDate() === 1);
 
+  // CORRECTED (tribunal): an app open BEFORE the fire time must keep TODAY's
+  // nudge — always-tomorrow meant every early-morning open silently
+  // cancelled the day's doorbell.
   const early = nextMorningFireDate(6, 30, new Date(2026, 6, 25, 2, 0));
-  ok('always tomorrow, even before today\'s hour', early.getDate() === 26 && early.getTime() > NOW.getTime());
+  ok('before today\'s hour → fires TODAY', early.getDate() === 25 && early.getHours() === 6 && early.getMinutes() === 30);
+
+  const after = nextMorningFireDate(6, 30, new Date(2026, 6, 25, 7, 0));
+  ok('after today\'s hour → fires tomorrow', after.getDate() === 26 && after.getHours() === 6);
+
+  const atFire = nextMorningFireDate(6, 30, new Date(2026, 6, 25, 6, 30, 0));
+  ok('exactly at the fire minute → tomorrow (never in the past)', atFire.getDate() === 26);
 
   const clamped = nextMorningFireDate(25, 90, new Date(2026, 6, 25, 12, 0));
   ok('clamps hour/minute into range', clamped.getHours() === 23 && clamped.getMinutes() === 59);
+  ok('clamped time still ahead → fires today', clamped.getDate() === 25);
 }
 
 // ─── Result ──────────────────────────────────────────────────────────────────

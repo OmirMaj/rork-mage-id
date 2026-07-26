@@ -36,6 +36,7 @@ import { Colors } from '@/constants/colors';
 import { useCoreData, useFinancialsData, useDocsData } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import { useBrainGrading } from '@/hooks/useBrainGrading';
+import { localDateISO } from '@/utils/brief/composeBrief';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -94,7 +95,9 @@ export default function BrainWatchCard() {
   // ── Build attention items ─────────────────────────────────────────────────
   const items: AttentionItem[] = useMemo(() => {
     const nowMs = Date.now();
-    const todayISO = new Date().toISOString().slice(0, 10);
+    // Local calendar day (not UTC toISOString) — same cert-expiry cutoff
+    // discipline as useMorningBrief/ask.
+    const todayISO = localDateISO(new Date());
 
     const all: AttentionItem[] = [];
 

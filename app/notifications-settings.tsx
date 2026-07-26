@@ -17,6 +17,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { registerForPushNotifications } from '@/utils/notifications';
@@ -142,6 +143,7 @@ export default function NotificationsSettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { settings, updateSettings, projects } = useProjects();
+  const { pushToken } = useNotifications();
   const { canAccess } = useTierAccess();
   const [prefs, setPrefs] = useState<Prefs>({});
   const [loading, setLoading] = useState(true);
@@ -221,11 +223,15 @@ export default function NotificationsSettingsScreen() {
     // lock-step with the digest setting. The enable toggle is THE
     // user-initiated moment, so it's the only place we pass prompt:true
     // (utils/notifications.ts permission philosophy — never prompt cold).
+    // When the server morning-digest push covers the doorbell (push token
+    // registered + in-app channel on), the local nudge stays disarmed —
+    // otherwise the user gets two morning notifications for the same brief.
     if (Platform.OS !== 'web' && canAccess('brain_accuracy')) {
-      if (!next.enabled) void disarmDailyBriefNudge();
+      const serverPushCovers = !!pushToken && next.channels.in_app !== false;
+      if (!next.enabled || serverPushCovers) void disarmDailyBriefNudge();
       else void armDailyBriefNudge({ hour: next.hour, prompt: patch.enabled === true });
     }
-  }, [settings.digest, updateSettings, digestTimezone, canAccess]);
+  }, [settings.digest, updateSettings, digestTimezone, canAccess, pushToken]);
 
   const previewDigest = useCallback(async () => {
     if (!user?.id) return;

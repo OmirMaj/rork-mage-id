@@ -7,9 +7,12 @@
 // the same key on mount, so arriving via the nudge tap also clears the pin.)
 //
 // This component also owns the nudge re-arm loop: on mount and on every
-// app foreground it re-schedules tomorrow's local nudge from the digest
-// setting (prompt:false — the permission ask only ever happens on the
-// digest toggle in notifications-settings).
+// app foreground it re-schedules the next local nudge (today if the digest
+// hour is still ahead, else tomorrow) from the digest setting (prompt:false
+// — the permission ask only ever happens on the digest toggle in
+// notifications-settings). It DISARMS instead when the Business gate is
+// lost, the digest is off, or the server morning-digest push covers the
+// doorbell (push token registered + in-app channel on).
 //
 // Business+ only (G6): the brief is an intelligence surface; below the
 // gate this renders nothing — no daily paywall bait on the home screen.
@@ -24,12 +27,13 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useMorningBrief } from '@/hooks/useMorningBrief';
 import {
   BRIEF_LAST_SEEN_KEY, briefSummaryLine, localDateISO,
 } from '@/utils/brief/composeBrief';
-import { armDailyBriefNudge } from '@/utils/brief/nudge';
+import { armDailyBriefNudge, disarmDailyBriefNudge } from '@/utils/brief/nudge';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -39,6 +43,7 @@ export default function MorningBriefCard() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
   const { settings } = useProjects();
+  const { pushToken } = useNotifications();
   const gated = canAccess('brain_accuracy');
   const { brief } = useMorningBrief({ enabled: gated });
 
@@ -58,14 +63,27 @@ export default function MorningBriefCard() {
   // Nudge re-arm: mount + foreground, driven by the digest setting.
   const digestEnabled = !!settings.digest?.enabled;
   const digestHour = settings.digest?.hour ?? 6;
+  // The morning-digest edge fn pushes when a token is registered and the
+  // digest's in-app channel is on — exactly its send condition. When the
+  // server doorbell will ring, the local one must stay silent, or Business
+  // users get two notifications for the same brief.
+  const digestInAppOn = settings.digest?.channels?.in_app !== false;
+  const serverPushCovers = !!pushToken && digestInAppOn;
   useEffect(() => {
-    if (Platform.OS === 'web' || !gated || !digestEnabled) return;
+    if (Platform.OS === 'web') return;
+    if (!gated || !digestEnabled || serverPushCovers) {
+      // Cancel any queued nudge: a scheduled one outlives a downgrade
+      // (Business gate lost → 6:30am ring into a paywall) or a push-token
+      // registration. Idempotent no-op when nothing is scheduled.
+      void disarmDailyBriefNudge();
+      return;
+    }
     void armDailyBriefNudge({ hour: digestHour });
     const sub = AppState.addEventListener('change', state => {
       if (state === 'active') void armDailyBriefNudge({ hour: digestHour });
     });
     return () => sub.remove();
-  }, [gated, digestEnabled, digestHour]);
+  }, [gated, digestEnabled, digestHour, serverPushCovers]);
 
   const markSeen = useCallback(() => {
     setSeenToday(true);

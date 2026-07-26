@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
 import {
-  composeBrief, type MorningBrief, type OpenLeakSummary,
+  composeBrief, localDateISO, type MorningBrief, type OpenLeakSummary,
 } from '@/utils/brief/composeBrief';
 import { DID_FOR_YOU_KEY, parseDidForYouEntries, type DidForYouEntry } from '@/utils/brain/didForYou';
 import type { CashFlowSummary } from '@/utils/cashFlowEngine';
@@ -111,7 +111,10 @@ export function useMorningBrief(opts: { enabled?: boolean } = {}): {
   }, [enabled, invoices, changeOrders, refreshKey]);
 
   const brief = useMemo<MorningBrief>(() => {
-    const todayISO = new Date().toISOString().slice(0, 10);
+    // Local calendar day for the cert-expiry cutoff — toISOString() is UTC
+    // and flips the date for evening hours west of Greenwich, breaking the
+    // brief's own local-day discipline (composeBrief.localDateISO).
+    const todayISO = localDateISO(new Date());
     return composeBrief({
       projects, invoices, changeOrders, punchItems, permits, dailyReports,
       expiringCertifications: safety.expiringCertifications(todayISO) as Parameters<typeof composeBrief>[0]['expiringCertifications'],

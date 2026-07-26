@@ -5,10 +5,13 @@
 // TaskManager / background-fetch), so the nudge text is static and the brief
 // itself composes fresh when the user opens it — the notification is the
 // doorbell, not the letter. Re-armed on every app foreground (and on digest
-// setting changes), so it stays one-shot: schedule tomorrow's, let it fire,
-// re-arm on next open. Server push (Wave 7, owner-deployed) upgrades the
-// doorbell's freshness later; tapping either lands on /brief via the
-// NotificationContext kind switch.
+// setting changes), so it stays one-shot: schedule the next fire (today if
+// the hour is still ahead, else tomorrow), let it fire, re-arm on next open.
+// Server push (Wave 7's morning-digest edge fn) REPLACES this doorbell when
+// it can reach the device — callers skip arming (and disarm) when a push
+// token is registered and the digest's in-app channel is on, otherwise the
+// user gets two morning notifications for the same brief. Tapping either
+// lands on /brief via the NotificationContext kind switch.
 //
 // FIXED OS IDENTIFIER instead of a stored id: expo-notifications lets us
 // name the scheduled request, so cancel/re-arm needs no AsyncStorage key —
@@ -40,7 +43,8 @@ async function ensurePermission(prompt: boolean): Promise<boolean> {
 }
 
 /**
- * (Re)schedule the nudge for tomorrow at hour:BRIEF_NUDGE_MINUTE local.
+ * (Re)schedule the nudge for the next hour:BRIEF_NUDGE_MINUTE local — today
+ * when still ahead, else tomorrow (nudgeTime.ts).
  * Native only; returns false when skipped (web, no permission, error).
  */
 export async function armDailyBriefNudge(opts: {
