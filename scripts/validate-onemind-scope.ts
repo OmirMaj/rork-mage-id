@@ -124,6 +124,22 @@ const projects = [
   ok('two projects named → business', s.scope === 'business');
 }
 {
+  // matchedProjectIds carries both project IDs when exactly two disjoint
+  // candidates are found — feeds cross-project mini-blocks in assembleFactBlocks.
+  const s = resolveScope('compare henderson remodel and lakewood', projects);
+  ok('cross-project matchedProjectIds includes both ids',
+    s.scope === 'business' &&
+    Array.isArray(s.matchedProjectIds) &&
+    s.matchedProjectIds.includes('p1') &&
+    s.matchedProjectIds.includes('p2'),
+  );
+}
+{
+  // Single-project business (no name in question) → matchedProjectIds absent/empty.
+  const s = resolveScope("what's overdue right now?", projects);
+  ok('generic question → no matchedProjectIds', s.scope === 'business' && !s.matchedProjectIds?.length);
+}
+{
   // CORRECTED (tribunal): disjointness is checked against EVERY candidate,
   // not just the top two. Both Hendersons outrank Lakewood and overlap each
   // other — top-two-only checking silently resolved to one Henderson.

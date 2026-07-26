@@ -418,6 +418,24 @@ await (async () => {
   const bizRefs = bizBlocks.map(b => b.ref);
   ok('business scope assembles portfolio blocks', ['TYPEPROFIT', 'PIPELINE', 'CLIENTS', 'SEASON'].every(r => bizRefs.includes(r)));
   ok('business scope has no project-only blocks', !bizRefs.includes('MARGIN') && !bizRefs.includes('PACE'));
+
+  // Cross-project compare: when matchedProjectIds is set, MARGIN mini-blocks
+  // for both matched projects appear in the business answer.
+  const p2 = mkProject({ id: 'p2', name: 'Lakewood Residence',
+    linkedEstimate: {
+      id: 'e2', name: 'Est', items: [], baseTotal: 60_000, grandTotal: 80_000,
+      markupPct: 20, createdAt: '2026-01-01', updatedAt: '2026-01-01',
+    } as never,
+  });
+  const crossBundle = mkBundle({ projects: [estimateProject, p2] });
+  const crossBlocks = await assembleFactBlocks(
+    { scope: 'business', matchedProjectIds: ['p1', 'p2'] },
+    'compare henderson remodel and lakewood',
+    crossBundle,
+  );
+  const crossRefs = crossBlocks.map(b => b.ref);
+  ok('cross-project scope includes MARGIN blocks', crossRefs.includes('MARGIN'));
+  ok('cross-project scope includes SCHEDULE blocks', crossRefs.includes('SCHEDULE'));
 })();
 
 // ─── Footer ──────────────────────────────────────────────────────────────────

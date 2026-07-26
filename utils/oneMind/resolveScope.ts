@@ -36,7 +36,7 @@ export interface ScopeProjectRef {
 }
 
 export type OneMindScope =
-  | { scope: 'business' }
+  | { scope: 'business'; matchedProjectIds?: string[] }
   | { scope: 'project'; projectId: string };
 
 /** Generic construction words that must never resolve a project on their own.
@@ -124,9 +124,16 @@ export function resolveScope(question: string, projects: ScopeProjectRef[]): One
   // lakewood" silently resolve to one Henderson — the two overlapping
   // Hendersons outranked and masked the disjoint Lakewood.)
   const top = candidates[0];
+  const disjointIds: string[] = [];
   for (let i = 1; i < candidates.length; i++) {
     const overlaps = [...candidates[i].matched].some(t => top.matched.has(t));
-    if (!overlaps) return { scope: 'business' };
+    if (!overlaps) disjointIds.push(candidates[i].projectId);
+  }
+  if (disjointIds.length > 0) {
+    // Cross-project question — include ALL matched candidate IDs so the
+    // business assembler knows which projects were compared.
+    const matchedProjectIds = [top.projectId, ...disjointIds];
+    return { scope: 'business', matchedProjectIds };
   }
   return { scope: 'project', projectId: top.projectId };
 }
