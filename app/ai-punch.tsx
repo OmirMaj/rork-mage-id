@@ -35,6 +35,7 @@ import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -128,10 +129,14 @@ function AiPunchScreenInner() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, getPhotosForProject, addPunchItem, addPunchItems } = useProjects();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projects, getProject, getPhotosForProject, addPunchItem, addPunchItems } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
 
+  // Opened without params (Tools hub, search): land on a project picker
+  // instead of the old flat "No project selected." dead end (sim-audit #5).
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? null;
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
   // Sort newest-first so the "Show recent" toggle label actually
   // matches what the gallery surfaces (round-2 #5). Bad/invalid
@@ -391,19 +396,24 @@ function AiPunchScreenInner() {
 
   if (!project) {
     return (
-      <>
-        <Stack.Screen options={{ title: 'AI Punch' }} />
-        <View style={styles.empty}><Text style={styles.emptyText}>No project selected.</Text></View>
-      </>
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="AI PUNCH · MAGE" title="AI Punch from Photos" />
+        <ToolProjectPicker
+          toolName="AI Punch"
+          message="AI Punch turns walkthrough photos into a punch list — pick photos, AI drafts the items, you review and save them into the project."
+          projects={projects}
+          onPick={setPickedProjectId}
+        />
+      </View>
     );
   }
 
   return (
     <>
-      <Stack.Screen options={{ title: 'AI Punch from Photos', headerLargeTitle: false }} />
-      {/* Native iOS header handles the safe area; manual `insets.top + 8`
-          double-counted and produced a tall blank gap above the header. */}
-      <View style={[styles.root, { paddingTop: 8 }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.root, { paddingTop: insets.top }]}>
+        <ToolHeader eyebrow="AI PUNCH · MAGE" title={project.name} />
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
           {/* Hero — mirrors Construction AI's centered icon-circle pattern
               (round 56px primary-tint circle + 24pt title + muted centered
