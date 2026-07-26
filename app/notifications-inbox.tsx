@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft, Bell, MessageSquare, HandCoins, CheckCircle2, Inbox,
   Trash2, X, CheckCheck, Settings,
-  PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package,
+  PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package, Sunrise,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -39,6 +39,9 @@ const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: s
   rfp_awarded:           { icon: <Trophy      size={16} color={Colors.successDark} strokeWidth={1.75} />, tint: Colors.successLight, label: 'You won the bid' },
   bid_question_asked:    { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Pre-bid question' },
   bid_question_answered: { icon: <HelpCircle  size={16} color={Colors.purple} strokeWidth={1.75} />, tint: '#EFEFFA', label: 'Bid Q&A' },
+
+  // Brain
+  morning_brief:         { icon: <Sunrise     size={16} color={Colors.orange} strokeWidth={1.75} />, tint: '#FFF1E6', label: 'Morning Brief' },
 };
 
 function fmtAgo(iso: string): string {
