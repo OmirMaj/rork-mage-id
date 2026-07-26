@@ -104,7 +104,7 @@ export default function HomeScreen() {
 
   // Auto-hide the FAB stack while scrolling DOWN (reading/aiming at list
   // rows) and bring it back on scroll-up or near the top — the stacked FABs
-  // were covering list dismiss ✕ buttons and card chevrons (sim-audit #4).
+  // were covering list dismiss buttons and card chevrons (sim-audit #4).
   const [fabHidden, setFabHidden] = useState(false);
   const lastScrollYRef = useRef(0);
   const handleListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {

@@ -48,7 +48,7 @@ interface Props {
   /** Threaded straight through to HelpFab — reopens the in-app tutorial. */
   onReplayTutorial?: () => void;
   /** Auto-hide while the host list scrolls down (sim-audit fix #4) — the
-   *  stacked FABs were covering list dismiss ✕ buttons and card chevrons.
+   *  stacked FABs were covering list dismiss buttons and card chevrons.
    *  Hiding removes the whole dial footprint; modals stay mounted. */
   hidden?: boolean;
 }
