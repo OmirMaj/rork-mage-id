@@ -365,6 +365,68 @@
   .bd-close:hover{color:var(--bone);border-color:var(--amber)}
   .bd-close:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   @media(max-width:720px){ .brain-detail{grid-template-columns:1fr;gap:16px;padding:18px} .bd-shot img{max-height:220px} }
+
+  /* ---------- signature motion ----------
+     JS adds the *-anim scope classes pre-paint, and only when motion is
+     allowed. No-JS and prefers-reduced-motion therefore render the plain
+     static final states below — identical to the page before animation. */
+
+  /* spirit-level motif (under the #score kicker) — default IS the settled final state */
+  .level{position:relative;width:160px;height:12px;margin-top:14px}
+  .level .lv-track{position:absolute;left:0;right:0;top:50%;height:2px;margin-top:-1px;border-radius:2px;background:rgba(241,236,225,.16)}
+  .level::before,.level::after{content:"";position:absolute;top:50%;width:1px;height:8px;margin-top:-4px;background:rgba(241,236,225,.28)}
+  .level::before{left:calc(50% - 9px)}
+  .level::after{left:calc(50% + 8px)}
+  .level .lv-bubble{position:absolute;left:50%;top:50%;width:14px;height:7px;margin:-3.5px 0 0 -7px;border-radius:99px;background:var(--amber);box-shadow:0 0 12px var(--amber-glow),0 0 4px rgba(229,129,31,.45)}
+  .mfix{position:relative}
+  .mfix::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:2px;border-radius:1px;background:var(--amber-lift);opacity:0;transform:scaleX(0);transform-origin:left center}
+  .aska{position:relative}
+  .aska::before{content:"\258d";position:absolute;top:11px;left:15px;font-family:var(--mono);font-size:14px;line-height:1;color:var(--amber-lift);opacity:0;pointer-events:none}
+
+  @media (prefers-reduced-motion: no-preference){
+    /* 5 · spirit level: the track draws in, the bubble slides and settles dead center */
+    .lv-anim .lv-track{transform:scaleX(0);transform-origin:left center}
+    .lv-anim .lv-bubble{opacity:0}
+    .lv-anim.lv-go .lv-track{transform:scaleX(1);transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+    .lv-anim.lv-go .lv-bubble{animation:lvSettle 1.05s cubic-bezier(.3,.6,.25,1) .3s forwards}
+    @keyframes lvSettle{0%{opacity:0;transform:translateX(-52px)}18%{opacity:1}70%{transform:translateX(6px)}86%{transform:translateX(-2px)}100%{opacity:1;transform:translateX(0)}}
+
+    /* 1 · scorecard: ledger rows stamp in; the miss corrects itself */
+    .sc-anim .lrow{opacity:0;transform:translateY(7px) scale(1.035)}
+    .sc-anim .lrow.stamp{opacity:1;transform:none;transition:opacity .28s ease,transform .3s cubic-bezier(.34,1.55,.64,1)}
+    .sc-anim .mfix{display:inline-block;opacity:0;transform:translateX(-9px)}
+    .sc-anim .mfix.go{opacity:1;transform:none;transition:opacity .35s ease,transform .35s cubic-bezier(.2,.7,.2,1)}
+    .sc-anim .mfix.go::after{animation:mfixPulse .9s ease .12s forwards}
+    @keyframes mfixPulse{0%{opacity:.9;transform:scaleX(0)}45%{opacity:.9;transform:scaleX(1)}100%{opacity:0;transform:scaleX(1)}}
+
+    /* 2 · morning brief: the timestamp blinks on, then the brief writes itself */
+    .brief-anim .bh span:first-child{opacity:0}
+    .brief-anim.brief-go .bh span:first-child{animation:briefBlink .7s ease forwards}
+    @keyframes briefBlink{0%{opacity:0}30%{opacity:1}55%{opacity:.35}100%{opacity:1}}
+    .brief-anim .bline{opacity:0;transform:translateY(8px)}
+    .brief-anim .bline.bl-in{opacity:1;transform:none;transition:opacity .4s ease,transform .4s cubic-bezier(.2,.7,.2,1)}
+
+    /* 3 · ask card: question bubble → thinking cursor → answer → citation chips pop */
+    .ask-anim .askq{opacity:0;transform:translateY(6px) scale(.96)}
+    .ask-anim .askq.a-in{opacity:1;transform:none;transition:opacity .3s ease,transform .3s cubic-bezier(.2,.7,.2,1)}
+    .ask-anim .aska{opacity:0}
+    .ask-anim .aska.a-in{opacity:1;transition:opacity .3s ease}
+    .ask-anim .aska.think::before{animation:askBlink .5s steps(1,end) forwards}
+    @keyframes askBlink{0%{opacity:1}25%{opacity:0}50%{opacity:1}75%{opacity:0}100%{opacity:0}}
+    .ask-anim .aska > p{opacity:0;transform:translateY(6px)}
+    .ask-anim .aska > p.a-in{opacity:1;transform:none;transition:opacity .4s ease,transform .4s cubic-bezier(.2,.7,.2,1)}
+    .ask-anim .cites span{opacity:0}
+    .ask-anim .cites span.chip-in{animation:chipPop .32s cubic-bezier(.2,.7,.3,1.2) forwards}
+    @keyframes chipPop{0%{opacity:0;transform:scale(.75)}60%{opacity:1;transform:scale(1.06)}100%{opacity:1;transform:scale(1)}}
+
+    /* 4 · the handoff: the record's pieces fly in and stack into place */
+    .pass-anim li{opacity:0}
+    .pass-anim li:nth-child(1){transform:translate(-16px,10px)}
+    .pass-anim li:nth-child(2){transform:translate(14px,12px)}
+    .pass-anim li:nth-child(3){transform:translate(-12px,14px)}
+    .pass-anim li:nth-child(4){transform:translate(16px,10px)}
+    .pass-anim li.pin-in{opacity:1;transform:none;transition:opacity .45s ease,transform .5s cubic-bezier(.2,.75,.25,1)}
+  }
   </style>
 </head>
 <body>
@@ -418,6 +480,7 @@
   <!-- SCORE — it grades its own predictions -->
   <section class="dark sec score" id="score"><div class="wrap">
     <div class="rv"><p class="kick">The receipts</p>
+    <div class="level" aria-hidden="true"><span class="lv-track"></span><span class="lv-bubble"></span></div>
     <h2 class="h">It keeps score on itself.</h2>
     <p class="seclede">MAGE records every call it makes on your jobs — durations, hidden-condition prices, bid verdicts, leak flags — then grades itself against what actually happened. The misses stay on the board. That's what makes the hits worth trusting.</p></div>
     <div class="scorecard rv" aria-hidden="true">
@@ -429,7 +492,7 @@
       </div>
       <div class="ledger">
         <div class="lrow"><span>Subfloor rot, Maple St — called $1,400 · actual $1,510</span><span class="ok">✓ graded</span></div>
-        <div class="lrow"><span>Drywall, Henderson — called 6 days · ran 8</span><span class="miss">✕ miss → pace updated</span></div>
+        <div class="lrow"><span>Drywall, Henderson — called 6 days · ran 8</span><span class="miss">✕ miss <span class="mfix">→ pace updated</span></span></div>
       </div>
       <p class="selfline">“My tile calls ran 9% hot last month — recalibrated.”<span>— your brain, in this morning's brief</span></p>
     </div>
@@ -840,6 +903,107 @@
     }
     sel.addEventListener('change', function(){ render(sel.value); });
     render(ORDER[0]);
+  }
+
+  /* ---- signature motion: score / brief / ask / handoff / spirit level ----
+     Same pattern as .rv: IntersectionObserver, fire once, unobserve.
+     Everything below is skipped under prefers-reduced-motion — the *-anim
+     scope classes are never added, so the page stays in its final state. */
+  function onEnter(el, fn, thr){
+    if(!el) return;
+    if(!('IntersectionObserver' in window)){ fn(); return; }
+    var o = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ o.unobserve(e.target); o.disconnect(); fn(); } });
+    }, {threshold: thr == null ? .3 : thr});
+    o.observe(el);
+  }
+
+  if(!rm){
+
+    /* 5 · spirit level — the track draws, the bubble settles dead center: leveled. */
+    var lvl = document.querySelector('#score .level');
+    if(lvl){
+      lvl.classList.add('lv-anim');
+      onEnter(lvl, function(){ lvl.classList.add('lv-go'); }, .6);
+    }
+
+    /* 1 · #score — tallies count up, ledger rows stamp in, the miss corrects itself. */
+    var sc = document.querySelector('#score .scorecard');
+    if(sc){
+      sc.classList.add('sc-anim');
+      var gvs = [].slice.call(sc.querySelectorAll('.gv')).map(function(el){
+        var m = el.textContent.match(/^(\d+)(.*)$/);
+        var t = m ? parseInt(m[1],10) : 0, sfx = m ? m[2] : '';
+        el.textContent = '0' + sfx;
+        return {el:el, t:t, sfx:sfx};
+      });
+      var rows = sc.querySelectorAll('.lrow');
+      var mfix = sc.querySelector('.mfix');
+      onEnter(sc, function(){
+        var t0 = null;
+        function tick(ts){
+          if(t0 === null) t0 = ts;
+          var p = Math.min(1,(ts-t0)/900), e = 1-Math.pow(1-p,3);
+          gvs.forEach(function(g){ g.el.textContent = Math.round(g.t*e) + g.sfx; });
+          if(p < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+        var land = 250;
+        rows.forEach(function(r,i){
+          var at = 250 + i*140; land = at + 300;
+          setTimeout(function(){ r.classList.add('stamp'); }, at);
+        });
+        if(mfix) setTimeout(function(){ mfix.classList.add('go'); }, land + 400);
+      }, .25);
+    }
+
+    /* 2 + 3 · morning brief + ask card */
+    var cards = document.querySelectorAll('.briefgrid .briefcard');
+    var brief = cards[0], ask = cards[1];
+
+    /* 2 · the brief composes itself — timestamp blinks on, lines write in, in group order. */
+    if(brief){
+      brief.classList.add('brief-anim');
+      var blines = brief.querySelectorAll('.bgroup p');
+      blines.forEach(function(el){ el.classList.add('bline'); });
+      onEnter(brief, function(){
+        brief.classList.add('brief-go');
+        blines.forEach(function(el,i){
+          setTimeout(function(){ el.classList.add('bl-in'); }, 350 + i*120);
+        });
+      }, .25);
+    }
+
+    /* 3 · the fused answer — question, a moment of thought, answer, then the receipts pop in. */
+    if(ask){
+      ask.classList.add('ask-anim');
+      var askq = ask.querySelector('.askq'), aska = ask.querySelector('.aska');
+      var ansP = ask.querySelector('.aska > p');
+      var chips = ask.querySelectorAll('.cites span');
+      onEnter(ask, function(){
+        if(askq) askq.classList.add('a-in');
+        setTimeout(function(){ if(aska){ aska.classList.add('a-in'); aska.classList.add('think'); } }, 380);
+        setTimeout(function(){
+          if(aska) aska.classList.remove('think');
+          if(ansP) ansP.classList.add('a-in');
+        }, 920);
+        chips.forEach(function(ch,i){
+          setTimeout(function(){ ch.classList.add('chip-in'); }, 1300 + i*80);
+        });
+      }, .25);
+    }
+
+    /* 4 · the handoff — the record's pieces fly in from offsets and stack into place. */
+    var passUl = document.querySelector('.passport .pcard ul');
+    if(passUl){
+      passUl.classList.add('pass-anim');
+      var lis = passUl.querySelectorAll('li');
+      onEnter(passUl, function(){
+        lis.forEach(function(li,i){
+          setTimeout(function(){ li.classList.add('pin-in'); }, i*100);
+        });
+      }, .3);
+    }
   }
 })();
 </script>
