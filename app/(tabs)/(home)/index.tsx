@@ -2,6 +2,7 @@ import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
+  type NativeSyntheticEvent, type NativeScrollEvent,
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -100,6 +101,21 @@ export default function HomeScreen() {
   const router = useRouter();
   const { openCreate } = useLocalSearchParams<{ openCreate?: string }>();
   const openCreateConsumed = useRef(false);
+
+  // Auto-hide the FAB stack while scrolling DOWN (reading/aiming at list
+  // rows) and bring it back on scroll-up or near the top — the stacked FABs
+  // were covering list dismiss ✕ buttons and card chevrons (sim-audit #4).
+  const [fabHidden, setFabHidden] = useState(false);
+  const lastScrollYRef = useRef(0);
+  const handleListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const dy = y - lastScrollYRef.current;
+    lastScrollYRef.current = y;
+    if (y <= 24) { setFabHidden(false); return; }
+    // Small dead-zone so momentum jitter doesn't flicker the stack.
+    if (dy > 6) setFabHidden(true);
+    else if (dy < -6) setFabHidden(false);
+  }, []);
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
@@ -642,14 +658,17 @@ export default function HomeScreen() {
         refreshControl={
           <MageRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
+        onScroll={handleListScroll}
+        scrollEventThrottle={32}
         contentContainerStyle={[
           styles.listContent,
           responsive.isDesktop && styles.listContentDesktop,
-          // Bottom padding must clear the floating AICopilot FAB, which sits at
-          // bottom: insets.bottom + 70 with a 56px button (see components/AICopilot.tsx).
-          // 70 + 56 + 14px margin = 140, so the last project card never clips
-          // behind the FAB. (Was insets.bottom + 90, which overlapped it.)
-          { paddingTop: insets.top, paddingBottom: insets.bottom + 140 },
+          // Bottom padding must clear the WHOLE floating stack — AICopilot FAB
+          // (bottom: insets.bottom + 70, 56px) PLUS the speed-dial toggle above
+          // it (44px + 8px gap): 70 + 56 + 8 + 44 + 22px margin = 200. The
+          // stack also auto-hides on scroll-down, but at rest the last rows
+          // must still clear it.
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 200 },
           projects.length === 0 && styles.emptyList,
         ]}
         ListHeaderComponent={
@@ -1056,7 +1075,7 @@ export default function HomeScreen() {
           they no longer overlap the project cards. The AI Copilot is the
           always-visible main button; tapping the "+" toggle reveals the
           Voice + Help mini-FABs. See components/HomeFabStack.tsx. */}
-      <HomeFabStack onReplayTutorial={() => setShowTutorial(true)} />
+      <HomeFabStack onReplayTutorial={() => setShowTutorial(true)} hidden={fabHidden} />
 
       <EntityActionSheet
         entityRef={actionSheetRef}

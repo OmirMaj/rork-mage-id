@@ -47,13 +47,23 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 interface Props {
   /** Threaded straight through to HelpFab — reopens the in-app tutorial. */
   onReplayTutorial?: () => void;
+  /** Auto-hide while the host list scrolls down (sim-audit fix #4) — the
+   *  stacked FABs were covering list dismiss ✕ buttons and card chevrons.
+   *  Hiding removes the whole dial footprint; modals stay mounted. */
+  hidden?: boolean;
 }
 
-function HomeFabStackImpl({ onReplayTutorial }: Props) {
+function HomeFabStackImpl({ onReplayTutorial, hidden }: Props) {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(makeStyles);
 
   const [expanded, setExpanded] = useState(false);
+
+  // Collapse an open dial when the stack hides mid-scroll so it doesn't
+  // reappear pre-expanded later.
+  useEffect(() => {
+    if (hidden && expanded) setExpanded(false);
+  }, [hidden, expanded]);
   // Bumped to signal the (otherwise self-contained) secondary components to
   // open their modals. Starts at 0; the components ignore the initial value.
   const [voiceSignal, setVoiceSignal] = useState(0);
@@ -123,8 +133,8 @@ function HomeFabStackImpl({ onReplayTutorial }: Props) {
         />
       )}
 
-      {/* Main fab — the AI Copilot, untouched. Always visible. */}
-      <AICopilot />
+      {/* Main fab — the AI Copilot. Hides with the stack while scrolling. */}
+      <AICopilot hidden={hidden} />
 
       {/* Secondary components — no FAB of their own; opened via signals. Their
           modals + all handlers live inside them. Mounted unconditionally so
@@ -133,7 +143,7 @@ function HomeFabStackImpl({ onReplayTutorial }: Props) {
       <HelpFab hideFab openSignal={helpSignal} onReplayTutorial={onReplayTutorial} />
 
       {/* Mini-FAB column — revealed above the copilot when expanded. */}
-      {expanded && (
+      {!hidden && expanded && (
         <View
           style={[styles.miniColumn, { bottom: toggleBottom + Tokens.touchTarget.min + Tokens.spacing.sm }]}
           pointerEvents="box-none"
@@ -156,8 +166,8 @@ function HomeFabStackImpl({ onReplayTutorial }: Props) {
       )}
 
       {/* Expander toggle — the one control that grows/collapses the dial.
-          Rotates to an X while open. */}
-      <TouchableOpacity
+          Rotates to an X while open. Hidden with the rest of the stack. */}
+      {!hidden && <TouchableOpacity
         style={[styles.toggle, { bottom: toggleBottom }]}
         onPress={toggle}
         activeOpacity={0.85}
@@ -170,7 +180,7 @@ function HomeFabStackImpl({ onReplayTutorial }: Props) {
         {expanded
           ? <X size={18} color="#FFFFFF" strokeWidth={2.2} />
           : <Plus size={18} color="#FFFFFF" strokeWidth={2.2} />}
-      </TouchableOpacity>
+      </TouchableOpacity>}
     </>
   );
 }
