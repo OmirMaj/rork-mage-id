@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat, Gem } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { Badge } from '@/components/ui/Badge';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -497,33 +498,17 @@ export default function SettingsScreen() {
                 {user.email || ''}
               </Text>
               <View style={styles.profileBadgesRow}>
-                <View style={[
-                  styles.profileTierPill,
-                  // Enterprise gets the same gold-ish accent as Business but
-                  // a deeper border so it reads as the top tier. Pre-fix
-                  // every non-pro / non-business tier (= enterprise) fell
-                  // through to the Free styling, so paying $150/mo
-                  // customers saw a "FREE" pill in their Settings.
-                  tier === 'enterprise'
-                    ? { backgroundColor: themeColors.info + '22', borderColor: themeColors.info }
-                    : tier === 'business'
-                      ? { backgroundColor: '#FFD700' + '22', borderColor: '#FFD700' }
-                      : tier === 'pro'
-                        ? { backgroundColor: themeColors.accent + '22', borderColor: themeColors.accent }
-                        : { backgroundColor: themeColors.line, borderColor: themeColors.line },
-                ]}>
-                  <Text style={[
-                    styles.profileTierText,
-                    tier === 'enterprise' ? { color: themeColors.info } :
-                    tier === 'business' ? { color: '#A87800' } :
-                    tier === 'pro' ? { color: themeColors.accent } : { color: themeColors.textSecondary },
-                  ]}>
-                    {tier === 'enterprise' ? 'ENTERPRISE'
-                      : tier === 'business' ? 'BUSINESS'
-                      : tier === 'pro' ? 'PRO'
-                      : 'FREE'}
-                  </Text>
-                </View>
+                {/* Standard Badge idiom (mono chip). Every PAID tier wears
+                    the amber accent chip — the one-off gold 'BUSINESS' and
+                    info-blue 'ENTERPRISE' pills were off-palette tokens
+                    found nowhere else in the app (sim-audit slop #7). The
+                    label itself says which tier; free stays neutral. */}
+                <Badge tone={tier === 'free' ? 'neutral' : 'warn'}>
+                  {tier === 'enterprise' ? 'ENTERPRISE'
+                    : tier === 'business' ? 'BUSINESS'
+                    : tier === 'pro' ? 'PRO'
+                    : 'FREE'}
+                </Badge>
               </View>
             </View>
             <View style={{ flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -1969,17 +1954,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     alignItems: 'center' as const,
     gap: 6,
     marginTop: 6,
-  },
-  profileTierPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Tokens.radius.sm,
-    borderWidth: 1,
-  },
-  profileTierText: {
-    fontSize: 10,
-    fontWeight: '800' as const,
-    letterSpacing: 0.6,
   },
   profileSignOutBtn: {
     width: 36,
