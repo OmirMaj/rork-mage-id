@@ -15,8 +15,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  FEATURE_REGISTRY, POPULAR_FEATURE_IDS, GROUP_LABELS,
-  getFeature, searchFeatures,
+  FEATURE_REGISTRY, POPULAR_FEATURE_IDS, POPULAR_CLIENT_FEATURE_IDS,
+  GROUP_LABELS, getFeature, searchFeatures,
 } from '@/utils/featureRegistry';
 import { REQUIRED_TIER } from '@/utils/featureTiers';
 
@@ -79,6 +79,11 @@ for (const r of sidebarRoutes) {
 assert(POPULAR_FEATURE_IDS.length >= 4, 'popular shortlist has at least 4 entries');
 for (const id of POPULAR_FEATURE_IDS) {
   assert(getFeature(id) !== undefined, `popular id '${id}' exists in the registry`);
+}
+for (const id of POPULAR_CLIENT_FEATURE_IDS) {
+  const e = getFeature(id);
+  assert(e !== undefined, `client popular id '${id}' exists in the registry`);
+  assert((e?.persona ?? 'contractor') !== 'contractor', `client popular id '${id}' is visible to the client persona`);
 }
 
 // ── 4. searchFeatures behavior ──────────────────────────────────────────────

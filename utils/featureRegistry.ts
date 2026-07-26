@@ -226,6 +226,11 @@ export const POPULAR_FEATURE_IDS: readonly string[] = [
   'ask-mage', 'schedule', 'estimate', 'daily-report', 'invoice', 'cost-xray',
 ];
 
+/** Property-owner counterpart of POPULAR_FEATURE_IDS. */
+export const POPULAR_CLIENT_FEATURE_IDS: readonly string[] = [
+  'my-rfps', 'post-rfp', 'notifications', 'settings',
+];
+
 export function getFeature(id: string): FeatureEntry | undefined {
   return FEATURE_REGISTRY.find(e => e.id === id);
 }
