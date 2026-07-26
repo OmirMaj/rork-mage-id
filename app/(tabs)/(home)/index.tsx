@@ -23,6 +23,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';
 import AIWeeklySummary from '@/components/AIWeeklySummary';
 import { HomeFabStack } from '@/components/HomeFabStack';
+import StatusBarMask from '@/components/StatusBarMask';
 import AIHomeBriefing from '@/components/AIHomeBriefing';
 import SmartInbox from '@/components/SmartInbox';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -952,6 +953,11 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Opaque strip under the clock/Dynamic Island — home's large-title
+          header lives INSIDE the scroll surface, so scrolled content was
+          colliding with the status bar (sim-audit #7). */}
+      <StatusBarMask />
 
       <Modal visible={showCreateModal} transparent animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

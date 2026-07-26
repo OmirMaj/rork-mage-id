@@ -27,6 +27,7 @@ import { WeekAheadStrip } from '@/components/summary/WeekAheadStrip';
 import { MoneyStrip } from '@/components/summary/MoneyStrip';
 import { NeedsYou } from '@/components/summary/NeedsYou';
 import { ToolsSheet } from '@/components/summary/ToolsSheet';
+import StatusBarMask from '@/components/StatusBarMask';
 
 // Summary tab — the "Morning Briefing". A glanceable, portfolio-wide login
 // dashboard: greeting hero + today's on-site schedule + this-week load +
@@ -249,6 +250,10 @@ export default function SummaryScreen() {
           <ChevronRight size={14} color={themeColors.textSecondary} />
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Safe-area padding lives in the scroll CONTENT above, so scrolled
+          text slid under the clock — same fix as home (sim-audit #7). */}
+      <StatusBarMask />
 
       <ToolsSheet visible={toolsOpen} onClose={() => setToolsOpen(false)} onNavigate={onTool} />
     </View>
