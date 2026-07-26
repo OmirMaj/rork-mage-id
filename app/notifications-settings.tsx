@@ -20,6 +20,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { registerForPushNotifications } from '@/utils/notifications';
+import { armDailyBriefNudge, disarmDailyBriefNudge } from '@/utils/brief/nudge';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -140,6 +142,7 @@ export default function NotificationsSettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { settings, updateSettings, projects } = useProjects();
+  const { canAccess } = useTierAccess();
   const [prefs, setPrefs] = useState<Prefs>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -214,7 +217,15 @@ export default function NotificationsSettingsScreen() {
       channels: { ...current.channels, ...(patch.channels ?? {}) },
     };
     updateSettings({ digest: next });
-  }, [settings.digest, updateSettings, digestTimezone]);
+    // Morning-brief nudge (native, Business+): keep the local schedule in
+    // lock-step with the digest setting. The enable toggle is THE
+    // user-initiated moment, so it's the only place we pass prompt:true
+    // (utils/notifications.ts permission philosophy — never prompt cold).
+    if (Platform.OS !== 'web' && canAccess('brain_accuracy')) {
+      if (!next.enabled) void disarmDailyBriefNudge();
+      else void armDailyBriefNudge({ hour: next.hour, prompt: patch.enabled === true });
+    }
+  }, [settings.digest, updateSettings, digestTimezone, canAccess]);
 
   const previewDigest = useCallback(async () => {
     if (!user?.id) return;
@@ -556,6 +567,17 @@ export default function NotificationsSettingsScreen() {
                     {previewing ? 'Sending preview…' : "Send today's preview now"}
                   </Text>
                 </TouchableOpacity>
+
+                {/* The digest hour drives TWO things: the server email above
+                    and the on-device morning-brief nudge (utils/brief/nudge).
+                    Say so, so changing the hour doesn't feel like it only
+                    moves the email. Native only — web has no local alarms. */}
+                {Platform.OS !== 'web' && (
+                  <Text style={styles.nudgeNote}>
+                    On this phone, your digest hour also schedules the morning
+                    brief nudge — a tap opens the in-app brief.
+                  </Text>
+                )}
               </>
             )}
           </View>
@@ -783,4 +805,5 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   previewBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  nudgeNote: { marginTop: 10, fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
 });

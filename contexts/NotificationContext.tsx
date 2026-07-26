@@ -84,6 +84,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         router.push(projectId ? `/margin-risk?projectId=${projectId}` : '/margin-alerts');
         return;
       }
+      if (kind === 'morning_brief') {
+        // The local nudge (utils/brief/nudge.ts) and the server digest push
+        // (morning-digest edge fn) both land here — open the brief itself.
+        router.push('/brief');
+        return;
+      }
 
       if (conversationId) {
         router.push(`/messages?id=${conversationId}`);

@@ -217,7 +217,7 @@ const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   'ask', 'schedule-wizard', 'schedule-builder', 'copilot', 'copilot-hub',
   'schedule-import', 'scan', 'paywall', 'cost-xray', 'import-pipeline',
   'post-rfp', 'submit-bid-response', 'photo-annotator', 'estimate-wizard',
-  'judges', 'quick-quote',
+  'judges', 'quick-quote', 'brief',
   // 4 — full-takeover editors with window-width breakpoints
   'schedule-pro',
 ]);
@@ -601,6 +601,7 @@ function RootLayoutNav() {
         <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />

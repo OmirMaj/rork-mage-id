@@ -103,6 +103,7 @@ import { applyToProjectSchedule } from '@/utils/copilot/scheduleEdit/applyToProj
 import DatePickerModal from '@/components/DatePickerModal';
 import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
+import { recordDidForYou } from '@/utils/brain/didForYou';
 import { runCpm } from '@/utils/cpm';
 
 interface TaskDraft {
@@ -543,7 +544,13 @@ function ScheduleScreen() {
         // basis. NOT the screen's projectStartDate memo (noon anchor). Null
         // basis (no startDate) ⇒ ISO dates only, never invented day numbers.
         if (draft.status !== item.status) {
-          Object.assign(updated, stampActuals({ ...item, startDay: updated.startDay }, draft.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString()));
+          const stamp = stampActuals({ ...item, startDay: updated.startDay }, draft.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString());
+          Object.assign(updated, stamp);
+          // Morning-brief ledger: a real capture (stamp set an ISO date) is
+          // a did-for-you moment. recordDidForYou is G4-safe by contract.
+          if (stamp.actualStartDate != null || stamp.actualEndDate != null) {
+            recordDidForYou(`Auto-stamped actual dates for ${item.title}`, selectedProject?.id);
+          }
         }
         return updated;
       });
@@ -651,16 +658,20 @@ function ScheduleScreen() {
   const handleProgressUpdate = useCallback((task: ScheduleTask, nextProgress: number) => {
     const clamped = Math.max(0, Math.min(100, nextProgress));
     const nextStatus = clamped >= 100 ? 'done' as const : clamped > 0 ? 'in_progress' as const : 'not_started' as const;
-    const nextTasks = sortedTasks.map(item =>
-      item.id !== task.id ? item : {
-        ...item, progress: clamped, status: nextStatus,
-        // Pace flywheel: quick-progress implies status moves — stamp the
-        // as-builts on the transition (no-op when already stamped).
-        ...(nextStatus !== item.status
-          ? stampActuals(item, nextStatus, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString())
-          : {}),
+    const nextTasks = sortedTasks.map(item => {
+      if (item.id !== task.id) return item;
+      // Pace flywheel: quick-progress implies status moves — stamp the
+      // as-builts on the transition (no-op when already stamped).
+      let stamp: Partial<ScheduleTask> = {};
+      if (nextStatus !== item.status) {
+        stamp = stampActuals(item, nextStatus, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString());
+        // Morning-brief ledger: a real capture is a did-for-you moment.
+        if (stamp.actualStartDate != null || stamp.actualEndDate != null) {
+          recordDidForYou(`Auto-stamped actual dates for ${item.title}`, selectedProject?.id);
+        }
       }
-    );
+      return { ...item, progress: clamped, status: nextStatus, ...stamp };
+    });
     const scheduleName = activeSchedule?.name ?? 'Project Schedule';
     const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
     saveSchedule(nextSchedule, selectedProject);

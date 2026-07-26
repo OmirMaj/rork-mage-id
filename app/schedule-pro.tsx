@@ -92,6 +92,7 @@ import { indentTask, outdentTask, moveTask } from '@/utils/outlineOps';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { summarizeLeveling, type LevelingSummary } from '@/utils/levelingSummary';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
+import { recordDidForYou } from '@/utils/brain/didForYou';
 import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 import { LevelingPreviewModal } from '@/components/schedule/LevelingPreviewModal';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
@@ -631,10 +632,16 @@ function ScheduleProScreenInner() {
     // only, never invented day numbers. startDateRef mirrors the schedule's
     // startDate eagerly (the settings Apply handler writes it ahead of the
     // debounced persist), so it is the freshest source at call time.
-    const effective: Partial<ScheduleTask> =
-      before && patch.status !== undefined && patch.status !== before.status
-        ? { ...stampActuals(before, patch.status, todayScheduleDay(startDateRef.current), new Date().toISOString()), ...patch }
-        : patch;
+    let effective: Partial<ScheduleTask> = patch;
+    if (before && patch.status !== undefined && patch.status !== before.status) {
+      const stamp = stampActuals(before, patch.status, todayScheduleDay(startDateRef.current), new Date().toISOString());
+      effective = { ...stamp, ...patch };
+      // Morning-brief ledger: a real capture (stamp set an ISO date) is a
+      // did-for-you moment. recordDidForYou is G4-safe by contract.
+      if (stamp.actualStartDate != null || stamp.actualEndDate != null) {
+        recordDidForYou(`Auto-stamped actual dates for ${before.title}`, project?.id);
+      }
+    }
     // Log to the audit before applying so we have the "before" snapshot.
     if (before && project?.id) {
       const isLogicChange = 'dependencies' in effective || 'dependencyLinks' in effective;

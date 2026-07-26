@@ -66,6 +66,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
 import BrainWatchCard from '@/components/home/BrainWatchCard';
+import MorningBriefCard from '@/components/home/MorningBriefCard';
 
 // Canonical 1-indexed, working-day-aware "which schedule day is today" — the
 // exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
@@ -714,6 +715,11 @@ export default function HomeScreen() {
             {/* 11-month warranty walk reminders — only renders when
                 there are upcoming/overdue walks. Tap → opens project. */}
             <WarrantyWalkBanner alerts={warrantyWalkAlerts} />
+
+            {/* Morning Brief — pinned entry card until opened or dismissed
+                today (BRIEF_LAST_SEEN_KEY). Business+; renders nothing below
+                the gate. Also owns the local nudge re-arm loop. */}
+            {projects.length > 0 && !isLoading && <MorningBriefCard />}
 
             {/* Brain Watch — proactive "what needs your attention now" card.
                 Aggregates schedule health, overdue invoices, upcoming permit
