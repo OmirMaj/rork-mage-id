@@ -1,30 +1,39 @@
-// app/ask.tsx — "Ask MAGE anything".
+// app/ask.tsx — "Ask MAGE anything", powered by One Mind.
 //
-// A whole-business chat: the user types a plain question ("what's overdue?",
-// "how much is unpaid?", "which job is over budget?") and MAGE answers by
-// reasoning across projects, invoices, schedule, leads, change orders and
-// RFIs. This is the surface that makes the app feel like an "AI operating
-// system" — and it answers cross-domain (money + schedule + pipeline)
-// questions a single-silo competitor's agent can't.
+// One question in, one fused answer out. The engine (utils/oneMind/*) routes
+// the question (project-scoped vs business-wide — deterministic, no AI),
+// assembles fact blocks from EVERY engine the app runs — business records,
+// live margin, margin risk, schedule health, pace book, RFI latency, brain
+// watch, cash flow, the four portfolio engines, the brain's own accuracy
+// report and open leak flags — and answers with citations. Each cited block
+// renders as a tappable chip that drills into the real screen behind it.
 //
-// All intelligence lives in utils/mageAgent.ts (context builder + askMage);
-// this screen is just the chat shell.
+// This screen is just the chat shell: bundle assembly, metering (askMage —
+// the established AIFeature pattern), and the citation-chip UI.
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, ArrowUp, AlertTriangle } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, ArrowUp, AlertTriangle } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import { Colors, type ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
-import { askMage, ASK_MAGE_SUGGESTIONS, type MageAgentData } from '@/utils/mageAgent';
+import { useSafety } from '@/contexts/SafetyContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useBidResponsesPortfolio } from '@/hooks/useBidResponsesPortfolio';
+import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
+import { useLaborCostSamples } from '@/hooks/useLaborRates';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { ASK_MAGE_SUGGESTIONS } from '@/utils/mageAgent';
+import { askOneMind, type OneMindCitation } from '@/utils/oneMind/answer';
+import type { OneMindBundle } from '@/utils/oneMind/factBlocks';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -32,44 +41,114 @@ interface Turn {
   role: 'user' | 'assistant';
   text: string;
   error?: boolean;
+  citations?: OneMindCitation[];
 }
+
+// Engine-aware prompts the old business-snapshot agent couldn't answer.
+const ONE_MIND_SUGGESTIONS: string[] = [
+  'Which job is bleeding margin right now?',
+  'Can I afford to take on another job next month?',
+];
 
 export default function AskMageScreen() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { seed } = useLocalSearchParams<{ seed?: string }>();
 
-  const { projects, invoices, leads, changeOrders, rfis } = useProjects();
-  const data = useMemo<MageAgentData>(
-    () => ({ projects, invoices, leads, changeOrders, rfis }),
-    [projects, invoices, leads, changeOrders, rfis],
-  );
+  const {
+    projects, invoices, leads, changeOrders, rfis,
+    commitments, dailyReports, permits, submittals, punchItems,
+  } = useProjects();
+  const safety = useSafety();
+  const { tier } = useSubscription();
+  const { bidResponses } = useBidResponsesPortfolio();
+  const { receipts } = useMaterialReceipts();
+  const laborSamples = useLaborCostSamples();
+
+  const bundle = useMemo<OneMindBundle>(() => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    return {
+      projects, commitments, changeOrders, invoices,
+      rfis, leads, dailyReports, permits, submittals, punchItems,
+      expiringCertifications: safety.expiringCertifications(todayISO) as OneMindBundle['expiringCertifications'],
+      bidResponses,
+      receipts,
+      laborSamples,
+    };
+  }, [
+    projects, commitments, changeOrders, invoices, rfis, leads, dailyReports,
+    permits, submittals, punchItems, safety, bidResponses, receipts, laborSamples,
+  ]);
 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
+  // Prior turns for multi-turn continuity, without re-creating `ask` per turn.
+  const turnsRef = useRef<Turn[]>([]);
+  turnsRef.current = turns;
+
   const ask = useCallback(async (question: string) => {
     const q = question.trim();
     if (!q || busy) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    const prior = turnsRef.current.map(t => ({ role: t.role, text: t.text }));
     setDraft('');
     setTurns(prev => [...prev, { role: 'user', text: q }]);
     setBusy(true);
     // Let the user message paint before we scroll.
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     try {
-      const res = await askMage(q, data);
-      setTurns(prev => [...prev, { role: 'assistant', text: res.answer, error: !!res.errorKind }]);
+      // Smart-tier call — meter it like every other call site (client-side
+      // daily caps per CLAUDE.md; the relay only sees the feature id).
+      const limit = await checkAILimit(tier, 'smart', 'askMage');
+      if (!limit.allowed) {
+        setTurns(prev => [...prev, {
+          role: 'assistant',
+          text: limit.message ?? "You've used today's advanced AI calls. Try again tomorrow.",
+          error: true,
+        }]);
+        return;
+      }
+      const res = await askOneMind(q, prior, bundle);
+      // Count only answers that actually hit the model — cold-start and
+      // verbatim-fallback answers report usedAI: false and cost nothing.
+      if (res.usedAI) {
+        void recordAIUsage('smart', 'askMage');
+      }
+      setTurns(prev => [...prev, {
+        role: 'assistant',
+        text: res.answer,
+        error: !!res.errorKind,
+        citations: res.citations,
+      }]);
     } finally {
       setBusy(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
-  }, [busy, data]);
+  }, [busy, bundle, tier]);
+
+  // Copilot-hub handoff: arrive with ?seed=<question> and auto-ask it once.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    if (typeof seed === 'string' && seed.trim() && turnsRef.current.length === 0) {
+      seededRef.current = true;
+      void ask(seed);
+    }
+  }, [seed, ask]);
+
+  const openCitation = useCallback((c: OneMindCitation) => {
+    if (!c.drillIn) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push({ pathname: c.drillIn.pathname, params: c.drillIn.params } as never);
+  }, [router]);
 
   const empty = turns.length === 0;
+  const suggestions = useMemo(() => [...ASK_MAGE_SUGGESTIONS, ...ONE_MIND_SUGGESTIONS], []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -84,7 +163,7 @@ export default function AskMageScreen() {
           <View style={styles.headerIcon}><MageAIMark size={16} color={themeColors.accent} accentColor={themeColors.accent} /></View>
           <View>
             <Text style={styles.headerTitle}>Ask MAGE</Text>
-            <Text style={styles.headerSub}>Answers across your whole business</Text>
+            <Text style={styles.headerSub}>One answer from everything you’ve logged</Text>
           </View>
         </View>
       </View>
@@ -106,11 +185,12 @@ export default function AskMageScreen() {
               <View style={styles.emptyIcon}><MageAIMark size={28} color={themeColors.accent} accentColor={themeColors.accent} /></View>
               <Text style={styles.emptyTitle}>Ask me anything about your business</Text>
               <Text style={styles.emptyBody}>
-                I can see your projects, invoices, schedules, leads, change orders and RFIs.
-                Tap a question to start.
+                I fuse your records with the margin, risk, schedule, pace, cash and
+                portfolio engines — and cite where each answer came from so you can
+                tap straight into the screen behind it.
               </Text>
               <View style={styles.suggestions}>
-                {ASK_MAGE_SUGGESTIONS.map(s => (
+                {suggestions.map(s => (
                   <TouchableOpacity
                     key={s}
                     style={styles.suggestion}
@@ -125,16 +205,34 @@ export default function AskMageScreen() {
             </View>
           ) : (
             turns.map((t, i) => (
-              <View
-                key={i}
-                style={[styles.bubbleRow, t.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}
-              >
-                {t.role === 'assistant' && t.error && (
-                  <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
-                )}
-                <View style={[styles.bubble, t.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
-                  <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>
+              <View key={i}>
+                <View
+                  style={[styles.bubbleRow, t.role === 'user' ? styles.bubbleRowUser : styles.bubbleRowAi]}
+                >
+                  {t.role === 'assistant' && t.error && (
+                    <AlertTriangle size={14} color={themeColors.danger} style={{ marginTop: 3, marginRight: 6 }} strokeWidth={1.75} />
+                  )}
+                  <View style={[styles.bubble, t.role === 'user' ? styles.bubbleUser : styles.bubbleAi]}>
+                    <Text style={t.role === 'user' ? styles.bubbleUserText : styles.bubbleAiText}>{t.text}</Text>
+                  </View>
                 </View>
+                {t.role === 'assistant' && !!t.citations?.length && (
+                  <View style={styles.citationRow}>
+                    {t.citations.map(c => (
+                      <TouchableOpacity
+                        key={c.ref}
+                        style={styles.citationChip}
+                        onPress={() => openCitation(c)}
+                        disabled={!c.drillIn}
+                        activeOpacity={0.8}
+                        testID={`ask-citation-${c.ref}`}
+                      >
+                        <Text style={styles.citationText}>{c.domain}</Text>
+                        {c.drillIn && <ChevronRight size={12} color={themeColors.accent} strokeWidth={2.2} />}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             ))
           )}
@@ -142,7 +240,7 @@ export default function AskMageScreen() {
             <View style={[styles.bubbleRow, styles.bubbleRowAi]}>
               <View style={[styles.bubble, styles.bubbleAi, styles.thinking]}>
                 <ActivityIndicator size="small" color={themeColors.accent} />
-                <Text style={styles.thinkingText}>Thinking…</Text>
+                <Text style={styles.thinkingText}>Reading your data…</Text>
               </View>
             </View>
           )}
@@ -213,6 +311,17 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bubbleAi: { backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderBottomLeftRadius: Tokens.radius.xs },
   bubbleUserText: { color: Colors.textOnAccent, fontSize: Type.subhead.fontSize, lineHeight: 21 },
   bubbleAiText: { color: t.text, fontSize: Type.subhead.fontSize, lineHeight: 21 },
+
+  citationRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+    marginTop: -6, marginBottom: 12, maxWidth: '88%',
+  },
+  citationChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: t.accent + '10', borderWidth: 1, borderColor: t.accent + '2E',
+    borderRadius: Tokens.radius.full, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  citationText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   thinking: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   thinkingText: { color: t.textMuted, fontSize: Type.footnote.fontSize, fontStyle: 'italic' },

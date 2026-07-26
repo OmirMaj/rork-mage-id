@@ -67,6 +67,30 @@ export async function fetchOpenPredictions(
   }
 }
 
+// Direct read of RESOLVED rows (reads don't queue) — feeds buildAccuracyReport
+// on surfaces that need the full graded history (One Mind's ACCURACY block),
+// not just the rows resolved this session. Newest first, capped at 200.
+export async function fetchResolvedPredictions(
+  kinds?: PredictionKind[],
+  projectId?: string | null,
+): Promise<BrainPredictionReadRow[]> {
+  try {
+    let q = supabase
+      .from('brain_predictions')
+      .select('*')
+      .not('resolved_at', 'is', null)
+      .order('resolved_at', { ascending: false })
+      .limit(200);
+    if (kinds && kinds.length > 0) q = q.in('kind', kinds);
+    if (projectId) q = q.eq('project_id', projectId);
+    const { data, error } = await q;
+    if (error || !data) return [];
+    return data as BrainPredictionReadRow[];
+  } catch {
+    return [];
+  }
+}
+
 // Convenience re-export for graders that want deduped open predictions
 export async function fetchOpenPredictionsDeduped(
   kinds?: PredictionKind[],
