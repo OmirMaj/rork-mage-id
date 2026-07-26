@@ -90,6 +90,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         router.push('/brief');
         return;
       }
+      if (kind === 'week_close') {
+        // The local Friday Close nudge (utils/weekClose/nudge.ts) — open the
+        // week-close modal directly.
+        router.push('/week-close');
+        return;
+      }
 
       if (conversationId) {
         router.push(`/messages?id=${conversationId}`);

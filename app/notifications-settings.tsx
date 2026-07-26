@@ -9,7 +9,7 @@ import * as Notifications from 'expo-notifications';
 import {
   ChevronLeft, MessageSquare, HandCoins, CheckCircle2, Inbox, Bell,
   PenTool, ShoppingCart, HelpCircle, Hammer, Sunrise, MapPin, Clock,
-  Mail, Smartphone, Send,
+  Mail, Smartphone, Send, CalendarCheck,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { armDailyBriefNudge, disarmDailyBriefNudge } from '@/utils/brief/nudge';
+import { armWeekCloseNudge, disarmWeekCloseNudge } from '@/utils/weekClose/nudge';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -161,6 +162,31 @@ export default function NotificationsSettingsScreen() {
       ? Intl.DateTimeFormat().resolvedOptions().timeZone
       : 'America/New_York'
   );
+
+  // Week-close nudge preference — stored under notification_preferences.weekClose.push
+  // (flat jsonb, additive key, no migration — same write pattern as the toggle fn below).
+  // Absent = ON (same as the morning digest opt-in pattern, but the close nudge defaults
+  // active since it fires only once per week and is trivially dismissible).
+  // notification_preferences is loaded into `prefs` above.
+  const weekCloseNudgeOn = prefs['weekClose']?.push !== false;
+
+  const updateWeekCloseNudge = useCallback((enabled: boolean) => {
+    void Haptics.selectionAsync().catch(() => {});
+    const next: Prefs = {
+      ...prefs,
+      weekClose: { ...(prefs['weekClose'] ?? {}), push: enabled },
+    };
+    setPrefs(next);
+    if (!user?.id) return;
+    void supabaseWrite('profiles', 'update', {
+      id: user.id,
+      notification_preferences: next,
+    });
+    if (Platform.OS !== 'web' && canAccess('brain_accuracy')) {
+      if (enabled) void armWeekCloseNudge({ enabled: true, prompt: true });
+      else void disarmWeekCloseNudge();
+    }
+  }, [prefs, user?.id, canAccess]);
 
   // Project-location coverage. We compute how many active projects have
   // geocoded coords vs. how many have only a free-text location vs. how
@@ -588,6 +614,44 @@ export default function NotificationsSettingsScreen() {
             )}
           </View>
         </View>
+
+        {/* ── Friday Close nudge card ───────────────────────────────
+            A simple on/off toggle for the local Fri 15:00 nudge.
+            Native only — web has no scheduled local notifications.
+            Business+ gate (same 'brain_accuracy' proxy as the brief).
+            Riding notification_preferences.weekClose.push — additive
+            jsonb key, no migration needed. */}
+        {Platform.OS !== 'web' && canAccess('brain_accuracy') && (
+          <View style={styles.section}>
+            <View style={styles.groupHeader}>
+              <Text style={styles.groupTitle}>Friday Close nudge</Text>
+              <Text style={styles.groupSubtitle}>
+                A Friday 3 PM reminder to bill, chase, and close the week.
+              </Text>
+            </View>
+            <View style={styles.digestCard}>
+              <View style={styles.digestHeader}>
+                <View style={[styles.digestIcon, { backgroundColor: themeColors.accent }]}>
+                  <CalendarCheck size={18} color="#FFF" strokeWidth={1.75} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.digestTitle}>Friday 3 PM close nudge</Text>
+                  <Text style={styles.digestSubtitle}>
+                    {weekCloseNudgeOn
+                      ? 'On — fires Friday at 3:00 PM local'
+                      : 'Off — no nudge'}
+                  </Text>
+                </View>
+                <Switch
+                  value={weekCloseNudgeOn}
+                  onValueChange={updateWeekCloseNudge}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor="#FFF"
+                />
+              </View>
+            </View>
+          </View>
+        )}
 
         {loading ? (
           <View style={styles.loadingWrap}>

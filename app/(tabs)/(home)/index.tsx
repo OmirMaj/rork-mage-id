@@ -67,6 +67,7 @@ import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
 import BrainWatchCard from '@/components/home/BrainWatchCard';
 import MorningBriefCard from '@/components/home/MorningBriefCard';
+import WeekCloseCard from '@/components/home/WeekCloseCard';
 
 // Canonical 1-indexed, working-day-aware "which schedule day is today" — the
 // exact inverse of scheduleEngine.getTaskDateRange (start = addWorkingDays(
@@ -720,6 +721,10 @@ export default function HomeScreen() {
                 today (BRIEF_LAST_SEEN_KEY). Business+; renders nothing below
                 the gate. Also owns the local nudge re-arm loop. */}
             {projects.length > 0 && !isLoading && <MorningBriefCard />}
+            {/* Friday Close — pinned Fri–Sun until seen/dismissed this week.
+                Mounts the once-per-session leak CO sweep (F3) as a side-effect.
+                Business+; renders nothing below the gate. */}
+            {projects.length > 0 && !isLoading && <WeekCloseCard />}
 
             {/* Brain Watch — proactive "what needs your attention now" card.
                 Aggregates schedule health, overdue invoices, upcoming permit
