@@ -26,6 +26,7 @@ import {
 import {
   composeOneMindPrompt,
   parseCitations,
+  stripCitations,
   ONE_MIND_TOTAL_CAP,
 } from '../utils/oneMind/composePrompt';
 import type { LivingEstimateSnapshot } from '../utils/livingEstimate';
@@ -350,6 +351,39 @@ const sampleBlocks: FactBlock[] = [
   ok('citations round-trip in order', refs.join(',') === 'MARGIN,WATCH');
   ok('unknown refs ignored', !refs.includes('BOGUS'));
   ok('no citations → empty', parseCitations('plain answer', blocks).length === 0);
+
+  // CORRECTED (tribunal): tolerate the citation shapes real models emit.
+  ok('lowercase ref recognized', parseCitations('margin fell [margin].', blocks).join(',') === 'MARGIN');
+  ok('comma-separated multi-ref recognized',
+    parseCitations('Tight month [MARGIN, WATCH].', blocks).join(',') === 'MARGIN,WATCH');
+  ok('"and"-separated multi-ref recognized',
+    parseCitations('See [MARGIN and CASH].', blocks).join(',') === 'MARGIN,CASH');
+  ok('memory-record echo is NOT a citation',
+    parseCitations('Per the note [RFI-3 · 2026-01-02].', blocks).length === 0);
+  ok('mixed known+unknown group rejected whole',
+    parseCitations('See [MARGIN, BOGUS].', blocks).length === 0);
+}
+
+// ─── stripCitations ────────────────────────────────────────────────────────────────
+
+{
+  const blocks: FactBlock[] = [
+    { domain: 'LIVE MARGIN', ref: 'MARGIN', facts: [] },
+    { domain: 'BRAIN WATCH', ref: 'WATCH', facts: [] },
+  ];
+  // CORRECTED (tribunal): raw [REF] markers must not reach the displayed
+  // answer — the tappable chips carry the refs.
+  ok('recognized markers stripped, spacing tidied',
+    stripCitations('Margin is down 3.9 pts [MARGIN]. Chase invoice #4 [WATCH·Henderson].', blocks)
+      === 'Margin is down 3.9 pts. Chase invoice #4.');
+  ok('unknown bracket groups survive the strip',
+    stripCitations('Flagged in [RFI-3 · 2026-01-02] and [BOGUS] stays.', blocks)
+      === 'Flagged in [RFI-3 · 2026-01-02] and [BOGUS] stays.');
+  ok('multi-ref group stripped whole',
+    stripCitations('Tight month [MARGIN, WATCH].', blocks) === 'Tight month.');
+  ok('newlines preserved across a strip',
+    stripCitations('Line one [MARGIN].\nLine two [WATCH].', blocks) === 'Line one.\nLine two.');
+  ok('no markers → text unchanged', stripCitations('plain answer', blocks) === 'plain answer');
 }
 
 // ─── assembleFactBlocks (additive integration) ──────────────────────────────

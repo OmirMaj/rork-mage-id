@@ -16,7 +16,7 @@
 import { mageAI } from '@/utils/mageAI';
 import { resolveScope, type OneMindScope } from './resolveScope';
 import { assembleFactBlocks, isColdStart, type FactBlock, type FactBlockDrillIn, type OneMindBundle } from './factBlocks';
-import { composeOneMindPrompt, parseCitations } from './composePrompt';
+import { composeOneMindPrompt, parseCitations, stripCitations } from './composePrompt';
 
 export interface OneMindTurn {
   role: 'user' | 'assistant';
@@ -103,8 +103,12 @@ export async function askOneMind(
       : (res.raw?.trim() || '');
     if (res.success && text) {
       const refs = parseCitations(text, blocks);
+      // Display text drops the raw [REF] markers — the chips carry them.
+      // stripCitations only removes RECOGNIZED refs, so a fully-stripped
+      // answer can never lose non-citation brackets.
+      const display = stripCitations(text, blocks);
       return {
-        answer: text,
+        answer: display || text,
         citations: toCitations(blocks, refs),
         scope,
         usedAI: !res.fromCache,

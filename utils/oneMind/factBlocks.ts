@@ -18,6 +18,7 @@
 //
 // G4 analogue: assembly is never load-bearing on any single engine.
 
+import type { Route } from 'expo-router';
 import type {
   Project, RFI, Invoice, ChangeOrder, Commitment, Lead, DailyFieldReport,
   Permit, Certification, Submittal, PunchItem, HomeownerBidResponse,
@@ -46,7 +47,10 @@ import type { OneMindScope } from './resolveScope';
 // ─── The common currency ─────────────────────────────────────────────────────
 
 export interface FactBlockDrillIn {
-  pathname: string;
+  /** Typed against the router (expo-router's generated Route union), so a
+   *  drill-in to a route that doesn't exist fails tsc instead of shipping a
+   *  +not-found dead end (the /profit-leak-history regression). */
+  pathname: Route;
   params?: Record<string, string>;
 }
 
@@ -375,7 +379,9 @@ export function buildLeaksBlock(openCount: number, estTotal: number): FactBlock 
     domain: 'OPEN LEAK FLAGS',
     ref: 'LEAKS',
     facts,
-    drillIn: { pathname: '/profit-leak-history' },
+    // Same destination the Morning Brief routes this exact data to
+    // (composeBrief.ts buildLeakItem) — /profit-leak-history never existed.
+    drillIn: { pathname: '/report-inbox' },
   };
 }
 

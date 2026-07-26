@@ -16,7 +16,7 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Platform, KeyboardAvoidingView,
 } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, ChevronRight, ArrowUp, AlertTriangle } from 'lucide-react-native';
@@ -31,6 +31,7 @@ import { useBidResponsesPortfolio } from '@/hooks/useBidResponsesPortfolio';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { localDateISO } from '@/utils/brief/composeBrief';
 import { ASK_MAGE_SUGGESTIONS } from '@/utils/mageAgent';
 import { askOneMind, type OneMindCitation } from '@/utils/oneMind/answer';
 import type { OneMindBundle } from '@/utils/oneMind/factBlocks';
@@ -60,6 +61,7 @@ export default function AskMageScreen() {
   const {
     projects, invoices, leads, changeOrders, rfis,
     commitments, dailyReports, permits, submittals, punchItems,
+    projectsLoaded,
   } = useProjects();
   const safety = useSafety();
   const { tier } = useSubscription();
@@ -68,7 +70,9 @@ export default function AskMageScreen() {
   const laborSamples = useLaborCostSamples();
 
   const bundle = useMemo<OneMindBundle>(() => {
-    const todayISO = new Date().toISOString().slice(0, 10);
+    // Local calendar day, not toISOString() (UTC flips the date for evening
+    // hours west of Greenwich) — same discipline as the Morning Brief.
+    const todayISO = localDateISO(new Date());
     return {
       projects, commitments, changeOrders, invoices,
       rfis, leads, dailyReports, permits, submittals, punchItems,
@@ -131,20 +135,30 @@ export default function AskMageScreen() {
     }
   }, [busy, bundle, tier]);
 
-  // Copilot-hub handoff: arrive with ?seed=<question> and auto-ask it once.
+  // Copilot-hub handoff: arrive with ?seed=<question> and auto-ask it once —
+  // but only after the project data has hydrated. Firing against a
+  // pre-hydration (empty) bundle hit One Mind's cold-start short-circuit and
+  // told users with plenty of data "you have no data", with no retry. The
+  // projectsLoaded gate re-runs this effect when hydration lands, so the
+  // seed still fires exactly once.
   const seededRef = useRef(false);
   useEffect(() => {
-    if (seededRef.current) return;
+    if (seededRef.current || !projectsLoaded) return;
     if (typeof seed === 'string' && seed.trim() && turnsRef.current.length === 0) {
       seededRef.current = true;
       void ask(seed);
     }
-  }, [seed, ask]);
+  }, [seed, ask, projectsLoaded]);
 
   const openCitation = useCallback((c: OneMindCitation) => {
     if (!c.drillIn) return;
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    router.push({ pathname: c.drillIn.pathname, params: c.drillIn.params } as never);
+    // drillIn.pathname is typed against the router (FactBlockDrillIn.pathname:
+    // Route), so a dead route fails tsc at the block that declares it. The
+    // Href cast here only bridges the pathname UNION into push's overloads —
+    // it cannot smuggle an unknown route past the compiler the way the old
+    // `as never` did.
+    router.push({ pathname: c.drillIn.pathname, params: c.drillIn.params } as Href);
   }, [router]);
 
   const empty = turns.length === 0;

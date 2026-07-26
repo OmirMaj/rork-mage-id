@@ -61,14 +61,37 @@ const projects = [
   ok('shared generic token alone → business', s.scope === 'business');
 }
 {
-  // Full-name match still works even when every token is generic.
+  // CORRECTED (tribunal): an ALL-generic name must never hijack a question —
+  // "kitchen remodel" in a sentence is a job type, not necessarily the job
+  // named "Kitchen Remodel". Ambiguity resolves DOWN to business (rule 5).
   const s = resolveScope('how is the kitchen remodel going', projects);
-  ok('all-generic full-name match → project', s.scope === 'project' && s.projectId === 'p3');
+  ok('all-generic full-name match → business (never hijacks)', s.scope === 'business');
 }
 {
   // A lone generic word from an all-generic name must not match.
   const s = resolveScope('what should I do about the kitchen cabinets', projects);
   ok('partial all-generic name → business', s.scope === 'business');
+}
+{
+  // THE tribunal failure case: a 1-token generic project name must not
+  // capture a portfolio-level question containing that ordinary word.
+  const withGarage = [...projects, { id: 'g1', name: 'Garage' }];
+  const s = resolveScope('should I take on more garage jobs next year?', withGarage);
+  ok('1-token generic name (Garage) → business', s.scope === 'business');
+  const s2 = resolveScope('how is the garage going', withGarage);
+  ok('generic name unreachable even by exact name → business', s2.scope === 'business');
+}
+{
+  // Expanded stoplist: "patio" must not distinctively match "Patio Cover".
+  const withPatio = [...projects, { id: 'pc', name: 'Patio Cover' }];
+  const s = resolveScope('what patio jobs are most profitable?', withPatio);
+  ok('expanded generic token (patio) → business', s.scope === 'business');
+}
+{
+  // Mixed name: the non-generic token keeps the project reachable.
+  const withMahal = [...projects, { id: 'gm', name: 'Garage Mahal' }];
+  const s = resolveScope('how is the garage mahal doing', withMahal);
+  ok('generic + distinctive name still resolves', s.scope === 'project' && s.projectId === 'gm');
 }
 
 // ─── Longest match wins ──────────────────────────────────────────────────────
@@ -99,6 +122,13 @@ const projects = [
 {
   const s = resolveScope('compare henderson remodel and lakewood', projects);
   ok('two projects named → business', s.scope === 'business');
+}
+{
+  // CORRECTED (tribunal): disjointness is checked against EVERY candidate,
+  // not just the top two. Both Hendersons outrank Lakewood and overlap each
+  // other — top-two-only checking silently resolved to one Henderson.
+  const s = resolveScope('compare henderson remodel and henderson addition and lakewood', projects);
+  ok('three projects named (top two overlap) → business', s.scope === 'business');
 }
 
 // ─── isQuestionShaped (copilot-hub handoff) ──────────────────────────────────

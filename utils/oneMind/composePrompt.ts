@@ -101,19 +101,65 @@ export function composeOneMindPrompt({ question, turns, blocks, scopeLabel }: Co
   return parts.join('\n\n');
 }
 
+/** Any bracket group that could be a citation. Kept short (≤80 chars) so a
+ *  stray unclosed bracket can't swallow half the answer. */
+const CITATION_GROUP_RE = /\[([^\[\]\n]{1,80})\]/g;
+
+/**
+ * Resolve one bracket group's content to known block refs, or null when the
+ * group is NOT a citation (any non-ref token → leave it alone: `[RFI-3]`
+ * memory-record echoes and prose brackets must survive both parse and strip).
+ * Tolerates the decorated form `[WATCH·Henderson]` (ref before the `·`/`:`/
+ * `|`), lowercase refs (`[margin]`), and multi-ref lists (`[MARGIN, WATCH]`,
+ * `[MARGIN and CASH]`).
+ */
+function groupCitationRefs(content: string, known: Set<string>): string[] | null {
+  const head = content.split(/[·:|]/)[0];
+  const tokens = head.split(/[,&+]|\band\b|\s+/i).map(t => t.trim()).filter(Boolean);
+  if (tokens.length === 0) return null;
+  const refs: string[] = [];
+  for (const token of tokens) {
+    const upper = token.toUpperCase();
+    if (!known.has(upper)) return null;
+    refs.push(upper);
+  }
+  return refs;
+}
+
 /**
  * Pull the block refs the model cited, in first-appearance order, deduped.
- * Tolerates the decorated form `[WATCH·Henderson]` (ref before the `·`).
  * Unknown refs are dropped — only real blocks become drill-in chips.
  */
 export function parseCitations(answer: string, blocks: FactBlock[]): string[] {
   const known = new Set(blocks.map(b => b.ref));
   const seen: string[] = [];
-  const re = /\[([A-Z0-9_]+)(?:[·:|][^\]]*)?\]/g;
   let m: RegExpExecArray | null;
+  const re = new RegExp(CITATION_GROUP_RE.source, 'g');
   while ((m = re.exec(answer)) !== null) {
-    const ref = m[1];
-    if (known.has(ref) && !seen.includes(ref)) seen.push(ref);
+    const refs = groupCitationRefs(m[1], known);
+    if (!refs) continue;
+    for (const ref of refs) {
+      if (!seen.includes(ref)) seen.push(ref);
+    }
   }
   return seen;
+}
+
+/**
+ * Remove recognized citation markers from the display text — the chips carry
+ * the refs, so raw `[MARGIN]` markers in the bubble are noise. Groups that
+ * are NOT recognized citations (memory-record echoes like `[RFI-3 · …]`,
+ * prose brackets) are left untouched. Newlines are preserved; spacing around
+ * removed markers is tidied.
+ */
+export function stripCitations(answer: string, blocks: FactBlock[]): string {
+  const known = new Set(blocks.map(b => b.ref));
+  const re = new RegExp(`[ \\t]*${CITATION_GROUP_RE.source}`, 'g');
+  return answer
+    .replace(re, (full, content: string) => (groupCitationRefs(content, known) ? '' : full))
+    .replace(/[ \t]+([.,;:!?])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/^[ \t]+/gm, '')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
 }
