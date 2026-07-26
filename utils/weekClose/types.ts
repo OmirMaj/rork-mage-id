@@ -1,9 +1,9 @@
 // utils/weekClose/types.ts
 //
 // Shared types for the Friday Close week-close ritual surface.
-// Zero React, Zero network — pure data shapes.
+// Zero React, Zero network — pure data shapes + one pure date helper.
 
-import type { BriefItem, BriefRoute, BriefSeverity } from '@/utils/brief/composeBrief';
+import { localDateISO, type BriefItem, type BriefRoute, type BriefSeverity } from '@/utils/brief/composeBrief';
 
 // Re-export so consumers only need to import from this file.
 export type { BriefItem, BriefRoute, BriefSeverity };
@@ -39,6 +39,18 @@ export interface WeekClose {
   allQuiet: boolean;
 }
 
-/** AsyncStorage key holding the local date (YYYY-MM-DD) the week-close modal
+/** AsyncStorage key holding the LOCAL date (YYYY-MM-DD) the week-close modal
  *  was last opened/dismissed. Registered in LOCAL_USER_CACHE_KEYS (F0). */
 export const WEEK_CLOSE_LAST_SEEN_KEY = 'mageid_week_close_last_seen';
+
+/**
+ * The ONE definition of "today" for WEEK_CLOSE_LAST_SEEN_KEY — the LOCAL
+ * calendar date. Every writer (week-close.tsx mount/markDone) and reader
+ * (WeekCloseCard's same-ISO-week check) must use this helper: a UTC stamp
+ * (`toISOString().slice(0,10)`) is already MONDAY of the next ISO week on
+ * Sunday evenings in the Americas, which would suppress the following week's
+ * card entirely.
+ */
+export function weekCloseTodayISO(now: Date = new Date()): string {
+  return localDateISO(now);
+}

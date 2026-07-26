@@ -5,8 +5,10 @@
 // Compact leg counts let the GC gauge what needs doing without opening.
 //
 // ARM-TIME PREDICATE (G10, plan §F2): the Friday 15:00 nudge is armed only
-// when ≥1 active project had activity in the trailing 14 days. Checked on
-// mount + every app foreground, same pattern as MorningBriefCard.tsx:78-83.
+// when ≥1 active project had activity in the trailing 14 days AND the
+// notification_preferences.weekClose.push toggle is not off. Checked on
+// mount + every app foreground, same pattern as MorningBriefCard.tsx:78-83
+// (its digestEnabled gate is the consent precedent).
 //
 // Business+ only (G6): same 'brain_accuracy' proxy as the morning brief.
 // Renders nothing when gated or when outside Friday–Sunday window or when
@@ -22,9 +24,11 @@ import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { useWeekClose } from '@/hooks/useWeekClose';
-import { WEEK_CLOSE_LAST_SEEN_KEY } from '@/utils/weekClose/types';
+import { WEEK_CLOSE_LAST_SEEN_KEY, weekCloseTodayISO } from '@/utils/weekClose/types';
 import { armWeekCloseNudge, disarmWeekCloseNudge } from '@/utils/weekClose/nudge';
 import { projectIsActive } from '@/utils/weekClose/composeWeekClose';
 import { useLeakCoDrafts } from '@/hooks/useLeakCoDrafts';
@@ -32,16 +36,6 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Local ISO date string (YYYY-MM-DD) for today. */
-function todayISO(): string {
-  const d = new Date();
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    String(d.getDate()).padStart(2, '0'),
-  ].join('-');
-}
 
 /** True when the current local day-of-week is Friday (5), Saturday (6), or Sunday (0). */
 function isFridayWindow(): boolean {
@@ -68,6 +62,7 @@ export default function WeekCloseCard() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
   const { projects, invoices, dailyReports } = useProjects();
+  const { user } = useAuth();
   const gated = canAccess('brain_accuracy');
   const { close } = useWeekClose({ enabled: gated && isFridayWindow() });
 
@@ -86,7 +81,7 @@ export default function WeekCloseCard() {
         .then(v => {
           if (cancelled) return;
           if (!v) { setSeenThisWeek(false); return; }
-          setSeenThisWeek(isoWeek(v) === isoWeek(todayISO()));
+          setSeenThisWeek(isoWeek(v) === isoWeek(weekCloseTodayISO()));
         })
         .catch(() => { if (!cancelled) setSeenThisWeek(false); });
       return () => { cancelled = true; };
@@ -94,32 +89,62 @@ export default function WeekCloseCard() {
   );
 
   // Nudge re-arm: mount + foreground. (G10) Only armed when ≥1 active project
-  // had activity in the last 14 days.
+  // had activity in the last 14 days AND the user has not turned the nudge
+  // off in notification settings (profiles.notification_preferences
+  // .weekClose.push — the same path notifications-settings.tsx writes).
+  // Hardcoding enabled:true here would silently override the settings toggle
+  // on every mount/foreground — a consent violation.
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    const hasActivity = projects.some(
-      p => projectIsActive(p, invoices, dailyReports, new Date()),
-    );
-    if (!gated || !hasActivity) {
-      void disarmWeekCloseNudge();
-      return;
-    }
-    void armWeekCloseNudge({ enabled: true });
-    const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') {
-        const stillActive = projects.some(
-          p => projectIsActive(p, invoices, dailyReports, new Date()),
-        );
-        if (stillActive) void armWeekCloseNudge({ enabled: true });
-        else void disarmWeekCloseNudge();
+    let cancelled = false;
+
+    const syncNudge = async () => {
+      const hasActivity = projects.some(
+        p => projectIsActive(p, invoices, dailyReports, new Date()),
+      );
+      if (!gated || !hasActivity) {
+        void disarmWeekCloseNudge();
+        return;
       }
+      // Consent gate. Absent pref = ON (the documented default); an explicit
+      // false = OFF. If the pref cannot be read (offline / transient error)
+      // we do NOTHING — never re-arm against a toggle we could not verify,
+      // and never disarm a consented nudge on a network blip.
+      let weekClosePushOn: boolean | null = user?.id ? null : true;
+      if (user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('notification_preferences')
+            .eq('id', user.id)
+            .single();
+          if (!error && data) {
+            const prefs = (data.notification_preferences ?? {}) as { weekClose?: { push?: boolean } };
+            weekClosePushOn = prefs.weekClose?.push !== false;
+          }
+        } catch {
+          // Unknown → leave weekClosePushOn null (no-op below).
+        }
+      }
+      if (cancelled || weekClosePushOn == null) return;
+      if (!weekClosePushOn) {
+        // Explicitly off (possibly toggled on another device) → disarm here.
+        void disarmWeekCloseNudge();
+        return;
+      }
+      void armWeekCloseNudge({ enabled: weekClosePushOn });
+    };
+
+    void syncNudge();
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') void syncNudge();
     });
-    return () => sub.remove();
-  }, [gated, projects, invoices, dailyReports]);
+    return () => { cancelled = true; sub.remove(); };
+  }, [gated, projects, invoices, dailyReports, user?.id]);
 
   const markSeen = useCallback(() => {
     setSeenThisWeek(true);
-    AsyncStorage.setItem(WEEK_CLOSE_LAST_SEEN_KEY, todayISO()).catch(() => {});
+    AsyncStorage.setItem(WEEK_CLOSE_LAST_SEEN_KEY, weekCloseTodayISO()).catch(() => {});
   }, []);
 
   const openClose = useCallback(() => {

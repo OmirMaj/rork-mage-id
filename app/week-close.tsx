@@ -24,7 +24,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { WEEK_CLOSE_LAST_SEEN_KEY } from '@/utils/weekClose/types';
+import { WEEK_CLOSE_LAST_SEEN_KEY, weekCloseTodayISO } from '@/utils/weekClose/types';
 import { useWeekClose } from '@/hooks/useWeekClose';
 import { QUIET_CLOSE_LINE } from '@/utils/weekClose/composeWeekClose';
 import type { BriefItem, BriefSeverity, WeekCloseLeg } from '@/utils/weekClose/types';
@@ -65,8 +65,10 @@ function WeekCloseInner() {
   const { close } = useWeekClose();
 
   // Stamp last-seen on mount — hides the home card until next week.
+  // LOCAL date via the shared helper: WeekCloseCard compares ISO weeks of
+  // local dates, and a UTC stamp on a Sunday evening is already next week.
   useEffect(() => {
-    AsyncStorage.setItem(WEEK_CLOSE_LAST_SEEN_KEY, new Date().toISOString().slice(0, 10)).catch(() => {});
+    AsyncStorage.setItem(WEEK_CLOSE_LAST_SEEN_KEY, weekCloseTodayISO()).catch(() => {});
   }, []);
 
   const dateLabel = useMemo(
@@ -97,7 +99,7 @@ function WeekCloseInner() {
 
   const markDone = () => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    AsyncStorage.setItem(WEEK_CLOSE_LAST_SEEN_KEY, new Date().toISOString().slice(0, 10)).catch(() => {});
+    AsyncStorage.setItem(WEEK_CLOSE_LAST_SEEN_KEY, weekCloseTodayISO()).catch(() => {});
     router.back();
   };
 
