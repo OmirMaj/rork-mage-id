@@ -7,22 +7,22 @@
 // already computes but keeps buried in individual screens.
 //
 // Data flow:
-//   useProjects() → projects, invoices, getPermitsForProject
-//   useSafety()   → expiringCertifications(todayISO)
-//   brainWatch builders → AttentionItem[]
-//   rankAttention → sorted list → top 6 rendered
+//   useBrainWatch() — THE canonical needs-attention set (same number the
+//   Summary hero pill + Your-Projects tab badge consume) → top 6 rendered.
 //
 // Anti-slop: Colors/Type/Tokens only — no raw hex, no inline fontSize,
 // no inline borderRadius.
 // ============================================================================
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   CalendarDays,
   FileText,
+  FileSignature,
   ClipboardCheck,
+  ListChecks,
   ShieldCheck,
   Brain,
   CheckCircle2,
@@ -33,25 +33,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Colors } from '@/constants/colors';
-import { useCoreData, useFinancialsData, useDocsData } from '@/contexts/ProjectContext';
-import { useSafety } from '@/contexts/SafetyContext';
 import { useBrainGrading } from '@/hooks/useBrainGrading';
-import { localDateISO } from '@/utils/brief/composeBrief';
+import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import {
-  scheduleAttention,
-  invoiceAttention,
-  permitAttention,
-  certAttention,
-  closeoutAttention,
-  rankAttention,
-  summarize,
-  type AttentionItem,
-  type AttnKind,
-  type AttnSeverity,
-} from '@/utils/brainWatch';
+import type { AttnKind, AttnSeverity } from '@/utils/brainWatch';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -75,6 +62,8 @@ const KIND_ICONS: Record<AttnKind, typeof CalendarDays> = {
   permit: ClipboardCheck,
   cert: ShieldCheck,
   closeout: PartyPopper,
+  punch: ListChecks,
+  changeOrder: FileSignature,
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -84,52 +73,20 @@ export default function BrainWatchCard() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
 
-  // ── Data sources ─────────────────────────────────────────────────────────
-  const { projects } = useCoreData();
-  const { invoices } = useFinancialsData();
-  const { getPermitsForProject } = useDocsData();
-  const safety = useSafety();
+  // ── Data ──────────────────────────────────────────────────────────────────
+  // The CANONICAL needs-attention set — same hook that feeds the Summary
+  // hero pill and the Your-Projects tab badge, so every "needs attention"
+  // number in the app is the same number (sim-audit #15).
+  const { items, total } = useBrainWatch();
   const { accuracyReport } = useBrainGrading();
   const { canAccess } = useTierAccess();
 
-  // ── Build attention items ─────────────────────────────────────────────────
-  const items: AttentionItem[] = useMemo(() => {
-    const nowMs = Date.now();
-    // Local calendar day (not UTC toISOString) — same cert-expiry cutoff
-    // discipline as useMorningBrief/ask.
-    const todayISO = localDateISO(new Date());
-
-    const all: AttentionItem[] = [];
-
-    // Schedule + Invoice + Permit + Closeout signals — one pass over projects
-    for (const project of projects) {
-      // Skip non-active projects — closed/completed jobs rarely need daily attention
-      if (project.status === 'closed' || project.status === 'completed') continue;
-
-      all.push(...scheduleAttention(project));
-      all.push(...invoiceAttention(project, invoices, nowMs));
-
-      const permits = getPermitsForProject(project.id);
-      all.push(...permitAttention(project, permits, nowMs));
-
-      // Closeout nudge — the flywheel's intake valve
-      all.push(...closeoutAttention(project));
-    }
-
-    // Cert signals — company-scoped, not project-scoped
-    const expiring = safety.expiringCertifications(todayISO) as Parameters<typeof certAttention>[0];
-    all.push(...certAttention(expiring, nowMs));
-
-    return rankAttention(all);
-  }, [projects, invoices, getPermitsForProject, safety]);
-
-  const summary = useMemo(() => summarize(items), [items]);
   const visible = items.slice(0, MAX_VISIBLE);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
   // All-clear state: render a calming "nothing to do" row
-  if (summary.total === 0) {
+  if (total === 0) {
     return (
       <View style={styles.card}>
         <View style={styles.allClearRow}>
@@ -146,9 +103,9 @@ export default function BrainWatchCard() {
       <View style={styles.headerRow}>
         <Brain size={16} color={colors.accent} strokeWidth={2.2} />
         <Text style={styles.headerTitle}>
-          {summary.total === 1
+          {total === 1
             ? '1 thing needs your attention'
-            : `${summary.total} things need your attention`}
+            : `${total} things need your attention`}
         </Text>
       </View>
 

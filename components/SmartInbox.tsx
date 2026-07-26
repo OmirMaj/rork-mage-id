@@ -1,7 +1,11 @@
 // ============================================================================
 // components/SmartInbox.tsx
 //
-// "Needs attention" card for the home screen. Renders rule-derived items from
+// "Inbox" card for the home screen — the dismissible actionable-items feed.
+// (Scoped label: this is the Smart Inbox row count, NOT the canonical
+// "needs attention" number — that lives in useBrainWatch and drives the
+// Brain Watch card, Summary pill, and tab badge. Sim-audit #15.)
+// Renders rule-derived items from
 // useSmartInbox() grouped into filter chips (All / Money / Schedule / Safety).
 // Default collapsed to top 5; "Show all" expands to the full list.
 //
@@ -77,7 +81,7 @@ export default function SmartInbox() {
     return (
       <View style={styles.card}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Needs attention</Text>
+          <Text style={styles.headerTitle}>Inbox</Text>
           <Text style={styles.headerCount}>0</Text>
         </View>
         <View style={styles.emptyWrap}>
@@ -94,7 +98,7 @@ export default function SmartInbox() {
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Needs attention</Text>
+        <Text style={styles.headerTitle}>Inbox</Text>
         <Text style={styles.headerCount}>· {counts.all}</Text>
       </View>
 

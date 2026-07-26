@@ -5,12 +5,14 @@ import {
   permitAttention,
   certAttention,
   closeoutAttention,
+  punchAttention,
+  changeOrderAttention,
   groupReadyPunchItems,
   rankAttention,
   summarize,
   type AttentionItem,
 } from '../utils/brainWatch';
-import type { Project, Invoice, Permit, Certification } from '../types';
+import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '../types';
 
 let pass = 0, fail = 0;
 function ok(n: string, cond: boolean) { if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n); } }
@@ -541,6 +543,103 @@ console.log('\nsummarize:');
   ok('empty total = 0', s.total === 0);
   ok('empty schedule = 0', s.byKind.schedule === 0);
   ok('empty closeout = 0', s.byKind.closeout === 0);
+  ok('empty punch = 0', s.byKind.punch === 0);
+  ok('empty changeOrder = 0', s.byKind.changeOrder === 0);
+}
+
+// ─── punchAttention ──────────────────────────────────────────────────────────
+
+console.log('\npunchAttention:');
+
+function mkPunchItem(over: Partial<PunchItem> = {}): PunchItem {
+  return {
+    id: 'pi1',
+    projectId: 'p1',
+    description: 'Window flashing lap reversed',
+    priority: 'high',
+    status: 'open',
+    updatedAt: '2025-01-10T00:00:00Z',
+    createdAt: '2025-01-10T00:00:00Z',
+    ...over,
+  } as PunchItem;
+}
+
+// No punch items → empty
+{
+  ok('no punch → empty', punchAttention([]).length === 0);
+}
+
+// Only low/medium priority → empty
+{
+  const items = punchAttention([mkPunchItem({ priority: 'medium' }), mkPunchItem({ id: 'pi2', priority: 'low' })]);
+  ok('no high priority → empty', items.length === 0);
+}
+
+// Closed high-priority → empty
+{
+  ok('closed high → empty', punchAttention([mkPunchItem({ status: 'closed' })]).length === 0);
+}
+
+// Rollup: 3 open high across projects → ONE item with the count
+{
+  const items = punchAttention([
+    mkPunchItem(),
+    mkPunchItem({ id: 'pi2', projectId: 'p2' }),
+    mkPunchItem({ id: 'pi3', projectId: 'p3', status: 'ready_for_review' }),
+  ]);
+  ok('3 open high → 1 rollup item', items.length === 1);
+  ok('rollup counts 3', items[0].message.includes('3 high-priority punch items'));
+  ok('rollup kind punch', items[0].kind === 'punch');
+  ok('rollup severity high', items[0].severity === 'high');
+  ok('rollup routes to first project', items[0].route.pathname === '/project-detail' && items[0].route.params?.id === 'p1');
+}
+
+// Singular message
+{
+  const items = punchAttention([mkPunchItem()]);
+  ok('1 open high → singular message', items[0].message.includes('1 high-priority punch item open'));
+}
+
+// ─── changeOrderAttention ────────────────────────────────────────────────────
+
+console.log('\nchangeOrderAttention:');
+
+function mkCO(over: Partial<ChangeOrder> = {}): ChangeOrder {
+  return {
+    id: 'co1',
+    projectId: 'p1',
+    number: 1,
+    title: 'Extra footing',
+    status: 'submitted',
+    changeAmount: 1200,
+    createdAt: '2025-01-10T00:00:00Z',
+    updatedAt: '2025-01-10T00:00:00Z',
+    ...over,
+  } as ChangeOrder;
+}
+
+// No pending COs → empty
+{
+  ok('no COs → empty', changeOrderAttention([]).length === 0);
+  ok('approved CO → empty', changeOrderAttention([mkCO({ status: 'approved' as ChangeOrder['status'] })]).length === 0);
+}
+
+// submitted + under_review roll up to ONE item
+{
+  const items = changeOrderAttention([
+    mkCO(),
+    mkCO({ id: 'co2', status: 'under_review' as ChangeOrder['status'], projectId: 'p2' }),
+  ]);
+  ok('2 pending → 1 rollup item', items.length === 1);
+  ok('rollup counts 2', items[0].message.includes('2 change orders awaiting approval'));
+  ok('rollup kind changeOrder', items[0].kind === 'changeOrder');
+  ok('rollup severity medium', items[0].severity === 'medium');
+  ok('rollup routes to first project', items[0].route.params?.id === 'p1');
+}
+
+// Singular message
+{
+  ok('1 pending → singular message', changeOrderAttention([mkCO()])[0].message.includes('1 change order awaiting'));
 }
 
 // ─── Footer ──────────────────────────────────────────────────────────────────

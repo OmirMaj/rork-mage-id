@@ -10,7 +10,7 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { useCoreData, useFinancialsData, useFieldData } from '@/contexts/ProjectContext';
+import { useCoreData, useFinancialsData } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton, SkeletonCard } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
@@ -18,9 +18,10 @@ import { effectiveEstimateTotal } from '@/utils/estimateCommit';
 import { generateForecast } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import {
-  computeWeekLoad, aggregateAttention, projectColor,
+  computeWeekLoad, projectColor,
   type AttentionItem, type TodayTask,
 } from '@/utils/summaryBriefing';
+import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { BriefingHero } from '@/components/summary/BriefingHero';
 import { TodayOnSite } from '@/components/summary/TodayOnSite';
 import { WeekAheadStrip } from '@/components/summary/WeekAheadStrip';
@@ -65,8 +66,7 @@ export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, isLoading } = useCoreData();
-  const { invoices, changeOrders } = useFinancialsData();
-  const { punchItems } = useFieldData();
+  const { invoices } = useFinancialsData();
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
@@ -113,9 +113,23 @@ export default function SummaryScreen() {
     return out.sort((a, b) => Number(b.isCritical) - Number(a.isCritical));
   }, [active]);
   const week = useMemo(() => computeWeekLoad(active), [active]);
-  const attention = useMemo(
-    () => aggregateAttention(active, invoices, punchItems, changeOrders),
-    [active, invoices, punchItems, changeOrders],
+  // THE canonical needs-attention set (useBrainWatch) — the same items +
+  // count the home Brain Watch card and the tab badge show, mapped to this
+  // screen's row shape. Summary used to run its own 3-rule aggregate
+  // (aggregateAttention), so it said "1" while home said "11" (sim-audit
+  // #15). The old rollups (high-priority punch, pending COs) are now part
+  // of the canonical set itself.
+  const { items: watchItems } = useBrainWatch();
+  const attention = useMemo<AttentionItem[]>(
+    () => watchItems.map((it) => ({
+      id: it.id,
+      severity: it.severity === 'medium' ? 'amber' : 'danger',
+      label: it.message,
+      actionLabel: 'View',
+      route: it.route.pathname,
+      params: it.route.params,
+    })),
+    [watchItems],
   );
   const jobCount = useMemo(() => new Set(today.map(t => t.projectId)).size, [today]);
 

@@ -5,12 +5,12 @@
 // No context calls, no side effects. Sorting + summarizing are separate.
 
 import type { Route } from 'expo-router';
-import type { Project, Invoice, Permit, Certification } from '@/types';
+import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '@/types';
 import { computeProjectProgress } from './projectProgress';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
-export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout';
+export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout' | 'punch' | 'changeOrder';
 export type AttnSeverity = 'critical' | 'high' | 'medium';
 
 export interface AttentionItem {
@@ -288,6 +288,52 @@ export function groupReadyPunchItems(items: ReadyPunchInput[]): ReadyPunchGroup[
   return [...groups.values()].map(({ _projects, ...group }) => group);
 }
 
+// ─── punchAttention ───────────────────────────────────────────────────────────
+
+/**
+ * ONE rollup item for open high-priority punch items (portfolio-wide).
+ * Mirrors the Summary dashboard's urgent-punch rule so the canonical
+ * needs-you set covers everything Summary used to count on its own
+ * (sim-audit #15 — Summary/home/bell counters disagreed).
+ */
+export function punchAttention(punchItems: PunchItem[]): AttentionItem[] {
+  const urgent = punchItems.filter((pi) => pi.status !== 'closed' && pi.priority === 'high');
+  if (urgent.length === 0) return [];
+  return [
+    {
+      id: 'punch-high-open',
+      projectId: urgent[0].projectId,
+      projectName: '',
+      kind: 'punch',
+      severity: 'high',
+      message: `${urgent.length} high-priority punch item${urgent.length === 1 ? '' : 's'} open`,
+      route: { pathname: '/project-detail', params: { id: urgent[0].projectId } },
+    },
+  ];
+}
+
+// ─── changeOrderAttention ─────────────────────────────────────────────────────
+
+/**
+ * ONE rollup item for change orders sitting in submitted / under_review.
+ * Same population as the Summary dashboard's pending-CO rule.
+ */
+export function changeOrderAttention(changeOrders: ChangeOrder[]): AttentionItem[] {
+  const pending = changeOrders.filter((co) => co.status === 'submitted' || co.status === 'under_review');
+  if (pending.length === 0) return [];
+  return [
+    {
+      id: 'co-awaiting-approval',
+      projectId: pending[0].projectId,
+      projectName: '',
+      kind: 'changeOrder',
+      severity: 'medium',
+      message: `${pending.length} change order${pending.length === 1 ? '' : 's'} awaiting approval`,
+      route: { pathname: '/project-detail', params: { id: pending[0].projectId } },
+    },
+  ];
+}
+
 // ─── closeoutAttention ────────────────────────────────────────────────────────
 
 /**
@@ -344,6 +390,8 @@ export function summarize(items: AttentionItem[]): {
     permit: 0,
     cert: 0,
     closeout: 0,
+    punch: 0,
+    changeOrder: 0,
   };
   for (const item of items) {
     byKind[item.kind]++;
