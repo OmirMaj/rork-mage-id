@@ -6,14 +6,16 @@
 //   2) Pulls QBO invoices updated since last_sync_at; when Balance == 0 (paid
 //      in QBO) synthesizes a payment record marked source:'qbo' so the push
 //      path (payment.ts Task 7 guard) does not re-push it back to QBO.
-//   2b) Pulls QBO Purchase/Bill lines updated since cost_pull_last_at into
-//       the qbo_cost_lines STAGING table (F5, Friday Close campaign). G11:
-//       staged rows reach job costs / the cost book ONLY through explicit
-//       per-line confirmation in the app's confirm queue; the upsert here
-//       refreshes 'staged' rows but NEVER resurrects a confirmed/rejected
-//       one. Cursor is cost_pull_last_at — deliberately separate from
-//       last_sync_at (the invoice pull already advances that; sharing would
-//       skip all cost history on the first run).
+//   2b) Pulls QBO Purchase/Bill lines into the qbo_cost_lines STAGING table
+//       (F5, Friday Close campaign). G11: staged rows reach job costs / the
+//       cost book ONLY through explicit per-line confirmation in the app's
+//       confirm queue; the upsert here refreshes 'staged' rows but NEVER
+//       resurrects a confirmed/rejected one. Cursors are PER-ENTITY
+//       (purchase_pull_last_at / bill_pull_last_at) — deliberately separate
+//       from last_sync_at (the invoice pull already advances that; sharing
+//       would skip all cost history on the first run) and from each other
+//       (a shared cursor advances past the full-page entity's unpulled
+//       backlog whenever the other entity has newer rows).
 //   3) Updates qbo_connections.last_sync_at on success; last_error on failure.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -236,13 +238,18 @@ serve(async (req) => {
 
       // -------------------------------------------------------------------
       // 2b) Pull Purchase/Bill cost lines → stage into qbo_cost_lines (F5).
-      //     Cursor: cost_pull_last_at (NOT last_sync_at — see header note).
+      //     Cursors: purchase_pull_last_at / bill_pull_last_at, one per
+      //     entity (NOT last_sync_at, NOT shared — see header note).
       // -------------------------------------------------------------------
       const nowIso = new Date().toISOString();
-      const costSinceIso =
-        (row as QboConnectionRow & { cost_pull_last_at?: string | null })
-          .cost_pull_last_at ?? "1970-01-01T00:00:00Z";
-      const costSince = costSinceIso.replace("T", " ").replace(/\..*$/, "").slice(0, 19);
+      const nowMs = Date.now();
+      const cursorCols = row as QboConnectionRow & {
+        purchase_pull_last_at?: string | null;
+        bill_pull_last_at?: string | null;
+      };
+      // QBO CWQL expects 'YYYY-MM-DD HH:MM:SS' (no T, no timezone suffix).
+      const toQboTs = (iso: string) =>
+        iso.replace("T", " ").replace(/\..*$/, "").slice(0, 19);
 
       // Line-level CustomerRef → MAGE project map (projects.qbo_customer_id
       // is the direct mapping column written by upsertCustomer).
@@ -257,22 +264,45 @@ serve(async (req) => {
       }
 
       const staged: StagedCostLine[] = [];
-      // Cursor bookkeeping: queries are ordered by LastUpdatedTime ASC, so
-      // when a page comes back FULL (history may remain — e.g. the first-run
-      // backfill since 1970) we advance the cursor only to the max
-      // LastUpdatedTime actually seen; the next 30-min cycle resumes from
-      // there instead of skipping everything past row 200. (If >200 txns
-      // share one timestamp the strict `>` skips the remainder — accepted,
-      // vanishingly rare.)
-      let maxSeenMs = 0;
-      let costPageFull = false;
-      const trackSeen = (txns: QboCostTxn[]) => {
-        if (txns.length >= COST_PAGE_SIZE) costPageFull = true;
+      // Per-entity cursor bookkeeping. Queries are ordered by LastUpdatedTime
+      // ASC with `>=` (inclusive) so a page cut landing inside a same-second
+      // group re-fetches that second next cycle instead of skipping its tail
+      // forever — the idempotent upsert plus the G11 prior-status skip absorb
+      // re-pulled rows. Advance rules per entity:
+      //  - full page → resume from the max LastUpdatedTime seen; if that made
+      //    no forward progress (an ENTIRE page shares the cursor's second),
+      //    step 1s past it — accepted residue, vanishingly rare;
+      //  - caught up → stamp now minus a 5-minute overlap so rows that were
+      //    not yet visible to the query (Intuit clock skew / late-committing
+      //    txns) are re-queried next cycle; kept monotonic.
+      const COST_CURSOR_LOOKBACK_MS = 5 * 60 * 1000;
+      interface EntityCursor {
+        sinceIso: string;
+        maxSeenMs: number;
+        pageFull: boolean;
+      }
+      const makeCursor = (stored: string | null | undefined): EntityCursor => ({
+        sinceIso: stored ?? "1970-01-01T00:00:00Z",
+        maxSeenMs: 0,
+        pageFull: false,
+      });
+      const trackSeen = (c: EntityCursor, txns: QboCostTxn[]) => {
+        if (txns.length >= COST_PAGE_SIZE) c.pageFull = true;
         for (const t of txns) {
           const ms = Date.parse(t.MetaData?.LastUpdatedTime ?? "");
-          if (!Number.isNaN(ms) && ms > maxSeenMs) maxSeenMs = ms;
+          if (!Number.isNaN(ms) && ms > c.maxSeenMs) c.maxSeenMs = ms;
         }
       };
+      const nextCursor = (c: EntityCursor): string => {
+        const sinceMs = Date.parse(c.sinceIso) || 0;
+        if (c.pageFull && c.maxSeenMs > 0) {
+          if (c.maxSeenMs > sinceMs) return new Date(c.maxSeenMs).toISOString();
+          return new Date(sinceMs + 1000).toISOString();
+        }
+        return new Date(Math.max(sinceMs, nowMs - COST_CURSOR_LOOKBACK_MS)).toISOString();
+      };
+      const purchaseCursor = makeCursor(cursorCols.purchase_pull_last_at);
+      const billCursor = makeCursor(cursorCols.bill_pull_last_at);
 
       // Purchases (cash/card/check expenses). Credit=true rows are refunds —
       // skipped (no deletion/void propagation in v1; documented cut).
@@ -280,12 +310,12 @@ serve(async (req) => {
         row,
         "/query?query=" +
           encodeURIComponent(
-            `select * from Purchase where MetaData.LastUpdatedTime > '${costSince}' orderby MetaData.LastUpdatedTime MAXRESULTS ${COST_PAGE_SIZE}`,
+            `select * from Purchase where MetaData.LastUpdatedTime >= '${toQboTs(purchaseCursor.sinceIso)}' orderby MetaData.LastUpdatedTime MAXRESULTS ${COST_PAGE_SIZE}`,
           ),
         { method: "GET" },
       )) as { QueryResponse?: { Purchase?: QboCostTxn[] } };
       const purchases = pq?.QueryResponse?.Purchase ?? [];
-      trackSeen(purchases);
+      trackSeen(purchaseCursor, purchases);
       for (const purchase of purchases) {
         if (purchase.Credit === true) continue;
         staged.push(...explodeCostLines(
@@ -299,12 +329,12 @@ serve(async (req) => {
         row,
         "/query?query=" +
           encodeURIComponent(
-            `select * from Bill where MetaData.LastUpdatedTime > '${costSince}' orderby MetaData.LastUpdatedTime MAXRESULTS ${COST_PAGE_SIZE}`,
+            `select * from Bill where MetaData.LastUpdatedTime >= '${toQboTs(billCursor.sinceIso)}' orderby MetaData.LastUpdatedTime MAXRESULTS ${COST_PAGE_SIZE}`,
           ),
         { method: "GET" },
       )) as { QueryResponse?: { Bill?: QboCostTxn[] } };
       const bills = bq?.QueryResponse?.Bill ?? [];
-      trackSeen(bills);
+      trackSeen(billCursor, bills);
       const ownCompany = (row.company_name ?? "").trim().toLowerCase();
       for (const bill of bills) {
         const vendor = bill.VendorRef?.name ?? null;
@@ -323,15 +353,35 @@ serve(async (req) => {
         // conditional DO UPDATE, so: read the prior status/project of the
         // touched keys, drop non-staged targets, and carry forward a
         // user-assigned project on rows we're refreshing.
-        const { data: priorRows } = await s
-          .from("qbo_cost_lines")
-          .select("qbo_type,qbo_id,qbo_line_id,status,project_id")
-          .eq("user_id", row.user_id)
-          .in("qbo_id", [...new Set(staged.map((l) => l.qbo_id))]);
+        //
+        // The read is load-bearing (a confirmed row's project_id would be
+        // wiped to NULL if its prior entry is missing), so it must not fail
+        // open: a read error THROWS — aborting the cost pass leaves the
+        // cursors unstamped, the same safe-retry path the upsert uses — and
+        // the read is chunked + range-paged so PostgREST's 1000-row response
+        // cap can never silently truncate priorByKey.
         const keyOf = (t: string, id: string, lid: string) => `${t}|${id}|${lid}`;
         const priorByKey = new Map<string, { status: string; project_id: string | null }>();
-        for (const p of (priorRows ?? []) as { qbo_type: string; qbo_id: string; qbo_line_id: string; status: string; project_id: string | null }[]) {
-          priorByKey.set(keyOf(p.qbo_type, p.qbo_id, p.qbo_line_id), p);
+        const allQboIds = [...new Set(staged.map((l) => l.qbo_id))];
+        const ID_CHUNK = 100;
+        const READ_PAGE = 1000;
+        for (let i = 0; i < allQboIds.length; i += ID_CHUNK) {
+          const idChunk = allQboIds.slice(i, i + ID_CHUNK);
+          for (let from = 0; ; from += READ_PAGE) {
+            const { data: priorRows, error: priorErr } = await s
+              .from("qbo_cost_lines")
+              .select("qbo_type,qbo_id,qbo_line_id,status,project_id")
+              .eq("user_id", row.user_id)
+              .in("qbo_id", idChunk)
+              .order("id", { ascending: true })
+              .range(from, from + READ_PAGE - 1);
+            if (priorErr) throw new Error(`qbo_cost_lines prior read: ${priorErr.message}`);
+            const batch = (priorRows ?? []) as { qbo_type: string; qbo_id: string; qbo_line_id: string; status: string; project_id: string | null }[];
+            for (const p of batch) {
+              priorByKey.set(keyOf(p.qbo_type, p.qbo_id, p.qbo_line_id), p);
+            }
+            if (batch.length < READ_PAGE) break;
+          }
         }
 
         const upserts: StagedCostLine[] = [];
@@ -354,15 +404,14 @@ serve(async (req) => {
         }
       }
 
-      // Stamp the cost cursor only after a fully successful cost pass.
-      // Full page → resume from the max LastUpdatedTime seen; otherwise we
-      // are caught up and jump to now.
-      const nextCostCursor = costPageFull && maxSeenMs > 0
-        ? new Date(maxSeenMs).toISOString()
-        : nowIso;
+      // Stamp BOTH per-entity cursors only after a fully successful cost
+      // pass (advance rules documented at nextCursor above).
       await s
         .from("qbo_connections")
-        .update({ cost_pull_last_at: nextCostCursor })
+        .update({
+          purchase_pull_last_at: nextCursor(purchaseCursor),
+          bill_pull_last_at: nextCursor(billCursor),
+        })
         .eq("user_id", row.user_id);
 
       // -------------------------------------------------------------------

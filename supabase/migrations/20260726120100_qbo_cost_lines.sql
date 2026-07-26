@@ -31,7 +31,12 @@ create policy qbo_cost_lines_owner on public.qbo_cost_lines
 
 create index qbo_cost_lines_user_status on public.qbo_cost_lines (user_id, status);
 
--- Separate cursor from the invoice-pull's last_sync_at; sharing would skip
--- cost history on first run since the invoice pull already advances it.
+-- Per-entity cost-pull cursors, separate from the invoice-pull's last_sync_at
+-- (sharing would skip cost history on first run since the invoice pull already
+-- advances it). TWO columns because Purchase and Bill are independently
+-- paginated queries: a single shared cursor advances past the unpulled
+-- backlog of whichever entity returned a full page whenever the other
+-- entity has newer rows (first-run backfill silently drops history).
 alter table public.qbo_connections
-  add column if not exists cost_pull_last_at timestamptz;
+  add column if not exists purchase_pull_last_at timestamptz,
+  add column if not exists bill_pull_last_at timestamptz;
