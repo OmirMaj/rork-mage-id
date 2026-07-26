@@ -11,11 +11,17 @@
 // LEG 1 bill  — unbilled WIP rows (> $500 floor, desc) + auto-drafted leak COs
 //               + QBO pending count line
 // LEG 2 chase — overdue invoices with payment predictions
-// LEG 3 close — WWP PPC for the ending week
-// LEG 4 commit — lookahead constraint-clear task count
+// LEG 3 close — WWP PPC for the ending week (recap → informational)
+// LEG 4 commit — lookahead constraint-clear task count (forecast → informational)
 // LEG 5 clients — unsent client-outbox items + (informational, active-project
-//               gated) weekly-update link and portal-digest notice — the
-//               informational lines never count toward allQuiet/open legs
+//               gated) weekly-update link and portal-digest notice
+//
+// INFORMATIONAL RULE (sim-audit fix #13): recap/forecast/notice lines carry
+// informational:true and never count toward allQuiet or any surface's
+// open-leg count. Only ACTIONABLE items (unbilled WIP, leak COs, QBO review,
+// overdue invoices, unsent client items) flip a leg open. This is what keeps
+// the home card ("N legs to close out") and the modal headline ("Clean
+// close…") in agreement — they both filter on the same flag.
 //
 // HONESTY: dunning already auto-chases (invoice-dunning fn). Leg 2 SHOWS the
 // state, never re-sends. Per-send receipts are deferred (documented cut).
@@ -278,6 +284,12 @@ function buildCloseLeg(
         text: `${emoji}${verdict} — committed ${ppcRecord.committed}, finished ${ppcRecord.completed} (${pctDisplay}% PPC)`,
         severity: ppcRecord.ppc < 0.6 ? 'medium' : undefined,
         route: { pathname: '/last-planner' },
+        // A RECAP of the finished week, not open work — informational so the
+        // home card and the modal headline count the same legs (sim-audit
+        // #13: home said "1 leg to close out" while the modal said "Clean
+        // close" because recap/forecast lines flipped allQuiet on only one
+        // surface's snapshot).
+        informational: true,
       });
     } else if (wwp.ppc != null) {
       // Fallback: pre-computed ppc passed in
@@ -287,6 +299,8 @@ function buildCloseLeg(
         text: `Last week's PPC: ${pctDisplay}%`,
         severity: wwp.ppc < 0.6 ? 'medium' : undefined,
         route: { pathname: '/last-planner' },
+        // Same recap rule as ppc-close above.
+        informational: true,
       });
     }
   }
@@ -307,6 +321,9 @@ function buildCommitLeg(
       text: `${lookaheadReadyCount} task${lookaheadReadyCount === 1 ? '' : 's'} constraint-clear for next week`,
       severity: undefined,
       route: { pathname: '/last-planner' },
+      // A FORECAST fact ("these tasks are ready"), not something left on the
+      // table — informational, same verdict rule as the ppc recap lines.
+      informational: true,
     });
   }
 
