@@ -192,6 +192,9 @@ export function receiptToCostSamples(r: MaterialReceipt, projectName: string): C
       actualUnit: l.unitPrice,
       basis: 'actual',
       closedAt,
+      // Provenance flows into the cost book (F5): confirmed QBO lines are
+      // distinguishable from scanned supplier invoices downstream.
+      source: r.origin === 'qbo' ? 'qbo' : 'receipt',
     });
   }
   return out;

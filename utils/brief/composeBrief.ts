@@ -57,6 +57,12 @@ export interface BriefItem {
   severity?: BriefSeverity;
   /** Where tapping the line lands (AttentionItem.route contract). */
   route?: BriefRoute;
+  /**
+   * True for FYI/reminder lines (e.g. the week-close "draft a client update"
+   * link) that are not open work: excluded from allQuiet and from open-leg
+   * counts so an evergreen reminder can never cry wolf.
+   */
+  informational?: boolean;
 }
 
 export interface MorningBrief {

@@ -1958,6 +1958,12 @@ export interface MaterialReceipt {
   total: number;
   /** Local URI / remote URL of the source photo, for re-review. */
   imageUri?: string;
+  /** Where this receipt came from: 'scan' = photographed supplier invoice
+   *  (the original flow; absent = scan for pre-existing rows), 'qbo' =
+   *  confirmed QuickBooks Purchase/Bill line materialized by the confirm
+   *  queue (deterministic id `qbo-<type>-<qboId>-<lineId>`, re-creatable
+   *  from the qbo_cost_lines staging table). Additive — F5. */
+  origin?: 'scan' | 'qbo';
   status: MaterialReceiptStatus;
   /** 0-100 — vision model's self-reported extraction confidence. */
   confidence?: number;

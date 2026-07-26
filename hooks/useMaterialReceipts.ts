@@ -57,6 +57,20 @@ export function useMaterialReceipts() {
     save.mutate([r, ...current()]);
   }, [save, current]);
 
+  // Atomic multi-add. Looping addReceipt races itself: each mutate snapshots
+  // current() BEFORE the previous onSuccess lands, so later calls clobber
+  // earlier ones. Used by the QBO confirm queue's bulk confirm and its
+  // re-materialization sweep (F6). Ids already present are skipped, which
+  // also makes deterministic-id replays (qbo-*) idempotent.
+  const addReceipts = useCallback((rs: MaterialReceipt[]) => {
+    if (rs.length === 0) return;
+    const existing = current();
+    const have = new Set(existing.map(r => r.id));
+    const fresh = rs.filter(r => !have.has(r.id));
+    if (fresh.length === 0) return;
+    save.mutate([...fresh, ...existing]);
+  }, [save, current]);
+
   const updateReceipt = useCallback((id: string, updates: Partial<MaterialReceipt>) => {
     save.mutate(current().map(r => (r.id === id ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r)));
   }, [save, current]);
@@ -70,5 +84,5 @@ export function useMaterialReceipts() {
     [receipts],
   );
 
-  return { receipts, isLoading, addReceipt, updateReceipt, deleteReceipt, getReceiptsForProject };
+  return { receipts, isLoading, addReceipt, addReceipts, updateReceipt, deleteReceipt, getReceiptsForProject };
 }

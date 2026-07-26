@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Users, Package, FileText, DollarSign, Shield } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Users, Package, FileText, DollarSign, Shield, Receipt } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -12,6 +12,7 @@ import { connectQuickBooks, fetchQboStatus, type QboStatus } from '@/utils/qboSy
 import { QboSuccessCheckmark } from '@/components/QboSuccessCheckmark';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import { useQboCostLines } from '@/hooks/useQboCostLines';
 
 export default function QboSetupScreen() {
   // Client-side tier gate BEFORE the OAuth browser can open. The server
@@ -43,6 +44,9 @@ function QboSetupScreenInner() {
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  // Staged cost-line count for the review entry badge (F6). Read-only,
+  // RLS-scoped; 5-min stale via the shared hook.
+  const { pendingCount } = useQboCostLines();
   const [status, setStatus] = useState<QboStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -196,6 +200,34 @@ function QboSetupScreenInner() {
                 <Stat label="Pending" value={status.counts?.pending ?? 0} styles={styles} />
                 <Stat label="Errors" value={status.counts?.error ?? 0} bad styles={styles} />
               </View>
+
+              {/* Cost review entry (F6): purchases/bills pulled from QBO wait
+                  in a confirm queue — nothing reaches job costs silently. */}
+              <TouchableOpacity
+                style={styles.reviewRow}
+                onPress={() => router.push('/qbo-review' as never)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={pendingCount > 0 ? `Review ${pendingCount} QuickBooks costs` : 'Review QuickBooks costs'}
+                testID="qbo-review-entry"
+              >
+                <View style={styles.syncIcon}><Receipt size={18} color={colors.accent} strokeWidth={1.75} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.syncTitle}>Cost review</Text>
+                  <Text style={styles.syncSub}>
+                    {pendingCount > 0
+                      ? `${pendingCount} purchase${pendingCount === 1 ? '' : 's'}/bill${pendingCount === 1 ? '' : 's'} from QuickBooks waiting for your confirm`
+                      : 'Purchases & bills from QuickBooks — confirm to file into job costs'}
+                  </Text>
+                </View>
+                {pendingCount > 0 && (
+                  <View style={styles.reviewBadge}>
+                    <Text style={styles.reviewBadgeText}>{pendingCount}</Text>
+                  </View>
+                )}
+                <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+
               <TouchableOpacity style={[styles.primary, busy && { opacity: 0.5 }]} onPress={onRefreshStatus} disabled={busy} testID="qbo-refresh-status">
                 <RefreshCw size={16} color="#FFFFFF" strokeWidth={1.75} />
                 <Text style={styles.primaryText}>{busy ? 'Refreshing…' : 'Refresh status'}</Text>
@@ -261,6 +293,21 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   statBad: { borderLeftWidth: 3, borderLeftColor: t.danger },
   statVal: { fontSize: 22, fontWeight: '800' as const, color: t.text },
   statLabel: { fontSize: 11, fontWeight: '700' as const, color: t.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+
+  // Cost-review entry (F6)
+  reviewRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line,
+    paddingVertical: 12, paddingHorizontal: 14, marginBottom: 12,
+  },
+  reviewBadge: {
+    minWidth: 22, height: 22, borderRadius: Tokens.radius.full,
+    paddingHorizontal: 6,
+    backgroundColor: t.accent,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  reviewBadgeText: { color: '#FFFFFF', fontSize: Type.caption2.fontSize, fontWeight: '800' as const },
 
   // Disconnected-state premium UI
   hero: {

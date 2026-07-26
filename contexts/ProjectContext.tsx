@@ -125,6 +125,7 @@ type CoreDataValue = {
 type FinancialsDataValue = {
   changeOrders: ChangeOrder[];
   addChangeOrder: (co: ChangeOrder) => void;
+  addChangeOrders: (cos: ChangeOrder[]) => void;
   getChangeOrdersForProject: (projectId: string) => ChangeOrder[];
   addInvoice: (invoice: Invoice) => void;
   updateInvoice: (id: string, updates: Partial<Invoice>) => void;
@@ -1561,25 +1562,38 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     [projects],
   );
 
-  const addChangeOrder = useCallback((co: ChangeOrder) => {
-    const finalCo: ChangeOrder = {
+  // Atomic multi-add. IMPORTANT: `addChangeOrder` closes over the render-time
+  // `changeOrders` snapshot and commits the FULL array (state + AsyncStorage
+  // persist), so calling it more than once in the same tick makes every call
+  // build from the same stale snapshot — each one clobbers the previous CO.
+  // Any code that creates several COs in one pass (e.g. the leak-CO sweep in
+  // hooks/useLeakCoDrafts.ts) MUST go through this batch call instead.
+  const addChangeOrders = useCallback((cos: ChangeOrder[]) => {
+    if (cos.length === 0) return;
+    const finalCos: ChangeOrder[] = cos.map(co => ({
       ...co,
       portalState: co.portalState ?? initialPortalState('change_order', co.projectId),
-    };
-    const updated = [finalCo, ...changeOrders];
+    }));
+    const updated = [...finalCos, ...changeOrders];
     setChangeOrders(updated);
     saveChangeOrdersMutation.mutate(updated);
     if (canSync) {
-      void supabaseWrite('change_orders', 'insert', {
-        id: finalCo.id, user_id: userId, project_id: finalCo.projectId, number: finalCo.number, date: finalCo.date,
-        description: finalCo.description, reason: finalCo.reason, line_items: finalCo.lineItems, original_contract_value: finalCo.originalContractValue,
-        change_amount: finalCo.changeAmount, new_contract_total: finalCo.newContractTotal, status: finalCo.status,
-        approvers: finalCo.approvers, approval_mode: finalCo.approvalMode, approval_deadline_days: finalCo.approvalDeadlineDays,
-        audit_trail: finalCo.auditTrail, revision: finalCo.revision, created_at: finalCo.createdAt, updated_at: finalCo.updatedAt,
-        portal_state: finalCo.portalState,
-      });
+      for (const finalCo of finalCos) {
+        void supabaseWrite('change_orders', 'insert', {
+          id: finalCo.id, user_id: userId, project_id: finalCo.projectId, number: finalCo.number, date: finalCo.date,
+          description: finalCo.description, reason: finalCo.reason, line_items: finalCo.lineItems, original_contract_value: finalCo.originalContractValue,
+          change_amount: finalCo.changeAmount, new_contract_total: finalCo.newContractTotal, status: finalCo.status,
+          approvers: finalCo.approvers, approval_mode: finalCo.approvalMode, approval_deadline_days: finalCo.approvalDeadlineDays,
+          audit_trail: finalCo.auditTrail, revision: finalCo.revision, created_at: finalCo.createdAt, updated_at: finalCo.updatedAt,
+          portal_state: finalCo.portalState,
+        });
+      }
     }
   }, [changeOrders, saveChangeOrdersMutation, canSync, userId, initialPortalState]);
+
+  const addChangeOrder = useCallback((co: ChangeOrder) => {
+    addChangeOrders([co]);
+  }, [addChangeOrders]);
 
   const updateChangeOrder = useCallback((id: string, updates: Partial<ChangeOrder>) => {
     const now = new Date().toISOString();
@@ -3896,12 +3910,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
   }), [sortedProjects, settings, hasSeenOnboarding, userRole, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, userRoleQuery.isLoading, projectsLoaded, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject]);
 
   const financialsData = useMemo<FinancialsDataValue>(() => ({
-    changeOrders, addChangeOrder, getChangeOrdersForProject,
+    changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject,
     addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices,
     commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject,
     prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
-  }), [changeOrders, addChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject]);
+  }), [changeOrders, addChangeOrder, addChangeOrders, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject]);
 
   const fieldData = useMemo<FieldDataValue>(() => ({
     dailyReports, getDailyReportsForProject,

@@ -9,8 +9,9 @@ import * as Notifications from 'expo-notifications';
 import {
   ChevronLeft, MessageSquare, HandCoins, CheckCircle2, Inbox, Bell,
   PenTool, ShoppingCart, HelpCircle, Hammer, Sunrise, MapPin, Clock,
-  Mail, Smartphone, Send,
+  Mail, Smartphone, Send, CalendarCheck, History, Lock, FileWarning,
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -22,7 +23,10 @@ import { supabase } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { registerForPushNotifications } from '@/utils/notifications';
 import { armDailyBriefNudge, disarmDailyBriefNudge } from '@/utils/brief/nudge';
+import { armWeekCloseNudge, disarmWeekCloseNudge } from '@/utils/weekClose/nudge';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useAutonomy, type AutonomyPreferences } from '@/hooks/useAutonomy';
+import { DID_FOR_YOU_KEY, parseDidForYouEntries, type DidForYouEntry } from '@/utils/brain/didForYou';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -161,6 +165,76 @@ export default function NotificationsSettingsScreen() {
       ? Intl.DateTimeFormat().resolvedOptions().timeZone
       : 'America/New_York'
   );
+
+  // Week-close nudge preference — stored under notification_preferences.weekClose.push
+  // (flat jsonb, additive key, no migration — same write pattern as the toggle fn below).
+  // Absent = ON (same as the morning digest opt-in pattern, but the close nudge defaults
+  // active since it fires only once per week and is trivially dismissible).
+  // notification_preferences is loaded into `prefs` above.
+  const weekCloseNudgeOn = prefs['weekClose']?.push !== false;
+
+  const updateWeekCloseNudge = useCallback((enabled: boolean) => {
+    void Haptics.selectionAsync().catch(() => {});
+    const next: Prefs = {
+      ...prefs,
+      weekClose: { ...(prefs['weekClose'] ?? {}), push: enabled },
+    };
+    setPrefs(next);
+    if (!user?.id) return;
+    void supabaseWrite('profiles', 'update', {
+      id: user.id,
+      notification_preferences: next,
+    });
+    if (Platform.OS !== 'web' && canAccess('brain_accuracy')) {
+      if (enabled) void armWeekCloseNudge({ enabled: true, prompt: true });
+      else void disarmWeekCloseNudge();
+    }
+  }, [prefs, user?.id, canAccess]);
+
+  // ── Brain autonomy (F4) ────────────────────────────────────────────────
+  // The earned-trust scoreboard + the two opt-out toggles. Prefs live on
+  // profiles.autonomy_preferences (absent = ON; the gate is the real lock).
+  // Gates come from graded brain_predictions rows via useAutonomy, which also
+  // writes promotion/demotion receipts to the did-for-you ledger — we surface
+  // the recent ones below the toggles so trust changes are never silent.
+  const { paceTradeGates, leakGate, prefs: autonomyPrefs, setPref: setAutonomyPref } = useAutonomy();
+  const pacePreApplyOn = autonomyPrefs.pace_preapply !== false;
+  const leakDraftOn = autonomyPrefs.leak_draft_co !== false;
+
+  const toggleAutonomy = useCallback((patch: Partial<AutonomyPreferences>) => {
+    void Haptics.selectionAsync().catch(() => {});
+    setAutonomyPref(patch);
+  }, [setAutonomyPref]);
+
+  // Per-trade rows, unlocked first, then by sample size.
+  const paceGateRows = useMemo(() => {
+    const rows = Array.from(paceTradeGates.values());
+    rows.sort((a, b) => (Number(b.passed) - Number(a.passed)) || (b.n - a.n) || a.trade.localeCompare(b.trade));
+    return rows;
+  }, [paceTradeGates]);
+
+  // Recent promotion/demotion receipts — filtered from the did-for-you ledger
+  // by the exact transition lines useAutonomy writes (single feature, two
+  // files; the strings are the contract).
+  const [autonomyReceipts, setAutonomyReceipts] = useState<DidForYouEntry[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(DID_FOR_YOU_KEY);
+        if (cancelled) return;
+        const entries = parseDidForYouEntries(raw).filter(e =>
+          e.text.includes('pace unlocked') ||
+          e.text.includes('pace calls for') ||
+          e.text.includes('Leak precision'),
+        );
+        setAutonomyReceipts(entries.slice(-4).reverse());
+      } catch {
+        // Scoreboard receipts are best-effort — never block the screen.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Project-location coverage. We compute how many active projects have
   // geocoded coords vs. how many have only a free-text location vs. how
@@ -589,6 +663,160 @@ export default function NotificationsSettingsScreen() {
           </View>
         </View>
 
+        {/* ── Friday Close nudge card ───────────────────────────────
+            A simple on/off toggle for the local Fri 15:00 nudge.
+            Native only — web has no scheduled local notifications.
+            Business+ gate (same 'brain_accuracy' proxy as the brief).
+            Riding notification_preferences.weekClose.push — additive
+            jsonb key, no migration needed. */}
+        {Platform.OS !== 'web' && canAccess('brain_accuracy') && (
+          <View style={styles.section}>
+            <View style={styles.groupHeader}>
+              <Text style={styles.groupTitle}>Friday Close nudge</Text>
+              <Text style={styles.groupSubtitle}>
+                A Friday 3 PM reminder to bill, chase, and close the week.
+              </Text>
+            </View>
+            <View style={styles.digestCard}>
+              <View style={styles.digestHeader}>
+                <View style={[styles.digestIcon, { backgroundColor: themeColors.accent }]}>
+                  <CalendarCheck size={18} color="#FFF" strokeWidth={1.75} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.digestTitle}>Friday 3 PM close nudge</Text>
+                  <Text style={styles.digestSubtitle}>
+                    {weekCloseNudgeOn
+                      ? 'On — fires Friday at 3:00 PM local'
+                      : 'Off — no nudge'}
+                  </Text>
+                </View>
+                <Switch
+                  value={weekCloseNudgeOn}
+                  onValueChange={updateWeekCloseNudge}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor="#FFF"
+                />
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Brain autonomy (F4) ───────────────────────────────────
+            The earned-trust scoreboard. Two draft-level abilities, each
+            double-locked: the per-domain graded gate (the real lock) AND
+            these opt-out toggles. Locked domains show live progress toward
+            the gate, not a dead switch; promotions/demotions surface as
+            receipts below. Business+ (same gate as the brief/close). */}
+        {canAccess('brain_accuracy') && (
+          <View style={styles.section}>
+            <View style={styles.groupHeader}>
+              <Text style={styles.groupTitle}>Brain autonomy</Text>
+              <Text style={styles.groupSubtitle}>
+                What MAGE may do on its own. Every ability is earned from your graded record — and revoked automatically when the record slips. Nothing is ever sent without you.
+              </Text>
+            </View>
+
+            {/* Pace pre-apply */}
+            <View style={[styles.digestCard, { marginBottom: 12 }]}>
+              <View style={styles.digestHeader}>
+                <View style={[styles.digestIcon, { backgroundColor: themeColors.accent }]}>
+                  <History size={18} color="#FFF" strokeWidth={1.75} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.digestTitle}>Pre-set durations from your pace</Text>
+                  <Text style={styles.digestSubtitle}>
+                    {pacePreApplyOn
+                      ? 'On — draft schedules arrive with unlocked trades already set to your measured pace (tap any badge to revert)'
+                      : 'Off — MAGE only suggests, never pre-sets'}
+                  </Text>
+                </View>
+                <Switch
+                  value={pacePreApplyOn}
+                  onValueChange={v => toggleAutonomy({ pace_preapply: v })}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor="#FFF"
+                />
+              </View>
+              <View style={styles.digestDivider} />
+              {paceGateRows.length === 0 ? (
+                <Text style={styles.autonomyEmpty}>
+                  No graded pace calls yet. Apply &quot;Your pace&quot; suggestions on draft schedules and finish those tasks — each graded call builds the record. A trade unlocks at 60% beat-or-tie over 5 calls.
+                </Text>
+              ) : (
+                paceGateRows.map(g => (
+                  <View key={g.trade} style={styles.autonomyRow}>
+                    {g.passed
+                      ? <CheckCircle2 size={14} color={themeColors.success} strokeWidth={2} />
+                      : <Lock size={14} color={themeColors.textMuted} strokeWidth={2} />}
+                    <Text style={styles.autonomyRowText}>
+                      {g.trade} · {Math.round(g.rate * g.n)}/{g.n} at {Math.round(g.rate * 100)}%
+                    </Text>
+                    <Text style={[styles.autonomyRowStatus, g.passed && { color: themeColors.success }]}>
+                      {g.passed ? 'unlocked' : 'unlocks at 60% over 5 jobs'}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* Leak → draft CO */}
+            <View style={styles.digestCard}>
+              <View style={styles.digestHeader}>
+                <View style={[styles.digestIcon, { backgroundColor: themeColors.accent }]}>
+                  <FileWarning size={18} color="#FFF" strokeWidth={1.75} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.digestTitle}>Draft change orders from leak scans</Text>
+                  <Text style={styles.digestSubtitle}>
+                    {leakDraftOn
+                      ? 'On — priced leaks in daily reports become draft COs for your review (drafts only, never sent)'
+                      : 'Off — leak drafting stays one-tap manual'}
+                  </Text>
+                </View>
+                <Switch
+                  value={leakDraftOn}
+                  onValueChange={v => toggleAutonomy({ leak_draft_co: v })}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent }}
+                  thumbColor="#FFF"
+                />
+              </View>
+              <View style={styles.digestDivider} />
+              {leakGate.n === 0 ? (
+                <Text style={styles.autonomyEmpty}>
+                  No graded leak scans yet. Scan daily reports for leaks, then bill (or dismiss) the flagged items — drafting unlocks at 50% billed over 5 scans.
+                </Text>
+              ) : (
+                <View style={styles.autonomyRow}>
+                  {leakGate.passed
+                    ? <CheckCircle2 size={14} color={themeColors.success} strokeWidth={2} />
+                    : <Lock size={14} color={themeColors.textMuted} strokeWidth={2} />}
+                  <Text style={styles.autonomyRowText}>
+                    {leakGate.n} scan{leakGate.n === 1 ? '' : 's'} graded · {Math.round(leakGate.billedRate * 100)}% billed
+                  </Text>
+                  <Text style={[styles.autonomyRowStatus, leakGate.passed && { color: themeColors.success }]}>
+                    {leakGate.passed ? 'unlocked' : 'unlocks at 50% over 5 scans'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Promotion / demotion receipts */}
+            {autonomyReceipts.length > 0 && (
+              <View style={styles.autonomyReceipts}>
+                <Text style={styles.autonomyReceiptsTitle}>Recent trust changes</Text>
+                {autonomyReceipts.map(r => (
+                  <View key={r.id} style={styles.receiptRow}>
+                    <Text style={styles.receiptDate}>
+                      {new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Text>
+                    <Text style={styles.receiptText}>{r.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="small" color={themeColors.accent} />
@@ -812,4 +1040,37 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   },
   previewBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
   nudgeNote: { marginTop: 10, fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
+
+  // ── Brain autonomy scoreboard (F4) ─────────────────────────────
+  autonomyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 6,
+  },
+  autonomyRowText: {
+    flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text,
+    textTransform: 'capitalize',
+  },
+  autonomyRowStatus: {
+    fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textMuted,
+  },
+  autonomyEmpty: {
+    fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17,
+  },
+  autonomyReceipts: {
+    marginTop: 12, paddingHorizontal: 4,
+  },
+  autonomyReceiptsTitle: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
+  },
+  receiptRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 3,
+  },
+  receiptDate: {
+    fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textMuted,
+    width: 46, flexShrink: 0,
+  },
+  receiptText: {
+    flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17,
+  },
 });

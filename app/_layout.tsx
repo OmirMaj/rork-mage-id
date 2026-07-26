@@ -603,6 +603,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="ask" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="brief" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="week-close" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
@@ -1181,6 +1182,13 @@ function RootLayoutNav() {
         name="qbo-setup"
         options={{
           title: "QuickBooks",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="qbo-review"
+        options={{
+          title: "QuickBooks Costs",
           headerShown: false,
         }}
       />

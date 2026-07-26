@@ -35,6 +35,10 @@ export interface CostSample {
   actualUnit: number;
   basis: 'actual' | 'committed';
   closedAt: string;
+  /** Provenance of a receipt-derived sample: 'receipt' = scanned supplier
+   *  invoice, 'qbo' = confirmed QuickBooks cost line. Absent on closed-job /
+   *  labor samples. Additive — F5. */
+  source?: 'receipt' | 'qbo';
 }
 
 export interface CostBookEntry {
