@@ -1,7 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Bell, ChevronDown, FolderOpen, CalendarDays, Download, FileInput, Mic } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -46,6 +46,26 @@ export function MobileScheduleScreen() {
   const styles = useThemedStyles(makeStyles);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
+
+  // Honor a projectId passed by callers (e.g. project-detail's "Open Full
+  // Schedule") — without this the tab keeps whichever project was last
+  // active here, which reads as "my schedule vanished" (P0 sim-audit bug).
+  // The `focus` nonce distinguishes a fresh navigation from the tab's sticky
+  // params: each arrival mints a new nonce, so re-opening from the same
+  // project re-applies, while plain tab presses (stale nonce) never yank the
+  // selection away from a project the user cycled to manually.
+  const { projectId: routeProjectId, focus: routeFocus } =
+    useLocalSearchParams<{ projectId?: string; focus?: string }>();
+  const consumedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!routeProjectId) return;
+    const nonce = `${routeProjectId}:${routeFocus ?? ''}`;
+    if (consumedFocusRef.current === nonce) return;
+    if (!projects.some((p) => p.id === routeProjectId)) return;
+    consumedFocusRef.current = nonce;
+    setSelectedProjectId(routeProjectId);
+  }, [routeProjectId, routeFocus, projects]);
+
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [tab, setTab] = useState<SubTab>('schedule');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});

@@ -2119,7 +2119,12 @@ export default function ProjectDetailScreen() {
 
                 <TouchableOpacity
                   style={styles.crossLinkBtn}
-                  onPress={() => navigateFromTile('/(tabs)/schedule' as any, 'replace')}
+                  // Pass the CURRENT project so the schedule tab opens on it —
+                  // without the param it shows whichever project was last
+                  // active there (P0 context drop, 2026-07 sim audit). The
+                  // `focus` nonce lets the schedule screen re-apply the param
+                  // on every visit while ignoring stale sticky tab params.
+                  onPress={() => navigateFromTile({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any, 'replace')}
                   activeOpacity={0.7}
                   testID="schedule-open-full-link"
                 >

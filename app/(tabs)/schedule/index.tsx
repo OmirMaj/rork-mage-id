@@ -16,7 +16,7 @@ import {
   Image,
   FlatList,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -154,6 +154,23 @@ function ScheduleScreen() {
   const desktopStyles = useThemedStyles(makeDesktopStyles);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
+
+  // Honor a projectId passed by callers (project-detail's "Open Full
+  // Schedule" et al). Same nonce pattern as MobileScheduleScreen: each
+  // navigation mints a `focus` nonce so fresh arrivals re-apply the param
+  // while sticky tab params from an old visit never override a manual switch.
+  const { projectId: routeProjectId, focus: routeFocus } =
+    useLocalSearchParams<{ projectId?: string; focus?: string }>();
+  const consumedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!routeProjectId) return;
+    const nonce = `${routeProjectId}:${routeFocus ?? ''}`;
+    if (consumedFocusRef.current === nonce) return;
+    if (!projects.some(p => p.id === routeProjectId)) return;
+    consumedFocusRef.current = nonce;
+    setSelectedProjectId(routeProjectId);
+  }, [routeProjectId, routeFocus, projects]);
+
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduleTask | null>(null);
