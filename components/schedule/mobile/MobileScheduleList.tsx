@@ -128,10 +128,13 @@ export function MobileScheduleList({
                     <SwipeRow key={t.id} done={done} onDone={() => markDone(t)} onDelete={() => confirmDelete(t)}>
                       <TouchableOpacity style={[styles.row, i > 0 ? styles.rowDivider : null]} activeOpacity={0.7} onPress={() => onPressTask(t)}>
                         {crit && <View style={[styles.critEdge, { backgroundColor: colors.danger }]} />}
+                        {/* Status icons speak the app-wide STATUS language
+                            (done=success, in-progress=info, idle=muted) —
+                            not the phase palette (sim-audit slop #5). */}
                         {done
                           ? <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} />
                           : t.status === 'in_progress'
-                            ? <CircleDot size={18} color={color} strokeWidth={1.75} />
+                            ? <CircleDot size={18} color={colors.info} strokeWidth={1.75} />
                             : <Circle size={18} color={colors.textMuted} strokeWidth={1.75} />}
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <View style={styles.titleRow}>

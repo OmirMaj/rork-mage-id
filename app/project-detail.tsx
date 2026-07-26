@@ -2108,7 +2108,7 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.scheduleSectionTitle}>Tasks</Text>
                 {(Array.isArray(project.schedule.tasks) ? project.schedule.tasks : []).map(task => (
                   <View key={task.id} style={styles.scheduleTaskRow}>
-                    <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? themeColors.success : task.status === 'in_progress' ? themeColors.info : themeColors.accent }]} />
+                    <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? themeColors.success : task.status === 'in_progress' ? themeColors.info : themeColors.textMuted }]} />
                     <View style={styles.scheduleTaskTextWrap}>
                       <Text style={styles.scheduleTaskName}>{task.title}</Text>
                       <Text style={styles.scheduleTaskMeta}>{task.phase} · Day {task.startDay} · {task.durationDays}d · {task.crew}</Text>
@@ -4549,7 +4549,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   scheduleTaskTextWrap: { flex: 1 },
   scheduleTaskName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, marginBottom: 2 },
   scheduleTaskMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
-  scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.info },
+  // Metric text, not a status — ink, not info-blue (sim-audit slop #5).
+  scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
   crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: themeColors.line },
   crossLinkText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },

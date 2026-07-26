@@ -29,7 +29,12 @@ export const PHASE_COLORS: Record<string, string> = {
   'Finishes':     '#22C55E', // green
   'Landscaping':  '#84CC16', // lime
   'Inspections':  '#F59E0B', // amber (matches MEP — they share the inspection cadence)
-  'General':      '#6366F1', // indigo
+  // 'General' is the DEFAULT phase every quick-added task lands in, so its
+  // color is effectively the app's "default task" color. The old indigo
+  // (#6366F1) made the whole schedule read as a second accent family next
+  // to the ink+amber system (sim-audit slop #5). Warm stone keeps it
+  // neutral — real trades keep their categorical hues.
+  'General':      '#7A7266', // warm stone (neutral — uncategorized work)
 };
 
 export function createId(_prefix: string): string {
@@ -423,7 +428,9 @@ export function getBaselineVariance(task: ScheduleTask, baseline: ScheduleBaseli
 }
 
 export function getPhaseColor(phase: string): string {
-  return PHASE_COLORS[phase] || '#6366F1';
+  // Unknown phases fall back to the same neutral as 'General' — an unmapped
+  // phase is uncategorized work, not a new accent color.
+  return PHASE_COLORS[phase] || '#7A7266';
 }
 
 export function generateWbsCodes(tasks: ScheduleTask[]): ScheduleTask[] {

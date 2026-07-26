@@ -328,10 +328,12 @@ export function MobileGantt({
             </TouchableOpacity>
           ) : (
             <TouchableOpacity key={r.task.id} style={[styles.lrow, styles.taskRow]} activeOpacity={0.7} onPress={() => onPressTask(r.task)}>
+              {/* Status icons use the status language (done=success,
+                  in-progress=info, idle=muted), not the phase palette. */}
               {r.task.status === 'done'
                 ? <CheckCircle2 size={15} color={colors.success} strokeWidth={1.75} />
                 : r.task.status === 'in_progress'
-                  ? <CircleDot size={15} color={getPhaseColor(r.task.phase || 'Other')} strokeWidth={1.75} />
+                  ? <CircleDot size={15} color={colors.info} strokeWidth={1.75} />
                   : <Circle size={15} color={colors.textMuted} strokeWidth={1.75} />}
               <Text style={[styles.taskName, r.task.status === 'done' ? styles.taskNameDone : null]} numberOfLines={1}>{r.task.title}</Text>
             </TouchableOpacity>
