@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>MAGE ID — A brain for your business | Construction intelligence for contractors</title>
   <link rel="canonical" href="https://mageid.app/" />
-  <meta name="description" content="MAGE is the construction app that gets smarter every job — it learns your real costs, prices hidden conditions from a photo, and builds schedules that explain themselves. Estimating, job costing, scheduling, invoicing — one flat price, subs free." />
+  <meta name="description" content="MAGE is construction intelligence that learns your real numbers and grades its own predictions on your jobs — it prices hidden conditions from a photo, builds schedules that explain themselves, and briefs you every morning. One flat price, subs free." />
   <meta name="theme-color" content="#0c0b09" />
 
   <meta property="og:type" content="website" />
   <meta property="og:title" content="MAGE ID — A brain for your business" />
-  <meta property="og:description" content="MAGE is the construction app that gets smarter every job — it learns your real costs, prices hidden conditions from a photo, and builds schedules that explain themselves." />
+  <meta property="og:description" content="Construction intelligence that learns your numbers and grades itself — it prices hidden conditions from a photo, plans like your best PM, and starts your day with a brief." />
   <meta property="og:url" content="https://mageid.app" />
   <meta property="og:site_name" content="MAGE ID" />
   <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
@@ -20,7 +20,7 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="MAGE ID — A brain for your business" />
-  <meta name="twitter:description" content="MAGE is the construction app that gets smarter every job — it learns your real costs, prices hidden conditions from a photo, and builds schedules that explain themselves." />
+  <meta name="twitter:description" content="Construction intelligence that learns your numbers and grades itself — it prices hidden conditions from a photo, plans like your best PM, and starts your day with a brief." />
   <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
 
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
@@ -60,7 +60,7 @@
     "name": "MAGE ID",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "iOS, Android, Web",
-    "description": "Construction intelligence for residential and light-commercial general contractors. Learns your real costs from finished jobs, prices hidden conditions from a photo, and builds schedules that explain themselves.",
+    "description": "Construction intelligence for residential and light-commercial general contractors. Learns your real costs from finished jobs, grades its own predictions against what actually happened, prices hidden conditions from a photo, and builds schedules that explain themselves.",
     "url": "https://mageid.app",
     "offers": [
       { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
@@ -260,6 +260,58 @@
   .payoff .total .v{font-size:clamp(24px,3.4vw,33px);font-weight:850;color:var(--good);letter-spacing:-.02em;font-variant-numeric:tabular-nums;text-align:right}
   .payoff .total .v small{font-family:var(--mono);font-size:10px;color:var(--dim);font-weight:600;letter-spacing:.1em;display:block;text-transform:uppercase}
 
+  /* scorecard — it keeps score on itself */
+  .scorecard{margin-top:36px;border:1px solid var(--line-d);background:linear-gradient(180deg,var(--panel),var(--ink-2));border-radius:16px;padding:clamp(20px,3vw,30px);box-shadow:0 30px 80px -44px #000;max-width:720px}
+  .scorecard .sc-top{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding-bottom:14px}
+  .scorecard .grades{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .scorecard .g{border:1px solid var(--line-d);background:rgba(255,255,255,.02);border-radius:12px;padding:14px 15px}
+  .scorecard .gv{display:block;font-family:var(--mono);font-size:clamp(20px,2.8vw,27px);font-weight:700;color:var(--good);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .scorecard .gl{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:6px;line-height:1.5}
+  .scorecard .ledger{margin-top:14px;border-top:1px solid var(--line-d)}
+  .scorecard .lrow{display:flex;justify-content:space-between;gap:14px;font-family:var(--mono);font-size:12.5px;color:var(--muted);padding:10px 0;border-bottom:1px solid var(--line-d)}
+  .scorecard .lrow .ok{color:var(--good);font-weight:700;white-space:nowrap}
+  .scorecard .lrow .miss{color:var(--no);font-weight:700;white-space:nowrap}
+  .scorecard .selfline{margin-top:16px;border:1px solid var(--amber-deep);background:rgba(229,129,31,.08);border-radius:12px;padding:14px 16px;font-size:15px;color:var(--bone);line-height:1.5}
+  .scorecard .selfline span{display:block;margin-top:6px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber-lift)}
+  .score-kick{margin-top:26px;font-size:clamp(16.5px,1.9vw,19px);font-weight:650;color:var(--bone);max-width:52ch;line-height:1.5}
+  @media(max-width:560px){.scorecard .grades{grid-template-columns:1fr 1fr}.scorecard .lrow{flex-direction:column;gap:3px}}
+
+  /* morning brief + ask */
+  .briefgrid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:38px}
+  @media(min-width:880px){.briefgrid{grid-template-columns:1.05fr .95fr;align-items:start}}
+  .briefcard{border:1px solid var(--line-d);background:linear-gradient(180deg,var(--panel),var(--ink-2));border-radius:16px;padding:20px;box-shadow:0 30px 80px -44px #000}
+  .briefcard .bh{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line-d);padding-bottom:12px}
+  .bgroup{margin-top:15px}
+  .bgroup .bt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:2px}
+  .bgroup.needs .bt{color:var(--amber-lift)} .bgroup.watch .bt{color:var(--steel)} .bgroup.done .bt{color:var(--good)}
+  .bgroup p:not(.bt){position:relative;padding-left:16px;font-size:13.5px;color:var(--muted);line-height:1.5;margin-top:7px}
+  .bgroup p:not(.bt)::before{content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;border-radius:50%;background:var(--faint)}
+  .bgroup.needs p:not(.bt)::before{background:var(--amber)}
+  .bgroup.watch p:not(.bt)::before{background:var(--steel)}
+  .bgroup.done p:not(.bt)::before{background:var(--good)}
+  .askq{display:inline-block;margin-top:16px;font-family:var(--mono);font-size:13px;font-weight:700;color:#160d04;background:var(--amber);padding:10px 14px;border-radius:12px 12px 12px 3px}
+  .aska{margin-top:12px;border:1px solid var(--line-d);background:rgba(255,255,255,.02);border-radius:3px 12px 12px 12px;padding:15px 16px}
+  .aska p{font-size:14.5px;color:var(--muted);line-height:1.55}
+  .aska b{color:var(--bone);font-weight:650}
+  .cites{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+  .cites span{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line-d);border-radius:4px;padding:3px 8px}
+
+  /* home passport */
+  .passport .pcard{margin-top:32px;border:1px solid var(--line-l);border-left:4px solid var(--amber);background:#fff;border-radius:12px;padding:clamp(20px,3vw,28px);display:grid;grid-template-columns:1fr;gap:22px;align-items:start}
+  @media(min-width:840px){.passport .pcard{grid-template-columns:1.1fr .9fr}}
+  .passport .pl{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber-deep);font-weight:700}
+  .passport ul{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:11px}
+  .passport li{position:relative;padding-left:20px;font-size:14.5px;color:#5a5346;line-height:1.5}
+  .passport li::before{content:"";position:absolute;left:2px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--amber)}
+  .passport li b{color:var(--ink);font-weight:700}
+  .homeask{border:1px solid var(--line-l);background:var(--paper);border-radius:12px;padding:16px 17px}
+  .homeask .hq{display:inline-block;font-family:var(--mono);font-size:12.5px;font-weight:700;color:#160d04;background:var(--amber);padding:9px 13px;border-radius:11px 11px 11px 3px}
+  .homeask .ha{margin-top:11px;font-size:14px;color:#4c4538;line-height:1.55;background:#fff;border:1px solid var(--line-l);border-radius:3px 11px 11px 11px;padding:13px 14px}
+  .homeask .hb{margin-top:11px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8a8070}
+  .homeask .hb b{color:var(--amber-deep)}
+  .pass-note{margin-top:24px;font-size:15.5px;color:#5a5346;line-height:1.55;max-width:62ch}
+  .pass-note b{color:var(--ink);font-weight:700}
+
   /* faq */
   .faq .list{margin-top:32px;max-width:820px;border-top:1px solid var(--line-l)}
   .faq details{border-bottom:1px solid var(--line-l)}
@@ -363,6 +415,27 @@
     <div class="brain-caption rv" id="brainCap"></div>
   </div></section>
 
+  <!-- SCORE — it grades its own predictions -->
+  <section class="dark sec score" id="score"><div class="wrap">
+    <div class="rv"><p class="kick">The receipts</p>
+    <h2 class="h">It keeps score on itself.</h2>
+    <p class="seclede">MAGE records every call it makes on your jobs — durations, hidden-condition prices, bid verdicts, leak flags — then grades itself against what actually happened. The misses stay on the board. That's what makes the hits worth trusting.</p></div>
+    <div class="scorecard rv" aria-hidden="true">
+      <div class="sc-top"><span>Prediction ledger · last 90 days</span><span>Graded against actuals</span></div>
+      <div class="grades">
+        <div class="g"><span class="gv">87%</span><span class="gl">Duration calls</span></div>
+        <div class="g"><span class="gv">91%</span><span class="gl">Cost calls</span></div>
+        <div class="g"><span class="gv">3/4</span><span class="gl">Bid verdicts won</span></div>
+      </div>
+      <div class="ledger">
+        <div class="lrow"><span>Subfloor rot, Maple St — called $1,400 · actual $1,510</span><span class="ok">✓ graded</span></div>
+        <div class="lrow"><span>Drywall, Henderson — called 6 days · ran 8</span><span class="miss">✕ miss → pace updated</span></div>
+      </div>
+      <p class="selfline">“My tile calls ran 9% hot last month — recalibrated.”<span>— your brain, in this morning's brief</span></p>
+    </div>
+    <p class="score-kick rv">No other construction software grades its own work. <span class="amb">Most wouldn't survive it.</span></p>
+  </div></section>
+
   <section class="light sec" id="faculties"><div class="wrap">
     <div class="rv brainhdr"><p class="kick">The anatomy of the brain</p>
     <h2 class="h">A brain does three things a filing cabinet never will.</h2>
@@ -412,11 +485,40 @@
     </div>
   </div></section>
 
+  <!-- MORNING BRIEF + ASK IT ANYTHING -->
+  <section class="dark sec brief"><div class="wrap">
+    <div class="rv"><p class="kick">6:30, every morning</p>
+    <h2 class="h">It starts your day.</h2>
+    <p class="seclede">Before your boots are on, the brain has already walked every job. Three lists, thirty seconds — what needs you, what it's watching, what it already handled.</p></div>
+    <div class="briefgrid">
+      <div class="briefcard rv" aria-hidden="true">
+        <div class="bh"><span>Tue · 6:30 AM</span><span>Morning brief</span></div>
+        <div class="bgroup needs"><p class="bt">Needs you</p>
+          <p>Change order #14 unsigned six days — tile starts Monday at Henderson.</p>
+          <p>Electrical bid came in $1,400 light — confirm what's included before you accept.</p></div>
+        <div class="bgroup watch"><p class="bt">Watching</p>
+          <p>Thursday's pour: 60% rain. Friday is clear — say the word and I'll reflow.</p>
+          <p>Maple St margin drifted 21% → 19% this week. Lumber invoices are the cause.</p></div>
+        <div class="bgroup done"><p class="bt">Done for you</p>
+          <p>Drafted the change order for yesterday's out-of-scope vent work — one tap to send.</p>
+          <p>Reflowed the Henderson schedule around the pushed inspection — nothing else slipped.</p></div>
+      </div>
+      <div class="briefcard rv" aria-hidden="true">
+        <div class="bh"><span>Ask it anything</span><span>Any job · any time</span></div>
+        <p class="askq">how's the henderson job really doing?</p>
+        <div class="aska">
+          <p>Better than it looks from the truck: <b>3 days ahead, margin holding at 22%</b>. Two things I'd watch — the tile order hasn't shipped and you need it in 9 days, and the plumbing inspection isn't booked yet. Call the supplier today and you stay ahead.</p>
+          <div class="cites"><span>Schedule</span><span>Budget</span><span>Daily reports</span><span>Change orders</span></div>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
   <!-- INTERACTIVE COMPARE -->
   <section class="dark sec" id="compare"><div class="wrap">
     <div class="rv"><p class="kick">The honest comparison</p>
     <h2 class="h">How's it different from what you use today?</h2>
-    <p class="seclede">Pick your current app. We'll be fair about what it does well — then show you the four things it structurally can't do, no matter how many features it ships.</p></div>
+    <p class="seclede">Pick your current app. We'll be fair about what it does well — then show you the six things it structurally can't do, no matter how many features it ships.</p></div>
 
     <div class="compare rv">
       <div class="cmp-ctl">
@@ -436,6 +538,30 @@
       <h3>Residential remodelers &amp; small-to-mid GCs · $500K–$5M a year.</h3>
       <p>You live and die on the bid, and you've been burned by what you couldn't see behind the drywall. You're too small for Procore's enterprise machine and overcharged by Buildertrend for storage you don't need. MAGE is the first tool built to price your unknowns and get sharper with every job you finish.</p>
     </div>
+  </div></section>
+
+  <!-- HOME PASSPORT -->
+  <section class="light sec passport"><div class="wrap">
+    <div class="rv"><p class="kick">The handoff</p>
+    <h2 class="h">Every job you finish hands your client the house's memory.</h2>
+    <p class="seclede">Close out a job and your client keeps a living record of their own home — not a binder that goes in a drawer, a brain they can ask.</p></div>
+    <div class="pcard rv">
+      <div>
+        <p class="pl">What they keep</p>
+        <ul>
+          <li><b>The pre-drywall photos.</b> What's behind every wall, on record before it was closed up.</li>
+          <li><b>Every warranty,</b> filed and dated — no shoebox of paperwork.</li>
+          <li><b>Who built what.</b> Every sub and supplier, attached to the work they did.</li>
+          <li><b>Ask their home anything.</b> The same brain that ran the job answers their questions — with your name on every answer.</li>
+        </ul>
+      </div>
+      <div class="homeask" aria-hidden="true">
+        <p class="hq">what's behind the master shower wall?</p>
+        <p class="ha">Pre-drywall photo from March 12 — PEX supply lines and blocking at 34″. Plumbing by RC Mechanical; the valve warranty runs to 2031.</p>
+        <p class="hb">Built by <b>your company</b> · answered by MAGE</p>
+      </div>
+    </div>
+    <p class="pass-note rv">Show one in your next pitch — you're the only bidder whose houses come with a memory. And it's <b>free for your client</b>, which makes every finished job a referral that shows itself off.</p>
   </div></section>
 
   <!-- FAQ -->
@@ -499,7 +625,7 @@
       sees:{x:.29,y:.31,cf:'It sees',h:'Prices what you can\u2019t see.',p:'<em>Cost X-Ray</em> \u2014 point the camera and it prices the hidden conditions on your learned costs, before they eat the job.'},
       remembers:{x:.20,y:.64,cf:'It remembers',h:'Gets smarter every job.',p:'The <em>cost-learning engine</em> feeds every finished job back into your numbers. Job #50 prices off 49 jobs of truth.'},
       plans:{x:.50,y:.13,cf:'It reasons',h:'Thinks the job through.',p:'<em>MAGE Copilot</em> builds the schedule from a conversation \u2014 and shows the assumptions, risks, and critical path.'},
-      foresees:{x:.77,y:.33,cf:'It foresees',h:'Sees around corners.',p:'It forecasts <em>margin, cash, and schedule slips</em> before they hit \u2014 and learns your crew\u2019s real pace from every finished task.'},
+      foresees:{x:.77,y:.33,cf:'It foresees',h:'Sees around corners.',p:'It forecasts <em>margin, cash, and schedule slips</em> before they hit \u2014 and opens your day with the <em>6:30 brief</em>: what needs you, what it\u2019s watching, what it handled.'},
       warns:{x:.74,y:.67,cf:'It reacts',h:'Warns you in time.',p:'The reflexes \u2014 it flags <em>unbilled out-of-scope work</em>, a light sub bid, a delay about to cascade, before it costs you.'},
       reads:{x:.45,y:.48,cf:'It reads',h:'Knows your plans by heart.',p:'Upload the sheets and <em>ask in English</em> \u2014 cited answers, straight to the right page.'},
       judges:{x:.50,y:.85,cf:'It judges',h:'Tells you which jobs to take.',p:'The <em>bid advisor</em> \u2014 take it, hold firm, or walk away, at the price your real costs demand.'}
@@ -511,6 +637,7 @@
         '<b>GC-only.</b> The client sees a professional bid; you see the margin you just protected.']},
       remembers:{shot:'/screenshots/screens/15-estimator.png',alt:'MAGE estimator with the learned cost catalog',tier:'Free to start',bullets:[
         '<b>Every closed job feeds the book</b> \u2014 real costs per trade, blended toward truth as jobs accumulate.',
+        '<b>Learns your crew\u2019s real pace and your real labor rates</b> \u2014 from finished tasks, not book numbers.',
         '<b>Knows your bidding bias.</b> If you habitually bid framing low, it says so \u2014 with the number.',
         '<b>Nobody can copy it.</b> A rival can clone a feature; they can\u2019t clone 50 of your finished jobs.']},
       plans:{shot:'/screenshots/screens/08-ai-copilot.png',alt:'MAGE Copilot building a schedule from a conversation',tier:'Pro',bullets:[
@@ -518,9 +645,9 @@
         '<b>Every duration shows its reasoning</b> \u2014 the assumption is flagged when it guessed, so you know what to check.',
         '<b>Say a change, see the ripple.</b> \u201cPush drywall a week\u201d \u2014 it shows what slides before you commit.']},
       foresees:{shot:'/screenshots/screens/10-cashflow.png',alt:'Cash-flow forecast with danger weeks',tier:'Pro',bullets:[
+        '<b>The 6:30 morning brief</b> \u2014 what needs you, what it\u2019s watching, and what it already handled overnight.',
         '<b>Cash-flow forecast</b> flags the week your balance goes negative \u2014 months before it happens.',
-        '<b>Margin-risk score</b> on every live job: thin bid, open allowances, unbought scope, drifting costs.',
-        '<b>Learns your crew\u2019s real pace</b> from finished tasks \u2014 the next schedule starts honest.']},
+        '<b>One business view</b> across every live job \u2014 margin-risk scores, thin bids, open allowances, drifting costs.']},
       warns:{shot:'/screenshots/screens/04-daily-report.png',alt:'Daily report with unbilled-work and schedule-impact scans',tier:'Free to start',bullets:[
         '<b>Reads your daily reports</b> and flags out-of-scope work you haven\u2019t billed \u2014 with a change order drafted in one tap.',
         '<b>Checks every sub bid</b> against your history: \u201c$1,400 under the scope it covers \u2014 confirm what\u2019s included.\u201d',
@@ -650,32 +777,34 @@
     {label:'Learns your real costs — from finished jobs', moat:true},
     {label:'Prices hidden conditions from a photo', moat:true},
     {label:'A schedule that explains itself', moat:true},
+    {label:'Grades its own predictions on your jobs', moat:true},
+    {label:'Hands your client a digital house record', moat:true},
     {label:'Gets smarter every job', moat:true},
     {label:'Starting price', price:true},
   ];
-  // caps: 6 icon values (yes/part/no) then price string
+  // caps: 8 icon values (yes/part/no) then price string
   var APPS = {
     buildertrend:{name:'Buildertrend', good:'Client portal, scheduling, and doc storage for established builders.',
-      caps:['yes','yes','no','no','no','no'], price:'$$$',
+      caps:['yes','yes','no','no','no','no','no','no'], price:'$$$',
       verdict:'A deep — and pricey — filing cabinet. It organizes your business. It never learns it.'},
     jobtread:{name:'JobTread', good:'Modern estimating with cost catalogs and a clean sales pipeline.',
-      caps:['yes','yes','no','no','no','no'], price:'$$',
+      caps:['yes','yes','no','no','no','no','no','no'], price:'$$',
       verdict:'A sharp <em>static</em> catalog someone has to maintain. Your costs, in MAGE, are alive and self-updating.'},
     procore:{name:'Procore', good:'Enterprise commercial projects, compliance, and deep integrations.',
-      caps:['part','yes','no','no','no','no'], price:'$$$$',
+      caps:['part','yes','no','no','no','no','no','no'], price:'$$$$',
       verdict:'Built for skyscrapers and priced like it. Overkill and overpriced for a $1–5M remodel.'},
     jack:{name:'JACK', good:'Simple, mobile-first job management for small crews.',
-      caps:['yes','yes','no','no','no','no'], price:'$$',
+      caps:['yes','yes','no','no','no','no','no','no'], price:'$$',
       verdict:'Same species as the rest — a system of record. The entire point of MAGE is that it\'s a brain.'},
     houzz:{name:'Houzz Pro', good:'Lead generation and a polished client-facing project view.',
-      caps:['part','part','no','no','no','no'], price:'$$',
+      caps:['part','part','no','no','no','no','no','no'], price:'$$',
       verdict:'Great for <em>finding</em> the job. Not built to price it, or run it, intelligently.'},
     sheets:{name:'Spreadsheets & gut feel', good:'Free, flexible, and honestly what most contractors still run on.',
-      caps:['part','part','no','no','no','no'], price:'Free',
+      caps:['part','part','no','no','no','no','no','no'], price:'Free',
       verdict:'You already do this math in your head. MAGE does it sharper — and, unlike you at 9pm, it remembers every job.'},
   };
   var ORDER = ['buildertrend','jobtread','procore','jack','houzz','sheets'];
-  var MAGE = {caps:['yes','yes','yes','yes','yes','yes'], price:'$29/mo'};
+  var MAGE = {caps:['yes','yes','yes','yes','yes','yes','yes','yes'], price:'$29/mo'};
 
   var sel = document.getElementById('cmpSel'), panel = document.getElementById('cmpPanel');
   if(sel && panel){
