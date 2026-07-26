@@ -178,7 +178,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
       if (targetProject) {
         const scheduleName = `${targetProject.name} Schedule`;
-        const schedule = buildScheduleFromTasks(scheduleName, targetProject.id, tasks);
+        const schedule = buildScheduleFromTasks(scheduleName, targetProject.id, tasks, undefined, { startDate: new Date().toISOString().slice(0, 10) });
         updateProject(targetProject.id, {
           schedule: { ...schedule, projectId: targetProject.id, updatedAt: new Date().toISOString() },
         });
@@ -199,7 +199,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           status: 'draft',
         };
         const scheduleName = `${projectName} Schedule`;
-        const schedule = buildScheduleFromTasks(scheduleName, newProject.id, tasks);
+        const schedule = buildScheduleFromTasks(scheduleName, newProject.id, tasks, undefined, { startDate: now.slice(0, 10) });
         newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
         addProject(newProject);
       }
@@ -249,7 +249,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
     if (targetProject) {
       const scheduleName = `${targetProject.name} Schedule`;
-      const schedule = buildScheduleFromTasks(scheduleName, targetProject.id, tasks);
+      const schedule = buildScheduleFromTasks(scheduleName, targetProject.id, tasks, undefined, { startDate: new Date().toISOString().slice(0, 10) });
       updateProject(targetProject.id, {
         schedule: { ...schedule, projectId: targetProject.id, updatedAt: new Date().toISOString() },
       });
@@ -268,7 +268,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         estimate: null,
         status: 'draft',
       };
-      const schedule = buildScheduleFromTasks(template.name, newProject.id, tasks);
+      const schedule = buildScheduleFromTasks(template.name, newProject.id, tasks, undefined, { startDate: now.slice(0, 10) });
       newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
       addProject(newProject);
     }
@@ -305,7 +305,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       estimate: null,
       status: 'draft',
     };
-    const schedule = buildScheduleFromTasks('New Schedule', newProject.id, []);
+    const schedule = buildScheduleFromTasks('New Schedule', newProject.id, [], undefined, { startDate: now.slice(0, 10) });
     newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
     addProject(newProject);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

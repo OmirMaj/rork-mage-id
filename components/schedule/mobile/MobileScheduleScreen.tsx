@@ -103,11 +103,24 @@ export function MobileScheduleScreen() {
     // each task's manual startDay. Passing criticalPathDays makes
     // buildScheduleFromTasks skip its forward-pass resolver, so manual positions
     // stick even for dependent tasks and day-0 isn't clamped to day-1.
-    const cpm = runCpm(nextTasks);
+    // CPM runs on the schedule's OWN calendar (anchor + working week +
+    // closures) so the stored finish agrees with every other surface — a raw
+    // 7-day run here used to disagree with the calendar-aware numbers the
+    // export/report path computes (sim-audit #2).
+    const cpm = runCpm(nextTasks, {
+      scheduleStartDate: activeSchedule?.startDate,
+      workingDaysPerWeek: activeSchedule?.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule?.nonWorkingDates,
+    });
     const critical = new Set(cpm.criticalPath);
     const flagged = nextTasks.map((t) => (critical.has(t.id) !== !!t.isCriticalPath ? { ...t, isCriticalPath: critical.has(t.id) } : t));
+    // startDate policy (finish-jump bug): an EXISTING schedule keeps its
+    // anchor exactly — including "no anchor" (retro-stamping today flips CPM
+    // raw-day → calendar mode and the finish jumps). Only schedule CREATION
+    // (first task on a project with no schedule yet) anchors at today.
+    const anchor = activeSchedule ? activeSchedule.startDate : startDate;
     const next = buildScheduleFromTasks(name, selectedProject.id, flagged, activeSchedule?.baseline ?? null, {
-      startDate: activeSchedule?.startDate ?? startDate,
+      ...(anchor ? { startDate: anchor } : {}),
       criticalPathDays: cpm.projectFinish,
     });
     updateProject(selectedProject.id, {

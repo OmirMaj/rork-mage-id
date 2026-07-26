@@ -109,6 +109,10 @@ export function MobileScheduleList({
             {!collapsed && (
               <View style={styles.card}>
                 {ph.tasks.map((t, i) => {
+                  // Milestones are 0-day events — show them as such. The
+                  // project-detail modal already prints 0d; clamping to 1d
+                  // here made the two surfaces contradict (sim-audit #2).
+                  const isMilestone = !!t.isMilestone || (t.durationDays || 0) === 0;
                   const dur = Math.max(1, t.durationDays || 1);
                   // startDay is 1-indexed (day 1 = schedule start), matching the
                   // desktop + CPM engine; shift by -1 to a 0-indexed day-offset.
@@ -134,7 +138,7 @@ export function MobileScheduleList({
                             <Text style={[styles.tname, done ? styles.tnameDone : null]} numberOfLines={1}>{t.title}</Text>
                             <Text style={styles.tpct}>{pct}%</Text>
                           </View>
-                          <Text style={styles.tmeta} numberOfLines={1}>{range} · {dur}d{crew ? ` · ${crew}` : ''}</Text>
+                          <Text style={styles.tmeta} numberOfLines={1}>{range} · {isMilestone ? 0 : dur}d{crew ? ` · ${crew}` : ''}</Text>
                           <View style={styles.track}><View style={[styles.fill, { width: `${pct}%`, backgroundColor: done ? colors.textMuted : color }]} /></View>
                         </View>
                       </TouchableOpacity>

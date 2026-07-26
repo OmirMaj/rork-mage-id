@@ -105,6 +105,7 @@ import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { runCpm } from '@/utils/cpm';
+import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 
 interface TaskDraft {
   title: string;
@@ -406,12 +407,18 @@ function ScheduleScreen() {
   const saveSchedule = useCallback((schedule: ProjectSchedule, project: Project | null) => {
     console.log('[Schedule] Saving schedule', { projectId: project?.id, taskCount: schedule.tasks.length });
     if (project) {
+      // startDate policy (finish-jump bug, sim-audit #2):
+      //  - project already has a schedule → preserve ITS anchor exactly,
+      //    including "no anchor". Retro-stamping today onto a dateless
+      //    schedule flips CPM raw-day → calendar mode and the finish jumps.
+      //  - first schedule for this project (creation) → anchor today (or the
+      //    builder-supplied date) so day-math has a basis from day one and no
+      //    raw→calendar flip can ever occur later.
+      const startDate = project.schedule
+        ? project.schedule.startDate
+        : (schedule.startDate ?? new Date().toISOString().slice(0, 10));
       updateProject(project.id, {
-        // Preserve the existing schedule.startDate across rebuilds; fall back to
-        // the freshly-built one (today) only when none exists. Without this,
-        // editing a task would reset the project start to today and the Summary
-        // dashboard's Today/Week day-math would drift.
-        schedule: { ...schedule, projectId: project.id, startDate: project.schedule?.startDate ?? schedule.startDate, updatedAt: new Date().toISOString() },
+        schedule: { ...schedule, projectId: project.id, startDate, updatedAt: new Date().toISOString() },
         status: project.estimate ? 'estimated' : 'draft',
       });
       return;
@@ -422,7 +429,8 @@ function ScheduleScreen() {
       location: 'United States', squareFootage: 0, quality: 'standard',
       description: 'Created from Schedule', createdAt: now, updatedAt: now,
       estimate: null,
-      schedule: { ...schedule, projectId: null, updatedAt: now },
+      // Creation → anchor today unless the builder supplied a date.
+      schedule: { ...schedule, projectId: null, startDate: schedule.startDate ?? now.slice(0, 10), updatedAt: now },
       status: 'draft',
     };
     addProject(newProject);
@@ -441,11 +449,39 @@ function ScheduleScreen() {
       Alert.alert('No schedule', 'Add at least one task before setting a project start date.');
       return;
     }
-    const next: ProjectSchedule = { ...activeSchedule, startDate: isoYYYYMMDD };
-    saveSchedule(next, selectedProject);
+    // First explicit anchor on a dateless schedule: its startDay values are
+    // raw working-day ordinals, so re-map them onto the calendar before the
+    // CPM mode flip — otherwise every multi-day chain silently inflates (the
+    // finish-jump bug). Mirrors schedule-pro's settings Apply handler.
+    const tasks = !activeSchedule.startDate
+      ? rebaseRawToCalendar(
+          activeSchedule.tasks, isoYYYYMMDD,
+          activeSchedule.workingDaysPerWeek, activeSchedule.nonWorkingDates,
+        )
+      : activeSchedule.tasks;
+    // Refresh the duration scalars against the new anchor so the modal /
+    // summary read engine-true numbers immediately, not on the next edit.
+    const cpmRes = runCpm(tasks, {
+      scheduleStartDate: isoYYYYMMDD,
+      workingDaysPerWeek: activeSchedule.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule.nonWorkingDates,
+    });
+    const next: ProjectSchedule = {
+      ...activeSchedule, tasks, startDate: isoYYYYMMDD,
+      totalDurationDays: cpmRes.projectFinish, criticalPathDays: cpmRes.projectFinish,
+    };
+    // saveSchedule preserves an EXISTING schedule's anchor — this is the one
+    // place the user explicitly changes it, so write through updateProject.
+    if (selectedProject) {
+      updateProject(selectedProject.id, {
+        schedule: { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() },
+      });
+    } else {
+      saveSchedule(next, selectedProject);
+    }
     setIsProjectStartDatePickerOpen(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [activeSchedule, saveSchedule, selectedProject]);
+  }, [activeSchedule, saveSchedule, selectedProject, updateProject]);
 
   /**
    * Centralized persist helper for all mobile task edits (tap-edit + copilot
