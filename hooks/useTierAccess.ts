@@ -1,46 +1,14 @@
 import { useCallback, useMemo } from 'react';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import type { SubscriptionTier } from '@/types';
+import { REQUIRED_TIER, tierMeetsRequirement } from '@/utils/featureTiers';
+import type { FeatureKey } from '@/utils/featureTiers';
 
-/**
- * Feature keys used across the app. When gating a screen or action,
- * always reference one of these keys so the tier-gating logic is centralized.
- */
-export type FeatureKey =
-  // Pro+ features
-  | 'cash_flow_forecaster'
-  | 'schedule_gantt_pdf'
-  | 'ai_code_check'
-  | 'client_portal'
-  | 'lien_waiver_manager'
-  | 'equipment_rental'
-  | 'photo_documentation'
-  | 'change_orders_invoicing'
-  | 'aia_pay_app'
-  | 'ai_estimate_wizard'
-  | 'schedule_scenarios'
-  | 'job_costing'
-  | 'prequal_coi'
-  | 'plan_markup'
-  | 'schedule_import'
-  // Business-only features
-  | 'unlimited_bid_responses'
-  | 'plan_viewer'
-  | 'subcontractor_management'
-  | 'punch_list_closeout'
-  | 'rfis_submittals'
-  | 'full_budget_dashboard'
-  | 'wip_reporting'
-  | 'safety_management'
-  | 'crew_management'
-  | 'scan_anything'
-  | 'cost_xray'
-  | 'bid_scoring'
-  | 'ask_your_plans'
-  | 'brain_accuracy'
-  // All tiers (with limits)
-  | 'post_homeowner_request'
-  | 'post_community_bid';
+// The FeatureKey union + REQUIRED_TIER table now live in utils/featureTiers.ts
+// (pure, React-free) so the feature-search registry and bun validators can
+// import them. Re-exported here so existing
+// `import type { FeatureKey } from '@/hooks/useTierAccess'` callsites keep
+// working unchanged.
+export type { FeatureKey } from '@/utils/featureTiers';
 
 // Removed in May 2026 audit (no callsites, no honest claim):
 //   - 'unlimited_projects'   — no project-count limiter exists; row pulled
@@ -77,44 +45,6 @@ export type FeatureKey =
 //   - 'daily_field_reports'  — the Daily Reports screen is open to all tiers.
 //                              No gating callsite was ever wired up.
 
-/** The minimum tier required to unlock a feature. */
-const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
-  // Pro+
-  cash_flow_forecaster: 'pro',
-  schedule_gantt_pdf: 'pro',
-  ai_code_check: 'pro',
-  client_portal: 'pro',
-  lien_waiver_manager: 'pro',
-  equipment_rental: 'pro',
-  photo_documentation: 'pro',
-  change_orders_invoicing: 'pro',
-  aia_pay_app: 'pro',
-  ai_estimate_wizard: 'pro',
-  schedule_scenarios: 'pro',
-  job_costing: 'pro',
-  prequal_coi: 'pro',
-  plan_markup: 'pro',
-  schedule_import: 'pro',
-  // Business-only
-  unlimited_bid_responses: 'business',
-  plan_viewer: 'business',
-  subcontractor_management: 'business',
-  punch_list_closeout: 'business',
-  rfis_submittals: 'business',
-  full_budget_dashboard: 'business',
-  wip_reporting: 'business',
-  safety_management: 'business',
-  crew_management: 'business',
-  scan_anything: 'business',
-  cost_xray: 'business',
-  bid_scoring: 'business',
-  ask_your_plans: 'business',
-  brain_accuracy: 'business',
-  // Available to all
-  post_homeowner_request: 'free',
-  post_community_bid: 'free',
-};
-
 /** Per-tier monthly quotas for features that have usage caps. Enterprise
  *  values match Business unless explicitly higher — added so callsites
  *  that iterate FEATURE_LIMITS by tier see all four tiers. */
@@ -135,16 +65,6 @@ export const FEATURE_LIMITS = {
   // Sample/demo projects are excluded by the caller before comparing.
   maxProjects:             { free: 1, pro: Infinity, business: Infinity, enterprise: Infinity },
 } as const;
-
-function tierMeetsRequirement(
-  currentTier: SubscriptionTier,
-  requiredTier: 'free' | 'pro' | 'business' | 'enterprise',
-): boolean {
-  // Numeric rank — higher current tier always satisfies a lower requirement.
-  // Enterprise (3) ≥ Business (2) ≥ Pro (1) ≥ Free (0).
-  const rank: Record<SubscriptionTier, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
-  return rank[currentTier] >= rank[requiredTier];
-}
 
 /**
  * Central access-control hook. Returns the current tier and a `canAccess`
