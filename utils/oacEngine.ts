@@ -19,6 +19,7 @@ import type {
   Project, ProjectSchedule, ScheduleTask, RFI, Submittal, ChangeOrder,
   DailyFieldReport, OACAgendaItem, OACAgendaSection,
 } from '@/types';
+import { computeRFILatency } from '@/utils/rfiLatency';
 
 import { generateUUID } from '@/utils/generateId';
 
@@ -142,6 +143,34 @@ export function buildAgendaFromProjectState(inputs: AgendaInputs): OACAgendaItem
         return `• #${r.number} ${r.subject} — ${age}d open${r.assignedTo ? ` (waiting on ${r.assignedTo})` : ''}`;
       }).join('\n'),
       status: overdueRfis.length > 0 ? 'urgent' : agingRfis.length > 0 ? 'warn' : 'info',
+    });
+  }
+
+  // ── 3b. RFI latency grounding — when overdue RFIs exist, add a grounded
+  //        agenda item with the architect's historical response average so
+  //        the GC has leverage in the meeting ("architect averages Yd").
+  if (overdueRfis.length > 0) {
+    const latency = computeRFILatency(rfis ?? []);
+    const oldestOverdue = overdueRfis.reduce((oldest, r) => {
+      const t = new Date(r.dateSubmitted).getTime();
+      return t < new Date(oldest.dateSubmitted).getTime() ? r : oldest;
+    }, overdueRfis[0]);
+    const oldestAge = daysBetween(oldestOverdue.dateSubmitted);
+    const avgNote = latency.medianResponseDays > 0
+      ? ` (architect averages ${latency.medianResponseDays}d)`
+      : '';
+    items.push({
+      id: createId('agenda'),
+      section: 'rfis',
+      title: `${overdueRfis.length} RFI${overdueRfis.length === 1 ? '' : 's'} overdue — oldest #${oldestOverdue.number} (${oldestAge}d old)${avgNote}`,
+      detail: overdueRfis.slice(0, 3).map(r => {
+        const age = daysBetween(r.dateSubmitted);
+        const dueAge = r.dateRequired ? daysBetween(r.dateRequired) : 0;
+        return `• #${r.number} ${r.subject} — ${age}d open, ${dueAge}d past due`;
+      }).join('\n'),
+      status: 'urgent',
+      referenceId: oldestOverdue.id,
+      referenceType: 'rfi',
     });
   }
 

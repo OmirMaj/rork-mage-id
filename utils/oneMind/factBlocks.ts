@@ -379,9 +379,7 @@ export function buildLeaksBlock(openCount: number, estTotal: number): FactBlock 
     domain: 'OPEN LEAK FLAGS',
     ref: 'LEAKS',
     facts,
-    // Same destination the Morning Brief routes this exact data to
-    // (composeBrief.ts buildLeakItem) — /profit-leak-history never existed.
-    drillIn: { pathname: '/report-inbox' },
+    drillIn: { pathname: '/profit-leak-history' },
   };
 }
 
@@ -487,7 +485,33 @@ export async function assembleFactBlocks(
   }
 
   // ── Business scope ─────────────────────────────────────────────────────
+  //
+  // Cross-project compare: when the router detected two+ disjoint project
+  // matches (e.g. "compare Henderson and Lakewood"), inject a compact
+  // MARGIN + SCHEDULE mini-block for each matched project (up to 2) so the
+  // model has both jobs' facts in context. Additive — skips gracefully if
+  // project not found or engines fail.
+  const crossProjectSources: BlockSource[] = [];
+  if (scope.matchedProjectIds && scope.matchedProjectIds.length >= 2) {
+    const compareIds = scope.matchedProjectIds.slice(0, 2);
+    for (const pid of compareIds) {
+      const p = bundle.projects.find(proj => proj.id === pid);
+      if (!p) continue;
+      const pCOs = bundle.changeOrders.filter(c => c.projectId === pid);
+      const pInvoices = bundle.invoices.filter(i => i.projectId === pid);
+      // Inline MARGIN mini-block (re-uses buildMarginBlock pure fn).
+      crossProjectSources.push(() =>
+        buildMarginBlock(pid, p.name, computeLivingEstimate({
+          project: p, changeOrders: pCOs, commitments: bundle.commitments, invoices: pInvoices,
+        })),
+      );
+      // Inline SCHEDULE mini-block.
+      crossProjectSources.push(() => buildScheduleBlock(p, now));
+    }
+  }
+
   return runAdditive([
+    ...crossProjectSources,
     // WATCH — ranked attention across every active job + certs.
     () => buildBrainWatchBlock(collectAttentionItems(bundle, undefined, now)),
     // CASH — AsyncStorage inputs + pure forecast engine (lazy).

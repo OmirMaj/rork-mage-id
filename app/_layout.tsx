@@ -80,6 +80,7 @@ function pathToDocumentTitle(pathname: string): string | null {
     '/notifications-inbox': 'Notifications',
     '/messages': 'Messages',
     '/report-inbox': 'Report inbox',
+    '/profit-leak-history': 'Profit Leak History',
     '/activity-feed': 'Activity',
     '/payments': 'Payments',
     '/payments-setup': 'Stripe Connect',
@@ -1211,6 +1212,13 @@ function RootLayoutNav() {
           headerStyle: { backgroundColor: Colors.background },
           headerTintColor: Colors.primary,
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="profit-leak-history"
+        options={{
+          title: "Profit Leak History",
+          headerShown: false,
         }}
       />
       <Stack.Screen

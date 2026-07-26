@@ -168,6 +168,7 @@ function ScheduleProScreenInner() {
     getPlanZonesForProject,
     getPinsForPlan,
     getPhotosForProject,
+    getDailyReportsForProject,
   } = useProjects();
 
   const project = useMemo(
@@ -1614,6 +1615,7 @@ function ScheduleProScreenInner() {
         forecasts={forecast}
         projectStartDate={projectStartDate}
         onPushTasks={handleWeatherPush}
+        dailyReports={projectId ? getDailyReportsForProject(projectId) : undefined}
       />
 
       {/* Copilot edit bar — desktop parity with the mobile "Tell me what to

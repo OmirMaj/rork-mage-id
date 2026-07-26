@@ -19,8 +19,9 @@ import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { ScheduleTask } from '@/types';
+import type { ScheduleTask, DailyFieldReport } from '@/types';
 import { findWeatherRisk, getConditionIcon, type DayForecast } from '@/utils/weatherService';
+import { computeWeatherHistory, weatherHistoryFactLine } from '@/utils/weatherHistory';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -29,6 +30,8 @@ export interface WeatherReschedulePromptProps {
   forecasts: DayForecast[];
   projectStartDate: Date;
   onPushTasks: (patches: { taskId: string; deltaDays: number }[]) => void;
+  /** Project's daily field reports — used to surface historical lost-day grounding. */
+  dailyReports?: DailyFieldReport[];
 }
 
 interface WeatherConflict {
@@ -65,12 +68,18 @@ function findFirstWorkableOffset(
 }
 
 function WeatherReschedulePromptImpl({
-  tasks, forecasts, projectStartDate, onPushTasks,
+  tasks, forecasts, projectStartDate, onPushTasks, dailyReports,
 }: WeatherReschedulePromptProps) {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const [dismissed, setDismissed] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+
+  // Historical grounding: "Your history here: ~N lost days/mo" when data exists.
+  const historyLine = useMemo(() => {
+    if (!dailyReports || dailyReports.length === 0) return null;
+    return weatherHistoryFactLine(computeWeatherHistory(dailyReports));
+  }, [dailyReports]);
 
   const conflicts = useMemo<WeatherConflict[]>(() => {
     if (forecasts.length === 0) return [];
@@ -122,6 +131,9 @@ function WeatherReschedulePromptImpl({
             {conflicts.length > 3 ? `, +${conflicts.length - 3} more` : ''}
             {' · '}{conflicts[0].hitDay.icon} {conflicts[0].hitDay.condition}
           </Text>
+          {historyLine ? (
+            <Text style={styles.bannerHistory}>Your history here: {historyLine}</Text>
+          ) : null}
         </View>
         <View style={styles.bannerActions}>
           <TouchableOpacity
@@ -235,6 +247,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   bannerBody: { flex: 1, gap: 2 },
   bannerTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.1 },
   bannerSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14 },
+  bannerHistory: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 14, fontStyle: 'italic' },
   bannerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bannerSecondaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 2,

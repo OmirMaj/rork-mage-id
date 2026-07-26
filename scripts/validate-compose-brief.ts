@@ -181,7 +181,7 @@ console.log('\ncomposeBrief — leak flags:');
   ok('ledger leak item present', !!leak);
   ok('ledger leak text carries count + $', !!leak && leak.text.includes('2 profit-leak scans') && leak.text.includes('$'), leak?.text);
   ok('leak ≥$1K → high severity', leak?.severity === 'high');
-  ok('leak routes to a real screen (/report-inbox)', leak?.route?.pathname === '/report-inbox');
+  ok('leak routes to the leak history screen (/profit-leak-history)', leak?.route?.pathname === '/profit-leak-history');
 
   // Pure fallback: openLeakFlags null → scan reports from last 14 days on
   // active projects only.
