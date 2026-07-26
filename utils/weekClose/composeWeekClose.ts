@@ -13,7 +13,9 @@
 // LEG 2 chase — overdue invoices with payment predictions
 // LEG 3 close — WWP PPC for the ending week
 // LEG 4 commit — lookahead constraint-clear task count
-// LEG 5 clients — unsent client-outbox items + weekly update link
+// LEG 5 clients — unsent client-outbox items + (informational, active-project
+//               gated) weekly-update link and portal-digest notice — the
+//               informational lines never count toward allQuiet/open legs
 //
 // HONESTY: dunning already auto-chases (invoice-dunning fn). Leg 2 SHOWS the
 // state, never re-sends. Per-send receipts are deferred (documented cut).
@@ -315,6 +317,7 @@ function buildCommitLeg(
 
 function buildClientsLeg(
   unsentClientItemCount: number | undefined,
+  activeProjects: Project[],
 ): WeekCloseLeg {
   const items: BriefItem[] = [];
 
@@ -327,22 +330,32 @@ function buildClientsLeg(
     });
   }
 
-  // Weekly update drafting link — always shown as a low-friction reminder
-  items.push({
-    id: 'client-update',
-    text: 'Draft this week\'s client update',
-    severity: undefined,
-    route: { pathname: '/client-update' },
-  });
+  // Weekly update drafting link — a low-friction REMINDER, only when there is
+  // an active project to update clients about, and informational so it never
+  // counts as open work (allQuiet / open-leg counts ignore it).
+  if (activeProjects.length > 0) {
+    items.push({
+      id: 'client-update',
+      text: 'Draft this week\'s client update',
+      severity: undefined,
+      route: { pathname: '/client-update' },
+      informational: true,
+    });
+  }
 
-  // HONESTY: portal digest fires automatically Fri 16:00 UTC for portal projects
-  // — say so, don't re-surface as a to-do.
-  items.push({
-    id: 'portal-digest-notice',
-    text: 'Portal homeowner digest goes out automatically today',
-    severity: undefined,
-    route: { pathname: '/client-outbox' },
-  });
+  // HONESTY: portal digest fires automatically Fri 16:00 UTC for portal
+  // projects — say so, don't re-surface as a to-do. Shown ONLY when an active
+  // project actually has a portal (saying it to a non-portal user is false),
+  // and informational for the same reason as above.
+  if (activeProjects.some(p => p.clientPortal?.enabled)) {
+    items.push({
+      id: 'portal-digest-notice',
+      text: 'Portal homeowner digest goes out automatically today',
+      severity: undefined,
+      route: { pathname: '/client-outbox' },
+      informational: true,
+    });
+  }
 
   return { id: 'clients', title: 'Tell the clients', items };
 }
@@ -401,6 +414,10 @@ export function composeWeekClose(input: ComposeWeekCloseInput): WeekClose {
   const autoDraftedCOs = input.autoDraftedCOs ?? [];
   const qboPendingCount = input.qboPendingCount ?? 0;
 
+  const activeProjects = input.projects.filter(
+    p => projectIsActive(p, input.invoices, input.dailyReports, now),
+  );
+
   const rawLegs: WeekCloseLeg[] = [
     buildBillLeg(
       input.wipRows,
@@ -421,12 +438,14 @@ export function composeWeekClose(input: ComposeWeekCloseInput): WeekClose {
     ),
     buildCloseLeg(input.wwp, now),
     buildCommitLeg(input.lookaheadReadyCount),
-    buildClientsLeg(input.unsentClientItemCount),
+    buildClientsLeg(input.unsentClientItemCount, activeProjects),
   ];
 
   const legs = dedupeItemsById(rawLegs);
 
-  const allQuiet = legs.every(leg => leg.items.length === 0);
+  // Informational lines (evergreen reminders/notices) are not open work —
+  // a close with only those is an honestly quiet close (G10).
+  const allQuiet = legs.every(leg => leg.items.every(i => i.informational === true));
 
   return {
     dateISO: localDateISO(now),

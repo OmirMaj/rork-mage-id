@@ -11,7 +11,8 @@
 //   - chase: overdue invoice included; paid invoice excluded
 //   - close: PPC computed correctly
 //   - commit: lookaheadReadyCount surfaced
-//   - clients: always includes update link + portal notice
+//   - clients: informational reminder lines gated on active (portal) projects
+//     and excluded from allQuiet / open-work counts
 
 import {
   composeWeekClose, projectIsActive, QUIET_CLOSE_LINE,
@@ -408,25 +409,50 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
     clientsLeg.items.some(i => i.text.includes('3 unsent client items')),
     'count shown in clients leg item',
   );
+
+  // No active projects → no evergreen reminder lines at all.
   assert(
-    clientsLeg.items.some(i => i.id === 'client-update'),
-    'weekly update link always present',
+    !clientsLeg.items.some(i => i.id === 'client-update'),
+    'no active projects → no weekly update link',
   );
   assert(
-    clientsLeg.items.some(i => i.id === 'portal-digest-notice'),
-    'portal digest honesty notice present',
+    !clientsLeg.items.some(i => i.id === 'portal-digest-notice'),
+    'no active projects → no portal digest notice',
   );
 
-  // 0 unsent → no unsent line, but update link still present
-  const result0 = composeWeekClose(baseInput({ unsentClientItemCount: 0 }));
-  const clientsLeg0 = result0.legs.find(l => l.id === 'clients')!;
+  // Active project → update link present, tagged informational.
+  const pActive = project({ id: 'p-cl', name: 'Client Job' });
+  const repActive = dailyReport({ id: 'r-cl', projectId: 'p-cl', date: dateOnlyDaysAgo(2) });
+  const resultActive = composeWeekClose(baseInput({
+    projects: [pActive], dailyReports: [repActive], unsentClientItemCount: 0,
+  }));
+  const clientsActive = resultActive.legs.find(l => l.id === 'clients')!;
   assert(
-    !clientsLeg0.items.some(i => i.id === 'unsent-client'),
+    !clientsActive.items.some(i => i.id === 'unsent-client'),
     'unsentClientItemCount=0 → no unsent line',
   );
   assert(
-    clientsLeg0.items.some(i => i.id === 'client-update'),
-    'update link present even with 0 unsent items',
+    clientsActive.items.some(i => i.id === 'client-update' && i.informational === true),
+    'active project → update link present and informational',
+  );
+  assert(
+    !clientsActive.items.some(i => i.id === 'portal-digest-notice'),
+    'active project WITHOUT portal → no portal digest notice (honesty)',
+  );
+
+  // Active project WITH a portal → notice present, tagged informational.
+  const pPortal = project({
+    id: 'p-portal', name: 'Portal Job',
+    clientPortal: { enabled: true, portalId: 'pp1' },
+  } as unknown as Partial<Project> & { id: string; name: string });
+  const repPortal = dailyReport({ id: 'r-portal', projectId: 'p-portal', date: dateOnlyDaysAgo(2) });
+  const resultPortal = composeWeekClose(baseInput({
+    projects: [pPortal], dailyReports: [repPortal],
+  }));
+  const clientsPortal = resultPortal.legs.find(l => l.id === 'clients')!;
+  assert(
+    clientsPortal.items.some(i => i.id === 'portal-digest-notice' && i.informational === true),
+    'active portal project → portal digest notice present and informational',
   );
 }
 
@@ -435,9 +461,27 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
 {
   console.log('\n── allQuiet + empty state ──');
 
+  // G10: zero qualifying items → allQuiet must actually be reachable.
   const result = composeWeekClose(baseInput({}));
-  // clients leg always has items (update link + portal notice) — so allQuiet = false
-  assert(!result.allQuiet, 'clients leg always has items → not allQuiet');
+  assert(result.allQuiet, 'no projects, no items → allQuiet true (quiet close reachable)');
+
+  // An ACTIVE project with zero open work: only the informational client-
+  // update reminder remains — still an honestly quiet close.
+  const pQuiet = project({ id: 'p-q', name: 'Quiet Job' });
+  const repQuiet = dailyReport({ id: 'r-q', projectId: 'p-q', date: dateOnlyDaysAgo(2) });
+  const quiet = composeWeekClose(baseInput({ projects: [pQuiet], dailyReports: [repQuiet] }));
+  assert(
+    quiet.legs.find(l => l.id === 'clients')!.items.some(i => i.informational === true),
+    'quiet active project still gets the informational reminder line',
+  );
+  assert(quiet.allQuiet, 'active project with only informational lines → allQuiet true');
+
+  // Real open work flips it off.
+  const busy = composeWeekClose(baseInput({
+    projects: [pQuiet], dailyReports: [repQuiet],
+    wipRows: [wipRow({ projectId: 'p-q', projectName: 'Quiet Job', unbilled: 20_000 })],
+  }));
+  assert(!busy.allQuiet, 'unbilled WIP (open work) → allQuiet false');
 
   // Verify QUIET_CLOSE_LINE is exported
   assert(

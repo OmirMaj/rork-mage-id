@@ -74,8 +74,10 @@ function WeekCloseInner() {
     [],
   );
 
+  // Informational lines (reminders/notices) are not open work — count only
+  // legs with actionable items, mirroring composeWeekClose's allQuiet rule.
   const openLegs = useMemo(
-    () => close ? close.legs.filter(l => l.items.length > 0).length : 0,
+    () => close ? close.legs.filter(l => l.items.some(i => !i.informational)).length : 0,
     [close],
   );
 

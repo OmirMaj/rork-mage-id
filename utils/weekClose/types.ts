@@ -30,9 +30,11 @@ export interface WeekClose {
   /** Five legs, always present, always in bill→chase→close→commit→clients order. */
   legs: WeekCloseLeg[];
   /**
-   * True when ALL five legs are empty (no unbilled > $500, no overdue invoices,
-   * no WWP PPC computable, no lookahead tasks, no unsent client items).
-   * Shows the honest quiet line instead of inflating noise (G10).
+   * True when no leg carries OPEN WORK (no unbilled > $500, no overdue
+   * invoices, no WWP PPC computable, no lookahead tasks, no unsent client
+   * items). Items flagged `informational` (evergreen reminders/notices) do
+   * not count — a close with only those still shows the honest quiet line
+   * instead of inflating noise (G10).
    */
   allQuiet: boolean;
 }
