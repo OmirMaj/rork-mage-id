@@ -18,6 +18,7 @@ import { buildAccuracyReport, type AccuracyReport } from '@/utils/brain/accuracy
 import type { GradingCtx, TrackedBidRecord } from '@/utils/brain/gradePredictions';
 import type { BrainPredictionReadRow } from '@/utils/brain/types';
 import { useCoreData, useFinancialsData } from '@/contexts/ProjectContext';
+import { useBidResponsesPortfolio } from '@/hooks/useBidResponsesPortfolio';
 import type { HomeownerBidResponse } from '@/types';
 
 const TRACKED_BIDS_KEY = 'mageid_tracked_bids';
@@ -41,6 +42,8 @@ interface UseBrainGradingResult {
 export function useBrainGrading(): UseBrainGradingResult {
   const { projects } = useCoreData();
   const { changeOrders, commitments } = useFinancialsData();
+  // Wave 3 fix: wire bid_responses so gradeInstantBid can resolve
+  const { bidResponses } = useBidResponsesPortfolio();
 
   const [resolvedRows, setResolvedRows] = useState<BrainPredictionReadRow[]>([]);
   const [accuracyReport, setAccuracyReport] = useState<AccuracyReport>({
@@ -53,9 +56,11 @@ export function useBrainGrading(): UseBrainGradingResult {
   const projectsRef = useRef(projects);
   const changeOrdersRef = useRef(changeOrders);
   const commitmentsRef = useRef(commitments);
+  const bidResponsesRef = useRef(bidResponses);
   projectsRef.current = projects;
   changeOrdersRef.current = changeOrders;
   commitmentsRef.current = commitments;
+  bidResponsesRef.current = bidResponses;
 
   const runGrading = useCallback(async (projectId?: string) => {
     try {
@@ -63,15 +68,14 @@ export function useBrainGrading(): UseBrainGradingResult {
       const raw = await AsyncStorage.getItem(TRACKED_BIDS_KEY);
       const trackedBids = safeJsonParse<TrackedBidRecord[]>(raw, []);
 
-      // We don't have bidResponses in context — pass undefined; gradeInstantBid
-      // will return null until caller provides them. Acceptable v1 limitation.
-      const bidResponses: HomeownerBidResponse[] | undefined = undefined;
+      // Wave 3: bid_responses now wired via useBidResponsesPortfolio
+      const bidResponsesForCtx: HomeownerBidResponse[] = bidResponsesRef.current;
 
       const ctx: GradingCtx = {
         projects: projectsRef.current,
         changeOrders: changeOrdersRef.current,
         commitments: commitmentsRef.current,
-        bidResponses,
+        bidResponses: bidResponsesForCtx.length > 0 ? bidResponsesForCtx : undefined,
         trackedBids,
       };
 
