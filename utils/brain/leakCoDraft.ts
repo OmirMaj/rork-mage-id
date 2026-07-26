@@ -52,11 +52,15 @@ export interface DraftCandidate {
  *  2. Project is active (status 'in_progress').
  *  3. Report's leakScan has ≥1 item with estimatedPrice != null.
  *  4. Report's id is NOT in processedReportIds (already drafted this session).
- *  5. No existing CO for the project references this report's date in its
- *     description via the handleDraftLeakCO date format — guards against
- *     double-drafting when the user manually drafted first.
- *  6. No existing CO for the project already carries the AUTO_DRAFT_ACTION
- *     marker with detail === report.id (already auto-drafted in a prior session).
+ *  5. No existing CO for the project references this report's LOCAL calendar
+ *     day (±1 day tolerance) in its description via the handleDraftLeakCO
+ *     date format — guards against double-drafting when the user manually
+ *     drafted first. Local-day parity matters: daily-report.tsx renders
+ *     toLocaleDateString on a full ISO timestamp, so the UTC date can be a
+ *     day ahead for evening reports in the Americas.
+ *  6. No existing CO for the project carries an auditTrail entry with
+ *     detail === report.id (id-based dedupe: already auto-drafted in a prior
+ *     session — AUTO_DRAFT_ACTION — or otherwise linked to this report).
  */
 export function collectDraftableLeaks(opts: {
   dailyReports: DailyFieldReport[];
@@ -100,21 +104,25 @@ export function collectDraftableLeaks(opts: {
 
     const projectCOs = cosByProject.get(project.id) ?? [];
 
-    // 6. Already auto-drafted in a prior session (auditTrail marker with detail = reportId).
-    const alreadyAutoMarked = projectCOs.some(
-      co => (co.auditTrail ?? []).some(
-        e => e.action === AUTO_DRAFT_ACTION && e.detail === report.id,
-      ),
+    // 6. Already covered by a CO that references this report's id in its
+    //    auditTrail. The AUTO_DRAFT_ACTION marker is the primary signal, but
+    //    we accept ANY audit entry whose detail is the report id — id-based
+    //    dedupe survives description/date drift entirely.
+    const alreadyMarked = projectCOs.some(
+      co => (co.auditTrail ?? []).some(e => e.detail === report.id),
     );
-    if (alreadyAutoMarked) continue;
+    if (alreadyMarked) continue;
 
     // 5. Manual draft guard: skip if any CO on the project references this
-    //    report date in its description using the handleDraftLeakCO date string.
-    const when = formatDateForDescription(reportDate);
-    const descSnippet = `from daily report ${when}`;
-    const manualDraftExists = projectCOs.some(
-      co => co.description?.includes(descSnippet),
-    );
+    //    report's date in its description using the handleDraftLeakCO date
+    //    string. The manual path (app/daily-report.tsx) renders the LOCAL
+    //    calendar day via toLocaleDateString, so the guard must too — and it
+    //    tolerates ±1 day so a UTC-vs-local off-by-one on either side (or an
+    //    edited report date) can never produce a second CO for the same work.
+    const manualDraftExists = projectCOs.some(co => {
+      const desc = co.description ?? '';
+      return guardSnippetsForReportDate(report.date ?? '').some(s => desc.includes(s));
+    });
     if (manualDraftExists) continue;
 
     candidates.push({ report, project });
@@ -125,11 +133,53 @@ export function collectDraftableLeaks(opts: {
 
 // ─── CO builder ───────────────────────────────────────────────────────────────
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 /** Format a YYYY-MM-DD date as "Jul 26" — matches handleDraftLeakCO's format. */
 function formatDateForDescription(dateISO: string): string {
   const [, month, day] = dateISO.split('-').map(Number);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[(month ?? 1) - 1]} ${day}`;
+  return `${MONTHS_SHORT[(month ?? 1) - 1]} ${day}`;
+}
+
+/**
+ * Format a report date as the LOCAL calendar day ("Jul 26") — byte-identical
+ * to the manual handleDraftLeakCO path, which renders
+ * `new Date(reportDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })`.
+ * daily-report.tsx stores reportDate as a full ISO timestamp, so slicing the
+ * UTC date shifts evening reports (after ~5pm PT / 8pm ET) to the NEXT day;
+ * the sweep runs on the same device/timezone, so local rendering is exact
+ * parity. Date-only strings are treated as plain calendar dates.
+ */
+export function formatReportDayLocal(raw: string): string {
+  if (!raw) return '';
+  if (raw.length === 10) return formatDateForDescription(raw);
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return formatDateForDescription(raw.slice(0, 10));
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Description snippets the manual-draft guard matches against — the report's
+ * local day plus ±1 calendar day, each in the `from daily report <Mon D>`
+ * format. The tolerance absorbs any residual UTC/local off-by-one (legacy COs
+ * drafted from the UTC-sliced date, cross-midnight edits) so the sweep never
+ * double-drafts work the user already turned into a CO by hand.
+ */
+export function guardSnippetsForReportDate(raw: string): string[] {
+  if (!raw) return [];
+  const base = raw.length === 10 ? new Date(raw + 'T12:00:00') : new Date(raw);
+  if (Number.isNaN(base.getTime())) {
+    const fallback = formatReportDayLocal(raw);
+    return fallback ? [`from daily report ${fallback}`] : [];
+  }
+  const snippets: string[] = [];
+  for (const offset of [0, -1, 1]) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + offset);
+    const snippet = `from daily report ${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`;
+    if (!snippets.includes(snippet)) snippets.push(snippet);
+  }
+  return snippets;
 }
 
 /**
@@ -155,7 +205,10 @@ export function buildDraftCO(
   const unpricedItems = leakItems.filter(it => it.estimatedPrice == null);
   const totalPriced = pricedItems.reduce((s, it) => s + (it.estimatedPrice ?? 0), 0);
 
-  const when = formatDateForDescription(report.date?.slice(0, 10) ?? '');
+  // LOCAL calendar day — parity with the manual path so the description shows
+  // the day the user actually filed the report, and the manual-draft guard's
+  // snippet match holds in both directions.
+  const when = formatReportDayLocal(report.date ?? '');
 
   const pricedLines = pricedItems.map(it =>
     `${it.description} (~$${(it.estimatedPrice ?? 0).toLocaleString('en-US')}${it.reportQuote ? ` — "${it.reportQuote}"` : ''})`,

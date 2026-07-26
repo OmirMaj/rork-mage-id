@@ -16,6 +16,7 @@
 
 import { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ChangeOrder } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAutonomy } from '@/hooks/useAutonomy';
 import {
@@ -46,7 +47,7 @@ function safeJsonParse<T>(raw: string | null, fallback: T): T {
  */
 export function useLeakCoDrafts(): void {
   const {
-    projects, invoices, dailyReports, changeOrders, addChangeOrder,
+    projects, invoices, dailyReports, changeOrders, addChangeOrders,
   } = useProjects();
   const { leakGate, prefs, loading: autonomyLoading } = useAutonomy();
 
@@ -83,23 +84,28 @@ export function useLeakCoDrafts(): void {
         const nowISO = new Date().toISOString().slice(0, 10);
         const newProcessed = [...processedArray];
 
+        // Build ALL drafts first against a locally accumulated list, then
+        // commit once through the atomic batch path. React state does NOT
+        // grow mid-loop (the context snapshot is fixed for this tick), so:
+        //  - number sequencing must include the drafts made earlier in this
+        //    loop (`drafted`) or same-project candidates collide on a number;
+        //  - calling addChangeOrder per iteration would make every call
+        //    persist from the same stale snapshot, dropping all but the last
+        //    draft from state AND storage (see ProjectContext.addChangeOrders).
+        const drafted: ChangeOrder[] = [];
         for (const candidate of candidates) {
           const { report, project } = candidate;
 
-          // Get the current COs for this project (may have grown mid-loop).
-          // We re-derive from the changeOrders snapshot; addChangeOrder will
-          // update the context for subsequent iterations via React state, but
-          // for number sequencing we use the full list including those just
-          // added in this loop.
-          const projectCOs = changeOrders.filter(co => co.projectId === project.id);
+          const projectCOs = [
+            ...changeOrders.filter(co => co.projectId === project.id),
+            ...drafted.filter(d => d.projectId === project.id),
+          ];
           const draft = buildDraftCO(candidate, projectCOs, nowISO);
-
-          // Create the draft CO via the offline-queue-backed context method.
-          addChangeOrder(draft);
+          drafted.push(draft);
 
           // G9: did-for-you receipt.
           const when = report.date
-            ? new Date(report.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+            ? new Date(report.date.length === 10 ? report.date + 'T12:00:00' : report.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
             : 'a recent report';
           const dollarStr = draft.changeAmount >= 1000
             ? `$${Math.round(draft.changeAmount / 1000)}K`
@@ -112,6 +118,10 @@ export function useLeakCoDrafts(): void {
           // Mark this report as processed so the sweep skips it on next mount.
           newProcessed.push(report.id);
         }
+
+        // Single atomic commit: one state update, one persist, one queued
+        // insert per CO (offline-queue-backed context method).
+        addChangeOrders(drafted);
 
         // Persist the updated processed set (G12 key, append-only).
         await AsyncStorage.setItem(LEAKCO_DRAFTED_KEY, JSON.stringify(newProcessed));

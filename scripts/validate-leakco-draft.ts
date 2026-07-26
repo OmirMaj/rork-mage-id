@@ -7,6 +7,7 @@
 
 import {
   collectDraftableLeaks, buildDraftCO, AUTO_DRAFT_ACTION, isAutoLeakDraft,
+  formatReportDayLocal, guardSnippetsForReportDate,
 } from '../utils/brain/leakCoDraft';
 import type {
   DailyFieldReport, Project, ChangeOrder, LeakScanRecord,
@@ -246,6 +247,133 @@ const mixedCO = buildDraftCO(mixedCandidates[0]!, [], '2026-07-26');
 assert(mixedCO.changeAmount === 800, 'changeAmount = only priced items total');
 assert(mixedCO.description.includes('NEEDS PRICE:'), 'unpriced items appear as NEEDS PRICE');
 assert(mixedCO.description.includes('Extra material'), 'unpriced item name in description');
+
+// ─── Test 12: same-project multi-candidate sweep — strictly increasing
+//     numbers when drafts are accumulated (the hook's loop contract) ───────
+
+console.log('\nbuildDraftCO — same-project accumulation numbering');
+
+{
+  const repA = makeReport({
+    id: 'r-acc-a', projectId: 'p1', date: '2026-07-21',
+    pricedItems: [{ description: 'Tuesday extras', estimatedPrice: 900 }],
+  });
+  const repB = makeReport({
+    id: 'r-acc-b', projectId: 'p1', date: '2026-07-23',
+    pricedItems: [{ description: 'Thursday extras', estimatedPrice: 1500 }],
+  });
+  const accCandidates = collectDraftableLeaks({
+    dailyReports: [repA, repB], projects: [proj1], changeOrders: [],
+    processedReportIds: new Set(), now: NOW,
+  });
+  assert(accCandidates.length === 2, 'two same-project candidates collected');
+
+  // Mirror hooks/useLeakCoDrafts: accumulate drafts into the existing list
+  // fed to the next buildDraftCO call.
+  const drafted: ChangeOrder[] = [];
+  for (const c of accCandidates) {
+    const projectCOs = drafted.filter(d => d.projectId === c.project.id);
+    const draft = buildDraftCO(c, projectCOs, '2026-07-26');
+    drafted.push(draft);
+  }
+  assert(drafted.length === 2, 'both candidates drafted');
+  assert(
+    drafted[0]!.number === 1 && drafted[1]!.number === 2,
+    `same-project drafts get strictly increasing numbers (got ${drafted[0]!.number}, ${drafted[1]!.number})`,
+  );
+
+  // Regression pin: feeding the SAME (stale) list to both calls collides —
+  // the accumulation is load-bearing.
+  const stale1 = buildDraftCO(accCandidates[0]!, [], '2026-07-26');
+  const stale2 = buildDraftCO(accCandidates[1]!, [], '2026-07-26');
+  assert(
+    stale1.number === stale2.number,
+    'stale-snapshot sequencing collides (documents why accumulation is required)',
+  );
+}
+
+// ─── Test 13: local-day parity — timestamped report dates ─────────────────
+
+console.log('\nformatReportDayLocal + manual guard — UTC/local parity');
+
+{
+  // A timestamp: the LOCAL rendition must match the manual path exactly.
+  const eveningTs = '2026-07-27T02:00:00.000Z'; // ~7pm Jul 26 in US-Pacific
+  const manualWhen = new Date(eveningTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  assert(
+    formatReportDayLocal(eveningTs) === manualWhen,
+    `formatReportDayLocal matches manual toLocaleDateString rendering (${manualWhen})`,
+  );
+
+  // Date-only strings stay plain calendar dates (no timezone shifting).
+  assert(formatReportDayLocal('2026-07-24') === 'Jul 24', 'date-only string renders as-is');
+
+  // The guard catches a manual CO drafted the manual way from a timestamp.
+  const tsReport = makeReport({
+    id: 'r-ts', projectId: 'p1', date: eveningTs,
+    pricedItems: [{ description: 'Evening extras', estimatedPrice: 2000 }],
+  });
+  const manualFromTs: ChangeOrder = {
+    ...manualCO,
+    id: 'co-manual-ts',
+    description: `Out-of-scope work from daily report ${manualWhen}: Evening extras (~$2,000)`,
+  };
+  const parityCandidates = collectDraftableLeaks({
+    dailyReports: [tsReport], projects: [proj1], changeOrders: [manualFromTs],
+    processedReportIds: new Set(), now: NOW,
+  });
+  assert(parityCandidates.length === 0, 'manual guard catches local-day CO from timestamped report');
+
+  // Builder description uses the local day too (round-trips with the guard).
+  const builtFromTs = buildDraftCO(
+    collectDraftableLeaks({
+      dailyReports: [tsReport], projects: [proj1], changeOrders: [],
+      processedReportIds: new Set(), now: NOW,
+    })[0]!,
+    [], '2026-07-26',
+  );
+  assert(
+    builtFromTs.description.includes(`from daily report ${manualWhen}`),
+    'builder description uses the LOCAL calendar day',
+  );
+
+  // ±1 day tolerance: a manual CO whose rendered day is off by one (legacy
+  // UTC-sliced draft) is still caught.
+  const snippets = guardSnippetsForReportDate('2026-07-24');
+  assert(
+    snippets.includes('from daily report Jul 24') &&
+    snippets.includes('from daily report Jul 23') &&
+    snippets.includes('from daily report Jul 25'),
+    'guard snippets cover the report day ±1',
+  );
+  const offByOneCO: ChangeOrder = {
+    ...manualCO,
+    id: 'co-manual-off1',
+    description: 'Out-of-scope work from daily report Jul 25: Extra framing (~$1,200)',
+  };
+  const tolCandidates = collectDraftableLeaks({
+    dailyReports: [rep1], projects: [proj1], changeOrders: [offByOneCO],
+    processedReportIds: new Set(), now: NOW,
+  });
+  assert(tolCandidates.length === 0, 'manual guard tolerates ±1 day (off-by-one CO still blocks)');
+}
+
+// ─── Test 14: id-based dedupe is action-independent ───────────────────────
+
+console.log('\ncollectDraftableLeaks — auditTrail report.id dedupe (any action)');
+
+{
+  const otherActionCO: ChangeOrder = {
+    ...markedCO,
+    id: 'co-other-action',
+    auditTrail: [{ id: 'a2', action: 'created', actor: 'GC', timestamp: '', detail: 'r1' }],
+  };
+  const idDedupe = collectDraftableLeaks({
+    dailyReports: [rep1], projects: [proj1], changeOrders: [otherActionCO],
+    processedReportIds: new Set(), now: NOW,
+  });
+  assert(idDedupe.length === 0, 'any auditTrail entry with detail=report.id blocks re-draft');
+}
 
 // ─── Summary ──────────────────────────────────────────────────────────────
 
