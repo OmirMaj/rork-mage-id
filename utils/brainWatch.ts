@@ -4,6 +4,7 @@
 // All builders take already-fetched data and return AttentionItem[].
 // No context calls, no side effects. Sorting + summarizing are separate.
 
+import type { Route } from 'expo-router';
 import type { Project, Invoice, Permit, Certification } from '@/types';
 import { computeProjectProgress } from './projectProgress';
 
@@ -19,7 +20,9 @@ export interface AttentionItem {
   kind: AttnKind;
   severity: AttnSeverity;
   message: string;
-  route: { pathname: string; params?: Record<string, string> };
+  /** Typed against the router's generated Route union — a dead route here
+   *  fails tsc (this contract feeds One Mind drill-in chips too). */
+  route: { pathname: Route; params?: Record<string, string> };
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────

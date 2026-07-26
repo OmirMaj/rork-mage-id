@@ -11,6 +11,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import type { Project, ScheduleTask } from '@/types';
 import { buildScheduleFromTasks, createId } from '@/utils/scheduleEngine';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
+import { recordDidForYou } from '@/utils/brain/didForYou';
 import { runCpm } from '@/utils/cpm';
 import EmptyState from '@/components/EmptyState';
 import { AddTaskModal, type NewTaskValues } from '@/components/schedule/AddTaskModal';
@@ -100,12 +101,19 @@ export function MobileScheduleScreen() {
     // from the PREVIOUS task + the NEW status) only adds fields that were
     // unset, so merging it over `next` never overwrites history.
     const prev = tasks.find((t) => t.id === next.id);
-    const stamped: ScheduleTask = prev && next.status !== prev.status
-      ? { ...next, ...stampActuals(prev, next.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString()) }
-      : next;
+    let stamped: ScheduleTask = next;
+    if (prev && next.status !== prev.status) {
+      const stamp = stampActuals(prev, next.status, todayScheduleDay(activeSchedule?.startDate), new Date().toISOString());
+      stamped = { ...next, ...stamp };
+      // Morning-brief ledger: a real capture (stamp set an ISO date) is a
+      // did-for-you moment. recordDidForYou is G4-safe by contract.
+      if (stamp.actualStartDate != null || stamp.actualEndDate != null) {
+        recordDidForYou(`Auto-stamped actual dates for ${prev.title}`, selectedProject?.id);
+      }
+    }
     saveTasks(tasks.map((t) => (t.id === stamped.id ? stamped : t)));
     setDetailTask(stamped);
-  }, [tasks, saveTasks, activeSchedule?.startDate]);
+  }, [tasks, saveTasks, activeSchedule?.startDate, selectedProject?.id]);
 
   const onCreate = useCallback((values: NewTaskValues) => {
     // startDay is 1-indexed to MATCH the desktop + CPM engine (day 1 = schedule

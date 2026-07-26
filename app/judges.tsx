@@ -40,6 +40,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { WizardAnswers } from '@/utils/scopeQuestions';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { recordPrediction } from '@/utils/brain/predictionLedger';
+import { generateUUID } from '@/utils/generateId';
 
 // ── Business gate ─────────────────────────────────────────────────────
 export default function JudgesScreen() {
@@ -137,6 +139,21 @@ function JudgesInner() {
         scopeSummary: drafted.summary,
       });
       setResult(res);
+      // G4: fire-and-forget capture — describe mode (no project join; ungradeable v1)
+      try {
+        recordPrediction(
+          'judges_verdict',
+          generateUUID(),
+          {
+            mode: 'describe' as const,
+            verdict: res.verdict.verdict,
+            // PAYLOAD CONTRACT: percent (×100) — gradeJudges divides by 100.
+            targetMarginPct: res.verdict.targetMargin * 100,
+            flagCount: res.verdict.disclaimers.length,
+            estimateTotal: res.verdict.recommendedMid,
+          },
+        );
+      } catch { /* G4 */ }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong — please try again.');
@@ -175,6 +192,23 @@ function JudgesInner() {
         ctx,
       });
       setResult(res);
+      // G4: fire-and-forget capture — pick mode (gradeable via realized margin at close)
+      try {
+        recordPrediction(
+          'judges_verdict',
+          projectId,
+          {
+            mode: 'pick' as const,
+            verdict: res.verdict.verdict,
+            // PAYLOAD CONTRACT: percent (×100) — gradeJudges divides by 100.
+            targetMarginPct: targetMargin * 100,
+            flagCount: res.verdict.disclaimers.length,
+            estimateTotal: res.verdict.recommendedMid,
+            projectId,
+          },
+          projectId,
+        );
+      } catch { /* G4 */ }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong — please try again.');

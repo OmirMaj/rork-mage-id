@@ -23,6 +23,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { INTENTS } from '@/utils/copilot/intentTable';
 import { splitIntents, type SplitAction } from '@/utils/copilot/splitIntents';
+import { isQuestionShaped } from '@/utils/oneMind/resolveScope';
+import { MageAIMark } from '@/components/icons';
 import type { CopilotCapabilityId } from '@/utils/copilot/types';
 
 // Partial: only the create-capabilities the hub grid surfaces need an icon;
@@ -115,6 +117,24 @@ export default function CopilotHubScreen() {
         </TouchableOpacity>
         {noMatch && (
           <Text style={styles.noMatch}>Not sure which one that is — pick below.</Text>
+        )}
+        {noMatch && isQuestionShaped(text) && (
+          // Question-shaped utterance with no capability match → hand off to
+          // Ask MAGE (One Mind). The hub stays the universal front door:
+          // Copilot DOES things, Ask KNOWS things.
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => router.push({ pathname: '/ask', params: { seed: text.trim() } } as never)}
+            activeOpacity={0.85}
+            testID="copilot-hub-ask-mage"
+          >
+            <View style={styles.cardIcon}><MageAIMark size={18} color={colors.accent} accentColor={colors.accent} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardLabel}>Ask MAGE</Text>
+              <Text style={styles.queueSub} numberOfLines={1}>Sounds like a question — get an answer from your data</Text>
+            </View>
+            <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.9} />
+          </TouchableOpacity>
         )}
 
         {queue.length > 1 && (

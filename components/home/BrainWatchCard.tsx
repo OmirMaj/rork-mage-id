@@ -27,6 +27,7 @@ import {
   Brain,
   CheckCircle2,
   PartyPopper,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -34,6 +35,9 @@ import type { ThemeColors } from '@/constants/colors';
 import { Colors } from '@/constants/colors';
 import { useCoreData, useFinancialsData, useDocsData } from '@/contexts/ProjectContext';
 import { useSafety } from '@/contexts/SafetyContext';
+import { useBrainGrading } from '@/hooks/useBrainGrading';
+import { localDateISO } from '@/utils/brief/composeBrief';
+import { useTierAccess } from '@/hooks/useTierAccess';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import {
@@ -85,11 +89,15 @@ export default function BrainWatchCard() {
   const { invoices } = useFinancialsData();
   const { getPermitsForProject } = useDocsData();
   const safety = useSafety();
+  const { accuracyReport } = useBrainGrading();
+  const { canAccess } = useTierAccess();
 
   // ── Build attention items ─────────────────────────────────────────────────
   const items: AttentionItem[] = useMemo(() => {
     const nowMs = Date.now();
-    const todayISO = new Date().toISOString().slice(0, 10);
+    // Local calendar day (not UTC toISOString) — same cert-expiry cutoff
+    // discipline as useMorningBrief/ask.
+    const todayISO = localDateISO(new Date());
 
     const all: AttentionItem[] = [];
 
@@ -192,6 +200,23 @@ export default function BrainWatchCard() {
           +{items.length - MAX_VISIBLE} more — open each screen to review
         </Text>
       )}
+
+      {/* Accuracy chip — Business+, only when at least one kind has n ≥ 3 */}
+      {canAccess('brain_accuracy') && accuracyReport.hasEnoughData && (
+        <TouchableOpacity
+          style={styles.accuracyChip}
+          onPress={() => router.push('/cost-database' as any)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="View brain accuracy report"
+        >
+          <Brain size={12} color={colors.accent} strokeWidth={2} />
+          <Text style={styles.accuracyChipText}>
+            {accuracyReport.rows.length} accuracy insight{accuracyReport.rows.length === 1 ? '' : 's'} ready
+          </Text>
+          <ChevronRight size={12} color={colors.textMuted} strokeWidth={2} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -261,5 +286,23 @@ const makeStyles = (t: ThemeColors) =>
     allClearText: {
       ...Type.footnote,
       color: t.textSecondary,
+    },
+    accuracyChip: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: Tokens.spacing.xs,
+      marginTop: Tokens.spacing.sm,
+      paddingVertical: 6,
+      paddingHorizontal: Tokens.spacing.sm,
+      borderRadius: Tokens.radius.full,
+      borderWidth: 1,
+      borderColor: t.line,
+      backgroundColor: t.surfaceAlt,
+      alignSelf: 'flex-start' as const,
+    },
+    accuracyChipText: {
+      ...Type.caption1,
+      color: t.textSecondary,
+      fontWeight: '600' as const,
     },
   });

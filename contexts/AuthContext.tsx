@@ -47,6 +47,10 @@ const LOCAL_USER_CACHE_KEYS = [
   // on tenant switch so a signed-out user's posts never count against the
   // next tenant. Re-fetches from public_bids under the incoming JWT.
   'mageid_public_bids',
+  // Brain v3: did-for-you append log + morning brief read-cursor.
+  // Both are per-user and must wipe on tenant switch.
+  'mageid_brain_ledger',
+  'mageid_brief_last_seen',
 ] as const;
 
 // The re-fetchable caches (mageid_*) are always safe to wipe —

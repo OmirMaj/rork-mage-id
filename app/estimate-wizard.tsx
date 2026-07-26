@@ -47,6 +47,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
 import { useLaborCostSamples } from '@/hooks/useLaborRates';
 import { commitEstimatePatch } from '@/utils/estimateCommit';
+import { recordPrediction } from '@/utils/brain/predictionLedger';
+import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import { checkAILimit, recordAIUsage, type LimitCheck } from '@/utils/aiRateLimiter';
@@ -353,6 +355,21 @@ function EstimateWizardScreenInner() {
         if (projectId && scopedProject) {
           const linkedEstimate = buildLinkedEstimate(data);
           updateProject(projectId, commitEstimatePatch(getProject(projectId), linkedEstimate, { reason: 'pre_overwrite' }));
+          // G4: fire-and-forget capture — ledger failure must never break estimate link
+          try {
+            const projectWithEstimate = { ...scopedProject, linkedEstimate };
+            const snapshotPayload = buildEstimateSnapshotPayload(
+              projectWithEstimate, projects, commitments, receipts, laborSamples,
+            );
+            if (snapshotPayload) {
+              recordPrediction(
+                'estimate_confidence_snapshot',
+                snapshotPayload.estimateId,
+                snapshotPayload as unknown as Record<string, unknown>,
+                projectId,
+              );
+            }
+          } catch { /* G4 */ }
         }
 
         // Fire-and-forget usage write — was previously awaited, which left
@@ -417,12 +434,30 @@ function EstimateWizardScreenInner() {
   const attachToExisting = useCallback((targetId: string) => {
     if (!result) return;
     const linkedEstimate = buildLinkedEstimate(result);
-    updateProject(targetId, commitEstimatePatch(getProject(targetId), linkedEstimate, { reason: 'pre_overwrite' }));
+    const targetProject = getProject(targetId);
+    updateProject(targetId, commitEstimatePatch(targetProject, linkedEstimate, { reason: 'pre_overwrite' }));
+    // G4: fire-and-forget capture — ledger failure must never break project link
+    try {
+      if (targetProject) {
+        const projectWithEstimate = { ...targetProject, linkedEstimate };
+        const snapshotPayload = buildEstimateSnapshotPayload(
+          projectWithEstimate, projects, commitments, receipts, laborSamples,
+        );
+        if (snapshotPayload) {
+          recordPrediction(
+            'estimate_confidence_snapshot',
+            snapshotPayload.estimateId,
+            snapshotPayload as unknown as Record<string, unknown>,
+            targetId,
+          );
+        }
+      }
+    } catch { /* G4 */ }
     setShowSaveModal(false);
     setSavedProjectId(targetId);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push({ pathname: '/project-detail', params: { id: targetId } } as never);
-  }, [result, updateProject, getProject, router]);
+  }, [result, updateProject, getProject, router, projects, commitments, receipts, laborSamples]);
 
   // Create a NEW project from the wizard answers, hydrate its linkedEstimate,
   // and jump to it. The wizard answers are also stamped onto project.scope so
@@ -466,12 +501,26 @@ function EstimateWizardScreenInner() {
     const linkedEstimate = buildLinkedEstimate(result);
     const withEstimate = { ...baseProject, ...commitEstimatePatch(baseProject, linkedEstimate, { reason: 'pre_overwrite' }) };
     addProject(withEstimate);
+    // G4: fire-and-forget capture — ledger failure must never break project create
+    try {
+      const snapshotPayload = buildEstimateSnapshotPayload(
+        withEstimate, [...projects, withEstimate], commitments, receipts, laborSamples,
+      );
+      if (snapshotPayload) {
+        recordPrediction(
+          'estimate_confidence_snapshot',
+          snapshotPayload.estimateId,
+          snapshotPayload as unknown as Record<string, unknown>,
+          id,
+        );
+      }
+    } catch { /* G4 */ }
     setShowSaveModal(false);
     setNewProjectName('');
     setSavedProjectId(id);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push({ pathname: '/project-detail', params: { id } } as never);
-  }, [result, newProjectName, answers, addProject, router]);
+  }, [result, newProjectName, answers, addProject, router, projects, commitments, receipts, laborSamples]);
 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 

@@ -26,6 +26,7 @@ export type AIFeature =
   | 'profitLeak'
   | 'delayScan'
   // Smart / expensive
+  | 'askMage'            // One Mind "Ask MAGE" — whole-business grounded Q&A
   | 'projectMemory'      // Ask-this-project's-history + RFI suggested answers
   | 'quickEstimate'      // free: 3 lifetime trials
   | 'scheduleBuilder'    // free: 3 lifetime trials
@@ -75,6 +76,13 @@ export const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   // "MAGE suggests an answer" button (Business+, canAccess rfis_submittals).
   // Both screens are tier-walled before this meter is reachable, so no
   // freeLifetimeCap — it just counts against the daily smart quota.
+  // askMage is the One Mind chat (app/ask.tsx). It was previously UNMETERED
+  // client-side (the pre-One-Mind hole); it now counts against the smart
+  // quota like projectMemory, with a small free demo allowance so the ask
+  // surface keeps its no-tier-wall entry (G6: "Ask MAGE keeps its current
+  // gate"). Server-side the relay applies only the baseline gate — 'askMage'
+  // is deliberately NOT in FEATURE_MIN_RANK (G9: OTA-safe, no server change).
+  askMage:            { tier: 'smart', freeLifetimeCap: 3, displayName: 'Ask MAGE' },
   projectMemory:      { tier: 'smart', displayName: 'Project Memory' },
   quickEstimate:      { tier: 'smart', freeLifetimeCap: 3, displayName: 'Quick Estimate' },
   scheduleBuilder:    { tier: 'smart', freeLifetimeCap: 3, displayName: 'AI Schedule Builder' },

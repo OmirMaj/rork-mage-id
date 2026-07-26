@@ -64,6 +64,8 @@ import { matchTaskByTitle } from '@/utils/delayScan/matchTask';
 import { DELAY_APPLIED_STORE_KEY, parseAppliedDelayMap, withAppliedDelay } from '@/utils/delayScan/appliedDelays';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { mageAI } from '@/utils/mageAI';
+import { recordPrediction } from '@/utils/brain/predictionLedger';
+import { recordDidForYou } from '@/utils/brain/didForYou';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -637,6 +639,24 @@ export default function DailyReportScreen() {
       };
       setLeakScan(record);
       if (existingReport) updateDailyReport(existingReport.id, { leakScan: record });
+      // G4: fire-and-forget capture — ledger failure must never break report save
+      if (record.items.length > 0) {
+        try {
+          recordPrediction(
+            'leak_flag',
+            stableReportId,
+            {
+              reportId: stableReportId,
+              items: record.items.slice(0, 12).map(it => ({
+                category: it.trade,
+                description: it.description,
+                estPrice: it.estimatedPrice ?? null,
+              })),
+            },
+            project?.id ?? null,
+          );
+        } catch { /* G4 */ }
+      }
       if (!res.fromCache) void recordAIUsage('fast', 'profitLeak');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } finally {
@@ -854,6 +874,43 @@ export default function DailyReportScreen() {
       ))
       .catch(() => {});
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    // G4: fire-and-forget capture — ledger failure must never break ripple apply
+    try {
+      const hits = delayPreviewOps
+        .filter((op): op is { op: 'move'; task: string; deltaDays?: number; toStartDay?: number } => op.op === 'move')
+        .map(op => {
+          // preApplyEndDay: the task's planned end in the PRE-apply schedule
+          // (`schedule` is captured before the reflow above). Additive payload
+          // field — gradeDelayRipple uses it to grade the predicted shift
+          // itself; without it the grader falls back to post-apply semantics.
+          const preTask = schedule.tasks.find(t => t.id === op.task);
+          return {
+            taskId: op.task,
+            deltaDays: op.deltaDays ?? 0,
+            ...(preTask
+              ? { preApplyEndDay: preTask.startDay + Math.max(0, preTask.durationDays - 1) }
+              : {}),
+          };
+        });
+      recordPrediction(
+        'delay_ripple_applied',
+        stableReportId,
+        {
+          reportId: stableReportId,
+          hits,
+          predictedFinishDay: cpmResult.projectFinish,
+        },
+        project.id,
+      );
+    } catch { /* G4 */ }
+    // Wave 6 did-for-you: one line per ripple apply
+    try {
+      const hitCount = delayPreviewOps.length;
+      recordDidForYou(
+        `Rippled ${hitCount} task${hitCount === 1 ? '' : 's'} from your delay note`,
+        project.id,
+      );
+    } catch { /* G4 */ }
   }, [project, delayPreviewOps, delayCpmOptions, updateProject, delayScannedHash, issuesAndDelays, stableReportId]);
 
   const totalManpower = useMemo(() => {

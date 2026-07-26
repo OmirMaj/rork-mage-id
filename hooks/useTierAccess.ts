@@ -37,6 +37,7 @@ export type FeatureKey =
   | 'cost_xray'
   | 'bid_scoring'
   | 'ask_your_plans'
+  | 'brain_accuracy'
   // All tiers (with limits)
   | 'post_homeowner_request'
   | 'post_community_bid';
@@ -108,6 +109,7 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   cost_xray: 'business',
   bid_scoring: 'business',
   ask_your_plans: 'business',
+  brain_accuracy: 'business',
   // Available to all
   post_homeowner_request: 'free',
   post_community_bid: 'free',

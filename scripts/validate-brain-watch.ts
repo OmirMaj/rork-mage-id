@@ -7,6 +7,7 @@ import {
   closeoutAttention,
   rankAttention,
   summarize,
+  type AttentionItem,
 } from '../utils/brainWatch';
 import type { Project, Invoice, Permit, Certification } from '../types';
 
@@ -404,7 +405,7 @@ console.log('\ncloseoutAttention:');
 console.log('\nrankAttention:');
 
 {
-  const items = [
+  const items: AttentionItem[] = [
     { id: 'a', projectId: '', projectName: '', kind: 'schedule' as const, severity: 'medium' as const, message: 'A', route: { pathname: '/schedule-pro' } },
     { id: 'b', projectId: '', projectName: '', kind: 'invoice' as const, severity: 'critical' as const, message: 'B', route: { pathname: '/invoice' } },
     { id: 'c', projectId: '', projectName: '', kind: 'cert' as const, severity: 'high' as const, message: 'C', route: { pathname: '/crew' } },
@@ -428,7 +429,7 @@ console.log('\nrankAttention:');
 console.log('\nsummarize:');
 
 {
-  const items = [
+  const items: AttentionItem[] = [
     { id: '1', projectId: '', projectName: '', kind: 'schedule' as const, severity: 'critical' as const, message: '', route: { pathname: '/schedule-pro' } },
     { id: '2', projectId: '', projectName: '', kind: 'schedule' as const, severity: 'high' as const, message: '', route: { pathname: '/schedule-pro' } },
     { id: '3', projectId: '', projectName: '', kind: 'invoice' as const, severity: 'medium' as const, message: '', route: { pathname: '/invoice' } },

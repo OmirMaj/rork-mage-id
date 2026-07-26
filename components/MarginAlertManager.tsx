@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { sendLocalNotification } from '@/utils/notifications';
+import { recordDidForYou } from '@/utils/brain/didForYou';
 import {
   computeCurrentBaselines, computeAlerts, selectNotifiable,
   MARGIN_ALERTS_BASELINE_KEY, MARGIN_ALERTS_NOTIFIED_KEY,
@@ -71,6 +72,17 @@ export default function MarginAlertManager() {
             `${fresh.length} jobs need margin attention`,
             'Margin risk stepped up on several active jobs. Open Margin Alerts to triage.',
             { kind: 'margin_alert' },
+          );
+        }
+
+        // Morning-brief ledger: every fire batch is a did-for-you moment
+        // (recordDidForYou is fire-and-forget and never throws — G4).
+        if (fresh.length > 0) {
+          recordDidForYou(
+            fresh.length === 1
+              ? `Flagged rising margin risk: ${fresh[0].title}`
+              : `Flagged rising margin risk on ${fresh.length} jobs`,
+            fresh.length === 1 ? fresh[0].projectId : undefined,
           );
         }
 

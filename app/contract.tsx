@@ -52,6 +52,8 @@ import { fireConfetti } from '@/components/animations/Confetti';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus } from '@/types';
 import { snapshotPatch } from '@/utils/estimateCommit';
+import { recordPrediction } from '@/utils/brain/predictionLedger';
+import { buildEstimateSnapshotPayload } from '@/utils/brain/estimateSnapshot';
 
 // Pipeline shown at the top of every saved contract. Void is omitted
 // from the visual (user can still set status=void via the existing UI);
@@ -97,7 +99,7 @@ function ContractScreenInner() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { projectId, fromRevision } = useLocalSearchParams<{ projectId: string; fromRevision?: string }>();
-  const { getProject, updateProject: ctxUpdateProject, settings } = useProjects();
+  const { getProject, updateProject: ctxUpdateProject, settings, projects, commitments } = useProjects();
   const { isFree } = useTierAccess();
   const project = projectId ? getProject(projectId) : undefined;
 
@@ -254,6 +256,18 @@ function ContractScreenInner() {
       if (project) {
         const _cvSnap = snapshotPatch(project, 'converted_to_contract');
         if (Object.keys(_cvSnap).length) ctxUpdateProject(project.id, _cvSnap);
+        // G4: fire-and-forget capture — ledger failure must never break signing
+        try {
+          const snapshotPayload = buildEstimateSnapshotPayload(project, projects, commitments);
+          if (snapshotPayload) {
+            recordPrediction(
+              'estimate_confidence_snapshot',
+              snapshotPayload.estimateId,
+              snapshotPayload as unknown as Record<string, unknown>,
+              project.id,
+            );
+          }
+        } catch { /* G4 */ }
       }
       // Save first to get an id.
       const saved = await saveContract({ ...contract, id: contract.id || undefined });
