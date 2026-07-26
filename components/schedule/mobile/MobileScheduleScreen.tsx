@@ -27,6 +27,7 @@ import { TeamTab } from './TeamTab';
 import { FourDComingSoon } from './FourDComingSoon';
 import { LivingFloorPlan } from './LivingFloorPlan';
 import { PlanZoneEditor } from './PlanZoneEditor';
+import { displayText } from '@/utils/formatters';
 
 type SubTab = 'schedule' | '4d' | 'progress' | 'team';
 const MS_DAY = 24 * 60 * 60 * 1000;
@@ -216,7 +217,7 @@ export function MobileScheduleScreen() {
             <Text style={styles.projName} numberOfLines={1}>{selectedProject.name}</Text>
             {projects.length > 1 && <ChevronDown size={18} color={colors.text} strokeWidth={1.75} />}
           </View>
-          {!!selectedProject.location && <Text style={styles.loc} numberOfLines={1}>{selectedProject.location}</Text>}
+          {!!displayText(selectedProject.location) && <Text style={styles.loc} numberOfLines={1}>{displayText(selectedProject.location)}</Text>}
         </TouchableOpacity>
         {/* MAGE Copilot — the flagship phone-create path: speak the scope, the
             AI asks grounded clarifying questions, then builds the schedule.

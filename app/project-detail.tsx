@@ -56,7 +56,7 @@ import { nailIt } from '@/components/animations/NailItToast';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
-import { formatMoney } from '@/utils/formatters';
+import { formatMoney, displayText } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
@@ -1320,10 +1320,10 @@ export default function ProjectDetailScreen() {
               <Text style={styles.heroName}>{project.name}</Text>
               <View style={styles.heroMeta}>
                 <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.heroMetaText}>{project.location}</Text>
+                <Text style={styles.heroMetaText}>{displayText(project.location, 'No location set')}</Text>
               </View>
-              {project.description ? (
-                <Text style={styles.heroDesc}>{project.description}</Text>
+              {displayText(project.description) ? (
+                <Text style={styles.heroDesc}>{displayText(project.description)}</Text>
               ) : null}
             </View>
           </View>

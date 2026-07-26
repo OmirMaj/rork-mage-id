@@ -56,7 +56,7 @@ import AIEstimateValidator from '@/components/AIEstimateValidator';
 import AICopilot from '@/components/AICopilot';
 import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
-import { formatMoney, parseLenientNumber } from '@/utils/formatters';
+import { formatMoney, parseLenientNumber, displayText } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useMaterialReceipts } from '@/hooks/useMaterialReceipts';
@@ -3256,7 +3256,7 @@ export default function EstimateScreen() {
                     <View style={styles.projectOptionLeft}>
                       <Text style={styles.projectOptionName}>{project.name}</Text>
                       <Text style={styles.projectOptionMeta}>
-                        {project.location} · {project.linkedEstimate ? 'Has estimate' : 'No estimate'}
+                        {displayText(project.location, 'No location')} · {project.linkedEstimate ? 'Has estimate' : 'No estimate'}
                       </Text>
                     </View>
                     {selectedProjectId === project.id && (
