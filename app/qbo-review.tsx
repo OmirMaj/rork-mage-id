@@ -79,7 +79,7 @@ function QboReviewInner() {
   const router = useRouter();
   const { projects } = useProjects();
   const { stagedLines, confirmedLines, isLoading, patchLine } = useQboCostLines();
-  const { receipts, isLoading: receiptsLoading, addReceipt, addReceipts } = useMaterialReceipts();
+  const { receipts, isLoading: receiptsLoading, addReceipts } = useMaterialReceipts();
 
   // Confirm-time project assignments for unmapped lines (line id → project id).
   const [assignments, setAssignments] = useState<Record<string, string>>({});
@@ -116,9 +116,12 @@ function QboReviewInner() {
   }, [isLoading, receiptsLoading, confirmedLines, receipts, addReceipts]);
 
   // ── Duplicate detection against SCANNED receipts (D2 guard). ──
+  // stagedLines is passed so the heuristic can compare the scan's total
+  // against the WHOLE QBO transaction (sum of sibling lines), not just this
+  // one categorized line — the QBO norm is multi-line splits.
   const duplicateOf = useCallback(
-    (row: QboCostLineRow) => findLikelyDuplicate(receipts, row),
-    [receipts],
+    (row: QboCostLineRow) => findLikelyDuplicate(receipts, row, stagedLines),
+    [receipts, stagedLines],
   );
 
   // ── Confirm / reject ──
@@ -142,13 +145,19 @@ function QboReviewInner() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const receipt = confirmLine(row);
     if (!receipt) return;
-    if (!receipts.some(r => r.id === receipt.id)) addReceipt(receipt);
+    // Atomic path even for a single receipt: rapid sequential confirms via
+    // addReceipt race each other (each mutate snapshots the cache before the
+    // previous persist lands, clobbering the earlier receipt while its
+    // staging row already reads 'confirmed'). addReceipts reads current()
+    // and dedupes existing ids internally, replacing the stale
+    // receipts.some(...) closure check too.
+    addReceipts([receipt]);
     const name = projectName(receipt.projectId);
     recordDidForYou(
       `Filed ${formatMoney(row.amount)} QBO cost${name ? ` to ${name}` : ''}`,
       receipt.projectId,
     );
-  }, [confirmLine, receipts, addReceipt, projectName]);
+  }, [confirmLine, addReceipts, projectName]);
 
   const onReject = useCallback((row: QboCostLineRow) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
@@ -299,7 +308,7 @@ function QboReviewInner() {
                         <View style={styles.dupChip}>
                           <AlertTriangle size={12} color="#7A4500" strokeWidth={2} />
                           <Text style={styles.dupChipText}>
-                            Looks like the receipt you scanned {dup.receiptDate ? fmtDay(dup.receiptDate) : 'recently'} ({formatMoney(dup.total)}) — confirm anyway?
+                            Looks like the receipt you scanned {dup.receiptDate ? fmtDay(dup.receiptDate) : 'recently'} ({formatMoney(dup.total)}). Confirming counts this cost twice — reject it here if it&apos;s the same purchase.
                           </Text>
                         </View>
                       )}

@@ -14,6 +14,8 @@ import {
   qboReceiptId,
   stagedLineToReceipt,
   findLikelyDuplicate,
+  vendorsLikelyMatch,
+  vendorTokens,
   type QboCostLineRow,
 } from '../utils/qbo/qboCostMap';
 import type { MaterialReceipt } from '../types';
@@ -176,6 +178,82 @@ function makeScannedReceipt(overrides: Partial<MaterialReceipt> = {}): MaterialR
   // First match wins among several.
   const list = [otherVendor, twin, caseTwin];
   assert(findLikelyDuplicate(list, row)?.id === 'mr_scan_1', 'first matching receipt returned');
+}
+
+// ─── vendor normalization ─────────────────────────────────────────────────────
+
+{
+  console.log('\n── vendor normalization ──');
+
+  assert(
+    JSON.stringify(vendorTokens('THE HOME DEPOT #1234')) === JSON.stringify(['home', 'depot']),
+    'tokens drop articles, punctuation, and store numbers',
+  );
+  assert(vendorsLikelyMatch('THE HOME DEPOT #1234', 'Home Depot'), "OCR'd storefront matches QBO vendor record");
+  assert(vendorsLikelyMatch('Home Depot', 'THE HOME DEPOT #1234'), 'containment is symmetric');
+  assert(vendorsLikelyMatch('Builders Supply Co', '  builders supply co '), 'exact match still works');
+  assert(!vendorsLikelyMatch('Home Depot', "Lowe's"), 'different vendors do not match');
+  assert(!vendorsLikelyMatch('Home Depot', ''), 'blank side never matches');
+  assert(!vendorsLikelyMatch('Ace Hardware', 'Builders Supply Co'), 'no shared tokens → no match');
+
+  // Vendor containment flows through findLikelyDuplicate.
+  const row = makeRow();
+  const ocrTwin = makeScannedReceipt({ vendor: 'BUILDERS SUPPLY CO #88' });
+  assert(findLikelyDuplicate([ocrTwin], row) !== null, 'OCR store-number vendor variant still flags');
+}
+
+// ─── group-total + tax-tolerant amount matching ──────────────────────────────
+
+{
+  console.log('\n── group totals + tax tolerance ──');
+
+  // The canonical miss the old heuristic had: a $1,247.63 tax-inclusive scan
+  // vs a QBO purchase split into two pre-tax lines ($800 + $350 = $1,150).
+  const lineA = makeRow({ id: 'row-a', qbo_id: '900', qbo_line_id: '1', amount: 800, vendor: 'Home Depot' });
+  const lineB = makeRow({ id: 'row-b', qbo_id: '900', qbo_line_id: '2', amount: 350, vendor: 'Home Depot' });
+  const scan = makeScannedReceipt({
+    id: 'mr_hd', vendor: 'THE HOME DEPOT #1234', total: 1247.63, subtotal: 1150,
+  });
+
+  assert(
+    findLikelyDuplicate([scan], lineA, [lineA, lineB]) !== null,
+    'multi-line QBO txn matches the scan via the transaction total (line 1)',
+  );
+  assert(
+    findLikelyDuplicate([scan], lineB, [lineA, lineB]) !== null,
+    'multi-line QBO txn matches the scan via the transaction total (line 2)',
+  );
+  assert(
+    findLikelyDuplicate([scan], lineA) === null,
+    'without sibling rows the $800 line alone cannot match a $1,247.63 scan (documents why allRows is passed)',
+  );
+
+  // Single-line pre-tax vs tax-inclusive scan: within the +12% band.
+  const preTax = makeRow({ amount: 1000 });
+  const taxed = makeScannedReceipt({ total: 1085 }); // 8.5% sales tax
+  assert(findLikelyDuplicate([taxed], preTax) !== null, 'tax-inclusive scan within +12% of pre-tax line flags');
+  const wayOver = makeScannedReceipt({ total: 1200 }); // 20% over
+  assert(findLikelyDuplicate([wayOver], preTax) === null, 'scan 20% above the line does not flag');
+  const wayUnder = makeScannedReceipt({ total: 900 }); // 10% under
+  assert(findLikelyDuplicate([wayUnder], preTax) === null, 'scan 10% below the line does not flag');
+}
+
+// ─── cross-project guard ──────────────────────────────────────────────────────
+
+{
+  console.log('\n── cross-project guard ──');
+
+  const row = makeRow(); // project_id: proj-henderson
+  const otherJob = makeScannedReceipt({ projectId: 'proj-baker' });
+  assert(
+    findLikelyDuplicate([otherJob], row) === null,
+    'same vendor/total/date on a DIFFERENT project never flags (two identical supply runs)',
+  );
+  const unmappedRow = makeRow({ project_id: null });
+  assert(
+    findLikelyDuplicate([otherJob], unmappedRow) !== null,
+    'unmapped QBO line still flags (no project to corroborate against)',
+  );
 }
 
 // ─── Summary ──────────────────────────────────────────────────────────────────

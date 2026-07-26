@@ -112,7 +112,8 @@ export function stagedLineToReceipt(
 }
 
 /** Dup heuristic thresholds — the scanned-receipt double-count guard (D2). */
-const DUP_TOTAL_TOLERANCE = 0.05; // ±5%
+const DUP_UNDER_TOLERANCE = 0.05;  // receipt may read 5% BELOW the QBO figure (OCR noise, discounts)
+const DUP_OVER_TOLERANCE = 0.12;   // receipt may read 12% ABOVE it (QBO lines are pre-tax; scans include sales tax)
 const DUP_DATE_WINDOW_DAYS = 7;
 
 function parseDay(raw: string | null | undefined): number | null {
@@ -121,31 +122,96 @@ function parseDay(raw: string | null | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
+/** Filler tokens dropped before vendor comparison — corporate suffixes,
+ *  articles, and store-number noise that QBO vendor records omit but OCR'd
+ *  storefront names carry ("THE HOME DEPOT #1234" vs "Home Depot"). */
+const VENDOR_STOP_TOKENS = new Set([
+  'the', 'a', 'an', 'and', 'of', 'at',
+  'inc', 'incorporated', 'llc', 'llp', 'lp', 'co', 'corp', 'corporation',
+  'company', 'ltd', 'limited', 'store', 'shop', 'no',
+]);
+
+/** Significant lowercase tokens of a vendor name (empty when nothing survives). */
+export function vendorTokens(name: string | null | undefined): string[] {
+  return (name ?? '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(t => t.length > 0 && !VENDOR_STOP_TOKENS.has(t) && !/^\d+$/.test(t));
+}
+
+/**
+ * True when two vendor strings plausibly name the same vendor: exact
+ * (case/space-insensitive) equality, or the significant tokens of one are a
+ * subset of the other's. Token containment is what lets a QBO vendor record
+ * ("Home Depot") match an OCR'd storefront ("THE HOME DEPOT #1234").
+ * Either side blank → no match (we only warn when we can corroborate).
+ */
+export function vendorsLikelyMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const rawA = (a ?? '').trim().toLowerCase();
+  const rawB = (b ?? '').trim().toLowerCase();
+  if (!rawA || !rawB) return false;
+  if (rawA === rawB) return true;
+  const tokensA = vendorTokens(a);
+  const tokensB = vendorTokens(b);
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+  const aInB = tokensA.every(t => setB.has(t));
+  const bInA = tokensB.every(t => setA.has(t));
+  return aInB || bInA;
+}
+
 /**
  * Find a SCANNED receipt that looks like the same real-world cost as a staged
- * QBO line: same vendor (case/space-insensitive), total within ±5%, and dated
- * within 7 days. Missing vendor or dates on either side → no flag (we only
- * warn when we can actually corroborate). QBO-origin receipts never flag —
- * they are not scan double-counts. Returns the first match or null.
+ * QBO line.
+ *
+ * Match criteria:
+ *  - vendor: normalized token containment (see vendorsLikelyMatch) — QBO
+ *    vendor records rarely string-equal OCR'd storefront names;
+ *  - amount: the receipt total is compared against BOTH the single line's
+ *    amount AND the whole transaction's total (sum of staged siblings sharing
+ *    qbo_type+qbo_id, when `allRows` is supplied) — QBO Purchases/Bills are
+ *    routinely split into categorized lines while the scan carries one total.
+ *    Tolerance is asymmetric: −5% … +12%, because QBO expense lines are
+ *    pre-tax while scanned receipt totals include sales tax;
+ *  - date: within 7 days;
+ *  - project: when BOTH sides carry a project, different projects never flag
+ *    (two identical supply runs for two jobs are not duplicates).
+ *
+ * Missing vendor or dates on either side → no flag (we only warn when we can
+ * actually corroborate). QBO-origin receipts never flag — they are not scan
+ * double-counts. Returns the first match or null.
  */
 export function findLikelyDuplicate(
   receipts: MaterialReceipt[],
   row: QboCostLineRow,
+  allRows?: QboCostLineRow[],
 ): MaterialReceipt | null {
-  const vendor = (row.vendor ?? '').trim().toLowerCase();
+  const vendor = (row.vendor ?? '').trim();
   if (!vendor) return null;
   const rowDay = parseDay(row.txn_date);
   if (rowDay == null) return null;
   if (!(row.amount > 0)) return null;
 
+  // Whole-transaction total: staged siblings sharing the same QBO entity.
+  const txnTotal = (allRows ?? [])
+    .filter(l => l.qbo_type === row.qbo_type && l.qbo_id === row.qbo_id)
+    .reduce((sum, l) => sum + (l.amount > 0 ? l.amount : 0), 0);
+  const bases = txnTotal > row.amount ? [row.amount, txnTotal] : [row.amount];
+
   for (const r of receipts) {
     if (r.origin === 'qbo') continue;
-    const rVendor = (r.vendor ?? '').trim().toLowerCase();
-    if (!rVendor || rVendor !== vendor) continue;
+    if (!vendorsLikelyMatch(r.vendor, vendor)) continue;
 
-    const bigger = Math.max(row.amount, r.total);
-    if (bigger <= 0) continue;
-    if (Math.abs(r.total - row.amount) > DUP_TOTAL_TOLERANCE * bigger) continue;
+    // Cross-project guard: both sides know their job and they differ → skip.
+    if (row.project_id && r.projectId && row.project_id !== r.projectId) continue;
+
+    const amountMatches = bases.some(base =>
+      base > 0 &&
+      r.total >= base * (1 - DUP_UNDER_TOLERANCE) &&
+      r.total <= base * (1 + DUP_OVER_TOLERANCE),
+    );
+    if (!amountMatches) continue;
 
     const rDay = parseDay(r.receiptDate);
     if (rDay == null) continue;
