@@ -51,6 +51,12 @@ const LOCAL_USER_CACHE_KEYS = [
   // Both are per-user and must wipe on tenant switch.
   'mageid_brain_ledger',
   'mageid_brief_last_seen',
+  // Friday Close: week-close read-cursor, leak-CO sweep processed set,
+  // autonomy gate pass-state for demotion/promotion transition detection.
+  // All three are per-user and must wipe on tenant switch (G12).
+  'mageid_week_close_last_seen',
+  'mageid_leakco_drafted',
+  'mageid_autonomy_gate_state',
 ] as const;
 
 // The re-fetchable caches (mageid_*) are always safe to wipe —
