@@ -191,7 +191,7 @@ function buildLeakItem(leaks: OpenLeakSummary): BriefItem | null {
     id: 'open-leak-flags',
     text: `${scans} ${verb} turned into a change order yet${tail}`,
     severity: leaks.estTotal >= 1_000 ? 'high' : 'medium',
-    route: { pathname: '/report-inbox' },
+    route: { pathname: '/profit-leak-history' },
   };
 }
 
