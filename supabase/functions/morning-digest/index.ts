@@ -48,6 +48,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const OPENWEATHER_API_KEY = Deno.env.get('OPENWEATHER_API_KEY') ?? '';
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
+const EXPO_ACCESS_TOKEN = Deno.env.get('EXPO_ACCESS_TOKEN') ?? '';
+const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -114,6 +116,7 @@ interface ProfileRow {
   digest_hour?: number | null;
   digest_channels?: { email?: boolean; in_app?: boolean } | null;
   digest_timezone?: string | null;
+  push_token?: string | null;
 }
 interface DfrRow {
   id: string;
@@ -270,6 +273,29 @@ function renderDigestHtml(opts: {
   });
 }
 
+// ── Push sender (copied from notify/index.ts — same Expo push contract) ──
+async function sendPush(token: string, title: string, body: string, data?: Record<string, unknown>): Promise<{ ok: boolean; resp?: unknown }> {
+  if (!token) return { ok: false };
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (EXPO_ACCESS_TOKEN) headers['Authorization'] = `Bearer ${EXPO_ACCESS_TOKEN}`;
+    const r = await fetch(EXPO_PUSH_ENDPOINT, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        to: token, title, body, data: data ?? {},
+        sound: 'default', priority: 'high',
+        badge: 1,
+        _displayInForeground: true,
+      }),
+    });
+    const resp = await r.json().catch(() => ({}));
+    return { ok: r.ok, resp };
+  } catch (e) {
+    return { ok: false, resp: { error: String(e) } };
+  }
+}
+
 async function sendDigestEmail(to: string, html: string, todayDateLabel: string): Promise<boolean> {
   if (!RESEND_API_KEY) return false;
   // Routes through resendSend → retry-with-backoff on 429, plaintext
@@ -283,7 +309,7 @@ async function sendDigestEmail(to: string, html: string, todayDateLabel: string)
   return result.ok;
 }
 
-async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow): Promise<{ ok: boolean; sent: boolean; reason?: string }> {
+async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow): Promise<{ ok: boolean; sent: boolean; pushed?: boolean; reason?: string }> {
   const userId = profile.id;
   const channels = profile.digest_channels ?? { email: true, in_app: true };
 
@@ -327,26 +353,57 @@ async function buildDigestForUser(supabase: SupabaseClient, profile: ProfileRow)
     openRfisCount: openRfisCount ?? 0,
   });
 
+  const totalTasksToday = briefings.reduce((sum, b) => sum + b.todayTasks.length, 0);
+  const summary = briefings.length === 0
+    ? 'No active projects today.'
+    : `${briefings.length} project${briefings.length === 1 ? '' : 's'} active. ${totalTasksToday} task${totalTasksToday === 1 ? '' : 's'} today${(openRfisCount ?? 0) > 0 ? ` · ${openRfisCount} open RFI${openRfisCount === 1 ? '' : 's'}` : ''}.`;
+  const title = `Morning briefing — ${todayDateLabel}`;
+
+  let emailStatus: string | null = null;
   let sent = false;
   if (channels.email !== false && profile.email) {
     sent = await sendDigestEmail(profile.email, html, todayDateLabel);
+    emailStatus = sent ? 'sent' : 'failed';
+  }
+
+  // Push: the phone-side doorbell. data.kind === 'morning_brief' lands the
+  // tap on /brief via NotificationContext's kind switch. Rides the in_app
+  // channel (it's the device surface — email is the durable copy).
+  let pushStatus: string | null = null;
+  let pushResp: unknown = null;
+  if (channels.in_app !== false && profile.push_token) {
+    const pushResult = await sendPush(profile.push_token, title, summary, { kind: 'morning_brief' });
+    pushStatus = pushResult.ok ? 'sent' : 'failed';
+    pushResp = pushResult.resp ?? null;
   }
 
   // In-app: write a row to notification_outbox so the inbox shows it.
+  // FIXED: the previous insert used { user_id, kind, title, body } — none of
+  // those columns exist on notification_outbox (schema: event_type,
+  // recipient_kind, recipient_user_id, payload, …; cf. notify/index.ts), so
+  // every insert silently failed and the digest never landed in-app. Insert
+  // the real shape and LOG failures instead of discarding them.
   if (channels.in_app !== false) {
-    const summary = briefings.length === 0
-      ? 'No active projects today.'
-      : `${briefings.length} project${briefings.length === 1 ? '' : 's'} active. ${briefings.reduce((sum, b) => sum + b.todayTasks.length, 0)} task${briefings.reduce((sum, b) => sum + b.todayTasks.length, 0) === 1 ? '' : 's'} today${(openRfisCount ?? 0) > 0 ? ` · ${openRfisCount} open RFI${openRfisCount === 1 ? '' : 's'}` : ''}.`;
-    await supabase.from('notification_outbox').insert({
-      user_id: userId,
-      kind: 'morning_digest',
-      title: `Morning briefing — ${todayDateLabel}`,
-      body: summary,
-      payload: { briefings: briefings.map(b => ({ projectId: b.projectId, name: b.name, todayCount: b.todayTasks.length, weatherWorkable: b.weather?.workable ?? null })) },
+    const { error: outboxErr } = await supabase.from('notification_outbox').insert({
+      event_type: 'morning_brief',
+      recipient_kind: 'gc',
+      recipient_user_id: userId,
+      recipient_email: profile.email ?? null,
+      push_token: profile.push_token ?? null,
+      push_status: pushStatus,
+      push_response: pushResp,
+      email_status: emailStatus,
+      payload: {
+        title,
+        body: summary,
+        briefings: briefings.map(b => ({ projectId: b.projectId, name: b.name, todayCount: b.todayTasks.length, weatherWorkable: b.weather?.workable ?? null })),
+      },
+      delivered_at: (pushStatus === 'sent' || sent) ? new Date().toISOString() : null,
     });
+    if (outboxErr) console.log('[morning-digest] outbox insert failed:', outboxErr.message);
   }
 
-  return { ok: true, sent };
+  return { ok: true, sent, pushed: pushStatus === 'sent' };
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -380,7 +437,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     const { data: profile, error } = await admin
       .from('profiles')
-      .select('id, email, name, digest_enabled, digest_hour, digest_channels, digest_timezone')
+      .select('id, email, name, digest_enabled, digest_hour, digest_channels, digest_timezone, push_token')
       .eq('id', body.userId)
       .single();
     if (error || !profile) return jsonResponse({ error: 'User not found.' }, 404);
@@ -399,7 +456,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // briefing.
     const { data: profiles } = await admin
       .from('profiles')
-      .select('id, email, name, digest_enabled, digest_hour, digest_channels, digest_timezone')
+      .select('id, email, name, digest_enabled, digest_hour, digest_channels, digest_timezone, push_token')
       .eq('digest_enabled', true);
 
     const nowUtcHour = new Date().getUTCHours();
