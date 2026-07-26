@@ -1,14 +1,15 @@
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { FolderOpen } from 'lucide-react-native';
+import { FolderOpen, ChevronRight, Briefcase } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import { useCoreData, useFinancialsData, useFieldData } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton, SkeletonCard } from '@/components/Skeleton';
@@ -236,6 +237,17 @@ export default function SummaryScreen() {
           onPressCash={() => router.push('/cash-flow' as any)}
         />
         <NeedsYou items={attention} onPressItem={onAttention} />
+        {/* Your Business strip — one row max (plan spec B6) */}
+        <TouchableOpacity
+          style={styles.businessStrip}
+          onPress={() => router.push('/business' as any)}
+          activeOpacity={0.75}
+        >
+          <Briefcase size={16} color={themeColors.accent} />
+          <Text style={styles.businessStripText}>Your Business</Text>
+          <Text style={styles.businessStripSub}>margins · pipeline · clients · weather</Text>
+          <ChevronRight size={14} color={themeColors.textSecondary} />
+        </TouchableOpacity>
       </ScrollView>
 
       <ToolsSheet visible={toolsOpen} onClose={() => setToolsOpen(false)} onNavigate={onTool} />
@@ -247,4 +259,26 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: t.bg },
   contentDesktop: { width: '100%', maxWidth: 1100, alignSelf: 'center' as const },
   heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: t.text, paddingHorizontal: 20, letterSpacing: -0.5 },
+  // Your Business entry strip — one compact row at the bottom of Summary
+  businessStrip: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: t.surface,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    borderRadius: Tokens.radius.md,
+    paddingVertical: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.sm,
+    gap: Tokens.spacing.xs,
+  },
+  businessStripText: {
+    ...Type.bodyCompactEmphasized,
+    color: t.text,
+  },
+  businessStripSub: {
+    ...Type.caption1,
+    color: t.textSecondary,
+    flex: 1,
+  },
 });

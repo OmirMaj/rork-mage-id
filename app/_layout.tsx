@@ -893,6 +893,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="business"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="margin-alerts"
         options={{ headerShown: false }}
       />
