@@ -122,7 +122,9 @@ export interface DelayRippleOutcome {
   reportId: string;
   perTask: Array<{
     taskId: string;
+    /** The ripple's claimed shift — informational context for the error. */
     predictedDelta: number;
+    /** actualEndDay − post-apply planned end. 0 = the rippled plan held. */
     actualDelta: number;
     errDays: number;
   }>;
@@ -136,7 +138,7 @@ export function gradeDelayRipple(
 ): DelayRippleOutcome | null {
   const p = prediction.payload as {
     reportId?: string;
-    hits?: Array<{ taskId: string; deltaDays: number }>;
+    hits?: Array<{ taskId: string; deltaDays: number; preApplyEndDay?: number }>;
     predictedFinishDay?: number;
   };
   const { reportId, hits, predictedFinishDay } = p;
@@ -158,16 +160,26 @@ export function gradeDelayRipple(
       allResolved = false;
       continue;
     }
-    // Actual delta: compare to the task's planned end relative to schedule context.
-    // We use the planned endDay (startDay + durationDays − 1 as calendar proxy)
-    // vs actualEndDay.
+    // POST-APPLY SEMANTICS: applying the ripple REBASELINED the plan — the
+    // task's startDay/durationDays now describe the rippled schedule, so
+    // the prediction's claim is "this new plan is right". A perfect
+    // prediction therefore shows actualDelta 0, and the error is
+    // |actualDelta| — NOT |actualDelta − deltaDays|, which scored a perfect
+    // ripple wrong by exactly its own deltaDays.
     const plannedEndDay = task.startDay + Math.max(0, task.durationDays - 1);
     const actualDelta = task.actualEndDay - plannedEndDay;
+    // Richer grading when the capture recorded the PRE-apply planned end
+    // (additive payload field, Wave 8+): grade the predicted shift itself —
+    // err = |(actual − preApplyEnd) − deltaDays|. Absent on older rows, in
+    // which case the post-apply |actualDelta| carries the signal.
+    const errDays = hit.preApplyEndDay != null
+      ? Math.abs((task.actualEndDay - hit.preApplyEndDay) - hit.deltaDays)
+      : Math.abs(actualDelta);
     perTask.push({
       taskId: hit.taskId,
       predictedDelta: hit.deltaDays,
       actualDelta,
-      errDays: Math.abs(actualDelta - hit.deltaDays),
+      errDays,
     });
   }
 
@@ -381,6 +393,9 @@ export function gradeEstimateSnapshot(
 
 // ─── gradeJudges (pick-mode only) ────────────────────────────────────────────
 
+/** All three margin fields are FRACTIONS (0.2 = 20%) — the codebase's
+ *  *Pct convention (livingEstimate.marginPct, accuracyReport's signedPct
+ *  formatter both treat Pct fields as fractions). */
 export interface JudgesOutcome {
   projectId: string;
   targetMarginPct: number;
@@ -404,6 +419,12 @@ export function gradeJudges(
   const { targetMarginPct, projectId } = p;
   if (targetMarginPct == null || !projectId) return null;
 
+  // PAYLOAD CONTRACT: the capture sites (app/judges.tsx) write
+  // targetMarginPct as a PERCENT (targetMargin * 100, e.g. 20). Normalize to
+  // a fraction before comparing — the un-normalized comparison
+  // (realized-fraction >= target-percent) graded every verdict wrong.
+  const targetFraction = targetMarginPct / 100;
+
   const project = ctx.projects.find(pr => pr.id === projectId);
   if (!project) return null;
   if (project.status !== 'completed' && project.status !== 'closed') return null;
@@ -417,13 +438,14 @@ export function gradeJudges(
   if (cost <= 0) return null;
   const realized = Math.max(-1, Math.min(1, (revenue - cost) / revenue));
 
-  // "Verdict was right" = realized margin at or above target
+  // "Verdict was right" = realized margin at or above target.
+  // Outcome fields are all fractions (see JudgesOutcome doc).
   return {
     projectId,
-    targetMarginPct,
+    targetMarginPct: targetFraction,
     realizedMarginPct: realized,
-    verdictWasRight: realized >= targetMarginPct,
-    marginDeltaPct: realized - targetMarginPct,
+    verdictWasRight: realized >= targetFraction,
+    marginDeltaPct: realized - targetFraction,
   };
 }
 

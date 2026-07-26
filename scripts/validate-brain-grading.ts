@@ -278,6 +278,69 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
   }
 }
 
+// CORRECTED (tribunal): applying the ripple REBASELINES the plan, so the
+// post-apply schedule already carries deltaDays. A prediction whose rippled
+// plan held exactly must grade errDays = |actualDelta| = 0 — the old
+// |actualDelta − deltaDays| scored a perfect ripple wrong by its own delta.
+{
+  const project = makeProject({
+    id: 'proj-1',
+    schedule: {
+      id: 'sched-1',
+      startDate: '2026-01-01',
+      workingDaysPerWeek: 5,
+      tasks: [
+        {
+          id: 'task-p',
+          title: 'Electrical',
+          phase: 'Rough',
+          durationDays: 8, // POST-apply duration (5 + the 3-day ripple)
+          startDay: 10,    // planned end = 10+8-1 = 17
+          progress: 100,
+          crew: 'Electrical',
+          dependencies: [],
+          notes: '',
+          status: 'done',
+          actualEndDay: 17, // landed exactly on the rippled plan
+        } as any,
+      ],
+    } as any,
+  });
+  const ctx = makeCtx({ projects: [project] });
+
+  const noPre = gradeDelayRipple(makeRow('delay_ripple_applied', 'report-p', {
+    reportId: 'report-p',
+    hits: [{ taskId: 'task-p', deltaDays: 3 }], // legacy payload: no preApplyEndDay
+    predictedFinishDay: 17,
+  }, 'proj-1'), ctx);
+  assert(noPre !== null, 'gradeDelayRipple post-apply: resolvable');
+  if (noPre) {
+    assert(noPre.perTask[0].actualDelta === 0, 'gradeDelayRipple post-apply: perfect ripple → actualDelta 0');
+    assert(noPre.perTask[0].errDays === 0,
+      `gradeDelayRipple post-apply: perfect ripple → errDays 0, not |0−deltaDays| (got ${noPre.perTask[0].errDays})`);
+    assert(noPre.perTask[0].predictedDelta === 3, 'gradeDelayRipple post-apply: predictedDelta kept informational');
+    assert(noPre.finishErrDays === 0, 'gradeDelayRipple post-apply: finish landed on prediction');
+  }
+
+  // Richer grading when the capture recorded preApplyEndDay (additive field):
+  // err grades the predicted SHIFT — |(actual − preApplyEnd) − deltaDays|.
+  const withPre = gradeDelayRipple(makeRow('delay_ripple_applied', 'report-q', {
+    reportId: 'report-q',
+    hits: [{ taskId: 'task-p', deltaDays: 3, preApplyEndDay: 14 }],
+    predictedFinishDay: 17,
+  }, 'proj-1'), ctx);
+  assert(withPre !== null && withPre.perTask[0].errDays === 0,
+    'gradeDelayRipple preApplyEndDay: predicted +3 off end 14, actual 17 → errDays 0');
+
+  const withPreMiss = gradeDelayRipple(makeRow('delay_ripple_applied', 'report-r', {
+    reportId: 'report-r',
+    hits: [{ taskId: 'task-p', deltaDays: 5, preApplyEndDay: 14 }],
+    predictedFinishDay: 19,
+  }, 'proj-1'), ctx);
+  assert(withPreMiss !== null && withPreMiss.perTask[0].errDays === 2,
+    `gradeDelayRipple preApplyEndDay: predicted +5, actual shifted +3 → errDays 2 (got ${withPreMiss?.perTask[0].errDays})`);
+}
+
 // Not all tasks resolved
 {
   const project = makeProject({
@@ -445,6 +508,8 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
 }
 
 // ─── gradeJudges ──────────────────────────────────────────────────────────────
+// PAYLOAD CONTRACT: capture (app/judges.tsx) writes targetMarginPct as a
+// PERCENT (targetMargin * 100). Fixtures here mirror the real capture.
 
 // pick-mode, closed project, target met
 {
@@ -453,7 +518,7 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
   const row = makeRow('judges_verdict', 'proj-1', {
     mode: 'pick',
     verdict: 'proceed',
-    targetMarginPct: 0.15,
+    targetMarginPct: 15, // percent, as captured
     flagCount: 0,
     estimateTotal: 100000,
     projectId: 'proj-1',
@@ -467,13 +532,50 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
   }
 }
 
+// CORRECTED (tribunal): the capture writes PERCENT (20), the realized margin
+// is a FRACTION (0.25) — the un-normalized comparison graded every verdict
+// wrong. Pin: percent target normalized to a fraction, outcome fields all
+// fractions, verdict judged in one unit system.
+{
+  const project = makeClosedProject({ id: 'proj-1' });
+  // commitment amount 75000 ≥ paidToDate → cost 75000 on 100000 revenue
+  // → realized margin fraction 0.25.
+  const commitment = makeCommitment('proj-1', 70000);
+  const ctx = makeCtx({ projects: [project], commitments: [commitment] });
+
+  const hit = gradeJudges(makeRow('judges_verdict', 'proj-1', {
+    mode: 'pick', verdict: 'proceed', targetMarginPct: 20, // percent (app writes ×100)
+    flagCount: 0, estimateTotal: 100000, projectId: 'proj-1',
+  }, 'proj-1'), ctx);
+  assert(hit !== null, 'gradeJudges units: resolvable');
+  if (hit) {
+    assert(hit.realizedMarginPct !== null && Math.abs(hit.realizedMarginPct - 0.25) < 1e-9,
+      `gradeJudges units: realized margin fraction 0.25 (got ${hit.realizedMarginPct})`);
+    assert(hit.verdictWasRight === true,
+      'gradeJudges units: 25% realized ≥ 20% target → verdict RIGHT (percent payload normalized)');
+    assert(Math.abs((hit.targetMarginPct ?? 0) - 0.20) < 1e-9,
+      'gradeJudges units: outcome targetMarginPct is the fraction 0.20');
+    assert(hit.marginDeltaPct !== null && Math.abs(hit.marginDeltaPct - 0.05) < 1e-9,
+      `gradeJudges units: marginDeltaPct is the fraction 0.05 (got ${hit.marginDeltaPct})`);
+  }
+
+  const miss = gradeJudges(makeRow('judges_verdict', 'proj-1', {
+    mode: 'pick', verdict: 'proceed', targetMarginPct: 30, // percent
+    flagCount: 0, estimateTotal: 100000, projectId: 'proj-1',
+  }, 'proj-1'), ctx);
+  assert(miss !== null && miss.verdictWasRight === false,
+    'gradeJudges units: 25% realized < 30% target → verdict WRONG');
+  assert(miss !== null && miss.marginDeltaPct !== null && Math.abs(miss.marginDeltaPct - (-0.05)) < 1e-9,
+    'gradeJudges units: negative delta is a fraction (-0.05)');
+}
+
 // describe-mode → always null
 {
   const project = makeClosedProject({ id: 'proj-1' });
   const row = makeRow('judges_verdict', 'some-uuid', {
     mode: 'describe',
     verdict: 'caution',
-    targetMarginPct: 0.2,
+    targetMarginPct: 20,
     flagCount: 2,
     estimateTotal: 80000,
   }, null);
@@ -488,7 +590,7 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
   const row = makeRow('judges_verdict', 'proj-1', {
     mode: 'pick',
     verdict: 'proceed',
-    targetMarginPct: 0.2,
+    targetMarginPct: 20,
     flagCount: 1,
     estimateTotal: 60000,
     projectId: 'proj-1',
@@ -580,7 +682,7 @@ function makeCtx(overrides: Partial<GradingCtx> = {}): GradingCtx {
     makeRow('judges_verdict', 'uuid-1', {
       mode: 'describe',
       verdict: 'proceed',
-      targetMarginPct: 0.2,
+      targetMarginPct: 20,
       flagCount: 0,
       estimateTotal: 100000,
     }, null),

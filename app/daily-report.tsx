@@ -878,7 +878,20 @@ export default function DailyReportScreen() {
     try {
       const hits = delayPreviewOps
         .filter((op): op is { op: 'move'; task: string; deltaDays?: number; toStartDay?: number } => op.op === 'move')
-        .map(op => ({ taskId: op.task, deltaDays: op.deltaDays ?? 0 }));
+        .map(op => {
+          // preApplyEndDay: the task's planned end in the PRE-apply schedule
+          // (`schedule` is captured before the reflow above). Additive payload
+          // field — gradeDelayRipple uses it to grade the predicted shift
+          // itself; without it the grader falls back to post-apply semantics.
+          const preTask = schedule.tasks.find(t => t.id === op.task);
+          return {
+            taskId: op.task,
+            deltaDays: op.deltaDays ?? 0,
+            ...(preTask
+              ? { preApplyEndDay: preTask.startDay + Math.max(0, preTask.durationDays - 1) }
+              : {}),
+          };
+        });
       recordPrediction(
         'delay_ripple_applied',
         stableReportId,

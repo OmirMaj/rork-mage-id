@@ -1592,10 +1592,10 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     // onto the linked project's schedule exactly once. The `scheduleImpactApplied`
     // flag guards against double-applying if the CO gets toggled approved→draft→approved.
     const nextCO = updated.find(c => c.id === id);
+    const becameApproved =
+      !!nextCO && nextCO.status === 'approved' && prior?.status !== 'approved';
     const transitionedToApproved =
-      !!nextCO &&
-      nextCO.status === 'approved' &&
-      prior?.status !== 'approved' &&
+      becameApproved &&
       !nextCO.scheduleImpactApplied &&
       (nextCO.scheduleImpactDays ?? 0) > 0;
 
@@ -1622,11 +1622,14 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       const finalCOs = updated.map(co => co.id === id ? { ...co, scheduleImpactApplied: true } : co);
       setChangeOrders(finalCOs);
       saveChangeOrdersMutation.mutate(finalCOs);
-
-      // 3. Opportunistic leak grading: resolve leak_flag predictions for this project.
-      //    G4 fire-and-forget via gradingBus — never blocks the CO flow.
-      if (nextCO?.projectId) fireGradingEvent(nextCO.projectId);
     }
+
+    // Opportunistic leak grading: resolve leak_flag predictions for this
+    // project on ANY transition to approved — money-only COs (no schedule
+    // impact) are exactly the leak-recovery case, so gating this on
+    // scheduleImpactDays > 0 meant leak flags never graded off their own
+    // recovery. G4 fire-and-forget via gradingBus — never blocks the CO flow.
+    if (becameApproved && nextCO?.projectId) fireGradingEvent(nextCO.projectId);
 
     if (canSync) {
       const co = (transitionedToApproved ? { ...nextCO!, scheduleImpactApplied: true } : nextCO);

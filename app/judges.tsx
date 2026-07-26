@@ -147,6 +147,7 @@ function JudgesInner() {
           {
             mode: 'describe' as const,
             verdict: res.verdict.verdict,
+            // PAYLOAD CONTRACT: percent (×100) — gradeJudges divides by 100.
             targetMarginPct: res.verdict.targetMargin * 100,
             flagCount: res.verdict.disclaimers.length,
             estimateTotal: res.verdict.recommendedMid,
@@ -199,6 +200,7 @@ function JudgesInner() {
           {
             mode: 'pick' as const,
             verdict: res.verdict.verdict,
+            // PAYLOAD CONTRACT: percent (×100) — gradeJudges divides by 100.
             targetMarginPct: targetMargin * 100,
             flagCount: res.verdict.disclaimers.length,
             estimateTotal: res.verdict.recommendedMid,
