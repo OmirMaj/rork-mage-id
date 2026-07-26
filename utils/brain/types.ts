@@ -16,6 +16,11 @@ export interface PaceSuggestionAppliedPayload {
   paceDays: number;
   jobCount: number;
   confidence: 'medium' | 'high';
+  /** F4 (Friday Close): true when the duration was PRE-APPLIED by the earned
+   *  autonomy gate rather than a manual chip tap. Recorded at accept() only
+   *  for surviving pre-applies (D4) — payload-only extension, no new kind
+   *  (G14). Absent = manual chip tap (existing behavior). */
+  preApplied?: boolean;
 }
 
 export interface DelayRippleAppliedPayload {

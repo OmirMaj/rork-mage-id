@@ -6,7 +6,7 @@
 // regenerate any single phase, and only commits to the project when the GC taps
 // "Use this schedule". Nothing is written to the project until then.
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Alert, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -33,6 +33,9 @@ import { tradeKeyForTask } from '@/utils/scheduleColors';
 import PaceChip from '@/components/schedule/PaceChip';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { recordPrediction } from '@/utils/brain/predictionLedger';
+import { useAutonomy } from '@/hooks/useAutonomy';
+import { computePreApplyPlan, type PreApplyDecision } from '@/utils/pace/preApplyPlan';
+import { recordDidForYou } from '@/utils/brain/didForYou';
 
 // The theme has no `warning` key; the assumption flag uses this amber literal.
 const ASSUMPTION_COLOR = '#c47f17';
@@ -96,6 +99,74 @@ export default function ScheduleReviewScreen() {
   // Tasks whose duration was already set from a pace suggestion this session.
   const [pacedIds, setPacedIds] = useState<Set<string>>(() => new Set());
 
+  // ── F4: pace pre-apply — the first earned autonomous act ─────────────────
+  // When a trade's earned-trust gate is passed (≥60% beat-or-tie over ≥5
+  // graded pace calls — useAutonomy) AND the pace_preapply pref is on, the
+  // draft arrives with those durations already set from the GC's measured
+  // pace. Each pre-applied task shows a badge whose tap REVERTS to the AI's
+  // original duration. Decisions live here keyed by taskId; a revert deletes
+  // its entry, so `preApplied` always holds only the SURVIVING pre-applies.
+  const { paceTradeGates, prefs, loading: autonomyLoading } = useAutonomy();
+  const [preApplied, setPreApplied] = useState<Map<string, PreApplyDecision>>(() => new Map());
+  // One-shot guard: pre-apply happens once per screen mount, at draft arrival
+  // (not after regenerate — a regenerated draft gets suggest chips only).
+  const preApplyDoneRef = useRef(false);
+
+  useEffect(() => {
+    if (autonomyLoading || preApplyDoneRef.current) return;
+    preApplyDoneRef.current = true;
+    try {
+      const plan = computePreApplyPlan({
+        tasks,
+        paceBook,
+        sqft: project?.squareFootage,
+        tradeGates: paceTradeGates,
+        prefEnabled: prefs.pace_preapply !== false,
+      }).filter(d => !pacedIds.has(d.taskId)); // never clobber a manual apply
+      if (plan.length === 0) return;
+      const byId = new Map(plan.map(d => [d.taskId, d]));
+      setTasks(prev => prev.map(t => {
+        const d = byId.get(t.id);
+        return d ? { ...t, durationDays: d.paceDays } : t;
+      }));
+      // pacedIds kills the suggest-chip re-offer on these tasks (paceFor).
+      setPacedIds(prev => {
+        const next = new Set(prev);
+        plan.forEach(d => next.add(d.taskId));
+        return next;
+      });
+      setPreApplied(byId);
+      // D4/G9: NO recordPrediction here — capture happens at accept(), only
+      // for decisions still holding the pace value. Reverted pre-applies
+      // never inflate the gate's n.
+    } catch {
+      // G4: a pre-apply failure degrades to the plain suggest-chip flow.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autonomyLoading]);
+  // NOTE: intentional single trigger on autonomyLoading→false. The ref makes
+  // this one-shot; tasks/paceBook/gates are read from the then-current values.
+
+  // Badge tap: revert to the AI's original duration. Removing the id from
+  // pacedIds lets paceFor re-offer the suggest chip (which will propose the
+  // same paceDays again — suggest mode, user's choice).
+  const revertPreApply = useCallback((taskId: string) => {
+    const decision = preApplied.get(taskId);
+    if (!decision) return;
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, durationDays: decision.aiOriginalDays } : t)));
+    setPacedIds(prev => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+    setPreApplied(prev => {
+      const next = new Map(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, [preApplied]);
+
   const paceFor = useCallback((task: ScheduleTask): { days: number; jobCount: number; confidence: 'medium' | 'high' } | null => {
     if (task.isMilestone || task.durationDays <= 0) return null;
     // Once a suggestion is applied to a task, never re-offer on it — the blend
@@ -156,6 +227,41 @@ export default function ScheduleReviewScreen() {
 
   const accept = useCallback(() => {
     if (!project || !draft) return;
+    // F4 capture timing (D4, G9): pre-applied predictions are recorded HERE,
+    // not at pre-apply — only tasks STILL holding the pace value when the
+    // user accepts become ledger rows. Reverted pre-applies never pollute
+    // the gate. Manual chip taps keep their immediate capture in applyPace;
+    // the preApplied flag distinguishes provenances in the payload.
+    try {
+      const survivors: PreApplyDecision[] = [];
+      for (const d of preApplied.values()) {
+        const task = tasks.find(x => x.id === d.taskId);
+        if (!task || !pacedIds.has(d.taskId)) continue;
+        if (task.durationDays !== d.paceDays) continue; // edited away → not a pace trial
+        survivors.push(d);
+        recordPrediction(
+          'pace_suggestion_applied',
+          d.taskId,
+          {
+            taskId: d.taskId,
+            trade: d.trade,
+            aiOriginalDays: d.aiOriginalDays,
+            paceDays: d.paceDays,
+            jobCount: d.jobCount,
+            confidence: d.confidence,
+            preApplied: true,
+          },
+          project.id,
+        );
+      }
+      if (survivors.length > 0) {
+        const trades = [...new Set(survivors.map(s => s.trade))];
+        recordDidForYou(
+          `Pre-set ${survivors.length} duration${survivors.length === 1 ? '' : 's'} from your measured pace (${trades.slice(0, 3).join(', ')})`,
+          project.id,
+        );
+      }
+    } catch { /* G4 — capture must never break the accept */ }
     // Rebuild so the persisted schedule's cached task-derived fields
     // (criticalPathDays, healthScore, phases, …) reflect the accepted tasks
     // rather than draft.schedule's values computed from the original draft.
@@ -185,7 +291,7 @@ export default function ScheduleReviewScreen() {
     } else {
       router.replace({ pathname: '/(tabs)/schedule', params: { projectId: project.id } } as any);
     }
-  }, [project, draft, tasks, updateProject, router, width, canAccess]);
+  }, [project, draft, tasks, updateProject, router, width, canAccess, preApplied, pacedIds]);
 
   // Whole-draft regenerate — re-runs generation and replaces the ENTIRE draft.
   // A per-phase splice was broken: fresh ids dangle every retained/injected
@@ -206,6 +312,10 @@ export default function ScheduleReviewScreen() {
         return;
       }
       setTasks(fresh.tasks);
+      // F4: the regenerated draft has fresh task ids — drop the old pre-apply
+      // decisions (fresh drafts get suggest chips only; badges don't carry
+      // over onto tasks that no longer exist).
+      setPreApplied(new Map());
       await recordAIUsage('smart', 'scheduleBuilder');
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Something went wrong while regenerating the schedule.';
@@ -265,10 +375,11 @@ export default function ScheduleReviewScreen() {
           </Text>
         </View>
 
-        {paceProvenance.tradeCount > 0 ? (
+        {(paceProvenance.tradeCount > 0 || preApplied.size > 0) ? (
           <View style={styles.pacedChip}>
             <Text style={styles.pacedChipText}>
               Paced from your history · {paceProvenance.tradeCount} trade{paceProvenance.tradeCount === 1 ? '' : 's'}
+              {preApplied.size > 0 ? ` · ${preApplied.size} set from your pace` : ''}
             </Text>
           </View>
         ) : (
@@ -290,6 +401,9 @@ export default function ScheduleReviewScreen() {
               <View style={styles.cardBody}>
                 {phaseTasks.map(task => {
                   const pace = paceFor(task);
+                  // F4: a surviving pre-apply renders the badge (tap = revert);
+                  // paceFor is null for paced ids, so the branches are exclusive.
+                  const pre = pacedIds.has(task.id) ? preApplied.get(task.id) : undefined;
                   return (
                     <View key={task.id} style={styles.taskRow}>
                       <View style={styles.taskTitleRow}>
@@ -304,7 +418,17 @@ export default function ScheduleReviewScreen() {
                       <Text style={styles.taskMeta}>
                         {task.durationDays}d · crew {task.crewSize ?? '—'}
                       </Text>
-                      {pace && (
+                      {pre && (
+                        <PaceChip
+                          suggestedDays={pre.paceDays}
+                          jobCount={pre.jobCount}
+                          confidence={pre.confidence}
+                          preApplied
+                          aiOriginalDays={pre.aiOriginalDays}
+                          onApply={() => revertPreApply(task.id)}
+                        />
+                      )}
+                      {!pre && pace && (
                         <PaceChip
                           suggestedDays={pace.days}
                           jobCount={pace.jobCount}
