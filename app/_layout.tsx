@@ -1308,16 +1308,10 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
-      <Stack.Screen
-        name="judges"
-        options={{
-          title: "Bid Advisor",
-          presentation: "modal",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
-        }}
-      />
+      {/* judges renders its own in-content header (eyebrow + "Should I bid
+          this?" + back chevron) — the route-level nav header doubled it with
+          a "Bid Advisor" bar + a dead band (sim-audit #9). */}
+      <Stack.Screen name="judges" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="quick-quote" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="project-scope" options={{ headerShown: false }} />
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />
