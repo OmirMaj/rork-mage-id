@@ -148,7 +148,7 @@ function PhotoTriageInner() {
       const isPicked = prev.find(p => p.id === id);
       if (isPicked) return prev.filter(p => p.id !== id);
       if (prev.length >= 12) {
-        Alert.alert('Max 12 photos', 'Pick the most informative shots — Gemini Vision tops out at 12 per call.');
+        Alert.alert('Max 12 photos', 'Pick the most informative shots — vision analysis tops out at 12 photos per call.');
         return prev;
       }
       return [...prev, { id, uri, fromProject: true }];
