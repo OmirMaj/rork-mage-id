@@ -184,27 +184,40 @@ export function certAttention(
   expiring: (Certification & { status: 'expiring' | 'expired' })[],
   nowMs: number,
 ): AttentionItem[] {
-  const items: AttentionItem[] = [];
+  // Dedupe by (person, cert): a certification is a person-level fact, so
+  // duplicate records (re-seeded data, one row per project, double entry)
+  // must collapse to ONE line — the sim audit found "Dana Cole — First Aid /
+  // CPR expired" rendered 3x verbatim on home, brief, and needs-attention.
+  // On collision the most urgent record wins (expired > soonest expiry).
+  const byKey = new Map<string, AttentionItem & { _rank: number }>();
 
   for (const cert of expiring) {
     let severity: AttnSeverity;
     let dayStr: string;
+    // Lower rank = more urgent. Expired = -1; expiring ranks by days left.
+    let rank: number;
 
     if (cert.status === 'expired') {
       severity = 'critical';
       dayStr = 'expired';
+      rank = -1;
     } else {
       // 'expiring'
       const expMs = cert.expiresDate ? Date.parse(cert.expiresDate) : NaN;
       const daysLeft = Number.isNaN(expMs) ? 0 : daysBetween(expMs, nowMs);
       severity = daysLeft < 14 ? 'high' : 'medium';
       dayStr = `expires in ${daysLeft}d`;
+      rank = daysLeft;
     }
 
     const workerLabel = cert.holderName ?? cert.workerId ?? 'Unknown worker';
     const certLabel = cert.type;
+    const key = `${workerLabel.trim().toLowerCase()}|${certLabel.trim().toLowerCase()}`;
 
-    items.push({
+    const existing = byKey.get(key);
+    if (existing && existing._rank <= rank) continue;
+
+    byKey.set(key, {
       id: `cert-${cert.id}`,
       projectId: '',
       projectName: '',
@@ -212,10 +225,67 @@ export function certAttention(
       severity,
       message: `${workerLabel} — ${certLabel} ${dayStr}`,
       route: { pathname: '/crew' },
+      _rank: rank,
     });
   }
 
-  return items;
+  return [...byKey.values()].map(({ _rank, ...item }) => item);
+}
+
+// ─── groupReadyPunchItems ─────────────────────────────────────────────────────
+
+export interface ReadyPunchInput {
+  id: string;
+  projectId: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  updatedAt: string;
+}
+
+export interface ReadyPunchGroup {
+  /** The representative item — stable dismissal anchor + tap target. */
+  primary: ReadyPunchInput;
+  /** All member punch-item ids (primary first). */
+  ids: string[];
+  /** Count of DISTINCT projects the identical item appears on. */
+  projectCount: number;
+  /** Highest member priority (high > medium > low). */
+  priority: 'high' | 'medium' | 'low';
+}
+
+const PUNCH_PRIORITY_RANK: Record<'high' | 'medium' | 'low', number> = { high: 0, medium: 1, low: 2 };
+
+/**
+ * Groups ready-to-verify punch items that carry the SAME description — the
+ * "Punch item ready to verify" x3 sim-audit dupe (identical item seeded on 3
+ * projects). Consumers render one row per group with a "xN projects" suffix
+ * when the group spans multiple projects. Pure — validated under Bun.
+ */
+export function groupReadyPunchItems(items: ReadyPunchInput[]): ReadyPunchGroup[] {
+  const groups = new Map<string, ReadyPunchGroup & { _projects: Set<string> }>();
+
+  for (const item of items) {
+    const key = item.description.trim().replace(/\s+/g, ' ').toLowerCase();
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        primary: item,
+        ids: [item.id],
+        projectCount: 1,
+        priority: item.priority,
+        _projects: new Set([item.projectId]),
+      });
+      continue;
+    }
+    existing.ids.push(item.id);
+    existing._projects.add(item.projectId);
+    existing.projectCount = existing._projects.size;
+    if (PUNCH_PRIORITY_RANK[item.priority] < PUNCH_PRIORITY_RANK[existing.priority]) {
+      existing.priority = item.priority;
+    }
+  }
+
+  return [...groups.values()].map(({ _projects, ...group }) => group);
 }
 
 // ─── closeoutAttention ────────────────────────────────────────────────────────

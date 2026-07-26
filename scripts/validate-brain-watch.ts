@@ -5,6 +5,7 @@ import {
   permitAttention,
   certAttention,
   closeoutAttention,
+  groupReadyPunchItems,
   rankAttention,
   summarize,
   type AttentionItem,
@@ -353,6 +354,96 @@ console.log('\ncertAttention:');
   const cert = mkCert({ holderName: undefined, workerId: 'worker-abc', status: 'expired' });
   const items = certAttention([cert], NOW_MS);
   ok('no holderName → uses workerId', items[0].message.includes('worker-abc'));
+}
+
+// dedupe by (person, cert): duplicate records collapse to ONE line
+// (sim-audit fix #3 — "Dana Cole — First Aid / CPR expired" x3 verbatim).
+{
+  const dupes = [
+    mkCert({ id: 'c1', status: 'expired' as const, expiresDate: '2025-01-10' }),
+    mkCert({ id: 'c2', status: 'expired' as const, expiresDate: '2025-01-10' }),
+    mkCert({ id: 'c3', status: 'expired' as const, expiresDate: '2025-01-10' }),
+  ];
+  const items = certAttention(dupes, NOW_MS);
+  ok('3 duplicate (person,cert) records → 1 item', items.length === 1);
+  ok('deduped item keeps severity', items[0]?.severity === 'critical');
+}
+
+// dedupe keeps the MOST urgent record (expired beats expiring)
+{
+  const mixed = [
+    mkCert({ id: 'c1', status: 'expiring' as const, expiresDate: '2025-02-09' }),
+    mkCert({ id: 'c2', status: 'expired' as const, expiresDate: '2025-01-10' }),
+  ];
+  const items = certAttention(mixed, NOW_MS);
+  ok('expiring + expired same (person,cert) → 1 item', items.length === 1);
+  ok('most urgent (expired/critical) wins', items[0]?.severity === 'critical' && items[0].message.includes('expired'));
+}
+
+// different people / different certs do NOT collapse
+{
+  const distinct = [
+    mkCert({ id: 'c1', status: 'expired' as const }),
+    mkCert({ id: 'c2', status: 'expired' as const, holderName: 'Dana Cole' }),
+    mkCert({ id: 'c3', status: 'expired' as const, type: 'First Aid / CPR' }),
+  ];
+  ok('distinct person/cert stay separate', certAttention(distinct, NOW_MS).length === 3);
+}
+
+// ─── groupReadyPunchItems ────────────────────────────────────────────────────
+
+console.log('\ngroupReadyPunchItems:');
+
+const mkPunch = (id: string, projectId: string, description: string, priority: 'high' | 'medium' | 'low' = 'medium') => ({
+  id, projectId, description, priority, updatedAt: '2025-01-19T12:00:00Z',
+});
+
+// identical description across 3 projects → 1 group, xN projects
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Window flashing lap reversed, guest-house south'),
+    mkPunch('b', 'p2', 'Window flashing lap reversed, guest-house south'),
+    mkPunch('c', 'p3', 'Window flashing lap reversed, guest-house south'),
+  ]);
+  ok('3 identical items → 1 group', groups.length === 1);
+  ok('group spans 3 projects', groups[0]?.projectCount === 3);
+  ok('group carries all member ids', groups[0]?.ids.length === 3);
+  ok('primary is the first item', groups[0]?.primary.id === 'a');
+}
+
+// whitespace/case-insensitive description matching
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Touch up paint  hallway'),
+    mkPunch('b', 'p2', 'touch up paint hallway'),
+  ]);
+  ok('normalized description matches', groups.length === 1 && groups[0]?.projectCount === 2);
+}
+
+// highest member priority wins
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Same item', 'low'),
+    mkPunch('b', 'p2', 'Same item', 'high'),
+  ]);
+  ok('group priority = highest member', groups[0]?.priority === 'high');
+}
+
+// distinct descriptions stay separate; same project twice counts ONE project
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Item one'),
+    mkPunch('b', 'p1', 'Item one'),
+    mkPunch('c', 'p1', 'Item two'),
+  ]);
+  ok('distinct descriptions → 2 groups', groups.length === 2);
+  const g1 = groups.find(g => g.primary.id === 'a');
+  ok('same-project dupes count 1 project', g1?.projectCount === 1 && g1?.ids.length === 2);
+}
+
+// empty input → empty
+{
+  ok('empty punch input → empty', groupReadyPunchItems([]).length === 0);
 }
 
 // ─── closeoutAttention ───────────────────────────────────────────────────────
