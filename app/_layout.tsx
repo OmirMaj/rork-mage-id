@@ -3,9 +3,10 @@ import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Fraunces_500Medium, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, View, LogBox } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import BrandSplash from "@/components/BrandSplash";
 import ConstructionLoader from "@/components/ConstructionLoader";
 import DesktopSidebar from "@/components/DesktopSidebar";
 import { useResponsiveLayout } from "@/utils/useResponsiveLayout";
@@ -1376,16 +1377,37 @@ export default Sentry.wrap(function RootLayout() {
     JetBrainsMono_500Medium,
   });
 
+  // Splash hand-off state.
+  //   nativeHidden — the pre-JS native splash (app.json level-line) has been
+  //     dismissed. We hide it only once fonts are ready (or a failsafe fires)
+  //     so the animated BrandSplash below already has its Fraunces wordmark.
+  //   brandSplashDone — the animated BrandSplash has finished playing and the
+  //     app should now be fully revealed. It plays exactly once per cold
+  //     start (guarded by the fact this component mounts once).
+  const [nativeHidden, setNativeHidden] = useState(false);
+  const [brandSplashDone, setBrandSplashDone] = useState(false);
+
   useEffect(() => {
+    // Hand the native splash off to the animated BrandSplash: the app tree
+    // renders underneath from the first frame, so hiding the native layer
+    // reveals BrandSplash (an ink overlay identical to the native ink) with
+    // no white flash, and interactivity is never blocked beyond the ~1s
+    // animation — the app is already mounted and hydrating below it.
     if (fontsLoaded) {
       void SplashScreen.hideAsync();
+      setNativeHidden(true);
       return;
     }
-    // Failsafe: hide splash after 1.2s even if fonts haven't loaded.
-    // Onboarding falls back to Georgia / serif so it remains usable.
-    const timer = setTimeout(() => { void SplashScreen.hideAsync(); }, 1200);
+    // Failsafe: hand off after 1.2s even if fonts haven't loaded. BrandSplash
+    // + onboarding fall back to the platform serif so they remain usable.
+    const timer = setTimeout(() => {
+      void SplashScreen.hideAsync();
+      setNativeHidden(true);
+    }, 1200);
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
+
+  const handleBrandSplashDone = useCallback(() => setBrandSplashDone(true), []);
 
   return (
     <ErrorBoundary fallbackMessage="MAGE ID encountered an error. Tap below to restart.">
@@ -1432,6 +1454,12 @@ export default Sentry.wrap(function RootLayout() {
             </AuthProvider>
             </ThemeProvider>
           </ThemeLoader>
+          {/* Animated launch — mounts as a full-screen overlay ABOVE the app
+              (which renders + hydrates underneath) once the native splash is
+              handed off, plays the level-settle once, then unmounts. */}
+          {nativeHidden && !brandSplashDone && (
+            <BrandSplash onDone={handleBrandSplashDone} />
+          )}
         </GestureHandlerRootView>
       </QueryClientProvider>
     </ErrorBoundary>
