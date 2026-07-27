@@ -527,17 +527,19 @@ export default function HomeScreen() {
           testID="home-ask-mage"
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 10,
-            backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg,
+            backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg,
             paddingHorizontal: 16, paddingVertical: 14, marginBottom: 8,
+            borderWidth: 1, borderColor: themeColors.accent,
           }}
         >
-          <MageAIMark size={18} color="#FFF" />
+          <MageAIMark size={18} color={themeColors.accent} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: Colors.textOnAccent, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+            <Text style={{ color: themeColors.text, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
+            <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
               What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
             </Text>
           </View>
+          <ChevronRight size={16} color={themeColors.accent} strokeWidth={2} />
         </TouchableOpacity>
 
         {/* Copilot Hub — voice-driven workflow builder. Cross-link from home

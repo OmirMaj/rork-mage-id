@@ -27,7 +27,7 @@ export function WeekAheadStrip({ week, onPress }: WeekAheadStripProps) {
         </View>
         <Text style={styles.headerLabel}>THIS WEEK</Text>
         <Text style={styles.headerMeta}>
-          {week.totalTasks} task{week.totalTasks === 1 ? '' : 's'} · {week.milestoneCount} ◆
+          {week.totalTasks} task{week.totalTasks === 1 ? '' : 's'} · {week.milestoneCount} milestone{week.milestoneCount === 1 ? '' : 's'}
         </Text>
       </View>
 
