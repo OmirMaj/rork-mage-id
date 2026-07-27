@@ -117,12 +117,20 @@ export default function HomeScreen() {
     if (dy > 6) setFabHidden(true);
     else if (dy < -6) setFabHidden(false);
   }, []);
+  // Auto-hide is for ACTIVE downward motion only — the AI Copilot FAB is the
+  // primary conversational entry point and must never be stuck hidden at rest.
+  // When the scroll SETTLES (finger lifts / momentum ends), bring the stack
+  // back regardless of the last delta, so reading a card mid-list never leaves
+  // the assistant gone until the user thinks to scroll up.
+  const handleScrollSettled = useCallback(() => setFabHidden(false), []);
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
-  // Same width threshold as DesktopActionRail in the tabs layout — when the
-  // rail is mounted, the inline SmartInbox below would duplicate its content.
-  // Keep the breakpoint in sync if you change either side.
+  // Same width threshold as DesktopActionRail in the tabs layout. When the
+  // rail is mounted it becomes the wide-desktop needs-you surface (canonical
+  // useBrainWatch set), so we suppress the inline Smart Inbox feed here to
+  // avoid two competing attention columns in the same viewport. Keep the
+  // breakpoint in sync if you change either side.
   const responsive = useResponsiveLayout();
   const isWideDesktop = responsive.isDesktop && responsive.width >= 1280;
   // Use the dense ProjectRow at tablet+ widths. On phone we keep the
@@ -662,6 +670,8 @@ export default function HomeScreen() {
           <MageRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
         onScroll={handleListScroll}
+        onScrollEndDrag={handleScrollSettled}
+        onMomentumScrollEnd={handleScrollSettled}
         scrollEventThrottle={32}
         contentContainerStyle={[
           styles.listContent,

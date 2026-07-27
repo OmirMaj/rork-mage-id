@@ -212,7 +212,13 @@ export function certAttention(
 
     const workerLabel = cert.holderName ?? cert.workerId ?? 'Unknown worker';
     const certLabel = cert.type;
-    const key = `${workerLabel.trim().toLowerCase()}|${certLabel.trim().toLowerCase()}`;
+    // Dedupe on (person, cert). But a real person identifier is REQUIRED to
+    // merge — when both holderName AND workerId are absent, two genuinely
+    // distinct people would both key as "unknown worker|<type>" and collapse
+    // to one, dropping a real expired cert from the canonical count. Fall back
+    // to the per-record id so unknown-holder records never merge across people.
+    const personKey = cert.holderName ?? cert.workerId ?? `cert:${cert.id}`;
+    const key = `${personKey.trim().toLowerCase()}|${certLabel.trim().toLowerCase()}`;
 
     const existing = byKey.get(key);
     if (existing && existing._rank <= rank) continue;
@@ -255,17 +261,62 @@ export interface ReadyPunchGroup {
 
 const PUNCH_PRIORITY_RANK: Record<'high' | 'medium' | 'low', number> = { high: 0, medium: 1, low: 2 };
 
+// Generic free-text descriptions that collide across UNRELATED punch items —
+// "touch up paint" on project A is not the same work as "touch up paint" on
+// project B. Merging them hides one item behind a bogus "x2 projects" count.
+// Only DISTINCTIVE descriptions (specific enough to plausibly be a re-seeded
+// identical item) are allowed to collapse across projects; anything generic
+// or too short stays a per-item row.
+const GENERIC_PUNCH_PHRASES = new Set<string>([
+  'touch up paint',
+  'touch-up paint',
+  'paint touch up',
+  'touch up',
+  'clean up',
+  'cleanup',
+  'clean',
+  'final walkthrough',
+  'walkthrough',
+  'walk through',
+  'punch',
+  'punch item',
+  'punch list',
+  'punchlist',
+  'misc',
+  'miscellaneous',
+  'repair',
+  'fix',
+  'caulk',
+  'caulking',
+  'inspection',
+  'final clean',
+]);
+
+function normalizePunchDesc(description: string): string {
+  return description.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 /**
- * Groups ready-to-verify punch items that carry the SAME description — the
- * "Punch item ready to verify" x3 sim-audit dupe (identical item seeded on 3
- * projects). Consumers render one row per group with a "xN projects" suffix
- * when the group spans multiple projects. Pure — validated under Bun.
+ * Groups ready-to-verify punch items that carry the SAME DISTINCTIVE
+ * description — the "Punch item ready to verify" x3 sim-audit dupe (identical
+ * item seeded on 3 projects). Consumers render one row per group with a
+ * "xN projects" suffix when the group spans multiple projects.
+ *
+ * Cross-project merge is gated on the description NOT being a generic
+ * stop-list phrase: two unrelated "touch up paint" items on different
+ * projects key on their item id instead of the shared text, so they stay two
+ * separate rows rather than a false "x2 projects" collapse. Distinctive
+ * descriptions still collapse true re-seeded duplicates. Pure — validated
+ * under Bun.
  */
 export function groupReadyPunchItems(items: ReadyPunchInput[]): ReadyPunchGroup[] {
   const groups = new Map<string, ReadyPunchGroup & { _projects: Set<string> }>();
 
   for (const item of items) {
-    const key = item.description.trim().replace(/\s+/g, ' ').toLowerCase();
+    const norm = normalizePunchDesc(item.description);
+    // Distinctive descriptions merge across projects (true re-seeded dupes);
+    // generic stop-list phrases fall back to a per-item key so they never merge.
+    const key = GENERIC_PUNCH_PHRASES.has(norm) ? `id:${item.id}` : norm;
     const existing = groups.get(key);
     if (!existing) {
       groups.set(key, {

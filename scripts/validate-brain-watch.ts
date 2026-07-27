@@ -392,6 +392,30 @@ console.log('\ncertAttention:');
   ok('distinct person/cert stay separate', certAttention(distinct, NOW_MS).length === 3);
 }
 
+// PIN (finding #3): two DISTINCT certs with BOTH holderName and workerId absent
+// and the SAME type must NOT merge — they are different people. The dedupe key
+// falls back to cert.id when no real person identifier is present, so the
+// canonical count can't under-count bulk-imported / hand-entered certs.
+{
+  const nullHolders = [
+    mkCert({ id: 'c1', status: 'expired' as const, holderName: undefined, workerId: undefined, type: 'OSHA 30' }),
+    mkCert({ id: 'c2', status: 'expired' as const, holderName: undefined, workerId: undefined, type: 'OSHA 30' }),
+  ];
+  const items = certAttention(nullHolders, NOW_MS);
+  ok('two null-holder distinct certs stay separate', items.length === 2);
+  ok('both null-holder certs keep their own id', items.some(i => i.id === 'cert-c1') && items.some(i => i.id === 'cert-c2'));
+}
+
+// A real person identifier still dedupes: two records that DO share a
+// holderName + type collapse to one (dedupe is preserved for real people).
+{
+  const named = [
+    mkCert({ id: 'c1', status: 'expired' as const, holderName: 'Sam Reyes', type: 'OSHA 30' }),
+    mkCert({ id: 'c2', status: 'expired' as const, holderName: 'Sam Reyes', type: 'OSHA 30' }),
+  ];
+  ok('same named person + cert still collapses to 1', certAttention(named, NOW_MS).length === 1);
+}
+
 // ─── groupReadyPunchItems ────────────────────────────────────────────────────
 
 console.log('\ngroupReadyPunchItems:');
@@ -441,6 +465,40 @@ const mkPunch = (id: string, projectId: string, description: string, priority: '
   ok('distinct descriptions → 2 groups', groups.length === 2);
   const g1 = groups.find(g => g.primary.id === 'a');
   ok('same-project dupes count 1 project', g1?.projectCount === 1 && g1?.ids.length === 2);
+}
+
+// PIN (finding #4): a GENERIC description ("touch up paint") on two UNRELATED
+// projects must NOT false-merge into one "x2 projects" row — they are
+// different work. Generic stop-list phrases key per-item, so they stay two
+// distinct rows.
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Touch up paint'),
+    mkPunch('b', 'p2', 'touch up paint'),
+  ]);
+  ok('generic "touch up paint" across projects → 2 groups (no false merge)', groups.length === 2);
+  ok('each generic group counts 1 project', groups.every(g => g.projectCount === 1 && g.ids.length === 1));
+}
+
+// Other generic phrases likewise stay separate.
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Clean up'),
+    mkPunch('b', 'p2', 'clean up'),
+    mkPunch('c', 'p3', 'Final walkthrough'),
+    mkPunch('d', 'p4', 'final walkthrough'),
+  ]);
+  ok('generic "clean up"/"final walkthrough" never merge', groups.length === 4);
+}
+
+// A DISTINCTIVE description still merges across projects (the real re-seeded
+// dupe case is preserved — this is NOT weakened).
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Window flashing lap reversed, guest-house south'),
+    mkPunch('b', 'p2', 'Window flashing lap reversed, guest-house south'),
+  ]);
+  ok('distinctive description still merges across projects', groups.length === 1 && groups[0]?.projectCount === 2);
 }
 
 // empty input → empty
