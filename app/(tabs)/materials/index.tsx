@@ -262,7 +262,7 @@ export default function MaterialsScreen() {
               style={styles.cartPill}
               onPress={() => {
                 if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                router.push('/(tabs)/estimate');
+                router.push('/(tabs)/estimate/full');
               }}
               activeOpacity={0.7}
               testID="materials-cart-pill"
