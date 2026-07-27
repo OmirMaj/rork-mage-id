@@ -408,6 +408,44 @@ export function buildScheduleFromTasks(
   };
 }
 
+/**
+ * Merge a freshly-built schedule's DERIVED SCALARS onto an existing schedule,
+ * preserving every sidecar field. Mirrors the classic persistEditedTasks merge
+ * in app/(tabs)/schedule/index.tsx: spread the existing schedule first, then
+ * overwrite ONLY the fields the CPM/build pass just recomputed. This is what a
+ * manual-edit save (mobile Pro, desktop) must do — a naive `{ ...built }` write
+ * silently drops nonWorkingDates, scenarios, activeScenarioId,
+ * criticalFloatThresholdDays, resources, resourceCalendars, fragnets,
+ * baselines[], weatherAlerts, weatherDelayLog AND resets bufferDays /
+ * workingDaysPerWeek to buildScheduleFromTasks' hardcoded defaults.
+ *
+ * The `built` argument is the output of buildScheduleFromTasks (its derived
+ * scalars are authoritative); `existing` supplies every other field.
+ */
+export function mergeEditedSchedule(
+  existing: ProjectSchedule,
+  built: ProjectSchedule,
+  opts?: {
+    /** New calendar anchor to set (creation flows). Omit to keep existing. */
+    startDate?: string;
+    /** projectId to stamp (mobile passes the selected project id). */
+    projectId?: string | null;
+  },
+): ProjectSchedule {
+  return {
+    ...existing,
+    tasks: built.tasks,
+    totalDurationDays: built.totalDurationDays,
+    criticalPathDays: built.criticalPathDays,
+    healthScore: built.healthScore,
+    laborAlignmentScore: built.laborAlignmentScore,
+    riskItems: built.riskItems,
+    ...(opts?.startDate ? { startDate: opts.startDate } : {}),
+    ...(opts?.projectId !== undefined ? { projectId: opts.projectId ?? existing.projectId } : {}),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function saveBaseline(schedule: ProjectSchedule): ScheduleBaseline {
   return {
     savedAt: new Date().toISOString(),

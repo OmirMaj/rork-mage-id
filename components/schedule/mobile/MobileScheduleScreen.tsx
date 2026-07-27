@@ -11,7 +11,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Project, ScheduleTask } from '@/types';
-import { buildScheduleFromTasks, createId } from '@/utils/scheduleEngine';
+import { buildScheduleFromTasks, mergeEditedSchedule, createId } from '@/utils/scheduleEngine';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { runCpm } from '@/utils/cpm';
@@ -37,7 +37,7 @@ const SUBTABS: [SubTab, string][] = [['schedule', 'Schedule'], ['4d', '4D Model'
 
 // Mobile-native "Schedule Pro" — touch-first gantt + task-detail sheet +
 // sub-tabs, rendered on phones (web/tablet keep the desktop schedule screen).
-export function MobileScheduleScreen() {
+export function MobileScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef?: React.MutableRefObject<string | null> } = {}) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -59,7 +59,12 @@ export function MobileScheduleScreen() {
   // selection away from a project the user cycled to manually.
   const { projectId: routeProjectId, focus: routeFocus } =
     useLocalSearchParams<{ projectId?: string; focus?: string }>();
-  const consumedFocusRef = useRef<string | null>(null);
+  // Shared with the desktop sibling via the parent wrapper so a nonce already
+  // consumed on one surface stays consumed after a breakpoint remount — a
+  // fresh local ref would re-yank a manually-cycled project back to the CTA's
+  // projectId. Falls back to a local ref if rendered standalone.
+  const localFocusRef = useRef<string | null>(null);
+  const consumedFocusRef = sharedFocusRef ?? localFocusRef;
   useEffect(() => {
     if (!routeProjectId) return;
     const nonce = `${routeProjectId}:${routeFocus ?? ''}`;
@@ -67,7 +72,7 @@ export function MobileScheduleScreen() {
     if (!projects.some((p) => p.id === routeProjectId)) return;
     consumedFocusRef.current = nonce;
     setSelectedProjectId(routeProjectId);
-  }, [routeProjectId, routeFocus, projects]);
+  }, [routeProjectId, routeFocus, projects, consumedFocusRef]);
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [tab, setTab] = useState<SubTab>('schedule');
@@ -126,9 +131,20 @@ export function MobileScheduleScreen() {
       ...(anchor ? { startDate: anchor } : {}),
       criticalPathDays: cpm.projectFinish,
     });
-    updateProject(selectedProject.id, {
-      schedule: { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() },
-    });
+    // Merge the freshly-derived scalars onto the EXISTING schedule so every
+    // sidecar field survives (nonWorkingDates, scenarios, activeScenarioId,
+    // criticalFloatThresholdDays, resources, resourceCalendars, fragnets,
+    // baselines[], weatherAlerts, weatherDelayLog) and bufferDays /
+    // workingDaysPerWeek aren't reset to buildScheduleFromTasks' hardcoded
+    // defaults — a naive `{ ...next }` write silently wiped all of these on
+    // every task edit, and (post the calendar-aware CPM fix) it also fed
+    // nonWorkingDates into the finish computation and then dropped it. On
+    // schedule CREATION (no activeSchedule) there is nothing to preserve, so
+    // `next` is written as-is (it already carries the creation anchor).
+    const merged = activeSchedule
+      ? mergeEditedSchedule(activeSchedule, next, { projectId: selectedProject.id })
+      : { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() };
+    updateProject(selectedProject.id, { schedule: merged });
   }, [selectedProject, activeSchedule, startDate, updateProject]);
 
   const onUpdateTask = useCallback((next: ScheduleTask) => {
