@@ -144,7 +144,7 @@ const EMPTY_DRAFT: TaskDraft = {
   assignedSubId: '', assignedSubName: '',
 };
 
-function ScheduleScreen() {
+function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef?: React.MutableRefObject<string | null> } = {}) {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
@@ -162,7 +162,12 @@ function ScheduleScreen() {
   // while sticky tab params from an old visit never override a manual switch.
   const { projectId: routeProjectId, focus: routeFocus } =
     useLocalSearchParams<{ projectId?: string; focus?: string }>();
-  const consumedFocusRef = useRef<string | null>(null);
+  // Shared with the sibling surface via the parent wrapper so an already-
+  // consumed nonce stays consumed across a phone<->desktop breakpoint remount
+  // (a fresh local ref would re-yank the manual selection). Falls back to a
+  // local ref if rendered standalone.
+  const localFocusRef = useRef<string | null>(null);
+  const consumedFocusRef = sharedFocusRef ?? localFocusRef;
   useEffect(() => {
     if (!routeProjectId) return;
     const nonce = `${routeProjectId}:${routeFocus ?? ''}`;
@@ -170,7 +175,7 @@ function ScheduleScreen() {
     if (!projects.some(p => p.id === routeProjectId)) return;
     consumedFocusRef.current = nonce;
     setSelectedProjectId(routeProjectId);
-  }, [routeProjectId, routeFocus, projects]);
+  }, [routeProjectId, routeFocus, projects, consumedFocusRef]);
 
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -4064,7 +4069,17 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
 // Route entry: phones get the new mobile-native Schedule Pro; web/tablet keep
 // the full desktop schedule screen. Thin wrapper so the heavy desktop component
 // only mounts off-phone (no conditional hooks in either screen).
+//
+// The consumed-focus-nonce ref is owned HERE (the parent) and threaded into
+// both surfaces, so it SURVIVES a breakpoint crossing (web resize / foldable).
+// If each child owned its own ref, resizing below/above the phone breakpoint
+// would mount the sibling fresh with a null ref, which then re-consumes the
+// still-present route params and snaps the selection back to the CTA's
+// projectId — yanking away whatever project the user had manually cycled to.
 export default function ScheduleTabRoute() {
   const layout = useResponsiveLayout();
-  return layout.isPhone ? <MobileScheduleScreen /> : <ScheduleScreen />;
+  const consumedFocusRef = useRef<string | null>(null);
+  return layout.isPhone
+    ? <MobileScheduleScreen consumedFocusRef={consumedFocusRef} />
+    : <ScheduleScreen consumedFocusRef={consumedFocusRef} />;
 }
