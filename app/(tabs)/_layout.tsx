@@ -9,7 +9,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useCoreData } from '@/contexts/ProjectContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopActionRail from '@/components/DesktopActionRail';
-import { useSmartInbox } from '@/hooks/useSmartInbox';
+import { useBrainWatch } from '@/hooks/useBrainWatch';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -89,7 +89,7 @@ const tabIconStyles = StyleSheet.create({
 
 export default function TabLayout() {
   const layout = useResponsiveLayout();
-  const { counts } = useSmartInbox();
+  const { total: attentionCount } = useBrainWatch();
   const { colors: themeColors } = useTheme();
   const { userRole } = useCoreData();
   // Non-contractor personas get a stripped-down tab bar. The original
@@ -100,8 +100,13 @@ export default function TabLayout() {
   // two tabs: Home (the persona's hub — ClientHome or PropertyManagerHome) +
   // Settings. 'both' falls through to the full contractor tab bar by design.
   const isMinimalPersona = userRole === 'client' || userRole === 'property_manager';
-  const inboxBadge = counts.all > 0
-    ? (counts.all > 99 ? '99+' : String(counts.all))
+  // Tab badge = THE canonical needs-attention count (useBrainWatch) — the
+  // same number the Brain Watch card and the Summary hero pill show. It
+  // used to be the Smart Inbox row count, so the badge said "11" while
+  // Summary said "1" and the Brain Watch card said "5" (sim-audit #15).
+  // The Inbox card carries its own count under its own scoped "Inbox" label.
+  const attentionBadge = attentionCount > 0
+    ? (attentionCount > 99 ? '99+' : String(attentionCount))
     : undefined;
 
   // Right-rail "Action Required" column shows on wide desktops (>= 1280px
@@ -201,7 +206,7 @@ export default function TabLayout() {
           // property-owner hub (post a project, active RFPs, in-progress).
           // Contractors keep the original "Your Projects" label.
           title: isMinimalPersona ? 'Home' : 'Your Projects',
-          tabBarBadge: inboxBadge,
+          tabBarBadge: attentionBadge,
           tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={MageProject} color={color} focused={focused} />

@@ -131,7 +131,7 @@ ACTIVE BIDS (${bids.length}):
 ${bids.slice(0, 5).map((b: any) => `"${b.title}" — ${b.estimatedValue?.toLocaleString() ?? '0'}`).join('\n') || 'None'}`;
 }
 
-export default function AICopilot() {
+export default function AICopilot({ hidden }: { hidden?: boolean } = {}) {
   const insets = useSafeAreaInsets();
   const { projects, invoices, changeOrders, subcontractors, equipment } = useProjects();
   const { bids } = useBids();
@@ -248,13 +248,18 @@ export default function AICopilot() {
           on web to keep the AI FAB clear of typical scrollable content
           edges. Matches the same +48 offset on UniversalMicButton so
           the two FABs stay vertically aligned. */}
-      <View style={[styles.fab, { bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0) }]}>
-        <TouchableOpacity
-          onPress={handleOpen}
-          style={styles.fabButton}
-          activeOpacity={0.8}
-          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><MageCraneBuild size={40} color="#FFFFFF" accentColor="#FF6A1A" /></TouchableOpacity>
-      </View>
+      {/* `hidden` auto-hides the FAB while the host screen scrolls down so it
+          never covers list dismiss/chevron targets (sim-audit fix #4). The
+          modal stays mounted — only the trigger disappears. */}
+      {!hidden && (
+        <View style={[styles.fab, { bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0) }]}>
+          <TouchableOpacity
+            onPress={handleOpen}
+            style={styles.fabButton}
+            activeOpacity={0.8}
+            testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><MageCraneBuild size={40} color="#FFFFFF" accentColor="#FF6A1A" /></TouchableOpacity>
+        </View>
+      )}
 
       <Modal visible={isOpen} animationType="slide" transparent>
         <View style={styles.modalOverlay}>

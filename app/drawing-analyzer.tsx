@@ -292,7 +292,7 @@ function DrawingAnalyzerInner() {
               <Text style={styles.uploadCtaText}>Pick a PDF</Text>
             </View>
             <Text style={styles.uploadHint}>
-              Each page is converted to an image and sent to Gemini. Drawings are stored in your project&apos;s plans bucket.
+              Each page is converted to an image and read by MAGE&apos;s vision engine. Drawings are stored in your project&apos;s plans bucket.
             </Text>
           </TouchableOpacity>
         )}
@@ -338,7 +338,7 @@ function DrawingAnalyzerInner() {
               <Text style={styles.progressBody}>
                 {step === 'uploading'
                   ? `Converting ${uploadedFileName ?? 'your PDF'} to high-res page images.`
-                  : `Gemini is looking at ${pages.length} page${pages.length === 1 ? '' : 's'}, identifying scope, and pricing it. This can take 30-60 seconds.`}
+                  : `MAGE is looking at ${pages.length} page${pages.length === 1 ? '' : 's'}, identifying scope, and pricing it. This can take 30-60 seconds.`}
               </Text>
             </View>
             {step === 'analyzing' && (

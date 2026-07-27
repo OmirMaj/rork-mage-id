@@ -109,6 +109,10 @@ export function MobileScheduleList({
             {!collapsed && (
               <View style={styles.card}>
                 {ph.tasks.map((t, i) => {
+                  // Milestones are 0-day events — show them as such. The
+                  // project-detail modal already prints 0d; clamping to 1d
+                  // here made the two surfaces contradict (sim-audit #2).
+                  const isMilestone = !!t.isMilestone || (t.durationDays || 0) === 0;
                   const dur = Math.max(1, t.durationDays || 1);
                   // startDay is 1-indexed (day 1 = schedule start), matching the
                   // desktop + CPM engine; shift by -1 to a 0-indexed day-offset.
@@ -124,17 +128,20 @@ export function MobileScheduleList({
                     <SwipeRow key={t.id} done={done} onDone={() => markDone(t)} onDelete={() => confirmDelete(t)}>
                       <TouchableOpacity style={[styles.row, i > 0 ? styles.rowDivider : null]} activeOpacity={0.7} onPress={() => onPressTask(t)}>
                         {crit && <View style={[styles.critEdge, { backgroundColor: colors.danger }]} />}
+                        {/* Status icons speak the app-wide STATUS language
+                            (done=success, in-progress=info, idle=muted) —
+                            not the phase palette (sim-audit slop #5). */}
                         {done
                           ? <CheckCircle2 size={18} color={colors.success} strokeWidth={1.75} />
                           : t.status === 'in_progress'
-                            ? <CircleDot size={18} color={color} strokeWidth={1.75} />
+                            ? <CircleDot size={18} color={colors.info} strokeWidth={1.75} />
                             : <Circle size={18} color={colors.textMuted} strokeWidth={1.75} />}
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <View style={styles.titleRow}>
                             <Text style={[styles.tname, done ? styles.tnameDone : null]} numberOfLines={1}>{t.title}</Text>
                             <Text style={styles.tpct}>{pct}%</Text>
                           </View>
-                          <Text style={styles.tmeta} numberOfLines={1}>{range} · {dur}d{crew ? ` · ${crew}` : ''}</Text>
+                          <Text style={styles.tmeta} numberOfLines={1}>{range} · {isMilestone ? 0 : dur}d{crew ? ` · ${crew}` : ''}</Text>
                           <View style={styles.track}><View style={[styles.fill, { width: `${pct}%`, backgroundColor: done ? colors.textMuted : color }]} /></View>
                         </View>
                       </TouchableOpacity>

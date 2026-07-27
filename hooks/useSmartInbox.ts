@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProjects } from '@/contexts/ProjectContext';
+import { groupReadyPunchItems } from '@/utils/brainWatch';
 import type {
   EntityRef, Project, Invoice, RFI, Submittal, ChangeOrder, PunchItem,
   Subcontractor, ScheduleTask, WeatherAlert,
@@ -233,15 +234,33 @@ export function useSmartInbox(): SmartInboxResult {
       });
     }
 
-    for (const pi of store.punchItems as PunchItem[]) {
-      if (pi.status !== 'ready_for_review') continue;
+    // Identical ready-to-verify punch items (same description, e.g. the same
+    // deficiency logged across several projects) collapse to ONE row with a
+    // "xN projects" suffix — the sim audit found the same item listed 3x
+    // verbatim. Tap + dismiss anchor on the group's primary item.
+    const readyPunch = (store.punchItems as PunchItem[])
+      .filter(pi => pi.status === 'ready_for_review')
+      .map(pi => ({
+        id: pi.id,
+        projectId: pi.projectId,
+        description: pi.description,
+        priority: pi.priority,
+        updatedAt: pi.updatedAt,
+      }));
+    for (const group of groupReadyPunchItems(readyPunch)) {
+      const pi = group.primary;
+      const projectSuffix = group.projectCount > 1
+        ? ` · ×${group.projectCount} projects`
+        : (projectNameById.get(pi.projectId) ? ` · ${projectNameById.get(pi.projectId)}` : '');
       out.push({
         id: `punch_verify:punchItem:${pi.id}`,
         rule: 'punch_verify',
         category: 'safety',
-        severity: pi.priority === 'high' ? 3 : pi.priority === 'medium' ? 2 : 1,
-        title: `Punch item ready to verify`,
-        subtitle: `${pi.description}${projectNameById.get(pi.projectId) ? ` · ${projectNameById.get(pi.projectId)}` : ''}`,
+        severity: group.priority === 'high' ? 3 : group.priority === 'medium' ? 2 : 1,
+        title: group.ids.length > 1
+          ? `${group.ids.length} punch items ready to verify`
+          : `Punch item ready to verify`,
+        subtitle: `${pi.description}${projectSuffix}`,
         projectId: pi.projectId,
         projectName: projectNameById.get(pi.projectId),
         sourceDate: pi.updatedAt,

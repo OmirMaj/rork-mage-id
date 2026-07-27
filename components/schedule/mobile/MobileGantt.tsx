@@ -10,6 +10,7 @@ import type { ThemeColors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { getPhaseColor } from '@/utils/scheduleEngine';
 import { orthogonalArrowPath } from '@/utils/ganttArrowPath';
+import { outsideLabelSide, OUTSIDE_LABEL_MAX_W } from '@/utils/ganttLabelSide';
 
 interface MobileGanttProps {
   tasks: ScheduleTask[];
@@ -30,6 +31,11 @@ const ROW_H = 40;
 const HEADER_H = 44;
 const LEFT_W = 150;
 const MS_DAY = 24 * 60 * 60 * 1000;
+// Bars narrower than this can't fit a readable title inside, so the label
+// renders OUTSIDE the bar, to its right, in ink (sim-audit #14 — hard
+// truncation like "Waterpro…" and unlabeled 1d squares). Each task owns its
+// row, so the space right of the bar is free by construction.
+const INSIDE_LABEL_MIN_W = 100;
 
 type Zoom = 'day' | 'week' | 'fit';
 
@@ -50,8 +56,8 @@ function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0,
 // back into a calendar-day startDay; onReschedule still takes a delta in
 // *calendar days* so its contract (and onUpdateTask) is unchanged. This keeps
 // drag correct under weekday-only mode and every zoom level.
-function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, dragToStartDay, onDragChange }: {
-  task: ScheduleTask; x: number; w: number; top: number; dayW: number; color: string; done: boolean;
+function GanttBar({ task, x, w, top, dayW, chartW, color, done, onPress, onReschedule, dragToStartDay, onDragChange }: {
+  task: ScheduleTask; x: number; w: number; top: number; dayW: number; chartW: number; color: string; done: boolean;
   onPress: (t: ScheduleTask) => void; onReschedule: (t: ScheduleTask, deltaDays: number) => void;
   dragToStartDay: (currentStartDay: number, translationX: number) => number;
   onDragChange: (id: string | null) => void;
@@ -80,15 +86,40 @@ function GanttBar({ task, x, w, top, dayW, color, done, onPress, onReschedule, d
 
   const dragging = dragCols !== null;
   const left = Math.max(0, x + (dragging ? (dragCols ?? 0) * dayW : 0));
+  const labelOutside = w < INSIDE_LABEL_MIN_W;
+  // Near the right edge the right-side label would run off the chart content
+  // and be clipped by the horizontal ScrollView; flip it to the LEFT of the
+  // bar (right-aligned, ending at the bar start) so it stays readable.
+  const labelSide = labelOutside ? outsideLabelSide(left, w, chartW) : 'right';
 
   return (
     <GestureDetector gesture={gesture}>
-      <View style={[styles.bar, { left, width: w, top, backgroundColor: color, opacity: done ? 0.5 : 1, zIndex: dragging ? 30 : 1 }, dragging ? styles.barDragging : null]}>
-        {w > 46 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            {done && <Check size={10} color="#FFFFFF" strokeWidth={2.5} />}
-            <Text style={[styles.barText, { flex: 1 }]} numberOfLines={1}>{task.title}</Text>
-          </View>
+      {/* Row wrapper is the positioned + gesture surface, so tapping an
+          outside label opens the task just like tapping the bar. */}
+      <View style={[styles.barRow, { left, top, zIndex: dragging ? 30 : 1 }]}>
+        {labelOutside && labelSide === 'left' && (
+          // Absolutely positioned to the LEFT of the bar (right edge of the
+          // label meets the bar's left edge, minus the row gap), right-aligned
+          // so the tail sits against the bar.
+          <Text
+            style={[styles.barTextOutside, styles.barTextOutsideLeft, done ? styles.barTextOutsideDone : null, { right: w + 5 }]}
+            numberOfLines={1}
+          >
+            {task.title}
+          </Text>
+        )}
+        <View style={[styles.bar, { width: w, backgroundColor: color, opacity: done ? 0.5 : 1 }, dragging ? styles.barDragging : null]}>
+          {!labelOutside && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              {done && <Check size={10} color="#FFFFFF" strokeWidth={2.5} />}
+              <Text style={[styles.barText, { flex: 1 }]} numberOfLines={1}>{task.title}</Text>
+            </View>
+          )}
+        </View>
+        {labelOutside && labelSide === 'right' && (
+          <Text style={[styles.barTextOutside, done ? styles.barTextOutsideDone : null]} numberOfLines={1}>
+            {task.title}
+          </Text>
         )}
       </View>
     </GestureDetector>
@@ -313,10 +344,12 @@ export function MobileGantt({
             </TouchableOpacity>
           ) : (
             <TouchableOpacity key={r.task.id} style={[styles.lrow, styles.taskRow]} activeOpacity={0.7} onPress={() => onPressTask(r.task)}>
+              {/* Status icons use the status language (done=success,
+                  in-progress=info, idle=muted), not the phase palette. */}
               {r.task.status === 'done'
                 ? <CheckCircle2 size={15} color={colors.success} strokeWidth={1.75} />
                 : r.task.status === 'in_progress'
-                  ? <CircleDot size={15} color={getPhaseColor(r.task.phase || 'Other')} strokeWidth={1.75} />
+                  ? <CircleDot size={15} color={colors.info} strokeWidth={1.75} />
                   : <Circle size={15} color={colors.textMuted} strokeWidth={1.75} />}
               <Text style={[styles.taskName, r.task.status === 'done' ? styles.taskNameDone : null]} numberOfLines={1}>{r.task.title}</Text>
             </TouchableOpacity>
@@ -384,6 +417,7 @@ export function MobileGantt({
                   w={g.w}
                   top={HEADER_H + i * ROW_H + (ROW_H - 22) / 2}
                   dayW={dayW}
+                  chartW={timelineW}
                   color={color}
                   done={done}
                   onPress={onPressTask}
@@ -426,7 +460,11 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   weekTick: { position: 'absolute' as const, bottom: 6, fontSize: 9.5, fontWeight: '700' as const, color: t.textMuted },
   todayLine: { position: 'absolute' as const, top: 0, width: 2, backgroundColor: t.accent, opacity: 0.7 },
   selectedBand: { position: 'absolute' as const, top: 0, backgroundColor: t.accent, opacity: 0.1 },
-  bar: { position: 'absolute' as const, height: 22, borderRadius: 6, justifyContent: 'center' as const, paddingHorizontal: 7 },
+  barRow: { position: 'absolute' as const, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 },
+  bar: { height: 22, borderRadius: 6, justifyContent: 'center' as const, paddingHorizontal: 7 },
   barDragging: { transform: [{ scale: 1.06 }], shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   barText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' as const },
+  barTextOutside: { color: t.textSecondary, fontSize: 10, fontWeight: '700' as const, maxWidth: OUTSIDE_LABEL_MAX_W },
+  barTextOutsideLeft: { position: 'absolute' as const, textAlign: 'right' as const },
+  barTextOutsideDone: { color: t.textMuted, textDecorationLine: 'line-through' as const },
 });

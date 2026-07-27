@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileText, AlertCircle, Plus, Minus, Pencil, Info,
+  FileText, AlertCircle, Plus, Minus, Pencil, Info,
   ArrowUpRight, ArrowDown,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -38,6 +38,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { PlanSheet } from '@/types';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 
 type Step = 'pickOld' | 'pickNew' | 'analyzing' | 'review';
 
@@ -46,10 +47,14 @@ export default function CompareDrawingsScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, getPlanSheetsForProject } = useProjects();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projects, getProject, getPlanSheetsForProject } = useProjects();
   const { tier } = useSubscription();
 
+  // Opened without params (Tools hub, search): land on a project picker
+  // instead of the old flat "Project not found." dead end (sim-audit #5).
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? null;
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
   const planSheets = useMemo(() => projectId ? getPlanSheetsForProject(projectId) : [], [projectId, getPlanSheetsForProject]);
 
@@ -139,25 +144,23 @@ export default function CompareDrawingsScreen() {
 
   if (!project) {
     return (
-      <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Compare Drawings' }} />
-        <Text style={styles.loadingText}>Project not found.</Text>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE" title="Find what changed" />
+        <ToolProjectPicker
+          toolName="Compare Drawings"
+          message="Compare Drawings diffs a new revision against the sheet in the field and flags every scope, dimension, and note change with its likely cost or schedule impact."
+          projects={projects}
+          onPick={setPickedProjectId}
+        />
       </View>
     );
   }
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: 'Compare Drawings',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={themeColors.accent} strokeWidth={1.75} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ToolHeader eyebrow="COMPARE DRAWINGS · MAGE" title={project.name} />
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
 
         {/* ── Step 1: pick the OLD sheet ─────────────────────────── */}
@@ -326,7 +329,7 @@ export default function CompareDrawingsScreen() {
           </>
         )}
       </ScrollView>
-    </>
+    </View>
   );
 }
 

@@ -2,6 +2,7 @@ import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
+  type NativeSyntheticEvent, type NativeScrollEvent,
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -22,6 +23,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';
 import AIWeeklySummary from '@/components/AIWeeklySummary';
 import { HomeFabStack } from '@/components/HomeFabStack';
+import StatusBarMask from '@/components/StatusBarMask';
 import AIHomeBriefing from '@/components/AIHomeBriefing';
 import SmartInbox from '@/components/SmartInbox';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -100,12 +102,35 @@ export default function HomeScreen() {
   const router = useRouter();
   const { openCreate } = useLocalSearchParams<{ openCreate?: string }>();
   const openCreateConsumed = useRef(false);
+
+  // Auto-hide the FAB stack while scrolling DOWN (reading/aiming at list
+  // rows) and bring it back on scroll-up or near the top — the stacked FABs
+  // were covering list dismiss buttons and card chevrons (sim-audit #4).
+  const [fabHidden, setFabHidden] = useState(false);
+  const lastScrollYRef = useRef(0);
+  const handleListScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    const dy = y - lastScrollYRef.current;
+    lastScrollYRef.current = y;
+    if (y <= 24) { setFabHidden(false); return; }
+    // Small dead-zone so momentum jitter doesn't flicker the stack.
+    if (dy > 6) setFabHidden(true);
+    else if (dy < -6) setFabHidden(false);
+  }, []);
+  // Auto-hide is for ACTIVE downward motion only — the AI Copilot FAB is the
+  // primary conversational entry point and must never be stuck hidden at rest.
+  // When the scroll SETTLES (finger lifts / momentum ends), bring the stack
+  // back regardless of the last delta, so reading a card mid-list never leaves
+  // the assistant gone until the user thinks to scroll up.
+  const handleScrollSettled = useCallback(() => setFabHidden(false), []);
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const notifFeed = useNotificationFeed();
-  // Same width threshold as DesktopActionRail in the tabs layout — when the
-  // rail is mounted, the inline SmartInbox below would duplicate its content.
-  // Keep the breakpoint in sync if you change either side.
+  // Same width threshold as DesktopActionRail in the tabs layout. When the
+  // rail is mounted it becomes the wide-desktop needs-you surface (canonical
+  // useBrainWatch set), so we suppress the inline Smart Inbox feed here to
+  // avoid two competing attention columns in the same viewport. Keep the
+  // breakpoint in sync if you change either side.
   const responsive = useResponsiveLayout();
   const isWideDesktop = responsive.isDesktop && responsive.width >= 1280;
   // Use the dense ProjectRow at tablet+ widths. On phone we keep the
@@ -510,17 +535,19 @@ export default function HomeScreen() {
           testID="home-ask-mage"
           style={{
             flexDirection: 'row', alignItems: 'center', gap: 10,
-            backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg,
+            backgroundColor: themeColors.accentSoft, borderRadius: Tokens.radius.lg,
             paddingHorizontal: 16, paddingVertical: 14, marginBottom: 8,
+            borderWidth: 1, borderColor: themeColors.accent,
           }}
         >
-          <MageAIMark size={18} color="#FFF" />
+          <MageAIMark size={18} color={themeColors.accent} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: Colors.textOnAccent, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: Type.caption2.fontSize, marginTop: 2 }}>
+            <Text style={{ color: themeColors.text, fontWeight: '800', fontSize: Type.footnote.fontSize }}>Ask MAGE anything</Text>
+            <Text style={{ color: themeColors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 }}>
               What&apos;s overdue? What&apos;s unbilled? Which job is over budget?
             </Text>
           </View>
+          <ChevronRight size={16} color={themeColors.accent} strokeWidth={2} />
         </TouchableOpacity>
 
         {/* Copilot Hub — voice-driven workflow builder. Cross-link from home
@@ -642,14 +669,19 @@ export default function HomeScreen() {
         refreshControl={
           <MageRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
+        onScroll={handleListScroll}
+        onScrollEndDrag={handleScrollSettled}
+        onMomentumScrollEnd={handleScrollSettled}
+        scrollEventThrottle={32}
         contentContainerStyle={[
           styles.listContent,
           responsive.isDesktop && styles.listContentDesktop,
-          // Bottom padding must clear the floating AICopilot FAB, which sits at
-          // bottom: insets.bottom + 70 with a 56px button (see components/AICopilot.tsx).
-          // 70 + 56 + 14px margin = 140, so the last project card never clips
-          // behind the FAB. (Was insets.bottom + 90, which overlapped it.)
-          { paddingTop: insets.top, paddingBottom: insets.bottom + 140 },
+          // Bottom padding must clear the WHOLE floating stack — AICopilot FAB
+          // (bottom: insets.bottom + 70, 56px) PLUS the speed-dial toggle above
+          // it (44px + 8px gap): 70 + 56 + 8 + 44 + 22px margin = 200. The
+          // stack also auto-hides on scroll-down, but at rest the last rows
+          // must still clear it.
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 200 },
           projects.length === 0 && styles.emptyList,
         ]}
         ListHeaderComponent={
@@ -934,6 +966,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       />
 
+      {/* Opaque strip under the clock/Dynamic Island — home's large-title
+          header lives INSIDE the scroll surface, so scrolled content was
+          colliding with the status bar (sim-audit #7). */}
+      <StatusBarMask />
+
       <Modal visible={showCreateModal} transparent animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
@@ -1056,7 +1093,7 @@ export default function HomeScreen() {
           they no longer overlap the project cards. The AI Copilot is the
           always-visible main button; tapping the "+" toggle reveals the
           Voice + Help mini-FABs. See components/HomeFabStack.tsx. */}
-      <HomeFabStack onReplayTutorial={() => setShowTutorial(true)} />
+      <HomeFabStack onReplayTutorial={() => setShowTutorial(true)} hidden={fabHidden} />
 
       <EntityActionSheet
         entityRef={actionSheetRef}

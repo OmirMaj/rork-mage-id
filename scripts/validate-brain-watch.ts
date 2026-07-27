@@ -5,11 +5,14 @@ import {
   permitAttention,
   certAttention,
   closeoutAttention,
+  punchAttention,
+  changeOrderAttention,
+  groupReadyPunchItems,
   rankAttention,
   summarize,
   type AttentionItem,
 } from '../utils/brainWatch';
-import type { Project, Invoice, Permit, Certification } from '../types';
+import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '../types';
 
 let pass = 0, fail = 0;
 function ok(n: string, cond: boolean) { if (cond) { pass++; console.log('  ✓', n); } else { fail++; console.log('  ✗', n); } }
@@ -355,6 +358,154 @@ console.log('\ncertAttention:');
   ok('no holderName → uses workerId', items[0].message.includes('worker-abc'));
 }
 
+// dedupe by (person, cert): duplicate records collapse to ONE line
+// (sim-audit fix #3 — "Dana Cole — First Aid / CPR expired" x3 verbatim).
+{
+  const dupes = [
+    mkCert({ id: 'c1', status: 'expired' as const, expiresDate: '2025-01-10' }),
+    mkCert({ id: 'c2', status: 'expired' as const, expiresDate: '2025-01-10' }),
+    mkCert({ id: 'c3', status: 'expired' as const, expiresDate: '2025-01-10' }),
+  ];
+  const items = certAttention(dupes, NOW_MS);
+  ok('3 duplicate (person,cert) records → 1 item', items.length === 1);
+  ok('deduped item keeps severity', items[0]?.severity === 'critical');
+}
+
+// dedupe keeps the MOST urgent record (expired beats expiring)
+{
+  const mixed = [
+    mkCert({ id: 'c1', status: 'expiring' as const, expiresDate: '2025-02-09' }),
+    mkCert({ id: 'c2', status: 'expired' as const, expiresDate: '2025-01-10' }),
+  ];
+  const items = certAttention(mixed, NOW_MS);
+  ok('expiring + expired same (person,cert) → 1 item', items.length === 1);
+  ok('most urgent (expired/critical) wins', items[0]?.severity === 'critical' && items[0].message.includes('expired'));
+}
+
+// different people / different certs do NOT collapse
+{
+  const distinct = [
+    mkCert({ id: 'c1', status: 'expired' as const }),
+    mkCert({ id: 'c2', status: 'expired' as const, holderName: 'Dana Cole' }),
+    mkCert({ id: 'c3', status: 'expired' as const, type: 'First Aid / CPR' }),
+  ];
+  ok('distinct person/cert stay separate', certAttention(distinct, NOW_MS).length === 3);
+}
+
+// PIN (finding #3): two DISTINCT certs with BOTH holderName and workerId absent
+// and the SAME type must NOT merge — they are different people. The dedupe key
+// falls back to cert.id when no real person identifier is present, so the
+// canonical count can't under-count bulk-imported / hand-entered certs.
+{
+  const nullHolders = [
+    mkCert({ id: 'c1', status: 'expired' as const, holderName: undefined, workerId: undefined, type: 'OSHA 30' }),
+    mkCert({ id: 'c2', status: 'expired' as const, holderName: undefined, workerId: undefined, type: 'OSHA 30' }),
+  ];
+  const items = certAttention(nullHolders, NOW_MS);
+  ok('two null-holder distinct certs stay separate', items.length === 2);
+  ok('both null-holder certs keep their own id', items.some(i => i.id === 'cert-c1') && items.some(i => i.id === 'cert-c2'));
+}
+
+// A real person identifier still dedupes: two records that DO share a
+// holderName + type collapse to one (dedupe is preserved for real people).
+{
+  const named = [
+    mkCert({ id: 'c1', status: 'expired' as const, holderName: 'Sam Reyes', type: 'OSHA 30' }),
+    mkCert({ id: 'c2', status: 'expired' as const, holderName: 'Sam Reyes', type: 'OSHA 30' }),
+  ];
+  ok('same named person + cert still collapses to 1', certAttention(named, NOW_MS).length === 1);
+}
+
+// ─── groupReadyPunchItems ────────────────────────────────────────────────────
+
+console.log('\ngroupReadyPunchItems:');
+
+const mkPunch = (id: string, projectId: string, description: string, priority: 'high' | 'medium' | 'low' = 'medium') => ({
+  id, projectId, description, priority, updatedAt: '2025-01-19T12:00:00Z',
+});
+
+// identical description across 3 projects → 1 group, xN projects
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Window flashing lap reversed, guest-house south'),
+    mkPunch('b', 'p2', 'Window flashing lap reversed, guest-house south'),
+    mkPunch('c', 'p3', 'Window flashing lap reversed, guest-house south'),
+  ]);
+  ok('3 identical items → 1 group', groups.length === 1);
+  ok('group spans 3 projects', groups[0]?.projectCount === 3);
+  ok('group carries all member ids', groups[0]?.ids.length === 3);
+  ok('primary is the first item', groups[0]?.primary.id === 'a');
+}
+
+// whitespace/case-insensitive description matching
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Touch up paint  hallway'),
+    mkPunch('b', 'p2', 'touch up paint hallway'),
+  ]);
+  ok('normalized description matches', groups.length === 1 && groups[0]?.projectCount === 2);
+}
+
+// highest member priority wins
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Same item', 'low'),
+    mkPunch('b', 'p2', 'Same item', 'high'),
+  ]);
+  ok('group priority = highest member', groups[0]?.priority === 'high');
+}
+
+// distinct descriptions stay separate; same project twice counts ONE project
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Item one'),
+    mkPunch('b', 'p1', 'Item one'),
+    mkPunch('c', 'p1', 'Item two'),
+  ]);
+  ok('distinct descriptions → 2 groups', groups.length === 2);
+  const g1 = groups.find(g => g.primary.id === 'a');
+  ok('same-project dupes count 1 project', g1?.projectCount === 1 && g1?.ids.length === 2);
+}
+
+// PIN (finding #4): a GENERIC description ("touch up paint") on two UNRELATED
+// projects must NOT false-merge into one "x2 projects" row — they are
+// different work. Generic stop-list phrases key per-item, so they stay two
+// distinct rows.
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Touch up paint'),
+    mkPunch('b', 'p2', 'touch up paint'),
+  ]);
+  ok('generic "touch up paint" across projects → 2 groups (no false merge)', groups.length === 2);
+  ok('each generic group counts 1 project', groups.every(g => g.projectCount === 1 && g.ids.length === 1));
+}
+
+// Other generic phrases likewise stay separate.
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Clean up'),
+    mkPunch('b', 'p2', 'clean up'),
+    mkPunch('c', 'p3', 'Final walkthrough'),
+    mkPunch('d', 'p4', 'final walkthrough'),
+  ]);
+  ok('generic "clean up"/"final walkthrough" never merge', groups.length === 4);
+}
+
+// A DISTINCTIVE description still merges across projects (the real re-seeded
+// dupe case is preserved — this is NOT weakened).
+{
+  const groups = groupReadyPunchItems([
+    mkPunch('a', 'p1', 'Window flashing lap reversed, guest-house south'),
+    mkPunch('b', 'p2', 'Window flashing lap reversed, guest-house south'),
+  ]);
+  ok('distinctive description still merges across projects', groups.length === 1 && groups[0]?.projectCount === 2);
+}
+
+// empty input → empty
+{
+  ok('empty punch input → empty', groupReadyPunchItems([]).length === 0);
+}
+
 // ─── closeoutAttention ───────────────────────────────────────────────────────
 
 console.log('\ncloseoutAttention:');
@@ -450,6 +601,103 @@ console.log('\nsummarize:');
   ok('empty total = 0', s.total === 0);
   ok('empty schedule = 0', s.byKind.schedule === 0);
   ok('empty closeout = 0', s.byKind.closeout === 0);
+  ok('empty punch = 0', s.byKind.punch === 0);
+  ok('empty changeOrder = 0', s.byKind.changeOrder === 0);
+}
+
+// ─── punchAttention ──────────────────────────────────────────────────────────
+
+console.log('\npunchAttention:');
+
+function mkPunchItem(over: Partial<PunchItem> = {}): PunchItem {
+  return {
+    id: 'pi1',
+    projectId: 'p1',
+    description: 'Window flashing lap reversed',
+    priority: 'high',
+    status: 'open',
+    updatedAt: '2025-01-10T00:00:00Z',
+    createdAt: '2025-01-10T00:00:00Z',
+    ...over,
+  } as PunchItem;
+}
+
+// No punch items → empty
+{
+  ok('no punch → empty', punchAttention([]).length === 0);
+}
+
+// Only low/medium priority → empty
+{
+  const items = punchAttention([mkPunchItem({ priority: 'medium' }), mkPunchItem({ id: 'pi2', priority: 'low' })]);
+  ok('no high priority → empty', items.length === 0);
+}
+
+// Closed high-priority → empty
+{
+  ok('closed high → empty', punchAttention([mkPunchItem({ status: 'closed' })]).length === 0);
+}
+
+// Rollup: 3 open high across projects → ONE item with the count
+{
+  const items = punchAttention([
+    mkPunchItem(),
+    mkPunchItem({ id: 'pi2', projectId: 'p2' }),
+    mkPunchItem({ id: 'pi3', projectId: 'p3', status: 'ready_for_review' }),
+  ]);
+  ok('3 open high → 1 rollup item', items.length === 1);
+  ok('rollup counts 3', items[0].message.includes('3 high-priority punch items'));
+  ok('rollup kind punch', items[0].kind === 'punch');
+  ok('rollup severity high', items[0].severity === 'high');
+  ok('rollup routes to first project', items[0].route.pathname === '/project-detail' && items[0].route.params?.id === 'p1');
+}
+
+// Singular message
+{
+  const items = punchAttention([mkPunchItem()]);
+  ok('1 open high → singular message', items[0].message.includes('1 high-priority punch item open'));
+}
+
+// ─── changeOrderAttention ────────────────────────────────────────────────────
+
+console.log('\nchangeOrderAttention:');
+
+function mkCO(over: Partial<ChangeOrder> = {}): ChangeOrder {
+  return {
+    id: 'co1',
+    projectId: 'p1',
+    number: 1,
+    title: 'Extra footing',
+    status: 'submitted',
+    changeAmount: 1200,
+    createdAt: '2025-01-10T00:00:00Z',
+    updatedAt: '2025-01-10T00:00:00Z',
+    ...over,
+  } as ChangeOrder;
+}
+
+// No pending COs → empty
+{
+  ok('no COs → empty', changeOrderAttention([]).length === 0);
+  ok('approved CO → empty', changeOrderAttention([mkCO({ status: 'approved' as ChangeOrder['status'] })]).length === 0);
+}
+
+// submitted + under_review roll up to ONE item
+{
+  const items = changeOrderAttention([
+    mkCO(),
+    mkCO({ id: 'co2', status: 'under_review' as ChangeOrder['status'], projectId: 'p2' }),
+  ]);
+  ok('2 pending → 1 rollup item', items.length === 1);
+  ok('rollup counts 2', items[0].message.includes('2 change orders awaiting approval'));
+  ok('rollup kind changeOrder', items[0].kind === 'changeOrder');
+  ok('rollup severity medium', items[0].severity === 'medium');
+  ok('rollup routes to first project', items[0].route.params?.id === 'p1');
+}
+
+// Singular message
+{
+  ok('1 pending → singular message', changeOrderAttention([mkCO()])[0].message.includes('1 change order awaiting'));
 }
 
 // ─── Footer ──────────────────────────────────────────────────────────────────

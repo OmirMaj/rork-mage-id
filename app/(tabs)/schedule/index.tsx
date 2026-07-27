@@ -16,7 +16,7 @@ import {
   Image,
   FlatList,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -105,6 +105,7 @@ import { diffSchedule } from '@/utils/copilot/scheduleEdit/diffSchedule';
 import { stampActuals, todayScheduleDay } from '@/utils/pace/stampActuals';
 import { recordDidForYou } from '@/utils/brain/didForYou';
 import { runCpm } from '@/utils/cpm';
+import { rebaseRawToCalendar } from '@/utils/scheduleRebase';
 
 interface TaskDraft {
   title: string;
@@ -143,7 +144,7 @@ const EMPTY_DRAFT: TaskDraft = {
   assignedSubId: '', assignedSubName: '',
 };
 
-function ScheduleScreen() {
+function ScheduleScreen({ consumedFocusRef: sharedFocusRef }: { consumedFocusRef?: React.MutableRefObject<string | null> } = {}) {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
@@ -154,6 +155,28 @@ function ScheduleScreen() {
   const desktopStyles = useThemedStyles(makeDesktopStyles);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
+
+  // Honor a projectId passed by callers (project-detail's "Open Full
+  // Schedule" et al). Same nonce pattern as MobileScheduleScreen: each
+  // navigation mints a `focus` nonce so fresh arrivals re-apply the param
+  // while sticky tab params from an old visit never override a manual switch.
+  const { projectId: routeProjectId, focus: routeFocus } =
+    useLocalSearchParams<{ projectId?: string; focus?: string }>();
+  // Shared with the sibling surface via the parent wrapper so an already-
+  // consumed nonce stays consumed across a phone<->desktop breakpoint remount
+  // (a fresh local ref would re-yank the manual selection). Falls back to a
+  // local ref if rendered standalone.
+  const localFocusRef = useRef<string | null>(null);
+  const consumedFocusRef = sharedFocusRef ?? localFocusRef;
+  useEffect(() => {
+    if (!routeProjectId) return;
+    const nonce = `${routeProjectId}:${routeFocus ?? ''}`;
+    if (consumedFocusRef.current === nonce) return;
+    if (!projects.some(p => p.id === routeProjectId)) return;
+    consumedFocusRef.current = nonce;
+    setSelectedProjectId(routeProjectId);
+  }, [routeProjectId, routeFocus, projects, consumedFocusRef]);
+
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduleTask | null>(null);
@@ -389,12 +412,18 @@ function ScheduleScreen() {
   const saveSchedule = useCallback((schedule: ProjectSchedule, project: Project | null) => {
     console.log('[Schedule] Saving schedule', { projectId: project?.id, taskCount: schedule.tasks.length });
     if (project) {
+      // startDate policy (finish-jump bug, sim-audit #2):
+      //  - project already has a schedule → preserve ITS anchor exactly,
+      //    including "no anchor". Retro-stamping today onto a dateless
+      //    schedule flips CPM raw-day → calendar mode and the finish jumps.
+      //  - first schedule for this project (creation) → anchor today (or the
+      //    builder-supplied date) so day-math has a basis from day one and no
+      //    raw→calendar flip can ever occur later.
+      const startDate = project.schedule
+        ? project.schedule.startDate
+        : (schedule.startDate ?? new Date().toISOString().slice(0, 10));
       updateProject(project.id, {
-        // Preserve the existing schedule.startDate across rebuilds; fall back to
-        // the freshly-built one (today) only when none exists. Without this,
-        // editing a task would reset the project start to today and the Summary
-        // dashboard's Today/Week day-math would drift.
-        schedule: { ...schedule, projectId: project.id, startDate: project.schedule?.startDate ?? schedule.startDate, updatedAt: new Date().toISOString() },
+        schedule: { ...schedule, projectId: project.id, startDate, updatedAt: new Date().toISOString() },
         status: project.estimate ? 'estimated' : 'draft',
       });
       return;
@@ -405,7 +434,8 @@ function ScheduleScreen() {
       location: 'United States', squareFootage: 0, quality: 'standard',
       description: 'Created from Schedule', createdAt: now, updatedAt: now,
       estimate: null,
-      schedule: { ...schedule, projectId: null, updatedAt: now },
+      // Creation → anchor today unless the builder supplied a date.
+      schedule: { ...schedule, projectId: null, startDate: schedule.startDate ?? now.slice(0, 10), updatedAt: now },
       status: 'draft',
     };
     addProject(newProject);
@@ -424,11 +454,39 @@ function ScheduleScreen() {
       Alert.alert('No schedule', 'Add at least one task before setting a project start date.');
       return;
     }
-    const next: ProjectSchedule = { ...activeSchedule, startDate: isoYYYYMMDD };
-    saveSchedule(next, selectedProject);
+    // First explicit anchor on a dateless schedule: its startDay values are
+    // raw working-day ordinals, so re-map them onto the calendar before the
+    // CPM mode flip — otherwise every multi-day chain silently inflates (the
+    // finish-jump bug). Mirrors schedule-pro's settings Apply handler.
+    const tasks = !activeSchedule.startDate
+      ? rebaseRawToCalendar(
+          activeSchedule.tasks, isoYYYYMMDD,
+          activeSchedule.workingDaysPerWeek, activeSchedule.nonWorkingDates,
+        )
+      : activeSchedule.tasks;
+    // Refresh the duration scalars against the new anchor so the modal /
+    // summary read engine-true numbers immediately, not on the next edit.
+    const cpmRes = runCpm(tasks, {
+      scheduleStartDate: isoYYYYMMDD,
+      workingDaysPerWeek: activeSchedule.workingDaysPerWeek,
+      nonWorkingDates: activeSchedule.nonWorkingDates,
+    });
+    const next: ProjectSchedule = {
+      ...activeSchedule, tasks, startDate: isoYYYYMMDD,
+      totalDurationDays: cpmRes.projectFinish, criticalPathDays: cpmRes.projectFinish,
+    };
+    // saveSchedule preserves an EXISTING schedule's anchor — this is the one
+    // place the user explicitly changes it, so write through updateProject.
+    if (selectedProject) {
+      updateProject(selectedProject.id, {
+        schedule: { ...next, projectId: selectedProject.id, updatedAt: new Date().toISOString() },
+      });
+    } else {
+      saveSchedule(next, selectedProject);
+    }
     setIsProjectStartDatePickerOpen(false);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [activeSchedule, saveSchedule, selectedProject]);
+  }, [activeSchedule, saveSchedule, selectedProject, updateProject]);
 
   /**
    * Centralized persist helper for all mobile task edits (tap-edit + copilot
@@ -4011,7 +4069,17 @@ const makeDesktopStyles = (themeColors: ThemeColors) => StyleSheet.create({
 // Route entry: phones get the new mobile-native Schedule Pro; web/tablet keep
 // the full desktop schedule screen. Thin wrapper so the heavy desktop component
 // only mounts off-phone (no conditional hooks in either screen).
+//
+// The consumed-focus-nonce ref is owned HERE (the parent) and threaded into
+// both surfaces, so it SURVIVES a breakpoint crossing (web resize / foldable).
+// If each child owned its own ref, resizing below/above the phone breakpoint
+// would mount the sibling fresh with a null ref, which then re-consumes the
+// still-present route params and snaps the selection back to the CTA's
+// projectId — yanking away whatever project the user had manually cycled to.
 export default function ScheduleTabRoute() {
   const layout = useResponsiveLayout();
-  return layout.isPhone ? <MobileScheduleScreen /> : <ScheduleScreen />;
+  const consumedFocusRef = useRef<string | null>(null);
+  return layout.isPhone
+    ? <MobileScheduleScreen consumedFocusRef={consumedFocusRef} />
+    : <ScheduleScreen consumedFocusRef={consumedFocusRef} />;
 }

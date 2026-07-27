@@ -14,7 +14,7 @@ import {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home,
   LayoutGrid, Paintbrush, Droplets, Zap, Boxes, ChevronRight, MapPin,
 } from 'lucide-react-native';
-import { formatMoney } from '@/utils/formatters';
+import { formatMoney, displayText } from '@/utils/formatters';
 import type { Project, ProjectType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -95,10 +95,10 @@ const ProjectRow = React.memo(function ProjectRow({ project, onPress, onLongPres
 
       <View style={styles.nameCol}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{project.name}</Text>
-        {project.location ? (
+        {displayText(project.location) ? (
           <View style={styles.locationRow}>
             <MapPin size={11} color={colors.textMuted} strokeWidth={1.75} />
-            <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1}>{project.location}</Text>
+            <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1}>{displayText(project.location)}</Text>
           </View>
         ) : null}
       </View>

@@ -620,10 +620,12 @@ function RootLayoutNav() {
       <Stack.Screen name="copilot-hub" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="schedule-import" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
+      {/* AI tool doors render their own ToolHeader chrome (sim-audit #5) —
+          headerShown:false here so the default RN header never flashes in. */}
+      <Stack.Screen name="ai-punch" options={{ headerShown: false }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />
-      <Stack.Screen name="extract-submittals" options={{ title: 'Extract Submittals' }} />
-      <Stack.Screen name="compare-drawings" options={{ title: 'Compare Drawings' }} />
+      <Stack.Screen name="extract-submittals" options={{ headerShown: false }} />
+      <Stack.Screen name="compare-drawings" options={{ headerShown: false }} />
       <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC Export' }} />
       <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
@@ -672,12 +674,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="change-order"
-        options={{
-          title: "Change Order",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
-        }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="invoice"
@@ -1311,16 +1308,10 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
-      <Stack.Screen
-        name="judges"
-        options={{
-          title: "Bid Advisor",
-          presentation: "modal",
-          headerStyle: { backgroundColor: Colors.background },
-          headerTintColor: Colors.primary,
-          headerTitleStyle: { fontWeight: '700', color: Colors.text },
-        }}
-      />
+      {/* judges renders its own in-content header (eyebrow + "Should I bid
+          this?" + back chevron) — the route-level nav header doubled it with
+          a "Bid Advisor" bar + a dead band (sim-audit #9). */}
+      <Stack.Screen name="judges" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="quick-quote" options={{ presentation: "modal", headerShown: false }} />
       <Stack.Screen name="project-scope" options={{ headerShown: false }} />
       <Stack.Screen name="client-outbox" options={{ headerShown: false }} />

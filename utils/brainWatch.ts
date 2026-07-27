@@ -5,12 +5,12 @@
 // No context calls, no side effects. Sorting + summarizing are separate.
 
 import type { Route } from 'expo-router';
-import type { Project, Invoice, Permit, Certification } from '@/types';
+import type { Project, Invoice, Permit, Certification, PunchItem, ChangeOrder } from '@/types';
 import { computeProjectProgress } from './projectProgress';
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
-export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout';
+export type AttnKind = 'schedule' | 'invoice' | 'permit' | 'cert' | 'closeout' | 'punch' | 'changeOrder';
 export type AttnSeverity = 'critical' | 'high' | 'medium';
 
 export interface AttentionItem {
@@ -184,27 +184,46 @@ export function certAttention(
   expiring: (Certification & { status: 'expiring' | 'expired' })[],
   nowMs: number,
 ): AttentionItem[] {
-  const items: AttentionItem[] = [];
+  // Dedupe by (person, cert): a certification is a person-level fact, so
+  // duplicate records (re-seeded data, one row per project, double entry)
+  // must collapse to ONE line — the sim audit found "Dana Cole — First Aid /
+  // CPR expired" rendered 3x verbatim on home, brief, and needs-attention.
+  // On collision the most urgent record wins (expired > soonest expiry).
+  const byKey = new Map<string, AttentionItem & { _rank: number }>();
 
   for (const cert of expiring) {
     let severity: AttnSeverity;
     let dayStr: string;
+    // Lower rank = more urgent. Expired = -1; expiring ranks by days left.
+    let rank: number;
 
     if (cert.status === 'expired') {
       severity = 'critical';
       dayStr = 'expired';
+      rank = -1;
     } else {
       // 'expiring'
       const expMs = cert.expiresDate ? Date.parse(cert.expiresDate) : NaN;
       const daysLeft = Number.isNaN(expMs) ? 0 : daysBetween(expMs, nowMs);
       severity = daysLeft < 14 ? 'high' : 'medium';
       dayStr = `expires in ${daysLeft}d`;
+      rank = daysLeft;
     }
 
     const workerLabel = cert.holderName ?? cert.workerId ?? 'Unknown worker';
     const certLabel = cert.type;
+    // Dedupe on (person, cert). But a real person identifier is REQUIRED to
+    // merge — when both holderName AND workerId are absent, two genuinely
+    // distinct people would both key as "unknown worker|<type>" and collapse
+    // to one, dropping a real expired cert from the canonical count. Fall back
+    // to the per-record id so unknown-holder records never merge across people.
+    const personKey = cert.holderName ?? cert.workerId ?? `cert:${cert.id}`;
+    const key = `${personKey.trim().toLowerCase()}|${certLabel.trim().toLowerCase()}`;
 
-    items.push({
+    const existing = byKey.get(key);
+    if (existing && existing._rank <= rank) continue;
+
+    byKey.set(key, {
       id: `cert-${cert.id}`,
       projectId: '',
       projectName: '',
@@ -212,10 +231,158 @@ export function certAttention(
       severity,
       message: `${workerLabel} — ${certLabel} ${dayStr}`,
       route: { pathname: '/crew' },
+      _rank: rank,
     });
   }
 
-  return items;
+  return [...byKey.values()].map(({ _rank, ...item }) => item);
+}
+
+// ─── groupReadyPunchItems ─────────────────────────────────────────────────────
+
+export interface ReadyPunchInput {
+  id: string;
+  projectId: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  updatedAt: string;
+}
+
+export interface ReadyPunchGroup {
+  /** The representative item — stable dismissal anchor + tap target. */
+  primary: ReadyPunchInput;
+  /** All member punch-item ids (primary first). */
+  ids: string[];
+  /** Count of DISTINCT projects the identical item appears on. */
+  projectCount: number;
+  /** Highest member priority (high > medium > low). */
+  priority: 'high' | 'medium' | 'low';
+}
+
+const PUNCH_PRIORITY_RANK: Record<'high' | 'medium' | 'low', number> = { high: 0, medium: 1, low: 2 };
+
+// Generic free-text descriptions that collide across UNRELATED punch items —
+// "touch up paint" on project A is not the same work as "touch up paint" on
+// project B. Merging them hides one item behind a bogus "x2 projects" count.
+// Only DISTINCTIVE descriptions (specific enough to plausibly be a re-seeded
+// identical item) are allowed to collapse across projects; anything generic
+// or too short stays a per-item row.
+const GENERIC_PUNCH_PHRASES = new Set<string>([
+  'touch up paint',
+  'touch-up paint',
+  'paint touch up',
+  'touch up',
+  'clean up',
+  'cleanup',
+  'clean',
+  'final walkthrough',
+  'walkthrough',
+  'walk through',
+  'punch',
+  'punch item',
+  'punch list',
+  'punchlist',
+  'misc',
+  'miscellaneous',
+  'repair',
+  'fix',
+  'caulk',
+  'caulking',
+  'inspection',
+  'final clean',
+]);
+
+function normalizePunchDesc(description: string): string {
+  return description.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * Groups ready-to-verify punch items that carry the SAME DISTINCTIVE
+ * description — the "Punch item ready to verify" x3 sim-audit dupe (identical
+ * item seeded on 3 projects). Consumers render one row per group with a
+ * "xN projects" suffix when the group spans multiple projects.
+ *
+ * Cross-project merge is gated on the description NOT being a generic
+ * stop-list phrase: two unrelated "touch up paint" items on different
+ * projects key on their item id instead of the shared text, so they stay two
+ * separate rows rather than a false "x2 projects" collapse. Distinctive
+ * descriptions still collapse true re-seeded duplicates. Pure — validated
+ * under Bun.
+ */
+export function groupReadyPunchItems(items: ReadyPunchInput[]): ReadyPunchGroup[] {
+  const groups = new Map<string, ReadyPunchGroup & { _projects: Set<string> }>();
+
+  for (const item of items) {
+    const norm = normalizePunchDesc(item.description);
+    // Distinctive descriptions merge across projects (true re-seeded dupes);
+    // generic stop-list phrases fall back to a per-item key so they never merge.
+    const key = GENERIC_PUNCH_PHRASES.has(norm) ? `id:${item.id}` : norm;
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        primary: item,
+        ids: [item.id],
+        projectCount: 1,
+        priority: item.priority,
+        _projects: new Set([item.projectId]),
+      });
+      continue;
+    }
+    existing.ids.push(item.id);
+    existing._projects.add(item.projectId);
+    existing.projectCount = existing._projects.size;
+    if (PUNCH_PRIORITY_RANK[item.priority] < PUNCH_PRIORITY_RANK[existing.priority]) {
+      existing.priority = item.priority;
+    }
+  }
+
+  return [...groups.values()].map(({ _projects, ...group }) => group);
+}
+
+// ─── punchAttention ───────────────────────────────────────────────────────────
+
+/**
+ * ONE rollup item for open high-priority punch items (portfolio-wide).
+ * Mirrors the Summary dashboard's urgent-punch rule so the canonical
+ * needs-you set covers everything Summary used to count on its own
+ * (sim-audit #15 — Summary/home/bell counters disagreed).
+ */
+export function punchAttention(punchItems: PunchItem[]): AttentionItem[] {
+  const urgent = punchItems.filter((pi) => pi.status !== 'closed' && pi.priority === 'high');
+  if (urgent.length === 0) return [];
+  return [
+    {
+      id: 'punch-high-open',
+      projectId: urgent[0].projectId,
+      projectName: '',
+      kind: 'punch',
+      severity: 'high',
+      message: `${urgent.length} high-priority punch item${urgent.length === 1 ? '' : 's'} open`,
+      route: { pathname: '/project-detail', params: { id: urgent[0].projectId } },
+    },
+  ];
+}
+
+// ─── changeOrderAttention ─────────────────────────────────────────────────────
+
+/**
+ * ONE rollup item for change orders sitting in submitted / under_review.
+ * Same population as the Summary dashboard's pending-CO rule.
+ */
+export function changeOrderAttention(changeOrders: ChangeOrder[]): AttentionItem[] {
+  const pending = changeOrders.filter((co) => co.status === 'submitted' || co.status === 'under_review');
+  if (pending.length === 0) return [];
+  return [
+    {
+      id: 'co-awaiting-approval',
+      projectId: pending[0].projectId,
+      projectName: '',
+      kind: 'changeOrder',
+      severity: 'medium',
+      message: `${pending.length} change order${pending.length === 1 ? '' : 's'} awaiting approval`,
+      route: { pathname: '/project-detail', params: { id: pending[0].projectId } },
+    },
+  ];
 }
 
 // ─── closeoutAttention ────────────────────────────────────────────────────────
@@ -274,6 +441,8 @@ export function summarize(items: AttentionItem[]): {
     permit: 0,
     cert: 0,
     closeout: 0,
+    punch: 0,
+    changeOrder: 0,
   };
   for (const item of items) {
     byKind[item.kind]++;

@@ -56,7 +56,7 @@ import { nailIt } from '@/components/animations/NailItToast';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { exportProjectAccountingCsv, type AccountingFormat } from '@/utils/accountingExport';
-import { formatMoney } from '@/utils/formatters';
+import { formatMoney, displayText } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
@@ -1320,10 +1320,10 @@ export default function ProjectDetailScreen() {
               <Text style={styles.heroName}>{project.name}</Text>
               <View style={styles.heroMeta}>
                 <MapPin size={14} color={themeColors.textMuted} strokeWidth={1.75} />
-                <Text style={styles.heroMetaText}>{project.location}</Text>
+                <Text style={styles.heroMetaText}>{displayText(project.location, 'No location set')}</Text>
               </View>
-              {project.description ? (
-                <Text style={styles.heroDesc}>{project.description}</Text>
+              {displayText(project.description) ? (
+                <Text style={styles.heroDesc}>{displayText(project.description)}</Text>
               ) : null}
             </View>
           </View>
@@ -2108,7 +2108,7 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.scheduleSectionTitle}>Tasks</Text>
                 {(Array.isArray(project.schedule.tasks) ? project.schedule.tasks : []).map(task => (
                   <View key={task.id} style={styles.scheduleTaskRow}>
-                    <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? themeColors.success : task.status === 'in_progress' ? themeColors.info : themeColors.accent }]} />
+                    <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? themeColors.success : task.status === 'in_progress' ? themeColors.info : themeColors.textMuted }]} />
                     <View style={styles.scheduleTaskTextWrap}>
                       <Text style={styles.scheduleTaskName}>{task.title}</Text>
                       <Text style={styles.scheduleTaskMeta}>{task.phase} · Day {task.startDay} · {task.durationDays}d · {task.crew}</Text>
@@ -2119,7 +2119,12 @@ export default function ProjectDetailScreen() {
 
                 <TouchableOpacity
                   style={styles.crossLinkBtn}
-                  onPress={() => navigateFromTile('/(tabs)/schedule' as any, 'replace')}
+                  // Pass the CURRENT project so the schedule tab opens on it —
+                  // without the param it shows whichever project was last
+                  // active there (P0 context drop, 2026-07 sim audit). The
+                  // `focus` nonce lets the schedule screen re-apply the param
+                  // on every visit while ignoring stale sticky tab params.
+                  onPress={() => navigateFromTile({ pathname: '/(tabs)/schedule', params: { projectId: id ?? '', focus: String(Date.now()) } } as any, 'replace')}
                   activeOpacity={0.7}
                   testID="schedule-open-full-link"
                 >
@@ -4544,7 +4549,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   scheduleTaskTextWrap: { flex: 1 },
   scheduleTaskName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, marginBottom: 2 },
   scheduleTaskMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
-  scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.info },
+  // Metric text, not a status — ink, not info-blue (sim-audit slop #5).
+  scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary },
   crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: themeColors.line },
   crossLinkText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },

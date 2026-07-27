@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileText, AlertCircle, Save, Trash2,
+  FileText, AlertCircle, Save, Trash2,
   Layers, Calendar, Hammer,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
@@ -43,6 +43,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { Submittal } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { ToolHeader, ToolProjectPicker } from '@/components/ToolScreenChrome';
 
 interface PickItem extends AiSubmittalCandidate {
   // Local key for the review list.
@@ -58,10 +59,14 @@ export default function ExtractSubmittalsScreen() {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, addSubmittals, settings } = useProjects();
+  const { projectId: paramProjectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projects, getProject, addSubmittals, settings } = useProjects();
   const { tier } = useSubscription();
 
+  // Opened without params (Tools hub, search): land on a project picker
+  // instead of the old flat "Project not found." dead end (sim-audit #5).
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const projectId = pickedProjectId ?? paramProjectId ?? null;
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
 
   const [step, setStep] = useState<Step>('idle');
@@ -185,25 +190,23 @@ export default function ExtractSubmittalsScreen() {
 
   if (!project) {
     return (
-      <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Extract Submittals' }} />
-        <Text style={styles.loadingText}>Project not found.</Text>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="SPEC BOOK · MAGE" title="Extract Submittals" />
+        <ToolProjectPicker
+          toolName="Extract Submittals"
+          message="Spec Book reads a specification PDF and drafts the submittal log — every product data, shop drawing, and sample the spec calls for, filed into the project."
+          projects={projects}
+          onPick={setPickedProjectId}
+        />
       </View>
     );
   }
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: 'Extract Submittals',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={"#FF6A1A"} strokeWidth={1.75} />
-            </TouchableOpacity>
-          ),
-        }}
-      />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ToolHeader eyebrow="SPEC BOOK · MAGE" title={project.name} />
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         {step === 'idle' && (
           <>
@@ -329,7 +332,7 @@ export default function ExtractSubmittalsScreen() {
           </>
         )}
       </ScrollView>
-    </>
+    </View>
   );
 }
 

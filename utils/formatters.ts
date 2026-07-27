@@ -66,3 +66,21 @@ export function formatNumber(n: number | null | undefined, decimals = 0): string
     maximumFractionDigits: decimals,
   });
 }
+
+/**
+ * Display guard for free-text fields that may carry the literal string
+ * "null" / "undefined" — the classic vibe-coded tell the 2026-07 sim audit
+ * caught rendering as "New Project — null · renovation" (AI extractors and
+ * legacy imports sometimes stringify an absent value instead of omitting
+ * it). Junk tokens and empty strings collapse to `fallback`; real text is
+ * returned trimmed.
+ *
+ * Same junk set as utils/copilot/newProject's write-side `clean` guard —
+ * this is the READ-side belt for data that already got in.
+ */
+const JUNK_DISPLAY_TOKENS = new Set(['null', 'none', 'n/a', 'na', 'undefined', 'unknown']);
+export function displayText(v: string | null | undefined, fallback = ''): string {
+  const t = (typeof v === 'string' ? v : '').trim();
+  if (!t || JUNK_DISPLAY_TOKENS.has(t.toLowerCase())) return fallback;
+  return t;
+}

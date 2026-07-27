@@ -21,6 +21,7 @@ import {
   buildExportPayload, exportUserData, shareExportedFile, summarizeExport,
   type DataExportOptions, type DataExportSummary,
 } from '@/utils/dataExport';
+import { displayText } from '@/utils/formatters';
 
 type Scope = 'all' | 'project';
 
@@ -193,7 +194,7 @@ export default function DataExportScreen() {
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
-                      <Text style={styles.projectRowMeta}>{p.type} · {p.location}</Text>
+                      <Text style={styles.projectRowMeta}>{p.type}{displayText(p.location) ? ` · ${displayText(p.location)}` : ''}</Text>
                     </View>
                     {active && <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />}
                   </TouchableOpacity>

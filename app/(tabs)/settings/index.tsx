@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Check, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, FolderInput, Wallet, Palette, ExternalLink, Repeat, Gem } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { Badge } from '@/components/ui/Badge';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -497,33 +498,17 @@ export default function SettingsScreen() {
                 {user.email || ''}
               </Text>
               <View style={styles.profileBadgesRow}>
-                <View style={[
-                  styles.profileTierPill,
-                  // Enterprise gets the same gold-ish accent as Business but
-                  // a deeper border so it reads as the top tier. Pre-fix
-                  // every non-pro / non-business tier (= enterprise) fell
-                  // through to the Free styling, so paying $150/mo
-                  // customers saw a "FREE" pill in their Settings.
-                  tier === 'enterprise'
-                    ? { backgroundColor: themeColors.info + '22', borderColor: themeColors.info }
-                    : tier === 'business'
-                      ? { backgroundColor: '#FFD700' + '22', borderColor: '#FFD700' }
-                      : tier === 'pro'
-                        ? { backgroundColor: themeColors.accent + '22', borderColor: themeColors.accent }
-                        : { backgroundColor: themeColors.line, borderColor: themeColors.line },
-                ]}>
-                  <Text style={[
-                    styles.profileTierText,
-                    tier === 'enterprise' ? { color: themeColors.info } :
-                    tier === 'business' ? { color: '#A87800' } :
-                    tier === 'pro' ? { color: themeColors.accent } : { color: themeColors.textSecondary },
-                  ]}>
-                    {tier === 'enterprise' ? 'ENTERPRISE'
-                      : tier === 'business' ? 'BUSINESS'
-                      : tier === 'pro' ? 'PRO'
-                      : 'FREE'}
-                  </Text>
-                </View>
+                {/* Standard Badge idiom (mono chip). Every PAID tier wears
+                    the amber accent chip — the one-off gold 'BUSINESS' and
+                    info-blue 'ENTERPRISE' pills were off-palette tokens
+                    found nowhere else in the app (sim-audit slop #7). The
+                    label itself says which tier; free stays neutral. */}
+                <Badge tone={tier === 'free' ? 'neutral' : 'warn'}>
+                  {tier === 'enterprise' ? 'ENTERPRISE'
+                    : tier === 'business' ? 'BUSINESS'
+                    : tier === 'pro' ? 'PRO'
+                    : 'FREE'}
+                </Badge>
               </View>
             </View>
             <View style={{ flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -565,8 +550,8 @@ export default function SettingsScreen() {
             testID="settings-persona-row"
             accessibilityRole="button"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Repeat size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Repeat size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
@@ -597,8 +582,8 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>AI USAGE</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <MageAIMark size={14} color="#fff" />
+            <View style={styles.iconWrap}>
+              <MageAIMark size={14} color={themeColors.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Today: {aiUsed} of {aiLimit} requests</Text>
@@ -609,8 +594,8 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <MageAIMark size={14} color="#fff" />
+            <View style={styles.iconWrap}>
+              <MageAIMark size={14} color={themeColors.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Advanced: {aiSmartUsed} of {aiSmartLimit}</Text>
@@ -630,8 +615,8 @@ export default function SettingsScreen() {
                 can re-tint it via the existing color system. Pre-fix
                 this and the bar fill were a hardcoded purple, drifting
                 silently when the user picked a theme. */}
-            <View style={[styles.iconWrap, { backgroundColor: Colors.purple }]}>
-              <FileText size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
@@ -666,8 +651,8 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>LOCATION & UNITS</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <MapPin size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <MapPin size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Location</Text>
             <TextInput
@@ -682,8 +667,8 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleToggleUnits} activeOpacity={0.6}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-              <Ruler size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Ruler size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Units</Text>
             <View style={styles.rowRight}>
@@ -706,8 +691,8 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="settings-appearance"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Palette size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Palette size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Appearance</Text>
             <View style={styles.rowRight}>
@@ -719,8 +704,8 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>ESTIMATE DEFAULTS</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Percent size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Percent size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Sales Tax Rate</Text>
             <View style={styles.rowRight}>
@@ -739,8 +724,8 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Contingency Rate</Text>
             <View style={styles.rowRight}>
@@ -778,8 +763,8 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="pdf-naming-toggle"
           >
-            <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
-              <Hash size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Hash size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Auto-Name PDFs</Text>
             <Switch
@@ -797,8 +782,8 @@ export default function SettingsScreen() {
             <>
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                  <TypeIcon size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <TypeIcon size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Prefix</Text>
                 <TextInput
@@ -820,8 +805,8 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-                  <Building2 size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <Building2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Include Project Name</Text>
                 <Switch
@@ -844,8 +829,8 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                  <FileText size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Include Document Type</Text>
                 <Switch
@@ -868,8 +853,8 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-                  <Info size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Include Date</Text>
                 <Switch
@@ -885,8 +870,8 @@ export default function SettingsScreen() {
               </TouchableOpacity>
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: '#AF52DE' }]}>
-                  <Ruler size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <Ruler size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Separator</Text>
                 <View style={styles.pdfSepPicker}>
@@ -913,8 +898,8 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                  <Hash size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <Hash size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Next Number</Text>
                 <TextInput
@@ -994,8 +979,8 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                  <ScanFace size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <ScanFace size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={styles.rowLabel}>Face ID / Touch ID</Text>
                 <Switch
@@ -1020,8 +1005,8 @@ export default function SettingsScreen() {
             onPress={() => router.push('/notifications-settings' as any)}
             activeOpacity={0.6}
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Bell size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Bell size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Push & email preferences</Text>
@@ -1047,8 +1032,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="payments-setup-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <Wallet size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Set up payments</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1063,8 +1048,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="payments-dashboard-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <Wallet size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Payments dashboard</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1082,11 +1067,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="qbo-setup-link"
           >
-            <View style={[
-              styles.iconWrap,
-              { backgroundColor: qboConnected ? '#2CA01C' : qboReauth ? themeColors.danger : themeColors.accent },
-            ]}>
-              {qboConnected ? <Check size={14} color="#fff" strokeWidth={1.75} /> : <ExternalLink size={14} color="#fff" strokeWidth={1.75} />}
+            <View style={styles.iconWrap}>
+              {qboConnected ? <Check size={14} color={themeColors.textSecondary} strokeWidth={1.75} /> : <ExternalLink size={14} color={themeColors.textSecondary} strokeWidth={1.75} />}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>
@@ -1129,8 +1111,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="public-profile-setup-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <UserCircle size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <UserCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Edit public profile</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1141,8 +1123,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="get-verified-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Get verified</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1157,8 +1139,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="contacts-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-              <User size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <User size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Contacts</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1176,8 +1158,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="data-export-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <FolderDown size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <FolderDown size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1188,8 +1170,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="connect-claude-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.text }]}>
-              <MageAIMark size={14} color="#fff" />
+            <View style={styles.iconWrap}>
+              <MageAIMark size={14} color={themeColors.textSecondary} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Connect Claude (AI assistant)</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1200,8 +1182,8 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="data-import-link"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-              <FolderInput size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <FolderInput size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { flex: 1 }]}>Import data</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1221,8 +1203,8 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
                 testID="dev-flagship-seeder-link"
               >
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                  <Gem size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <Gem size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowLabel}>Flagship demo (Overlook Estate)</Text>
@@ -1236,8 +1218,8 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
                 testID="dev-seeder-link"
               >
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                  <Database size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <Database size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <Text style={[styles.rowLabel, { flex: 1 }]}>Demo data seeder (Westlake)</Text>
                 <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1254,8 +1236,8 @@ export default function SettingsScreen() {
           {supplierProfile ? (
             <View style={styles.supplierRegistered}>
               <View style={styles.supplierRegisteredHeader}>
-                <View style={[styles.iconWrap, { backgroundColor: themeColors.success }]}>
-                  <Store size={14} color="#fff" strokeWidth={1.75} />
+                <View style={styles.iconWrap}>
+                  <Store size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={styles.rowLabel}>{supplierProfile.companyName}</Text>
@@ -1288,8 +1270,8 @@ export default function SettingsScreen() {
               activeOpacity={0.7}
               testID="register-supplier"
             >
-              <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                <Store size={14} color="#fff" strokeWidth={1.75} />
+              <View style={styles.iconWrap}>
+                <Store size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Register as Supplier</Text>
@@ -1442,8 +1424,8 @@ export default function SettingsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Manage subscription in app store"
             >
-              <View style={[styles.iconWrap, { backgroundColor: themeColors.info }]}>
-                <Wallet size={14} color="#fff" strokeWidth={1.75} />
+              <View style={styles.iconWrap}>
+                <Wallet size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Manage Subscription</Text>
@@ -1464,8 +1446,8 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="show-tutorial"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <BookOpen size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <BookOpen size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Show Tutorial</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1491,8 +1473,8 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="contact-support"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <MessageCircle size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <MessageCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Contact Support</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1512,8 +1494,8 @@ export default function SettingsScreen() {
                   activeOpacity={0.6}
                   testID={`faq-${i}`}
                 >
-                  <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-                    <HelpCircle size={14} color="#fff" strokeWidth={1.75} />
+                  <View style={styles.iconWrap}>
+                    <HelpCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
                   </View>
                   <Text style={[styles.rowLabel, { flex: 1 }]} numberOfLines={isOpen ? undefined : 2}>
                     {item.q}
@@ -1540,8 +1522,8 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>ABOUT</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.accent }]}>
-              <Info size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Info size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={styles.aboutBlock}>
               <Text style={styles.rowLabel}>MAGE ID</Text>
@@ -1550,8 +1532,8 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={[styles.row, { opacity: 0.7 }]}>
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.textMuted }]}>
-              <ChevronRight size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <ChevronRight size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Version</Text>
             <Text style={styles.rowValue}>1.0.0</Text>
@@ -1575,8 +1557,8 @@ export default function SettingsScreen() {
             accessibilityRole="link"
             accessibilityLabel="Privacy Policy"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
-              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Privacy Policy</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1594,8 +1576,8 @@ export default function SettingsScreen() {
             accessibilityRole="link"
             accessibilityLabel="Terms of Service"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
-              <FileText size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <FileText size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Terms of Service</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1613,8 +1595,8 @@ export default function SettingsScreen() {
             accessibilityRole="link"
             accessibilityLabel="Do Not Sell or Share My Personal Information"
           >
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
-              <ShieldCheck size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <ShieldCheck size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={styles.rowLabel}>Do Not Sell My Info (CA)</Text>
             <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -1624,15 +1606,15 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionHeader, { color: themeColors.danger }]}>DANGER ZONE</Text>
         <View style={styles.group}>
           <TouchableOpacity style={styles.row} onPress={handleClearAll} activeOpacity={0.6} testID="clear-all">
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <Trash2 size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <Trash2 size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Clear All Projects & Data</Text>
           </TouchableOpacity>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleDeleteAccount} activeOpacity={0.6} testID="delete-account">
-            <View style={[styles.iconWrap, { backgroundColor: themeColors.danger }]}>
-              <UserCircle size={14} color="#fff" strokeWidth={1.75} />
+            <View style={styles.iconWrap}>
+              <UserCircle size={14} color={themeColors.textSecondary} strokeWidth={1.75} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: themeColors.danger }]}>Delete Account</Text>
@@ -1970,17 +1952,6 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     gap: 6,
     marginTop: 6,
   },
-  profileTierPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Tokens.radius.sm,
-    borderWidth: 1,
-  },
-  profileTierText: {
-    fontSize: 10,
-    fontWeight: '800' as const,
-    letterSpacing: 0.6,
-  },
   profileSignOutBtn: {
     width: 36,
     height: 36,
@@ -2027,10 +1998,15 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     gap: 12,
     minHeight: 52,
   },
+  // Flat ink chip — one quiet tile for every row, single-color icon.
+  // The iOS-Settings-style multicolor fills (red location, blue units,
+  // purple takeoff, green QBO...) were borrowed Apple decoration that
+  // diluted the ink+amber system (sim-audit slop #9).
   iconWrap: {
     width: 30,
     height: 30,
     borderRadius: 7,
+    backgroundColor: themeColors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },

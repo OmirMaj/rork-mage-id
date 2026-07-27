@@ -40,6 +40,7 @@ import { generateUUID } from '@/utils/generateId';
 import type { ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { displayText } from '@/utils/formatters';
 
 const STEPS = ['Project', 'Tasks', 'Schedule', 'Review'] as const;
 type StepIndex = 0 | 1 | 2 | 3;
@@ -442,7 +443,7 @@ function ProjectStep(props: {
             <Text style={styles.heroTitle}>{picked.name}</Text>
             <View style={styles.heroMetaRow}>
               <MapPin size={13} color={themeColors.textMuted} strokeWidth={1.75} />
-              <Text style={styles.heroMeta}>{picked.location || 'No location set'}</Text>
+              <Text style={styles.heroMeta}>{displayText(picked.location, 'No location set')}</Text>
             </View>
             <View style={styles.heroMetaRow}>
               <CalendarIcon size={13} color={themeColors.textMuted} strokeWidth={1.75} />
@@ -472,7 +473,7 @@ function ProjectStep(props: {
               <View style={{ flex: 1 }}>
                 <Text style={styles.projectName} numberOfLines={1}>{p.name}</Text>
                 <Text style={styles.projectSub} numberOfLines={1}>
-                  {p.location || 'No location'} · {p.type}
+                  {displayText(p.location, 'No location')} · {p.type}
                 </Text>
               </View>
               {active && <Check size={18} color={themeColors.accent} strokeWidth={2.5} />}

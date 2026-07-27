@@ -76,6 +76,12 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
 
   if (!task) return null;
 
+  // Phase color marks CATEGORY (the small icon tile). Controls — the %
+  // pill and the progress slider — use the app accent: they're single-value
+  // UI, not phase-comparison data-viz. Pre-fix everything here wore the
+  // phase color, which for the default 'General' phase meant an indigo
+  // slider thumb + indigo pills that read as a foreign accent system
+  // (sim-audit slop #5).
   const phaseColor = getPhaseColor(task.phase || 'Other');
   const dur = Math.max(1, task.durationDays || 1);
   // startDay is 1-indexed (day 1 = schedule start), matching the desktop + CPM
@@ -140,8 +146,8 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
               />
               <Text style={styles.phase} numberOfLines={1}>{task.phase || 'Other'}</Text>
             </View>
-            <View style={[styles.pct, { backgroundColor: phaseColor + '1A' }]}>
-              <Text style={[styles.pctText, { color: phaseColor }]}>{pctDraft}%</Text>
+            <View style={[styles.pct, { backgroundColor: colors.accentSoft }]}>
+              <Text style={[styles.pctText, { color: colors.accentLabel }]}>{pctDraft}%</Text>
             </View>
             <TouchableOpacity style={styles.close} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <X size={18} color={colors.textMuted} strokeWidth={1.75} />
@@ -185,7 +191,7 @@ export function TaskDetailSheet({ visible, task, allTasks, startDate, onClose, o
                   </View>
 
                   <View style={[styles.pctHeaderRow, { marginTop: 14 }]}><Text style={styles.gLbl}>% Complete</Text><Text style={styles.gVal}>{pctDraft}%</Text></View>
-                  <PercentSlider value={pctDraft} onChange={setPctDraft} onCommit={commitProgress} color={phaseColor} />
+                  <PercentSlider value={pctDraft} onChange={setPctDraft} onCommit={commitProgress} color={colors.accent} />
 
                   <View style={styles.toggleRow}>
                     <Text style={styles.gLbl}>Milestone</Text>

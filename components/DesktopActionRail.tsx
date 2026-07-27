@@ -6,31 +6,36 @@
 // the user shared — sidebar / main / rail — so the eye flows: where am I →
 // what am I looking at → what needs me right now.
 //
-// Data source is the same useSmartInbox() hook the inline SmartInbox uses; we
-// just render a slimmer rail-shaped variant. The layout file hides the inline
-// SmartInbox when this rail is mounted so the same items don't render twice.
+// Data source is useBrainWatch() — THE canonical "needs your attention" set.
+// This is the SAME hook + count the Your-Projects tab badge, the Summary NEEDS
+// YOU card, and the home Brain Watch card use, so the rail can never disagree
+// with the badge mounted beside it (sim-audit #15 "1 vs 11" — the rail used to
+// run its own useSmartInbox() row count under an authoritative-sounding
+// "Action Required" title while the badge showed the canonical total). The
+// dismissible Smart Inbox feed lives in the home "Inbox" card, not here.
 //
 // Width gate: 1280px MAIN VIEWPORT (not content width). Below that, the rail
-// is dropped entirely and the inline SmartInbox takes over. This keeps narrow
+// is dropped entirely and the inline Inbox card takes over. This keeps narrow
 // laptops (1024-1280) from getting cramped 3-column layouts.
 // ============================================================================
 
 import React, { useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { AlertTriangle, ChevronRight, CheckCircle2 } from 'lucide-react-native';
-import { useSmartInbox, type InboxItem } from '@/hooks/useSmartInbox';
-import { useEntityNavigation } from '@/hooks/useEntityNavigation';
+import { ChevronRight, CheckCircle2 } from 'lucide-react-native';
+import { useBrainWatch } from '@/hooks/useBrainWatch';
+import type { AttentionItem, AttnSeverity } from '@/utils/brainWatch';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 
-const SEVERITY_COLOR: Record<1 | 2 | 3, string> = {
-  1: '#8E8E93',
-  2: '#FF9500',
-  3: '#FF3B30',
+const SEVERITY_COLOR: Record<AttnSeverity, string> = {
+  medium: '#8E8E93',
+  high: '#FF9500',
+  critical: '#FF3B30',
 };
 
 const RAIL_WIDTH = 300;
@@ -40,19 +45,19 @@ interface Props {
 }
 
 const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_WIDTH }: Props) {
-  const { items, isReady } = useSmartInbox();
-  const { navigateTo } = useEntityNavigation();
+  const { items } = useBrainWatch();
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
 
   const top = useMemo(() => items.slice(0, 8), [items]);
 
-  const onRowPress = useCallback((item: InboxItem) => {
+  const onRowPress = useCallback((item: AttentionItem) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    navigateTo(item.ref);
-  }, [navigateTo]);
-
-  if (!isReady) return null;
+    if (!item.route?.pathname) return; // never push a dead-end route
+    if (item.route.params) router.push({ pathname: item.route.pathname, params: item.route.params } as any);
+    else router.push(item.route.pathname as any);
+  }, [router]);
 
   return (
     <View style={[styles.rail, { width }]}>
@@ -85,10 +90,7 @@ const DesktopActionRail = React.memo(function DesktopActionRail({ width = RAIL_W
             >
               <View style={[styles.severityDot, { backgroundColor: SEVERITY_COLOR[item.severity] }]} />
               <View style={styles.rowText}>
-                <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                {item.subtitle ? (
-                  <Text style={styles.rowSubtitle} numberOfLines={1}>{item.subtitle}</Text>
-                ) : null}
+                <Text style={styles.rowTitle} numberOfLines={2}>{item.message}</Text>
               </View>
               <ChevronRight size={14} color={colors.textMuted} strokeWidth={1.75} />
             </TouchableOpacity>
@@ -201,11 +203,6 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     fontWeight: '600' as const,
     color: t.text,
     letterSpacing: -0.1,
-  },
-  rowSubtitle: {
-    fontSize: Type.caption2.fontSize,
-    color: t.textSecondary,
-    marginTop: 2,
   },
   moreText: {
     fontSize: Type.caption1.fontSize,

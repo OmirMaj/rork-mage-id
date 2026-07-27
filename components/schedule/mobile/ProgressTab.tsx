@@ -48,6 +48,11 @@ export function ProgressTab({ tasks, startDate }: ProgressTabProps) {
 
       <Text style={styles.section}>BY PHASE</Text>
       <View style={styles.card}>
+        {/* Honest empty state — with zero tasks this card rendered as a bare
+            white pill (sim-audit #12). Mirrors the milestones card below. */}
+        {phases.length === 0 && (
+          <Text style={styles.empty}>No phases yet — add work packages to the schedule.</Text>
+        )}
         {phases.map((p, i) => (
           <View key={p.phase} style={[styles.prow, i > 0 ? styles.rowDivider : null]}>
             <View style={[styles.dot, { backgroundColor: getPhaseColor(p.phase) }]} />

@@ -86,7 +86,9 @@ const MODEL_DISPLAY: Record<TakeoffModel, { label: string; tagline: string }> = 
     tagline: 'Slower + more careful. Reads schedules + ambiguous areas more reliably.',
   },
   'claude-sonnet-4-5': {
-    label: 'Sonnet 4.6',
+    // Capability-tier name, NOT the vendor model name — user-facing copy
+    // never name-drops the underlying provider (sim-audit #10).
+    label: 'Max Takeoff',
     tagline: 'Highest accuracy on stamped or marked-up scans. Enterprise tier.',
   },
 };
@@ -616,7 +618,7 @@ function TakeoffInner() {
                 <View style={styles.upsell}>
                   <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
-                    Pro Takeoff is included with Business. Sonnet 4.6 (highest accuracy on stamped scans) is included with Enterprise.
+                    Pro Takeoff is included with Business. Max Takeoff (highest accuracy on stamped scans) is included with Enterprise.
                   </Text>
                 </View>
               )}
@@ -624,7 +626,7 @@ function TakeoffInner() {
                 <View style={styles.upsell}>
                   <Crown size={12} color={themeColors.accent} strokeWidth={1.75} />
                   <Text style={styles.upsellText}>
-                    Sonnet 4.6 (highest accuracy on stamped + marked-up scans) is included with Enterprise.
+                    Max Takeoff (highest accuracy on stamped + marked-up scans) is included with Enterprise.
                   </Text>
                 </View>
               )}
@@ -669,7 +671,7 @@ function TakeoffInner() {
                 <Text style={styles.uploadCtaText}>Pick a PDF</Text>
               </View>
               <Text style={styles.uploadHint}>
-                Each page is rendered to PNG and analyzed by Gemini Vision. Uploaded drawings live in your project plans bucket.
+                Each page is rendered to PNG and read by MAGE&apos;s vision engine. Uploaded drawings live in your project plans bucket.
               </Text>
             </TouchableOpacity>
 
@@ -713,7 +715,7 @@ function TakeoffInner() {
               <Text style={styles.progressBody}>
                 {step === 'uploading'
                   ? `Converting ${uploadedFileName ?? 'your PDF'} to high-res page images.`
-                  : `Gemini is measuring ${pages.length} page${pages.length === 1 ? '' : 's'}, reading every schedule, and producing quantities. 30-90 seconds.`}
+                  : `MAGE is measuring ${pages.length} page${pages.length === 1 ? '' : 's'}, reading every schedule, and producing quantities. 30-90 seconds.`}
               </Text>
             </View>
             {step === 'analyzing' && (

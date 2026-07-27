@@ -29,7 +29,12 @@ export const PHASE_COLORS: Record<string, string> = {
   'Finishes':     '#22C55E', // green
   'Landscaping':  '#84CC16', // lime
   'Inspections':  '#F59E0B', // amber (matches MEP — they share the inspection cadence)
-  'General':      '#6366F1', // indigo
+  // 'General' is the DEFAULT phase every quick-added task lands in, so its
+  // color is effectively the app's "default task" color. The old indigo
+  // (#6366F1) made the whole schedule read as a second accent family next
+  // to the ink+amber system (sim-audit slop #5). Warm stone keeps it
+  // neutral — real trades keep their categorical hues.
+  'General':      '#7A7266', // warm stone (neutral — uncategorized work)
 };
 
 export function createId(_prefix: string): string {
@@ -279,10 +284,11 @@ export function buildScheduleFromTasks(
      *  forward-only resolver. Pass `cpm.projectFinish` to use the full
      *  CPM result. */
     criticalPathDays?: number;
-    /** Calendar anchor (yyyy-mm-dd). Preserved across rebuilds; defaults to
-     *  today only when the caller doesn't supply one. Without this, mobile-built
-     *  schedules had no startDate and the Summary dashboard's Today/Week
-     *  day-math fell back to project.createdAt (wrong). */
+    /** Calendar anchor (yyyy-mm-dd). When omitted the built schedule has NO
+     *  startDate key at all — the engine must never invent one, because
+     *  retro-stamping today onto a dateless schedule flips CPM raw-day →
+     *  calendar mode and the finish date jumps (the documented startDate bug).
+     *  CREATION flows anchor explicitly at the persist site instead. */
     startDate?: string;
   },
 ): ProjectSchedule {
@@ -304,20 +310,27 @@ export function buildScheduleFromTasks(
     .slice()
     .sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
 
-  const totalDurationDays = sortedTasks.reduce((max, task) => {
-    return Math.max(max, task.startDay + task.durationDays);
+  // ONE derivation for both duration scalars (2026-07 sim-audit fix #2):
+  // the same schedule used to show three different lengths — the modal's
+  // "Duration" (max(startDay + durationDays), a fencepost one past the true
+  // finish, PLUS a hidden +3 buffer baked in), the "Critical path" (CPM
+  // projectFinish), and the wizard's estimate (max CPM EF). All three now
+  // resolve to the ENGINE's project-finish day:
+  //   - when the caller threads cpm.projectFinish in via opts.criticalPathDays
+  //     (schedule-pro, mobile Pro, classic persistEditedTasks), that value is
+  //     authoritative for BOTH scalars;
+  //   - otherwise fall back to the latest task end-day using the CPM EF
+  //     convention — a task ENDS on startDay + durationDays - 1, and a 0-day
+  //     milestone ends ON its startDay (never startDay - 1). This matches
+  //     runCpm's forward pass in raw-day mode, so the fallback and the engine
+  //     agree for already-resolved task sets.
+  // bufferDays stays a SEPARATE field — never silently folded into duration.
+  const fallbackFinish = sortedTasks.reduce((max, t) => {
+    const dur = Math.max(0, t.durationDays || 0);
+    const end = dur === 0 ? t.startDay : t.startDay + dur - 1;
+    return Math.max(max, end);
   }, 0);
-
-  // criticalPathDays = engine-true project-finish day. Caller passes
-  // cpm.projectFinish via opts; if absent, fall back to the latest
-  // task end-day (semantically the same as projectFinish for a
-  // schedule whose tasks have already had a forward pass applied,
-  // and a sane approximation otherwise). NEVER the old
-  // sum-of-critical-durations heuristic — that produced a different
-  // value from runCpm and overwrote it on every persist (audit bug #4).
-  const criticalPathDays =
-    opts?.criticalPathDays
-    ?? sortedTasks.reduce((max, t) => Math.max(max, t.startDay + t.durationDays - 1), 0);
+  const projectFinishDay = opts?.criticalPathDays ?? fallbackFinish;
 
   const averageProgress = sortedTasks.length > 0
     ? sortedTasks.reduce((sum, task) => sum + task.progress, 0) / sortedTasks.length
@@ -376,17 +389,60 @@ export function buildScheduleFromTasks(
     id: createId('schedule'),
     name,
     projectId,
-    startDate: opts?.startDate ?? new Date().toISOString().slice(0, 10),
+    // NO today-default (the documented finish-jump bug): stamping a date onto
+    // a previously dateless schedule flips CPM from raw-day to calendar mode
+    // and the finish silently jumps. The key is OMITTED entirely when absent
+    // so `{ ...existing, ...built }` spreads can't clobber a real startDate
+    // with undefined. Creation flows that want an anchor pass opts.startDate.
+    ...(opts?.startDate ? { startDate: opts.startDate } : {}),
     workingDaysPerWeek: 5,
     bufferDays: 3,
     tasks: sortedTasks,
-    totalDurationDays: totalDurationDays + 3,
-    criticalPathDays,
+    totalDurationDays: projectFinishDay,
+    criticalPathDays: projectFinishDay,
     laborAlignmentScore,
     healthScore,
     riskItems,
     baseline: existingBaseline ?? null,
     updatedAt,
+  };
+}
+
+/**
+ * Merge a freshly-built schedule's DERIVED SCALARS onto an existing schedule,
+ * preserving every sidecar field. Mirrors the classic persistEditedTasks merge
+ * in app/(tabs)/schedule/index.tsx: spread the existing schedule first, then
+ * overwrite ONLY the fields the CPM/build pass just recomputed. This is what a
+ * manual-edit save (mobile Pro, desktop) must do — a naive `{ ...built }` write
+ * silently drops nonWorkingDates, scenarios, activeScenarioId,
+ * criticalFloatThresholdDays, resources, resourceCalendars, fragnets,
+ * baselines[], weatherAlerts, weatherDelayLog AND resets bufferDays /
+ * workingDaysPerWeek to buildScheduleFromTasks' hardcoded defaults.
+ *
+ * The `built` argument is the output of buildScheduleFromTasks (its derived
+ * scalars are authoritative); `existing` supplies every other field.
+ */
+export function mergeEditedSchedule(
+  existing: ProjectSchedule,
+  built: ProjectSchedule,
+  opts?: {
+    /** New calendar anchor to set (creation flows). Omit to keep existing. */
+    startDate?: string;
+    /** projectId to stamp (mobile passes the selected project id). */
+    projectId?: string | null;
+  },
+): ProjectSchedule {
+  return {
+    ...existing,
+    tasks: built.tasks,
+    totalDurationDays: built.totalDurationDays,
+    criticalPathDays: built.criticalPathDays,
+    healthScore: built.healthScore,
+    laborAlignmentScore: built.laborAlignmentScore,
+    riskItems: built.riskItems,
+    ...(opts?.startDate ? { startDate: opts.startDate } : {}),
+    ...(opts?.projectId !== undefined ? { projectId: opts.projectId ?? existing.projectId } : {}),
+    updatedAt: new Date().toISOString(),
   };
 }
 
@@ -410,7 +466,9 @@ export function getBaselineVariance(task: ScheduleTask, baseline: ScheduleBaseli
 }
 
 export function getPhaseColor(phase: string): string {
-  return PHASE_COLORS[phase] || '#6366F1';
+  // Unknown phases fall back to the same neutral as 'General' — an unmapped
+  // phase is uncategorized work, not a new accent color.
+  return PHASE_COLORS[phase] || '#7A7266';
 }
 
 export function generateWbsCodes(tasks: ScheduleTask[]): ScheduleTask[] {

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react-native';
 import { MageChangeOrder } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import { ToolHeader } from '@/components/ToolScreenChrome';
 import { CSIDivisionPicker } from '@/components/CSIDivisionPicker';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -488,8 +489,9 @@ function ChangeOrderInner() {
 
   if (!project) {
     return (
-      <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-        <Stack.Screen options={{ title: 'Change Orders' }} />
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ToolHeader eyebrow="CHANGE ORDERS · MAGE" title="Change Orders" />
         <EmptyState
           icon={<MageChangeOrder size={36} color={themeColors.accent} />}
           title="No change order open yet"
@@ -509,13 +511,12 @@ function ChangeOrderInner() {
   const isLocked = existingCO?.status === 'approved' || existingCO?.status === 'rejected' || existingCO?.status === 'void';
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
-      <Stack.Screen options={{
-        title: existingCO ? `CO #${existingCO.number}` : `New Change Order`,
-        headerStyle: { backgroundColor: themeColors.bg },
-        headerTintColor: themeColors.accent,
-        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
-      }} />
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ToolHeader
+        eyebrow="CHANGE ORDERS · MAGE"
+        title={existingCO ? `CO #${existingCO.number}` : 'New Change Order'}
+      />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={[{ paddingBottom: insets.bottom + 100 }, isDesktop && styles.contentDesktop]}

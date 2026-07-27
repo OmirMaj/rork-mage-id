@@ -26,6 +26,7 @@ import { checkAILimit } from '@/utils/aiRateLimiter';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { displayText } from '@/utils/formatters';
 
 export default function ClientUpdateScreen() {
   const { colors: themeColors } = useTheme();
@@ -245,7 +246,7 @@ export default function ClientUpdateScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.projectRowName, active && styles.projectRowNameActive]}>{p.name}</Text>
-                    <Text style={styles.projectRowMeta}>{p.type} · {p.location}</Text>
+                    <Text style={styles.projectRowMeta}>{p.type}{displayText(p.location) ? ` · ${displayText(p.location)}` : ''}</Text>
                   </View>
                   {active && <CheckCircle2 size={18} color={themeColors.accent} strokeWidth={1.75} />}
                 </TouchableOpacity>

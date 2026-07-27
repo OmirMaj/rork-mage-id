@@ -497,6 +497,84 @@ function baseInput(over: Partial<ComposeWeekCloseInput> = {}): ComposeWeekCloseI
   );
 }
 
+// ─── Verdict agreement (sim-audit fix #13) ────────────────────────────────────
+// Home card said "1 leg to close out" while the modal said "Clean close" for
+// the SAME week: the ppc recap + lookahead forecast lines flipped allQuiet on
+// whichever surface's snapshot had them loaded. Recap/forecast lines are now
+// informational, so every surface that filters on the flag (home card,
+// modal headline, allQuiet itself) counts the same legs.
+
+{
+  console.log('\n── Verdict agreement: recap/forecast lines are informational ──');
+
+  const pQuiet = project({ id: 'p-v', name: 'Verdict Job' });
+  const repQuiet = dailyReport({ id: 'r-v', projectId: 'p-v', date: dateOnlyDaysAgo(2) });
+
+  const thisMonday = (() => {
+    const d = new Date(NOW);
+    const dow = d.getDay();
+    const shift = dow === 0 ? -6 : 1 - dow;
+    d.setDate(d.getDate() + shift);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const commitments: WeeklyCommitment[] = Array.from({ length: 4 }, (_, i) => ({
+    taskId: `tv${i}`, weekStart: thisMonday, committed: true, outcome: 'done' as const,
+  }));
+
+  // PPC recap + lookahead forecast + client reminders, ZERO actionable work.
+  const recapOnly = composeWeekClose(baseInput({
+    projects: [pQuiet], dailyReports: [repQuiet],
+    wwp: { commitments, ppc: null },
+    lookaheadReadyCount: 5,
+  }));
+  assert(
+    recapOnly.legs.find(l => l.id === 'close')!.items.every(i => i.informational === true),
+    'ppc recap line is informational',
+  );
+  assert(
+    recapOnly.legs.find(l => l.id === 'commit')!.items.every(i => i.informational === true),
+    'lookahead forecast line is informational',
+  );
+  assert(recapOnly.allQuiet, 'recap + forecast + reminders only → allQuiet true');
+
+  // The open-leg count every surface derives (legs with ≥1 non-informational
+  // item) must be 0 in this state — home card and modal headline agree.
+  const openLegs = recapOnly.legs.filter(l => l.items.some(i => !i.informational)).length;
+  assert(openLegs === 0, 'surface open-leg count is 0 when only recap/forecast lines exist');
+
+  // Actionable work still flips both the same way.
+  const withWork = composeWeekClose(baseInput({
+    projects: [pQuiet], dailyReports: [repQuiet],
+    wwp: { commitments, ppc: null },
+    lookaheadReadyCount: 5,
+    unsentClientItemCount: 2,
+  }));
+  assert(!withWork.allQuiet, 'unsent client items (actionable) → allQuiet false');
+  const openLegs2 = withWork.legs.filter(l => l.items.some(i => !i.informational)).length;
+  assert(openLegs2 === 1, 'actionable work opens exactly the clients leg on both surfaces');
+  assert(
+    withWork.legs.find(l => l.id === 'clients')!.items.some(i => i.id === 'unsent-client' && !i.informational),
+    'unsent-client stays actionable (never informational)',
+  );
+
+  // PPC fallback line follows the same rule. The fallback branch needs
+  // commitments present but NONE for the current week (committed=0), plus a
+  // pre-computed ppc.
+  const staleCommitments: WeeklyCommitment[] = [
+    { taskId: 'old1', weekStart: '2026-01-05', committed: true, outcome: 'done' as const },
+  ];
+  const fallback = composeWeekClose(baseInput({
+    projects: [pQuiet], dailyReports: [repQuiet],
+    wwp: { commitments: staleCommitments, ppc: 0.72 },
+  }));
+  const closeItems = fallback.legs.find(l => l.id === 'close')!.items;
+  assert(
+    closeItems.length > 0 && closeItems.every(i => i.informational === true),
+    'ppc fallback line is informational',
+  );
+  assert(fallback.allQuiet, 'ppc fallback only → allQuiet true');
+}
+
 // ─── Dedupe: CO appearing as both autoDraftedCO and unbilled WIP ──────────────
 
 {
