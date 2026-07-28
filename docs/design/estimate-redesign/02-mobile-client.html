@@ -1,0 +1,264 @@
+<title>MAGE ID &mdash; Client Estimate View</title>
+<style>
+  :root {
+    --ground: #0B0D10;
+    --card: #14181D;
+    --card-2: #191E24;
+    --elev: #1F252D;
+    --hair: rgba(150,164,175,0.13);
+    --hair-2: rgba(150,164,175,0.22);
+    --cream: #F4EFE6;
+    --sec: #AAB1B9;
+    --muted: #6C7480;
+    --accent: #FF6A1A;
+    --accent-soft: rgba(255,106,26,0.15);
+    --green: #5FBF6B;
+    --slate: #93A4AE;
+    --sky: #4FC3F7;
+    --amber: #FFA726;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--sans); color: var(--cream);
+    background: radial-gradient(1000px 700px at 50% -10%, #12161b, #08090c 70%);
+    -webkit-font-smoothing: antialiased; min-height: 100vh;
+  }
+  .page { max-width: 920px; margin: 0 auto; padding: 46px 24px 72px; display: grid; grid-template-columns: 392px 1fr; gap: 56px; align-items: start; }
+  @media (max-width: 840px) { .page { grid-template-columns: 1fr; gap: 40px; } .phone { margin: 0 auto; } .aside { max-width: 440px; margin: 0 auto; } }
+
+  .phone { width: 392px; max-width: 100%; border-radius: 46px; padding: 11px;
+    background: #04060a; box-shadow: 0 50px 110px -40px rgba(0,0,0,0.9), 0 0 0 1px rgba(244,239,230,0.05); position: sticky; top: 28px; }
+  .screen { border-radius: 37px; overflow: hidden; background: var(--ground); }
+
+  .status { display: flex; justify-content: space-between; align-items: center; padding: 14px 26px 2px; font-size: 13px; font-weight: 600; }
+  .status .r { font-size: 12px; opacity: 0.9; }
+
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px 8px; }
+  .nav .ic { color: var(--sec); display: flex; }
+  .nav .title { font-size: 16px; font-weight: 600; }
+
+  /* view toggle */
+  .toggle { display: flex; gap: 4px; margin: 4px 16px 0; background: var(--card-2); border: 1px solid var(--hair); border-radius: 12px; padding: 4px; }
+  .toggle .seg { flex: 1; text-align: center; font-size: 12.5px; font-weight: 600; padding: 8px; border-radius: 9px; color: var(--muted); }
+  .toggle .seg.on { background: var(--accent); color: #17110a; }
+
+  .lockchip { display: flex; align-items: center; gap: 7px; margin: 10px 16px 0; padding: 8px 11px; background: rgba(150,164,175,0.06); border: 1px solid var(--hair); border-radius: 9px; }
+  .lockchip svg { width: 13px; height: 13px; color: var(--muted); flex: none; }
+  .lockchip span { font-size: 11px; color: var(--muted); }
+
+  .content { padding: 16px; }
+
+  /* hero */
+  .eyebrow { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 4px 0 8px; font-weight: 600; }
+  .prep { font-size: 12.5px; color: var(--sec); margin: 0 0 18px; }
+  .prep b { color: var(--cream); font-weight: 600; }
+  .ptot-lbl { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 0 0 5px; font-weight: 600; }
+  .ptot { font-size: 46px; font-weight: 700; letter-spacing: -0.03em; margin: 0; font-variant-numeric: tabular-nums; }
+  .ptot .c { color: var(--muted); font-weight: 500; font-size: 26px; vertical-align: 5px; }
+  .valid { font-size: 11.5px; color: var(--sec); margin: 9px 0 0; }
+
+  /* section label */
+  .sl { font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 26px 0 8px; }
+
+  /* scope rows */
+  .scope { background: var(--card); border: 1px solid var(--hair); border-radius: 14px; overflow: hidden; }
+  .srow { display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 1px solid var(--hair); }
+  .srow:last-child { border-bottom: none; }
+  .srow .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+  .srow .ic svg { width: 17px; height: 17px; }
+  .srow .nm { flex: 1; }
+  .srow .nm .t { font-size: 14px; font-weight: 600; }
+  .srow .nm .d { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .srow .amt { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .srow .chev { color: var(--muted); display: flex; }
+
+  .t-accent { background: var(--accent-soft); color: var(--accent); }
+  .t-green { background: rgba(95,191,107,0.16); color: var(--green); }
+  .t-slate { background: rgba(147,164,174,0.18); color: var(--slate); }
+  .t-sky { background: rgba(79,195,247,0.16); color: var(--sky); }
+  .t-amber { background: rgba(255,167,38,0.16); color: var(--amber); }
+
+  /* allowances */
+  .allow { background: var(--card); border: 1px solid var(--hair); border-radius: 14px; padding: 4px 14px; }
+  .arow { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--hair); font-size: 13px; }
+  .arow:last-child { border-bottom: none; }
+  .arow .an { color: var(--cream); font-weight: 500; }
+  .arow .av { color: var(--sec); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* incl/excl */
+  .incl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .incl .col { background: var(--card); border: 1px solid var(--hair); border-radius: 14px; padding: 13px; }
+  .incl .col h4 { font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; margin: 0 0 10px; font-weight: 700; }
+  .incl .col.in h4 { color: var(--green); }
+  .incl .col.ex h4 { color: var(--sec); }
+  .incl .col li { list-style: none; font-size: 11.5px; color: var(--sec); padding: 4px 0 4px 15px; position: relative; line-height: 1.35; }
+  .incl .col ul { margin: 0; padding: 0; }
+  .incl .col.in li::before { content: "\2713"; position: absolute; left: 0; color: var(--green); font-size: 11px; }
+  .incl .col.ex li::before { content: "\00D7"; position: absolute; left: 0; color: var(--muted); font-size: 12px; }
+
+  /* payment */
+  .pay { background: var(--card); border: 1px solid var(--hair); border-radius: 14px; padding: 4px 14px; }
+  .prow { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--hair); }
+  .prow:last-child { border-bottom: none; }
+  .prow .pl .t { font-size: 13px; font-weight: 600; }
+  .prow .pl .d { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .prow .pv { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .prow .pv.now { color: var(--accent); }
+
+  /* cta */
+  .cta { margin-top: 22px; }
+  .btn { width: 100%; border: none; cursor: pointer; background: var(--accent); color: #17110a; border-radius: 13px; padding: 16px; font-family: var(--sans); font-size: 14.5px; font-weight: 700; }
+  .btn:focus-visible { outline: 3px solid #FF8a4a; outline-offset: 2px; }
+  .ghost { width: 100%; margin-top: 9px; background: none; border: 1px solid var(--hair-2); border-radius: 13px; cursor: pointer; color: var(--cream); font-size: 13px; font-family: var(--sans); font-weight: 600; padding: 13px; }
+  .homebar { height: 5px; width: 130px; border-radius: 3px; background: rgba(244,239,230,0.25); margin: 14px auto 12px; }
+
+  /* aside */
+  .aside .tag { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+  .aside h1 { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 16px; text-wrap: balance; }
+  .aside p { color: var(--sec); font-size: 14px; line-height: 1.6; margin: 0 0 22px; max-width: 46ch; }
+  .split2 { display: grid; gap: 18px; }
+  .split2 .b h5 { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 10px; }
+  .split2 .b.hide h5 { color: var(--muted); }
+  .split2 .b.show h5 { color: var(--green); }
+  .split2 .b ul { list-style: none; margin: 0; padding: 0; }
+  .split2 .b li { font-size: 13px; color: var(--sec); padding: 6px 0 6px 20px; position: relative; border-top: 1px solid var(--hair); line-height: 1.4; }
+  .split2 .b.hide li::before { content: "\00D7"; position: absolute; left: 2px; color: var(--muted); }
+  .split2 .b.show li::before { content: "\2713"; position: absolute; left: 2px; color: var(--green); }
+  .split2 .b li b { color: var(--cream); font-weight: 600; }
+</style>
+
+<div class="page">
+  <div class="phone">
+    <div class="screen">
+      <div class="status"><span>9:41</span><span class="r">MAGE ID</span></div>
+
+      <div class="nav">
+        <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg></span>
+        <span class="title">Harborview Office Building</span>
+        <span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8h16v-8M16 6l-4-4-4 4M12 2v14"/></svg></span>
+      </div>
+
+      <div class="toggle">
+        <span class="seg">Contractor</span>
+        <span class="seg on">Client</span>
+      </div>
+      <div class="lockchip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        <span>Costs, markups &amp; margin are hidden in client view</span>
+      </div>
+
+      <div class="content">
+        <p class="eyebrow">Client proposal</p>
+        <p class="prep">Prepared for <b>Meridian Partners</b> by Harborview Construction Co.</p>
+
+        <p class="ptot-lbl">Project total</p>
+        <p class="ptot"><span class="c">$</span>4,752,680</p>
+        <p class="valid">Fixed-price proposal &middot; valid through Aug 31, 2026</p>
+
+        <p class="sl">Scope of work</p>
+        <div class="scope">
+          <div class="srow">
+            <span class="ic t-slate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4zM3 7v10l9 4M21 7v10l-9 4"/></svg></span>
+            <span class="nm"><div class="t">Site &amp; Foundations</div><div class="d">Earthwork, footings, slab</div></span>
+            <span class="amt">$612,400</span>
+            <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="srow">
+            <span class="ic t-accent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5"/></svg></span>
+            <span class="nm"><div class="t">Structure &amp; Shell</div><div class="d">Concrete, steel, envelope</div></span>
+            <span class="amt">$1,840,220</span>
+            <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="srow">
+            <span class="ic t-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20V10l6-4 6 4v10M10 20v-6h4v6"/></svg></span>
+            <span class="nm"><div class="t">Interiors &amp; Finishes</div><div class="d">Drywall, flooring, paint, millwork</div></span>
+            <span class="amt">$1,120,800</span>
+            <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="srow">
+            <span class="ic t-sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg></span>
+            <span class="nm"><div class="t">MEP Systems</div><div class="d">Mechanical, electrical, plumbing</div></span>
+            <span class="amt">$884,900</span>
+            <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="srow">
+            <span class="ic t-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 4H8zM7 7h10v13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="nm"><div class="t">General Conditions</div><div class="d">Supervision, insurance, permits</div></span>
+            <span class="amt">$294,360</span>
+            <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+        </div>
+
+        <p class="sl">Allowances included</p>
+        <div class="allow">
+          <div class="arow"><span class="an">Flooring &amp; tile</span><span class="av">$14 / sf</span></div>
+          <div class="arow"><span class="an">Lighting package</span><span class="av">$85,000</span></div>
+          <div class="arow"><span class="an">Plumbing fixtures</span><span class="av">$42,000</span></div>
+          <div class="arow"><span class="an">Landscaping</span><span class="av">$60,000</span></div>
+        </div>
+
+        <p class="sl">Scope clarity</p>
+        <div class="incl">
+          <div class="col in">
+            <h4>Included</h4>
+            <ul>
+              <li>All labor &amp; materials</li>
+              <li>Permits &amp; inspections</li>
+              <li>Cleanup &amp; disposal</li>
+              <li>1-year workmanship warranty</li>
+            </ul>
+          </div>
+          <div class="col ex">
+            <h4>Not included</h4>
+            <ul>
+              <li>Furniture &amp; FF&amp;E</li>
+              <li>Hazmat abatement</li>
+              <li>Owner-supplied AV</li>
+              <li>Off-hours premiums</li>
+            </ul>
+          </div>
+        </div>
+
+        <p class="sl">Payment schedule</p>
+        <div class="pay">
+          <div class="prow"><span class="pl"><div class="t">Deposit</div><div class="d">Due on signing &middot; 10%</div></span><span class="pv now">$475,268</span></div>
+          <div class="prow"><span class="pl"><div class="t">Progress billing</div><div class="d">Monthly, on work completed</div></span><span class="pv">Monthly</span></div>
+          <div class="prow"><span class="pl"><div class="t">Final payment</div><div class="d">On substantial completion</div></span><span class="pv">$237,634</span></div>
+        </div>
+
+        <div class="cta">
+          <button class="btn">Approve proposal</button>
+          <button class="ghost">Ask a question</button>
+        </div>
+        <div class="homebar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="aside">
+    <p class="tag">Client estimate view</p>
+    <h1>What the client sees &mdash; and what stays yours.</h1>
+    <p>One toggle on every estimate. Flip to <b>Client</b> and MAGE strips the internal buildup, leaving a clean fixed-price proposal a client can actually read and approve.</p>
+    <div class="split2">
+      <div class="b hide">
+        <h5>Hidden from the client</h5>
+        <ul>
+          <li><b>Markups &amp; margin</b> &mdash; the $890k / 22.99% never shows</li>
+          <li><b>Direct cost vs markup</b> split &amp; the donut</li>
+          <li><b>Per-unit costs</b> and line-by-line CSI detail</li>
+          <li><b>MAGE Brain</b> risk &amp; confidence flags</li>
+        </ul>
+      </div>
+      <div class="b show">
+        <h5>Shown to the client</h5>
+        <ul>
+          <li><b>Project total</b> &mdash; the fixed price they pay</li>
+          <li><b>Scope by system</b>, rolled up (no cost buildup)</li>
+          <li><b>Allowances</b> &mdash; the typical costs they choose within</li>
+          <li><b>Inclusions / exclusions</b> &amp; payment schedule</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>

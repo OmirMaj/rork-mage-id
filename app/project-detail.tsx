@@ -8,13 +8,14 @@ import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import {
   DollarSign, Users, TrendingDown, MapPin,
   ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, CalendarDays,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, ShieldAlert, ScanSearch, Layers, Scale, ShieldCheck,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil, ScanLine,
-  Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
+  Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, ImagePlus, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
   Clock, Lock, Mic,
 } from 'lucide-react-native';
@@ -35,6 +36,7 @@ import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import UniversalMicButton from '@/components/UniversalMicButton';
 import { generateUUID } from '@/utils/generateId';
+import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
@@ -169,7 +171,7 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -871,6 +873,48 @@ export default function ProjectDetailScreen() {
     ]);
   }, [project, projectInvoices]);
 
+  // Capture a jobsite photo straight into the project gallery. 'camera' opens
+  // the device camera (falls back to the library on web, which has no camera
+  // capture); 'library' picks from the roll. Either way we GPS-stamp with the
+  // shared 3s-timeout helper (never blocks) and write through addProjectPhoto,
+  // so the new photo lands in the gallery + syncs like every other photo.
+  const handleCapturePhoto = useCallback(async (source: 'camera' | 'library') => {
+    if (!project) return;
+    try {
+      let result: ImagePicker.ImagePickerResult;
+      if (source === 'library' || Platform.OS === 'web') {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission Required', 'Photo library access is needed to add photos.'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
+      } else {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission Required', 'Camera access is needed to take photos.'); return; }
+        result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+      }
+      if (result.canceled || !result.assets[0]) return;
+      const stamp = await stampPhotoLocation();
+      const now = new Date().toISOString();
+      addProjectPhoto({
+        id: createId('photo'),
+        projectId: project.id,
+        uri: result.assets[0].uri,
+        timestamp: now,
+        createdAt: now,
+        tag: 'Progress',
+        ...(stamp ? {
+          latitude: stamp.latitude,
+          longitude: stamp.longitude,
+          locationAccuracyMeters: stamp.accuracyMeters,
+          locationLabel: stamp.label,
+        } : null),
+      });
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (err) {
+      console.log('[project-detail] Photo capture error:', err);
+      Alert.alert('Could not add photo', 'Something went wrong capturing that photo. Please try again.');
+    }
+  }, [project, addProjectPhoto]);
+
   const handleSharePhotoTimeline = useCallback(async () => {
     if (!project) return;
     if (projectPhotos.length === 0) {
@@ -1560,7 +1604,7 @@ export default function ProjectDetailScreen() {
           {hasAnyEstimate && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.replace({ pathname: '/(tabs)/estimate', params: { projectId: id ?? '' } } as any)}
+              onPress={() => router.replace({ pathname: '/(tabs)/estimate/full', params: { projectId: id ?? '' } } as any)}
               activeOpacity={0.7}
               testID="project-view-estimate-btn"
             >
@@ -3390,8 +3434,32 @@ export default function ProjectDetailScreen() {
 
           {expanded.photos && (
             <View style={styles.coCard}>
+              <View style={styles.photoCaptureRow}>
+                <TouchableOpacity
+                  style={[styles.photoCaptureBtn, styles.photoCaptureBtnPrimary]}
+                  onPress={() => { void handleCapturePhoto('camera'); }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Take a photo"
+                  testID="photos-take-photo"
+                >
+                  <Camera size={16} color={themeColors.surface} strokeWidth={2} />
+                  <Text style={styles.photoCaptureBtnPrimaryText}>Take Photo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.photoCaptureBtn}
+                  onPress={() => { void handleCapturePhoto('library'); }}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add photos from library"
+                  testID="photos-add-library"
+                >
+                  <ImagePlus size={16} color={themeColors.accent} strokeWidth={2} />
+                  <Text style={styles.photoCaptureBtnText}>Library</Text>
+                </TouchableOpacity>
+              </View>
               {projectPhotos.length === 0 && (
-                <Text style={styles.coEmptyText}>No photos yet. Photos from daily reports will appear here.</Text>
+                <Text style={styles.coEmptyText}>No photos yet. Tap Take Photo to capture the jobsite — photos from daily reports show up here too.</Text>
               )}
               {projectPhotos.length > 0 && (
                 <TouchableOpacity
@@ -4656,6 +4724,38 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   dfrWeekBadge: { backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.sm, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
   dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: themeColors.textSecondary },
+  photoCaptureRow: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  photoCaptureBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: themeColors.line,
+  },
+  photoCaptureBtnPrimary: {
+    flex: 1,
+    backgroundColor: themeColors.accent,
+    borderColor: themeColors.accent,
+  },
+  photoCaptureBtnPrimaryText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: themeColors.surface,
+  },
+  photoCaptureBtnText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: themeColors.accent,
+  },
   photoShareBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

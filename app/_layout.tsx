@@ -26,6 +26,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import UniversalSearch from "@/components/UniversalSearch";
+import { BrainFab } from "@/components/brain/BrainFab";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
@@ -214,7 +215,7 @@ const DESKTOP_SHELL_EXEMPT: ReadonlySet<string> = new Set([
   'login', 'signup', 'reset-password',
   'onboarding', 'persona-select', 'onboarding-paywall',
   // 2 — external / tokenized viewers
-  'client-view', 'prequal-form', 'claim-crew', 'shared-schedule', 'shared-photos',
+  'client-view', 'prequal-form', 'claim-crew', 'shared-schedule', 'shared-photos', 'shared-estimate',
   // 3 — presentation:'modal' routes
   'ask', 'schedule-wizard', 'schedule-builder', 'copilot', 'copilot-hub',
   'schedule-import', 'scan', 'paywall', 'cost-xray', 'import-pipeline',
@@ -463,7 +464,8 @@ function RootLayoutNav() {
     // them bounced every external share link to /login (dead on arrival),
     // breaking the entire "Share with client" feature.
     const inSharedView = (segments[0] as string) === 'shared-schedule'
-      || (segments[0] as string) === 'shared-photos';
+      || (segments[0] as string) === 'shared-photos'
+      || (segments[0] as string) === 'shared-estimate';
 
     // Public magic-link destinations: never redirect away from these, even
     // when the user is unauthenticated. The prequal-form route is opened by
@@ -1435,6 +1437,7 @@ export default Sentry.wrap(function RootLayout() {
                               <MarginAlertManager />
                               <RootLayoutNav />
                               <UniversalSearch />
+                              <BrainFab />
                               <SearchHotkeyListener />
                               <NailItToastHost />
                               <ConfettiHost />
