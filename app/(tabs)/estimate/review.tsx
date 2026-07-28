@@ -6,8 +6,12 @@ import * as Haptics from 'expo-haptics';
 import { PackageOpen, Share2 } from 'lucide-react-native';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { EstimateSummaryHeader } from '@/components/estimate/EstimateSummaryHeader';
+import { EstimateMetricGrid } from '@/components/estimate/EstimateMetricGrid';
+import { EstimateSummaryCard } from '@/components/estimate/EstimateSummaryCard';
+import { EstimateCostBreakdown } from '@/components/estimate/EstimateCostBreakdown';
 import { EstimateDivisionTable, type DivisionRow } from '@/components/estimate/EstimateDivisionTable';
 import { EstimateClientView } from '@/components/estimate/EstimateClientView';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { toClientEstimateView } from '@/utils/clientEstimateView';
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
@@ -31,6 +35,8 @@ export default function EstimateReviewScreen() {
   const router = useRouter();
   const { cart, globalMarkup } = useMaterialCart();
   const { settings } = useProjects();
+  const layout = useResponsiveLayout();
+  const isDesktop = layout.isDesktop;
   const [mode, setMode] = useState<'contractor' | 'client'>('contractor');
 
   const switchMode = useCallback((m: 'contractor' | 'client') => {
@@ -159,10 +165,26 @@ export default function EstimateReviewScreen() {
             </View>
 
             {mode === 'contractor' ? (
-              <>
-                <EstimateSummaryHeader directCost={directCost} markups={markups} itemCount={itemCount} />
-                <EstimateDivisionTable divisions={divisions} />
-              </>
+              isDesktop ? (
+                <View>
+                  <EstimateMetricGrid directCost={directCost} markups={markups} itemCount={itemCount} wide />
+                  <View style={styles.desktopRow}>
+                    <View style={styles.desktopMain}>
+                      <EstimateDivisionTable divisions={divisions} />
+                    </View>
+                    <View style={styles.desktopRail}>
+                      <EstimateSummaryCard directCost={directCost} markups={markups} />
+                      <View style={{ height: 14 }} />
+                      <EstimateCostBreakdown divisions={divisions} />
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <EstimateSummaryHeader directCost={directCost} markups={markups} itemCount={itemCount} />
+                  <EstimateDivisionTable divisions={divisions} />
+                </>
+              )
             ) : (
               <>
                 <EstimateClientView view={clientView} />
@@ -195,6 +217,9 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   segOn: { backgroundColor: t.accent },
   segText: { fontSize: 13, fontWeight: '700', color: t.textMuted },
   segTextOn: { color: t.surface },
+  desktopRow: { flexDirection: 'row', gap: 16, marginTop: 12, alignItems: 'flex-start' },
+  desktopMain: { flex: 1.7, minWidth: 0 },
+  desktopRail: { width: 340 },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
   shareBtnText: { color: t.surface, fontSize: 15, fontWeight: '800' },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
