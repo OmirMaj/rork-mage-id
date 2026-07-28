@@ -188,7 +188,7 @@ export default function EstimateReviewScreen() {
                 </>
               )
             ) : (
-              <>
+              <View style={isDesktop ? styles.clientDesktopWrap : undefined}>
                 <EstimateClientView view={clientView} paymentSchedule={defaultPaymentSchedule(clientView.projectTotal)} />
                 <TouchableOpacity
                   style={styles.shareBtn}
@@ -199,7 +199,7 @@ export default function EstimateReviewScreen() {
                   <Share2 size={16} color={colors.surface} strokeWidth={2} />
                   <Text style={styles.shareBtnText}>Share proposal</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             )}
           </>
         )}
@@ -235,6 +235,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   desktopRow: { flexDirection: 'row', gap: 16, marginTop: 12, alignItems: 'flex-start' },
   desktopMain: { flex: 1.7, minWidth: 0 },
   desktopRail: { width: 340 },
+  clientDesktopWrap: { maxWidth: 640, alignSelf: 'center', width: '100%' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
   shareBtnText: { color: t.surface, fontSize: 15, fontWeight: '800' },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },

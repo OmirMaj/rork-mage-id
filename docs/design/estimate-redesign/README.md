@@ -25,15 +25,26 @@ Shared, tested foundation (already built):
 
 Both enforce a no-internal-keys safety scan. See memory `estimate-client-view`.
 
-## Build slices (mobile first, each committed & verified)
+## Build progress
 
-1. ✅ Client-safe data layer — transform + share token (done)
-2. Contractor/Client toggle + client view wiring on the mobile estimator
-3. Header/tabs + metric grid
-4. Summary card + markup donut
-5. CSI division rows (contractor) / scope-by-system (client)
-6. Sticky totals + Brain line
-7. Quick Estimate, same language
-8. Web/desktop estimator (same components, desktop layout: sidebar + table + rail)
+Built on a new, non-destructive **Review** screen (`app/(tabs)/estimate/review.tsx`)
+reading the live material cart, reachable from the hub. The catalog/cart
+estimator at `/full` is untouched.
 
-UI slices require on-device / in-app verification (screens are behind login).
+- ✅ Client-safe data layer — `clientEstimateView` transform + `clientEstimateShareToken`
+- ✅ Summary header — metric grid + markup donut + grand total (`EstimateSummaryHeader`)
+- ✅ CSI division table — expandable, trade-colored tiles (`EstimateDivisionTable`)
+- ✅ Contractor/Client toggle → client view (`EstimateClientView`)
+- ✅ Share proposal link + public viewer (`app/shared-estimate.tsx`) — **verified end-to-end**
+- ✅ Web/desktop layout — 4-metric row + table + rail (summary/donut + cost breakdown)
+- ✅ Sticky totals bar (`EstimateTotalsBar`)
+- ✅ Payment schedule on the client proposal — **verified end-to-end**
+- ✅ Brain FAB hidden on public/tokenized viewers
+
+**Remaining / next:**
+- Quick Estimate wizard — same language
+- Fold labor + assemblies into Review (currently materials only) → promote Review to primary
+- Inline Brain "underpriced division" line (needs real cost-history signal, not faked)
+
+Authed UI slices need on-device / web-login verification. The public proposal
+viewer is not auth-gated and was verified directly in the browser.
