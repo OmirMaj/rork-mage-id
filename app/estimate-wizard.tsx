@@ -31,6 +31,7 @@ import {
   RotateCcw, Users, FolderPlus, Plus, X, Mic, TrendingUp,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { RevenueEarlyAccessCard } from '@/components/RevenueEarlyAccessCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -572,19 +573,19 @@ function EstimateWizardScreenInner() {
             <Text style={styles.previewBannerText}>This is the estimate your client will see</Text>
           </View>
 
-          <View style={styles.resultHero}>
-            <CheckCircle2 size={28} color={themeColors.success} strokeWidth={1.75} />
-            <Text style={styles.resultHeroTitle}>Construction Estimate</Text>
+          <View style={styles.heroCard}>
+            <BrandBackdrop />
+            <Text style={styles.heroEyebrow}>CONSTRUCTION ESTIMATE</Text>
             <TapeRollNumber
               value={result.total}
               prefix="$"
               decimals={0}
               duration={1100}
-              style={styles.resultTotal}
+              style={styles.heroTotal}
             />
-            <Text style={styles.resultSubtitle}>{answers.projectType}{answers.sizeSqft ? ` · ${answers.sizeSqft} sqft` : ''}{answers.location ? ` · ${answers.location}` : ''}</Text>
+            <Text style={styles.heroSubtitle}>{answers.projectType}{answers.sizeSqft ? ` · ${answers.sizeSqft} sqft` : ''}{answers.location ? ` · ${answers.location}` : ''}</Text>
             {costPerSqft > 0 ? (
-              <Text style={styles.resultCostPerSqft}>${costPerSqft.toFixed(0)} per sqft</Text>
+              <View style={styles.heroChip}><Text style={styles.heroChipText}>${costPerSqft.toFixed(0)} per sqft</Text></View>
             ) : null}
           </View>
 
@@ -1158,20 +1159,27 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   },
   secondaryText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
   // Result view
-  resultHero: {
-    alignItems: 'center' as const, marginBottom: 24, gap: 4,
+  // Branded ink+amber hero card for the estimate total (matches the client
+  // proposal aesthetic). BrandBackdrop fills it, so text is light-on-ink.
+  heroCard: {
+    borderRadius: Tokens.radius.panel, overflow: 'hidden' as const,
+    paddingHorizontal: 22, paddingVertical: 24, marginBottom: 16,
+    minHeight: 150, justifyContent: 'center' as const,
   },
-  resultHeroTitle: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, marginTop: 8,
+  heroEyebrow: {
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 1.6,
+    color: '#FF8533', marginBottom: 8,
   },
-  resultTotal: {
-    fontSize: 44, fontWeight: '800' as const, color: themeColors.text, marginTop: 4,
+  heroTotal: {
+    fontSize: 46, fontWeight: '800' as const, color: '#F4EFE6', letterSpacing: -1,
   },
-  resultSubtitle: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
-  resultCostPerSqft: {
-    fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.accent,
-    marginTop: 4, letterSpacing: 0.3,
+  heroSubtitle: { fontSize: Type.footnote.fontSize, color: '#C9C3B8', marginTop: 8 },
+  heroChip: {
+    alignSelf: 'flex-start' as const, marginTop: 12,
+    backgroundColor: 'rgba(255,106,26,0.18)', borderWidth: 1, borderColor: 'rgba(255,106,26,0.4)',
+    borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5,
   },
+  heroChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: '#FF8533' },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 21, marginBottom: 20 },
   // At-a-glance stat tiles below hero
   statGrid: {
