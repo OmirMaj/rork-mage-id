@@ -5,6 +5,8 @@ import { Stack, useRouter } from 'expo-router';
 import { PackageOpen } from 'lucide-react-native';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { EstimateSummaryHeader } from '@/components/estimate/EstimateSummaryHeader';
+import { EstimateDivisionTable, type DivisionRow } from '@/components/estimate/EstimateDivisionTable';
+import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -34,6 +36,26 @@ export default function EstimateReviewScreen() {
     return { directCost: base, markups: withMarkup - base, itemCount: cart.length };
   }, [cart]);
 
+  // Group the cart into CSI divisions for the contractor scope table. Materials
+  // carry no explicit csiDivision, so classify from name then category.
+  const divisions: DivisionRow[] = useMemo(() => {
+    const rows = cart.map(item => {
+      const p = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
+      const total = p * (1 + item.markup / 100) * item.quantity;
+      const csi = classifyToCSIDivision(item.material.name)
+        ?? classifyToCSIDivision(item.material.category)
+        ?? undefined;
+      return { csiDivision: csi, name: item.material.name, qty: item.quantity, unit: item.material.unit, total };
+    });
+    return groupByCSIDivision(rows).map(g => ({
+      key: g.division?.number ?? 'other',
+      number: g.division?.number ?? null,
+      title: g.division?.title ?? 'Other scope',
+      total: g.items.reduce((s, r) => s + r.total, 0),
+      items: g.items.map(r => ({ name: r.name, qty: r.qty, unit: r.unit, total: r.total })),
+    }));
+  }, [cart]);
+
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ title: 'Estimate Review' }} />
@@ -55,7 +77,10 @@ export default function EstimateReviewScreen() {
             <Text style={styles.emptyDesc}>Add materials in the Full Estimator and they roll up here with metrics, markup and scope.</Text>
           </View>
         ) : (
-          <EstimateSummaryHeader directCost={directCost} markups={markups} itemCount={itemCount} />
+          <>
+            <EstimateSummaryHeader directCost={directCost} markups={markups} itemCount={itemCount} />
+            <EstimateDivisionTable divisions={divisions} />
+          </>
         )}
       </ScrollView>
     </View>
