@@ -8,7 +8,7 @@
 // display labels, so the internal cost buildup — base cost, markup, margin,
 // unit prices, suppliers, Brain flags — is never encoded into the link.
 
-import type { ClientEstimateView } from './clientEstimateView';
+import type { ClientEstimateView, PaymentMilestone } from './clientEstimateView';
 
 /** v1 payload. Short field names keep tokens small. */
 export interface ClientEstimateSharePayload {
@@ -29,6 +29,8 @@ export interface ClientEstimateSharePayload {
   inc?: string[];
   /** Exclusions. */
   exc?: string[];
+  /** Payment schedule: label, detail, optional amount. */
+  pay?: { l: string; d: string; a?: number }[];
   /** Valid-through date (ISO yyyy-mm-dd). */
   valid?: string;
 }
@@ -41,6 +43,7 @@ export function buildClientEstimateSharePayload(
     clientName?: string;
     inclusions?: string[];
     exclusions?: string[];
+    paymentSchedule?: PaymentMilestone[];
     validThrough?: string;
   },
 ): ClientEstimateSharePayload {
@@ -54,6 +57,9 @@ export function buildClientEstimateSharePayload(
     allow: view.allowances.length ? view.allowances.map(a => ({ n: a.name, a: a.amount })) : undefined,
     inc: opts.inclusions?.length ? opts.inclusions : undefined,
     exc: opts.exclusions?.length ? opts.exclusions : undefined,
+    pay: opts.paymentSchedule?.length
+      ? opts.paymentSchedule.map(m => ({ l: m.label, d: m.detail, ...(m.amount !== undefined ? { a: m.amount } : {}) }))
+      : undefined,
     valid: opts.validThrough,
   };
 }

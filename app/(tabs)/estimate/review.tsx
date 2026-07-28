@@ -14,7 +14,7 @@ import { EstimateTotalsBar } from '@/components/estimate/EstimateTotalsBar';
 import { EstimateClientView } from '@/components/estimate/EstimateClientView';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
-import { toClientEstimateView } from '@/utils/clientEstimateView';
+import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
 import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
 import type { LinkedEstimate } from '@/types';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
@@ -108,6 +108,7 @@ export default function EstimateReviewScreen() {
     const payload = buildClientEstimateSharePayload(clientView, {
       projectName: gcName ? `${gcName} — Estimate` : 'Project Estimate',
       gcName,
+      paymentSchedule: defaultPaymentSchedule(clientView.projectTotal),
     });
     const token = encodeClientEstimateToken(payload);
     const base = Platform.OS === 'web' && typeof window !== 'undefined'
@@ -188,7 +189,7 @@ export default function EstimateReviewScreen() {
               )
             ) : (
               <>
-                <EstimateClientView view={clientView} />
+                <EstimateClientView view={clientView} paymentSchedule={defaultPaymentSchedule(clientView.projectTotal)} />
                 <TouchableOpacity
                   style={styles.shareBtn}
                   onPress={() => { void handleShareProposal(); }}

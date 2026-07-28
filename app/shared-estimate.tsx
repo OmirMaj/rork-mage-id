@@ -85,6 +85,23 @@ export default function SharedEstimateScreen() {
           </>
         )}
 
+        {!!payload.pay?.length && (
+          <>
+            <Text style={styles.section}>PAYMENT SCHEDULE</Text>
+            <View style={styles.card}>
+              {payload.pay.map((m, i) => (
+                <View key={`${m.l}-${i}`} style={[styles.payRow, i < payload.pay!.length - 1 && styles.rowBorder]}>
+                  <View style={styles.payLeft}>
+                    <Text style={styles.payLabel}>{m.l}</Text>
+                    <Text style={styles.payDetail}>{m.d}</Text>
+                  </View>
+                  <Text style={[styles.payAmt, i === 0 && styles.payAmtNow]}>{m.a !== undefined ? money(m.a) : 'Monthly'}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
         {(!!payload.inc?.length || !!payload.exc?.length) && (
           <View style={styles.inclGrid}>
             {!!payload.inc?.length && (
@@ -132,6 +149,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rowName: { fontSize: 14, color: t.text, fontWeight: '600', flex: 1 },
   rowAmt: { fontSize: 14, color: t.text, fontWeight: '700' },
   rowAmtMuted: { fontSize: 13, color: t.textSecondary, fontWeight: '600' },
+  payRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 15, paddingVertical: 14 },
+  payLeft: { flex: 1 },
+  payLabel: { fontSize: 14, color: t.text, fontWeight: '600' },
+  payDetail: { fontSize: 11.5, color: t.textMuted, marginTop: 2 },
+  payAmt: { fontSize: 14, color: t.text, fontWeight: '700' },
+  payAmtNow: { color: t.accent },
 
   inclGrid: { flexDirection: 'row', gap: 10, marginTop: 8 },
   inclCol: { flex: 1, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.card, padding: 14 },

@@ -28,6 +28,26 @@ export interface ClientAllowance {
   amount: number;
 }
 
+export interface PaymentMilestone {
+  label: string;
+  detail: string;
+  /** Dollar amount; omitted for schedule-only milestones (e.g. monthly progress). */
+  amount?: number;
+}
+
+/**
+ * A sensible default proposal payment schedule: 10% deposit on signing, monthly
+ * progress billing, remainder on completion. Contractors can override later.
+ */
+export function defaultPaymentSchedule(total: number): PaymentMilestone[] {
+  const deposit = Math.round(total * 0.1);
+  return [
+    { label: 'Deposit', detail: 'Due on signing · 10%', amount: deposit },
+    { label: 'Progress billing', detail: 'Monthly, on work completed' },
+    { label: 'Final payment', detail: 'On substantial completion', amount: total - deposit },
+  ];
+}
+
 export interface ClientEstimateView {
   /** The fixed price the client pays (= estimate grand total, rounded). */
   projectTotal: number;

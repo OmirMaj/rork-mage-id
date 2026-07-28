@@ -12,13 +12,13 @@ import { Lock } from 'lucide-react-native';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
-import type { ClientEstimateView } from '@/utils/clientEstimateView';
+import type { ClientEstimateView, PaymentMilestone } from '@/utils/clientEstimateView';
 
 function money(n: number): string {
   return '$' + Math.round(n).toLocaleString('en-US');
 }
 
-export function EstimateClientView({ view, projectName }: { view: ClientEstimateView; projectName?: string }) {
+export function EstimateClientView({ view, projectName, paymentSchedule }: { view: ClientEstimateView; projectName?: string; paymentSchedule?: PaymentMilestone[] }) {
   const styles = useThemedStyles(makeStyles);
 
   return (
@@ -55,6 +55,23 @@ export function EstimateClientView({ view, projectName }: { view: ClientEstimate
           </View>
         </>
       )}
+
+      {!!paymentSchedule?.length && (
+        <>
+          <Text style={styles.sectionLabel}>PAYMENT SCHEDULE</Text>
+          <View style={styles.card}>
+            {paymentSchedule.map((m, i) => (
+              <View key={`${m.label}-${i}`} style={[styles.payRow, i < paymentSchedule.length - 1 && styles.rowBorder]}>
+                <View style={styles.payLeft}>
+                  <Text style={styles.payLabel}>{m.label}</Text>
+                  <Text style={styles.payDetail}>{m.detail}</Text>
+                </View>
+                <Text style={[styles.payAmt, i === 0 && styles.payAmtNow]}>{m.amount !== undefined ? money(m.amount) : 'Monthly'}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -76,4 +93,10 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   rowName: { fontSize: 13.5, color: t.text, fontWeight: '600', flex: 1 },
   rowAmt: { fontSize: 13.5, color: t.text, fontWeight: '700' },
   rowAllowAmt: { fontSize: 13, color: t.textSecondary, fontWeight: '600' },
+  payRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 14, paddingVertical: 13 },
+  payLeft: { flex: 1 },
+  payLabel: { fontSize: 13.5, color: t.text, fontWeight: '600' },
+  payDetail: { fontSize: 11, color: t.textMuted, marginTop: 2 },
+  payAmt: { fontSize: 13.5, color: t.text, fontWeight: '700' },
+  payAmtNow: { color: t.accent },
 });

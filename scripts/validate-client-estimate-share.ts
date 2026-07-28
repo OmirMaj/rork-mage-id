@@ -9,7 +9,7 @@
 //   4. decode rejects garbage / wrong version.
 //   5. No forbidden internal key appears in the payload.
 
-import { toClientEstimateView } from '@/utils/clientEstimateView';
+import { toClientEstimateView, defaultPaymentSchedule } from '@/utils/clientEstimateView';
 import {
   buildClientEstimateSharePayload, encodeClientEstimateToken, decodeClientEstimateToken,
 } from '@/utils/clientEstimateShareToken';
@@ -38,6 +38,7 @@ const payload = buildClientEstimateSharePayload(view, {
   clientName: 'Meridian Partners',
   inclusions: ['All labor & materials', 'Permits & inspections'],
   exclusions: ['Furniture & FF&E'],
+  paymentSchedule: defaultPaymentSchedule(view.projectTotal),
   validThrough: '2026-08-31',
 });
 
@@ -45,6 +46,8 @@ const payload = buildClientEstimateSharePayload(view, {
 assert(payload.total === view.projectTotal, `payload total matches client total (${payload.total})`);
 assert(payload.scope.length === view.scopeGroups.length, 'payload carries every scope group');
 assert(payload.allow?.length === 1, 'payload carries the allowance');
+assert(payload.pay?.length === 3, 'payload carries the payment schedule');
+assert(payload.pay?.[0]?.a === Math.round(view.projectTotal * 0.1), 'deposit is 10% of total');
 assert(payload.n === 'Harborview Office Building' && payload.cl === 'Meridian Partners', 'payload carries labels');
 
 // 2. Round-trip
