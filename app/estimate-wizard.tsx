@@ -1181,7 +1181,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     color: '#FF8533', marginBottom: 8,
   },
   heroTotal: {
-    fontSize: 46, fontWeight: '800' as const, color: '#F4EFE6', letterSpacing: -1,
+    fontFamily: 'Fraunces_700Bold', fontSize: 46, color: '#F4EFE6', letterSpacing: -1,
   },
   heroSubtitle: { fontSize: Type.footnote.fontSize, color: '#C9C3B8', marginTop: 8 },
   heroChip: {
@@ -1439,8 +1439,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     lineHeight: 20,
   },
   sectionTitle: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text,
-    letterSpacing: 0.3, marginTop: 16, marginBottom: 10,
+    fontFamily: 'Fraunces_700Bold', fontSize: Type.serifHeadline.fontSize, color: themeColors.text,
+    letterSpacing: -0.2, marginTop: 18, marginBottom: 10,
   },
   lineItem: {
     flexDirection: 'row' as const, alignItems: 'center' as const,

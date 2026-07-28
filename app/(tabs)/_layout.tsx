@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Settings } from 'lucide-react-native';
-import { MageProject, MageDiscover, MageSummary, MageEstimate } from '@/components/icons';
+import { MageProject, MageDiscover, MageSummary } from '@/components/icons';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCoreData } from '@/contexts/ProjectContext';
@@ -213,18 +213,10 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* Estimate hub — the single front door to Quick Estimate, AI/Visual
-          Takeoff, the Full Estimator, and the estimate-insights screens.
-          Contractor-shaped; hidden for minimal personas (client / PM). */}
-      <Tabs.Screen
-        name="estimate"
-        options={isMinimalPersona ? { href: null } : {
-          title: 'Estimate',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon Icon={MageEstimate} color={color} focused={focused} />
-          ),
-        }}
-      />
+      {/* Estimate hub is NOT a bottom tab — it lives inside the Discover
+          section ("Estimator" card → /(tabs)/discover/estimate → the hub).
+          href:null keeps the route registered without a tab. */}
+      <Tabs.Screen name="estimate" options={{ href: null }} />
       {/* Discover hosts public-bid search, supplier marketplace, hire — all
           contractor-shaped. Hidden for clients; they reach their needs
           (post RFP, review bids) from the Home hub. */}

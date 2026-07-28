@@ -237,8 +237,9 @@ const makeStyles = (themeColors: ThemeColors) =>
       marginBottom: 12,
     },
     stepTitle: {
-      fontSize: 24,
-      fontWeight: '700' as const,
+      // App display font (Fraunces) so the wizard matches the rest of the app
+      // instead of falling back to the system/Times default.
+      ...Type.serifHeadline,
       color: themeColors.text,
       marginBottom: 6,
     },

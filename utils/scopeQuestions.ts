@@ -71,7 +71,7 @@ export const SCOPE_STEPS: ScopeStep[] = [
   { key: 'location', title: "Where's the job?", subtitle: 'City and state — we use this for regional pricing.', iconKey: 'building', kind: 'text', placeholder: 'e.g. Austin, TX', optional: false },
   { key: 'quality', title: 'What quality tier?', subtitle: 'Drives material selection and labor assumptions.', iconKey: 'sparkles', kind: 'qualityChips', optional: false },
   { key: 'scope', title: "What's the scope?", subtitle: "A few sentences on what you're actually building.", iconKey: 'wrench', kind: 'textarea', placeholder: 'e.g. Gut kitchen, new cabinets and quartz counters, move the sink wall, add island with seating, replace floors.', lines: 5, optional: false },
-  { key: 'timelineWeeks', title: "What's the timeline?", subtitle: 'Expected duration in weeks.', iconKey: 'building', kind: 'numeric', placeholder: 'e.g. 8', optional: false },
+  { key: 'timelineWeeks', title: "What's the timeline?", subtitle: 'Expected duration in weeks — optional, skip if unsure.', iconKey: 'building', kind: 'numeric', placeholder: 'e.g. 8', optional: true },
   { key: 'specialRequirements', title: 'Any special requirements?', subtitle: 'Permits, HOA, historic, accessibility, etc. Optional.', iconKey: 'sparkles', kind: 'textarea', placeholder: 'e.g. Historic district review, ADA bathroom.', lines: 4, optional: true },
   { key: 'targetBudget', title: 'Target budget?', subtitle: 'Optional — helps the AI sanity-check the estimate.', iconKey: 'dollar', kind: 'numeric', placeholder: 'e.g. 75000', optional: true },
 ];
@@ -98,7 +98,7 @@ export function stepCanAdvance(stepIndex: number, a: WizardAnswers): boolean {
     case 2: return a.location.trim().length > 0;
     case 3: return true;
     case 4: return a.scope.trim().length >= 4;
-    case 5: return firstNumber(a.timelineWeeks) !== null;
+    case 5: return true; // timeline is optional — never block Next on it
     case 6: return true;
     case 7: return true;
     default: return false;
