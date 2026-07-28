@@ -1,0 +1,68 @@
+// components/brain/BrainFab.tsx
+//
+// The single global entry to the MAGE ID Brain. One floating action button,
+// mounted once in app/_layout.tsx, present on every screen. Tapping it opens
+// the search-first command surface (SearchContext.openSearch → UniversalSearch),
+// which is being grown into the unified Brain surface (search + ask + voice +
+// "what needs you now"). This FAB replaces the scattered AI doors — the two
+// home cards, the HomeFabStack, and the per-screen AICopilot FABs.
+//
+// Geometry mirrors the old AICopilot FAB (56pt circle, bottom-right, lifted
+// above the tab bar) so it lands where users already reach for it.
+
+import React, { useCallback } from 'react';
+import { TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { Brain } from 'lucide-react-native';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useSearch } from '@/contexts/SearchContext';
+import { Tokens } from '@/constants/designTokens';
+
+export function BrainFab() {
+  const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const { openSearch } = useSearch();
+
+  const handlePress = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    openSearch();
+  }, [openSearch]);
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel="Open MAGE Brain"
+      testID="brain-fab"
+      style={[
+        styles.fab,
+        {
+          bottom: insets.bottom + 70 + (Platform.OS === 'web' ? 48 : 0),
+          backgroundColor: colors.accent,
+          shadowColor: colors.accent,
+        },
+      ]}
+    >
+      <Brain size={26} color="#FFFFFF" strokeWidth={2} />
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: Tokens.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 40,
+  },
+});

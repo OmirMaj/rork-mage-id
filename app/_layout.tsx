@@ -26,6 +26,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import UniversalSearch from "@/components/UniversalSearch";
+import { BrainFab } from "@/components/brain/BrainFab";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
@@ -1435,6 +1436,7 @@ export default Sentry.wrap(function RootLayout() {
                               <MarginAlertManager />
                               <RootLayoutNav />
                               <UniversalSearch />
+                              <BrainFab />
                               <SearchHotkeyListener />
                               <NailItToastHost />
                               <ConfettiHost />
