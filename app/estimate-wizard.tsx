@@ -71,6 +71,10 @@ const ESTIMATE_THINKING_STEPS = [
   'Assembling line items…',
 ];
 
+// On-brand cost-distribution bar palette (no purple/pink — matches the
+// redesign's trade-tile colors). Rotated by category index.
+const BREAKDOWN_COLORS = ['#FF6A1A', '#5FBF6B', '#90A4AE', '#4FC3F7', '#FFA726', '#8D6E63', '#EF5350', '#26C6DA'];
+
 // Map an AI EstimateResult into a project LinkedEstimate. Item shape mirrors
 // utils/estimateAssemblies.ts applyAssembly and app/drawing-analyzer.tsx (the
 // canonical "AI lineItems → LinkedEstimate" mappers): bulkPrice = unitPrice,
@@ -714,16 +718,20 @@ function EstimateWizardScreenInner() {
               <Text style={styles.breakdownTitle}>Cost Distribution</Text>
               {sortedCategories.map(({ cat, subtotal }, i) => {
                 const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
+                const barColor = BREAKDOWN_COLORS[i % BREAKDOWN_COLORS.length];
                 return (
                   <View key={i} style={styles.breakdownRow}>
                     <View style={styles.breakdownHead}>
-                      <Text style={styles.breakdownCat}>{cat}</Text>
+                      <View style={styles.breakdownCatWrap}>
+                        <View style={[styles.breakdownDot, { backgroundColor: barColor }]} />
+                        <Text style={styles.breakdownCat}>{cat}</Text>
+                      </View>
                       <Text style={styles.breakdownAmt}>
                         ${subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })} <Text style={styles.breakdownPct}>· {pct.toFixed(1)}%</Text>
                       </Text>
                     </View>
                     <View style={styles.breakdownBar}>
-                      <View style={[styles.breakdownBarFill, { width: `${Math.max(pct, 1)}%` }]} />
+                      <View style={[styles.breakdownBarFill, { width: `${Math.max(pct, 1)}%`, backgroundColor: barColor }]} />
                     </View>
                   </View>
                 );
@@ -1221,7 +1229,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     marginBottom: 4,
   },
-  breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  breakdownCatWrap: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 7, flex: 1, minWidth: 0 },
+  breakdownDot: { width: 8, height: 8, borderRadius: 4 },
+  breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.text, flexShrink: 1 },
   breakdownAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
   breakdownPct: { fontWeight: '500' as const, color: themeColors.textMuted },
   breakdownBar: {
