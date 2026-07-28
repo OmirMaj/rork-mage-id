@@ -22,6 +22,7 @@ export interface HubEntry {
 
 export const HUB_ENTRIES: HubEntry[] = [
   // ── Create ──────────────────────────────────────────────────────────────
+  { id: 'review',  label: 'Review Estimate', subtitle: 'Metrics, markup & scope for your working estimate',   route: '/(tabs)/estimate/review',  group: 'create',   iconKey: 'PieChart',   tone: 'accent' },
   { id: 'quick',   label: 'Quick Estimate', subtitle: 'Fast ballpark from a few questions — no plans needed', route: '/estimate-wizard',        group: 'create',   iconKey: 'Calculator', tone: 'accent' },
   { id: 'takeoff', label: 'AI Takeoff',     subtitle: 'Upload plans, get LF / SF / EA quantities',            route: '/takeoff',                group: 'create',   iconKey: 'Ruler',      tone: 'accent' },
   { id: 'visual',  label: 'Visual Takeoff', subtitle: 'Trace areas & lines on plans or photos to quantify',   route: '/area-takeoff',           group: 'create',   iconKey: 'Grid',       tone: 'accent' },
