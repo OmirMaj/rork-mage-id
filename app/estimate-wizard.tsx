@@ -650,21 +650,38 @@ function EstimateWizardScreenInner() {
             </View>
           ) : null}
 
-          {groundingFacts.length > 0 ? (
-            <View style={styles.groundedChip}>
-              <MageAIMark size={13} color={themeColors.success} />
-              <Text style={styles.groundedText}>Priced with your cost history · {groundingFacts.length} learned rate{groundingFacts.length === 1 ? '' : 's'}</Text>
-            </View>
-          ) : (
-            <View style={styles.groundedChipEmpty}>
-              <MageAIMark size={13} color={themeColors.textMuted} />
-              <Text style={styles.groundedTextEmpty}>Priced from market averages — close jobs to teach MAGE your real costs</Text>
-            </View>
-          )}
+          {result.total > 0 && (() => {
+            const conf = Math.max(0, Math.min(100, Math.round(result.confidence ?? 70)));
+            const confColor = conf >= 80 ? themeColors.success : conf >= 60 ? themeColors.accent : themeColors.warningLabel;
+            return (
+              <View style={styles.brainCard}>
+                <View style={styles.brainTop}>
+                  <MageAIMark size={16} color={themeColors.accent} />
+                  <Text style={styles.brainName}>MAGE Brain</Text>
+                  <View style={[styles.brainConfPill, { backgroundColor: confColor + '1F' }]}>
+                    <Text style={[styles.brainConfText, { color: confColor }]}>{conf}% confident</Text>
+                  </View>
+                </View>
+                <View style={styles.confTrack}>
+                  <View style={[styles.confFill, { width: `${Math.max(4, conf)}%`, backgroundColor: confColor }]} />
+                </View>
+                <Text style={styles.brainGround}>
+                  {groundingFacts.length > 0
+                    ? `Priced with your cost history · ${groundingFacts.length} learned rate${groundingFacts.length === 1 ? '' : 's'}`
+                    : 'Priced from market averages — close jobs to teach MAGE your real costs'}
+                </Text>
+                {result.refineWith && result.refineWith.length > 0 && (
+                  <Text style={styles.brainRefineLead}>
+                    Answer {result.refineWith.length} question{result.refineWith.length === 1 ? '' : 's'} below to sharpen the number
+                  </Text>
+                )}
+              </View>
+            );
+          })()}
 
           {result.refineWith && result.refineWith.length > 0 && (
             <View style={styles.refineCard}>
-              <Text style={styles.refineTitle}>Answer these for a sharper number</Text>
+              <Text style={styles.refineTitle}>Sharpen this estimate</Text>
               {result.refineWith.map((rfn, i) => (
                 <View key={i}>
                   <TouchableOpacity
@@ -1468,6 +1485,16 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // "Sharper number" card — surfaces the AI's refineWith hints (the
   // specific missing inputs that would most improve accuracy) directly
   // under the scope summary.
+  // Brain confidence card — prominent, right under the total.
+  brainCard: { backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line, borderLeftWidth: 2, borderLeftColor: themeColors.accent, borderRadius: Tokens.radius.card, padding: 14, marginTop: 12 },
+  brainTop: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 10 },
+  brainName: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.text, flex: 1 },
+  brainConfPill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  brainConfText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const },
+  confTrack: { height: 6, borderRadius: 3, backgroundColor: themeColors.surfaceAlt, overflow: 'hidden' as const },
+  confFill: { height: '100%' as const, borderRadius: 3 },
+  brainGround: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary, marginTop: 9 },
+  brainRefineLead: { fontSize: Type.caption1.fontSize, color: themeColors.accent, fontWeight: '700' as const, marginTop: 6 },
   refineCard: { backgroundColor: themeColors.accent + '12', borderRadius: 12, padding: 14, marginTop: 12, gap: 4 },
   refineTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: themeColors.accent },
   refineItem: { fontSize: Type.footnote.fontSize, color: themeColors.text, lineHeight: 19 },

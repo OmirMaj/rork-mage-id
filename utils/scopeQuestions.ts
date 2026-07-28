@@ -134,8 +134,12 @@ export const estimateSchema = z.object({
   permits: z.number().catch(0).default(0),
   total: z.number().catch(0).default(0),
   notes: z.array(z.string()).default([]),
-  // NEW: the specific missing inputs that would most sharpen this
-  // estimate. Empty when scope was complete. Back-compatible default.
+  // 0-100 — how tight this estimate is given the inputs. The model lowers it
+  // when the biggest cost drivers are unknown; rises as refine answers land.
+  confidence: z.number().catch(70).default(70),
+  // The specific high-leverage QUESTIONS that would most sharpen this estimate
+  // (demo/existing conditions, MEP scope, structural changes, counts). Empty
+  // when scope was already detailed. Back-compatible default.
   refineWith: z.array(z.string()).default([]),
 });
 export type EstimateResult = z.infer<typeof estimateSchema>;
@@ -167,10 +171,19 @@ Return JSON with:
 - permits: rough permit/fees estimate for the location
 - total: subtotal + contingency + permits
 - notes: array of caveats (e.g. "assumes standard finishes")
-- refineWith: array of SHORT strings naming the specific missing inputs
-  that would most improve accuracy (e.g. "exact square footage",
-  "finish level for the primary bath"). Empty array if inputs were
-  sufficient. Max 5 items.
+- confidence: integer 0-100 — how tight this estimate is GIVEN THE INPUTS.
+  Start high only when the real cost drivers are clear. Lower it (e.g. 55-70)
+  when the biggest drivers are unknown: existing conditions / demolition
+  (gut-to-studs vs cosmetic), MEP scope (new vs reuse electrical / plumbing /
+  HVAC), structural changes (moving or removing walls), and room counts
+  (# of bathrooms / kitchens for remodels).
+- refineWith: 2-4 SHORT, specific QUESTIONS whose answers would most tighten
+  THIS number — draw from the biggest cost drivers that are still unclear
+  above. Phrase as plain questions a contractor answers in a few words
+  (e.g. "Gut to the studs or cosmetic refresh?", "New electrical panel or
+  reuse the existing?", "Moving any walls?", "How many bathrooms?"). Order by
+  cost impact, biggest first. Empty array ONLY if the scope was already
+  detailed enough that none of these would move the number.
 
 Use current regional pricing where possible. Round reasonably. Keep it under 15 line items.`;
 }

@@ -54,6 +54,8 @@ expect('grounding header present', grounded.includes("COST HISTORY"), true);
 const ungrounded = buildEstimatePrompt(base);
 expect('no facts → no grounding header', ungrounded.includes('COST HISTORY'), false);
 expect('backward compatible (base prompt intact)', ungrounded.includes('construction cost estimator'), true);
+expect('prompt asks for a confidence score', ungrounded.includes('confidence'), true);
+expect('prompt probes real cost drivers', /demolition|MEP|electrical|structural/i.test(ungrounded), true);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
