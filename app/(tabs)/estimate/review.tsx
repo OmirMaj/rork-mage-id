@@ -10,6 +10,7 @@ import { EstimateMetricGrid } from '@/components/estimate/EstimateMetricGrid';
 import { EstimateSummaryCard } from '@/components/estimate/EstimateSummaryCard';
 import { EstimateCostBreakdown } from '@/components/estimate/EstimateCostBreakdown';
 import { EstimateDivisionTable, type DivisionRow } from '@/components/estimate/EstimateDivisionTable';
+import { EstimateTotalsBar } from '@/components/estimate/EstimateTotalsBar';
 import { EstimateClientView } from '@/components/estimate/EstimateClientView';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
@@ -134,7 +135,7 @@ export default function EstimateReviewScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + (cart.length > 0 && mode === 'contractor' ? 88 : 40) }}
         showsVerticalScrollIndicator={false}
       >
         {cart.length === 0 ? (
@@ -202,6 +203,18 @@ export default function EstimateReviewScreen() {
           </>
         )}
       </ScrollView>
+
+      {cart.length > 0 && mode === 'contractor' && (
+        <View style={[styles.totalsBarWrap, { paddingBottom: insets.bottom }]}>
+          <EstimateTotalsBar
+            itemCount={itemCount}
+            divisionCount={divisions.length}
+            cost={directCost}
+            markups={markups}
+            grandTotal={directCost + markups}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -217,6 +230,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   segOn: { backgroundColor: t.accent },
   segText: { fontSize: 13, fontWeight: '700', color: t.textMuted },
   segTextOn: { color: t.surface },
+  totalsBarWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: t.surfaceAlt },
   desktopRow: { flexDirection: 'row', gap: 16, marginTop: 12, alignItems: 'flex-start' },
   desktopMain: { flex: 1.7, minWidth: 0 },
   desktopRail: { width: 340 },
