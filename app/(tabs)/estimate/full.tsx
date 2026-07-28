@@ -1705,9 +1705,9 @@ export default function EstimateScreen() {
                       {aiMat.brand && <Text style={aiStyles.aiResultBrand}>{aiMat.brand}</Text>}
                     </View>
                     <View style={aiStyles.aiResultTags}>
-                      <View style={[aiStyles.aiSourceTag, { backgroundColor: '#FF6A1A18' }]}>
-                        <MageAIMark size={9} color="#FF6A1A" />
-                        <Text style={[aiStyles.aiSourceTagText, { color: '#FF6A1A' }]}>AI Found</Text>
+                      <View style={aiStyles.aiSourceTag}>
+                        <MageAIMark size={9} color={Colors.accent} />
+                        <Text style={aiStyles.aiSourceTagText}>AI Found</Text>
                       </View>
                       <View style={[aiStyles.aiConfBadge, { backgroundColor: confColor + '18' }]}>
                         <View style={[aiStyles.aiConfDot, { backgroundColor: confColor }]} />
@@ -3696,8 +3696,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: '#FF6A1A',
-    shadowColor: '#FF6A1A',
+    backgroundColor: themeColors.accent,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -3739,8 +3739,8 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: '#FF6A1A',
-    shadowColor: '#FF6A1A',
+    backgroundColor: themeColors.accent,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -3846,7 +3846,7 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: '#FF6A1A',
+    backgroundColor: themeColors.accent,
   },
   askAIBtnIcon: {
     width: 32,
@@ -5409,8 +5409,8 @@ const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
     borderRadius: Tokens.radius.md,
-    backgroundColor: '#FF6A1A',
-    shadowColor: '#FF6A1A',
+    backgroundColor: themeColors.accent,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.22,
     shadowRadius: 6,
@@ -5423,8 +5423,8 @@ const makeDStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
     borderRadius: Tokens.radius.md,
-    backgroundColor: '#FF6A1A',
-    shadowColor: '#FF6A1A',
+    backgroundColor: themeColors.accent,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.22,
     shadowRadius: 6,
@@ -5653,10 +5653,12 @@ const makeAiStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
+    backgroundColor: themeColors.accentSoft,
   },
   aiSourceTagText: {
     fontSize: 10,
     fontWeight: '700' as const,
+    color: themeColors.accent,
   },
   aiConfBadge: {
     flexDirection: 'row',
