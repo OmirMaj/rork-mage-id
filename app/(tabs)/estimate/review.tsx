@@ -1,17 +1,19 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { PackageOpen } from 'lucide-react-native';
+import { PackageOpen, Share2 } from 'lucide-react-native';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
 import { EstimateSummaryHeader } from '@/components/estimate/EstimateSummaryHeader';
 import { EstimateDivisionTable, type DivisionRow } from '@/components/estimate/EstimateDivisionTable';
 import { EstimateClientView } from '@/components/estimate/EstimateClientView';
 import { classifyToCSIDivision, groupByCSIDivision } from '@/utils/csiMasterFormat';
 import { toClientEstimateView } from '@/utils/clientEstimateView';
+import { buildClientEstimateSharePayload, encodeClientEstimateToken } from '@/utils/clientEstimateShareToken';
 import type { LinkedEstimate } from '@/types';
 import { useMaterialCart } from '@/contexts/MaterialCartContext';
+import { useProjects } from '@/contexts/ProjectContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ThemeColors } from '@/constants/colors';
@@ -28,6 +30,7 @@ export default function EstimateReviewScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { cart, globalMarkup } = useMaterialCart();
+  const { settings } = useProjects();
   const [mode, setMode] = useState<'contractor' | 'client'>('contractor');
 
   const switchMode = useCallback((m: 'contractor' | 'client') => {
@@ -91,6 +94,29 @@ export default function EstimateReviewScreen() {
     return toClientEstimateView(est);
   }, [cart, globalMarkup, directCost, markups]);
 
+  // Build the client-safe proposal link and copy it. The token is built from
+  // clientView only, so the shared URL can never carry costs or markups.
+  const handleShareProposal = useCallback(async () => {
+    const gcName = settings?.branding?.companyName || undefined;
+    const payload = buildClientEstimateSharePayload(clientView, {
+      projectName: gcName ? `${gcName} — Estimate` : 'Project Estimate',
+      gcName,
+    });
+    const token = encodeClientEstimateToken(payload);
+    const base = Platform.OS === 'web' && typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://mageid.app';
+    const url = `${base}/shared-estimate?t=${token}`;
+    const ok = await (await import('@/utils/clipboard')).copyToClipboard(url);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      ok ? 'Proposal link copied' : 'Proposal link',
+      ok
+        ? 'Client-safe link copied to your clipboard. Paste it into a text or email — no login needed, and it shows no costs, markups or margin.'
+        : url,
+    );
+  }, [clientView, settings]);
+
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ title: 'Estimate Review' }} />
@@ -138,7 +164,18 @@ export default function EstimateReviewScreen() {
                 <EstimateDivisionTable divisions={divisions} />
               </>
             ) : (
-              <EstimateClientView view={clientView} />
+              <>
+                <EstimateClientView view={clientView} />
+                <TouchableOpacity
+                  style={styles.shareBtn}
+                  onPress={() => { void handleShareProposal(); }}
+                  activeOpacity={0.85}
+                  testID="review-share-proposal"
+                >
+                  <Share2 size={16} color={colors.surface} strokeWidth={2} />
+                  <Text style={styles.shareBtnText}>Share proposal</Text>
+                </TouchableOpacity>
+              </>
             )}
           </>
         )}
@@ -158,6 +195,8 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   segOn: { backgroundColor: t.accent },
   segText: { fontSize: 13, fontWeight: '700', color: t.textMuted },
   segTextOn: { color: t.surface },
+  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.md, paddingVertical: 15, marginTop: 22 },
+  shareBtnText: { color: t.surface, fontSize: 15, fontWeight: '800' },
   empty: { alignItems: 'center', paddingVertical: 60, gap: 10 },
   emptyTitle: { color: t.text, fontSize: Type.headline.fontSize, fontWeight: '700' },
   emptyDesc: { color: t.textSecondary, fontSize: Type.subhead.fontSize, textAlign: 'center', maxWidth: 280, lineHeight: 20 },

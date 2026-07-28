@@ -13,21 +13,35 @@
 import React, { useCallback } from 'react';
 import { TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSegments } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Brain } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSearch } from '@/contexts/SearchContext';
 import { Tokens } from '@/constants/designTokens';
 
+// Routes where the Brain must NOT appear: tokenized public viewers handed to
+// clients/subs (they have no account and must see only what's shared), and the
+// pre-auth / onboarding flow.
+const HIDDEN_ROOTS: ReadonlySet<string> = new Set([
+  'shared-estimate', 'shared-photos', 'shared-schedule', 'client-view',
+  'prequal-form', 'claim-crew',
+  'login', 'signup', 'reset-password', 'onboarding', 'persona-select', 'onboarding-paywall',
+]);
+
 export function BrainFab() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { openSearch } = useSearch();
+  const segments = useSegments();
 
   const handlePress = useCallback(() => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     openSearch();
   }, [openSearch]);
+
+  // Hide on public/tokenized viewers and the pre-auth flow.
+  if (HIDDEN_ROOTS.has((segments[0] as string) ?? '')) return null;
 
   return (
     <TouchableOpacity
