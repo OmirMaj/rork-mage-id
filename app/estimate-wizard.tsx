@@ -652,10 +652,12 @@ function EstimateWizardScreenInner() {
 
           {groundingFacts.length > 0 ? (
             <View style={styles.groundedChip}>
+              <MageAIMark size={13} color={themeColors.success} />
               <Text style={styles.groundedText}>Priced with your cost history · {groundingFacts.length} learned rate{groundingFacts.length === 1 ? '' : 's'}</Text>
             </View>
           ) : (
             <View style={styles.groundedChipEmpty}>
+              <MageAIMark size={13} color={themeColors.textMuted} />
               <Text style={styles.groundedTextEmpty}>Priced from market averages — close jobs to teach MAGE your real costs</Text>
             </View>
           )}
@@ -1473,9 +1475,9 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   refineInput: { flex: 1, borderWidth: 1, borderColor: themeColors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: themeColors.text, backgroundColor: themeColors.surface },
   refineGoBtn: { backgroundColor: themeColors.accent, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
   refineGoText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textOnPrimary },
-  groundedChip: { alignSelf: 'flex-start', backgroundColor: themeColors.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
+  groundedChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, alignSelf: 'flex-start', backgroundColor: themeColors.successSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 12 },
   groundedText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: themeColors.success },
-  groundedChipEmpty: { alignSelf: 'flex-start', backgroundColor: themeColors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginTop: 12 },
+  groundedChipEmpty: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, alignSelf: 'flex-start', backgroundColor: themeColors.surfaceAlt, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 12 },
   groundedTextEmpty: { fontSize: Type.caption1.fontSize, fontWeight: '500', color: themeColors.textMuted },
   stepHintRow: { paddingHorizontal: 20, paddingTop: 8 },
   stepHintText: { fontSize: Type.footnote.fontSize, color: themeColors.danger, textAlign: 'center' },
