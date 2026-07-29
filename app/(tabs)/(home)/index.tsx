@@ -65,6 +65,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import ClientHome from '@/components/ClientHome';
 import PropertyManagerHome from '@/components/PropertyManagerHome';
 import BrainWatchCard from '@/components/home/BrainWatchCard';
+import ReadyToBillCard from '@/components/home/ReadyToBillCard';
 import MorningBriefCard from '@/components/home/MorningBriefCard';
 import WeekCloseCard from '@/components/home/WeekCloseCard';
 
@@ -735,6 +736,7 @@ export default function HomeScreen() {
                 already computes. Renders once projects have loaded so the card
                 never flickers empty on cold launch. */}
             {projects.length > 0 && !isLoading && <BrainWatchCard />}
+            {projects.length > 0 && !isLoading && <ReadyToBillCard />}
 
             {/* "Today" feed — surfaces overdue invoices, unanswered
                 RFIs, pending CO approvals, late tasks, etc. as the
