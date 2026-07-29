@@ -14,6 +14,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ensureRCWebMount } from '@/utils/rcWebMount';
 import { isOwner } from '@/utils/owner';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 import type { SubscriptionTier } from '@/types';
 
 const SUBSCRIPTION_KEY = 'mageid_subscription_tier';
@@ -301,6 +302,9 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     onSuccess: async (data) => {
       const newTier = tierFromCustomerInfo(data.customerInfo);
       console.log('[RC] Purchase successful, new tier:', newTier);
+      // The conversion event. Previously only STARTED/FAILED were tracked, so
+      // successful upgrades were invisible — the funnel dead-ended at intent.
+      track(AnalyticsEvents.SUBSCRIPTION_PURCHASED, { tier: newTier });
       // Update UI state synchronously so any subscriber re-renders this frame.
       setTier(newTier);
       void AsyncStorage.setItem(SUBSCRIPTION_KEY, newTier);

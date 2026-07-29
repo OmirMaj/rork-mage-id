@@ -28,6 +28,9 @@ export const AnalyticsEvents = {
   USER_SIGNED_UP: 'user_signed_up',
   USER_LOGGED_IN: 'user_logged_in',
   USER_LOGGED_OUT: 'user_logged_out',
+  // First activation step after signup — which surface the user is here for.
+  // `onboarding: true` marks the first-run pick (vs. a later change in Settings).
+  PERSONA_SELECTED: 'persona_selected',
   PROJECT_CREATED: 'project_created',
   ESTIMATE_GENERATED: 'estimate_generated',
   INVOICE_CREATED: 'invoice_created',

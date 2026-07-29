@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
+import { track, AnalyticsEvents } from '@/utils/analytics';
 import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 import { snapshotPatch } from '@/utils/estimateCommit';
 import type { UserRole } from '@/utils/onboardingProfile';
@@ -1467,6 +1468,20 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
 
   const addProject = useCallback((project: Project) => {
     const updated = [project, ...projects];
+    // Activation funnel: fire once at the imperative create (never on hydration,
+    // which replaces `projects` via the query, not through addProject).
+    track(AnalyticsEvents.PROJECT_CREATED, {
+      total_projects: updated.length,
+      type: project.type,
+      has_estimate: !!project.linkedEstimate,
+    });
+    if (project.linkedEstimate || project.status === 'estimated') {
+      track(AnalyticsEvents.ESTIMATE_GENERATED, {
+        project_type: project.type,
+        grand_total: project.linkedEstimate?.grandTotal,
+        path: 'created_with_estimate',
+      });
+    }
     setProjects(updated);
     saveProjectsMutation.mutate(updated);
     // Immediate (non-debounced) so the project row exists in Supabase before any
@@ -1485,6 +1500,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
     setProjects(updated);
     saveProjectsMutation.mutate(updated);
     const proj = updated.find(p => p.id === id);
+    // Activation funnel: a project crossing INTO 'estimated' is the moat's
+    // first "aha" — fire once on the transition, not on every estimate re-save.
+    if (proj && prior?.status !== 'estimated' && proj.status === 'estimated') {
+      track(AnalyticsEvents.ESTIMATE_GENERATED, {
+        project_type: proj.type,
+        grand_total: proj.linkedEstimate?.grandTotal,
+        path: 'linked_to_project',
+      });
+    }
     if (proj) {
       syncProjectToSupabase(proj, 'upsert');
       // Re-geocode only if the location string actually changed — avoids
@@ -1669,6 +1693,12 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       portalState: invoice.portalState ?? initialPortalState('invoice', invoice.projectId),
     };
     const updated = [finalInvoice, ...invoices];
+    // Activation funnel: first invoice = first money action (drives take-rate).
+    track(AnalyticsEvents.INVOICE_CREATED, {
+      total_invoices: updated.length,
+      type: finalInvoice.type,
+      total_due: finalInvoice.totalDue,
+    });
     setInvoices(updated);
     saveInvoicesMutation.mutate(updated);
     if (canSync) {
