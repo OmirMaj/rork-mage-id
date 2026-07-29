@@ -42,6 +42,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { useProjectRole } from '@/hooks/useProjectRole';
+import { useSchedulePresence } from '@/hooks/useSchedulePresence';
+import { useLiveSchedule } from '@/hooks/useLiveSchedule';
+import { mergeScheduleTasks } from '@/utils/scheduleMerge';
+import { PresenceBar } from '@/components/schedule/PresenceBar';
 import Paywall from '@/components/Paywall';
 import GridPane from '@/components/schedule/GridPane';
 import InteractiveGantt from '@/components/schedule/InteractiveGantt';
@@ -162,7 +167,7 @@ function ScheduleProScreenInner() {
 
   const {
     projects,
-    updateProject,
+    updateProject: updateProjectRaw,
     getInvoicesForProject,
     getPlanSheetsForProject,
     getPlanZonesForProject,
@@ -170,6 +175,17 @@ function ScheduleProScreenInner() {
     getPhotosForProject,
     getDailyReportsForProject,
   } = useProjects();
+
+  // Viewer collaborators can't persist schedule edits — guard the writer at the
+  // source so every updateProject(...) in this screen is a no-op for viewers
+  // (Supabase RLS also denies their UPDATE). role is null while loading, so
+  // owners/editors keep editing without a read-only flash.
+  const role = useProjectRole(projectId);
+  const canEdit = role !== 'viewer';
+  const updateProject = useMemo<typeof updateProjectRaw>(
+    () => (canEdit ? updateProjectRaw : () => {}),
+    [canEdit, updateProjectRaw],
+  );
 
   const project = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
@@ -185,6 +201,9 @@ function ScheduleProScreenInner() {
     () => emptyHistory(project?.schedule?.tasks ?? []),
   );
   const workingTasks = hist.present;
+  // Last-known SERVER schedule tasks — the baseline for the Phase 2 3-way
+  // live-sync merge. Updated on project switch, and on every realtime receive.
+  const baselineRef = React.useRef<ScheduleTask[]>(project?.schedule?.tasks ?? []);
 
   // The view-switcher now lives inside the Timeline tab (GanttTab owns all
   // five layouts). We only derive the tab's opening layout from width below.
@@ -229,6 +248,7 @@ function ScheduleProScreenInner() {
   useEffect(() => {
     // Full reload for a new project — reset the undo/redo stacks entirely.
     setHist(emptyHistory(project?.schedule?.tasks ?? []));
+    baselineRef.current = project?.schedule?.tasks ?? [];
     setNamedBaselines((project?.schedule?.baselines ?? []) as NamedBaseline[]);
   }, [project?.id]);
 
@@ -601,6 +621,26 @@ function ScheduleProScreenInner() {
   // re-bind is correct (we want to write to the project we were editing).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cpm.projectFinish]);
+
+  // -------------------------------------------------------------------------
+  // Phase 2 — live sync + presence
+  // -------------------------------------------------------------------------
+  const collabSelf = useMemo(
+    () => (user?.id ? { userId: user.id, name: ((user as { email?: string }).email) ?? 'Collaborator' } : null),
+    [user?.id],
+  );
+  const { peers: schedulePeers } = useSchedulePresence(project?.id, collabSelf);
+  const onPeerSchedule = useCallback((incoming: ScheduleTask[]) => {
+    const merged = mergeScheduleTasks(baselineRef.current, incoming, workingTasksRef.current);
+    baselineRef.current = incoming;
+    // Apply a peer's change to the local PRESENT only — no persist (they already
+    // saved it), no undo entry. Skip when the merge is a no-op: that's the echo
+    // of my own write, which just refreshed the baseline above.
+    if (JSON.stringify(merged) !== JSON.stringify(workingTasksRef.current)) {
+      setHist((s) => ({ ...s, present: merged }));
+    }
+  }, []);
+  useLiveSchedule(project?.id, onPeerSchedule);
 
   // -------------------------------------------------------------------------
   // Edit handlers — all go through a single `commit` that snapshots history
@@ -1639,6 +1679,11 @@ function ScheduleProScreenInner() {
           stays here in the screen. */}
       {(
         <View style={styles.tabShellBody}>
+          {schedulePeers.length > 0 ? (
+            <View style={{ paddingHorizontal: 16, paddingVertical: 6, alignItems: 'flex-end' }}>
+              <PresenceBar peers={schedulePeers} />
+            </View>
+          ) : null}
           <SchedulerTabShell
             schedule={{
               ...(project?.schedule ?? {} as import('@/types').ProjectSchedule),
