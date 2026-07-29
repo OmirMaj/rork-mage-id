@@ -8,7 +8,7 @@
 // screens are pixel-identical by construction.
 
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, InputAccessoryView, Keyboard, Platform } from 'react-native';
 import { Building2, DollarSign, Home, Wrench } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 import type { ThemeColors } from '@/constants/colors';
@@ -20,6 +20,25 @@ import {
 } from '@/utils/scopeQuestions';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+
+// iOS numeric + multiline keyboards have no return key to dismiss, so if the
+// footer's Next button sits behind the keyboard the user is trapped (the
+// step-6 "keyboard blocks Next" report). This "Done" bar sits above the
+// keyboard on iOS so it can always be dismissed. Android dismisses via the
+// system back gesture, so inputAccessoryViewID is simply ignored there.
+const KB_DONE_ID = 'scope-stepper-kb-done';
+function KeyboardDoneBar({ colors }: { colors: ThemeColors }) {
+  if (Platform.OS !== 'ios') return null;
+  return (
+    <InputAccessoryView nativeID={KB_DONE_ID}>
+      <View style={{ backgroundColor: colors.surfaceAlt, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'flex-end' }}>
+        <TouchableOpacity onPress={() => Keyboard.dismiss()} accessibilityRole="button" accessibilityLabel="Done" hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
+          <Text style={{ fontSize: 17, fontWeight: '600', color: colors.accent }}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    </InputAccessoryView>
+  );
+}
 
 const ICONS = {
   building: Building2,
@@ -167,12 +186,14 @@ export function ScopeQuestionStepper({
               placeholder={step.placeholder}
               placeholderTextColor={themeColors.textMuted}
               keyboardType="numeric"
+              inputAccessoryViewID={KB_DONE_ID}
               style={styles.input}
               testID={`${testIDPrefix}-${stringKey}`}
             />
             {NUMERIC_HINTS[stringKey] ? (
               <Text style={styles.hint}>{NUMERIC_HINTS[stringKey]}</Text>
             ) : null}
+            <KeyboardDoneBar colors={themeColors} />
           </>
         );
 
@@ -196,17 +217,21 @@ export function ScopeQuestionStepper({
         // comes from step.lines in scopeQuestions.ts; default 5 if unset.
         if (!stringKey) return null;
         return (
-          <TextInput
-            value={answers[stringKey] ?? ''}
-            onChangeText={(v) => onChange(stringKey, v)}
-            placeholder={step.placeholder}
-            placeholderTextColor={themeColors.textMuted}
-            multiline
-            numberOfLines={step.lines ?? 5}
-            textAlignVertical="top"
-            style={styles.textArea}
-            testID={`${testIDPrefix}-${stringKey}`}
-          />
+          <>
+            <TextInput
+              value={answers[stringKey] ?? ''}
+              onChangeText={(v) => onChange(stringKey, v)}
+              placeholder={step.placeholder}
+              placeholderTextColor={themeColors.textMuted}
+              multiline
+              numberOfLines={step.lines ?? 5}
+              textAlignVertical="top"
+              inputAccessoryViewID={KB_DONE_ID}
+              style={styles.textArea}
+              testID={`${testIDPrefix}-${stringKey}`}
+            />
+            <KeyboardDoneBar colors={themeColors} />
+          </>
         );
 
       default:
