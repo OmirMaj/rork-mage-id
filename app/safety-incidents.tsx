@@ -7,8 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ShieldAlert, Plus, X, Sparkles, Trash2, AlertTriangle, ChevronLeft, Check, Mic,
+  ShieldAlert, Plus, X, Trash2, AlertTriangle, ChevronLeft, Check, Mic,
 } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -397,7 +398,7 @@ function SafetyIncidentsInner() {
                       multiline
                     />
                     <TouchableOpacity style={styles.aiBtn} onPress={handleDraftAI} disabled={drafting} activeOpacity={0.85} testID="incident-draft">
-                      <Sparkles size={16} color="#FFFFFF" strokeWidth={1.75} />
+                      <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
                       <Text style={styles.aiBtnText}>{drafting ? 'Drafting…' : 'Draft with AI'}</Text>
                     </TouchableOpacity>
                   </>

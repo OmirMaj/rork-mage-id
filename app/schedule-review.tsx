@@ -11,7 +11,8 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ChevronLeft, Sparkles, AlertTriangle, RefreshCcw, Check } from 'lucide-react-native';
+import { ChevronLeft, AlertTriangle, RefreshCcw, Check } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { Colors, type ThemeColors } from '@/constants/colors';
@@ -341,7 +342,7 @@ export default function ScheduleReviewScreen() {
           <View style={styles.headerBtn} />
         </View>
         <EmptyState
-          icon={<Sparkles size={36} color={t.accent} strokeWidth={1.6} />}
+          icon={<MageAIMark size={36} color={t.accent} />}
           title="No draft to review"
           message="Generate a draft schedule from Generative Setup, then come back here to review it before applying."
           actionLabel="Go back"
@@ -368,7 +369,7 @@ export default function ScheduleReviewScreen() {
 
       <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: 120 + insets.bottom }, isDesktop && styles.contentDesktop]} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryRow}>
-          <Sparkles size={16} color={t.accent} strokeWidth={1.75} />
+          <MageAIMark size={16} color={t.accent} />
           <Text style={styles.summaryText}>
             {tasks.length} task{tasks.length === 1 ? '' : 's'} across {byPhase.length} phase{byPhase.length === 1 ? '' : 's'}
             {assumptionCount > 0 ? ` · ${assumptionCount} assumption${assumptionCount === 1 ? '' : 's'} to confirm` : ''}

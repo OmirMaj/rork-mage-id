@@ -8,7 +8,8 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { TriangleAlert, Plus, X, Sparkles, Trash2, ChevronLeft, Camera, ImagePlus, AlertCircle, Mic } from 'lucide-react-native';
+import { TriangleAlert, Plus, X, Trash2, ChevronLeft, Camera, ImagePlus, AlertCircle, Mic } from 'lucide-react-native';
+import { MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -385,7 +386,7 @@ function SafetyHazardsInner() {
             {detecting ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Sparkles size={16} color="#FFFFFF" strokeWidth={1.75} />
+              <MageAIMark size={16} color="#FFFFFF" accentColor="#FFFFFF" />
             )}
             <Text style={styles.walkBtnText}>{detecting ? 'Scanning…' : 'Scan photo for hazards'}</Text>
           </TouchableOpacity>

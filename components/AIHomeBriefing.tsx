@@ -113,7 +113,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <MageAIMark size={14} color={themeColors.accent} />
-            <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
+            <Text style={styles.headerTitle}>MAGE Brain · Daily Briefing</Text>
           </View>
         </View>
         <Animated.View style={[styles.skeletonLine, { opacity: shimmerOpacity }]} />
@@ -130,7 +130,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MageAIMark size={14} color={themeColors.accent} />
-          <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
+          <Text style={styles.headerTitle}>MAGE Brain · Daily Briefing</Text>
         </View>
         <Text style={styles.aiLabel}>AI-generated</Text>
       </View>

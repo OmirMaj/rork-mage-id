@@ -173,7 +173,7 @@ function PaymentPredictionsScreenInner() {
         <View style={styles.introCard}>
           <Text style={styles.introHeadline}>Predict when each invoice will actually clear.</Text>
           <Text style={styles.introBody}>
-            Mage AI analyzes due dates, client payment history, project status, and retention holds to forecast real inflows — so you know which invoices need a call today vs. which are safe to let ride.
+            MAGE Brain analyzes due dates, client payment history, project status, and retention holds to forecast real inflows — so you know which invoices need a call today vs. which are safe to let ride.
           </Text>
           <View style={styles.featureRow}>
             <View style={styles.featureChip}><Clock size={12} color={themeColors.accent} strokeWidth={1.75} /><Text style={styles.featureText}>Per-invoice pay date</Text></View>

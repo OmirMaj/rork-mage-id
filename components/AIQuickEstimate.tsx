@@ -10,6 +10,7 @@ import {
   CheckCircle, DollarSign, Shield, ChevronDown, ChevronUp,
 } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
+import { BrainCard } from '@/components/brain/BrainCard';
 import { Colors } from '@/constants/colors';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
@@ -317,7 +318,7 @@ export default React.memo(function AIQuickEstimate({
         </View>
         <Text style={s.heroTitle}>AI Quick Estimate</Text>
         <Text style={s.heroDesc}>
-          Describe your project and MAGE AI will generate a complete itemized estimate with materials, labor, and assemblies.
+          Describe your project and MAGE Brain will generate a complete itemized estimate with materials, labor, and assemblies.
         </Text>
       </View>
 
@@ -486,30 +487,18 @@ export default React.memo(function AIQuickEstimate({
   const renderResult = () => {
     if (!result) return null;
 
-    const confidenceColor = result.confidenceScore >= 75 ? Colors.success :
-      result.confidenceScore >= 50 ? Colors.warning : Colors.error;
-
     return (
       <Animated.View style={[s.resultContainer, { opacity: fadeAnim }]}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={s.resultHeader}>
-            <View style={s.resultBadge}>
-              <MageAIMark size={14} color={Colors.primary} />
-              <Text style={s.resultBadgeText}>AI Generated</Text>
-            </View>
-            <View style={[s.confidenceBadge, { backgroundColor: confidenceColor + '15' }]}>
-              <Text style={[s.confidenceText, { color: confidenceColor }]}>{result.confidenceScore}% confidence</Text>
-            </View>
-          </View>
-
-          {/* Honesty chip — tells user whether this estimate used their real cost history */}
-          <View style={s.groundingChip}>
-            <Text style={s.groundingChipText}>
-              {(learnedRateCount ?? 0) > 0
-                ? `Priced with your cost history · ${learnedRateCount} learned rate${learnedRateCount === 1 ? '' : 's'}`
-                : 'Priced from market averages — close jobs to teach MAGE your real costs'}
-            </Text>
-          </View>
+          {/* MAGE Brain confidence — the same card as the estimate wizard, so
+              the estimator's AI result reads identically wherever it appears. */}
+          <BrainCard
+            style={{ marginBottom: 12 }}
+            confidence={result.confidenceScore}
+            ground={(learnedRateCount ?? 0) > 0
+              ? `Priced with your cost history · ${learnedRateCount} learned rate${learnedRateCount === 1 ? '' : 's'}`
+              : 'Priced from market averages — close jobs to teach MAGE your real costs'}
+          />
 
           <View style={s.totalCard}>
             <View style={s.totalRow}>

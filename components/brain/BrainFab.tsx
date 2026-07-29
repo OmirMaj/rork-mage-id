@@ -15,10 +15,10 @@ import { TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Brain } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSearch } from '@/contexts/SearchContext';
 import { Tokens } from '@/constants/designTokens';
+import { MageAIMark } from '@/components/icons';
 
 // Routes where the Brain must NOT appear: tokenized public viewers handed to
 // clients/subs (they have no account and must see only what's shared), and the
@@ -59,7 +59,7 @@ export function BrainFab() {
         },
       ]}
     >
-      <Brain size={26} color="#FFFFFF" strokeWidth={2} />
+      <MageAIMark size={26} color="#FFFFFF" accentColor="#FFFFFF" />
     </TouchableOpacity>
   );
 }

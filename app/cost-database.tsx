@@ -11,8 +11,8 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Brain } from 'lucide-react-native';
-import { MageCostDb } from '@/components/icons';
+import { ChevronLeft, ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { MageCostDb, MageAIMark } from '@/components/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -130,7 +130,7 @@ function CostDatabaseInner() {
           {canAccess('brain_accuracy') && (
             <View style={styles.accuracySection}>
               <View style={styles.accuracySectionHeader}>
-                <Brain size={14} color={t.accent} strokeWidth={2} />
+                <MageAIMark size={14} color={t.accent} />
                 <Text style={styles.accuracySectionTitle}>Brain accuracy</Text>
               </View>
               {accuracyReport.hasEnoughData ? (

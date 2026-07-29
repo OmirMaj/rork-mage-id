@@ -25,8 +25,7 @@ import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import UniversalSearch from "@/components/UniversalSearch";
-import { BrainFab } from "@/components/brain/BrainFab";
+import { BrainSurface } from "@/components/brain/BrainSurface";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
@@ -458,6 +457,10 @@ function RootLayoutNav() {
     // page authenticates via a signed state HMAC, not the user's JWT.
     const inIntegrationsCallback = segments[0] === 'integrations';
     const inClaimCrew = (segments[0] as string) === 'claim-crew';
+    // Collaboration invite redeem — opened via a tokenized email link, possibly
+    // before the invitee has signed in. Must render (to store the token + prompt
+    // sign-in) rather than bounce to /login and drop the token.
+    const inAcceptInvite = (segments[0] as string) === 'accept-invite';
     // Read-only client/sub share viewers (`/shared-schedule?t=…`,
     // `/shared-photos?…`). These are opened by homeowners and subs who have
     // NO MAGE account — the token in the URL is the credential. Auth-walling
@@ -471,7 +474,7 @@ function RootLayoutNav() {
     // when the user is unauthenticated. The prequal-form route is opened by
     // subcontractors via a tokenized email link; if we redirect to /login
     // before the token is consumed, the link is dead on arrival.
-    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew || inSharedView) return;
+    if (inResetPassword || inPrequalForm || inIntegrationsCallback || inClaimCrew || inSharedView || inAcceptInvite) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
@@ -912,6 +915,7 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="claim-crew" options={{ headerShown: false }} />
+      <Stack.Screen name="accept-invite" options={{ headerShown: false }} />
       <Stack.Screen
         name="get-verified"
         options={{ headerShown: false }}
@@ -1436,8 +1440,7 @@ export default Sentry.wrap(function RootLayout() {
                               <OfflineSyncManager />
                               <MarginAlertManager />
                               <RootLayoutNav />
-                              <UniversalSearch />
-                              <BrainFab />
+                              <BrainSurface />
                               <SearchHotkeyListener />
                               <NailItToastHost />
                               <ConfettiHost />

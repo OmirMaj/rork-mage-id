@@ -162,12 +162,29 @@ const FEATURE_ICON: Record<FeatureIcon, FeatureIconCmp> = {
 export default function UniversalSearch() {
   const { colors: themeColors } = useTheme();
   const styles = useThemedStyles(makeStyles);
-  const { isOpen, closeSearch } = useSearch();
+  const { isOpen, closeSearch, openVoice, openHelp } = useSearch();
   const insets = useSafeAreaInsets();
   const { navigateTo } = useEntityNavigation();
   const router = useRouter();
   const { tier, canAccess, requiredTierFor } = useTierAccess();
   const { userRole } = useCoreData();
+
+  // MAGE Brain quick actions — the surface does more than navigate: ask it
+  // (chat), speak to it (voice capture), get help. Close the search sheet
+  // first, then present, so iOS never stacks two modals mid-dismiss (the same
+  // 350ms guard the nav handlers use).
+  const handleAskMage = useCallback(() => {
+    closeSearch();
+    setTimeout(() => router.push('/ask'), Platform.OS === 'ios' ? 350 : 0);
+  }, [closeSearch, router]);
+  const handleVoice = useCallback(() => {
+    closeSearch();
+    setTimeout(() => openVoice(), Platform.OS === 'ios' ? 350 : 0);
+  }, [closeSearch, openVoice]);
+  const handleHelp = useCallback(() => {
+    closeSearch();
+    setTimeout(() => openHelp(), Platform.OS === 'ios' ? 350 : 0);
+  }, [closeSearch, openHelp]);
 
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
@@ -378,6 +395,33 @@ export default function UniversalSearch() {
           {/* Empty prompt: popular destinations + recents */}
           {showEmptyPrompt ? (
             <View>
+              {/* MAGE Brain — the surface does more than navigate: ask, speak, help. */}
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeader}>MAGE Brain</Text>
+              </View>
+              <TouchableOpacity style={styles.brainActionRow} onPress={handleAskMage} activeOpacity={0.7} testID="brain-action-ask">
+                <View style={styles.brainActionIcon}><MageAIMark size={18} color={themeColors.accent} /></View>
+                <View style={styles.brainActionBody}>
+                  <Text style={styles.brainActionText}>Ask MAGE anything</Text>
+                  <Text style={styles.brainActionSub}>Your projects, costs, schedule — answered</Text>
+                </View>
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.brainActionRow} onPress={handleVoice} activeOpacity={0.7} testID="brain-action-voice">
+                <View style={styles.brainActionIcon}><Mic size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
+                <View style={styles.brainActionBody}>
+                  <Text style={styles.brainActionText}>Voice capture</Text>
+                  <Text style={styles.brainActionSub}>Speak a log, a punch item, an update</Text>
+                </View>
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.brainActionRow} onPress={handleHelp} activeOpacity={0.7} testID="brain-action-help">
+                <View style={styles.brainActionIcon}><HelpCircle size={18} color={themeColors.accent} strokeWidth={1.75} /></View>
+                <View style={styles.brainActionBody}>
+                  <Text style={styles.brainActionText}>Help &amp; tips</Text>
+                </View>
+                <ChevronRight size={16} color={themeColors.textMuted} strokeWidth={1.75} />
+              </TouchableOpacity>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>Go to</Text>
               </View>
@@ -621,6 +665,22 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   resultTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text },
   resultSubtitle: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 2 },
   resultSnippet: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
+
+  brainActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    gap: 12,
+  },
+  brainActionIcon: {
+    width: 34, height: 34, borderRadius: Tokens.radius.sm,
+    backgroundColor: t.accentSoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  brainActionBody: { flex: 1 },
+  brainActionText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  brainActionSub: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 1 },
 
   recentRow: {
     flexDirection: 'row',
