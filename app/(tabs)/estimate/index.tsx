@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Calculator, Ruler, Grid, Layers, Gauge, TrendingUp, GitCompare, Activity, PieChart,
+  Calculator, Ruler, Grid, Layers, Gauge, TrendingUp, GitCompare, Activity, PieChart, ScanSearch,
   type LucideIcon,
 } from 'lucide-react-native';
 import { BrandBackdrop } from '@/components/BrandBackdrop';
@@ -18,7 +18,7 @@ import { entriesForGroup, type HubEntry } from '@/utils/estimateHubEntries';
 
 // iconKey → lucide component. Lives in the SCREEN so the entry list stays RN-free.
 const ICONS: Record<string, LucideIcon> = {
-  Calculator, Ruler, Grid, Layers, Gauge, TrendingUp, GitCompare, Activity, PieChart,
+  Calculator, Ruler, Grid, Layers, Gauge, TrendingUp, GitCompare, Activity, PieChart, ScanSearch,
 };
 
 export default function EstimateHubScreen() {
