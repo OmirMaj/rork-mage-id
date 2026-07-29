@@ -35,6 +35,8 @@ import { Tokens } from '@/constants/designTokens';
 import * as Linking from 'expo-linking';
 import { isFinancingAvailable } from '@/utils/financing';
 import { effectiveEstimateTotal } from '@/utils/estimateCommit';
+import { buildOwnerConfidence } from '@/utils/ownerConfidence';
+import OwnerConfidenceCard from '@/components/OwnerConfidenceCard';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -116,6 +118,10 @@ export default function ClientViewScreen() {
 
   const changeOrders = useMemo(() => project ? getChangeOrdersForProject(project.id) : [], [project, getChangeOrdersForProject]);
   const invoices = useMemo(() => project ? getInvoicesForProject(project.id) : [], [project, getInvoicesForProject]);
+  const ownerConfidence = useMemo(
+    () => (project ? buildOwnerConfidence({ project, changeOrders, invoices, nowMs: Date.now() }) : null),
+    [project, changeOrders, invoices],
+  );
   const dailyReports = useMemo(() => project ? getDailyReportsForProject(project.id) : [], [project, getDailyReportsForProject]);
   const punchItems = useMemo(() => project ? getPunchItemsForProject(project.id) : [], [project, getPunchItemsForProject]);
   const photos = useMemo(() => project ? getPhotosForProject(project.id) : [], [project, getPhotosForProject]);
@@ -687,30 +693,13 @@ export default function ClientViewScreen() {
           </View>
         )}
 
-        {/* Quick stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Schedule</Text>
-            <Text style={[styles.statValue, { color: healthScore >= 80 ? themeColors.success : healthScore >= 60 ? Colors.warning : themeColors.danger }]}>
-              {scheduleProgress}%
-            </Text>
-            <Text style={styles.statSub}>complete</Text>
-          </View>
-          {portal.showBudgetSummary && (
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Invoiced</Text>
-              <Text style={styles.statValue}>{formatMoney(invoicedTotal)}</Text>
-              <Text style={styles.statSub}>of {formatMoney(revisedContract)}</Text>
-            </View>
-          )}
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Punch List</Text>
-            <Text style={[styles.statValue, { color: punchItems.filter(p => p.status !== 'closed').length > 0 ? Colors.warning : themeColors.success }]}>
-              {punchItems.filter(p => p.status !== 'closed').length}
-            </Text>
-            <Text style={styles.statSub}>open items</Text>
-          </View>
-        </View>
+        {/* Owner Confidence — the at-a-glance "on time & on budget" hero, in
+            place of the old three-stat strip. Schedule + billing are shown
+            richer here (with projected finish, milestones, and what needs the
+            owner); punch items keep their own section below. */}
+        {ownerConfidence && (
+          <OwnerConfidenceCard confidence={ownerConfidence} showBudget={!!portal.showBudgetSummary} />
+        )}
 
         {/* Messages Section — always on, it's the main 2-way channel */}
         <View style={styles.section}>
