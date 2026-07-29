@@ -85,8 +85,13 @@ export interface ProjectCollaborator {
   email: string;
   name: string;
   role: 'owner' | 'editor' | 'viewer';
-  status: 'pending' | 'accepted';
+  status: 'pending' | 'accepted' | 'revoked';
   invitedAt: string;
+  // DB-backed multi-user access (Live Schedule Collaboration Phase 1). Optional
+  // so the legacy display-only Team list keeps compiling.
+  projectId?: string;
+  userId?: string | null;
+  acceptedAt?: string | null;
 }
 
 /**
