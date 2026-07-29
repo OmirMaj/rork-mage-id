@@ -24,6 +24,7 @@
 // Real Stripe charges + RevenueCat client tier wire up in a follow-up.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
 
 export const CLIENT_PRICING = {
   /** One-off fee charged per RFP a property owner posts. Cents. */
@@ -45,33 +46,39 @@ export type ClientSubscriptionTier = 'free' | 'client_pro' | 'client_pm';
 // LOCAL_USER_CACHE_KEYS list (already includes the user-role mirror;
 // we add the credit ledger + trial state below in a follow-up if real
 // billing isn't shipped first).
-const RFP_POST_CREDITS_KEY = 'mageid_client_rfp_credits_v1';
 const CLIENT_SUB_STATE_KEY = 'mageid_client_sub_state_v1';
 
-/** Records that the user has prepaid for one RFP post. The post-rfp
- *  submit flow calls `consumeRfpPostCredit()` and only proceeds if the
- *  return is true. Used as a placeholder until Stripe is wired in. */
-export async function recordRfpPostCredit(): Promise<void> {
-  const raw = await AsyncStorage.getItem(RFP_POST_CREDITS_KEY);
-  const current = raw ? Number.parseInt(raw, 10) || 0 : 0;
-  await AsyncStorage.setItem(RFP_POST_CREDITS_KEY, String(current + 1));
-}
+// RFP post credits are SERVER-authoritative (table public.rfp_post_credits).
+// A paid Stripe Checkout (create-rfp-checkout) → stripe-webhook grants one
+// credit; the calls below read + spend it. There is deliberately no
+// client-side "record" — a client can never mint itself credits.
 
-/** Atomically consumes one credit. Returns true if the user had a credit
- *  to spend; false otherwise. The post-rfp screen treats false as
- *  "open the paywall." */
+/** Spend one post credit for the current user, atomically, server-side.
+ *  Returns true iff a credit was available and consumed. The post-rfp gate
+ *  treats false as "open the paywall." */
 export async function consumeRfpPostCredit(): Promise<boolean> {
-  const raw = await AsyncStorage.getItem(RFP_POST_CREDITS_KEY);
-  const current = raw ? Number.parseInt(raw, 10) || 0 : 0;
-  if (current <= 0) return false;
-  await AsyncStorage.setItem(RFP_POST_CREDITS_KEY, String(current - 1));
-  return true;
+  try {
+    const { data, error } = await supabase.rpc('consume_rfp_post_credit');
+    if (error) return false;
+    return data === true;
+  } catch {
+    return false;
+  }
 }
 
-/** Read-only counter for the UI ("You have 3 prepaid posts"). */
+/** Read-only balance for the UI ("You have N prepaid posts"). RLS scopes the
+ *  row to the caller, so no filter is needed. */
 export async function getRfpPostCreditBalance(): Promise<number> {
-  const raw = await AsyncStorage.getItem(RFP_POST_CREDITS_KEY);
-  return raw ? Number.parseInt(raw, 10) || 0 : 0;
+  try {
+    const { data, error } = await supabase
+      .from('rfp_post_credits')
+      .select('credits')
+      .maybeSingle();
+    if (error || !data) return 0;
+    return (data as { credits?: number }).credits ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ── Client subscription state (placeholder) ──────────────────────────────

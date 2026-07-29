@@ -22,9 +22,13 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  Alert,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
+import { supabase } from '@/lib/supabase';
 import { CheckCircle2, X, FileText, Home as HomeIcon, Briefcase } from 'lucide-react-native';
 import { MageAIMark } from '@/components/icons';
 
@@ -36,7 +40,7 @@ import { Tokens } from '@/constants/designTokens';
 import {
   CLIENT_PRICING,
   formatClientPrice,
-  recordRfpPostCredit,
+  getRfpPostCreditBalance,
   startClientTrial,
   saveClientSubState,
   type ClientSubscriptionTier,
@@ -83,7 +87,7 @@ interface ClientPaywallProps {
 // native, Payment Link on web) whose *server-confirmed* completion is
 // what grants the post credit (see handlePayPerPost placeholder), NOT a
 // client-side recordRfpPostCredit() call. Until then this MUST stay false.
-const RFP_PAID_POST_ENABLED = false;
+const RFP_PAID_POST_ENABLED = true;
 
 const PRO_BENEFITS = [
   'Unlimited project posts',
@@ -112,21 +116,53 @@ export default function ClientPaywall({ visible, mode, feature, onClose, onUnloc
   const handlePayPerPost = useCallback(async () => {
     if (busy) return;
     setBusy('rfp');
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
-      // Placeholder: real implementation routes through a Stripe payment
-      // sheet (Apple Pay / Google Pay on native, Payment Link on web).
-      // For this commit we just grant a single-use credit so the user can
-      // verify the gate end-to-end. The eventual replacement is roughly:
-      //   const intent = await createPaymentIntent({ amount, kind: 'rfp_post_fee' });
-      //   const result = await presentPaymentSheet(intent.clientSecret);
-      //   if (result.status === 'completed') await recordRfpPostCredit();
-      await recordRfpPostCredit();
-      onUnlocked('rfp_post_fee');
+      // Real Stripe Checkout. The credit is granted SERVER-SIDE by the
+      // stripe-webhook after the $25 is captured — never client-side — so the
+      // fee can't be bypassed. create-rfp-checkout returns a hosted checkout URL.
+      const returnUrl = Platform.OS === 'web'
+        ? 'https://app.mageid.app/post-rfp'
+        : 'mageid://post-rfp';
+      const { data, error } = await supabase.functions.invoke('create-rfp-checkout', {
+        body: { returnUrl },
+      });
+      const url = (data as { url?: string } | null)?.url;
+      if (error || !url) throw new Error(error?.message ?? 'Could not start checkout');
+
+      if (Platform.OS === 'web') {
+        // Hand off to Stripe. We abort the current attempt (onClose resolves the
+        // gate false) so nothing posts until payment lands; the webhook grants
+        // the credit and the next "Post" tap spends it.
+        await Linking.openURL(url);
+        onClose();
+        return;
+      }
+
+      // Native: in-app browser, then wait briefly for the webhook to grant.
+      await WebBrowser.openBrowserAsync(url);
+      let granted = false;
+      for (let i = 0; i < 6; i++) {
+        if ((await getRfpPostCreditBalance()) > 0) { granted = true; break; }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      if (granted) {
+        // This path is native-only (web returns above), so haptics run bare.
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onUnlocked('rfp_post_fee');
+      } else {
+        onClose();
+        Alert.alert(
+          'Payment processing',
+          'If you completed payment, tap Post again in a moment to publish your project.',
+        );
+      }
+    } catch (err) {
+      console.warn('[ClientPaywall] pay-per-post failed:', err);
+      Alert.alert('Checkout unavailable', 'Could not start payment. Please try again.');
     } finally {
       setBusy(null);
     }
-  }, [busy, onUnlocked]);
+  }, [busy, onClose, onUnlocked]);
 
   const handleStartTrial = useCallback(async (tier: Exclude<ClientSubscriptionTier, 'free'>) => {
     if (busy) return;
