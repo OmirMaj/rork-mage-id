@@ -19,7 +19,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft, ChevronRight, TrendingUp, Users, BarChart3,
-  CloudRain,
+  CloudRain, Target,
 } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -178,6 +178,25 @@ function BusinessInner() {
         showsVerticalScrollIndicator={false}
       >
         <View style={contentStyle}>
+
+          {/* ── Section 0: Track Record — the moat's proof ──────────── */}
+          <View style={styles.section}>
+            <SectionHeader
+              icon={Target}
+              label="Track Record"
+              onPress={() => router.push('/track-record')}
+              styles={styles}
+              t={t}
+            />
+            <Text style={styles.definitionNote}>
+              Every call the Brain made — pace, estimates, margin verdicts, leak flags, bids —
+              graded against what actually happened once the job closed.
+            </Text>
+            <TouchableOpacity style={styles.seeAllRow} onPress={() => router.push('/track-record')}>
+              <Text style={styles.seeAllText}>Open track record</Text>
+              <ChevronRight size={14} color={t.accent} />
+            </TouchableOpacity>
+          </View>
 
           {/* ── Section 1: Margin by Job Type ───────────────────────── */}
           <View style={styles.section}>
