@@ -629,7 +629,7 @@ function ScheduleProScreenInner() {
     () => (user?.id ? { userId: user.id, name: ((user as { email?: string }).email) ?? 'Collaborator' } : null),
     [user?.id],
   );
-  const { peers: schedulePeers } = useSchedulePresence(project?.id, collabSelf);
+  const { peers: schedulePeers, setSelectedTask: setPresenceTask } = useSchedulePresence(project?.id, collabSelf);
   const onPeerSchedule = useCallback((incoming: ScheduleTask[]) => {
     const merged = mergeScheduleTasks(baselineRef.current, incoming, workingTasksRef.current);
     baselineRef.current = incoming;
@@ -1008,6 +1008,16 @@ function ScheduleProScreenInner() {
   // grid proposes ops; we apply them here, always as a single batch.
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Per-task soft-lock: broadcast the single selected task into presence so
+  // peers see which task I'm on, and map ids->titles so their selections render
+  // as "who's editing what" in the PresenceBar.
+  const mySelectedTaskId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
+  useEffect(() => { setPresenceTask(mySelectedTaskId ?? null); }, [mySelectedTaskId, setPresenceTask]);
+  const taskTitleById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const t of workingTasks) m[t.id] = t.title;
+    return m;
+  }, [workingTasks]);
 
   // Task-path focus. When set, the gantt dims everyone not on this task's
   // predecessor chain and the grid highlights the same row. Clicking a bar
@@ -1681,7 +1691,7 @@ function ScheduleProScreenInner() {
         <View style={styles.tabShellBody}>
           {schedulePeers.length > 0 ? (
             <View style={{ paddingHorizontal: 16, paddingVertical: 6, alignItems: 'flex-end' }}>
-              <PresenceBar peers={schedulePeers} />
+              <PresenceBar peers={schedulePeers} taskTitleById={taskTitleById} />
             </View>
           ) : null}
           <SchedulerTabShell
