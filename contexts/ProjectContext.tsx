@@ -2736,9 +2736,15 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
       ...photo,
       portalState: photo.portalState ?? initialPortalState('photo', photo.projectId),
     };
-    const updated = [finalPhoto, ...projectPhotos];
-    setProjectPhotos(updated);
-    savePhotosMutation.mutate(updated);
+    // Functional updater: a daily-report save calls this N times synchronously
+    // before React re-renders, so reading the closure-captured `projectPhotos`
+    // made each call clobber the previous — the gallery kept only the last of
+    // several photos. `prev` composes the batched adds correctly.
+    setProjectPhotos(prev => {
+      const updated = [finalPhoto, ...prev];
+      savePhotosMutation.mutate(updated);
+      return updated;
+    });
     if (canSync) {
       void supabaseWrite('photos', 'insert', {
         id: finalPhoto.id, user_id: userId, project_id: finalPhoto.projectId, uri: finalPhoto.uri,
@@ -2748,7 +2754,7 @@ function ProjectProviderInner({ children }: { children: React.ReactNode }) {
         portal_state: finalPhoto.portalState,
       });
     }
-  }, [projectPhotos, savePhotosMutation, canSync, userId, initialPortalState]);
+  }, [savePhotosMutation, canSync, userId, initialPortalState]);
 
   const deleteProjectPhoto = useCallback((id: string) => {
     const updated = projectPhotos.filter(p => p.id !== id);

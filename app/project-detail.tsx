@@ -20,7 +20,8 @@ import {
   Clock, Lock, Mic,
 } from 'lucide-react-native';
 import { MageAIMark, MageRFI, MageSubmittal, MagePlans, MagePunch } from '@/components/icons';
-import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
+import { PROJECT_TYPES, type ProjectType, type EntityRef, type ProjectPhoto, type PhotoMarkup, type EstimateChangeReason, type EstimateRevision, type PortalState } from '@/types';
+import { CollaboratorsManager } from '@/components/collaborators/CollaboratorsManager';
 import { diffEstimates, snapshotPatch, restorePatch, effectiveEstimateTotal } from '@/utils/estimateCommit';
 import BidConfidenceBadge from '@/components/BidConfidenceBadge';
 import { computeProjectProgress } from '@/utils/projectProgress';
@@ -171,7 +172,7 @@ export default function ProjectDetailScreen() {
   const { id, tile: tileParam, edit: editParam } =
     useLocalSearchParams<{ id: string; tile?: string; edit?: string }>();
   const ctx = useProjects() as any;
-  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, addProjectPhoto, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders, getAIAPayAppsForProject, projectsLoaded } = useProjects();
   const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
   const { canAccess } = useTierAccess();
@@ -234,11 +235,13 @@ export default function ProjectDetailScreen() {
     let cancelled = false;
     void (async () => {
       try {
+        // Per-fetch catch: one failing money fetch must not reject the whole
+        // batch and blank all four badges (three of which fetched fine).
         const [contract, sels, binder, waivers] = await Promise.all([
-          fetchActiveContract(id),
-          fetchSelectionsForProject(id),
-          fetchCloseoutBinder(id),
-          fetchLienWaiversForProject(id),
+          fetchActiveContract(id).catch(() => null),
+          fetchSelectionsForProject(id).catch(() => []),
+          fetchCloseoutBinder(id).catch(() => null),
+          fetchLienWaiversForProject(id).catch(() => []),
         ]);
         if (cancelled) return;
         const next: typeof tileBadges = {};
@@ -272,7 +275,9 @@ export default function ProjectDetailScreen() {
             ? { label: `${waivers.length} on file`, tone: 'success' }
             : { label: `${open} pending`, tone: 'pending' };
         }
-        setTileBadges(next);
+        // Merge, don't replace — the sibling scope-badge effect writes a
+        // 'scope' key that a full replace here would silently wipe.
+        setTileBadges(prev => ({ ...prev, ...next }));
       } catch (err) {
         console.warn('[project-detail] tile badge load failed', err);
       }
@@ -350,12 +355,38 @@ export default function ProjectDetailScreen() {
           contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
         });
 
+        // Non-destructive merge (Audit HIGH): this "lite" writer omits the
+        // aiaPayApps / commitments / messages sections, but client-portal-setup
+        // writes the RICH snapshot to the SAME row. A blind full-replace blanked
+        // those homeowner-facing sections every time the GC merely opened the
+        // project (this is the default path). Read the existing row and carry
+        // forward any sections this lite build didn't produce; fresh lite
+        // sections still win for the ones it did. Falls back to lite on read error.
+        let snapshotToWrite: typeof snap = snap;
+        try {
+          const { data: existing } = await supabase
+            .from('portal_snapshots')
+            .select('snapshot')
+            .eq('portal_id', portal.portalId)
+            .maybeSingle();
+          const prev = existing?.snapshot as typeof snap | undefined;
+          if (prev?.sections) {
+            snapshotToWrite = {
+              ...snap,
+              messages: prev.messages?.length ? prev.messages : snap.messages,
+              sections: { ...prev.sections, ...snap.sections },
+            };
+          }
+        } catch (mergeErr) {
+          console.warn('[portal-snapshot] merge read failed, writing lite:', mergeErr);
+        }
+
         const { error } = await supabase
           .from('portal_snapshots')
           .upsert({
             portal_id: portal.portalId,
             project_id: project.id,
-            snapshot: snap as unknown as Record<string, unknown>,
+            snapshot: snapshotToWrite as unknown as Record<string, unknown>,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'portal_id' });
         if (error) console.warn('[portal-snapshot] background sync failed:', error.message);
@@ -452,10 +483,6 @@ export default function ProjectDetailScreen() {
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteName, setInviteName] = useState('');
-  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
   // Inline note composer — the fallback for platforms without Alert.prompt
   // (iOS) or window.prompt (web). Chiefly Android, where the old button was
   // a dead "use the note feature" Alert that created nothing.
@@ -953,52 +980,6 @@ export default function ProjectDetailScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, projectPhotos, settings?.branding?.companyName]);
 
-  const handleInvite = useCallback(() => {
-    if (!project || !id) return;
-    const email = inviteEmail.trim();
-    const name = inviteName.trim() || email.split('@')[0];
-    if (!email || !email.includes('@')) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address.');
-      return;
-    }
-    const collab: ProjectCollaborator = {
-      id: createId('collab'),
-      email,
-      name,
-      role: inviteRole,
-      status: 'pending',
-      invitedAt: new Date().toISOString(),
-    };
-    addCollaborator(id, collab);
-
-    const inviteLink = `https://mageid.app/invite/${id}?email=${encodeURIComponent(email)}&role=${inviteRole}`;
-    const subject = `${branding.companyName || 'MAGE ID'} - Project Invitation: ${project.name}`;
-    const body = `You've been invited to collaborate on "${project.name}" as ${inviteRole === 'editor' ? 'an Editor' : 'a Viewer'}.\n\nProject: ${project.name}\nLocation: ${project.location}\n\nClick the link below to join this project:\n${inviteLink}\n\n${branding.companyName ? `From: ${branding.companyName}` : 'From: MAGE ID'}${branding.contactName ? `\nContact: ${branding.contactName}` : ''}${branding.phone ? `\nPhone: ${branding.phone}` : ''}`;
-    const mailUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    Linking.openURL(mailUrl).catch(() => {
-      console.log('[ProjectDetail] Could not open email client');
-    });
-
-    setInviteEmail('');
-    setInviteName('');
-    setShowInviteModal(false);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('Invited', `${name} has been invited as ${inviteRole}.`);
-  }, [project, id, inviteEmail, inviteName, inviteRole, branding, addCollaborator]);
-
-  const handleRemoveCollaborator = useCallback((collabId: string, collabName: string) => {
-    if (!id) return;
-    Alert.alert('Remove Collaborator', `Remove ${collabName} from this project?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove', style: 'destructive',
-        onPress: () => {
-          removeCollaborator(id, collabId);
-          if (Platform.OS !== 'web') void Haptics.selectionAsync();
-        },
-      },
-    ]);
-  }, [id, removeCollaborator]);
 
   // Set the instant a delete is confirmed so the render between
   // deleteProject(id) (project becomes null) and router.back() completing
@@ -2449,44 +2430,7 @@ export default function ProjectDetailScreen() {
                 </View>
               </View>
 
-              {collaborators.map(collab => (
-                <View key={collab.id} style={styles.collabMember}>
-                  <View style={[styles.collabAvatar, { backgroundColor: collab.role === 'editor' ? themeColors.info : themeColors.textMuted }]}>
-                    {collab.role === 'editor' ? <PenTool size={12} color="#fff" strokeWidth={1.75} /> : <Eye size={12} color="#fff" strokeWidth={1.75} />}
-                  </View>
-                  <View style={styles.collabInfo}>
-                    <Text style={styles.collabName}>{collab.name}</Text>
-                    <Text style={styles.collabEmail}>{collab.email}</Text>
-                  </View>
-                  <View style={styles.collabActions}>
-                    <View style={[styles.collabRoleBadge, {
-                      backgroundColor: collab.status === 'pending' ? themeColors.accentSoft : (collab.role === 'editor' ? themeColors.info : themeColors.line),
-                    }]}>
-                      <Text style={[styles.collabRoleText, {
-                        color: collab.status === 'pending' ? themeColors.accent : (collab.role === 'editor' ? themeColors.info : themeColors.textSecondary),
-                      }]}>
-                        {collab.status === 'pending' ? 'Pending' : collab.role === 'editor' ? 'Editor' : 'Viewer'}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.collabRemoveBtn}
-                      onPress={() => handleRemoveCollaborator(collab.id, collab.name)}
-                      activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
-                      <X size={14} color={themeColors.danger} strokeWidth={1.75} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-
-              <TouchableOpacity
-                style={styles.inviteBtn}
-                onPress={() => setShowInviteModal(true)}
-                activeOpacity={0.7}
-                testID="invite-collab-btn"
-              >
-                <UserPlus size={16} color={themeColors.accent} strokeWidth={1.75} />
-                <Text style={styles.inviteBtnText}>Invite Collaborator</Text>
-              </TouchableOpacity>
+              <CollaboratorsManager projectId={project.id} />
             </View>
           )}
         </View>
@@ -4233,89 +4177,6 @@ export default function ProjectDetailScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal
-        visible={showInviteModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowInviteModal(false)}
-      >
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={styles.inviteModalOverlay}>
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
-              <View style={styles.inviteModalHeader}>
-                <Text style={styles.inviteModalTitle}>Invite Collaborator</Text>
-                <TouchableOpacity onPress={() => setShowInviteModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={themeColors.textMuted} strokeWidth={1.75} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.inviteDesc}>
-                Invite someone to collaborate on "{project.name}". They'll receive an email invitation.
-              </Text>
-
-              <Text style={styles.inviteFieldLabel}>Email Address</Text>
-              <TextInput
-                style={styles.inviteInput}
-                value={inviteEmail}
-                onChangeText={setInviteEmail}
-                placeholder="colleague@company.com"
-                placeholderTextColor={themeColors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                testID="invite-email-input"
-              />
-
-              <Text style={styles.inviteFieldLabel}>Name (optional)</Text>
-              <TextInput
-                style={styles.inviteInput}
-                value={inviteName}
-                onChangeText={setInviteName}
-                placeholder="John Smith"
-                placeholderTextColor={themeColors.textMuted}
-                testID="invite-name-input"
-              />
-
-              <Text style={styles.inviteFieldLabel}>Role</Text>
-              <View style={styles.inviteRoleRow}>
-                <TouchableOpacity
-                  style={[styles.inviteRoleBtn, inviteRole === 'editor' && styles.inviteRoleBtnActive]}
-                  onPress={() => setInviteRole('editor')}
-                  activeOpacity={0.7}
-                >
-                  <PenTool size={14} color={inviteRole === 'editor' ? "#FFFFFF" : themeColors.text} strokeWidth={1.75} />
-                  <Text style={[styles.inviteRoleBtnText, inviteRole === 'editor' && styles.inviteRoleBtnTextActive]}>Editor</Text>
-                  <Text style={[styles.inviteRoleDesc, inviteRole === 'editor' && { color: 'rgba(255,255,255,0.7)' }]}>Can edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.inviteRoleBtn, inviteRole === 'viewer' && styles.inviteRoleBtnActive]}
-                  onPress={() => setInviteRole('viewer')}
-                  activeOpacity={0.7}
-                >
-                  <Eye size={14} color={inviteRole === 'viewer' ? "#FFFFFF" : themeColors.text} strokeWidth={1.75} />
-                  <Text style={[styles.inviteRoleBtnText, inviteRole === 'viewer' && styles.inviteRoleBtnTextActive]}>Viewer</Text>
-                  <Text style={[styles.inviteRoleDesc, inviteRole === 'viewer' && { color: 'rgba(255,255,255,0.7)' }]}>Read only</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inviteActionRow}>
-                <TouchableOpacity style={styles.inviteCancelBtn} onPress={() => setShowInviteModal(false)} activeOpacity={0.8}>
-                  <Text style={styles.inviteCancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.inviteSendBtn} onPress={handleInvite} activeOpacity={0.85} testID="send-invite-btn">
-                  <Send size={16} color={"#FFFFFF"} strokeWidth={1.75} />
-                  <Text style={styles.inviteSendBtnText}>Send Invite</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       {/* Inline internal-note composer — fallback for platforms without a
           system prompt (Android, and any web runtime lacking window.prompt).

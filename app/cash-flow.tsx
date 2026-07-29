@@ -81,12 +81,18 @@ const recommendationItemSchema = z.preprocess(
 );
 
 const cashFlowAnalysisSchema = z.object({
-  overallHealth: z.enum(['healthy', 'caution', 'danger']).catch('caution').default('caution'),
-  healthScore: z.number().catch(50).default(50),
+  // No .catch() on the numeric/enum money fields. A malformed AI value (e.g. a
+  // stringified "25") must NOT be silently swallowed into a plausible default —
+  // that showed an insolvent business a fake "50/100 healthy" and a danger
+  // week's "-8500" balance as "$0". Dropping .catch lets a bad value fail
+  // safeParse and flow into mageAI.ts's coercion + "partial result" banner path
+  // instead of a silent wrong number. (.default still covers missing fields.)
+  overallHealth: z.enum(['healthy', 'caution', 'danger']).default('caution'),
+  healthScore: z.number().min(0).max(100).default(50),
   criticalWeeks: z.array(z.object({
-    weekNumber: z.number().catch(0).default(0),
+    weekNumber: z.number().default(0),
     weekDate: z.string().catch('').default(''),
-    balance: z.number().catch(0).default(0),
+    balance: z.number().default(0),
     problem: z.string().catch('').default(''),
   })).default([]),
   recommendations: z.array(recommendationItemSchema).default([]),
