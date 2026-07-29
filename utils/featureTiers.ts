@@ -36,6 +36,7 @@ export type FeatureKey =
   | 'prequal_coi'
   | 'plan_markup'
   | 'schedule_import'
+  | 'schedule_collaboration'
   // Business-only features
   | 'unlimited_bid_responses'
   | 'plan_viewer'
@@ -51,6 +52,9 @@ export type FeatureKey =
   | 'bid_scoring'
   | 'ask_your_plans'
   | 'brain_accuracy'
+  // The portfolio-level margin moat — lifted out of job_costing (Pro) up to
+  // Business so the profit-defense engine anchors the higher tier.
+  | 'portfolio_margin'
   // All tiers (with limits)
   | 'post_homeowner_request'
   | 'post_community_bid';
@@ -73,6 +77,9 @@ export const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   prequal_coi: 'pro',
   plan_markup: 'pro',
   schedule_import: 'pro',
+  // Live schedule collaboration — inviting collaborators requires Pro (accepting
+  // an invite and editing as an already-invited collaborator is NOT gated).
+  schedule_collaboration: 'pro',
   // Business-only
   unlimited_bid_responses: 'business',
   plan_viewer: 'business',
@@ -88,6 +95,10 @@ export const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   bid_scoring: 'business',
   ask_your_plans: 'business',
   brain_accuracy: 'business',
+  // Win Optimizer, Portfolio Margin, Estimate Calibration — the cross-job
+  // margin intelligence that defends profit. Business tier (the moat lives here,
+  // not at the Pro entry price). Basic job_costing stays Pro.
+  portfolio_margin: 'business',
   // Available to all
   post_homeowner_request: 'free',
   post_community_bid: 'free',

@@ -89,6 +89,45 @@ async function userForToken(raw: string): Promise<string | null> {
   return rows[0].user_id;
 }
 
+// ── tier gate ────────────────────────────────────────────────────────────────
+// The MCP integration is a paid feature (a "pipe your whole business into
+// Claude" hook). Gate it to Pro+. Mirrors _shared/auth.ts's tier resolution:
+// subscriptions.tier, end_date-aware, failing CLOSED to free on any glitch.
+const TIER_RANK: Record<string, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+// Keep in sync with _shared/auth.ts MASTER_EMAILS and utils/owner.ts.
+const MASTER_EMAILS = new Set<string>(["omirmajeed2000@gmail.com", "support@mageid.app"]);
+
+async function effectiveTier(userId: string): Promise<string> {
+  // Subscription tier first — the common path, so paid users never pay for the
+  // admin email lookup below.
+  let tier = "free";
+  try {
+    const rows = await rest<{ tier: string; end_date: string | null }>(
+      `subscriptions?user_id=eq.${userId}&select=tier,end_date&order=updated_at.desc&limit=1`,
+    );
+    if (rows.length) {
+      const row = rows[0];
+      const expired = row.end_date && new Date(row.end_date).getTime() < Date.now();
+      if (!expired && (row.tier === "enterprise" || row.tier === "business" || row.tier === "pro")) {
+        tier = row.tier;
+      }
+    }
+  } catch { /* stays free */ }
+  if ((TIER_RANK[tier] ?? 0) >= TIER_RANK.pro) return tier;
+  // Master-email override — reached ONLY when the subscription wouldn't pass, so
+  // the owner/support accounts are never locked out even if their row says free.
+  try {
+    const uRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` },
+    });
+    if (uRes.ok) {
+      const u = (await uRes.json()) as { email?: string };
+      if (u.email && MASTER_EMAILS.has(u.email.toLowerCase())) return "business";
+    }
+  } catch { /* fall through to the free/low tier */ }
+  return tier;
+}
+
 // ── formatting helpers ──────────────────────────────────────────────────────
 function money(n: number): string {
   return "$" + (Math.round(n || 0)).toLocaleString("en-US");
@@ -343,6 +382,17 @@ serve(async (req: Request) => {
     case "tools/list":
       return rpcResult(id, { tools: TOOLS });
     case "tools/call": {
+      // Paid feature gate. initialize/tools/list stay open so the client can
+      // connect and discover the tools; the actual data pull requires Pro+.
+      const tier = await effectiveTier(userId);
+      if ((TIER_RANK[tier] ?? 0) < TIER_RANK.pro) {
+        return rpcError(
+          id,
+          -32001,
+          "The MAGE ID → Claude integration requires a Pro plan or higher. Upgrade in the MAGE ID app (Settings → Plans) to connect your projects to Claude.",
+          402,
+        );
+      }
       const name = String(params?.name || "");
       const args = (params?.arguments as Record<string, unknown>) || {};
       if (!TOOLS.some((t) => t.name === name)) {

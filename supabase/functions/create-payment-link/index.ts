@@ -93,9 +93,10 @@ interface CreatePaymentLinkBody {
    */
   stripeAccountId?: string;
   /**
-   * GC's MAGE subscription tier. Drives the platform-fee schedule. We
-   * deliberately scale the fee inversely to subscription price:
-   *   - free / pro    →   0 bps (no markup — top-of-funnel + Pro perk)
+   * GC's MAGE subscription tier. Drives the platform-fee schedule:
+   *   - free          →   0 bps (top-of-funnel — never take a payment fee)
+   *   - pro           →  30 bps (the take-rate: largest paid cohort, every
+   *                              invoice runs our rails — biggest ARR lever)
    *   - business      →  50 bps (durable take-rate; Toast lives at 48)
    *   - enterprise    →  40 bps (volume discount, also a sales lever)
    *
@@ -125,8 +126,15 @@ const PLATFORM_FEE_BPS_DEFAULT = parseInt(
 function feeBpsForTier(tier?: string): number {
   switch (tier) {
     case "free":
+      // Free stays at 0 — top-of-funnel; never take a payment fee on free.
+      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_FREE") ?? "0", 10);
     case "pro":
-      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_PRO") ?? "0", 10);
+      // Pro take-rate. Pro is the largest paid cohort and every invoice + pay
+      // app runs through our rails, so a modest bps here is the single biggest
+      // ARR lever in the app. Default 30 bps ($3 per $1,000); env-tunable for
+      // promos. NOTE: if PLATFORM_FEE_BPS_PRO is currently set to "0" in the
+      // Supabase dashboard, unset it (or set it to "30") for this to take hold.
+      return parseInt(Deno.env.get("PLATFORM_FEE_BPS_PRO") ?? "30", 10);
     case "business":
       return parseInt(Deno.env.get("PLATFORM_FEE_BPS_BUSINESS") ?? "50", 10);
     case "enterprise":
@@ -373,10 +381,9 @@ serve(async (req) => {
   // account on each successful charge automatically.
   console.log("[create-payment-link] Creating payment link for price", priceId);
 
-  // Compute the tier-aware platform fee in cents. 50 bps of $1,000 is $5
-  // = 500 cents. We round half-up so the fee never undercollects. Pro tier
-  // gets 0 bps so their first dollar through our rails is friction-free —
-  // that's the top-of-funnel perk and the Pro→Business upgrade lever.
+  // Compute the tier-aware platform fee in cents. 30 bps of $1,000 is $3
+  // = 300 cents. We round half-up so the fee never undercollects. Free stays
+  // at 0 bps (top-of-funnel); Pro and up carry the take-rate.
   const feeBps = feeBpsForTier(body.userTier);
   const applicationFeeAmount = body.stripeAccountId
     ? Math.max(0, Math.round((body.amountCents * feeBps) / 10000))
@@ -431,6 +438,58 @@ serve(async (req) => {
       { success: false, error: "Stripe returned an incomplete payment link" },
       502,
     );
+  }
+
+  // Durable lock (Audit-2026-05-21 #28.1 HIGH): the instant an AIA pay-app has a
+  // live pay link, stamp certified_at so the DB trigger freezes its financial
+  // fields against stale-bundle / cross-device / direct-API edits. Set-once
+  // (WHERE certified_at IS NULL) so re-issuing a link never moves it, and
+  // fire-and-forget so a failed stamp never fails the already-created link.
+  if (recordType === "aia_pay_app") {
+    try {
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/aia_pay_apps?id=eq.${encodeURIComponent(body.invoiceId)}&certified_at=is.null`,
+        {
+          method: "PATCH",
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({ certified_at: new Date().toISOString() }),
+        },
+      );
+    } catch (e) {
+      console.error("[create-payment-link] certified_at stamp failed (non-fatal):", e);
+    }
+  }
+
+  // Persist the pay link server-side for invoices too (aia_pay_apps is handled
+  // above via certified_at). Without this the link lived ONLY in client state /
+  // AsyncStorage, so a failed local DB write (RLS/500) or a stale refetch that
+  // overwrites local state left a LIVE Stripe link the app had no record of.
+  // Writing it here makes the server row the source of truth — the app picks
+  // the link back up on the next refresh. Fire-and-forget; never fail the
+  // already-created link.
+  if (recordType === "invoice") {
+    try {
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/invoices?id=eq.${encodeURIComponent(body.invoiceId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({ pay_link_url: url, pay_link_id: id }),
+        },
+      );
+    } catch (e) {
+      console.error("[create-payment-link] invoice pay-link persist failed (non-fatal):", e);
+    }
   }
 
   console.log("[create-payment-link] Created", id, "for", recordType, body.invoiceId);

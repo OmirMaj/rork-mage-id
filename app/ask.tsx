@@ -110,11 +110,17 @@ export default function AskMageScreen() {
       // daily caps per CLAUDE.md; the relay only sees the feature id).
       const limit = await checkAILimit(tier, 'smart', 'askMage');
       if (!limit.allowed) {
+        const canUpgrade = tier === 'free' || tier === 'pro';
         setTurns(prev => [...prev, {
           role: 'assistant',
-          text: limit.message ?? "You've used today's advanced AI calls. Try again tomorrow.",
+          text: limit.message ?? (canUpgrade
+            ? "You've hit today's advanced AI limit. Upgrade to keep asking MAGE — opening your plan options now."
+            : "You've used today's advanced AI calls. Try again tomorrow."),
           error: true,
         }]);
+        // Convert at the moment of intent instead of dead-ending: send
+        // upgradeable tiers to the paywall so they can lift the cap right now.
+        if (canUpgrade) router.push('/paywall');
         return;
       }
       const res = await askOneMind(q, prior, bundle);
